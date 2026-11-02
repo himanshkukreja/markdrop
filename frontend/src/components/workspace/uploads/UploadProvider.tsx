@@ -203,12 +203,14 @@ export function UploadProvider({
         >
           <div className="flex min-h-11 items-center gap-2 border-b border-border px-3 py-2">
             <Icon name={active ? "upload" : failed ? "alertCircle" : "checkCircle"} size={16} className={cx("shrink-0", active ? "text-accent-text" : failed ? "text-danger" : "text-success")} />
-            <p className="min-w-0 flex-1 truncate text-body-strong text-text" role="status" aria-live="polite">{summary}</p>
+            {/* Masked: it names the folder or workspace. */}
+            <p className="ph-sensitive ph-mask min-w-0 flex-1 truncate text-body-strong text-text" role="status" aria-live="polite">{summary}</p>
             <IconButton icon={collapsed ? "chevronUp" : "chevronDown"} label={collapsed ? "Show uploads" : "Hide uploads"} size="sm" aria-expanded={!collapsed} onClick={() => setCollapsed((c) => !c)} />
             {!active && <IconButton icon="x" label="Dismiss uploads" size="sm" onClick={() => setEntries([])} />}
           </div>
           {!collapsed && (
-            <ul className="flex max-h-72 flex-col overflow-y-auto">
+            // ph-no-capture: file names and where they went.
+            <ul className="ph-no-capture flex max-h-72 flex-col overflow-y-auto">
               {entries.map((e) => (
                 <li key={e.id} className="flex min-w-0 flex-col gap-1.5 border-b border-border px-3 py-2.5 last:border-b-0">
                   <div className="flex min-w-0 items-center gap-2">

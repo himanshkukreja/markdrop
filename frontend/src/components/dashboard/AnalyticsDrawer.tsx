@@ -332,8 +332,8 @@ export default function AnalyticsDrawer({
       onClose={onClose}
       side={phone ? "bottom" : "right"}
       width={420}
-      title={<span className="block truncate" dir="auto">{title}</span>}
-      description={<span className="font-mono">{address}</span>}
+      title={<span className="ph-sensitive ph-mask block truncate" dir="auto">{title}</span>}
+      description={<span className="ph-sensitive ph-mask font-mono">{address}</span>}
       bodyClassName="flex flex-col gap-4 [&>*]:shrink-0"
       footer={
         <div className="flex w-full items-center justify-between gap-2">
@@ -404,7 +404,7 @@ export default function AnalyticsDrawer({
             {loading ? (
               <Skeleton variant="rect" height={72} />
             ) : referrers.length ? (
-              <TopTable caption="Top referrers by views" head="Source" rows={referrers} />
+              <div className="ph-no-capture"><TopTable caption="Top referrers by views" head="Source" rows={referrers} /></div>
             ) : (
               <p className="text-caption text-text-muted">No referrers yet.</p>
             )}

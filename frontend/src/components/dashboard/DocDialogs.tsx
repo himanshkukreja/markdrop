@@ -127,7 +127,7 @@ export function DeleteDocDialog({
       body={
         shown ? (
           <p className="text-body text-text-secondary">
-            <span className="font-mono text-text">markdrop.in/{shown.slug}</span> will stop working for everyone. This cannot be undone.
+            <span className="ph-sensitive ph-mask font-mono text-text">markdrop.in/{shown.slug}</span> will stop working for everyone. This cannot be undone.
           </p>
         ) : null
       }
@@ -202,7 +202,7 @@ export function MoveFolderDialog({
       onClose={onClose}
       size="sm"
       title="Move to folder"
-      description={workspaceName ? `Folders in ${workspaceName}. Who can open it doesn't change.` : "Who can open it doesn't change."}
+      description={workspaceName ? <>Folders in <span className="ph-sensitive ph-mask">{workspaceName}</span>. Who can open it doesn&apos;t change.</> : "Who can open it doesn't change."}
       initialFocus={selectRef}
       dismissible={!busy}
       footer={
@@ -214,7 +214,8 @@ export function MoveFolderDialog({
     >
       <form id="md-move-folder" onSubmit={submit} className="flex flex-col gap-3">
         <Field label="Folder" hint="On the workspace's own domain, the address follows the folder.">
-          <Select ref={selectRef} value={value} onChange={(e) => setValue(e.target.value)} options={options} disabled={folders === null} />
+          {/* ph-no-capture: the options are folder names. */}
+          <Select ref={selectRef} value={value} onChange={(e) => setValue(e.target.value)} options={options} disabled={folders === null} className="ph-no-capture" />
         </Field>
         {error && <Alert tone="danger">{error}</Alert>}
       </form>
@@ -266,7 +267,7 @@ export function NewFolderDialog({
       onClose={onClose}
       size="sm"
       title="New folder"
-      description={parent ? `Inside /${parent.path.join("/")}` : "At the top of the library"}
+      description={parent ? <>Inside <span className="ph-sensitive ph-mask">/{parent.path.join("/")}</span></> : "At the top of the library"}
       initialFocus={inputRef}
       dismissible={!busy}
       footer={

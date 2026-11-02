@@ -30,8 +30,8 @@ export default function ItemSheet({
       open={open}
       onClose={onClose}
       side="bottom"
-      title={<span className="block truncate" dir="auto">{title}</span>}
-      description={address ? <span className="block truncate font-mono">{address}</span> : undefined}
+      title={<span className="ph-sensitive ph-mask block truncate" dir="auto">{title}</span>}
+      description={address ? <span className="ph-sensitive ph-mask block truncate font-mono">{address}</span> : undefined}
       bodyClassName="px-2 pt-1 pb-6"
     >
       <ul className="m-0 flex list-none flex-col p-0">
@@ -47,7 +47,7 @@ export default function ItemSheet({
             >
               <Icon name={a.icon} size={18} className="shrink-0" />
               <span className="min-w-0 flex-1 truncate">{a.label}</span>
-              {a.value && <span className="max-w-[45%] shrink-0 truncate text-[13px] text-text-muted">{a.value}</span>}
+              {a.value && <span className="ph-sensitive ph-mask max-w-[45%] shrink-0 truncate text-[13px] text-text-muted">{a.value}</span>}
             </button>
           </li>
         ))}

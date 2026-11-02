@@ -29,7 +29,7 @@ export function AttemptedPath() {
   }, []);
   if (!path) return <span className="block h-6" aria-hidden />;
   return (
-    <code className="font-mono text-code inline-block max-w-full rounded-md bg-code-inline-bg px-2 py-1 text-code-inline [overflow-wrap:anywhere]">
+    <code className="ph-sensitive ph-mask font-mono text-code inline-block max-w-full rounded-md bg-code-inline-bg px-2 py-1 text-code-inline [overflow-wrap:anywhere]">
       {path}
     </code>
   );

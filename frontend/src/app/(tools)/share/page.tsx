@@ -324,7 +324,8 @@ export default function SharePage() {
             <div className="flex min-w-0 flex-col gap-2">
               <label htmlFor="share-link" className="text-eyebrow text-text-muted">Share this link</label>
               <div className="flex min-w-0 items-center gap-2">
-                <Input id="share-link" mono readOnly value={prettyUrl} iconPrefix="link" wrapClassName="min-w-0 flex-1"
+                {/* ph-no-capture: the room link is the key to the files. */}
+                <Input id="share-link" mono readOnly value={prettyUrl} iconPrefix="link" wrapClassName="min-w-0 flex-1" className="ph-no-capture"
                   onFocus={(e) => e.currentTarget.select()} />
                 <span className="hidden shrink-0 gap-2 sm:flex">
                   <CopyButton text={shareUrl} label="Copy link" variant="primary" size="md" />
@@ -380,7 +381,8 @@ export default function SharePage() {
               </>
             )}
           </div>
-          <ul>
+          {/* ph-no-capture: the files being sent (names, thumbnails) are never part of a replay. */}
+          <ul className="ph-no-capture">
             {files.map((f, i) => (
               <FileRow key={f.id} id={f.id} name={f.file.name} mime={f.file.type} size={f.file.size}
                 delivered={f.delivered} sending={f.sending} unreadable={f.unreadable} busy={f.busy}
@@ -403,7 +405,7 @@ export default function SharePage() {
       {active && (
         <Disclosure summary="Recipient prefers the terminal?" className={cx("rounded-xl border border-border bg-surface px-4 py-1", ui.card)}>
           <div className="space-y-2 pb-3 pt-1">
-            <CommandBlock command={`markdrop get ${roomId}`} />
+            <CommandBlock command={`markdrop get ${roomId}`} className="ph-no-capture" />
             <p className="text-caption text-text-muted">
               They need the Markdrop CLI.{" "}
               <ReadMore topic="cliInstall">How to install it</ReadMore>
@@ -443,7 +445,7 @@ export default function SharePage() {
             <Button variant="danger" size="lg" block onClick={confirmEndSharing}>End sharing</Button>
             <Button variant="secondary" size="lg" block onClick={() => setConfirmEnd(false)}>Keep sharing</Button>
           </div>}>
-          <ul className="overflow-hidden rounded-xl border border-border">
+          <ul className="ph-no-capture overflow-hidden rounded-xl border border-border">
             {downloading.map((r) => {
               const pct = r.bytesWanted ? Math.min(100, (r.bytesDone / r.bytesWanted) * 100) : 0;
               return (

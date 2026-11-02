@@ -181,7 +181,8 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
             {[0, 1, 2].map((i) => <Skeleton key={i} variant="rect" height={52} />)}
           </div>
         ) : (
-          <ul className="m-0 flex list-none flex-col p-0">
+          // ph-no-capture: members' names, emails and pending invitations.
+          <ul className="ph-no-capture m-0 flex list-none flex-col p-0">
             {people.map((m) => {
               const owner = m.user_id === ws.owner_id || m.role === "owner";
               const editable = isAdmin && !owner && m.user_id !== meId;
@@ -252,8 +253,8 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
         open={inviteOpen}
         onClose={() => busy !== "invite" && setInviteOpen(false)}
         dismissible={busy !== "invite"}
-        title={`Invite people to ${ws.name}`}
-        description={`They get an email with a link, and can open everything the ${team} team can once they accept.`}
+        title={<>Invite people to <span className="ph-sensitive ph-mask">{ws.name}</span></>}
+        description={<>They get an email with a link, and can open everything the <span className="ph-sensitive ph-mask">{team}</span> team can once they accept.</>}
         footer={
           <>
             <Button variant="ghost" onClick={() => setInviteOpen(false)} disabled={busy === "invite"}>Cancel</Button>
@@ -281,7 +282,7 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
       <ConfirmDialog
         open={!!removing}
         onClose={() => setRemoving(null)}
-        title={removing ? `Remove ${removing.name || removing.email}?` : "Remove member?"}
+        title={removing ? <>Remove <span className="ph-sensitive ph-mask">{removing.name || removing.email}</span>?</> : "Remove member?"}
         body="They lose access to this workspace right away. Files they added stay in the workspace, and they still own them."
         confirmLabel="Remove from workspace"
         onConfirm={async () => {
@@ -296,8 +297,8 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
         open={!!handingOver}
         onClose={() => setHandingOver(null)}
         tone="default"
-        title={handingOver ? `Make ${handingOver.name || handingOver.email} the owner?` : "Transfer ownership?"}
-        body={`They own ${ws.name} from now on: only they can delete it or hand it on. You become an admin. Files, links and domains don't change. You can't undo this yourself.`}
+        title={handingOver ? <>Make <span className="ph-sensitive ph-mask">{handingOver.name || handingOver.email}</span> the owner?</> : "Transfer ownership?"}
+        body={<>They own <span className="ph-sensitive ph-mask">{ws.name}</span> from now on: only they can delete it or hand it on. You become an admin. Files, links and domains don&apos;t change. You can&apos;t undo this yourself.</>}
         confirmLabel="Transfer ownership"
         onConfirm={async () => {
           const m = handingOver!;
@@ -310,7 +311,7 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
       <ConfirmDialog
         open={!!revoking}
         onClose={() => setRevoking(null)}
-        title={revoking ? `Revoke the invitation to ${revoking.email}?` : "Revoke invitation?"}
+        title={revoking ? <>Revoke the invitation to <span className="ph-sensitive ph-mask">{revoking.email}</span>?</> : "Revoke invitation?"}
         body="The link in their email stops working. You can invite them again later."
         confirmLabel="Revoke invitation"
         onConfirm={async () => {

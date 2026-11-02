@@ -66,7 +66,7 @@ export function DomainStepper({ domain, className }: { domain: Domain; className
                 {s.state === "done" ? ": done" : s.state === "current" ? ": in progress" : s.state === "error" ? ": needs attention" : ": not yet"}
               </span>
             </span>
-            <span className={cx("truncate text-caption", s.state === "error" ? "text-danger" : "text-text-muted")}>{s.detail}</span>
+            <span className={cx("truncate text-caption", s.state === "error" ? "text-danger" : "text-text-muted", s.key === "added" && "ph-sensitive ph-mask")}>{s.detail}</span>
           </span>
         </li>
       ))}

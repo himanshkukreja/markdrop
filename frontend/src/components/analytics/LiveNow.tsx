@@ -93,8 +93,9 @@ export default function LiveNow() {
           {media.map((d) => {
             const dur = d.dur ?? null;
             const t = d.title || d.slug;
+            // ph-no-capture: the title, and an id carrying the slug.
             return (
-              <Panel key={d.slug} id={`lv-${d.slug}`} title={<Anchor href={docHref(d.slug)} className="text-text no-underline hover:text-accent-text" dir="auto">{t}</Anchor>}
+              <Panel key={d.slug} id={`lv-${d.slug}`} className="ph-no-capture" title={<Anchor href={docHref(d.slug)} className="text-text no-underline hover:text-accent-text" dir="auto">{t}</Anchor>}
                 aside={`${num(d.n)} ${d.kind === "audio" ? "listening" : "watching"}`}>
                 {dur ? (
                   <div className="relative h-8" role="img" aria-label={`${num(d.n)} on the timeline: ${d.entries.map((e) => (e.pos?.s != null ? clock(e.pos.s) : "")).filter(Boolean).join(", ")}`}>
@@ -119,7 +120,7 @@ export default function LiveNow() {
 
           {reading.length > 0 && (
             <Panel id="lv-reading" title="Reading now">
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              <ul className="ph-no-capture m-0 flex list-none flex-col gap-2 p-0">
                 {reading.map((d) => {
                   const counts = new Map<string, number>();
                   for (const e of d.entries) { const w = where(e.pos); counts.set(w, (counts.get(w) ?? 0) + 1); }
@@ -139,7 +140,7 @@ export default function LiveNow() {
 
           <Panel id="lv-feed" title="Last 30 minutes">
             {data.feed.length ? (
-              <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+              <ul className="ph-no-capture m-0 flex list-none flex-col gap-1.5 p-0">
                 {data.feed.map((f, i) => (
                   <li key={`${f.at}-${i}`} className="flex gap-2.5 text-[13px]">
                     <span className="w-13 shrink-0 text-caption text-text-muted tabular-nums">{minsAgo(f.at)}</span>

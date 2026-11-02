@@ -93,7 +93,7 @@ export default function AccountClient() {
           <div className="flex min-w-0 items-center gap-4">
             <UserAvatar user={user} size="xl" />
             <div className="min-w-0">
-              <p className="truncate text-body-strong text-text" dir="auto">{user.name || user.email}</p>
+              <p className="ph-sensitive ph-mask truncate text-body-strong text-text" dir="auto">{user.name || user.email}</p>
               <p className="truncate text-caption text-text-muted">
                 {user.providers?.includes("google") ? "Signed in with Google" : "Signed in with an email code"}
               </p>

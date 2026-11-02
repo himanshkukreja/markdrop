@@ -69,12 +69,13 @@ function Glyph({ icon, tone = "accent" }: { icon: string; tone?: "accent" | "suc
   );
 }
 
-function Title({ children }: { children: React.ReactNode }) {
-  return <h1 className="text-h3 text-text [overflow-wrap:anywhere]">{children}</h1>;
+/** `mask`: it names the workspace or a person, so replays show it as asterisks. */
+function Title({ children, mask }: { children: React.ReactNode; mask?: boolean }) {
+  return <h1 className={cx("text-h3 text-text [overflow-wrap:anywhere]", mask && "ph-sensitive ph-mask")}>{children}</h1>;
 }
 
-function Body({ children }: { children: React.ReactNode }) {
-  return <p className="text-body text-text-secondary">{children}</p>;
+function Body({ children, mask }: { children: React.ReactNode; mask?: boolean }) {
+  return <p className={cx("text-body text-text-secondary", mask && "ph-sensitive ph-mask")}>{children}</p>;
 }
 
 /** /invite/[token]: live, signed out, wrong account, already a member, terminal and loading states. */
@@ -164,9 +165,9 @@ export default function InviteClient({ token }: { token: string }) {
         <Glyph icon="check" tone="success" />
         <Title>You&apos;re in</Title>
         <Body>
-          You joined <strong className="font-semibold text-text">{joined.name}</strong> as {invite.role === "admin" ? "an admin" : `a ${invite.role}`}.
+          You joined <strong className="ph-sensitive ph-mask font-semibold text-text">{joined.name}</strong> as {invite.role === "admin" ? "an admin" : `a ${invite.role}`}.
         </Body>
-        <div role="status" className="md-visually-hidden">You joined {joined.name}.</div>
+        <div role="status" className="ph-sensitive ph-mask md-visually-hidden">You joined {joined.name}.</div>
         <Button variant="primary" block iconLeft="folder" className="mt-2" href={`/dashboard?ws=${encodeURIComponent(joined.id)}`}>
           Open library
         </Button>
@@ -179,7 +180,7 @@ export default function InviteClient({ token }: { token: string }) {
       <Shell>
         <Glyph icon="x" tone="neutral" />
         <Title>Invitation declined</Title>
-        <Body>You haven&apos;t been added to {invite.workspace_name}, and nothing was shared with you.</Body>
+        <Body mask>You haven&apos;t been added to {invite.workspace_name}, and nothing was shared with you.</Body>
         <div role="status" className="md-visually-hidden">Invitation declined.</div>
         <Button variant="secondary" href="/" block className="mt-2">Go to Markdrop</Button>
       </Shell>
@@ -191,7 +192,7 @@ export default function InviteClient({ token }: { token: string }) {
     return (
       <Shell>
         <Glyph icon={c.icon} tone={invite.status === "accepted" ? "success" : invite.status === "expired" ? "warning" : "neutral"} />
-        <p className="text-eyebrow uppercase text-text-muted">{invite.workspace_name}</p>
+        <p className="ph-sensitive ph-mask text-eyebrow uppercase text-text-muted">{invite.workspace_name}</p>
         <Title>{c.title}</Title>
         <Body>{c.body}</Body>
         <Button variant="secondary" href={invite.status === "accepted" && user ? "/settings/workspaces" : "/"} block className="mt-2">
@@ -206,7 +207,7 @@ export default function InviteClient({ token }: { token: string }) {
     return (
       <Shell>
         <Glyph icon="check" tone="success" />
-        <Title>You&apos;re already in {invite.workspace_name}</Title>
+        <Title mask>You&apos;re already in {invite.workspace_name}</Title>
         <Body>Nothing to accept. You already have access.</Body>
         <Button variant="primary" href="/settings/workspaces" block className="mt-2">Open workspaces</Button>
       </Shell>
@@ -231,7 +232,7 @@ export default function InviteClient({ token }: { token: string }) {
     <>
       {tile}
       <p className="text-eyebrow uppercase text-text-muted">Workspace invitation</p>
-      <Title>
+      <Title mask>
         {invite.invited_by_name ? `${invite.invited_by_name} invited you to ` : "You're invited to "}
         <span className="text-accent-text">{invite.workspace_name}</span>
       </Title>
@@ -251,7 +252,7 @@ export default function InviteClient({ token }: { token: string }) {
       <Shell busy={!!busy}>
         {header}
         <Alert tone="info" className="mt-1 w-full text-left">
-          Sign in as <strong className="font-semibold">{invite.email}</strong> to accept. No account? Signing in creates one.
+          Sign in as <strong className="ph-sensitive ph-mask font-semibold">{invite.email}</strong> to accept. No account? Signing in creates one.
         </Alert>
         {errorLine}
         <div className="mt-1 flex w-full flex-col gap-2">
@@ -269,8 +270,8 @@ export default function InviteClient({ token }: { token: string }) {
       <Shell busy={!!busy}>
         {header}
         <Alert tone="warning" className="mt-1 w-full text-left">
-          This invitation was sent to <strong className="font-semibold">{invite.email}</strong>, but you&apos;re signed in as{" "}
-          <strong className="font-semibold">{invite.signed_in_as ?? user.email}</strong>.
+          This invitation was sent to <strong className="ph-sensitive ph-mask font-semibold">{invite.email}</strong>, but you&apos;re signed in as{" "}
+          <strong className="ph-sensitive ph-mask font-semibold">{invite.signed_in_as ?? user.email}</strong>.
         </Alert>
         <div className="mt-1 flex w-full flex-col gap-2">
           <Button
@@ -285,7 +286,7 @@ export default function InviteClient({ token }: { token: string }) {
               }
             }}
           >
-            <span className="truncate">Sign in as {invite.email}</span>
+            <span className="ph-sensitive ph-mask truncate">Sign in as {invite.email}</span>
           </Button>
         </div>
       </Shell>
@@ -296,8 +297,8 @@ export default function InviteClient({ token }: { token: string }) {
     <Shell busy={!!busy}>
       {header}
       <p className="mt-1 flex w-full min-w-0 items-center justify-center gap-2 rounded-lg bg-surface-inset px-3 py-2 text-caption text-text-secondary">
-        <Avatar name={user.name || user.email} size="sm" />
-        <span className="min-w-0 truncate">Accepting as <strong className="font-semibold text-text">{invite.signed_in_as ?? user.email}</strong></span>
+        <Avatar name={user.name || user.email} size="sm" className="ph-sensitive ph-mask" />
+        <span className="min-w-0 truncate">Accepting as <strong className="ph-sensitive ph-mask font-semibold text-text">{invite.signed_in_as ?? user.email}</strong></span>
       </p>
       {errorLine}
       <div className="mt-1 flex w-full flex-col-reverse gap-2 sm:flex-row">

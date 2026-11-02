@@ -122,7 +122,7 @@ export default function PreviewMode({
 
   const options = [
     { value: "anyone" as PreviewAs, label: "Anyone with the link" },
-    { value: "member" as PreviewAs, label: `${/^[aeiou]/i.test(team) ? "An" : "A"} ${team} member` },
+    { value: "member" as PreviewAs, label: <>{/^[aeiou]/i.test(team) ? "An" : "A"} <span className="ph-sensitive ph-mask">{team}</span> member</> },
     ...(canEmail ? [{ value: "email" as PreviewAs, label: "Someone by email…" }] : []),
   ];
 
@@ -147,7 +147,7 @@ export default function PreviewMode({
       <header className="flex flex-wrap items-center gap-3 border-b border-border bg-accent-soft px-4 py-3 sm:px-6">
         <span aria-hidden className="flex text-accent-text"><Icon name="eye" size={18} /></span>
         <h1 id="md-preview-title" ref={titleRef} tabIndex={-1} className="text-body-strong text-text outline-none">
-          You&apos;re previewing {folderName} as
+          You&apos;re previewing <span className="ph-sensitive ph-mask">{folderName}</span> as
         </h1>
         <SegmentedControl<PreviewAs>
           aria-label="Preview as"
@@ -185,7 +185,8 @@ export default function PreviewMode({
 
         {error && <div className="w-full"><Alert tone="danger" title="Couldn't preview">{error}</Alert></div>}
 
-        <section aria-labelledby="md-preview-see" className="min-w-0 flex-[999_1_560px] overflow-hidden rounded-2xl border border-border bg-surface">
+        {/* ph-no-capture: the visitor's view is the folder's own content (names, titles, address). */}
+        <section aria-labelledby="md-preview-see" className="ph-no-capture min-w-0 flex-[999_1_560px] overflow-hidden rounded-2xl border border-border bg-surface">
           <h2 id="md-preview-see" className="md-visually-hidden">What they see</h2>
           <div className="flex items-center gap-2.5 border-b border-border bg-surface-inset px-4 py-2.5 font-mono text-caption text-text-muted">
             <Icon name="lock" size={14} className="shrink-0" />
@@ -240,7 +241,7 @@ export default function PreviewMode({
               <Icon name="checkCircle" size={14} className="text-success" /> Nothing you can see is hidden from them.
             </p>
           ) : (
-            <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            <ul className="ph-no-capture m-0 flex list-none flex-col gap-3 p-0">
               {(data?.hidden ?? []).map((h, i) => {
                 const why = reasonBadge(h, team);
                 const title = h.title || (h.kind === "folder" ? "A folder" : "A private item");
@@ -271,7 +272,7 @@ export default function PreviewMode({
         open={!!openUp}
         onClose={() => setOpenUp(null)}
         tone="default"
-        title={openUp ? `Let anyone with the link open “${openUp.title || openUp.slug}”?` : "Let anyone open it?"}
+        title={openUp ? <>Let anyone with the link open <span className="ph-sensitive ph-mask">“{openUp.title || openUp.slug}”</span>?</> : "Let anyone open it?"}
         body={<p className="text-body text-text-secondary">It opens for anyone with its link or this folder&apos;s link, everywhere it opens. People you added keep their access.</p>}
         confirmLabel="Let anyone open"
         onConfirm={async () => {

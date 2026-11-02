@@ -85,7 +85,7 @@ export default function AuthorizeClient() {
           <h1 className="m-0 text-h3 text-text">Connect VS Code</h1>
           <p className="m-0 text-body text-text-secondary">
             Markdrop Sync will publish and sync documents as{" "}
-            <strong className="font-semibold text-text break-words">{user.email}</strong>.
+            <strong className="ph-sensitive ph-mask font-semibold text-text break-words">{user.email}</strong>.
           </p>
         </div>
 

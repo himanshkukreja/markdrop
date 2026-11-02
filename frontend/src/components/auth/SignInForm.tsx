@@ -417,7 +417,7 @@ export function SignInForm({
             <div className="flex max-w-md flex-col gap-1.5">
               <Heading className={isPage ? "m-0 text-h2 text-text" : "m-0 text-h3 text-text"}>Check your email</Heading>
               <p className="m-0 text-body text-text-secondary">
-                We emailed <strong className="font-semibold text-text break-words">{sentTo}</strong> a 6-digit code and a sign-in link.
+                We emailed <strong className="ph-sensitive ph-mask font-semibold text-text break-words">{sentTo}</strong> a 6-digit code and a sign-in link.
                 Enter the code, or open the link on this device.
               </p>
             </div>

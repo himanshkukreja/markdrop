@@ -220,7 +220,7 @@ function HubStage({ peers, ariaLabel, className }: { peers: StagePeer[]; ariaLab
                   <div className={cx(s.sub, "text-micro font-semibold", p.state === "done" ? "text-success" : gone ? "text-text-muted" : "text-text-secondary")}>{p.short}</div>
                 ) : (
                   <>
-                    <div className={cx(s.name, gone && "text-text-muted")} title={p.label}>
+                    <div className={cx(s.name, gone && "text-text-muted", "ph-sensitive ph-mask")} title={p.label}>
                       {p.label}{n > 4 && p.short ? <span className="font-normal text-text-secondary"> · {p.short}</span> : null}
                     </div>
                     {n <= 4 && (

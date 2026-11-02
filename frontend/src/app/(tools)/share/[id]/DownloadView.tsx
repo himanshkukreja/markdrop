@@ -252,6 +252,7 @@ export default function DownloadView({ roomId }: { roomId: string }) {
   else if (allDone) h1 = one ? (allSaved && !ios ? "File saved" : "File received") : (allSaved && !ios ? `All ${files.length} saved` : `All ${files.length} received`);
   else if (done.length) h1 = `${done.length} of ${files.length} received`;
   else h1 = one ? `A file is ready: ${files[0].name}` : `${files.length} files are ready`;
+  const namesFile = one && !working.length && !allDone && !done.length;
 
   const pct = busyBytes ? (busyGot / busyBytes) * 100 : 0;
   const eta = act.etaReady && snap.rate > 0 ? etaText((busyBytes - busyGot) / snap.rate) : "";
@@ -287,8 +288,9 @@ export default function DownloadView({ roomId }: { roomId: string }) {
         ariaLabel={`Their device to this device${snap.route ? `, ${snap.route === "relay" ? "relayed" : "direct"}` : ""}`} />
 
       <div className="flex flex-col gap-1.5">
-        <h1 className="break-words text-h1 text-text">{h1}</h1>
-        <VisuallyHidden role="status" aria-live="polite">{h1}</VisuallyHidden>
+        {/* "A file is ready: <name>" names the file: masked in replays. */}
+        <h1 className={cx("break-words text-h1 text-text", namesFile && "ph-sensitive ph-mask")}>{h1}</h1>
+        <VisuallyHidden role="status" aria-live="polite" className={namesFile ? "ph-sensitive ph-mask" : undefined}>{h1}</VisuallyHidden>
         <p className="text-body text-text-secondary">{plural(files.length, "file")} · {formatBytes(total)}</p>
       </div>
 
@@ -329,7 +331,8 @@ export default function DownloadView({ roomId }: { roomId: string }) {
       )}
 
       <section aria-label="Files" className={cx("overflow-hidden rounded-xl border border-border bg-surface", ui.card)}>
-        <ul>
+        {/* ph-no-capture: the files received (names, thumbnails) are never part of a replay. */}
+        <ul className="ph-no-capture">
           {files.map((f) => (
             <ReceivedFileRow key={f.id} id={f.id} name={f.name} mime={f.mime} size={f.size} status={f.status}
               received={f.received} blob={f.blob} saved={saved.has(f.id)} ended={ended}

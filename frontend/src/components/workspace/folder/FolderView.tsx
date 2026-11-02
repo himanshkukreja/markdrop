@@ -57,6 +57,9 @@ import { docHref } from "@/components/analytics/format";
 type Kind = "" | "markdown" | "artifact";
 const PAGE = 50;
 
+/** A workspace, folder or item name inside chrome: replays show it as asterisks. */
+const Masked = ({ children }: { children: React.ReactNode }) => <span className="ph-sensitive ph-mask">{children}</span>;
+
 const wsHref = (ws: string) => `/w/${encodeURIComponent(ws)}`;
 const folderHref = (ws: string, f: string) => `/w/${encodeURIComponent(ws)}/f/${encodeURIComponent(f)}`;
 
@@ -336,12 +339,12 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   }
 
   /* ── Header ───────────────────────────────────────────────────────── */
-  const crumbs = [
-    { label: wsName, href: wsHref(workspaceId) },
-    ...trail.map((f, i) => (i === trail.length - 1 ? { label: f.name } : { label: f.name, href: folderHref(workspaceId, f.id) })),
+  const crumbs: Array<{ label: React.ReactNode; href?: string }> = [
+    { label: <Masked>{wsName}</Masked>, href: wsHref(workspaceId) },
+    ...trail.map((f, i) => (i === trail.length - 1 ? { label: <Masked>{f.name}</Masked> } : { label: <Masked>{f.name}</Masked>, href: folderHref(workspaceId, f.id) })),
     ...(query.unfiled && !folderId ? [{ label: "Unfiled" }] : []),
   ];
-  if (!folderId && !query.unfiled) crumbs[0] = { label: wsName };
+  if (!folderId && !query.unfiled) crumbs[0] = { label: <Masked>{wsName}</Masked> };
 
   const title = folder?.name ?? (query.unfiled ? "Unfiled" : wsName);
   const address = host ? (folder ? `${host}/${folder.path}` : host) : null;
@@ -351,13 +354,13 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   const countBits = [subfolders.length ? plural(subfolders.length, "folder") : null, plural(directCount, "item")].filter(Boolean).join(" · ");
 
   const newMenu: MenuEntry[] = [
-    { label: "New document", icon: "lines", href: newDocHref, description: `Write markdown straight into ${folder ? `“${folder.name}”` : wsName}` },
+    { label: "New document", icon: "lines", href: newDocHref, description: <>Write markdown straight into <Masked>{folder ? `“${folder.name}”` : wsName}</Masked></> },
     uploadTarget
       ? { label: "Upload", icon: "upload", onClick: pickFiles, description: "Videos, PDFs, pages and documents" }
       : { label: "Upload", icon: "upload", href: uploadHref, description: "Videos, PDFs, pages and documents" },
     {
       label: "New folder", icon: "folder", onClick: () => setNewFolderOpen(true), disabled: depthFull,
-      description: depthFull ? `Folders nest at most ${MAX_FOLDER_DEPTH} deep` : folder ? `Inside “${folder.name}”` : undefined,
+      description: depthFull ? `Folders nest at most ${MAX_FOLDER_DEPTH} deep` : folder ? <>Inside <Masked>“{folder.name}”</Masked></> : undefined,
     },
     { label: "Add existing…", icon: "plus", separated: true, onClick: () => setAddOpen(true), description: "File something you already published" },
   ];
@@ -369,7 +372,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
     moreMenu.push({ label: "New items start as…", icon: "user", onClick: () => setDefaultFor(folder) });
   }
   if (address) {
-    moreMenu.push({ label: `Copy ${host} address`, icon: "copy", separated: moreMenu.length > 0, onClick: () => { void copyText(`https://${address}`).then((ok) => (ok ? toast.success("Address copied") : toast.error("Couldn't copy"))); } });
+    moreMenu.push({ label: <>Copy <Masked>{host}</Masked> address</>, icon: "copy", separated: moreMenu.length > 0, onClick: () => { void copyText(`https://${address}`).then((ok) => (ok ? toast.success("Address copied") : toast.error("Couldn't copy"))); } });
   }
   moreMenu.push({ label: "Workspace settings", icon: "settings", separated: true, href: `/settings/workspaces/${encodeURIComponent(workspaceId)}` });
   if (folder && isAdmin) moreMenu.push({ label: "Delete folder…", icon: "trash", danger: true, separated: true, onClick: () => setDeleteFor(folder) });
@@ -413,7 +416,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   /* ── Get set up ───────────────────────────────────────────────────── */
   const { hidden: checklistHidden, hide: hideChecklist } = useChecklistHidden(workspaceId);
   const steps = [
-    { title: "Name your workspace", hint: wsName, done: true },
+    { title: "Name your workspace", hint: <Masked>{wsName}</Masked>, done: true },
     {
       title: "Invite your team", hint: "They can open everything the team can.",
       done: !!meta && (meta.member_count > 1 || meta.pending_invite_count > 0), cta: "Invite", onCta: () => setShareTab("invite"),
@@ -455,7 +458,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   if (!tree && treeError) {
     return (
       <div className="flex flex-col gap-6">
-        <h1 className="md-visually-hidden">{wsName}</h1>
+        <h1 className="ph-sensitive ph-mask md-visually-hidden">{wsName}</h1>
         <Alert tone="danger" title="Couldn't load this workspace" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => void reloadTree()}>Try again</Button>}>
           {treeError instanceof Error && treeError.message ? treeError.message : "Check your connection and try again."}
         </Alert>
@@ -466,13 +469,13 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   if (folderMissing) {
     return (
       <div className="flex flex-col gap-6">
-        <Breadcrumb items={[{ label: wsName, href: wsHref(workspaceId) }, { label: "Folder" }]} />
+        <Breadcrumb items={[{ label: <Masked>{wsName}</Masked>, href: wsHref(workspaceId) }, { label: "Folder" }]} />
         <h1 className="md-visually-hidden">Folder not found</h1>
         <EmptyState
           icon="folder"
           title="This folder isn't here anymore"
           description="It may have been deleted or moved to another workspace. Its files weren't deleted."
-          actions={<Button variant="secondary" href={wsHref(workspaceId)} iconLeft="arrowLeft">Back to {wsName}</Button>}
+          actions={<Button variant="secondary" href={wsHref(workspaceId)} iconLeft="arrowLeft">Back to <Masked>{wsName}</Masked></Button>}
         />
       </div>
     );
@@ -509,8 +512,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         <header className="-mx-4 -mt-6 flex items-center gap-1 border-b border-border bg-surface px-2 py-1.5">
           <IconButton icon="chevronLeft" label={`Back to ${parentName}`} href={parentHref} className="size-11" />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-caption text-text-muted" dir="auto">{folder ? wsName : "Workspace"}</div>
-            <h1 className="truncate text-h4 leading-5 text-text" dir="auto">{tree ? title : <Skeleton width={120} height={18} />}</h1>
+            <div className={cx("truncate text-caption text-text-muted", folder && "ph-sensitive ph-mask")} dir="auto">{folder ? wsName : "Workspace"}</div>
+            <h1 className="ph-sensitive ph-mask truncate text-h4 leading-5 text-text" dir="auto">{tree ? title : <Skeleton width={120} height={18} />}</h1>
           </div>
           <IconButton icon="listTree" label="Browse" className="size-11" onClick={openBrowse} aria-haspopup="dialog" />
           <IconButton icon="search" label="Search" className="size-11" onClick={openCommandPalette} aria-haspopup="dialog" />
@@ -536,7 +539,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
                 <Skeleton variant="rect" width={44} height={44} />
               )}
               <div className="min-w-0">
-                <h1 className="text-h1 text-text [overflow-wrap:anywhere]" dir="auto">{tree ? title : <Skeleton width={180} height={30} />}</h1>
+                <h1 className="ph-sensitive ph-mask text-h1 text-text [overflow-wrap:anywhere]" dir="auto">{tree ? title : <Skeleton width={180} height={30} />}</h1>
                 {tree && (
                   <p className="mt-1 flex min-w-0 flex-wrap items-center gap-x-1.5 text-[13px] leading-5 text-text-muted">
                     {rootEmpty ? (
@@ -547,13 +550,13 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
                         {address && (
                           <>
                             <span aria-hidden>·</span>
-                            <code className="max-w-full truncate rounded-sm bg-surface-inset px-1.5 py-px font-mono text-caption text-text-secondary">{address}</code>
+                            <code className="ph-sensitive ph-mask max-w-full truncate rounded-sm bg-surface-inset px-1.5 py-px font-mono text-caption text-text-secondary">{address}</code>
                           </>
                         )}
                         {folder?.share && (
                           <>
                             <span aria-hidden>·</span>
-                            <span className="inline-flex items-center gap-1"><Icon name="link" size={12} />{folder.share.level === "link" ? "Folder link on" : `Shared with the ${team} team`}</span>
+                            <span className="inline-flex items-center gap-1"><Icon name="link" size={12} />{folder.share.level === "link" ? "Folder link on" : <>Shared with the <Masked>{team}</Masked> team</>}</span>
                           </>
                         )}
                         {!isMember && (
@@ -583,7 +586,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-[13px] text-text-secondary" role="status">
           <Icon name={searching ? "search" : "filter"} size={14} />
           <span className="min-w-0 flex-1">
-            {searching ? <>Results for <strong className="text-text">“{query.q}”</strong> in {wsName}</> : query.kind === "artifact" ? "Showing files only" : "Showing documents only"}
+            {searching ? <>Results for <strong className="ph-sensitive ph-mask text-text">“{query.q}”</strong> in <Masked>{wsName}</Masked></> : query.kind === "artifact" ? "Showing files only" : "Showing documents only"}
           </span>
           <Button size="sm" variant="ghost" onClick={() => setQuery({ q: null, kind: null })}>{searching ? "Clear search" : "Show everything"}</Button>
         </div>
@@ -606,7 +609,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       {!searching && subfolders.length > 0 && (
         <section aria-labelledby="md-subfolders" className="flex min-w-0 flex-col gap-2.5">
           <h2 id="md-subfolders" className="text-eyebrow uppercase text-text-muted">Folders</h2>
-          <ul className={cx("m-0 grid min-w-0 list-none gap-3 p-0", phone ? "grid-cols-1" : "grid-cols-[repeat(auto-fill,minmax(220px,1fr))]")}>
+          {/* ph-no-capture: folder names. */}
+          <ul className={cx("ph-no-capture m-0 grid min-w-0 list-none gap-3 p-0", phone ? "grid-cols-1" : "grid-cols-[repeat(auto-fill,minmax(220px,1fr))]")}>
             {subfolders.map((f) => (
               <FolderCard
                 key={f.id}
@@ -651,7 +655,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
 
       {folderEmpty && !rootEmpty && (
         isMember ? (
-          <DropArea target={uploadTarget} team={team} startsAs={startsAs} newDocHref={newDocHref} onNewFolder={depthFull ? null : () => setNewFolderOpen(true)} title={folder ? `“${folder.name}” is empty` : "Drop files here"} />
+          <DropArea target={uploadTarget} team={team} startsAs={startsAs} newDocHref={newDocHref} onNewFolder={depthFull ? null : () => setNewFolderOpen(true)} title={folder ? <><Masked>“{folder.name}”</Masked> is empty</> : "Drop files here"} />
         ) : (
           <EmptyState icon="folder" title="Nothing you can open here yet" description="When members add something you can open, it appears here." />
         )
@@ -660,8 +664,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       {state === "ok" && items.length === 0 && filtered && (
         <EmptyState
           icon="search"
-          title={searching ? `Nothing matches “${query.q}”` : query.kind === "artifact" ? "No files here" : "No documents here"}
-          description={searching ? `Search looks at titles and links across ${wsName}, in what you can open.` : undefined}
+          title={searching ? <>Nothing matches <Masked>“{query.q}”</Masked></> : query.kind === "artifact" ? "No files here" : "No documents here"}
+          description={searching ? <>Search looks at titles and links across <Masked>{wsName}</Masked>, in what you can open.</> : undefined}
         />
       )}
 
@@ -678,7 +682,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
                 />
               </span>
             )}
-            <h2 id="md-items" className="text-eyebrow uppercase text-text-muted">{searching ? `Results in ${wsName}` : "Items"}</h2>
+            <h2 id="md-items" className="text-eyebrow uppercase text-text-muted">{searching ? <>Results in <Masked>{wsName}</Masked></> : "Items"}</h2>
           </div>
           <ul className="m-0 flex min-w-0 list-none flex-col gap-2 p-0" aria-labelledby="md-items">
             {items.map((it) => (
@@ -713,7 +717,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       {state === "ok" && redacted.length > 0 && (
         <section aria-labelledby="md-redacted" className="flex min-w-0 flex-col gap-2">
           <h2 id="md-redacted" className="text-eyebrow uppercase text-text-muted">Private items you can&apos;t open</h2>
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {/* ph-no-capture: owners' names and folder names. */}
+          <ul className="ph-no-capture m-0 flex list-none flex-col gap-2 p-0">
             {redacted.map((r) => (
               <li key={r.id_token} className="flex min-w-0 items-center gap-3 rounded-xl border border-dashed border-border bg-surface px-3.5 py-3">
                 <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-lg bg-surface-active text-text-muted">
@@ -741,11 +746,11 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       {uploadTarget && !phone && !rootEmpty && !folderEmpty && state === "ok" && (
         <div className="flex items-center justify-center gap-2.5 rounded-2xl border-[1.5px] border-dashed border-border-strong p-4.5 text-[13px] text-text-muted">
           <Icon name="upload" size={18} />
-          <span>Drop files anywhere on this page to add them to <strong className="font-semibold text-text">{here}</strong></span>
+          <span>Drop files anywhere on this page to add them to <strong className="ph-sensitive ph-mask font-semibold text-text">{here}</strong></span>
         </div>
       )}
       {!isMember && state === "ok" && (items.length > 0 || subfolders.length > 0) && (
-        <p className="text-caption text-text-muted">You can view {wsName}. Ask an admin to let you edit if you need to add or move things.</p>
+        <p className="text-caption text-text-muted">You can view <Masked>{wsName}</Masked>. Ask an admin to let you edit if you need to add or move things.</p>
       )}
 
       {/* ── Page-wide drop overlay ── */}
@@ -753,8 +758,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         <div aria-hidden className="pointer-events-none fixed inset-0 z-(--z-overlay) grid place-items-center bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] p-6">
           <div className="flex flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-accent bg-surface px-10 py-8 text-center shadow-xl">
             <span className="grid size-14 place-items-center rounded-xl bg-accent-soft text-accent-text"><Icon name="upload" size={26} /></span>
-            <p className="text-h3 text-text">Drop to add to {here}</p>
-            <p className="text-body text-text-secondary">New items start as {accessLabel(startsAs, team)}</p>
+            <p className="text-h3 text-text">Drop to add to <Masked>{here}</Masked></p>
+            <p className="ph-sensitive ph-mask text-body text-text-secondary">New items start as {accessLabel(startsAs, team)}</p>
           </div>
         </div>
       )}
@@ -763,8 +768,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       <ConfirmDialog
         open={!!removeHidden}
         onClose={() => setRemoveHidden(null)}
-        title={`Remove this private item from ${wsName}?`}
-        body={<p className="text-body text-text-secondary">It goes back to {removeHidden?.owner.name || "its owner"}&apos;s files. Nothing is deleted, and nobody who could open it loses access.</p>}
+        title={<>Remove this private item from <Masked>{wsName}</Masked>?</>}
+        body={<p className="text-body text-text-secondary">It goes back to <Masked>{removeHidden?.owner.name || "its owner"}</Masked>&apos;s files. Nothing is deleted, and nobody who could open it loses access.</p>}
         confirmLabel="Remove"
         onConfirm={async () => {
           const r = removeHidden;
@@ -900,12 +905,14 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       <ConfirmDialog
         open={!!removeFor}
         onClose={() => setRemoveFor(null)}
-        title={removeFor && removeFor.length === 1 ? `Remove “${itemTitle(removeFor[0]!)}” from ${wsName}?` : `Remove ${plural(removeFor?.length ?? 0, "item")} from ${wsName}?`}
+        title={removeFor && removeFor.length === 1
+          ? <>Remove <Masked>“{itemTitle(removeFor[0]!)}”</Masked> from <Masked>{wsName}</Masked>?</>
+          : <>Remove {plural(removeFor?.length ?? 0, "item")} from <Masked>{wsName}</Masked>?</>}
         body={
           <div className="flex flex-col gap-2 text-body text-text-secondary">
             <p>{removeFor && removeFor.length === 1 ? "It goes back to its owner's files." : "They go back to their owners' files."} Nothing is deleted, and markdrop.in links keep working.</p>
             {removeFor?.some((i) => i.access === "workspace") && (
-              <p>Anything open to the {team} team becomes “Only people added”.</p>
+              <p>Anything open to the <Masked>{team}</Masked> team becomes “Only people added”.</p>
             )}
           </div>
         }

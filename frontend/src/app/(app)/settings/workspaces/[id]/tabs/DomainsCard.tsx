@@ -207,7 +207,7 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
               <div className="min-w-0 rounded-lg border border-border">
                 <div className="flex min-w-0 flex-wrap items-center gap-3 px-3.5 py-3">
                   <Icon name="globe" size={18} className="shrink-0 text-text-secondary" />
-                  <h3 className="min-w-0 flex-1 font-mono text-[13px] font-medium text-text [overflow-wrap:anywhere]">{d.host}</h3>
+                  <h3 className="ph-sensitive ph-mask min-w-0 flex-1 font-mono text-[13px] font-medium text-text [overflow-wrap:anywhere]">{d.host}</h3>
                   {statusBadge(d)}
                   {d.kind === "cdn" && <Badge size="sm" variant="outline">Files only</Badge>}
                   {d.kind === "app" && d.is_primary && d.status === "verified" && domains.length > 1 && (
@@ -226,12 +226,12 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
                         : d.last_checked_at ? `Last checked ${shortDate(d.last_checked_at)}` : `Added ${shortDate(d.created_at)}, not checked yet`}
                   </p>
                   {d.status === "lapsed" && (
-                    <Alert tone="danger" title={`${d.host} isn't serving`}>
+                    <Alert tone="danger" title={<><span className="ph-sensitive ph-mask">{d.host}</span> isn&apos;t serving</>}>
                       Its DNS records stopped resolving to Markdrop. Put both records back, then check again; links on markdrop.in kept working throughout.
                     </Alert>
                   )}
-                  {d.last_error && d.status !== "lapsed" && <Alert tone="warning">{d.last_error}</Alert>}
-                  {d.warning && <p className="text-caption text-text-secondary">{d.warning}</p>}
+                  {d.last_error && d.status !== "lapsed" && <Alert tone="warning" className="ph-sensitive ph-mask">{d.last_error}</Alert>}
+                  {d.warning && <p className="ph-sensitive ph-mask text-caption text-text-secondary">{d.warning}</p>}
                   {/* The records (and the TXT token that proves ownership) are admin-only: the
                       server sends them only to admins and the owner. */}
                   {!isAdmin ? (
@@ -306,7 +306,7 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
         open={confirm?.action === "detach"}
         onClose={() => setConfirm(null)}
         tone="default"
-        title={confirm ? `Detach ${confirm.domain.host}?` : "Detach domain?"}
+        title={confirm ? <>Detach <span className="ph-sensitive ph-mask">{confirm.domain.host}</span>?</> : "Detach domain?"}
         body="It stops serving immediately and links to it fail. The domain stays verified, so you can attach it again later without touching DNS."
         confirmLabel="Detach domain"
         onConfirm={async () => {
@@ -320,7 +320,7 @@ export default function DomainsCard({ id, ws, isAdmin, domains, refresh }: WsTab
       <ConfirmDialog
         open={confirm?.action === "remove"}
         onClose={() => setConfirm(null)}
-        title={confirm ? `Remove ${confirm.domain.host}?` : "Remove domain?"}
+        title={confirm ? <>Remove <span className="ph-sensitive ph-mask">{confirm.domain.host}</span>?</> : "Remove domain?"}
         body={
           confirm ? (
             <>

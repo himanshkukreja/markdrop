@@ -54,7 +54,7 @@ export default function DomainCheck({ host }: { host: string }) {
       <EmptyState
         icon="globe"
         title="Nothing to check here"
-        description={<>Markdrop isn&apos;t setting up <span className="font-mono">{host}</span>. Check the link you were sent, or ask the person who sent it.</>}
+        description={<>Markdrop isn&apos;t setting up <span className="ph-sensitive ph-mask font-mono">{host}</span>. Check the link you were sent, or ask the person who sent it.</>}
       />
     );
   }
@@ -74,7 +74,8 @@ export default function DomainCheck({ host }: { host: string }) {
     <div className="mx-auto flex w-full max-w-[680px] flex-col gap-5">
       <div className="flex flex-col gap-1">
         <p className="text-eyebrow uppercase text-text-muted">Markdrop Guides · domain check</p>
-        <h1 className="font-mono text-[24px] font-bold leading-8 text-text [overflow-wrap:anywhere]">{host}</h1>
+        {/* Replays: the customer's domain (and anything naming it) is masked. */}
+        <h1 className="ph-sensitive ph-mask font-mono text-[24px] font-bold leading-8 text-text [overflow-wrap:anywhere]">{host}</h1>
         <p className="text-body text-text-secondary">
           {live
             ? "This domain is set up: it serves a help center made with Markdrop Guides, with HTTPS. Nothing else to do."
@@ -99,8 +100,8 @@ export default function DomainCheck({ host }: { host: string }) {
                   <span className={cx("grid size-[22px] shrink-0 place-items-center rounded-full", r.state === "done" ? "bg-success-soft text-success" : r.state === "failed" ? "text-danger" : "bg-surface-inset text-text-muted")}>
                     {r.state === "done" ? <Icon name="check" size={13} /> : r.state === "running" ? <Spinner size={13} /> : r.state === "failed" ? <Icon name="alertCircle" size={14} /> : null}
                   </span>
-                  <span className={cx("min-w-0 flex-1 [overflow-wrap:anywhere]", r.state === "waiting" ? "text-text-muted" : "text-text")}>{r.label}</span>
-                  {r.note && <span className="basis-full pl-[34px] text-caption text-text-muted [overflow-wrap:anywhere] sm:basis-auto sm:pl-0">{r.note}</span>}
+                  <span className={cx("min-w-0 flex-1 [overflow-wrap:anywhere]", r.state === "waiting" ? "text-text-muted" : "text-text", r.label.includes(host) && "ph-sensitive ph-mask")}>{r.label}</span>
+                  {r.note && <span className="ph-sensitive ph-mask basis-full pl-[34px] text-caption text-text-muted [overflow-wrap:anywhere] sm:basis-auto sm:pl-0">{r.note}</span>}
                 </li>
               ))}
             </ol>
@@ -113,13 +114,13 @@ export default function DomainCheck({ host }: { host: string }) {
               <h2 id="rec" className="text-[16px] font-semibold text-text">The record to add</h2>
               {known ? (
                 <div className="flex flex-wrap items-center gap-3">
-                  <p className="min-w-0 flex-[1_1_260px] text-body text-text-secondary">
+                  <p className="ph-sensitive ph-mask min-w-0 flex-[1_1_260px] text-body text-text-secondary">
                     {p!.zone}&apos;s DNS is at <strong className="text-text">{p!.provider_name}</strong>. This is written the way its form asks for it.{p!.note ? ` ${p!.note}` : ""}
                   </p>
                   {p!.panel_url && <Button variant="secondary" size="sm" iconRight="external" href={p!.panel_url} target="_blank" rel="noopener noreferrer">Open {p!.provider_name} DNS</Button>}
                 </div>
               ) : (
-                <p className="text-body text-text-secondary">
+                <p className="ph-sensitive ph-mask text-body text-text-secondary">
                   Add it where {p?.zone ?? "the domain"}&apos;s DNS is managed. If the form adds the domain to the name for you, type just the part before it.
                 </p>
               )}

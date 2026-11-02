@@ -36,7 +36,7 @@ export default function LoginClient() {
             next={next}
             urlError={urlError}
             message={tenantHost ? (
-              <>Sign in to read <strong className="font-semibold text-text break-words">{tenantHost}</strong>. You&apos;ll go straight back to it.</>
+              <>Sign in to read <strong className="ph-sensitive ph-mask font-semibold text-text break-words">{tenantHost}</strong>. You&apos;ll go straight back to it.</>
             ) : undefined}
             onSignedIn={() => router.push(next)}
             onStepChange={onStepChange}

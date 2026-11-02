@@ -51,11 +51,12 @@ function ReceivedFileRowImpl(f: ReceivedFileRowProps) {
         <FileIcon name={f.name} mime={f.mime} size={20} />
         {thumb && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={thumb} alt="" className={cx("absolute inset-0 size-full object-cover", ui.thumb)} />
+          // ph-no-capture: a preview of the received image itself.
+          <img src={thumb} alt="" className={cx("ph-no-capture absolute inset-0 size-full object-cover", ui.thumb)} />
         )}
       </span>
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="truncate text-body-strong text-text" title={f.name}>{f.name}</span>
+        <span className="ph-sensitive ph-mask truncate text-body-strong text-text" title={f.name}>{f.name}</span>
         <span className={cx("truncate text-caption tabular-nums", missing || f.status === "failed" ? "text-warning" : "text-text-muted")}>{meta}</span>
         {f.status === "receiving" && (
           <Progress size="sm" value={pct} aria-label={`Receiving ${f.name}`}

@@ -151,8 +151,10 @@ export default function LookTab(props: WsTabProps) {
         <Locked locked={locked} className="w-full [&>:first-child]:min-w-0 [&>:first-child]:flex-1">
           <div className="min-w-0">
             <Field label="Site name on your pages" hint="Shown in the header and link previews.">
+              {/* ph-mask: the placeholder names the workspace. */}
               <Input
                 placeholder={`e.g. ${ws.name}`}
+                className="ph-sensitive ph-mask"
                 maxLength={60}
                 value={draft.site_name}
                 readOnly={locked}
@@ -322,7 +324,8 @@ function BrandPreview({
         />
       </div>
 
-      <ThemeScope theme={ground} className="flex min-w-0 flex-col gap-4 rounded-lg p-3" style={vars}>
+      {/* ph-no-capture: the customer's own name, domain and logo. */}
+      <ThemeScope theme={ground} className="ph-no-capture flex min-w-0 flex-col gap-4 rounded-lg p-3" style={vars}>
         <BrowserFrame
           size="sm"
           title={<span className="truncate">Quarterly plan · {name}</span>}

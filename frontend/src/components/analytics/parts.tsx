@@ -137,7 +137,8 @@ export function FrameThumb({ slug, t, ver, fallback, width = 96, height = 54, al
     return () => { live = false; if (made) URL.revokeObjectURL(made); };
   }, [slug, t, ver]);
   return (
-    <span className="relative grid shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-surface-inset font-mono text-micro text-text-muted" style={{ width, height }}>
+    // ph-no-capture: a frame of the person's video.
+    <span className="ph-no-capture relative grid shrink-0 place-items-center overflow-hidden rounded-md border border-border bg-surface-inset font-mono text-micro text-text-muted" style={{ width, height }}>
       {url
         ? /* eslint-disable-next-line @next/next/no-img-element */ <img src={url} alt={alt} className="size-full object-cover" />
         : fallback}
@@ -156,8 +157,9 @@ export function InsightList({ insights, onCta, frameFor, rewrite = (s) => s }: {
   frameFor?: (t: number) => React.ReactNode;
   rewrite?: (s: string) => string;
 }) {
+  // ph-no-capture: insights quote the document's own headings.
   return (
-    <ul className="m-0 flex list-none flex-col p-0">
+    <ul className="ph-no-capture m-0 flex list-none flex-col p-0">
       {insights.map((i) => {
         const t = i.thumb && /^\d{1,2}:\d{2}$/.test(i.thumb) ? i.thumb.split(":").reduce((a, x) => a * 60 + +x, 0) : null;
         const fallback = i.thumb ? <span className="px-1 text-center">{i.thumb}</span> : <Icon name={SEVERITY_ICON[i.severity]} size={18} />;

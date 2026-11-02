@@ -43,11 +43,11 @@ export function ExposureBar({
         {exposure.link} anyone with the link
         {pw ? <span className="md-visually-hidden">, {pw} of them with a password</span> : null}
       </Badge>
-      <Badge icon="user">{exposure.workspace} {team} team</Badge>
+      <Badge icon="user">{exposure.workspace} <span className="ph-sensitive ph-mask">{team}</span> team</Badge>
       <Badge icon="lock">{exposure.private} only people added</Badge>
       {startsAs && (
         <span className="ml-auto text-caption text-text-muted">
-          New items here start as <strong className="font-semibold text-text">{accessLabel(startsAs, team)}</strong>
+          New items here start as <strong className="ph-sensitive ph-mask font-semibold text-text">{accessLabel(startsAs, team)}</strong>
           {onChange && (
             <>
               {" · "}
@@ -113,7 +113,7 @@ export function FolderDefaultDialog({
       open={!!folder}
       onClose={onClose}
       dismissible={!busy}
-      title={folder ? `New items in “${folder.name}” start as` : "New items start as"}
+      title={folder ? <>New items in <span className="ph-sensitive ph-mask">“{folder.name}”</span> start as</> : "New items start as"}
       description="A starting point only. Each item keeps its own setting, and nothing already here changes."
       footer={
         <>
@@ -129,9 +129,9 @@ export function FolderDefaultDialog({
           value={value}
           onChange={setValue}
           options={[
-            { value: "inherit", label: `Same as the workspace (${accessLabel(workspaceDefault, team)})` },
+            { value: "inherit", label: <>Same as the workspace (<span className="ph-sensitive ph-mask">{accessLabel(workspaceDefault, team)}</span>)</> },
             { value: "private", label: "Only people added", description: "The person who adds it, and people they add." },
-            { value: "workspace", label: `${team} team`, description: `Anyone in ${team}, after signing in.` },
+            { value: "workspace", label: <><span className="ph-sensitive ph-mask">{team}</span> team</>, description: <>Anyone in <span className="ph-sensitive ph-mask">{team}</span>, after signing in.</> },
             { value: "link", label: "Anyone with the link", description: "No sign-in needed." },
           ]}
         />

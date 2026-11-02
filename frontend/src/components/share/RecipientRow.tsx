@@ -68,7 +68,7 @@ function RecipientRowImpl(r: RecipientRowProps) {
       <DeviceGlyph kind={deviceKindOf(r.label)} framed={36} size={18} className={gone ? "text-text-muted" : undefined} />
       <div className="flex min-w-0 flex-col gap-1.5">
         <div className="flex min-w-0 items-center gap-2">
-          <span className={cx("min-w-0 truncate text-body-strong", gone ? "text-text-muted" : "text-text")}>{r.label}</span>
+          <span className={cx("ph-sensitive ph-mask min-w-0 truncate text-body-strong", gone ? "text-text-muted" : "text-text")}>{r.label}</span>
           {!gone && <RouteBadge route={r.route} />}
           <span className="ml-auto inline-flex shrink-0 items-center">
             {r.state === "done" && <Badge tone="success" icon="check">Delivered</Badge>}

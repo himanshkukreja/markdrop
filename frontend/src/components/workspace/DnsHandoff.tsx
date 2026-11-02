@@ -41,13 +41,14 @@ export default function DnsHandoff({
         title="Send these records to whoever manages your DNS"
         description={
           domains.length === 1
-            ? `If you can't edit the DNS for ${domains[0].host}, send this on. It has the exact records, what they do, and what they don't touch.`
+            ? <>If you can&apos;t edit the DNS for <span className="ph-sensitive ph-mask">{domains[0].host}</span>, send this on. It has the exact records, what they do, and what they don&apos;t touch.</>
             : "If you can't edit the DNS for these hostnames, send this on. It has the exact records, what they do, and what they don't touch."
         }
         footer={
           <>
             <Button variant="ghost" iconLeft="download" onClick={() => downloadDnsCsv(domains)}>Download CSV</Button>
-            <Button variant="secondary" iconLeft="mail" href={dnsMailto(domains, siteName || "Markdrop")}>Open in email</Button>
+            {/* ph-no-capture: the mailto: address carries the domain and its records. */}
+            <Button variant="secondary" iconLeft="mail" className="ph-no-capture" href={dnsMailto(domains, siteName || "Markdrop")}>Open in email</Button>
             <CopyButton text={body} label="Copy message" variant="primary" size="md" announceText="Message copied" />
           </>
         }
