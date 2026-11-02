@@ -49,13 +49,21 @@ import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettle
  *
  * The file itself renders inside an iframe pointed at the artifact origin — a
  * different registrable site from markdrop.in. That's what stops user-authored
- * HTML from reading the session token out of localStorage. `allow-same-origin`
- * looks alarming but is correct here: it means same-origin with the *artifact*
- * host, not with us, so the viewers can fetch their own bytes while remaining
- * unable to touch anything of ours.
+ * HTML from reading the session token out of localStorage.
+ *
+ * No `allow-same-origin`: every customer's file is served from that ONE artifact
+ * origin, so a frame that kept it would let one file read and write every other
+ * file's storage, cookies and IndexedDB there, and script any window of that
+ * origin it could reach. Without it the frame is an opaque origin. The Worker
+ * repeats the sandbox as a CSP header on author HTML (and answers an opaque
+ * viewer's fetch of its file with CORS), and gives an HTML page an in-memory
+ * localStorage, so pages that save state keep working within a visit.
+ * `allow-popups-to-escape-sandbox`: a link the file opens in a new tab is a
+ * normal page there (another site would break sandboxed); a new tab of the
+ * artifact origin is sandboxed again by the Worker's header.
  */
 const SANDBOX =
-  "allow-scripts allow-same-origin allow-forms allow-popups allow-modals allow-downloads";
+  "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads";
 
 /** sessionStorage flag /upload leaves when the workspace share after publishing failed. */
 const WS_FAIL_KEY = (slug: string) => `md_ws_share_failed:${slug}`;
