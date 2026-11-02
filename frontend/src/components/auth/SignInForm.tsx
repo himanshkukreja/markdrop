@@ -14,7 +14,7 @@
  * Signing in goes through `AuthContext.login()` (which records `track("logged_in")`).
  */
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { Alert, Button, Field, Icon, Input, MarkdropLogo, Spinner, announce } from "@/components/ui";
+import { Alert, Button, Field, Icon, Input, MarkdropMark, Spinner, announce } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { OtpInput, type OtpInputHandle } from "@/components/kit/OtpInput";
 import { API_BASE, googleLoginUrl, type MeUser } from "@/lib/api";
@@ -191,6 +191,10 @@ export interface SignInFormProps {
    * Dialog variant: the Dialog shows it as its description, so its presence only drops the default body.
    */
   message?: React.ReactNode;
+  /** Page variant: what sits above the title (default: the Markdrop mark). */
+  mark?: React.ReactNode;
+  /** Email step: replaces the default "No password…" footnote. */
+  footer?: React.ReactNode;
   /** `?error=` from the API's OAuth / magic-link redirects. */
   urlError?: string | null;
   /** Reports whether a request is in flight (the dialog blocks dismissal while busy). */
@@ -201,7 +205,7 @@ export interface SignInFormProps {
 }
 
 export function SignInForm({
-  next, onSignedIn, variant = "page", title = SIGN_IN_TITLE, message, urlError, onBusyChange, onStepChange, className,
+  next, onSignedIn, variant = "page", title = SIGN_IN_TITLE, message, mark, footer, urlError, onBusyChange, onStepChange, className,
 }: SignInFormProps) {
   const { login } = useAuth();
   const safeNextPath = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
@@ -351,14 +355,13 @@ export function SignInForm({
         {step === "email" ? (
           <div className="flex min-w-0 flex-col gap-4">
             {isPage && (
-              <>
-                {/* Phones already show the logo in the minimal header (MobileAccount frame 1). */}
-                <MarkdropLogo className="max-lg:hidden" />
-                <div className="flex flex-col gap-1">
+              <div className="flex flex-col items-center gap-4 text-center">
+                {mark ?? <MarkdropMark size={40} />}
+                <div className="flex flex-col gap-1.5">
                   <Heading className="m-0 text-h2 text-text">{title}</Heading>
-                  <p className="m-0 text-body text-text-secondary">{message ?? <>{SIGN_IN_BODY} <ReadMore topic="accounts" /></>}</p>
+                  <p className="m-0 text-balance text-body text-text-secondary">{message ?? <>{SIGN_IN_BODY} <ReadMore topic="accounts" /></>}</p>
                 </div>
-              </>
+              </div>
             )}
             {!isPage && !message && <p className="m-0 text-body text-text-secondary">{SIGN_IN_BODY} <ReadMore topic="accounts" /></p>}
 
@@ -403,10 +406,12 @@ export function SignInForm({
               </form>
             </div>
 
-            <p className="m-0 flex items-start gap-2 text-caption text-text-muted">
-              <Icon name="lock" size={14} className="mt-px flex-none" />
-              <span>{FOOTNOTE}</span>
-            </p>
+            {footer ?? (
+              <p className="m-0 flex items-start gap-2 text-caption text-text-muted">
+                <Icon name="lock" size={14} className="mt-px flex-none" />
+                <span>{FOOTNOTE}</span>
+              </p>
+            )}
           </div>
         ) : (
           <form
