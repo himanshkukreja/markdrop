@@ -121,6 +121,86 @@
     "duration": "0:31",
     "chapters": "/docs-assets/videos/send-files-p2p.vtt"
   },
+  "series-02-publish-documents": {
+    "src": "/docs-assets/videos/series-02-publish-documents.mp4",
+    "poster": "/docs-assets/videos/series-02-publish-documents.webp",
+    "duration": "1:31",
+    "title": "Publish a Markdown document as a link, in under a minute",
+    "chapters": "/docs-assets/videos/series-02-publish-documents.vtt",
+    "captions": "/docs-assets/videos/series-02-publish-documents.captions.vtt"
+  },
+  "series-03-files-that-render": {
+    "src": "/docs-assets/videos/series-03-files-that-render.mp4",
+    "poster": "/docs-assets/videos/series-03-files-that-render.webp",
+    "duration": "1:26",
+    "title": "Share HTML pages, PDFs, spreadsheets and video as links that open in the browser",
+    "chapters": "/docs-assets/videos/series-03-files-that-render.vtt",
+    "captions": "/docs-assets/videos/series-03-files-that-render.captions.vtt"
+  },
+  "series-04-share-with-control": {
+    "src": "/docs-assets/videos/series-04-share-with-control.mp4",
+    "poster": "/docs-assets/videos/series-04-share-with-control.webp",
+    "duration": "1:16",
+    "title": "Choose exactly who can open a link: people, your team, passwords and expiry",
+    "chapters": "/docs-assets/videos/series-04-share-with-control.vtt",
+    "captions": "/docs-assets/videos/series-04-share-with-control.captions.vtt"
+  },
+  "series-05-end-to-end-encryption": {
+    "src": "/docs-assets/videos/series-05-end-to-end-encryption.mp4",
+    "poster": "/docs-assets/videos/series-05-end-to-end-encryption.webp",
+    "duration": "1:18",
+    "title": "Encrypt a document in your browser: the key never reaches our servers",
+    "chapters": "/docs-assets/videos/series-05-end-to-end-encryption.vtt",
+    "captions": "/docs-assets/videos/series-05-end-to-end-encryption.captions.vtt"
+  },
+  "series-06-workspaces-and-domains": {
+    "src": "/docs-assets/videos/series-06-workspaces-and-domains.mp4",
+    "poster": "/docs-assets/videos/series-06-workspaces-and-domains.webp",
+    "duration": "1:16",
+    "title": "A shared library for your team, on your own domain",
+    "chapters": "/docs-assets/videos/series-06-workspaces-and-domains.vtt",
+    "captions": "/docs-assets/videos/series-06-workspaces-and-domains.captions.vtt"
+  },
+  "series-07-creator-analytics": {
+    "src": "/docs-assets/videos/series-07-creator-analytics.mp4",
+    "poster": "/docs-assets/videos/series-07-creator-analytics.webp",
+    "duration": "1:28",
+    "title": "See how far people read and watch what you share",
+    "chapters": "/docs-assets/videos/series-07-creator-analytics.vtt",
+    "captions": "/docs-assets/videos/series-07-creator-analytics.captions.vtt"
+  },
+  "series-08-vscode-sync": {
+    "src": "/docs-assets/videos/series-08-vscode-sync.mp4",
+    "poster": "/docs-assets/videos/series-08-vscode-sync.webp",
+    "duration": "1:20",
+    "title": "Publish from VS Code, and keep the page in sync both ways",
+    "chapters": "/docs-assets/videos/series-08-vscode-sync.vtt",
+    "captions": "/docs-assets/videos/series-08-vscode-sync.captions.vtt"
+  },
+  "series-09-ai-apps-and-cli": {
+    "src": "/docs-assets/videos/series-09-ai-apps-and-cli.mp4",
+    "poster": "/docs-assets/videos/series-09-ai-apps-and-cli.webp",
+    "duration": "1:29",
+    "title": "Let your AI app publish to Markdrop, and use the CLI for big files",
+    "chapters": "/docs-assets/videos/series-09-ai-apps-and-cli.vtt",
+    "captions": "/docs-assets/videos/series-09-ai-apps-and-cli.captions.vtt"
+  },
+  "series-10-p2p-share": {
+    "src": "/docs-assets/videos/series-10-p2p-share.mp4",
+    "poster": "/docs-assets/videos/series-10-p2p-share.webp",
+    "duration": "1:23",
+    "title": "Send files straight to another device, with nothing stored on a server",
+    "chapters": "/docs-assets/videos/series-10-p2p-share.vtt",
+    "captions": "/docs-assets/videos/series-10-p2p-share.captions.vtt"
+  },
+  "series-11-readme-builder": {
+    "src": "/docs-assets/videos/series-11-readme-builder.mp4",
+    "poster": "/docs-assets/videos/series-11-readme-builder.webp",
+    "duration": "1:12",
+    "title": "Build a README from 49 ready-made sections, diagrams included",
+    "chapters": "/docs-assets/videos/series-11-readme-builder.vtt",
+    "captions": "/docs-assets/videos/series-11-readme-builder.captions.vtt"
+  },
   "share-with-people": {
     "src": "/docs-assets/videos/share-with-people.mp4",
     "poster": "/docs-assets/videos/share-with-people.webp",

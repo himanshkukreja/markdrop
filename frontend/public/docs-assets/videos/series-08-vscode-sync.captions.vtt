@@ -1,0 +1,46 @@
+WEBVTT
+
+00:00:01.200 --> 00:00:03.560
+Save in VS Code, and the page updates.
+
+00:00:07.195 --> 00:00:10.680
+Here's how the Markdrop extension for VS Code works.
+
+00:00:11.781 --> 00:00:15.221
+Install Markdrop Sync, and sign in from the Command Palette.
+
+00:00:15.879 --> 00:00:18.659
+You approve it in your browser, so there's no key to paste.
+
+00:00:21.923 --> 00:00:27.463
+Open a Markdown or HTML file, and choose Publish to Markdrop in the status bar.
+
+00:00:27.913 --> 00:00:29.153
+You get a link straight away.
+
+00:00:31.721 --> 00:00:37.021
+From then on, every save is sent a moment later, and readers with the page open see it change.
+
+00:00:39.846 --> 00:00:41.206
+It works the other way too.
+
+00:00:41.839 --> 00:00:48.039
+Edit the page on markdrop.in, or let an AI app change it, and the edit comes back into your file.
+
+00:00:50.711 --> 00:00:53.411
+If both sides changed, nothing is overwritten.
+
+00:00:53.963 --> 00:00:57.923
+You choose: keep yours, use the web version, or merge the two yourself.
+
+00:00:59.859 --> 00:01:01.699
+Merge, save, and you're back in sync.
+
+00:01:04.979 --> 00:01:07.419
+Links are kept in a small file in your project.
+
+00:01:08.039 --> 00:01:12.959
+Sync follows the document itself, so renaming its link on the web doesn't break it.
+
+00:01:15.625 --> 00:01:18.025
+Search for Markdrop Sync in VS Code.

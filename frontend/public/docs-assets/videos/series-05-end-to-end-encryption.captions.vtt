@@ -1,0 +1,58 @@
+WEBVTT
+
+00:00:00.700 --> 00:00:04.600
+Browsers never send the part of a link after the hash sign to a server.
+
+00:00:05.511 --> 00:00:07.211
+That's where Markdrop puts the key.
+
+00:00:09.917 --> 00:00:12.506
+Here's end-to-end encryption on Markdrop.
+
+00:00:13.406 --> 00:00:14.846
+Turn on Encrypt in this browser.
+
+00:00:15.555 --> 00:00:18.815
+The title and text are encrypted before anything is sent.
+
+00:00:19.283 --> 00:00:21.623
+Only the link name isn't, so leave it blank.
+
+00:00:23.079 --> 00:00:24.659
+Add a password too, if you like.
+
+00:00:25.143 --> 00:00:28.103
+It's checked in the reader's browser, and never sent to us.
+
+00:00:29.430 --> 00:00:33.050
+Publish, then copy the link and the password, and send them separately.
+
+00:00:35.413 --> 00:00:38.593
+Your reader types the password, and their browser decrypts it.
+
+00:00:40.591 --> 00:00:43.131
+If the key got cut off the link, the page says so.
+
+00:00:43.715 --> 00:00:46.515
+Paste the full link, add the password, and it opens.
+
+00:00:48.702 --> 00:00:52.962
+How this is protected shows what our servers actually hold: encrypted text.
+
+00:00:55.161 --> 00:00:56.401
+Link spread too far?
+
+00:00:56.781 --> 00:00:59.941
+Issue a new key, and old links stop opening the current version.
+
+00:01:02.210 --> 00:01:05.670
+We can't recover a lost link or password, so keep a copy.
+
+00:01:06.209 --> 00:01:09.169
+And encryption is for documents, not uploaded files.
+
+00:01:11.487 --> 00:01:14.967
+Encrypt your first document at markdrop.in/new.
+
+00:01:14.987 --> 00:01:16.247
+No account needed.

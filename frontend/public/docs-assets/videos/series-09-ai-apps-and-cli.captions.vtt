@@ -1,0 +1,43 @@
+WEBVTT
+
+00:00:00.800 --> 00:00:03.760
+Ask your AI app for a link, and it publishes one.
+
+00:00:08.550 --> 00:00:11.930
+Here's how Markdrop works with AI apps, and from the terminal.
+
+00:00:13.434 --> 00:00:20.994
+Add Markdrop's server address to Claude, ChatGPT, Cursor or VS Code, and approve it on Markdrop.
+
+00:00:21.194 --> 00:00:22.494
+There's no key to copy.
+
+00:00:25.045 --> 00:00:31.905
+Your assistant can publish what it writes: a Markdown document, or a whole HTML page, as a link that renders.
+
+00:00:34.592 --> 00:00:40.272
+It can update a document at the same link, change who can open it, or tell you how far people read.
+
+00:00:42.773 --> 00:00:48.392
+It only acts as you, it can't read encrypted documents, and you can disconnect it any time.
+
+00:00:50.292 --> 00:00:55.377
+The markdrop command line uploads big files, like videos up to two gigabytes.
+
+00:00:55.577 --> 00:00:58.497
+Uploads are checked, and resume if the connection drops.
+
+00:00:59.249 --> 00:01:04.369
+Replace the file behind the same link, and bring back an earlier version whenever you need it.
+
+00:01:06.748 --> 00:01:11.648
+And markdrop send hands a folder to another computer, which runs markdrop get.
+
+00:01:12.097 --> 00:01:14.017
+The files are never stored on our servers.
+
+00:01:16.373 --> 00:01:21.693
+It also runs a local server, so AI apps on your computer can publish files from your disk.
+
+00:01:24.134 --> 00:01:28.067
+Connect your AI app at markdrop.in/mcp.

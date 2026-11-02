@@ -2441,6 +2441,9 @@
     "kind": "poster"
   },
   "/docs-assets/videos/guides-trailer.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 133.03,
     "bytes": 10550458,
     "kind": "video"
   },
@@ -2565,6 +2568,136 @@
     "w": 1920,
     "h": 1080,
     "bytes": 66380,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-02-publish-documents.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 91.97,
+    "bytes": 8171517,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-02-publish-documents.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 52880,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-03-files-that-render.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 86.53,
+    "bytes": 7161508,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-03-files-that-render.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 57100,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-04-share-with-control.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 76.07,
+    "bytes": 6103484,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-04-share-with-control.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 41444,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-05-end-to-end-encryption.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 78.33,
+    "bytes": 6569778,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-05-end-to-end-encryption.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 29748,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-06-workspaces-and-domains.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 76.57,
+    "bytes": 8317521,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-06-workspaces-and-domains.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 65268,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-07-creator-analytics.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 88.17,
+    "bytes": 8318770,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-07-creator-analytics.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 48166,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-08-vscode-sync.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 80.27,
+    "bytes": 7009293,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-08-vscode-sync.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 40634,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-09-ai-apps-and-cli.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 89.87,
+    "bytes": 6041583,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-09-ai-apps-and-cli.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 34534,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-10-p2p-share.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 83.87,
+    "bytes": 7294469,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-10-p2p-share.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 48692,
+    "kind": "poster"
+  },
+  "/docs-assets/videos/series-11-readme-builder.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 72.9,
+    "bytes": 6503988,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-11-readme-builder.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 38976,
     "kind": "poster"
   },
   "/docs-assets/videos/share-with-people.mp4": {
