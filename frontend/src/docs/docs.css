@@ -89,6 +89,26 @@
 .dx-split__main:focus-visible, .dx-split__more:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; position: relative; z-index: 1; }
 .dx-split .md-icon { font-size: 14px; }
 .dx-pagemenu { min-width: 300px; }
+.dx-pagemenu__head { font-weight: 600; letter-spacing: 0.02em; text-transform: uppercase; }
+
+/* Connect to AI (the docs' MCP server, client/ConnectAi.tsx) */
+.dx-connect { display: flex; flex-direction: column; gap: 18px; }
+.dx-connect__label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--text); }
+.dx-connect__row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dx-connect__url, .dx-connect__cmd { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--code-inline-bg); color: var(--text); font-family: var(--font-mono); font-size: 13px; line-height: 18px; overflow-wrap: anywhere; user-select: all; }
+.dx-connect__cmd { padding: 6px 8px; font-size: 12.5px; }
+.dx-connect__note { margin: 6px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.dx-connect__installs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dx-connect__installs .md-btn { width: 100%; }
+.dx-connect__apps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-top: 1px solid var(--border); }
+.dx-connect__apps li { display: flex; flex-direction: column; gap: 4px; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; line-height: 20px; color: var(--text-secondary); }
+.dx-connect__apps li:last-child { border-bottom: 0; padding-bottom: 0; }
+.dx-connect__apps strong { color: var(--text); font-weight: 600; }
+.dx-connect__apps em { font-style: normal; font-weight: 600; color: var(--text); }
+.dx-connect__apps a { display: inline-flex; align-items: center; gap: 2px; color: var(--accent-text); font-weight: 600; text-decoration: none; white-space: nowrap; }
+.dx-connect__apps a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.dx-connect__apps a .md-icon { font-size: 13px; }
+@media (max-width: 479px) { .dx-connect__installs { grid-template-columns: 1fr; } }
 
 /* ── Rendered body ───────────────────────────────────────────────────────── */
 .dx-prose.md-prose--reading { font-size: 16px; line-height: 27px; }
@@ -824,6 +844,8 @@ html.dx-modal-open { overflow: hidden; }
   .dx-bottombar { display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 35; gap: 8px; padding: 10px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); background: var(--surface); }
   .dx-bottombar > * { flex: 1; min-width: 0; }
   .dx-bottombar .md-btn { width: 100%; }
+  .dx-bottombar > .dx-bottombar__more { flex: 0 0 auto; }
+  .dx-bottombar__more .md-iconbtn { width: 40px; }
   .dx-root:has(.dx-bottombar) .dx-footer { padding-bottom: 96px; }
   .dx-prose.md-prose--reading { font-size: 16px; line-height: 26px; }
   .dx-hactions { display: none; }

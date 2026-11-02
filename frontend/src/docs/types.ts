@@ -118,6 +118,11 @@ export interface TryItConfig {
 export interface McpConfig {
   /** serverInfo.name, and the name editors install it under (default "<id>-docs", else "docs"). */
   name?: string;
+  /**
+   * `false`: pages don't offer the Connect to AI actions (copy the server's URL, add it to Cursor or
+   * VS Code, connect Claude or ChatGPT). The server answers either way. Default on.
+   */
+  connect?: boolean;
   /** Examples in the tool descriptions. Absent, they come from the site's own pages. */
   examples?: { queries?: string[]; page?: string; path?: string; report?: string };
 }

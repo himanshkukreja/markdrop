@@ -245,6 +245,8 @@ export interface DocsClientSite {
   name?: string;
   ai: AiSettings | null;
   mcpName: string;
+  /** Pages offer the Connect to AI actions for the site's MCP server (site.json `mcp.connect`, default on). */
+  mcpConnect: boolean;
   tryIt: TryItSettings;
   /** A Markdrop Guides site's Insights endpoint (site.json `insights`); absent everywhere else. */
   insights?: string;
@@ -253,7 +255,7 @@ export interface DocsClientSite {
 }
 
 export function clientSite(site: SiteConfig): DocsClientSite {
-  const out: DocsClientSite = { url: site.url, name: brandName(site), ai: aiSettings(site), mcpName: mcpName(site), tryIt: tryItSettings(site) };
+  const out: DocsClientSite = { url: site.url, name: brandName(site), ai: aiSettings(site), mcpName: mcpName(site), mcpConnect: site.mcp?.connect !== false, tryIt: tryItSettings(site) };
   if (typeof site.insights === "string" && /^https?:\/\//.test(site.insights)) out.insights = site.insights.replace(/\/+$/, "");
   const sample = site.signals?.sample;
   if (out.insights && typeof sample === "number" && sample > 0 && sample < 1) out.signalsSample = sample;
