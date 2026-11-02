@@ -36,8 +36,10 @@
  * the docs origin. Author HTML runs in a sandbox WITHOUT allow-same-origin (an opaque origin: no
  * storage, no cookies, no access to any other file on the artifact origin or to the page around
  * it, no top navigation), and the Worker repeats that sandbox as a CSP header (`?sb=1`), so one
- * customer's page can never reach another's. Markdrop's own PDF viewer keeps its origin (it fetches
- * the file), with nothing else allowed.
+ * customer's page can never reach another's. Markdrop's own PDF viewer runs in an opaque origin
+ * too (scripts and downloads only): it parses a hostile file with PDF.js on that shared origin, so
+ * a parser bug must never hand it the origin. It reads the file cross-origin (embedded files are
+ * public: the Worker answers CORS `*`).
  */
 
 /** Hosts a `src` may name. A guide's own site config may add its app host (local stacks). */
@@ -50,8 +52,12 @@ export const SLUG_RE = /^[A-Za-z0-9_-]{1,64}$/;
  * allow-popups-to-escape-sandbox.
  */
 export const SANDBOX = "allow-scripts allow-forms allow-popups allow-modals allow-downloads";
-/** Markdrop's own PDF viewer (trusted code that fetches the file from its origin). */
-export const SANDBOX_VIEWER = "allow-scripts allow-same-origin allow-downloads";
+/**
+ * Markdrop's own PDF viewer: trusted code, but it parses an untrusted file on the artifact origin
+ * every customer shares, so it gets an opaque origin too (no allow-same-origin). Its bridge
+ * messages then say origin "null" (client/embedTrack.ts accepts that from our own frame).
+ */
+export const SANDBOX_VIEWER = "allow-scripts allow-downloads";
 /** Permissions no embedded file gets (most are off for cross-origin frames already; said anyway). */
 export const FRAME_ALLOW = "camera 'none'; microphone 'none'; geolocation 'none'; payment 'none'; usb 'none'; serial 'none'; hid 'none'; bluetooth 'none'; display-capture 'none'; clipboard-read 'none'";
 /** What renders live; every other renderer is a card. */
