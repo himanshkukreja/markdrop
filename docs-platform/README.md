@@ -274,8 +274,12 @@ which site a host serves; the custom domain only gets the request to the Worker.
   change, the new address is attached and the old one is detached once nothing serves it any more:
   at once for a site that isn't live, and otherwise when a build at the new slug goes live. A failed
   call is retried by the job sweeper, and the sweeper queues the job again for any site whose
-  attached addresses don't match what it should have. The site view's `address_ready` is false
-  until the current address is attached.
+  attached addresses don't match what it should have. Cloudflare issues the address's certificate
+  a minute or three after the attach, so the site view's `address_state` is `securing` until a TLS
+  handshake with the address (SNI, certificate verified) succeeds from the API server (probed at most
+  every 10 s while the studio asks, then recorded as `cf_host_ready` and never probed again), and
+  `pending` before the first publish; `address_ready` is true only when it is `ready`. The studio
+  says "Securing your address" meanwhile instead of offering a link that fails.
 - **Safety.** Only a single label directly under `docs_sites_domain` (`<label>.guides.markdrop.in`),
   and never a reserved slug, is ever attached or detached. `markdrop.in`, `www`, `api`, `docs`,
   `edge` and anything deeper or foreign are refused before any call. A domain that is attached to

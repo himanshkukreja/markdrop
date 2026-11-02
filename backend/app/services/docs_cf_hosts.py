@@ -19,28 +19,45 @@ own: ``markdrop.in``, ``www``, ``api``, ``docs.markdrop.in`` itself, reserved la
 and foreign names are refused before any call.
 
 The site row records what was attached here: ``cf_hosts`` (every host attached and not yet
-detached), and ``cf_host_attached`` / ``cf_host_slug`` (the current free address, once attached:
-publishes skip the call then, and the dashboard's ``address_ready`` reads it). Changes run as
+detached), and ``cf_host_attached`` / ``cf_host_slug`` / ``cf_host_attached_at`` (the current free
+address, once attached: publishes skip the call then). Changes run as
 ``cf_host`` server jobs (inline in the API, like restore / unpublish / access), so a failed call is
 retried by the job sweeper; the sweeper also re-queues a site whose record and wanted state differ.
 
 What a site should have attached (``desired_hosts``): nothing once deleted; else the address its
 live build serves (until a build at a new slug replaces it) and its current slug's address while it
 is live or a publish of it is on its way.
+
+Attached isn't open: Cloudflare issues the host's certificate a minute or three after the attach,
+and until then browsers fail the handshake (ERR_SSL_VERSION_OR_CIPHER_MISMATCH). So the studio's
+``address_state`` (:func:`check_address`) is "ready" only once a TLS handshake with the host, made
+the way a reader's browser makes it (SNI, certificate verified), has succeeded: probed from here
+while the address is attached but not confirmed (one probe per host every PROBE_EVERY seconds at
+most, the last answer in between), then recorded on the row (``cf_host_ready`` = the host,
+``cf_host_ready_at``) and never probed again until the host is attached anew. "securing" until then
+(also while a live guide's attach is on its way), "pending" before any publish. Rows attached before
+the attach time was recorded, and an address still unconfirmed SECURING_GIVE_UP after its attach
+(this server can't reach it, say), count as ready, so the studio never says "Securing" for good.
+The certificate isn't read from Cloudflare's API: a Workers Custom Domain only names a ``cert_id``,
+reading the certificate needs an SSL permission the token doesn't have, and the handshake is
+exactly what readers get.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
+import ssl
+import time
 from datetime import timedelta
-from typing import Any, Iterable
+from typing import Any, Awaitable, Callable, Iterable
 
 import httpx
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
-from app.services.docs_jobs import BUILDS, JOBS, SITES, SNAPSHOTS, get_jobs_settings, now, oid
+from app.services.docs_jobs import BUILDS, JOBS, SITES, SNAPSHOTS, aware, get_jobs_settings, now, oid
 
 log = logging.getLogger(__name__)
 
@@ -50,6 +67,19 @@ RETRY_AFTER = timedelta(minutes=10)  # the sweeper's wait after a cf_host job be
 _ID = re.compile(r"[A-Za-z0-9-]{1,64}")
 # Tests set this to an httpx.MockTransport (nothing here ever reaches the network then).
 _TRANSPORT: httpx.AsyncBaseTransport | None = None
+
+# The address's certificate (check_address): a probe of one host at most this often (the studio
+# polls every 10 s while it says "Securing"), how long a handshake may take, how long a view waits
+# for a probe it started (the probe carries on and the next view reads its answer), and when an
+# address still unconfirmed after its attach counts as ready anyway.
+PROBE_EVERY = 10.0
+PROBE_TIMEOUT = 4.0
+PROBE_WAIT = 2.0
+SECURING_GIVE_UP = timedelta(minutes=30)
+# Tests set this to an async fake ``(host) -> bool`` (no handshake leaves the process then).
+_PROBE: Callable[[str], Awaitable[bool]] | None = None
+_probes: dict[str, tuple[float, bool]] = {}  # host → (time.monotonic(), handshake ok)
+_probing: dict[str, asyncio.Task] = {}  # host → its probe in flight
 
 
 class CfHostError(Exception):
@@ -262,6 +292,10 @@ async def reconcile(db: AsyncIOMotorDatabase, site_id: Any, hosts: Iterable[str]
             log.warning("docs site %s: %s", site_id, e)
         except CfHostError as e:
             failed.append(f"{h}: {e}")
+    if attached:
+        # A host attached (again) gets a new certificate: it is confirmed afresh.
+        await db[SITES].update_one({"_id": oid(site_id), "cf_host_ready": {"$in": attached}},
+                                   {"$unset": {"cf_host_ready": "", "cf_host_ready_at": ""}})
     await _record_current(db, site_id)
     if failed:
         raise CfHostError("; ".join(failed)[:1500])
@@ -275,10 +309,13 @@ async def _record_current(db: AsyncIOMotorDatabase, site_id: Any) -> None:
         return
     slug = site.get("slug")
     if slug and not site.get("deleted_at") and free_host(slug) in (site.get("cf_hosts") or []):
-        await db[SITES].update_one({"_id": site["_id"], "slug": slug},
-                                   {"$set": {"cf_host_attached": free_host(slug), "cf_host_slug": slug}})
+        host = free_host(slug)
+        # Only when it changes: ``cf_host_attached_at`` is when this address was attached.
+        await db[SITES].update_one({"_id": site["_id"], "slug": slug, "cf_host_attached": {"$ne": host}},
+                                   {"$set": {"cf_host_attached": host, "cf_host_slug": slug, "cf_host_attached_at": now()}})
     else:
-        await db[SITES].update_one({"_id": site["_id"]}, {"$unset": {"cf_host_attached": "", "cf_host_slug": ""}})
+        await db[SITES].update_one({"_id": site["_id"]}, {"$unset": {
+            "cf_host_attached": "", "cf_host_slug": "", "cf_host_attached_at": "", "cf_host_ready": "", "cf_host_ready_at": ""}})
 
 
 async def queue(db: AsyncIOMotorDatabase, site_id: Any, reason: str, hosts: Iterable[str | None] = ()) -> dict | None:
@@ -311,13 +348,116 @@ async def queue_for_slug(db: AsyncIOMotorDatabase, site_id: Any, old_slug: str |
     return await queue(db, site_id, "slug", [free_host(old_slug)] if old_slug else [])
 
 
-def address_ready(site: dict) -> bool:
-    """Whether the site's free address is attached on Cloudflare (always True when this module
-    doesn't manage addresses: a preview host, or no token)."""
+# ── the address's certificate ───────────────────────────────────────────────
+
+READY, SECURING, PENDING = "ready", "securing", "pending"
+
+
+def address_state(site: dict) -> str:
+    """What the row alone says about the site's free address (no probe): "ready" (its certificate
+    is confirmed; always where this module doesn't manage addresses: a preview host, or no token),
+    "securing" (attached and the certificate not confirmed yet, or a live guide's attach on its way)
+    or "pending" (not attached and the guide isn't live: before its first publish)."""
     if not enabled():
-        return True
+        return READY
     slug = site.get("slug")
-    return bool(slug) and site.get("cf_host_attached") == free_host(slug)
+    if not slug:
+        return PENDING
+    host = free_host(slug)
+    if site.get("cf_host_attached") != host:
+        return SECURING if site.get("status") == "live" and not site.get("deleted_at") else PENDING
+    if site.get("cf_host_ready") == host:
+        return READY
+    at = aware(site.get("cf_host_attached_at"))
+    if at is None or now() - at > SECURING_GIVE_UP:
+        return READY  # attached before the time was recorded, or this server can't confirm it
+    return SECURING
+
+
+def address_ready(site: dict) -> bool:
+    """The site's free address opens for readers (its certificate is confirmed), from the row alone."""
+    return address_state(site) == READY
+
+
+async def tls_handshake(host: str) -> bool:
+    """A TLS handshake with ``host`` on 443 as a browser makes it (SNI, the certificate verified
+    against the public roots) succeeds within PROBE_TIMEOUT. Nothing is sent after it."""
+    try:
+        import certifi
+
+        ctx = ssl.create_default_context(cafile=certifi.where())
+    except Exception:  # pragma: no cover - certifi comes with httpx
+        ctx = ssl.create_default_context()
+    writer = None
+    try:
+        _, writer = await asyncio.wait_for(asyncio.open_connection(
+            host, 443, ssl=ctx, server_hostname=host, ssl_handshake_timeout=PROBE_TIMEOUT), PROBE_TIMEOUT)
+        return True
+    except (OSError, ssl.SSLError, asyncio.TimeoutError, ValueError):
+        return False
+    finally:
+        if writer is not None:
+            writer.close()
+            try:
+                await asyncio.wait_for(writer.wait_closed(), 1.0)
+            except Exception:
+                pass
+
+
+async def _run_probe(host: str) -> bool:
+    try:
+        ok = bool(await (_PROBE or tls_handshake)(host))
+    except Exception:  # pragma: no cover - a probe never fails a view
+        log.debug("docs cf hosts: probe of %s failed", host, exc_info=True)
+        ok = False
+    _probes[host] = (time.monotonic(), ok)
+    return ok
+
+
+def _forget(host: str, task: asyncio.Task) -> None:
+    if _probing.get(host) is task:
+        _probing.pop(host, None)
+
+
+async def probe(host: str) -> bool:
+    """Whether ``host`` serves its certificate (:func:`tls_handshake`): at most one probe of a host
+    per PROBE_EVERY seconds (the last answer in between), one at a time. Waits up to PROBE_WAIT for
+    the probe: False when it takes longer (it finishes anyway, and the next call reads its answer)."""
+    host = checked(host)
+    hit = _probes.get(host)
+    if hit and time.monotonic() - hit[0] < PROBE_EVERY:
+        return hit[1]
+    task = _probing.get(host)
+    if task is None or task.done():
+        task = asyncio.get_running_loop().create_task(_run_probe(host))
+        _probing[host] = task
+        task.add_done_callback(lambda t, h=host: _forget(h, t))
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), PROBE_WAIT)
+    except asyncio.TimeoutError:
+        return False
+
+
+async def check_address(db: AsyncIOMotorDatabase, site: dict) -> str:
+    """:func:`address_state`, with the certificate probed while the address is attached but not
+    confirmed. A successful probe is recorded on the row (``cf_host_ready``), so the address isn't
+    probed again until it is attached anew."""
+    state = address_state(site)
+    host = free_host(site["slug"]) if site.get("slug") else None
+    if state != SECURING or not host or site.get("cf_host_attached") != host:
+        return state
+    try:
+        ok = await probe(host)
+    except CfHostRefused:
+        return state
+    if not ok:
+        return SECURING
+    t = now()
+    await db[SITES].update_one({"_id": site["_id"], "cf_host_attached": host},
+                               {"$set": {"cf_host_ready": host, "cf_host_ready_at": t}})
+    site["cf_host_ready"], site["cf_host_ready_at"] = host, t
+    log.info("docs cf hosts: %s serves its certificate", host)
+    return READY
 
 
 async def requeue_pending(db: AsyncIOMotorDatabase) -> int:

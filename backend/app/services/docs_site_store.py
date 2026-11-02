@@ -493,9 +493,13 @@ async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_
     """``role``: the caller's effective role (with its source when it's a Resolved).
     ``latest_build``: the site's newest build (Building / Failed on the home's card);
     ``last_edited_at``: the newest page save."""
-    from app.services import guide_insights
+    from app.services import docs_cf_hosts, guide_insights
 
     your_role, source = _role_fields(role)
+    # The free address (services/docs_cf_hosts.py): "ready" once its certificate is served,
+    # "securing" for the minute or three after its first attach (the studio says so instead of
+    # offering a link that fails), "pending" before the first publish.
+    address_state = await docs_cf_hosts.check_address(db, site)
     return {
         "id": str(site["_id"]),
         "workspace_id": site.get("workspace_id"),
@@ -526,12 +530,14 @@ async def site_summary(db: AsyncIOMotorDatabase, site: dict, role: str | studio_
         "review_pages": len((open_review or {}).get("page_ids") or []),
         "last_edited_at": aware(last_edited_at),
         "insights_enabled": guide_insights.enabled(site),
+        "address_state": address_state,
+        "address_ready": address_state == docs_cf_hosts.READY,
     }
 
 
 async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_roles.Resolved, *,
                     job: dict | None = None) -> dict:
-    from app.services import docs_cf_hosts, docs_custom_domains
+    from app.services import docs_custom_domains
 
     sid = site["_id"]
     live = await db[BUILDS].find_one({"_id": site["live_build_id"]}) if site.get("live_build_id") else None
@@ -575,9 +581,6 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
         # Whether this server takes password and members-only guides (settings refuse them while
         # docs_private_sites_enabled is off): Settings › Readers and access marks them "Coming soon".
         "private_access": bool(get_settings().docs_private_sites_enabled),
-        # False while the free address isn't attached on Cloudflare yet (services/docs_cf_hosts.py:
-        # its certificate is on its way); always True where addresses aren't managed there.
-        "address_ready": docs_cf_hosts.address_ready(site),
     })
     from app.services import docs_github_sync
 
