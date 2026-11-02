@@ -1047,6 +1047,30 @@ function sheetViewer(src, theme) {
 <script>
 ${NA_SCRIPT}
 ${SAFE_HTML_SCRIPT}
+// SheetJS 0.18.5's sheet_to_html writes a cell's value (data-v), number format (data-z), link
+// target and rich-text markup into the HTML as they are. A copy of the sheet with those escaped
+// (and a link kept only when it is http(s) or mailto), so the table comes out right as well as
+// safe; the displayed text is the cell's own formatted text, which SheetJS escapes itself.
+function escapedSheet(ws) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const out = {};
+  for (const k of Object.keys(ws)) {
+    const c = ws[k];
+    if (k[0] === '!' || !c || typeof c !== 'object') { out[k] = c; continue; }
+    const s = Object.assign({}, c);
+    if (s.w == null && s.v != null) { try { s.w = XLSX.utils.format_cell(c); } catch (_) { s.w = String(s.v); } }
+    if (s.v != null) s.v = esc(s.v);
+    if (s.z != null) s.z = esc(s.z);
+    delete s.h;
+    if (s.l) {
+      const t = String(s.l.Target || '');
+      if (/^(https?:|mailto:)/i.test(t)) s.l = Object.assign({}, s.l, { Target: esc(t) });
+      else delete s.l;
+    }
+    out[k] = s;
+  }
+  return out;
+}
 (async () => {
   const $ = (id) => document.getElementById(id);
   const out = $('out'), tabsEl = $('tabs'), status = $('status'), scroller = $('scroller'), live = $('live');
@@ -1071,7 +1095,7 @@ ${SAFE_HTML_SCRIPT}
       } else {
         const r = XLSX.utils.decode_range(ref);
         const holder = document.createElement('div');
-        holder.appendChild(safeFragment(XLSX.utils.sheet_to_html(ws, { header: '', footer: '' })));
+        holder.appendChild(safeFragment(XLSX.utils.sheet_to_html(escapedSheet(ws), { header: '', footer: '' })));
         const table = holder.querySelector('table');
         if (table) {
           table.className = 'grid';

@@ -248,6 +248,22 @@ test("the sheet and Word viewers sanitise what their parsers build", async () =>
     assert.match(html, /function safeFragment\(html\)/);
     assert.doesNotMatch(html, /innerHTML = (XLSX|value)/);
   }
-  assert.match(sheet, /holder\.appendChild\(safeFragment\(XLSX\.utils\.sheet_to_html/);
+  assert.match(sheet, /holder\.appendChild\(safeFragment\(XLSX\.utils\.sheet_to_html\(escapedSheet\(ws\)/);
+  // escapedSheet itself, on the cell shapes SheetJS hands it (no XLSX needed for these).
+  const fn = new Function("XLSX", `${/function escapedSheet\(ws\) \{.*?\n\}/s.exec(sheet)[0]}; return escapedSheet;`)({ utils: { format_cell: (c) => String(c.v) } });
+  const out = fn({
+    "!ref": "A1:B2",
+    A1: { t: "s", v: '"><img src=x onerror=alert(1)>', h: "<b>x</b>" },
+    B1: { t: "n", v: 2, w: "2.00", z: '0.00"x"' },
+    A2: { t: "s", v: "site", w: "site", l: { Target: "javascript:alert(1)" } },
+    B2: { t: "s", v: "ok", w: "ok", l: { Target: "https://example.com/?a=1&b=2" } },
+  });
+  assert.equal(out["!ref"], "A1:B2");
+  assert.equal(out.A1.v, "&quot;&gt;&lt;img src=x onerror=alert(1)&gt;");
+  assert.equal(out.A1.w, '"><img src=x onerror=alert(1)>'); // shown as text (SheetJS escapes w)
+  assert.equal(out.A1.h, undefined);
+  assert.equal(out.B1.z, "0.00&quot;x&quot;");
+  assert.equal(out.A2.l, undefined);
+  assert.equal(out.B2.l.Target, "https://example.com/?a=1&amp;b=2");
   assert.match(docx, /out\.replaceChildren\(safeFragment\(value\)\)/);
 });
