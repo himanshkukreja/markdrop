@@ -86,7 +86,8 @@ export default function ContentTab({ slug, ov, range, internal, headings, blocks
       <div className="flex flex-wrap items-start gap-4">
         <Panel id="ct-sections" title="How far people read, section by section" aside="reached · time spent there" className="flex-[999_1_520px]">
           {rows.length ? (
-            <ul className="m-0 flex list-none flex-col p-0" aria-label="Sections: share of readers who reached each, and typical time there">
+            // ph-no-capture (here and below): the document's headings, code and links.
+            <ul className="ph-no-capture m-0 flex list-none flex-col p-0" aria-label="Sections: share of readers who reached each, and typical time there">
               {rows.map((s) => (
                 <li key={s.id} className="grid grid-cols-[minmax(0,1fr)_96px_44px] items-center gap-2 border-t border-border py-2 sm:grid-cols-[minmax(0,1fr)_160px_64px] sm:gap-3">
                   <div className={cx("min-w-0", s.sub && "pl-4")}>
@@ -113,7 +114,7 @@ export default function ContentTab({ slug, ov, range, internal, headings, blocks
         <div className="flex min-w-0 flex-[1_1_300px] flex-col gap-4">
           <Panel id="ct-copied" title="Most copied">
             {c.copies.length ? (
-              <ul className="m-0 flex list-none flex-col gap-3 p-0">
+              <ul className="ph-no-capture m-0 flex list-none flex-col gap-3 p-0">
                 {c.copies.slice(0, 5).map((x) => {
                   const where = x.section ? titleFor(x.section) : null;
                   const preview = blockPreview(blocks, x.hash) ?? `Code block in ${where ?? "this document"}`;
@@ -131,7 +132,7 @@ export default function ContentTab({ slug, ov, range, internal, headings, blocks
 
           <Panel id="ct-links" title="Links people click">
             {c.links.length ? (
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              <ul className="ph-no-capture m-0 flex list-none flex-col gap-2 p-0">
                 {c.links.slice(0, 8).map((l) => (
                   <li key={`${l.href}|${l.section}`} className="flex items-center gap-2.5 text-[13px]">
                     <span className="min-w-0 flex-1 truncate font-mono text-caption text-text" title={l.href}>{l.href}</span>

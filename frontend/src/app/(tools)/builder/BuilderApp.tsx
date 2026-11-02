@@ -400,7 +400,7 @@ export default function BuilderApp() {
                   ref={editorRef}
                   value={selected.content}
                   onChange={(e) => updateSelected(e.target.value)}
-                  className={styles.textarea}
+                  className={`ph-no-capture ${styles.textarea}`}
                   spellCheck={false}
                   aria-label={`${selectedTemplate?.name ?? "Section"} markdown`}
                 />

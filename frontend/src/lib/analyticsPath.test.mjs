@@ -2,7 +2,7 @@
 // (Node >= 22.18 strips the types from analyticsPath.ts; it has no imports.)
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isRecordable, redactPath, redactUrl } from "./analyticsPath.ts";
+import { DOCS_ROUTE, docsRoute, hashIsRecordable, isAnalyticsHost, isDocumentRoute, isRecordable, redactPath, redactUrl } from "./analyticsPath.ts";
 
 const SITE = "6650f2c4a1b2c3d4e5f60718";
 
@@ -29,12 +29,14 @@ test("Guides screens are app routes, not documents", () => {
     // A domain's setup page names a customer's domain.
     assert.equal(redactPath(`/${root}/${SITE}/settings/domains/help.acme.com`), `/${root}/[site]/[other]`);
     assert.equal(redactPath(`/${root}/${SITE}/settings/nope`), `/${root}/[site]/[other]`);
+    for (const s of ["fixes", "changelog", "insights"]) assert.equal(redactPath(`/${root}/${SITE}/${s}`), `/${root}/[site]/${s}`);
+    assert.equal(redactPath(`/${root}/${SITE}/publish/compare`), `/${root}/[site]/publish/compare`);
   }
 });
 
 test("a domain check page never names the domain", () => {
   assert.equal(redactPath("/d/check/help.acme.com"), "/d/check/[host]");
-  assert.ok(!isRecordable("/d/check/help.acme.com"));
+  assert.equal(redactUrl("https://markdrop.in/d/check/help.acme.com"), "https://markdrop.in/d/check/[host]");
 });
 
 test("site ids never reach a report", () => {
@@ -42,25 +44,66 @@ test("site ids never reach a report", () => {
   assert.equal(redactUrl(`https://markdrop.in/docs-studio/${SITE}?page=abc`), "https://markdrop.in/docs-studio/[site]");
 });
 
-test("replay records Guides screens, with their own query keys", () => {
-  assert.ok(isRecordable("/guides"));
-  assert.ok(isRecordable("/guides", ["ws"]));
-  assert.ok(isRecordable(`/guides/${SITE}`, ["page"]));
-  assert.ok(isRecordable(`/docs-studio/${SITE}/import`, ["job"]));
-  assert.ok(isRecordable(`/guides/${SITE}/design`, ["new", "utm_source"]));
-  assert.ok(isRecordable("/guides/new", ["ws"]));
-  assert.ok(!isRecordable(`/guides/${SITE}/whatever`));
-  assert.ok(!isRecordable(`/guides/${SITE}`, ["token"]));
+test("pages below an app route: literal pages kept, ids and anything unknown never", () => {
+  assert.equal(redactPath("/settings/account"), "/settings/account");
+  assert.equal(redactPath("/dashboard/live"), "/dashboard/live");
+  assert.equal(redactPath("/oauth/consent"), "/oauth/consent");
+  // A document's own analytics page carries its slug.
+  assert.equal(redactPath("/dashboard/analytics/bkwJuG4"), "/dashboard/analytics/[slug]");
+  assert.equal(redactPath("/settings/workspaces/ws1"), "/settings/workspaces/[id]");
+  assert.equal(redactPath("/settings/workspaces/ws1/x"), "/settings/workspaces/[other]");
+  assert.equal(redactPath("/dashboard/bkwJuG4"), "/dashboard/[other]");
+  assert.equal(redactPath("/bkwJuG4/x"), "/[slug]/[other]");
 });
 
-test("replay never records documents or capability links", () => {
-  assert.ok(isRecordable("/dashboard"));
-  assert.ok(isRecordable("/dashboard", ["utm_campaign"]));
-  assert.ok(!isRecordable("/dashboard", ["page"])); // Guides' keys count only on Guides screens
-  assert.ok(!isRecordable("/bkwJuG4"));
-  assert.ok(!isRecordable("/guides-doc")); // a document slug that merely starts alike
-  assert.ok(!isRecordable("/share/room"));
-  assert.ok(!isRecordable("/invite/tok"));
-  assert.ok(!isRecordable("/w/ws1"));
-  assert.ok(!isRecordable("/f/share"));
+test("the docs site: every page is public, reported under its own route", () => {
+  assert.equal(DOCS_ROUTE, "/docs-site");
+  assert.equal(docsRoute("/"), "/docs-site");
+  assert.equal(docsRoute("/guides/overview"), "/docs-site/guides/overview");
+  assert.equal(docsRoute("/guides/overview?x=1#y"), "/docs-site/guides/overview");
+  assert.equal(docsRoute("/docs-site/get-started"), "/docs-site/get-started");
+  // Kept as they are, and never mistaken for the studio (/guides/[site]) or a document (/[slug]).
+  for (const p of ["/docs-site", "/docs-site/get-started", "/docs-site/guides/overview", "/docs-site/api/documents/create"]) {
+    assert.equal(redactPath(p), p);
+    assert.ok(isRecordable(p), p);
+  }
+});
+
+test("replay records every page: documents, share rooms, invites, folders, workspaces, Guides", () => {
+  for (const p of [
+    "/", "/guides", "/mcp", "/enterprise", "/privacy", "/dashboard", "/recent", "/shared", "/new", "/builder", "/upload", "/login",
+    "/bkwJuG4", "/share", "/share/room", "/invite/tok", "/w/ws1", "/w/ws1/f/fold1", "/f/share", "/f/share/a/b", "/requests/r1",
+    "/settings/tokens", "/dashboard/analytics/bkwJuG4", "/oauth/consent", "/extension/authorize", "/d/check/help.acme.com",
+    `/guides/${SITE}`, `/guides/${SITE}/whatever`, "/guides/home",
+  ]) assert.ok(isRecordable(p), p);
+  // Their own query keys are fine (reports drop the query anyway).
+  assert.ok(isRecordable("/dashboard", ["utm_campaign", "tab"]));
+  assert.ok(isRecordable(`/guides/${SITE}`, ["page", "ws"]));
+  assert.ok(isRecordable("/new", ["sample"]));
+});
+
+test("replay never records /admin, sign-in hand-offs, or an address carrying a secret", () => {
+  assert.ok(!isRecordable("/admin"));
+  assert.ok(!isRecordable("/admin", ["tab"]));
+  for (const p of ["/auth/callback", "/auth/handoff", "/auth/docs-access"]) assert.ok(!isRecordable(p), p);
+  for (const k of ["token", "t", "k", "key", "state", "code", "access_token", "Token"]) assert.ok(!isRecordable("/dashboard", [k]), k);
+  // Fragments: a plain anchor is fine; a key or token never (#k= is an encrypted document's key).
+  assert.ok(hashIsRecordable("") && hashIsRecordable("#") && hashIsRecordable("#a-heading"));
+  for (const h of ["#k=abc", "#x=1&k=abc", "#token=jwt&next=/d", "#mdt=t&mds=s"]) assert.ok(!hashIsRecordable(h), h);
+});
+
+test("a document's page waits for the viewer's context; nothing else does", () => {
+  assert.ok(isDocumentRoute("/bkwJuG4"));
+  for (const p of ["/", "/dashboard", "/share/room", "/docs-site/get-started", `/guides/${SITE}`]) assert.ok(!isDocumentRoute(p), p);
+});
+
+test("third-party analytics run on Markdrop's own hosts only, never a published guide or a customer's domain", () => {
+  const prod = new Set(["markdrop.in", "www.markdrop.in", "guides.markdrop.in", "docs.markdrop.in"]);
+  const local = new Set(["localhost", "127.0.0.1", "guides.localhost", "docs.localhost"]);
+  for (const h of prod) assert.ok(isAnalyticsHost(h, prod, local, false), h);
+  for (const h of ["acme.guides.markdrop.in", "help.acme.com", "docs.acme.com", "markdrop-docs-edge.example.workers.dev", "markdrop-git-x.vercel.app", "evilmarkdrop.in"]) {
+    assert.ok(!isAnalyticsHost(h, prod, local, true), h);
+  }
+  assert.ok(!isAnalyticsHost("docs.localhost", prod, local, false));
+  assert.ok(isAnalyticsHost("docs.localhost", prod, local, true));
 });

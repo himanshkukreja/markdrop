@@ -221,7 +221,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   return (
     <EditorHostContext.Provider value={host}>
       <div ref={wrap} className="dxe-visual" data-readonly={readOnly ? "" : undefined}>
-        <EditorContent editor={editor} className="dxe-surface" />
+        {/* ph-no-capture: the page being written is never recorded. */}
+        <EditorContent editor={editor} className="ph-no-capture dxe-surface" />
         {editor && !readOnly && (
           <>
             <FormatToolbar editor={editor} stickyTop={stickyTop} assist={assistStore} />

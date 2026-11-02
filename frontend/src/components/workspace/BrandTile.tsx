@@ -49,7 +49,9 @@ export function BrandTile({
       {...a11y}
       className={cx(
         styles.tile,
-        showLogo && (well === "light" ? styles.light : well === "dark" ? styles.dark : well === "checker" ? styles.checker : styles.auto),
+        // Replays: a workspace's logo is blocked, its initials masked.
+        showLogo ? "ph-no-capture" : "ph-sensitive ph-mask",
+        showLogo &&(well === "light" ? styles.light : well === "dark" ? styles.dark : well === "checker" ? styles.checker : styles.auto),
         t && styles.accent,
         className,
       )}

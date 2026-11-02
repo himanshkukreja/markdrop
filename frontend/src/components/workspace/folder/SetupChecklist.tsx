@@ -28,7 +28,7 @@ export function useChecklistHidden(workspaceId: string) {
 
 export interface SetupStep {
   title: string;
-  hint: string;
+  hint: React.ReactNode;
   done: boolean;
   cta?: string;
   onCta?: () => void;
@@ -90,7 +90,7 @@ export function DropArea({
   startsAs: ItemAccess;
   newDocHref: string;
   onNewFolder?: (() => void) | null;
-  title?: string;
+  title?: React.ReactNode;
   className?: string;
 }) {
   const uploads = useUploads();
@@ -119,7 +119,7 @@ export function DropArea({
       <h2 className="text-h3 text-text">{title}</h2>
       <p className="max-w-[380px] text-body text-text-secondary">
         Videos, PDFs, pages and documents. Each one gets a link right away, and new items start as{" "}
-        <strong className="font-semibold text-text">{accessLabel(startsAs, team)}</strong>.
+        <strong className="ph-sensitive ph-mask font-semibold text-text">{accessLabel(startsAs, team)}</strong>.
       </p>
       <div className="flex flex-wrap justify-center gap-2">
         {target && uploads && (

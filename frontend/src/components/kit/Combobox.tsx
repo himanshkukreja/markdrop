@@ -163,7 +163,7 @@ export function Combobox({
       <div className={[s.comboField, shownError && s.comboFieldInvalid, disabled && s.comboFieldDisabled].filter(Boolean).join(" ")}
         onMouseDown={(e) => { if (e.target === e.currentTarget) { e.preventDefault(); inputRef.current?.focus(); } }}>
         {tags.map((t, i) => (
-          <Tag key={t} removeLabel={`Remove ${t}`} onRemove={disabled ? undefined : () => remove(i)} className={s.comboTag}>
+          <Tag key={t} removeLabel={`Remove ${t}`} onRemove={disabled ? undefined : () => remove(i)} className={`ph-sensitive ph-mask ${s.comboTag}`}>
             <span className={s.comboTagText} title={t}>{nameFor(t) ?? t}</span>
           </Tag>
         ))}
@@ -177,7 +177,7 @@ export function Combobox({
           onBlur={() => { setOpen(false); setActive(-1); if (query.trim() && validate(query.trim())) commitTyped(); }}
           onKeyDown={onKeyDown} onPaste={onPaste} />
       </div>
-      <ul id={listId} role="listbox" aria-labelledby={label ? labelId : undefined} aria-label={label ? undefined : "Suggestions"} className={s.comboList} hidden={!listOpen}>
+      <ul id={listId} role="listbox" aria-labelledby={label ? labelId : undefined} aria-label={label ? undefined : "Suggestions"} className={`ph-no-capture ${s.comboList}`} hidden={!listOpen}>
         {matches.map((p, i) => (
           <li key={p.email} id={`${uid}-opt-${i}`} role="option" aria-selected={i === active}
             className={[s.comboOpt, i === active && s.comboOptActive].filter(Boolean).join(" ")}

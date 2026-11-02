@@ -168,14 +168,15 @@ export default function ShareDialog({
     const to = emails.map((e) => e.trim()).filter(Boolean);
     if (!to.length) return;
     await run("add", async () => {
-      const results: string[] = [];
+      const results: React.ReactNode[] = [];
       for (const addr of to) {
         const g = await addPerson(slug, addr, role, notify, message.trim() || undefined);
-        // Says what actually happened rather than what was requested.
+        // Says what actually happened rather than what was requested (the address masked).
+        const who = <span className="ph-sensitive ph-mask">{addr}</span>;
         results.push(
-          notify && g.notified ? `Shared with ${addr} and emailed them.`
-          : notify ? `Shared with ${addr}, but the email didn't send.`
-          : `Shared with ${addr}.`
+          notify && g.notified ? <>Shared with {who} and emailed them.</>
+          : notify ? <>Shared with {who}, but the email didn&apos;t send.</>
+          : <>Shared with {who}.</>
         );
       }
       toast.success(results.length === 1 ? results[0] : `Shared with ${results.length} people.`);
@@ -222,7 +223,8 @@ export default function ShareDialog({
       if (!next.workspaceId) {
         const r = await removeItems(from!, [slug]);
         const after = r.find((x) => x.slug === slug)?.access_after;
-        toast.success(after === "private" ? `Removed from ${wsName}. Only people added can open it now.` : `Removed from ${wsName}.`);
+        const from_ = <span className="ph-sensitive ph-mask">{wsName}</span>;
+        toast.success(after === "private" ? <>Removed from {from_}. Only people added can open it now.</> : <>Removed from {from_}.</>);
       } else if (from && next.workspaceId === from) {
         await moveItems(from, [slug], next.folderId);
         toast.success("Moved.");
@@ -231,7 +233,7 @@ export default function ShareDialog({
         // Moving between workspaces keeps "{Team} team" meaning the new one.
         await addItems(next.workspaceId, [slug], next.folderId, wasWorkspaceLevel ? "workspace" : undefined);
         const name = workspaces?.find((w) => w.id === next.workspaceId)?.name ?? "the workspace";
-        toast.success(`Added to ${name}.`);
+        toast.success(<>Added to <span className="ph-sensitive ph-mask">{name}</span>.</>);
       }
       setFolderHint(next.folderId);
       if (from) workspaceChanged(from);
@@ -264,7 +266,7 @@ export default function ShareDialog({
     <span className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] text-text-muted">
       <Icon name={wsId ? "folder" : "user"} size={14} className="shrink-0" />
       {where ? (
-        <span>In <strong className="font-semibold text-text-secondary [overflow-wrap:anywhere]" dir="auto">{where}</strong></span>
+        <span>In <strong className="ph-sensitive ph-mask font-semibold text-text-secondary [overflow-wrap:anywhere]" dir="auto">{where}</strong></span>
       ) : (
         <span>Personal: not in a workspace</span>
       )}
@@ -291,7 +293,7 @@ export default function ShareDialog({
     <Dialog
       open
       onClose={onClose}
-      title={<span className="block [overflow-wrap:anywhere]" dir="auto">Share “{title}”</span>}
+      title={<span className="block [overflow-wrap:anywhere]" dir="auto">Share “<span className="ph-sensitive ph-mask">{title}</span>”</span>}
       description={header}
       size="lg"
       className="!max-w-[568px]"
@@ -329,7 +331,7 @@ export default function ShareDialog({
 
             {confirmRemove && !locOpen && (
               <div className="flex flex-col gap-2 rounded-lg border border-border bg-surface-inset p-3" role="group" aria-label="Remove from workspace">
-                <p className="text-caption text-text-secondary">
+                <p className="ph-sensitive ph-mask text-caption text-text-secondary">
                   It leaves {wsName} and goes back to its owner.{shownLevel === "workspace" ? ` It's open to the ${team} team now, so it becomes “Only people added”.` : " Who can open it doesn't change."}
                 </p>
                 <div className="flex gap-2">
@@ -365,7 +367,7 @@ export default function ShareDialog({
                 options={[
                   { value: "private", label: "Only people added", icon: "lock", hint: "You and the people below." },
                   {
-                    value: "workspace", label: team ? `${team} team` : "Workspace team", icon: "user",
+                    value: "workspace", label: team ? `${team} team` : "Workspace team", icon: "user", sensitive: !!team,
                     hint: wsName ? `Anyone in ${wsName}, after signing in.` : undefined,
                     disabled: !wsId, disabledReason: "Add it to a workspace first",
                   },
@@ -379,7 +381,7 @@ export default function ShareDialog({
                   {addresses.map((a, i) => (
                     <span key={a}>
                       {i > 0 && " and "}
-                      <code className="font-mono [overflow-wrap:anywhere]">{a}</code>
+                      <code className="ph-sensitive ph-mask font-mono [overflow-wrap:anywhere]">{a}</code>
                     </span>
                   ))}
                   .
@@ -471,7 +473,8 @@ export default function ShareDialog({
                 </div>
               )}
 
-              <ul className="m-0 flex list-none flex-col p-0">
+              {/* ph-no-capture: the people (names, emails) are never recorded. */}
+              <ul className="ph-no-capture m-0 flex list-none flex-col p-0">
                 <li className="flex min-h-10 items-center gap-3 px-0.5 py-1.5">
                   <Avatar name={ownerName} size="sm" />
                   <span className="min-w-0 flex-1 truncate text-body text-text">
@@ -509,7 +512,7 @@ export default function ShareDialog({
                           label: g.email === state.your_email ? "Remove me" : "Remove",
                           icon: "x",
                           busy: busy === g.email,
-                          onClick: () => run(g.email, () => removePerson(slug, g.email), () => toast.success(`Removed ${g.email}.`)),
+                          onClick: () => run(g.email, () => removePerson(slug, g.email), () => toast.success(<>Removed <span className="ph-sensitive ph-mask">{g.email}</span>.</>)),
                         }]}
                       />
                     )}
@@ -670,13 +673,13 @@ function LocationEditor({
           value={draftWs ?? ""}
           disabled={!isOwner}
           onChange={(e) => { setDraftWs(e.target.value || null); setDraftFolder(null); }}
-          className="min-w-0"
+          className="ph-sensitive ph-mask min-w-0"
         >
           {isOwner && <option value="">Personal (no workspace)</option>}
           {workspaces.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
         </Select>
         {draftWs && (
-          <Select aria-label="Folder" value={draftFolder ?? ""} onChange={(e) => setDraftFolder(e.target.value || null)} className="min-w-0" disabled={!tree}>
+          <Select aria-label="Folder" value={draftFolder ?? ""} onChange={(e) => setDraftFolder(e.target.value || null)} className="ph-sensitive ph-mask min-w-0" disabled={!tree}>
             <option value="">Top level</option>
             {folderOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </Select>

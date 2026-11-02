@@ -98,8 +98,8 @@ export function MobileNav({ className }: { className?: string }) {
             <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised p-3">
               <UserAvatar user={user} />
               <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-body-strong text-text">{user.name || "Signed in"}</span>
-                <span className="truncate text-caption text-text-muted">{user.email}</span>
+                <span className="ph-sensitive ph-mask truncate text-body-strong text-text">{user.name || "Signed in"}</span>
+                <span className="ph-sensitive ph-mask truncate text-caption text-text-muted">{user.email}</span>
               </span>
               <Button variant="secondary" className="h-11" onClick={() => { close(); void signOut(); }}>Sign out</Button>
             </div>

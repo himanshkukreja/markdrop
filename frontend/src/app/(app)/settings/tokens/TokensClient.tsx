@@ -100,8 +100,8 @@ export default function TokensClient() {
     t.last_used_at ? shortDate(t.last_used_at) : <span className="text-text-muted">Never</span>;
 
   const columns: Column<ApiTokenItem>[] = [
-    { key: "name", header: "Name", primary: true, render: (t) => <span className="[overflow-wrap:anywhere]" dir="auto">{t.name}</span> },
-    { key: "token", header: "Token", render: (t) => <code className="font-mono text-code text-text-secondary">{masked(t)}</code> },
+    { key: "name", header: "Name", primary: true, render: (t) => <span className="ph-sensitive ph-mask [overflow-wrap:anywhere]" dir="auto">{t.name}</span> },
+    { key: "token", header: "Token", render: (t) => <code className="ph-sensitive ph-mask font-mono text-code text-text-secondary">{masked(t)}</code> },
     { key: "created", header: "Created", render: (t) => shortDate(t.created_at) },
     { key: "used", header: "Last used", render: lastUsed },
     { key: "menu", header: <span className="md-visually-hidden">Actions</span>, align: "right", width: 56, render: menu },
@@ -154,8 +154,8 @@ export default function TokensClient() {
                 {tokens.map((t) => (
                   <li key={t.id} className="flex min-w-0 items-start gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-body-strong text-text [overflow-wrap:anywhere]" dir="auto">{t.name}</p>
-                      <p className="mt-0.5 font-mono text-code text-text-secondary">{masked(t)}</p>
+                      <p className="ph-sensitive ph-mask text-body-strong text-text [overflow-wrap:anywhere]" dir="auto">{t.name}</p>
+                      <p className="ph-sensitive ph-mask mt-0.5 font-mono text-code text-text-secondary">{masked(t)}</p>
                       <p className="mt-1 text-caption text-text-muted">
                         Created {shortDate(t.created_at)} · Last used {t.last_used_at ? shortDate(t.last_used_at) : "never"}
                       </p>
@@ -211,7 +211,7 @@ export default function TokensClient() {
         dismissible={canClose}
         hideClose={!canClose}
         title="Copy your token now"
-        description={fresh ? `For "${fresh.name}". Paste it into the VS Code extension or your script.` : undefined}
+        description={fresh ? <>For &quot;<span className="ph-sensitive ph-mask">{fresh.name}</span>&quot;. Paste it into the VS Code extension or your script.</> : undefined}
         initialFocus={doneRef}
         size="md"
         footer={
@@ -224,11 +224,13 @@ export default function TokensClient() {
           <div className="flex min-w-0 flex-col gap-4">
             <Alert tone="warning">This is the only time the full token is shown.</Alert>
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row">
+              {/* ph-no-capture: the secret itself, never recorded (not even masked). */}
               <Input
                 mono
                 readOnly
                 value={fresh.token}
                 aria-label="Your new token"
+                className="ph-no-capture"
                 wrapClassName="min-w-0 flex-1"
                 onFocus={(e) => e.currentTarget.select()}
               />
@@ -249,7 +251,7 @@ export default function TokensClient() {
         open={!!revoking}
         onClose={() => setRevoking(null)}
         onConfirm={revoke}
-        title={revoking ? `Revoke "${revoking.name}"?` : "Revoke token?"}
+        title={revoking ? <>Revoke &quot;<span className="ph-sensitive ph-mask">{revoking.name}</span>&quot;?</> : "Revoke token?"}
         body="Any VS Code extension using this token will stop syncing. This cannot be undone."
         confirmLabel="Revoke token"
       />

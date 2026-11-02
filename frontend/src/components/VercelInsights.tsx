@@ -4,11 +4,21 @@ import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { redactPath, redactUrl } from "@/lib/analyticsPath";
 import { analyticsRoute, isStudioHost, studioPathOf } from "@/lib/studioHost";
+import { isDocsHost } from "@/docs/host";
 
-/** redactUrl, and on the studio host (guides.markdrop.in/<site>/…, no /guides) the same shapes: /[site]/…. */
+/**
+ * redactUrl, and on the studio host (guides.markdrop.in/<site>/…, no /guides) the same shapes:
+ * /[site]/…. The docs host's pages are public: their paths stay (docs.markdrop.in/get-started is
+ * not a document's slug).
+ */
 function redact(raw: string): string | null {
   try {
     const u = new URL(raw);
+    if (isDocsHost(u.hostname)) {
+      u.search = "";
+      u.hash = "";
+      return u.toString();
+    }
     if (!isStudioHost(u.hostname)) return redactUrl(raw);
     u.pathname = studioPathOf(redactPath(analyticsRoute(u.pathname, u.hostname))) ?? "/";
     u.search = "";

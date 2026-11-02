@@ -95,7 +95,8 @@ export function ArtifactVersions({
                   Version {v.version}
                   {v.current && <Badge tone="success" size="sm">Current</Badge>}
                 </span>
-                <span className="truncate text-caption text-text-muted" title={fullDate(v.created_at)}>
+                {/* ph-sensitive ph-mask: the line ends with the version's file name. */}
+                <span className="ph-sensitive ph-mask truncate text-caption text-text-muted" title={fullDate(v.created_at)}>
                   {[formatBytes(v.size_bytes), relativeTime(v.created_at), v.filename].filter(Boolean).join(" · ")}
                 </span>
               </div>

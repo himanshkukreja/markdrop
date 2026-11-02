@@ -464,7 +464,7 @@ export default function DashboardPage() {
       {personalEmpty && (scope.q ? (
         <EmptyState
           icon="search"
-          title={`Nothing matches “${scope.q}”`}
+          title={<>Nothing matches “<span className="ph-sensitive ph-mask">{scope.q}</span>”</>}
           description="Search looks at titles and links."
           actions={<Button variant="secondary" onClick={clearSearch}>Clear search</Button>}
         />

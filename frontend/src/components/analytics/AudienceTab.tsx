@@ -22,7 +22,7 @@ function Row({ label, extra, value, mono }: { label: React.ReactNode; extra?: Re
 }
 
 export function InternalSwitch({ name, internal, onChange }: { name: string; internal: boolean; onChange: (v: boolean) => void }) {
-  return <Switch label={`Hide views from ${name} members`} checked={!internal} onChange={(e) => onChange(!e.target.checked)} />;
+  return <Switch label={<>Hide views from <span className="ph-sensitive ph-mask">{name}</span> members</>} checked={!internal} onChange={(e) => onChange(!e.target.checked)} />;
 }
 
 export default function AudienceTab({ slug, ov, range, internal, onInternal }: {
@@ -37,7 +37,7 @@ export default function AudienceTab({ slug, ov, range, internal, onInternal }: {
   const header = ws ? (
     <div className="flex flex-wrap items-center justify-end gap-3">
       {!internal && (aud.data?.internal_hidden ?? 0) > 0 && (
-        <span className="text-caption text-text-muted">{num(aud.data!.internal_hidden)} views from {ws.name} members hidden</span>
+        <span className="ph-sensitive ph-mask text-caption text-text-muted">{num(aud.data!.internal_hidden)} views from {ws.name} members hidden</span>
       )}
       <InternalSwitch name={ws.name} internal={internal} onChange={onInternal} />
     </div>
@@ -123,7 +123,8 @@ export default function AudienceTab({ slug, ov, range, internal, onInternal }: {
 
         <Panel id="au-utm" title="Campaigns">
           {a.campaigns.length ? (
-            <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
+            // ph-no-capture: the person's own utm source / medium / campaign names.
+            <ul className="ph-no-capture m-0 flex list-none flex-col gap-2.5 p-0">
               {a.campaigns.map((c, i) => {
                 const tag = [c.source, c.medium, c.campaign].filter(Boolean).join(" / ") || "Untagged";
                 return <Row key={`${tag}-${i}`} mono label={tag} extra={eng(c.engaged_pct)} value={num(c.people)} />;

@@ -77,7 +77,8 @@ export default function AnalyticsHome() {
           <div className="flex flex-wrap items-start gap-4">
             <Panel id="ah-links" title="Your links" className="flex-[999_1_560px]">
               {h.links.length ? (
-                <div className="-mx-1 overflow-x-auto px-1">
+                // ph-no-capture: titles of the person's documents.
+                <div className="ph-no-capture -mx-1 overflow-x-auto px-1">
                   <table className="w-full min-w-[620px] border-collapse text-[13px]">
                     <caption className="md-visually-hidden">Your links with views in the {rangeLong}</caption>
                     <thead>
@@ -119,7 +120,7 @@ export default function AnalyticsHome() {
             <aside className="flex min-w-0 flex-[1_1_280px] flex-col gap-4" aria-label="Insights">
               <Panel id="ah-feed" icon="bulb" title="Worth a look">
                 {h.insights.length ? (
-                  <ul className="m-0 flex list-none flex-col p-0">
+                  <ul className="ph-no-capture m-0 flex list-none flex-col p-0">
                     {h.insights.slice(0, 4).map((i) => {
                       const href = insightHref(i);
                       const body = (

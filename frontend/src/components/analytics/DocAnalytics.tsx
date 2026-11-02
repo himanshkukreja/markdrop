@@ -61,7 +61,7 @@ function metaLine(ov: { doc: AnalyticsDoc; versions_marks: { date: string; versi
   const parts: React.ReactNode[] = [KIND_WORD[d.kind]];
   if ((d.kind === "video" || d.kind === "audio") && d.duration_s) parts.push(clock(d.duration_s));
   if (d.kind === "pdf" && d.npages) parts.push(pagesLabel(d.npages));
-  parts.push(<code key="a" className="font-mono text-caption break-all">{d.address}</code>);
+  parts.push(<code key="a" className="ph-sensitive ph-mask font-mono text-caption break-all">{d.address}</code>);
   const fv = d.file_version ?? 1;
   if (fv > 1) {
     const mark = ov.versions_marks.find((m) => m.version === fv);
@@ -167,7 +167,7 @@ export default function DocAnalytics({ slug }: { slug: string }) {
             <IconButton icon="chevronLeft" label="Back to analytics" href="/dashboard/analytics" />
             <div className="min-w-0 flex-1">
               <div className="text-caption text-text-muted">Analytics</div>
-              <h1 className="m-0 truncate text-[17px] leading-6 font-bold text-text" dir="auto">{title}</h1>
+              <h1 className="ph-sensitive ph-mask m-0 truncate text-[17px] leading-6 font-bold text-text" dir="auto">{title}</h1>
             </div>
             {ov.live > 0 && <Badge tone="success" live size="sm">{num(ov.live)} live</Badge>}
           </div>
@@ -182,7 +182,7 @@ export default function DocAnalytics({ slug }: { slug: string }) {
           <div className="flex flex-wrap items-start gap-4">
             <KindTile doc={doc} />
             <div className="min-w-0 flex-[1_1_320px]">
-              <h1 className="m-0 text-h1 text-text break-words" dir="auto">{title}</h1>
+              <h1 className="ph-sensitive ph-mask m-0 text-h1 text-text break-words" dir="auto">{title}</h1>
               <p className="mt-1 mb-0 text-[13px] text-text-muted">{metaLine(ov)} · <ReadMore topic={readMoreFor(ov.doc.kind)} /></p>
             </div>
             {controls}

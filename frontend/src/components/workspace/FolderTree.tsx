@@ -269,7 +269,8 @@ function TreeItem({
     <>
       {chevron}
       {node.icon && <span className="inline-flex shrink-0" aria-hidden>{node.icon}</span>}
-      <span className="min-w-0 flex-1 truncate" dir="auto">{node.label}</span>
+      {/* Workspace and folder names are masked in replays. */}
+      <span className="ph-sensitive ph-mask min-w-0 flex-1 truncate" dir="auto">{node.label}</span>
       {node.marker}
       {node.count !== undefined && (
         <span className="ml-auto shrink-0 rounded-full bg-surface-active px-1.5 text-micro tabular-nums text-text-secondary" aria-label={`${node.count} ${node.count === 1 ? "item" : "items"}`}>

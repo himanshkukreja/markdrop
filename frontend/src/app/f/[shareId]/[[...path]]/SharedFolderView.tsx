@@ -92,7 +92,7 @@ export default function SharedFolderView({
             title={status === 404 ? "This folder link doesn't open anything" : "You don't have access to this folder"}
             description={status === 404
               ? "It may have been turned off, or the folder deleted. If someone sent it to you, ask them for a new link."
-              : `You're signed in as ${user?.email ?? "someone"}, who isn't in the workspace that shared it. Ask its owner to invite you.`}
+              : <>You&apos;re signed in as <span className="ph-sensitive ph-mask">{user?.email ?? "someone"}</span>, who isn&apos;t in the workspace that shared it. Ask its owner to invite you.</>}
             actions={<Button variant="secondary" href="/dashboard">Go to your documents</Button>}
           />
         </>
@@ -130,19 +130,20 @@ export default function SharedFolderView({
         <p className="flex min-w-0 items-center gap-2 text-caption text-text-secondary">
           {workspace.branding?.logo_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={workspace.branding.logo_url} alt="" className="size-5 rounded-xs object-contain" />
+            <img src={workspace.branding.logo_url} alt="" className="ph-no-capture size-5 rounded-xs object-contain" />
           ) : (
-            <span aria-hidden className="grid size-5 place-items-center rounded-xs text-micro font-bold text-on-accent" style={{ background: accent ?? "var(--accent)" }}>{initialLetter}</span>
+            <span aria-hidden className="ph-sensitive ph-mask grid size-5 place-items-center rounded-xs text-micro font-bold text-on-accent" style={{ background: accent ?? "var(--accent)" }}>{initialLetter}</span>
           )}
-          <span className="truncate">Shared from <span className="font-medium text-text">{workspace.name}</span></span>
+          <span className="truncate">Shared from <span className="ph-sensitive ph-mask font-medium text-text">{workspace.name}</span></span>
         </p>
-        {crumbs && <Breadcrumb items={crumbs} className="min-w-0 flex-wrap" />}
+        {/* Replays: folder names are masked; the folder and item lists below are blocked. */}
+        {crumbs && <Breadcrumb items={crumbs} className="ph-sensitive ph-mask min-w-0 flex-wrap" />}
         <div className="flex min-w-0 items-start gap-3">
           <span aria-hidden className="mt-0.5 grid size-10 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text">
             <Icon name="folder" size={20} />
           </span>
           <div className="flex min-w-0 flex-col gap-1">
-            <h1 className="text-h1 text-text [overflow-wrap:anywhere]" dir="auto">{folder.name}</h1>
+            <h1 className="ph-sensitive ph-mask text-h1 text-text [overflow-wrap:anywhere]" dir="auto">{folder.name}</h1>
             {!empty && (
               <p className="text-body text-text-secondary">
                 {[subfolders.length ? plural(subfolders.length, "folder") : null, items.length ? plural(items.length, "item") : null].filter(Boolean).join(" · ")}
@@ -160,7 +161,7 @@ export default function SharedFolderView({
           title="Nothing here you can open"
           description={user
             ? "Everything in this folder is private to people other than you."
-            : `People in ${workspace.name} may see more after signing in.`}
+            : <>People in <span className="ph-sensitive ph-mask">{workspace.name}</span> may see more after signing in.</>}
           actions={!user ? <Button variant="secondary" href={signInHref} iconLeft="user">Sign in</Button> : undefined}
         />
       ) : (
@@ -168,7 +169,7 @@ export default function SharedFolderView({
           {subfolders.length > 0 && (
             <section aria-labelledby="md-shared-folders" className="flex min-w-0 flex-col gap-2">
               <h2 id="md-shared-folders" className="text-eyebrow uppercase text-text-muted">Folders</h2>
-              <ul className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
+              <ul className="ph-no-capture grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2">
                 {subfolders.map((f) => (
                   <li key={f.path} className="min-w-0">
                     <Anchor
@@ -193,7 +194,7 @@ export default function SharedFolderView({
           {items.length > 0 && (
             <section aria-labelledby="md-shared-items" className="flex min-w-0 flex-col gap-2">
               <h2 id="md-shared-items" className="text-eyebrow uppercase text-text-muted">Items</h2>
-              <ul className="flex min-w-0 flex-col gap-2">
+              <ul className="ph-no-capture flex min-w-0 flex-col gap-2">
                 {items.map((it) => {
                   const art = it.kind === "artifact";
                   const k = art ? fileKind("", it.mime || "", null) : "document";
@@ -230,7 +231,7 @@ export default function SharedFolderView({
           )}
 
           <p className="text-caption text-text-muted">
-            {user ? "Showing what you can open." : `Showing what's open to anyone. People in ${workspace.name} may see more after signing in.`}
+            {user ? "Showing what you can open." : <>Showing what&apos;s open to anyone. People in <span className="ph-sensitive ph-mask">{workspace.name}</span> may see more after signing in.</>}
           </p>
         </>
       )}

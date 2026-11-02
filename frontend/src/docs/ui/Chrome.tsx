@@ -5,7 +5,8 @@
 import Link from "@/docs/client/Link";
 import { Button, MarkdropMark, Wordmark } from "@/components/ui";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { aiSettings, headerBrand, type HeaderBrand } from "../brand";
+import PrivacyChoicesButton from "@/components/analytics/PrivacyChoicesButton";
+import { aiSettings, headerBrand, markdropApp, type HeaderBrand } from "../brand";
 import { cx } from "../cx";
 import { getNav, getSite } from "../content";
 import { MobileMenu, NavLinks } from "../client/Chrome";
@@ -169,6 +170,9 @@ export function DocsFooter() {
           </a>
         ),
       )}
+      {/* Markdrop's own docs run Markdrop's analytics (lib/thirdPartyAnalytics), so they carry the
+          app footer's opt-out. Never on another site: Markdrop's trackers don't run there. */}
+      {markdropApp(site) && <PrivacyChoicesButton className="dx-footer__choices" />}
     </footer>
   );
 }

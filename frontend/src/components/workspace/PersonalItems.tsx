@@ -114,7 +114,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
     if (!it.encrypted) {
       out.push({ label: "Copy link", icon: "copy", onClick: () => { void copyText(it.url).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy the link"))); } });
     }
-    if (it.workspace && it.folder) out.push({ label: `Open “${it.folder.name}”`, icon: "folder", href: `/w/${encodeURIComponent(it.workspace.id)}/f/${encodeURIComponent(it.folder.id)}` });
+    if (it.workspace && it.folder) out.push({ label: <>Open <span className="ph-sensitive ph-mask">“{it.folder.name}”</span></>, icon: "folder", href: `/w/${encodeURIComponent(it.workspace.id)}/f/${encodeURIComponent(it.folder.id)}` });
     // Anyone added by email can take themselves off, whether or not they may share it on.
     if (mode === "shared" && user?.email) out.push({ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(it) });
     return out;
@@ -132,7 +132,8 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
             Access requests <Badge size="sm" tone="info">{requests.length}</Badge>
           </h2>
           <p className="text-caption text-text-muted">People asking to open something of yours. <ReadMore topic="requestAccess" /></p>
-          <ul className="m-0 flex list-none flex-col p-0">
+          {/* ph-no-capture: requesters' names and emails, and the titles they asked for. */}
+          <ul className="ph-no-capture m-0 flex list-none flex-col p-0">
             {requests.map((r) => (
               <li key={r.id} className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border py-2.5">
                 <Avatar name={requesterName(r)} size="md" />
@@ -209,7 +210,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
       <ConfirmDialog
         open={!!leaving}
         onClose={() => setLeaving(null)}
-        title={leaving ? `Remove yourself from “${itemTitle(leaving)}”?` : "Remove yourself?"}
+        title={leaving ? <>Remove yourself from <span className="ph-sensitive ph-mask">“{itemTitle(leaving)}”</span>?</> : "Remove yourself?"}
         body="It leaves Shared with me, and you can't open it with your email any more. If the link is open to more people, it still works for you like it does for them. To get back in, ask the owner to add you again."
         confirmLabel="Remove me"
         onConfirm={async () => {

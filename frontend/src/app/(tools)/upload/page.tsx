@@ -299,7 +299,7 @@ export default function UploadArtifactPage() {
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <div className="flex min-w-0 items-center gap-2">
-            <h2 dir="auto" className="m-0 min-w-0 truncate text-h4 text-text">{file.name}</h2>
+            <h2 dir="auto" className="ph-sensitive ph-mask m-0 min-w-0 truncate text-h4 text-text">{file.name}</h2>
             {busy ? (
               <Badge tone="info" size="sm" dot className="shrink-0">{uploading ? "Uploading" : "Publishing"}</Badge>
             ) : (
@@ -337,7 +337,7 @@ export default function UploadArtifactPage() {
       <BrowserFrame
         url={linkUrl}
         urlIcon="globe"
-        title={title.trim() || undefined}
+        title={title.trim() ? <span className="ph-sensitive ph-mask">{title.trim()}</span> : undefined}
         actions={<Badge size="sm" variant="outline">Not published</Badge>}
         paper={paper}
         bodyClassName="h-80 sm:h-[26rem]"
@@ -377,7 +377,7 @@ export default function UploadArtifactPage() {
             <Progress
               value={progress}
               showValue
-              label={`Uploading ${file.name}`}
+              label={<>Uploading <span className="ph-sensitive ph-mask">{file.name}</span></>}
               valueText={`${progress}%`}
             />
           ) : (

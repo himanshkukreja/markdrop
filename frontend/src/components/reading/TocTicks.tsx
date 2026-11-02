@@ -29,7 +29,8 @@ export function TocTicks({ headings, activeId, encrypted, min = 3, className }: 
   const top = Math.min(...entries.map((h) => h.depth));
   return (
     <nav aria-label="Contents" className={["md-ticks no-print", className].filter(Boolean).join(" ")}>
-      <ol className="md-ticks__list">
+      {/* ph-no-capture: each tick carries one of the document's headings, never recorded. */}
+      <ol className="ph-no-capture md-ticks__list">
         {entries.map((h) => {
           const current = h.id === active;
           return (

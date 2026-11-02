@@ -145,7 +145,7 @@ export function ArtifactSettingsDrawer({
               />
             </span>
             <span className="flex min-w-0 flex-1 flex-col">
-              <span dir="auto" className="truncate text-body text-text">
+              <span dir="auto" className="ph-sensitive ph-mask truncate text-body text-text">
                 {value.file ? value.file.name : originalFilename || "Current file"}
               </span>
               <span className="text-caption text-text-muted">
@@ -193,6 +193,7 @@ export function ArtifactSettingsDrawer({
               <Input
                 mono
                 textPrefix={linkPrefix}
+                wrapClassName="ph-sensitive ph-mask"
                 value={value.slug}
                 invalid={slugShort}
                 onChange={(e) => /^[a-zA-Z0-9_-]*$/.test(e.target.value) && set("slug", e.target.value)}

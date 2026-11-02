@@ -134,7 +134,7 @@ export default function AssetUpload({
         <span
           className={cx(
             "grid shrink-0 place-items-center overflow-hidden rounded-md border border-border p-1.5",
-            shown ? wellCls : "bg-surface-inset",
+            shown ? cx(wellCls, "ph-no-capture") : "bg-surface-inset", // the customer's logo or favicon
             shape === "wide" ? "h-14 w-28" : "size-14",
           )}
         >

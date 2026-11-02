@@ -502,7 +502,8 @@ export default function DocumentView(props: DocumentViewProps) {
               >
                 <div
                   ref={readRef}
-                  // ph-no-capture: clicks inside a document are never autocaptured with their text.
+                  // ph-no-capture: the document (title, body, raw view) is never recorded, and clicks
+                  // inside it are never autocaptured with their text.
                   className={`ph-no-capture ${vs.column} mx-auto w-full max-w-reading ${
                     showImmersive ? "px-5 pb-32 pt-12 sm:px-8 sm:pt-24 print:p-0" : ""
                   }`}
@@ -644,13 +645,13 @@ export default function DocumentView(props: DocumentViewProps) {
       <ConfirmDialog
         open={leaving}
         onClose={() => setLeaving(false)}
-        title={`Remove yourself from “${shownTitle || slug}”?`}
+        title={<>Remove yourself from “<span className="ph-sensitive ph-mask">{shownTitle || slug}</span>”?</>}
         body="It leaves Shared with me, and you can't open it with your email any more. If the link is open to more people, it still works for you like it does for them. To get back in, ask the owner to add you again."
         confirmLabel="Remove me"
         onConfirm={async () => {
           await removePerson(slug, v.access?.your_email || user!.email);
           setLeaving(false);
-          toast.success(`You were removed from “${shownTitle || slug}”.`);
+          toast.success(<>You were removed from “<span className="ph-sensitive ph-mask">{shownTitle || slug}</span>”.</>);
           router.push("/shared");
         }}
       />

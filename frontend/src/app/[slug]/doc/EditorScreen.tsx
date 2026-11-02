@@ -130,11 +130,12 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   const nearLimit = v.remaining < 1000;
 
   const textareaCls =
-    "block h-full min-h-[50dvh] w-full resize-none bg-transparent p-4 font-mono text-code text-text outline-none placeholder:text-text-muted";
+    // ph-no-capture: the document being edited is never part of a session recording.
+    "ph-no-capture block h-full min-h-[50dvh] w-full resize-none bg-transparent p-4 font-mono text-code text-text outline-none placeholder:text-text-muted";
 
   return (
     <div className="mx-auto flex w-full max-w-marketing flex-col gap-3 px-4 py-4 sm:px-6">
-      <h1 className="md-visually-hidden">Edit {displayTitle || "document"}</h1>
+      <h1 className="md-visually-hidden">Edit <span className="ph-sensitive ph-mask">{displayTitle || "document"}</span></h1>
 
       {/* Bar */}
       <div className="no-print flex flex-wrap items-center gap-2">
@@ -217,7 +218,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
           <div role="tabpanel" id={`md-edit-panel-${mode}`} aria-labelledby={`md-edit-tab-${mode}`} className="min-w-0">
             {mode === "write" && (
               <EditorFrame
-                tab={`${v.editTitle.trim() || "document"}.md`}
+                tab={<span className="ph-sensitive ph-mask">{`${v.editTitle.trim() || "document"}.md`}</span>}
                 toolbar={<MarkdownToolbar textareaRef={v.activeTextareaRef} onChange={v.setEditContent} bare />}
                 status={<EditorStatus remaining={v.remaining} nearLimit={nearLimit} />}
               >

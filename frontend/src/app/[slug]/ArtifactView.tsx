@@ -542,6 +542,8 @@ export default function ArtifactView({
       const a = document.createElement("a");
       a.href = u.toString();
       a.rel = "noopener";
+      // ph-no-capture: the file name in its URL is never autocaptured or recorded.
+      a.className = "ph-no-capture";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -558,6 +560,7 @@ export default function ArtifactView({
       const a = document.createElement("a");
       a.href = href;
       a.download = originalFilename || slug;
+      a.className = "ph-no-capture";
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -640,7 +643,8 @@ export default function ArtifactView({
       // User HTML is written for white: paper + color-scheme light in both themes. Worker viewers
       // follow the app theme they were given.
       style={{ colorScheme: paper ? "light" : resolved }}
-      className={cx("block h-full w-full border-0", paper ? "bg-(--qr-ground)" : "bg-bg")}
+      // ph-no-capture: the file itself is never part of a session recording.
+      className={cx("ph-no-capture block h-full w-full border-0", paper ? "bg-(--qr-ground)" : "bg-bg")}
     />
   );
 

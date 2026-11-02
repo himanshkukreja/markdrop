@@ -71,7 +71,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
         data-mode={mode}
       >
         <div className={styles.cLine}>
-          <span className={styles.cPath}>
+          <span className={`ph-sensitive ph-mask ${styles.cPath}`}>
             <Path url={url} />
           </span>
           {missing ? <MissingSlot size="sm" pointer /> : <KeyChip fragment={frag} size="sm" />}
@@ -107,7 +107,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
 
         {/* Row 2: the URL split at the # */}
         <div className={styles.urlPath}>
-          <span className={styles.urlPathText}>
+          <span className={`ph-sensitive ph-mask ${styles.urlPathText}`}>
             <Path url={url} />
           </span>
         </div>
@@ -122,7 +122,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
           ) : (
             <span className={styles.urlFragText}>
               <KitIcon name="key" size={18} />
-              <span className={styles.ellipsis}>{frag}</span>
+              <span className={`ph-sensitive ph-mask ${styles.ellipsis}`}>{frag}</span>
             </span>
           )}
         </div>
@@ -176,7 +176,7 @@ export function KeyAnatomy({ url, fragment, mode = "explain", layout = "full", d
             <div className={styles.decrypted}>
               <KitIcon name="checkCircle" size={14} className={styles.ok} />
               <span>
-                Decrypted here: <strong>{decryptedTitle}</strong>
+                Decrypted here: <strong className="ph-sensitive ph-mask">{decryptedTitle}</strong>
               </span>
             </div>
           )}

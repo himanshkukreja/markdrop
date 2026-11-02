@@ -106,7 +106,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
             <h2 id="ws-leave-h" className="text-body-strong text-text">Leave workspace</h2>
             <p className="mt-0.5 text-[13px] text-text-muted">You lose access to it right away. Files you added stay there, and you still own them.</p>
           </div>
-          <Button variant="secondary" iconLeft="logOut" onClick={() => setConfirm("leave")}>Leave {ws.name}…</Button>
+          <Button variant="secondary" iconLeft="logOut" onClick={() => setConfirm("leave")}>Leave <span className="ph-sensitive ph-mask">{ws.name}</span>…</Button>
         </section>
       )}
 
@@ -118,7 +118,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
         </div>
         <Locked locked={!isOwner} reason="Only the owner can delete it">
           <Button variant="secondary" iconLeft="trash" {...lockProps(!isOwner)} onClick={isOwner ? () => setConfirm("delete") : lockProps(true).onClick}>
-            Delete {ws.name}…
+            Delete <span className="ph-sensitive ph-mask">{ws.name}</span>…
           </Button>
         </Locked>
       </section>
@@ -126,7 +126,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
       <ConfirmDialog
         open={confirm === "leave"}
         onClose={() => setConfirm(null)}
-        title={`Leave ${ws.name}?`}
+        title={<>Leave <span className="ph-sensitive ph-mask">{ws.name}</span>?</>}
         body="You lose access to it right away. To come back, an admin has to invite you again."
         confirmLabel="Leave workspace"
         onConfirm={async () => {
@@ -141,7 +141,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
       <ConfirmDialog
         open={confirm === "delete"}
         onClose={() => setConfirm(null)}
-        title={`Delete ${ws.name}?`}
+        title={<>Delete <span className="ph-sensitive ph-mask">{ws.name}</span>?</>}
         body="Removes the workspace, its members, folders and domains. Files are not deleted: they go back to the people who own them, with the same links and analytics. Anything open to the team becomes “Only people added”."
         typeToConfirm={ws.name}
         confirmLabel="Delete permanently"

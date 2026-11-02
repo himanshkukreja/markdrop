@@ -195,7 +195,8 @@ export function TurnView({ turn, variant, siteUrl, onNavigate, actions }: { turn
   const offTopic = turn.outcome === "off_topic";
   return (
     <div className={cx("dx-turn", `dx-turn--${variant}`)}>
-      {variant !== "palette" && <div className="dx-turn__q">{turn.question}</div>}
+      {/* The reader's own words: masked in session replays. */}
+      {variant !== "palette" && <div className="dx-turn__q ph-sensitive ph-mask">{turn.question}</div>}
       <div className="dx-turn__a">
         {variant === "palette" && <Icon name="zap" className="dx-turn__glyph" />}
         <div className="dx-turn__body">

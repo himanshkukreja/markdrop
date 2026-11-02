@@ -68,6 +68,9 @@ export interface PublishSettingsProps {
   className?: string;
 }
 
+/** Workspace and folder names, links and slugs are masked in session recordings. */
+const MASK = "ph-sensitive ph-mask";
+
 const ALL_FIELDS: PublishField[] = ["access", "encrypt", "password", "expires", "slug", "target"];
 /** Chips: ordered by consequence (REVAMP_PLAN 7.3). */
 const CHIP_ORDER: PublishField[] = ["access", "encrypt", "password", "expires", "slug", "target"];
@@ -163,7 +166,7 @@ export function PublishSettings(props: PublishSettingsProps) {
         const words = value.access === "private" ? "Only people added" : value.access === "workspace" ? `${ws?.name ?? "Workspace"} team` : "Anyone with the link";
         return {
           icon: value.access === "private" ? "lock" : value.access === "workspace" ? "user" : "globe", label: PANEL_TITLE.access,
-          value: <span className={s.chipTrunc}>{words}</span>, valueText: words, set: value.access !== "link",
+          value: <span className={[value.access === "workspace" && ws ? MASK : "", s.chipTrunc].join(" ")}>{words}</span>, valueText: words, set: value.access !== "link",
         };
       }
       case "encrypt": return { icon: "key", label: PANEL_TITLE.encrypt, value: value.encrypt ? (value.password ? "Encrypted + password" : "Encrypted") : "Encrypt", set: value.encrypt, emphasis: value.encrypt };
@@ -173,12 +176,12 @@ export function PublishSettings(props: PublishSettingsProps) {
         const slug = value.slug.trim();
         return slug
           ? { icon: "link", label: PANEL_TITLE.slug, mono: true, set: true, valueText: `${prefix}${slug}`,
-              value: <><span className={s.chipPrefix}>{prefix}</span><span className={s.chipSlug}>{slug}</span></> }
+              value: <><span className={`${MASK} ${s.chipPrefix}`}>{prefix}</span><span className={`${MASK} ${s.chipSlug}`}>{slug}</span></> }
           : { icon: "link", label: PANEL_TITLE.slug, value: "Random link", set: false };
       }
       case "target": {
         const label = ws ? (folder ? `${ws.name} › ${folder.label ?? folder.name}` : ws.name) : "Personal";
-        return { icon: "folder", label: PANEL_TITLE.target, value: <span className={s.chipTrunc}>{label}</span>, valueText: label, set: !!ws };
+        return { icon: "folder", label: PANEL_TITLE.target, value: <span className={[ws ? MASK : "", s.chipTrunc].join(" ")}>{label}</span>, valueText: label, set: !!ws };
       }
     }
   };
@@ -311,7 +314,8 @@ function AccessPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
             <Radio key={o.value} name={`${uid}-access`} value={o.value} checked={value.access === o.value} disabled={disabled}
               aria-disabled={off || undefined} className={[s.radio, off && s.radioOff].filter(Boolean).join(" ")}
               onChange={() => { if (!off) set("access", o.value); }}
-              label={o.label} description={o.reason ?? o.description} />
+              label={ws && o.value !== "link" ? <span className={MASK}>{o.label}</span> : o.label}
+              description={ws && !o.reason && o.value !== "link" ? <span className={MASK}>{o.description}</span> : o.reason ?? o.description} />
           );
         })}
       </div>
@@ -350,7 +354,7 @@ function EncryptPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }
       {inPopover && e2eSupported && (
         <div className={s.keyDemo} aria-hidden>
           <div className={s.keyDemoCol}>
-            <span className={s.keyDemoUrl}>{prefix}{slug}</span>
+            <span className={`${MASK} ${s.keyDemoUrl}`}>{prefix}{slug}</span>
             <span className={s.keyDemoNote}><Icon name="globe" /> Sent to Markdrop</span>
           </div>
           <div className={s.keyDemoCol}>
@@ -449,7 +453,7 @@ function LinkPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean }) {
         ? "The link name isn't encrypted. Leave it blank for a random one."
         : <>Leave blank for a short random link. <ReadMore topic="addresses" /></>}
       error={errors.slug}>
-      <Input mono textPrefix={prefix} value={value.slug} placeholder="random" maxLength={slugMaxLength} disabled={disabled}
+      <Input mono textPrefix={prefix} wrapClassName={MASK} value={value.slug} placeholder="random" maxLength={slugMaxLength} disabled={disabled}
         autoCapitalize="off" autoCorrect="off" autoComplete="off" spellCheck={false} title={fullPrefix !== prefix ? fullPrefix : undefined}
         onChange={(e) => set("slug", e.target.value)} />
     </Field>
@@ -480,12 +484,12 @@ function TargetPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
   return (
     <div className={s.block}>
       <Field label={labelFor("target", inPopover)} error={errors.target}>
-        <Select options={wsOptions} value={value.target.workspaceId ?? ""} disabled={disabled}
+        <Select options={wsOptions} className={MASK} value={value.target.workspaceId ?? ""} disabled={disabled}
           onChange={(e) => pickWorkspace(e.target.value || null)} />
       </Field>
       {ws && (
         <Field label="Folder">
-          <Select value={value.target.folderId ?? ""} disabled={disabled || !ws.folders}
+          <Select className={MASK} value={value.target.folderId ?? ""} disabled={disabled || !ws.folders}
             options={[{ value: "", label: "Top level" }, ...folders.map((f) => ({ value: f.id, label: f.label ?? (f.path?.length ? f.path.join(" / ") : f.name) }))]}
             onChange={(e) => {
               // A folder can start new items differently ("New items here start as …"): apply it.
@@ -498,9 +502,9 @@ function TargetPanel({ ctx, inPopover }: { ctx: PanelCtx; inPopover?: boolean })
       )}
       <div className={s.preview}>
         <span className={s.previewLabel}>Will publish to</span>
-        <span className={s.previewUrl}>{ws ? fullPrefix : prefix}{slug || <span className={s.previewRandom}>a short random link</span>}</span>
+        <span className={s.previewUrl}><span className={MASK}>{ws ? fullPrefix : prefix}{slug}</span>{!slug && <span className={s.previewRandom}>a short random link</span>}</span>
       </div>
-      {ws && <p className={s.caption}>Where it&apos;s filed and its address. Who can open it is separate: right now, {accessWords}.</p>}
+      {ws && <p className={`${MASK} ${s.caption}`}>Where it&apos;s filed and its address. Who can open it is separate: right now, {accessWords}.</p>}
     </div>
   );
 }

@@ -132,7 +132,7 @@ export default function WorkspacesClient() {
                   <div className="flex min-w-0 items-start gap-3">
                     <BrandTile name={w.name} logoUrl={b.logo_url} logoWell={b.logo_well} accent={b.accent_color} size={40} />
                     <div className="min-w-0 flex-1">
-                      <h2 className="truncate text-h4 text-text" dir="auto">{w.name}</h2>
+                      <h2 className="ph-sensitive ph-mask truncate text-h4 text-text" dir="auto">{w.name}</h2>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <Badge size="sm" tone={w.role === "owner" ? "info" : "neutral"} icon="user">{ROLE_LABEL[w.role] ?? w.role}</Badge>
                       </div>
@@ -142,7 +142,7 @@ export default function WorkspacesClient() {
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     {w.primary_host ? (
                       <>
-                        <span className="min-w-0 truncate font-mono text-code text-text-secondary">{w.primary_host}</span>
+                        <span className="ph-sensitive ph-mask min-w-0 truncate font-mono text-code text-text-secondary">{w.primary_host}</span>
                         <Badge size="sm" tone="success" dot>Live</Badge>
                       </>
                     ) : (

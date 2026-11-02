@@ -180,7 +180,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             share, Mobile board) instead of this bar, so the place isn't named twice. */}
         <div className={cx("flex min-h-14 items-center gap-2 border-b border-border px-4 sm:px-6 lg:hidden", FOLDER_PAGE.test(pathname) && "max-sm:hidden")}>
           <IconButton icon="listTree" label="Browse" variant="secondary" className="size-11" aria-haspopup="dialog" aria-expanded={browseOpen} onClick={() => setBrowseOpen(true)} />
-          {activeLabel && <span className="min-w-0 truncate text-body-strong text-text" dir="auto">{activeLabel}</span>}
+          {/* A workspace or folder name is masked in replays; the fixed labels aren't. */}
+          {activeLabel && <span className={cx("min-w-0 truncate text-body-strong text-text", !(active && LABELS[active]) && "ph-sensitive ph-mask")} dir="auto">{activeLabel}</span>}
         </div>
         <main
           id="main"
@@ -215,8 +216,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised p-3">
                   <UserAvatar user={user} />
                   <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-body-strong text-text">{user.name || "Signed in"}</span>
-                    <span className="truncate text-caption text-text-muted">{user.email}</span>
+                    <span className="ph-sensitive ph-mask truncate text-body-strong text-text">{user.name || "Signed in"}</span>
+                    <span className="ph-sensitive ph-mask truncate text-caption text-text-muted">{user.email}</span>
                   </span>
                   <Button variant="secondary" className="h-11" onClick={() => { setBrowseOpen(false); void signOut(); }}>Sign out</Button>
                 </div>

@@ -298,7 +298,7 @@ export function RotatedNotice({ link }: { link: string }) {
           Old links stop opening the current version. Anyone who saved an old copy can still read that copy.
         </span>
         <span className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 break-all font-mono text-code text-text">{link}</code>
+          <code className="ph-sensitive ph-mask min-w-0 break-all font-mono text-code text-text">{link}</code>
           <CopyButton text={link} label="Copy link" size="sm" variant="secondary" />
         </span>
       </span>

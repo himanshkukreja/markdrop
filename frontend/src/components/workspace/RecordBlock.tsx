@@ -32,7 +32,7 @@ export function RecordBlock({
       <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-border px-3 py-2">
         <span className="text-eyebrow uppercase text-text-secondary">{label}</span>
         <Badge size="sm" variant="outline" className="font-mono">{type}</Badge>
-        {purpose && <span className="text-caption text-text-muted">{purpose}</span>}
+        {purpose && <span className="ph-sensitive ph-mask text-caption text-text-muted">{purpose}</span>}
         {found === true && <Badge size="sm" tone="success" icon="check" className="ml-auto">Found</Badge>}
         {found === false && <Badge size="sm" tone="warning" icon="clock" className="ml-auto">Not found yet</Badge>}
       </div>
@@ -42,7 +42,8 @@ export function RecordBlock({
             <dt className="w-[5.5rem] shrink-0 text-micro font-semibold uppercase tracking-wide text-text-secondary">{k}</dt>
             {/* The copy button lives inside the dd: a dl's groups may hold only dt and dd. */}
             <dd className="m-0 flex min-w-0 flex-1 items-center gap-3">
-              <span className="min-w-0 flex-1 font-mono text-code text-text [overflow-wrap:anywhere]">{v}</span>
+              {/* The customer's domain and verification value: masked in replays. */}
+              <span className="ph-sensitive ph-mask min-w-0 flex-1 font-mono text-code text-text [overflow-wrap:anywhere]">{v}</span>
               <CopyButton
                 text={v}
                 iconOnly

@@ -95,7 +95,7 @@ export function RenameFolderDialog({
         </Field>
         <div className="flex min-w-0 flex-col gap-1">
           <span className="md-field__label">Address</span>
-          <p className="rounded-md border border-border bg-surface-inset px-3 py-2 font-mono text-code text-text [overflow-wrap:anywhere]" aria-live="polite">
+          <p className="ph-sensitive ph-mask rounded-md border border-border bg-surface-inset px-3 py-2 font-mono text-code text-text [overflow-wrap:anywhere]" aria-live="polite">
             {host ?? "your-domain"}/{nextPath}/…
           </p>
           <p className="md-field__hint">
@@ -133,12 +133,12 @@ export function DeleteFolderDialog({
     <ConfirmDialog
       open={!!folder}
       onClose={onClose}
-      title={f ? `Delete “${f.name}”?` : "Delete folder?"}
+      title={f ? <>Delete <span className="ph-sensitive ph-mask">“{f.name}”</span>?</> : "Delete folder?"}
       size="md"
       body={
         f ? (
           <div className="flex flex-col gap-4">
-            <p className="text-body text-text-secondary">
+            <p className="ph-sensitive ph-mask text-body text-text-secondary">
               Only the folder goes. {f.item_count > 0 || subs > 0
                 ? `Its ${[f.item_count ? plural(f.item_count, "item") : null, subs ? plural(subs, "subfolder") : null].filter(Boolean).join(" and ")} stay in ${wsName}${parent ? "" : ", at the top level"}, and nobody loses access.`
                 : "It's empty."}
@@ -150,8 +150,8 @@ export function DeleteFolderDialog({
                 value={mode}
                 onChange={(v) => setMode(v as "move_up" | "unfile")}
                 options={[
-                  { value: "move_up", label: `Move everything into ${upLabel}`, description: "Items and subfolders keep their place one level up." },
-                  { value: "unfile", label: `Move items to the top of ${wsName}`, description: subs ? "Subfolders move up one level, with what's in them." : "They stay in the workspace, in no folder." },
+                  { value: "move_up", label: <>Move everything into <span className="ph-sensitive ph-mask">{upLabel}</span></>, description: "Items and subfolders keep their place one level up." },
+                  { value: "unfile", label: <>Move items to the top of <span className="ph-sensitive ph-mask">{wsName}</span></>, description: subs ? "Subfolders move up one level, with what's in them." : "They stay in the workspace, in no folder." },
                 ]}
               />
             )}
@@ -285,13 +285,13 @@ export function MoveToDialog({
       open={!!target}
       onClose={onClose}
       size="md"
-      title={`Move ${what}`}
+      title={<>Move <span className="ph-sensitive ph-mask">{what}</span></>}
       description="Choose a folder. Who can open it doesn't change; on the workspace's domain its address follows the folder."
       dismissible={!busy}
       footer={
         <>
           <span className="mr-auto hidden min-w-0 truncate text-caption text-text-muted sm:block" aria-live="polite">
-            {selected ? <>To <span className="text-text-secondary">{destLabel}</span></> : "Nothing chosen yet"}
+            {selected ? <>To <span className="ph-sensitive ph-mask text-text-secondary">{destLabel}</span></> : "Nothing chosen yet"}
           </span>
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
           <Button variant="primary" onClick={() => void move()} loading={busy} disabled={!selected}>Move here</Button>
@@ -395,7 +395,7 @@ export function AddExistingDialog({
       open={open}
       onClose={onClose}
       size="lg"
-      title={`Add to ${folder ? folder.name : workspace.name}`}
+      title={<>Add to <span className="ph-sensitive ph-mask">{folder ? folder.name : workspace.name}</span></>}
       description="Choose documents and files you've published. They move into this folder as they are: the same link, not a copy."
       initialFocus={searchRef}
       dismissible={!busy}
@@ -432,11 +432,12 @@ export function AddExistingDialog({
         ) : docs.length === 0 && !loadError ? (
           <EmptyState
             icon={debounced ? "search" : "lines"}
-            title={debounced ? `Nothing matches “${debounced}”` : "You haven't published anything yet"}
+            title={debounced ? <>Nothing matches <span className="ph-sensitive ph-mask">“{debounced}”</span></> : "You haven't published anything yet"}
             description={debounced ? "Search looks at titles and links." : "Use New document or Upload here instead."}
           />
         ) : (
-          <ul className="flex max-h-[44dvh] min-w-0 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-surface-inset p-1.5" aria-label="Your documents">
+          // ph-no-capture: the person's documents (titles, links).
+          <ul className="ph-no-capture flex max-h-[44dvh] min-w-0 flex-col gap-1 overflow-y-auto rounded-lg border border-border bg-surface-inset p-1.5" aria-label="Your documents">
             {docs.map((d) => {
               const inThis = d.workspace_id === workspace.id;
               const elsewhere = !!d.workspace_id && !inThis;
@@ -476,11 +477,11 @@ export function AddExistingDialog({
             onChange={(v) => setAccess(v as "keep" | "workspace")}
             options={[
               { value: "keep", label: "Keep as they are", description: "Each keeps its own setting. “Only people added” stays that way, even here." },
-              { value: "workspace", label: `${workspace.name} team`, description: `Anyone in ${workspace.name}, after signing in. Nobody else, link or not.` },
+              { value: "workspace", label: <><span className="ph-sensitive ph-mask">{workspace.name}</span> team</>, description: <>Anyone in <span className="ph-sensitive ph-mask">{workspace.name}</span>, after signing in. Nobody else, link or not.</> },
             ]}
           />
         </div>
-        <p className="text-caption text-text-muted">Adding to {where}. You can take them out again any time.</p>
+        <p className="text-caption text-text-muted">Adding to <span className="ph-sensitive ph-mask">{where}</span>. You can take them out again any time.</p>
         {error && <Alert tone="danger">{error}</Alert>}
       </div>
     </Dialog>

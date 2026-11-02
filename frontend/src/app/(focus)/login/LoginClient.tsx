@@ -64,7 +64,7 @@ export default function LoginClient() {
           mark={<LoginMark />}
           title={guides ? "Sign in to Markdrop Guides" : "Sign in to Markdrop"}
           message={tenantHost ? (
-            <>Sign in to read <strong className="font-semibold text-text break-words">{tenantHost}</strong>. You&apos;ll go straight back to it.</>
+            <>Sign in to read <strong className="ph-sensitive ph-mask font-semibold text-text break-words">{tenantHost}</strong>. You&apos;ll go straight back to it.</>
           ) : guides
             ? "Write, publish and improve your docs."
             : "One account for your documents, files, Guides and sharing."}

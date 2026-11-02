@@ -145,7 +145,7 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
           {active ? (
             <div className="pointer-events-none inline-flex max-w-72 items-center gap-2 rounded-lg border border-border-strong bg-surface-raised px-3 py-2 text-body-strong text-text shadow-lg">
               <Icon name={active.type === "folder" ? "folder" : active.type === "items" && active.slugs.length > 1 ? "layers" : "doc"} size={16} className="shrink-0 text-accent-text" />
-              <span className="truncate" dir="auto">{active.label}</span>
+              <span className="ph-sensitive ph-mask truncate" dir="auto">{active.label}</span>
             </div>
           ) : null}
         </DragOverlay>

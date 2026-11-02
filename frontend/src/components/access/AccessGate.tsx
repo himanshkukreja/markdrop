@@ -209,7 +209,7 @@ function StandardGate({
         {mode === "denied" && (
           <div className="flex w-full flex-col items-center gap-3">
             {email && (
-              <span className={s.chip}>
+              <span className={`ph-sensitive ph-mask ${s.chip}`}>
                 <Avatar name={email} size="sm" />
                 <span className="min-w-0 truncate text-caption text-text-secondary">
                   Signed in as <span className="font-semibold text-text">{email}</span>
@@ -250,7 +250,7 @@ function RequestAccessGate({
   const msgId = useId();
   const H = headingLevel === 1 ? "h1" : "h2";
   const owner = request.ownerFirstName;
-  const decides = `You'll get an email when ${owner ?? "the owner"} decides.`;
+  const decides = <>You&apos;ll get an email when {owner ? <span className="ph-sensitive ph-mask">{owner}</span> : "the owner"} decides.</>;
 
   useEffect(() => {
     if (state === "sent") statusRef.current?.focus();
@@ -296,13 +296,13 @@ function RequestAccessGate({
           <H id="md-gate-title" className="text-h2 text-text">{done ? "Request sent" : "You don't have access yet"}</H>
           {!done && (
             <p className="text-body text-text-secondary">
-              {email ? <>You&apos;re signed in as <strong className="font-semibold text-text">{email}</strong>. </> : null}
+              {email ? <>You&apos;re signed in as <strong className="ph-sensitive ph-mask font-semibold text-text">{email}</strong>. </> : null}
               Ask the owner and you&apos;ll get an email when they let you in.
             </p>
           )}
           {done && (
             <p ref={statusRef} tabIndex={-1} role="status" className="text-body text-text-secondary outline-none">
-              {state === "pending" ? `You've already asked for this. ${decides}` : `Request sent. ${decides}`}
+              {state === "pending" ? <>You&apos;ve already asked for this. {decides}</> : <>Request sent. {decides}</>}
             </p>
           )}
         </div>
@@ -327,7 +327,8 @@ function RequestAccessGate({
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
                 placeholder={owner ? `Hi ${owner}, I need this for Thursday's review.` : "Hi, I need this for Thursday's review."}
-                className="resize-none"
+                // ph-mask: the placeholder names the owner (lib/thirdPartyAnalytics maskAttributeFn).
+                className="ph-mask resize-none"
               />
             </div>
             {error && <Alert tone="danger">{error}</Alert>}

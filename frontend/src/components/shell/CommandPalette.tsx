@@ -200,7 +200,9 @@ export default function CommandPalette({
 
   return (
     <Dialog open={open} onClose={onClose} title="Quick search" className={s.palette} initialFocus={inputRef}>
-      <label className={s.field}>
+      {/* Replays: the field is blocked (its aria-activedescendant carries a file's slug), and so are
+          the results (titles, folders, workspaces) and the status that echoes the query. */}
+      <label className={`ph-no-capture ${s.field}`}>
         {loading ? <Spinner size={18} /> : <Icon name="search" size={18} />}
         <input
           ref={inputRef}
@@ -221,9 +223,9 @@ export default function CommandPalette({
         />
         <Kbd>Esc</Kbd>
       </label>
-      <span className="md-visually-hidden" role="status" aria-live="polite">{statusText}</span>
+      <span className="ph-sensitive ph-mask md-visually-hidden" role="status" aria-live="polite">{statusText}</span>
 
-      <ul ref={listRef} id={listId} role="listbox" aria-label="Results" className={s.list}>
+      <ul ref={listRef} id={listId} role="listbox" aria-label="Results" className={`ph-no-capture ${s.list}`}>
         {groups.map((g) => (
           <li key={g.name} role="presentation">
             <p className={s.group} aria-hidden>{g.name}</p>

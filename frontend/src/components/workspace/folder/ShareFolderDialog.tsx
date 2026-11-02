@@ -69,8 +69,8 @@ export default function ShareFolderDialog({
       size="lg"
       className="!max-w-[568px]"
       glyph={<Icon name={f ? "folder" : "users"} size={18} />}
-      title={`Share “${name}”`}
-      description={<>{f ? `In ${workspaceName} · ${plural(itemCount, "item")}` : `${plural(itemCount, "item")} at the top level`} · <ReadMore topic="shareFolder" /></>}
+      title={<>Share <span className="ph-sensitive ph-mask">“{name}”</span></>}
+      description={<>{f ? <>In <span className="ph-sensitive ph-mask">{workspaceName}</span> · {plural(itemCount, "item")}</> : `${plural(itemCount, "item")} at the top level`} · <ReadMore topic="shareFolder" /></>}
       footer={<Button variant="secondary" onClick={onClose}>Done</Button>}
     >
       <div className="flex min-w-0 flex-col gap-5">
@@ -168,7 +168,7 @@ function InvitePanel({
   return (
     <div className="flex min-w-0 flex-col gap-4">
       <p className="text-[13px] leading-5 text-text-secondary">
-        People you invite join <strong className="font-semibold text-text">{workspaceName}</strong>.
+        People you invite join <strong className="ph-sensitive ph-mask font-semibold text-text">{workspaceName}</strong>.
         They can open everything the team can{inFolder ? ", not just this folder" : ""}.
       </p>
       {canInvite ? (
@@ -200,7 +200,8 @@ function InvitePanel({
         <p className="text-caption text-text-muted">Only admins can invite people. {ROLE_HINT}</p>
       )}
 
-      <ul className="m-0 flex list-none flex-col gap-0.5 p-0" aria-label={`People in ${workspaceName}`}>
+      {/* ph-no-capture: members' names and emails. */}
+      <ul className="ph-no-capture m-0 flex list-none flex-col gap-0.5 p-0" aria-label={`People in ${workspaceName}`}>
         {members === null
           ? [0, 1, 2].map((i) => <li key={i}><Skeleton variant="rect" height={44} /></li>)
           : (
@@ -309,8 +310,8 @@ function LinkPanel({
         onChange={(v) => void apply(v)}
         busy={state === "saving"}
         options={[
-          { value: "off", label: "Not shared", icon: "lock", hint: `Only people in ${workspaceName} see this folder, here in Markdrop.` },
-          { value: "workspace", label: `${team} team`, icon: "user", hint: "A link for teammates. They sign in to open it." },
+          { value: "off", label: "Not shared", icon: "lock", hint: `Only people in ${workspaceName} see this folder, here in Markdrop.`, sensitive: true },
+          { value: "workspace", label: `${team} team`, icon: "user", hint: "A link for teammates. They sign in to open it.", sensitive: true },
           { value: "link", label: "Anyone with the link", icon: "globe", hint: "No sign-in. Visitors see only the items open to anyone." },
         ]}
       />
@@ -325,7 +326,7 @@ function LinkPanel({
         ) : share ? (
           <>
             <div className="flex min-w-0 items-center gap-2">
-              <Input readOnly mono value={share.url} aria-label="Folder link" wrapClassName="min-w-0 flex-1" className="min-w-0 flex-1 bg-surface-inset" onFocus={(e) => e.currentTarget.select()} />
+              <Input readOnly mono value={share.url} aria-label="Folder link" wrapClassName="min-w-0 flex-1" className="ph-no-capture min-w-0 flex-1 bg-surface-inset" onFocus={(e) => e.currentTarget.select()} />
               <CopyButton text={share.url} label="Copy link" variant="primary" size="md" announceText="Folder link copied" />
             </div>
             {share.level === "link" && hidden > 0 && (
@@ -340,7 +341,7 @@ function LinkPanel({
             )}
             {share.level === "workspace" && (
               <p className="text-caption text-text-secondary">
-                Teammates see what they can open. People outside {workspaceName} get a sign-in page, then nothing.
+                Teammates see what they can open. People outside <span className="ph-sensitive ph-mask">{workspaceName}</span> get a sign-in page, then nothing.
               </p>
             )}
           </>

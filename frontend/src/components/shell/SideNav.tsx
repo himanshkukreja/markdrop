@@ -132,7 +132,7 @@ export function WorkspaceTile({ ws, active, size = 18 }: { ws: Pick<Workspace, "
   const box = { width: size, height: size, borderRadius: Math.max(4, Math.round(size * 0.28)) };
   if (logo) {
     return (
-      <span className="grid shrink-0 place-items-center overflow-hidden" style={{ ...box, background: "var(--logo-well-light)" }} aria-hidden>
+      <span className="ph-no-capture grid shrink-0 place-items-center overflow-hidden" style={{ ...box, background: "var(--logo-well-light)" }} aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={logo} alt="" className="size-full object-contain" />
       </span>
@@ -141,7 +141,7 @@ export function WorkspaceTile({ ws, active, size = 18 }: { ws: Pick<Workspace, "
   const initial = (ws.branding?.site_name || ws.name || "?").trim().charAt(0).toUpperCase();
   return (
     <span
-      className={cx("grid shrink-0 place-items-center font-bold leading-none", active ? "bg-accent text-on-accent" : "bg-surface-active text-text")}
+      className={cx("ph-sensitive ph-mask grid shrink-0 place-items-center font-bold leading-none", active ? "bg-accent text-on-accent" : "bg-surface-active text-text")}
       style={{ ...box, fontSize: Math.max(10, Math.round(size * 0.6)) }}
       aria-hidden
     >

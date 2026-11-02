@@ -27,7 +27,8 @@ export function initialsOf(user: Pick<MeUser, "name" | "email">): string {
  */
 export function UserAvatar({ user, size = "md", className }: { user: MeUser; size?: "sm" | "md" | "lg" | "xl"; className?: string }) {
   return (
-    <span className={cx("md-avatar", `md-avatar--${size}`, className)} aria-hidden>
+    // Replays: a photo's src identifies the person (blocked); initials are masked.
+    <span className={cx("md-avatar", `md-avatar--${size}`, user.picture ? "ph-no-capture" : "ph-sensitive ph-mask", className)} aria-hidden>
       {user.picture ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={user.picture} alt="" referrerPolicy="no-referrer" />
@@ -55,8 +56,8 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
     {
       header: (
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-body-strong text-text">{user.name || "Signed in"}</span>
-          <span className="truncate text-caption text-text-muted">{user.email}</span>
+          <span className="ph-sensitive ph-mask truncate text-body-strong text-text">{user.name || "Signed in"}</span>
+          <span className="ph-sensitive ph-mask truncate text-caption text-text-muted">{user.email}</span>
         </span>
       ),
     },

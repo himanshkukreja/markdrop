@@ -49,20 +49,22 @@ export function DocumentBar(p: DocumentBarProps) {
   const path = linkParts(p.url).slug || p.slug;
   const entries = tocHeadings(p.headings ?? []);
   const titleNode = p.title ? (
-    <Tooltip content={<span dir="auto">{p.title}</span>} side="bottom" className="flex min-w-0 max-w-full">
-      <p dir="auto" tabIndex={0} className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text">{p.title}</p>
+    <Tooltip content={<span dir="auto" className="ph-sensitive ph-mask">{p.title}</span>} side="bottom" className="flex min-w-0 max-w-full">
+      <p dir="auto" tabIndex={0} className="ph-sensitive ph-mask md-focus min-w-0 truncate rounded-sm text-body-strong text-text">{p.title}</p>
     </Tooltip>
   ) : (
-    <p className="min-w-0 truncate font-mono text-body text-text-secondary">/{path}</p>
+    <p className="ph-sensitive ph-mask min-w-0 truncate font-mono text-body text-text-secondary">/{path}</p>
   );
 
+  // Recorded: the bar's buttons are chrome. The title, slug and link are masked, and the
+  // Contents menu (the document's own headings) is blocked.
   return (
-    <div className="ph-no-capture no-print sticky top-14 z-(--z-sticky) border-b border-border bg-surface">
+    <div className="no-print sticky top-14 z-(--z-sticky) border-b border-border bg-surface">
       <div className="mx-auto flex h-14 max-w-marketing items-center gap-3 px-4 sm:px-6">
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {p.gated ? (
             <>
-              <p className="min-w-0 truncate font-mono text-body text-text-secondary">/{path}</p>
+              <p className="ph-sensitive ph-mask min-w-0 truncate font-mono text-body text-text-secondary">/{path}</p>
               {p.gateBadge && (
                 <Badge icon="lock" size="sm">{p.gateBadge === "private" ? "Private" : "Password"}</Badge>
               )}
@@ -106,7 +108,7 @@ export function DocumentBar(p: DocumentBarProps) {
                     label: <span dir="auto" className={h.depth > entries[0]!.depth ? "pl-3" : undefined}>{h.text}</span>,
                     onClick: () => navigateToHeading(h.id, { encrypted: p.encrypted }),
                   }))}
-                  menuClassName="max-h-[60dvh] overflow-y-auto"
+                  menuClassName="ph-no-capture max-h-[60dvh] overflow-y-auto"
                 />
               </div>
             )}
