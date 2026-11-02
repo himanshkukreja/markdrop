@@ -267,7 +267,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
                 <Icon name="zap" className="dx-palette__askicon" />
                 <span className="dx-palette__main">
                   <strong className="dx-palette__title">
-                    {ai.name}: “{q}”
+                    {ai.name}: <span className="ph-sensitive ph-mask">“{q}”</span>
                   </strong>
                   <span className="dx-palette__snippet">An answer from these docs, with links to the sections it used</span>
                 </span>
@@ -297,7 +297,8 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
                   >
                     <Icon name={recent.length ? "clock" : "search"} className="dx-palette__icon" />
                     <span className="dx-palette__main">
-                      <span className="dx-palette__title">{r}</span>
+                      {/* Recent searches are what the reader typed: masked in replays. */}
+                      <span className={cx("dx-palette__title", recent.length > 0 && "ph-sensitive ph-mask")}>{r}</span>
                     </span>
                   </div>
                 ))}
@@ -311,7 +312,7 @@ export function SearchPalette({ suggestions = [] }: { suggestions?: string[] }) 
             {q && failed && !ms && <div className="dx-palette__status">Search couldn&apos;t load. Check your connection and try again.</div>}
             {q && ms && !flat.length && (
               <div className="dx-palette__status">
-                No results for “{q}”. Try fewer words, or a word from the page title.
+                No results for <span className="ph-sensitive ph-mask">“{q}”</span>. Try fewer words, or a word from the page title.
               </div>
             )}
             {groups.map((g) => (
