@@ -32,6 +32,11 @@ export const SAMPLE_SLUGS = [
   "team-handbook",
   "onboarding",
   "q3-roadmap",
+  // The landing desk's five samples (components/landing/desk/samples.ts, scripts/landing-samples/).
+  "launch-notes",
+  "acme-pricing-calculator",
+  "acme-deck",
+  "budget-2026",
 ] as const;
 
 export const SAMPLE_SLUGS_PUBLISHED: ReadonlySet<string> = new Set<string>([]);

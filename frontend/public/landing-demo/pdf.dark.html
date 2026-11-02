@@ -1,0 +1,318 @@
+<!doctype html><html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<title>PDF</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root,[data-theme=dark]{color-scheme:dark;
+  --bg:#030712;--surface:#101828;--surface-raised:#1e2939;--surface-hover:#1e2939;
+  --surface-active:#364153;--surface-inset:#0b1220;--border:#1e2939;--border-strong:#364153;
+  --border-focus:#2b7fff;--text:#f3f4f6;--text-secondary:#d1d5dc;--text-muted:#99a1af;
+  --accent:#155dfc;--accent-hover:#2b7fff;--accent-text:#51a2ff;--accent-soft:#2b7fff26;
+  --on-accent:#ffffff;--danger:#ff6467;--code-bg:#0d1117;--code-inline-bg:#1e2939;--code-inline:#fda5d5;
+  --shadow-page:0 4px 8px -2px rgb(0 0 0 / .5),0 2px 4px -2px rgb(0 0 0 / .4);}
+  @media (prefers-color-scheme:light){:root:not([data-theme]){color-scheme:light;
+  --bg:#E3E7ED;--surface:#EBEEF2;--surface-raised:#F2F4F7;--surface-hover:#E3E7EC;
+  --surface-active:#D4DAE2;--surface-inset:#D9DEE6;--border:#CDD4DE;--border-strong:#B2BCCA;
+  --border-focus:#2F6FEB;--text:#111A2C;--text-secondary:#2B3546;--text-muted:#4A5567;
+  --accent:#2150D8;--accent-hover:#1C46C0;--accent-text:#1C46C0;--accent-soft:#2150D81F;
+  --on-accent:#ffffff;--danger:#B41C1C;--code-bg:#E6EAEF;--code-inline-bg:#D9DEE6;--code-inline:#A3114F;
+  --shadow-page:0 6px 16px -6px rgb(17 26 44 / .16),0 2px 4px -2px rgb(17 26 44 / .08);}}
+  [data-theme=light]{color-scheme:light;
+  --bg:#E3E7ED;--surface:#EBEEF2;--surface-raised:#F2F4F7;--surface-hover:#E3E7EC;
+  --surface-active:#D4DAE2;--surface-inset:#D9DEE6;--border:#CDD4DE;--border-strong:#B2BCCA;
+  --border-focus:#2F6FEB;--text:#111A2C;--text-secondary:#2B3546;--text-muted:#4A5567;
+  --accent:#2150D8;--accent-hover:#1C46C0;--accent-text:#1C46C0;--accent-soft:#2150D81F;
+  --on-accent:#ffffff;--danger:#B41C1C;--code-bg:#E6EAEF;--code-inline-bg:#D9DEE6;--code-inline:#A3114F;
+  --shadow-page:0 6px 16px -6px rgb(17 26 44 / .16),0 2px 4px -2px rgb(17 26 44 / .08);}
+  :root{
+    /* Paper is paper: a PDF page is white in either theme. */
+    --paper:#ffffff;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;
+    --r-md:6px;--r-lg:8px;--r-xl:12px;--r-full:9999px;
+    --ease-out:cubic-bezier(.16,1,.3,1);--fast:150ms;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{display:flex;flex-direction:column;background:var(--surface);color:var(--text);
+    font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  :focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
+  .wrap{flex:1;min-height:0;overflow:auto;position:relative}
+  .msg{margin:0;padding:24px;color:var(--text-muted)}
+  .sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+  /* Toolbar */
+  .bar{flex:none;display:flex;align-items:center;gap:4px;min-height:48px;padding:4px 8px 4px 16px;
+    background:var(--surface);border-bottom:1px solid var(--border);position:relative;z-index:20}
+  .grow{flex:1;min-width:8px}
+  .status{min-width:0;font-size:13px;line-height:20px;color:var(--text-secondary);
+    font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .group{display:flex;align-items:center}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:40px;min-width:40px;
+    padding:0 10px;border:0;border-radius:var(--r-md);background:transparent;color:var(--text-secondary);
+    font:600 13px/1 var(--sans);text-decoration:none;white-space:nowrap;cursor:pointer;
+    transition:background-color var(--fast) var(--ease-out),color var(--fast) var(--ease-out)}
+  .btn svg{flex:none;width:18px;height:18px}
+  .btn.icon{width:40px;padding:0}
+  .btn:hover{background:var(--surface-hover);color:var(--text)}
+  .btn:active{background:var(--surface-active)}
+  .btn[aria-pressed=true]{background:var(--accent-soft);color:var(--accent-text)}
+  .btn:disabled{opacity:.45;cursor:default;background:transparent;color:var(--text-secondary)}
+  .pct{width:44px;text-align:center;font-size:13px;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+  @media (pointer:coarse),(max-width:600px){
+    .btn{height:44px;min-width:44px}.btn.icon{width:44px}
+  }
+  @media (max-width:520px){
+    .lbl{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+    .btn.has-lbl{width:44px;padding:0}
+    .bar{padding-left:12px}
+  }
+  @media (max-width:359px){ .pct{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)} }
+
+  /* "This file isn't available" — server-rendered, and swapped in by a viewer
+     whose /r/ fetch answers 403 or 404. */
+  .na-body{flex:1;display:flex;align-items:center;justify-content:center;padding:32px 16px;background:var(--surface)}
+  .na{max-width:480px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px}
+  .na-icon{display:grid;place-items:center;width:48px;height:48px;margin-bottom:8px;border-radius:var(--r-xl);
+    background:var(--surface-inset);border:1px solid var(--border);color:var(--text-muted)}
+  .na-icon svg{width:24px;height:24px}
+  .na h1{margin:0;font-size:20px;line-height:28px;font-weight:700;letter-spacing:-.01em;color:var(--text)}
+  .na p{margin:0;font-size:15px;line-height:24px;color:var(--text-secondary)}
+  .na .na-host{margin-top:16px;font-size:12px;line-height:16px;font-weight:600;letter-spacing:.02em;color:var(--text-muted)}
+
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+  .wrap{background:var(--surface-inset)}
+  .pdf{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;min-width:min-content}
+  .page{position:relative;flex:none;border-radius:2px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow-page)}
+  .page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  /* pdf.js 4.x text layer: invisible text sitting exactly over the drawn glyphs. */
+  .textLayer{position:absolute;text-align:initial;inset:0;overflow:clip;opacity:1;line-height:1;
+    -webkit-text-size-adjust:none;text-size-adjust:none;forced-color-adjust:none;transform-origin:0 0;
+    caret-color:#000;z-index:2;color-scheme:only light;
+    --min-font-size:1;--text-scale-factor:calc(var(--scale-factor) * var(--min-font-size));
+    --min-font-size-inv:calc(1 / var(--min-font-size))}
+  .textLayer :is(span,br){color:transparent;position:absolute;white-space:pre;cursor:text;transform-origin:0% 0%}
+  .textLayer > :not(.markedContent),.textLayer .markedContent span:not(.markedContent){z-index:1;
+    --font-height:0;font-size:calc(var(--text-scale-factor) * var(--font-height));--scale-x:1;--rotate:0deg;
+    transform:rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv))}
+  .textLayer .markedContent{display:contents}
+  .textLayer ::selection{background:rgb(33 80 216 / .35)}
+  .textLayer .endOfContent{display:block;position:absolute;inset:100% 0 0;z-index:0;cursor:default;user-select:none}
+  .pdf .msg{text-align:center}
+  @media (max-width:520px){.pdf{padding:12px;gap:12px}}</style></head><body>
+<header class="bar" role="toolbar" aria-label="PDF controls">
+<span id="status" class="status">Loading PDF…</span>
+<span class="grow"></span>
+<div class="group">
+<button type="button" class="btn icon" id="zout" aria-label="Zoom out" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 12h14"/></svg></button>
+<span id="pct" class="pct">100%</span>
+<button type="button" class="btn icon" id="zin" aria-label="Zoom in" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+<button type="button" class="btn has-lbl" id="fit" aria-pressed="true" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/></svg><span class="lbl">Fit width</span></button>
+<a class="btn has-lbl" id="dl" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg><span class="lbl">Download</span></a>
+</header>
+<main class="wrap" id="scroller"><div id="out" class="pdf"></div></main>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+<script type="module">
+const SRC = "/landing-demo/files/acme-deck.pdf";
+const V = "4.10.38";
+
+function showUnavailable(){
+  document.body.innerHTML = '<main class="na-body">' + "<div class=\"na\" role=\"status\">\n<span class=\"na-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\" focusable=\"false\"><path d=\"M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z\"/><path d=\"M14 3v5h5\"/><path d=\"m10 12 4 4m0-4-4 4\"/></svg></span>\n<h1>This file isn't available</h1>\n<p>It may have expired or been deleted.</p>\n<p class=\"na-host\">markdrop.in</p>\n</div>" + '</main>';
+}
+const $ = (id) => document.getElementById(id);
+const status = $('status'), out = $('out'), scroller = $('scroller'), live = $('live');
+const pct = $('pct'), zin = $('zin'), zout = $('zout'), fitBtn = $('fit');
+$('dl').href = SRC;
+
+// 100% is the page's printed size: PDF points (1/72 in) to CSS px (1/96 in).
+const CSS_UNITS = 96 / 72, LIMIT = 50, FIT_MAX_PX = 1100;
+const STEPS = [0.5, 0.67, 0.75, 0.8, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+let pdfjs, doc, pages = [], fit = true, zoom = 1, busy = false, current = 0;
+const visible = new Set();
+// Analytics bridge (§1c): page count on load, the current page as it changes. Nothing else.
+function mdPost(msg) {
+  try { if (window.parent !== window) window.parent.postMessage(Object.assign({ md: 1 }, msg), '*'); } catch (_) {}
+}
+const say = (m) => { live.textContent = m; };
+
+function fitZoom() {
+  const avail = Math.min(scroller.clientWidth - 32, FIT_MAX_PX);
+  const widest = Math.max.apply(null, pages.map((p) => p.base.width));
+  return Math.max(0.25, Math.min(3, avail / (widest * CSS_UNITS)));
+}
+const zoomNow = () => (fit ? fitZoom() : zoom);
+const scaleNow = () => zoomNow() * CSS_UNITS;
+
+function layout() {
+  const ratio = scroller.scrollHeight ? scroller.scrollTop / scroller.scrollHeight : 0;
+  const s = scaleNow();
+  for (const p of pages) {
+    p.wrap.style.width = Math.floor(p.base.width * s) + 'px';
+    p.wrap.style.height = Math.floor(p.base.height * s) + 'px';
+    // The text layer is sized in CSS from this, so an already-drawn page stays
+    // selectable and aligned (canvas stretched) until its sharp re-draw lands.
+    p.wrap.style.setProperty('--scale-factor', String(s));
+    p.wrap.style.setProperty('--total-scale-factor', String(s));
+  }
+  const z = zoomNow();
+  pct.textContent = Math.round(z * 100) + '%';
+  zout.disabled = z <= STEPS[0] + 1e-3;
+  zin.disabled = z >= STEPS[STEPS.length - 1] - 1e-3;
+  fitBtn.setAttribute('aria-pressed', String(fit));
+  scroller.scrollTop = ratio * scroller.scrollHeight;
+  pump();
+}
+
+async function draw(p, s) {
+  const viewport = p.page.getViewport({ scale: s });
+  // Sharp on high-DPI screens, but capped: mobile Safari refuses canvases over
+  // ~16.7M pixels and silently draws nothing.
+  let dpr = window.devicePixelRatio || 1;
+  const area = viewport.width * viewport.height;
+  if (area * dpr * dpr > 16e6) dpr = Math.max(0.5, Math.sqrt(16e6 / area));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.floor(viewport.width * dpr);
+  canvas.height = Math.floor(viewport.height * dpr);
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  await p.page.render({ canvasContext: ctx, viewport }).promise;
+  if (scaleNow() !== s) return;            // zoom moved on mid-draw; redo later
+
+  const textDiv = document.createElement('div');
+  textDiv.className = 'textLayer';
+  p.wrap.replaceChildren(canvas, textDiv);
+  // Text layer. pdf.js 4.x exposes the TextLayer class; fall back to the
+  // older renderTextLayer helper so a CDN version bump can't blank it out.
+  const textContent = await p.page.getTextContent();
+  if (pdfjs.TextLayer) {
+    await new pdfjs.TextLayer({ textContentSource: textContent, container: textDiv, viewport }).render();
+  } else if (pdfjs.renderTextLayer) {
+    await pdfjs.renderTextLayer({ textContentSource: textContent, container: textDiv, viewport }).promise;
+  }
+  const end = document.createElement('div');
+  end.className = 'endOfContent';
+  textDiv.appendChild(end);
+  p.drawn = s;
+}
+
+async function pump() {
+  if (busy) return;
+  busy = true;
+  try {
+    for (;;) {
+      const s = scaleNow();
+      const next = [...visible].sort((a, b) => a.n - b.n).find((p) => p.drawn !== s);
+      if (!next) break;
+      await draw(next, s);
+    }
+  } finally {
+    busy = false;
+  }
+}
+
+function track() {
+  const line = scroller.getBoundingClientRect().top + scroller.clientHeight * 0.3;
+  let n = 1;
+  for (const p of pages) {
+    if (p.wrap.getBoundingClientRect().top <= line) n = p.n; else break;
+  }
+  if (n !== current) {
+    current = n;
+    status.textContent = 'Page ' + n + ' of ' + doc.numPages;
+    mdPost({ ev: 'page', p: n });
+  }
+}
+
+function step(dir) {
+  const z = zoomNow();
+  const next = dir > 0
+    ? STEPS.find((v) => v > z + 1e-3)
+    : STEPS.slice().reverse().find((v) => v < z - 1e-3);
+  if (next == null) return;
+  fit = false;
+  zoom = next;
+  layout();
+  say('Zoom ' + Math.round(next * 100) + '%');
+}
+
+try {
+  pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.min.mjs');
+  // The pdf.js worker lives on another origin and a cross-origin new Worker()
+  // is forbidden, so fetch it and hand pdf.js a same-origin blob URL instead.
+  const workerCode = await fetch('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + V + '/pdf.worker.min.mjs').then(r => r.text());
+  pdfjs.GlobalWorkerOptions.workerSrc =
+    URL.createObjectURL(new Blob([workerCode], { type: 'text/javascript' }));
+
+  doc = await pdfjs.getDocument({ url: SRC }).promise;
+  const limit = Math.min(doc.numPages, LIMIT);
+  for (let n = 1; n <= limit; n++) {
+    const pg = await doc.getPage(n);
+    const wrap = document.createElement('div');
+    wrap.className = 'page';
+    wrap.dataset.i = String(n - 1);
+    out.appendChild(wrap);
+    pages.push({ n, page: pg, base: pg.getViewport({ scale: 1 }), wrap, drawn: 0 });
+  }
+  if (doc.numPages > limit) {
+    const more = document.createElement('p');
+    more.className = 'msg';
+    more.textContent = 'Showing the first ' + limit + ' of ' + doc.numPages + ' pages. Download to see the rest.';
+    out.appendChild(more);
+  }
+
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const p = pages[+e.target.dataset.i];
+      if (e.isIntersecting) visible.add(p); else visible.delete(p);
+    }
+    pump();
+  }, { root: scroller, rootMargin: '800px 0px' });
+  pages.forEach((p) => io.observe(p.wrap));
+
+  zin.onclick = () => step(1);
+  zout.onclick = () => step(-1);
+  fitBtn.onclick = () => { fit = true; layout(); say('Fit width, zoom ' + pct.textContent); };
+  fitBtn.disabled = false;
+  mdPost({ ev: 'pdf', n: limit }); // pages this viewer shows, so "reached the end" is reachable past LIMIT
+  layout();
+  track();
+  say(doc.numPages + (doc.numPages === 1 ? ' page' : ' pages'));
+
+  let raf = 0;
+  scroller.addEventListener('scroll', () => {
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; track(); });
+  }, { passive: true });
+  let lastW = scroller.clientWidth;
+  new ResizeObserver(() => {
+    if (scroller.clientWidth === lastW) return;
+    lastW = scroller.clientWidth;
+    if (fit) layout();
+  }).observe(scroller);
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '+' || e.key === '=') { e.preventDefault(); step(1); }
+    else if (e.key === '-') { e.preventDefault(); step(-1); }
+  });
+} catch (e) {
+  // Ask the source what happened: an expired token (403) or a deleted file
+  // (404) is "isn't available", not "could not render".
+  let gone = false;
+  try {
+    const r = await fetch(SRC, { headers: { Range: 'bytes=0-0' } });
+    gone = r.status === 403 || r.status === 404;
+  } catch (_) {}
+  if (gone) {
+    showUnavailable();
+  } else {
+    status.textContent = 'Could not render this PDF';
+    out.innerHTML = '';
+    const p = document.createElement('p');
+    p.className = 'msg';
+    p.textContent = String(e && e.message || e);
+    out.appendChild(p);
+  }
+}
+</script>
+</body></html>
