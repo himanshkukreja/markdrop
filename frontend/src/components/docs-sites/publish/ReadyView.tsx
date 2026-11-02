@@ -4,8 +4,9 @@ import { ReadMore } from "@/components/ReadMore";
 import { useId } from "react";
 import { Alert, Anchor, Avatar, Badge, Button, CopyButton, EmptyState, Field, Icon, Skeleton, Textarea, type Tone } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
-import { primaryAddress, siteHost, type Build, type ChangeSummary, type ChangesResponse, type PageChange, type Review, type SetupStatus } from "@/lib/docsSites";
+import { addressSecuring, primaryAddress, siteHost, type Build, type ChangeSummary, type ChangesResponse, type PageChange, type Review, type SetupStatus } from "@/lib/docsSites";
 import { firstName, plural, timeAgo } from "../format";
+import { SECURING_COPIED, SecuringNote } from "../AddressSecuring";
 import { liveUrl } from "../PublishState";
 import { useSite } from "../SiteContext";
 import { Checklist } from "./Checklist";
@@ -103,6 +104,7 @@ export function ReadyView(props: {
   const reviewRequired = !!site.settings.review?.required;
   const host = primaryAddress(site);
   const isLive = site.status === "live";
+  const securing = isLive && addressSecuring(site);
   const firstChanged = pageChanges.find((c) => c.change !== "deleted");
   const previewHref = firstChanged ? `${base}?page=${encodeURIComponent(firstChanged.id)}&preview=1` : `${base}?preview=1`;
   const ever = changes?.ever_published ?? isLive;
@@ -266,13 +268,20 @@ export function ReadyView(props: {
             {isLive ? (
               <>
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <a href={liveUrl(host)} target="_blank" rel="noopener noreferrer" onClick={() => guideEvents.liveOpened("publish")}
-                    className="ph-sensitive ph-mask inline-flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-accent-text no-underline hover:underline">
-                    <span className="truncate">{host}</span><Icon name="external" size={12} className="shrink-0" />
-                    <span className="md-visually-hidden">(opens in a new tab)</span>
-                  </a>
-                  <CopyButton text={liveUrl(host)} label={`Copy ${host}`} iconOnly size="sm" announceText="Address copied" onCopy={() => guideEvents.addressCopied(host !== siteHost(site))} />
+                  {securing ? (
+                    <span className="ph-sensitive ph-mask inline-flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-text">
+                      <Icon name="lock" size={12} className="shrink-0 text-accent-text" /><span className="truncate">{host}</span>
+                    </span>
+                  ) : (
+                    <a href={liveUrl(host)} target="_blank" rel="noopener noreferrer" onClick={() => guideEvents.liveOpened("publish")}
+                      className="ph-sensitive ph-mask inline-flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-accent-text no-underline hover:underline">
+                      <span className="truncate">{host}</span><Icon name="external" size={12} className="shrink-0" />
+                      <span className="md-visually-hidden">(opens in a new tab)</span>
+                    </a>
+                  )}
+                  <CopyButton text={liveUrl(host)} label={`Copy ${host}`} iconOnly size="sm" announceText={securing ? SECURING_COPIED : "Address copied"} onCopy={() => guideEvents.addressCopied(host !== siteHost(site))} />
                 </span>
+                {securing && <SecuringNote />}
                 {live && (
                   <span className="text-[12px] text-text-muted">
                     Publish #{live.number} · {timeAgo(live.finished_at ?? site.last_published_at)}{live.requested_by_name ? ` by ${firstName(live.requested_by_name)}` : ""} · <Anchor href="#history" className="text-accent-text underline-offset-2 hover:underline">History</Anchor>

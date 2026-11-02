@@ -64,7 +64,8 @@ export function studioPermissions(role: DocsRole) {
 export interface SiteCtx {
   site: Site;
   setSite: (s: Site) => void;
-  reload: () => Promise<void>;
+  /** Load the guide again (and return it; null when that failed). */
+  reload: () => Promise<Site | null>;
   /** The site's workspace, or null for a personal site. */
   wsId: string | null;
   /** `/guides/<site>`: the site's screens hang off this. */
@@ -116,8 +117,10 @@ export function SiteProvider({ siteId, children }: { siteId: string; children: R
       siteRef.current = s;
       setSiteState(s);
       setError(null);
+      return s;
     } catch (e) {
       setError({ status: docsErrorStatus(e), message: docsErrorMessage(e, "Couldn't load this guide.") });
+      return null;
     }
   }, [siteId]);
 

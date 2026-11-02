@@ -3,7 +3,7 @@
  * its last change, the one-line note a guide that isn't live gets, and search matching.
  */
 import type { Tone } from "@/components/ui";
-import { primaryAddress, type SiteSummary } from "@/lib/docsSites";
+import { addressSecuring, primaryAddress, type SiteSummary } from "@/lib/docsSites";
 import { plural, timeAgo } from "../format";
 
 export type GuideTab = "all" | "live" | "review" | "drafts";
@@ -17,6 +17,8 @@ export const GUIDE_TABS: Array<{ value: GuideTab; label: string }> = [
 const BUSY = new Set(["queued", "building", "publishing"]);
 
 export const isLive = (s: SiteSummary): boolean => s.status === "live";
+/** Live, but its new address is still being secured (AddressSecuring.tsx): it doesn't open yet. */
+export const isSecuring = (s: SiteSummary): boolean => isLive(s) && addressSecuring(s);
 /** Never published (an unpublished guide was live once: it isn't a draft). */
 export const isDraft = (s: SiteSummary): boolean => s.status === "draft";
 
@@ -41,6 +43,7 @@ export function stateOf(s: SiteSummary): GuideState {
       title: isLive(s) ? "The last publish failed. Readers still see the one before it." : "The last publish failed.",
     };
   }
+  if (isSecuring(s)) return { label: "Securing", tone: "info", title: "Published. Securing its address: usually 1–3 minutes" };
   if (isLive(s)) return { label: "Live", tone: "success" };
   if (s.status === "unpublished") return { label: "Unpublished", tone: "neutral", title: "Taken down: pages and history are kept" };
   return { label: "Draft", tone: "neutral", title: "Not published yet" };
@@ -68,6 +71,7 @@ export function noteOf(s: SiteSummary): string | null {
     return n > 0 ? `${plural(n, "page")} waiting for a reviewer` : "Changes waiting for a reviewer";
   }
   if (s.build_status === "failed" && !isLive(s)) return "The last publish failed";
+  if (isSecuring(s)) return "Securing its address. Usually 1–3 minutes";
   if (s.status === "unpublished") return "Unpublished. Pages and history are kept";
   if (isDraft(s)) return "Not published yet";
   return null;

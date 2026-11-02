@@ -5,9 +5,10 @@ import { usePathname, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
 import {
-  docsErrorMessage, docsErrorStatus, getPublishStatus, primaryAddress, publishSite,
-  type Build, type PublishStatus,
+  addressSecuring, docsErrorMessage, docsErrorStatus, getPublishStatus, primaryAddress, publishSite,
+  type Build, type PublishStatus, type Site,
 } from "@/lib/docsSites";
+import { SECURING_TEXT } from "./AddressSecuring";
 import { useSite } from "./SiteContext";
 
 export type PublishFrom = "site_bar" | "publish_screen" | "design_banner";
@@ -50,11 +51,33 @@ export function openLive(host: string, path = "/") {
 
 const RUNNING_MS = 2000;
 const IDLE_MS = 20_000;
+// The guide itself, while its new address is being secured (AddressSecuring.tsx), or a first
+// publish runs before the address is attached.
+const ADDRESS_MS = 10_000;
+
+/** "Publish #n is live" with Open, or, while the new address is being secured, that it opens soon. */
+function liveToast(n: number, host: string, securing: boolean): { message: React.ReactNode; open: boolean } {
+  return {
+    open: !securing,
+    message: (
+      <span className="flex flex-col">
+        <strong>Publish #{n} is live</strong>
+        {securing
+          ? <span className="text-[12px] opacity-80">Securing <span className="ph-sensitive ph-mask">{host}</span> first. {SECURING_TEXT}</span>
+          : <span className="text-[12px] opacity-80"><span className="ph-sensitive ph-mask">{host}</span> shows your changes now</span>}
+      </span>
+    ),
+  };
+}
 
 /**
  * Polls GET /publish-status for every screen of one guide (it lives in the guide's layout): every
  * 2 s while a publish runs, every 20 s otherwise (paused while the tab is hidden), again whenever
  * the guide's settings are saved. When a publish goes live: "Publish #n is live" with Open (a new tab).
+ *
+ * A new guide's address takes a minute or three to be secured after its first publish
+ * (`address_state` "securing"): meanwhile the guide is loaded again every 10 s, and when the
+ * address opens, "Your guide is live at …" with Open.
  */
 export function PublishStateProvider({ children }: { children: React.ReactNode }) {
   const { site, base, isAdmin, reload } = useSite();
@@ -66,9 +89,8 @@ export function PublishStateProvider({ children }: { children: React.ReactNode }
   const watching = useRef<Set<string>>(new Set());
   const timer = useRef<number | null>(null);
   const soon = useRef<number | null>(null);
-  const host = primaryAddress(site);
-  const hostRef = useRef(host);
-  hostRef.current = host;
+  const siteRef = useRef<Site>(site);
+  siteRef.current = site;
 
   const settle = useCallback((next: PublishStatus) => {
     // Builds we saw running that aren't any more: live (say so) or failed.
@@ -77,15 +99,15 @@ export function PublishStateProvider({ children }: { children: React.ReactNode }
       watching.current.delete(id);
       if (next.live?.id === id) {
         const n = next.live.number;
-        const h = hostRef.current;
-        toast.success(
-          <span className="flex flex-col">
-            <strong>Publish #{n} is live</strong>
-            <span className="text-[12px] opacity-80"><span className="ph-sensitive ph-mask">{h}</span> shows your changes now</span>
-          </span>,
-          { duration: 9000, action: { label: "Open", onClick: () => { guideEvents.liveOpened("toast"); openLive(h); } } },
-        );
-        void reload();
+        // The guide again first: a first publish's address may still be being secured.
+        void reload().then((fresh) => {
+          const s = fresh ?? siteRef.current;
+          const h = primaryAddress(s);
+          const t = liveToast(n, h, s.status === "live" && addressSecuring(s));
+          if (t.open) {
+            toast.success(t.message, { duration: 9000, action: { label: "Open", onClick: () => { guideEvents.liveOpened("toast"); openLive(h); } } });
+          } else toast.info(t.message, { duration: 12_000 });
+        });
       } else if (next.latest?.id === id && next.latest.status === "failed") {
         toast.error(next.latest.error || `Publish #${next.latest.number} didn't go live. Nothing changed for readers.`);
       }
@@ -122,6 +144,33 @@ export function PublishStateProvider({ children }: { children: React.ReactNode }
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [refresh]);
   useEffect(() => () => { if (soon.current) window.clearTimeout(soon.current); }, []);
+
+  // The new address: load the guide every 10 s while it's being secured (or a first publish runs
+  // before it is attached), and say so when it opens.
+  const securing = site.address_state === "securing";
+  const watchAddress = securing || (!!running && site.address_state === "pending");
+  useEffect(() => {
+    if (!watchAddress) return;
+    const t = window.setInterval(() => {
+      if (document.visibilityState === "visible") void reload();
+    }, ADDRESS_MS);
+    return () => window.clearInterval(t);
+  }, [watchAddress, reload]);
+  const wasSecuring = useRef(site.status === "live" && addressSecuring(site));
+  useEffect(() => {
+    const now = site.status === "live" && addressSecuring(site);
+    if (wasSecuring.current && !now && site.status === "live" && site.address_state === "ready") {
+      const h = primaryAddress(site);
+      toast.success(
+        <span className="flex flex-col">
+          <strong>Your guide is live at <span className="ph-sensitive ph-mask">{h}</span></strong>
+          <span className="text-[12px] opacity-80">The address is secured. It opens for everyone now.</span>
+        </span>,
+        { duration: 12_000, action: { label: "Open", onClick: () => { guideEvents.liveOpened("toast"); openLive(h); } } },
+      );
+    }
+    wasSecuring.current = now;
+  }, [site, toast]);
 
   const mustReview = !!site.settings.review?.required && !isAdmin;
 

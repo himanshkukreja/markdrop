@@ -1,8 +1,9 @@
 "use client";
 
-import { useId } from "react";
+import { useId, useRef } from "react";
 import { Anchor, Button, Icon, Progress, Spinner } from "@/components/ui";
-import { primaryAddress, type Build } from "@/lib/docsSites";
+import { primaryAddress, siteHost, type Build } from "@/lib/docsSites";
+import { SECURING_TITLE } from "../AddressSecuring";
 import { num, plural } from "../format";
 import { useSite } from "../SiteContext";
 import { summaryCount, summarySentence } from "./shared";
@@ -36,12 +37,26 @@ export function ProgressView({ build, queuedAfter, compareHref }: { build: Build
   const pagesDetail = !p || !p.pages_total
     ? stage === "waiting" ? "waiting to start" : preparing ? "preparing" : "rendering"
     : stage === "pages" ? preparing ? "preparing" : `${num(p.pages_done)} of ${plural(p.pages_total, "page")}` : plural(p.pages_total, "page");
-  const steps: Array<{ label: React.ReactNode; detail: string; state: StepState }> = [
+  const steps: Array<{ label: React.ReactNode; detail: string; state: StepState; parallel?: boolean }> = [
     { label: "Saved a snapshot of your pages", detail: build.changes ? plural(summaryCount(build.changes) || 1, "change") : "done", state: "done" },
     { label: "Building the pages", detail: pagesDetail, state: stage === "waiting" ? "running" : state(1) },
     { label: "Search, Ask AI and link previews", detail: state(2) === "done" ? "done" : state(2) === "running" ? "indexing" : "next", state: state(2) },
     { label: <>Going live at <span className="ph-sensitive ph-mask">{host}</span></>, detail: state(3) === "running" ? "switching readers over" : "next", state: state(3) },
   ];
+  // A new guide's address gets its certificate alongside the build (a minute or three from the
+  // publish, AddressSecuring.tsx): the timeline says so while that's still on its way, and keeps the
+  // step, ticked, once it's done.
+  const addr = primaryAddress(site) === siteHost(site) ? site.address_state ?? "ready" : "ready";
+  const secures = useRef(addr !== "ready");
+  if (addr !== "ready") secures.current = true;
+  if (secures.current) {
+    steps.push({
+      label: SECURING_TITLE,
+      detail: addr === "securing" ? "usually 1–3 min" : addr === "pending" ? "next · usually 1–3 min" : "done",
+      state: addr === "securing" ? "running" : addr === "pending" ? "waiting" : "done",
+      parallel: true,
+    });
+  }
   const sentence = summarySentence(build.changes);
 
   return (
@@ -58,9 +73,9 @@ export function ProgressView({ build, queuedAfter, compareHref }: { build: Build
         <Progress value={pct} max={100} aria-label={`Publish #${build.number}: ${pct}%`} valueText={`${pct}%`} />
         <ol className="flex flex-col gap-0.5" aria-label="Steps">
           {steps.map((s, i) => (
-            <li key={i} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 ${s.state === "running" ? "bg-accent-soft" : ""}`} aria-current={s.state === "running" ? "step" : undefined}>
+            <li key={i} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 ${s.state === "running" && !s.parallel ? "bg-accent-soft" : ""}`} aria-current={s.state === "running" && !s.parallel ? "step" : undefined}>
               <span
-                className={`grid size-6 shrink-0 place-items-center rounded-full ${s.state === "done" ? "bg-success-soft text-success" : s.state === "running" ? "bg-surface text-accent-text" : "bg-surface-inset"}`}
+                className={`grid size-6 shrink-0 place-items-center rounded-full ${s.state === "done" ? "bg-success-soft text-success" : s.state === "running" ? (s.parallel ? "bg-accent-soft text-accent-text" : "bg-surface text-accent-text") : "bg-surface-inset"}`}
                 aria-hidden
               >
                 {s.state === "done" && <Icon name="check" size={14} />}

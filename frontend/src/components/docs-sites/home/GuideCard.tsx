@@ -7,7 +7,8 @@ import { num, plural } from "../format";
 import { RoleBadge } from "../people/roles";
 import { siteBase, studioMembers } from "../routes";
 import { GuideMark, GuidePreview, usePreviewDark } from "./GuidePreview";
-import { addressOf, isLive, lastChange, noteOf, stateOf } from "./model";
+import { SECURING_COPIED, SECURING_TEXT } from "../AddressSecuring";
+import { addressOf, isLive, isSecuring, lastChange, noteOf, stateOf } from "./model";
 import { Sparkline } from "./Sparkline";
 
 /** The home's numbers for one guide: still loading, unavailable (the call failed), or the API's. */
@@ -38,6 +39,14 @@ function OpenButton({ site, className, block }: { site: SiteSummary; className?:
 
 /** View (live: the published guide, new tab) or Preview (not live: the editor's preview of its home page). */
 function ViewButton({ site, className }: { site: SiteSummary; className?: string }) {
+  if (isSecuring(site)) {
+    return (
+      <Button variant="ghost" size="sm" iconLeft="eye" href={`https://${addressOf(site)}`} disabled className={className} title={SECURING_TEXT}
+        aria-label={`View ${site.name}: available once its address is secured`}>
+        View
+      </Button>
+    );
+  }
   if (isLive(site)) {
     return (
       <Button variant="ghost" size="sm" iconLeft="eye" href={`https://${addressOf(site)}`} target="_blank" className={className} aria-label={`View ${site.name} (opens in a new tab)`}>
@@ -67,7 +76,11 @@ function MoreMenu({ site, canManagePeople, onDelete }: Pick<GuideItemProps, "sit
   if (isLive(site)) {
     items.push({
       label: "Copy address", icon: "copy", separated: true,
-      onClick: async () => { if (await copyText(`https://${addressOf(site)}`)) toast.success("The guide's address is on the clipboard."); },
+      onClick: async () => {
+        if (!(await copyText(`https://${addressOf(site)}`))) return;
+        if (isSecuring(site)) toast.info(SECURING_COPIED);
+        else toast.success("The guide's address is on the clipboard.");
+      },
     });
   }
   if (canManagePeople && site.workspace_id) items.push({ label: "Members", description: "Guides roles in this workspace", href: studioMembers(site.workspace_id), icon: "users", separated: !isLive(site) });
@@ -95,6 +108,14 @@ function Address({ site, className }: { site: SiteSummary; className?: string })
   const cls = cx("flex min-w-0 items-center gap-1.5 font-mono text-[12px] leading-4 text-text-secondary", className);
   if (!isLive(site)) {
     return <span className={cls} title={`${address} (not live)`}><span className="ph-sensitive ph-mask truncate">{address}</span></span>;
+  }
+  if (isSecuring(site)) {
+    return (
+      <span className={cls} title={`${address}: securing the address. ${SECURING_TEXT}`}>
+        <Icon name="lock" size={12} className="shrink-0 text-accent-text" />
+        <span className="ph-sensitive ph-mask truncate">{address}</span>
+      </span>
+    );
   }
   return (
     <a href={`https://${address}`} target="_blank" rel="noopener noreferrer" className={cx(cls, "md-focus max-w-full self-start rounded no-underline hover:text-text hover:underline")} title={`${address} (opens in a new tab)`}>
@@ -158,10 +179,10 @@ function FixChip({ ins, site, className }: { ins: CardInsights; site: SiteSummar
 }
 
 /** A guide that isn't (only) live: its one-line note. */
-function Note({ text }: { text: string }) {
+function Note({ text, icon = "edit" }: { text: string; icon?: string }) {
   return (
     <span className="flex min-w-0 items-center gap-2 text-[12px] text-text-secondary">
-      <Icon name="edit" size={13} className="shrink-0" />
+      <Icon name={icon} size={13} className="shrink-0" />
       <span className="truncate" title={text}>{text}</span>
     </span>
   );
@@ -176,7 +197,7 @@ function Note({ text }: { text: string }) {
 export function GuideCard({ site, where, insights, canManagePeople, onDelete }: GuideItemProps) {
   const note = noteOf(site);
   const live = isLive(site);
-  const showNumbers = live && !site.in_review;
+  const showNumbers = live && !site.in_review && !isSecuring(site);
   const v = viewsOf(insights);
   const dark = usePreviewDark(site.theme);
   const phoneExtra = showNumbers ? (v ? `${num(v.views_total)} views` : null) : note;
@@ -196,7 +217,7 @@ export function GuideCard({ site, where, insights, canManagePeople, onDelete }: 
           <Meta site={site} where={where} className="sm:hidden" extra={phoneExtra} />
           <Meta site={site} where={where} className="max-sm:hidden" />
           <div className="mt-auto flex min-h-[38px] items-center rounded-lg bg-surface-inset px-2.5 py-2 max-sm:hidden">
-            {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} />}
+            {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} icon={isSecuring(site) ? "lock" : undefined} />}
           </div>
         </div>
       </div>
@@ -215,7 +236,7 @@ export function GuideCard({ site, where, insights, canManagePeople, onDelete }: 
 /** The list layout's row: mark, name and state, address, meta, numbers or note, actions. */
 export function GuideRow({ site, where, insights, canManagePeople, onDelete }: GuideItemProps) {
   const note = noteOf(site);
-  const showNumbers = isLive(site) && !site.in_review;
+  const showNumbers = isLive(site) && !site.in_review && !isSecuring(site);
   const dark = usePreviewDark(site.theme);
   return (
     <li className="ph-no-capture flex min-w-0 items-center gap-3 px-4 py-3 max-md:flex-wrap" aria-label={site.name}>
@@ -229,7 +250,7 @@ export function GuideRow({ site, where, insights, canManagePeople, onDelete }: G
       </div>
       <Meta site={site} where={where} className="w-[250px] shrink-0 max-xl:hidden" />
       <div className="flex w-[290px] min-w-0 shrink-0 items-center max-lg:hidden">
-        {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} />}
+        {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} icon={isSecuring(site) ? "lock" : undefined} />}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {showNumbers && <FixChip ins={insights} site={site} className="max-sm:hidden" />}
