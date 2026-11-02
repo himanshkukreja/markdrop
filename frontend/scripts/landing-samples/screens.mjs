@@ -120,19 +120,19 @@ if (doScreens) {
 
 if (doPosters) {
   const FILES = [
-    ["md", "notes.md", true],
-    ["html", "launch.html", false],
-    ["pdf", "deck.pdf", true],
-    ["video", "demo.mp4", false],
-    ["sheet", "budget.xlsx", true],
+    ["md", true],
+    ["html", false],
+    ["pdf", true],
+    ["video", false],
+    ["sheet", true],
   ];
   for (const theme of ["light", "dark"]) {
     const ctx = await context(theme, { width: 1440, height: 1000 }, 2);
     const page = await ctx.newPage();
     await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
-    for (const [id, name, dark] of FILES) {
+    for (const [id, dark] of FILES) {
       if (theme === "dark" && !dark) continue;
-      await page.locator(`button[aria-label^="${name},"]`).click();
+      await page.locator(`button[data-file="${id}"]`).click();
       const card = page.locator('section[aria-label^="Link card"]').first();
       await card.locator("[data-ready]").waitFor({ timeout: 30000 });
       await page.waitForTimeout(id === "pdf" ? 1500 : 900);

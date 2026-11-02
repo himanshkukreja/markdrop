@@ -221,7 +221,9 @@ export default function Desk() {
                 className={s.obj}
                 style={PLACE[f.id]}
                 data-current={dropped && current === f.id && phase === "done" ? "" : undefined}
-                aria-label={`${f.name}, ${f.kind.toLowerCase()}. ${ARIA_HINT}.`}
+                data-file={f.id}
+                aria-labelledby={`desk-${f.id}-name`}
+                aria-describedby={`desk-${f.id}-hint`}
                 onPointerDown={onPointerDown(f.id)}
                 onPointerMove={onPointerMove}
                 onPointerUp={(e) => endDrag(e)}
@@ -231,7 +233,12 @@ export default function Desk() {
               >
                 <span className={s.face}>
                   <Face id={f.id} />
-                  <span className={s.tag}>{f.name}</span>
+                  <span className={s.tag} id={`desk-${f.id}-name`}>
+                    {f.name}
+                  </span>
+                </span>
+                <span className="md-visually-hidden" id={`desk-${f.id}-hint`}>
+                  {f.kind}. {ARIA_HINT}.
                 </span>
               </button>
             </div>
@@ -269,6 +276,7 @@ export default function Desk() {
         <div
           ref={markRef}
           className={s.drop}
+          data-drop-target=""
           data-over={over ? "" : undefined}
           style={{ "--x": "58.5%", "--y": "63%" } as Pos}
         >
@@ -303,7 +311,7 @@ export default function Desk() {
           />
         )}
       </div>
-      <p className={s.hint}>Drag a file onto the mark, or click it. Every link here opens on any screen.</p>
+      <p className={s.hint}>Drag a file onto the mark, or click or tap it. Every link here opens on any screen.</p>
       <p className="md-visually-hidden" aria-live="polite" role="status">
         {say}
       </p>

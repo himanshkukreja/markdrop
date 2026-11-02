@@ -1,3 +1,4 @@
+import { preload } from "react-dom";
 import { ButtonLink } from "../ds";
 import Desk from "./Desk";
 import s from "./Desk.module.css";
@@ -7,6 +8,8 @@ import s from "./Desk.module.css";
  * is a client component rendered on the server in its resting state (see Desk).
  */
 export default function Hero() {
+  // The laptop's screen (the sample page, rendered) is the hero's largest image: fetch it first.
+  preload("/landing-desk/screens/calculator.webp", { as: "image", fetchPriority: "high" });
   return (
     <section id="hero" aria-labelledby="hero-h1" className={s.wrap}>
       <div className={s.head}>
