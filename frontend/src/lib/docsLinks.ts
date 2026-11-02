@@ -85,6 +85,7 @@ export const DOCS_PAGES = {
   privatePages: "/guides/private-pages",
   studioAskAi: "/guides/ask-ai",
   studioMcp: "/guides/mcp-server",
+  studioAiReady: "/guides/ai-ready",
   studioMcpConnect: "/guides/mcp-server#connect-your-ai-tools",
   studioInsights: "/guides/insights",
   studioInsightsOff: "/guides/insights#turn-it-off",
