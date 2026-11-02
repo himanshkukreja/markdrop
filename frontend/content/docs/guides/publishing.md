@@ -38,6 +38,10 @@ Choose **Publish N changes** (or **Preview first** to look at it before). The ta
 When it's done, a message says **Publish #N is live**, with **Open**. The **Publish** tab shows **Your guide is live** with every address it answers at, each with **Copy** and **Open**.
 ::::
 
+:::note
+A new guide's address takes 1–3 minutes to be secured after its first publish (its HTTPS certificate is being issued). Until then the studio shows **Securing your address** instead of **Open**, and opening the address would fail. **Copy** works, the screen updates by itself, and a message says **Your guide is live at …** with **Open** as soon as it opens. The same happens after you [change the address](/guides/site-settings#address) or publish again after unpublishing.
+:::
+
 ![Publishing your guide: the progress bar, Saved a snapshot of your pages (1 change) done, Building the pages under way, then Search, Ask AI and link previews, and Going live at acme-themes.guides.markdrop.in, about how long is left, with Back to the editor; below, In this publish: 1 edited page and its note.](/docs-assets/guides/publishing/publish-progress.webp)
 
 ::clip{src="/docs-assets/guides/publishing/publish-to-live" alt="Typing the note 'Release notes: webhook headers' and choosing Publish 1 change; the Publish tab shows the publish's progress (the snapshot saved, building the pages), then Your guide is live with the message Publish #N is live and the publish at the top of the history, marked Live."}

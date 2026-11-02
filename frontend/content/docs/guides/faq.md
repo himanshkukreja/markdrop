@@ -85,6 +85,11 @@ Yes. Every published page is plain Markdown at its address plus `.md`, and the w
 - **It's waiting for a review.** The card says **In review**. A reviewer or admin has to [approve it](/guides/reviews#approve-or-request-changes).
 - **It was unpublished.** The card says **Unpublished**. Publish again to put it back.
 - **You changed the address.** The new address goes live with the next publish, and the old one stops working.
+- **It was published a minute ago.** A new address takes 1–3 minutes to be secured; the studio says **Securing your address** until then. See [the next answer](#err_ssl_version_or_cipher_mismatch-right-after-creating-a-guide).
+
+### ERR_SSL_VERSION_OR_CIPHER_MISMATCH right after creating a guide
+
+A new guide's address takes 1–3 minutes to be secured after its first publish, while its HTTPS certificate is issued. Opening it before then fails with a browser error like `ERR_SSL_VERSION_OR_CIPHER_MISMATCH` (Chrome) or "Secure Connection Failed" (Firefox). The studio shows **Securing your address** meanwhile and tells you when it opens. Wait a minute and reload: nothing needs fixing. The same wait applies after you change the address. If it still fails after 10 minutes, contact Markdrop using the address in the [privacy policy](https://markdrop.in/privacy), with the guide's address.
 
 ### My own domain isn't working
 

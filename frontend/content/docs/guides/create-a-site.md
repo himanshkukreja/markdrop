@@ -62,6 +62,8 @@ When the address you want is taken, Markdrop Guides says so and offers another o
 
 You can change the address later in [Guide settings](/guides/site-settings#address). Do it before you share the link: the old address stops working.
 
+A new guide's address takes 1–3 minutes to be secured after its first publish; the studio shows **Securing your address** until it opens. See [Publish](/guides/publishing).
+
 ## Who can create a guide
 
 - **In a workspace:** Guides admins of that workspace. Workspace owners and admins always are. See [Members and roles](/guides/members-and-roles).
