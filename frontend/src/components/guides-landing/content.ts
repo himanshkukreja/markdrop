@@ -25,6 +25,8 @@ export const SRC = {
   mintlifyAuth: "https://www.mintlify.com/docs/deploy/authentication-setup",
   mintlifyAnalytics: "https://www.mintlify.com/docs/optimize/analytics",
   mintlifyEmbeds: "https://www.mintlify.com/docs/create/image-embeds",
+  gitbookMcp: "https://gitbook.com/docs/ai-for-your-readers/mcp-servers-for-published-docs",
+  mintlifyMcp: "https://www.mintlify.com/docs/ai/model-context-protocol",
 } as const;
 
 export type Cell = { text: string; href?: string; tone?: "yes" | "no" | "part" };
@@ -60,6 +62,13 @@ export const COMPARISON: Row[] = [
     guides: { text: `Free: Ask AI with citations, ${BETA_AI_ANSWERS} answers a month per guide in beta`, tone: "yes" },
     gitbook: { text: "Short answers from Essential; AI chat on Ultimate; credit-limited", href: SRC.gitbookPricing, tone: "part" },
     mintlify: { text: "Pro: 10,000 credits a month (25 per answer), then $0.01 a credit", href: SRC.mintlifyPricing, tone: "part" },
+  },
+  {
+    // Parity, stated plainly: all three serve one on every published site.
+    label: "MCP server for AI tools",
+    guides: { text: "Free on every guide, with Connect to AI on each page (Cursor, VS Code, Claude, ChatGPT)", tone: "yes" },
+    gitbook: { text: "Yes, on every published site (page actions on)", href: SRC.gitbookMcp, tone: "yes" },
+    mintlify: { text: "Yes, generated for every site, with Cursor and VS Code in the page menu", href: SRC.mintlifyMcp, tone: "yes" },
   },
   {
     label: "Private pages for readers",
