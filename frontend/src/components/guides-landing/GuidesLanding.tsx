@@ -6,40 +6,41 @@ import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { Icon } from "@/components/landing/ds";
 import TrailerButton, { type Trailer } from "@/components/landing/TrailerButton";
-import GuidesHero from "./GuidesHero";
+import { studioUrl } from "@/lib/studioHost";
+import { SnapPage, SnapSection } from "@/components/marketing/snap/Snap";
+import { parts as p } from "@/components/marketing/snap/Parts";
+import DropHero from "./DropHero";
+import FixLoop from "./FixLoop";
+import Proof from "./Proof";
+import Compare from "./Compare";
 import LoopVideo from "./LoopVideo";
 import { LOOPS } from "./loops";
 import LandingTracker from "./LandingTracker";
-import {
-  BETA_PLAN, COMPARED_LABEL, COMPARED_ON, COMPARISON, COMPARISON_NOTES, FAQS, PLANNED_PLANS, PRICING_RULES,
-  PRIVATE_PAGES_LIVE, SELF_HOST_COMMAND, SELF_HOST_REPO, type Cell, type Plan,
-} from "./content";
-import { studioUrl } from "@/lib/studioHost";
-import { SnapPage, SnapSection } from "@/components/marketing/snap/Snap";
+import { BETA_PLAN, COMPARED_LABEL, COMPARED_ON, COMPARISON_NOTES, FAQS, PLANNED_PLANS, PRICING_RULES, type Plan } from "./content";
 import s from "./GuidesLanding.module.css";
 
 /**
- * The Markdrop Guides landing page: markdrop.in/guides, the same page for everyone, signed in or
- * not (the studio is on guides.markdrop.in). A server component with no request data, so the page is static: the copy,
- * the comparison, the pricing and the FAQ are server HTML. Islands: the short looping product clips
- * (LoopVideo: the hero's laptop and cards, and a few sections; GuidesHero has the hero), the tour
- * button (TrailerButton, the player loads on click) and the analytics listener (LandingTracker). The live calculator is a sandboxed frame (public/guides-demo, with
- * the sandbox repeated as a response header in next.config.ts).
+ * The Markdrop Guides landing page: markdrop.in/guides, the same page for everyone, signed in or not
+ * (the studio is on guides.markdrop.in). A server component with no request data, so the page is
+ * static: the copy, the comparison, the pricing and the FAQ are server HTML. Islands: the hero's Fix
+ * list card (HeroFixList), the fix loop (FixLoop), the recordings (Proof, LoopVideo), the comparison's
+ * "Show all" (Compare), the tour button (TrailerButton: the player loads on click) and the analytics
+ * listener (LandingTracker).
  *
- * From 1024 × 640 the page snaps section by section (SnapPage / SnapSection, components/marketing/snap):
- * each section is at least one viewport; the three longest have a second stop (data-snap-point).
+ * Sections, one viewport each from 1024 × 640 (SnapPage / SnapSection, components/marketing/snap; the
+ * comparison and the FAQ may run longer and snap at their start):
+ *   hero (DropHero) · fix-loop · live-demos · private-pages · proof · ai · compare · pricing · faq · start
  *
- * Every "start" link goes to the studio (StartLink: a new guide on guides.markdrop.in, which signs
- * a signed-out visitor in first). Pillar buttons carry data-pillar for the
+ * Every number shown as data is the fictional Acme sample of the docs (guides/fix-list), and says so.
+ * Every "start" link goes to the studio (StartLink); pillar buttons carry data-pillar for the
  * per-pillar interest count (lib/guidesEvents guide_landing_cta).
  */
 
 /** Studio paths (lib/studioHost): the studio is on guides.markdrop.in. */
 const NEW_GUIDE = "/new";
+const IMPORT_GUIDE = "/new?start=gitbook";
 const SIGNED_IN_LABEL = "Open your guides";
 const docs = (topic: keyof typeof DOCS_PAGES) => docsUrl(DOCS_PAGES[topic]);
-const PRIVATE_DOCS = docs("privatePages");
-const EMBED_DOCS = docs("studioEmbedFiles");
 
 const TRAILER: Trailer = {
   src: "/docs-assets/videos/guides-trailer.mp4",
@@ -51,10 +52,6 @@ const TRAILER: Trailer = {
   w: 1920,
   h: 1080,
 };
-
-/** The calculator's text version, as its embed block carries it (docs: guides/embed-files). */
-const CALC_SUMMARY =
-  "Pick a plan (Starter 9, Team 19 or Scale 39 dollars per seat a month), set the number of seats and choose monthly or yearly billing; the monthly and yearly totals update as you go. Fictional prices.";
 
 /**
  * A "start" link: `path` in the studio (guides.markdrop.in/new…), which signs a signed-out visitor
@@ -75,100 +72,64 @@ function StartLink({ path = NEW_GUIDE, cta, pillar, className, children }: {
   );
 }
 
-/** A product screenshot with its dark twin (file.dark.webp), switched by the site's theme. */
-function Shot({ src, alt, w, h, className }: { src: string; alt: string; w: number; h: number; className?: string }) {
-  const dark = src.replace(/\.webp$/, ".dark.webp");
+function Head({ eyebrow, id, title, lede, className }: { eyebrow: string; id: string; title: ReactNode; lede?: ReactNode; className?: string }) {
   return (
-    <span className={`${s.shot} ${className ?? ""}`}>
-      <img className={s.shotLight} src={src} alt={alt} width={w} height={h} loading="lazy" decoding="async" />
-      <img className={s.shotDark} src={dark} alt={alt} width={w} height={h} loading="lazy" decoding="async" />
-    </span>
-  );
-}
-
-function SectionHead({ eyebrow, id, title, lead, children }: { eyebrow?: string; id: string; title: ReactNode; lead?: ReactNode; children?: ReactNode }) {
-  return (
-    <header className={s.head}>
-      {eyebrow && <p className={s.eye}>{eyebrow}</p>}
-      <h2 id={id} className={s.h2}>{title}</h2>
-      {lead && <p className={s.lead}>{lead}</p>}
-      {children}
+    <header className={`${s.head} ${className ?? ""}`}>
+      <p className={p.eyebrow}>{eyebrow}</p>
+      <h2 id={id} className={`${p.h2} ${s.h2c}`}>{title}</h2>
+      {lede && <p className={p.lede}>{lede}</p>}
     </header>
   );
 }
 
-const WATCHES: Array<{ icon: string; t: string; d: string }> = [
-  { icon: "arrowDown", t: "Readers leave here", d: "The section where far more readers stop than elsewhere." },
-  { icon: "search", t: "Searches with no results", d: "What readers look for and don't find." },
-  { icon: "sparkle", t: "Ask AI couldn't answer", d: "Questions your pages have no answer for." },
-  { icon: "flag", t: "Marked not helpful", d: "With the voters' comments." },
-  { icon: "film", t: "Video and PDF drop-off", d: "Where viewers and PDF readers stop." },
-  { icon: "link", t: "Broken links", d: "Links and addresses that go nowhere." },
-  { icon: "terminal", t: "AI agents", d: "What assistants can't find, and pages hard for them to use." },
-  { icon: "clock", t: "Stale and heavy pages", d: "Read often, untouched for six months." },
-];
-
-const STEPS: Array<{ t: string; d: string }> = [
-  { t: "See the evidence", d: "How far readers got, the searches, where viewers stop." },
-  { t: "Draft a fix", d: "AI proposes a concrete edit from the evidence and the page." },
-  { t: "Review and publish", d: "It opens as a suggestion. Nothing goes live until you publish." },
-  { t: "Marked fixed", d: "Publishing closes it. If readers keep struggling, it comes back." },
-];
-
-const FEATURES: Array<{ icon: string; t: string; d: string; href: string }> = [
-  { icon: "sparkle", t: "Ready for AI", d: "Its own MCP server (Claude, Cursor or VS Code in one click), Ask AI with links to your pages, Markdown pages and llms.txt.", href: docs("studioMcp") },
-  { icon: "github", t: "GitHub sync", d: "Import a repository (Markdown, GitBook, Mintlify, Docusaurus, MkDocs); every push updates the guide.", href: docs("studioGithub") },
-  { icon: "megaphone", t: "Changelog", d: "A What's new page with RSS and JSON feeds, from your release notes.", href: docs("studioChangelog") },
-  { icon: "palette", t: "Themes and theme builder", d: "Fourteen themes or your brand; every colour pair stays readable.", href: docs("studioThemes") },
-  { icon: "globe", t: "Your own domain", d: "Free. One CNAME record, or one click with Cloudflare and other supported providers.", href: docs("studioDomain") },
-  { icon: "chart", t: "Insights", d: "Views, top pages, searches, Ask AI questions and feedback. No cookies.", href: docs("studioInsights") },
-  { icon: "code", t: "API reference with Try it", d: "Upload an OpenAPI file: every endpoint gets a page, samples and live requests.", href: docs("studioApiReference") },
-  { icon: "edit", t: "Editor, reviews, history", d: "Visual or Markdown, reviews before publish, roles, and every save kept.", href: docs("studioEditor") },
-  { icon: "server", t: "Open source engine", d: "MIT-licensed. Host it yourself, or let Markdrop host it.", href: docs("studioSelfHost") },
-];
-
-const PRIVATE_RULES: Array<{ icon: string; t: string; d: string }> = [
-  { icon: "users", t: "Your team", d: "Members of the guide's workspace." },
-  { icon: "mail", t: "People or an email domain", d: "jane@northwind.com or all of @northwind.com, by emailed link: no account." },
-  { icon: "key", t: "A password", d: "One password for a page or a group of pages." },
-  { icon: "layers", t: "Per page, group or section", d: "Even one section inside a public page." },
-];
-
-function CellView({ c, guides }: { c: Cell; guides?: boolean }) {
-  const mark = c.tone === "yes" ? "check" : c.tone === "no" ? "x" : "minus";
-  const word = c.tone === "yes" ? "Yes" : c.tone === "no" ? "No" : "Partly";
+function More({ href, children }: { href: string; children: ReactNode }) {
   return (
-    <span className={s.cell} data-tone={c.tone}>
-      <span className={s.mark} aria-hidden><Icon name={mark} size={13} /></span>
-      <span className="sr-only">{word}: </span>
-      <span>
-        {c.text}
-        {c.href && !guides && (
-          <>
-            {" "}
-            <a href={c.href} target="_blank" rel="noopener noreferrer" className={s.src}>
-              source<span className="sr-only"> (opens in a new tab)</span>
-            </a>
-          </>
-        )}
-      </span>
-    </span>
+    <a href={href} className={p.more} data-cta="docs">
+      {children}
+      <Icon name="arrowRight" size={15} />
+    </a>
   );
 }
 
-function PlanCard({ p, planned }: { p: Plan; planned?: boolean }) {
+const PRIMARY = `md-btn md-btn--lg ${s.primary}`;
+const SECONDARY = "md-btn md-btn--secondary md-btn--lg";
+
+const AI_CARDS: Array<{ k: string; d: ReactNode }> = [
+  { k: "/mcp", d: <>Its own MCP server: <code>search_docs</code>, <code>read_page</code>, <code>whats_changed</code>, <code>report_problem</code>. Add to Cursor or VS Code in a click.</> },
+  { k: "llms.txt", d: <>Every page with its description; <code>llms-full.txt</code> has the whole guide in one file, and <code>skill.md</code> tells agents how to use it.</> },
+  { k: ".md", d: <>Any page as Markdown at its address plus <code>.md</code>, with the text of its videos and PDFs.</> },
+  { k: "Ask AI", d: <>Answers from your published pages, each claim linked to the section it came from.</> },
+];
+
+/** The AI section's sample log (fictional Acme requests; what the Fix list makes of them: docs guides/fix-list "AI agents"). */
+const AGENT_LOG: Array<{ who: string; what: string; out?: string; tone?: "ok" | "miss" | "fix" }> = [
+  { who: "claude", what: "GET /quickstart.md", out: "200", tone: "ok" },
+  { who: "chatgpt", what: "GET /llms-full.txt", out: "200", tone: "ok" },
+  { who: "mcp", what: 'search_docs("terraform")', out: "0 results", tone: "miss" },
+  { who: "", what: "→ Fix list · Agents find nothing", tone: "fix" },
+  { who: "perplexity", what: "GET /changelog", out: "200", tone: "ok" },
+  { who: "", what: "→ Fix list · Hard for agents: long, no headings", tone: "fix" },
+];
+
+const PRIVATE_POINTS: Array<{ icon: string; t: string; d: string }> = [
+  { icon: "users", t: "Your team, a customer, or a password.", d: "Members, people or a whole email domain by emailed link (no account), or one password." },
+  { icon: "layers", t: "A page, a group, or one section.", d: "Even a single section inside a public page." },
+  { icon: "eyeOff", t: "Nothing private leaks.", d: "Left out of search, llms.txt, the sitemap, the MCP server and Ask AI for anyone who can't open it." },
+];
+
+function PlanCard({ plan: pl, planned }: { plan: Plan; planned?: boolean }) {
   return (
-    <article className={s.plan} data-current={p.current || undefined} aria-labelledby={`plan-${p.id}`}>
+    <article className={s.plan} data-current={pl.current || undefined} aria-labelledby={`plan-${pl.id}`}>
       <div className={s.planTop}>
-        <h3 id={`plan-${p.id}`} className={s.planName}>{p.name}</h3>
+        <h3 id={`plan-${pl.id}`} className={s.planName}>{pl.name}</h3>
         {planned ? <span className={s.planned}>Planned</span> : <span className={s.now}>Now</span>}
       </div>
       <p className={s.price}>
-        <strong>{p.price}</strong> <span>{p.unit}</span>
+        <strong>{pl.price}</strong> <span>{pl.unit}</span>
       </p>
-      <p className={s.planNote}>{p.note}</p>
+      <p className={s.planNote}>{pl.note}</p>
       <ul className={s.planList}>
-        {p.points.map((x) => (
+        {pl.points.map((x) => (
           <li key={x}><Icon name="check" size={14} />{x}</li>
         ))}
       </ul>
@@ -184,419 +145,310 @@ const JSON_LD = {
   operatingSystem: "Web",
   url: "https://markdrop.in/guides",
   description:
-    "Build and host help centers, product guides and API docs. A ranked Fix list shows what's confusing readers and drafts the fix; embed live demos, video and PDFs; keep pages private. Free while in beta.",
+    "Build and host help centers, product guides and API docs. See where readers and AI agents drop off: a ranked Fix list shows what to fix next and drafts the fix; embed live demos, video and PDFs; keep pages private. Free while in beta.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD", description: "Free while in beta" },
   publisher: { "@type": "Organization", name: "Markdrop", url: "https://markdrop.in" },
 };
 
 export default function GuidesLanding() {
   return (
-    <>
-      <SnapPage data-guides-landing className={s.root}>
-        <SiteHeader variant="marketing" />
-        <main id="main" tabIndex={-1} className={s.main}>
-          {/* ── Hero ─────────────────────────────────────────────────── */}
-          <GuidesHero
-            primary={
-              <StartLink cta="start" className={`md-btn md-btn--lg ${s.primary}`}>
+    <SnapPage data-guides-landing className={s.root}>
+      <SiteHeader variant="marketing" />
+      <main id="main" tabIndex={-1} className={s.main}>
+        {/* ── 1. Hero: see where readers drop off ───────────────────────── */}
+        <DropHero
+          ctas={
+            <>
+              <StartLink cta="start" className={PRIMARY}>
                 Start a guide free
                 <Icon name="arrowRight" size={16} />
               </StartLink>
-            }
-            secondary={<TrailerButton trailer={TRAILER} className={`md-btn md-btn--secondary md-btn--lg ${s.tour}`} label="Watch the 2-minute tour" />}
-          />
+              <StartLink cta="start" path={IMPORT_GUIDE} className={SECONDARY}>
+                Import your docs
+              </StartLink>
+              <TrailerButton trailer={TRAILER} className={`md-btn md-btn--ghost md-btn--lg ${s.tour}`} label="Watch the 2-minute tour" />
+            </>
+          }
+        />
 
-          {/* ── The Fix list ─────────────────────────────────────────── */}
-          <SnapSection id="fix-list" labelledBy="fix-title" bare className={s.section}>
-            <div className={s.wrap}>
-              <SectionHead
-                eyebrow="The Fix list"
-                id="fix-title"
-                title="One ranked list of what to fix next."
-                lead="Page views don't tell you what to change. The Fix list ranks every problem by how many readers it affects, shows the evidence, and drafts the fix."
-              />
-              <div className={s.fixGrid}>
-                <figure className={s.figure}>
-                  <Shot
-                    src="/docs-assets/guides/fix-list/fixlist-overview.webp"
-                    alt="Acme's Fix list: 15 to fix, 2 high impact. Readers leave at Install the CLI (131 readers), Quickstart marked not helpful, API keys not updated in 8 months, Product tour loses most viewers at 0:40. Beside them, AI agents: 1,464 agent reads from Claude, ChatGPT, Perplexity and Gemini."
-                    w={2312}
-                    h={1920}
-                  />
-                  <figcaption>The Fix list in the studio, with fictional data.</figcaption>
-                </figure>
-                <div className={s.fixSide}>
-                  <h3 className={s.h3}>What it watches</h3>
-                  <ul className={s.watch}>
-                    {WATCHES.map((w) => (
-                      <li key={w.t}>
-                        <span className={s.wIcon} aria-hidden><Icon name={w.icon} size={15} /></span>
-                        <span><strong>{w.t}</strong> {w.d}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <p className={s.small}>
-                    Nothing is flagged on a handful of visits. Cookieless, and nothing is sent from browsers that ask not to be tracked.
-                  </p>
-                </div>
-              </div>
-              <ol className={s.steps} data-snap-point="">
-                {STEPS.map((st, i) => (
-                  <li key={st.t}>
-                    <span className={s.stepN} aria-hidden>{i + 1}</span>
-                    <strong>{st.t}</strong>
-                    <span>{st.d}</span>
-                  </li>
-                ))}
-              </ol>
-              <div className={s.pair}>
-                <figure className={s.figure}>
-                  <LoopVideo {...LOOPS.editorFix} dark className={s.loopFrame} />
-                  <figcaption>A drafted fix opens in the editor as a suggestion: Accept, then publish.</figcaption>
-                </figure>
-                <figure className={s.figure}>
-                  <Shot
-                    src="/docs-assets/guides/fix-list/fixlist-video.webp"
-                    alt="A video item: Product tour loses most viewers at 0:40, with a chart of viewers still watching over its 1:40."
-                    w={1120}
-                    h={1112}
-                  />
-                  <figcaption>Video drop-off, from the same signals as Insights.</figcaption>
-                </figure>
-              </div>
-              <div className={s.pillarCta}>
-                <StartLink cta="pillar" pillar="fix_list" className={`md-btn md-btn--lg ${s.primary}`}>
+        {/* ── 2. Then fix it, right in the page ────────────────────────── */}
+        <SnapSection id="fix-loop" labelledBy="fix-loop-title" className={s.sec}>
+          <FixLoop
+            actions={
+              <>
+                <StartLink cta="pillar" pillar="fix_list" className={PRIMARY}>
                   Try the Fix list
                   <Icon name="arrowRight" size={16} />
                 </StartLink>
-                <a href={docs("studioFixList")} className={s.more} data-cta="docs">How the Fix list works</a>
-              </div>
-            </div>
-          </SnapSection>
+                <More href={docs("studioFixList")}>How the Fix list works</More>
+              </>
+            }
+          />
+        </SnapSection>
 
-          {/* ── Live demos, video and PDFs ──────────────────────────── */}
-          <SnapSection id="live-demos" labelledBy="demos-title" bare className={`${s.section} ${s.alt}`}>
-            <div className={s.wrap}>
-              <SectionHead
-                eyebrow="Live demos, video and PDFs"
-                id="demos-title"
-                title="Docs where the demo actually runs."
-                lead="Embed an HTML demo, a PDF or a video as a live block in any page. Replace the file once and every page updates. This one is running right here."
-              />
-              <div className={s.browser}>
-                <div className={s.chrome} aria-hidden="true">
-                  <span className={s.dots}><i /><i /><i /></span>
-                  <span className={s.addr}><Icon name="lock" size={11} /><span><span className={s.mu}>help.acme.com/</span>pricing</span></span>
-                </div>
-                <div className={s.docPage}>
-                  <p className={s.docEb} aria-hidden="true">Billing</p>
-                  <p className={s.docH} aria-hidden="true">Plans and pricing</p>
-                  <p className={s.docP} aria-hidden="true">Work out what Acme costs for your team before you upgrade.</p>
-                  <div className={s.embed}>
-                    <div className={s.embedBar}>
-                      <span className={s.embedT}><Icon name="code" size={13} />Acme pricing calculator</span>
-                      <span className={s.embedK}>HTML · sandboxed</span>
-                    </div>
-                    <iframe
-                      src="/guides-demo/acme-pricing-calculator.html"
-                      title="Acme pricing calculator: a live, sandboxed demo (fictional prices)"
-                      sandbox="allow-scripts"
-                      referrerPolicy="no-referrer"
-                      loading="lazy"
-                      className={s.frame}
-                      data-live-demo
-                    />
-                    <details className={s.textVersion}>
-                      <summary>Text version, for search, Ask AI, AI agents and screen readers</summary>
-                      <p>{CALC_SUMMARY}</p>
-                    </details>
-                  </div>
-                </div>
-              </div>
-              <div className={s.tiles} data-snap-point="">
-                <figure className={s.tile}>
-                  <Shot src="/docs-assets/guides/embed-files/pdf.webp" alt="A PDF embedded in a guide page: the Acme price list 2026, page 1 of 3, with zoom, Fit width and Download." w={1520} h={1652} />
-                  <figcaption><strong>PDFs</strong> with zoom and download, and the page where readers stop.</figcaption>
-                </figure>
-                <figure className={s.tile}>
-                  <Shot src="/docs-assets/guides/embed-files/insights.webp" alt="Embedded files in Insights: the pricing calculator (64 views, 66% used it), the product tour (41 views, 30 plays, where viewers stop) and the price list." w={1600} h={543} />
-                  <figcaption><strong>Video and per-embed analytics</strong>: chapters, captions, plays and where viewers stop.</figcaption>
-                </figure>
-                <figure className={s.tile}>
-                  <Shot src="/docs-assets/guides/embed-files/sandbox-probe.webp" alt="A test page embedded in a guide reports what it can reach: localStorage, cookies, the guide page, IndexedDB, a service worker and navigating the guide away are all blocked, and its origin is opaque." w={1520} h={972} />
-                  <figcaption><strong>Sandboxed</strong>: no cookies, storage or access to the page around it.</figcaption>
-                </figure>
-              </div>
-              <div className={s.security}>
-                <h3 className={s.h3}><Icon name="shield" size={18} />Someone else&apos;s code, kept in its box</h3>
-                <ul>
-                  <li><strong>A separate site.</strong> Embeds render on Markdrop&apos;s file domain, never on your guide&apos;s address or markdrop.in.</li>
-                  <li><strong>A locked sandbox.</strong> No cookies, storage, access to your page or other files, or navigating readers away. Scripts and forms still work.</li>
-                  <li><strong>Twice over.</strong> The file server repeats the sandbox as a security header, even when the file is opened on its own.</li>
-                  <li><strong>Readable by AI.</strong> Every embed has a text version for search, Ask AI, llms.txt and screen readers.</li>
-                </ul>
-              </div>
-              <div className={s.pillarCta}>
-                <StartLink cta="pillar" pillar="live_demos" className={`md-btn md-btn--lg ${s.primary}`}>
+        {/* ── 3. Put the real thing in the page ────────────────────────── */}
+        <SnapSection id="live-demos" labelledBy="files-title" className={s.sec}>
+          <div className={`${p.split} ${p.rev}`}>
+            <div className={p.copy}>
+              <p className={p.eyebrow}>Live demos, video and PDFs</p>
+              <h2 id="files-title" className={p.h2}>Put the real thing in the page.</h2>
+              <p className={p.lede}>
+                A working HTML demo, a video with chapters, a PDF to page through. Each one opens right in the docs, sandboxed on its own
+                file domain. When viewers give up on a video or a PDF, it lands on your Fix list.
+              </p>
+              <div className={p.actions}>
+                <StartLink cta="pillar" pillar="live_demos" className={PRIMARY}>
                   Embed a live demo
                   <Icon name="arrowRight" size={16} />
                 </StartLink>
-                <a href={EMBED_DOCS} className={s.more} data-cta="docs">How embeds work</a>
+                <More href={docs("studioEmbedFiles")}>How embeds work</More>
               </div>
             </div>
-          </SnapSection>
-
-          {/* ── Private pages ───────────────────────────────────────── */}
-          <SnapSection id="private-pages" labelledBy="private-title" bare className={s.section}>
-            <div className={s.wrap}>
-              <SectionHead
-                eyebrow={PRIVATE_PAGES_LIVE ? "Private pages, free" : "Private pages, free · Coming in November"}
-                id="private-title"
-                title="One guide, with pages for each customer."
-                lead="Keep public docs public, and lock the pages, groups or single sections meant for your team, a customer, or anyone with the password. Free, where other tools ask for their top plans."
-              />
-              <div className={s.privGrid}>
-                <ul className={s.rules}>
-                  {PRIVATE_RULES.map((r) => (
-                    <li key={r.t}>
-                      <span className={s.wIcon} aria-hidden><Icon name={r.icon} size={15} /></span>
-                      <span><strong>{r.t}</strong> {r.d}</span>
-                    </li>
-                  ))}
-                  <li>
-                    <span className={s.wIcon} aria-hidden><Icon name="eyeOff" size={15} /></span>
-                    <span>
-                      <strong>Nothing private leaks.</strong> Out of search, llms.txt, the sitemap, the MCP server and Ask AI for anyone who
-                      can&apos;t open it; every publish checks.
-                    </span>
-                  </li>
-                </ul>
-                <figure className={s.figure}>
-                  <div className={s.window}>
-                    <div className={s.chrome} aria-hidden="true">
-                      <span className={s.dots}><i /><i /><i /></span>
-                      <span className={s.addr}><Icon name="lock" size={11} /><span><span className={s.mu}>help.acme.com/</span>single-sign-on</span></span>
+            <div className={s.deskCol}>
+              <div className={s.deskBox}>
+                <div className={s.desk}>
+                  <figure className={`${s.obj} ${s.laptop}`}>
+                    <span className={s.tag} aria-hidden="true">calculator.html</span>
+                    <div className={s.lid}>
+                      <LoopVideo {...LOOPS.calc} dark />
                     </div>
-                    <LoopVideo {...LOOPS.private} dark />
+                    <div className={s.base} aria-hidden="true" />
+                    <figcaption className="sr-only">A pricing calculator, an HTML file embedded in a docs page, working as readers use it.</figcaption>
+                  </figure>
+                  <div className={`${s.obj} ${s.phone}`} role="img" aria-label="A product tour video embedded in a docs page, with chapters and captions">
+                    <span className={s.tag} aria-hidden="true">tour.mp4</span>
+                    <div className={s.phoneScreen} aria-hidden="true">
+                      <span className={s.play}><Icon name="play" size={18} /></span>
+                      <b>Product tour</b>
+                      <small>1:40 · chapters</small>
+                      <span className={s.scrub}><i /></span>
+                    </div>
                   </div>
-                  <figcaption>
-                    jane@northwind.com signs in with an emailed link and the Northwind section opens. Recorded with fictional data.
-                  </figcaption>
-                </figure>
+                  <div className={`${s.obj} ${s.paper}`} role="img" aria-label="A PDF price list embedded in a docs page, page 1 of 3">
+                    <span className={s.tag} aria-hidden="true">pricing.pdf</span>
+                    <b aria-hidden="true">Acme price list 2026</b>
+                    <i aria-hidden="true" style={{ width: "90%" }} />
+                    <i aria-hidden="true" style={{ width: "70%" }} />
+                    <i aria-hidden="true" style={{ width: "82%" }} />
+                    <small aria-hidden="true">Page 1 of 3</small>
+                  </div>
+                </div>
               </div>
-              {PRIVATE_PAGES_LIVE && (
-                <figure className={`${s.figure} ${s.privShot}`} data-snap-point="">
-                  <Shot
-                    src="/docs-assets/guides/private-pages/reader-locked-sections.webp"
-                    alt="Acme Docs' public Single sign-on page as a signed-out reader sees it: the Northwind tenant values section locked to people at Northwind with Sign in with email, a private section for the team with Sign in, and the Enterprise and Team pages marked with a lock in the sidebar."
-                    w={1400}
-                    h={941}
-                  />
-                  <figcaption>A public page with two private sections, as a signed-out reader sees it (fictional data).</figcaption>
-                </figure>
-              )}
-              <p className={s.contrast}>
-                For comparison ({COMPARED_LABEL}): GitBook keeps authenticated access in Ultimate, $249 per site a month; Mintlify asks for Pro
-                ($450 a month, billed yearly) for a password and Enterprise for reader sign-in. <a href="#compare">See the comparison</a>.
+            </div>
+          </div>
+        </SnapSection>
+
+        {/* ── 4. Some pages are just for some readers ─────────────────── */}
+        <SnapSection id="private-pages" labelledBy="private-title" className={s.sec}>
+          <div className={p.split}>
+            <div className={p.copy}>
+              <p className={p.eyebrow}>Private pages, free</p>
+              <h2 id="private-title" className={p.h2}>Some pages are just for some readers. Free.</h2>
+              <p className={p.lede}>
+                Seal a page or one section for your team, an email domain or a single customer. Everyone else sees the public docs, and so
+                does every AI tool.
               </p>
-              <div className={s.pillarCta}>
-                <StartLink cta="pillar" pillar="private_pages" className={`md-btn md-btn--lg ${s.primary}`}>
+              <ul className={p.points}>
+                {PRIVATE_POINTS.map((x) => (
+                  <li key={x.t}>
+                    <Icon name={x.icon} />
+                    <span><b>{x.t}</b> {x.d}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className={p.actions}>
+                <StartLink cta="pillar" pillar="private_pages" className={PRIMARY}>
                   Make a page private
                   <Icon name="arrowRight" size={16} />
                 </StartLink>
-                <a href={PRIVATE_PAGES_LIVE ? PRIVATE_DOCS : docs("guidesOverview")} className={s.more} data-cta="docs">How private pages work</a>
+                <More href={docs("privatePages")}>How private pages work</More>
               </div>
             </div>
-          </SnapSection>
+            <div className={s.env} role="img" aria-label="A sealed page, Enterprise rollout plan, readable only by people at acme.com, people at Northwind (a customer), or anyone with the password">
+              <div className={s.seal} aria-hidden="true">
+                <span className={s.lock}>
+                  <Icon name="lock" size={26} />
+                </span>
+                <b>Enterprise rollout plan</b>
+                <i style={{ width: "92%" }} />
+                <i style={{ width: "76%" }} />
+                <i style={{ width: "84%" }} />
+                <div className={s.who}>
+                  <span>@acme.com</span>
+                  <span>@northwind.com</span>
+                  <span>Password</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </SnapSection>
 
-          {/* ── Everything else ─────────────────────────────────────── */}
-          <SnapSection id="features" labelledBy="features-title" bare className={`${s.section} ${s.alt}`}>
-            <div className={s.wrap}>
-              <SectionHead eyebrow="And the rest" id="features-title" title="Everything a docs site needs, included." />
-              <ul className={s.grid}>
-                {FEATURES.map((f) => (
-                  <li key={f.t} className={s.feat}>
-                    <span className={s.fIcon} aria-hidden><Icon name={f.icon} size={17} /></span>
-                    <h3 className={s.fT}><a href={f.href}>{f.t}</a></h3>
-                    <p className={s.fD}>{f.d}</p>
+        {/* ── 5. See it for real ──────────────────────────────────────── */}
+        <SnapSection id="proof" labelledBy="proof-title" className={s.sec}>
+          <Proof
+            head={
+              <div className={p.copy}>
+                <p className={p.eyebrow}>Recorded in the product</p>
+                <h2 id="proof-title" className={`${p.h2} ${s.h2c}`}>See it for real.</h2>
+                <p className={p.lede}>Short loops of the studio and a published guide, with fictional data.</p>
+              </div>
+            }
+          />
+        </SnapSection>
+
+        {/* ── 6. Agents drop off too ──────────────────────────────────── */}
+        <SnapSection id="ai" labelledBy="ai-title" className={s.sec}>
+          <div className={s.aiTop}>
+            <div className={p.copy}>
+              <p className={p.eyebrow}>Ready for AI</p>
+              <h2 id="ai-title" className={`${p.h2} ${s.h2c}`}>Agents drop off too. Now you can see it.</h2>
+              <p className={p.lede}>
+                Every guide serves what AI tools read well, and the Fix list counts agent reads apart from people. When an assistant finds
+                nothing, or a page is hard for agents to use, it lands on your Fix list.
+              </p>
+              <div className={p.actions}>
+                <More href={docs("studioAiReady")}>llms.txt, MCP and agents</More>
+              </div>
+            </div>
+            <figure className={s.log}>
+              <figcaption>Example requests to acme.guides.markdrop.in</figcaption>
+              <ol>
+                {AGENT_LOG.map((l, i) => (
+                  <li key={i} data-tone={l.tone}>
+                    <b>{l.who}</b>
+                    <span>{l.what}</span>
+                    {l.out && <em>{l.out}</em>}
                   </li>
                 ))}
-              </ul>
-            </div>
-          </SnapSection>
+              </ol>
+            </figure>
+          </div>
+          <ul className={s.ai}>
+            {AI_CARDS.map((c) => (
+              <li key={c.k}>
+                <code className={s.aiK}>{c.k}</code>
+                <p>{c.d}</p>
+              </li>
+            ))}
+          </ul>
+        </SnapSection>
 
-          {/* ── Move in ─────────────────────────────────────────────── */}
-          <SnapSection id="import" labelledBy="import-title" bare className={s.section}>
-            <div className={s.wrap}>
-              <SectionHead
-                eyebrow="Move in"
-                id="import-title"
-                title="Move from GitBook, Mintlify or GitHub in minutes."
-                lead="Pages, sidebar, images and old links come across, with a report of anything to check before you publish. Your old site isn't touched."
-              />
-              <div className={s.moveGrid}>
-              <figure className={`${s.figure} ${s.moveFig}`}>
-                <div className={s.window}>
-                  <div className={s.chrome} aria-hidden="true">
-                    <span className={s.dots}><i /><i /><i /></span>
-                    <span className={s.addr}><Icon name="lock" size={11} /><span><span className={s.mu}>markdrop.in/</span>guides/new</span></span>
+        {/* ── 7. Comparison ───────────────────────────────────────────── */}
+        <SnapSection id="compare" labelledBy="compare-title" className={`${s.sec} ${s.tall}`}>
+          <Head
+            eyebrow="Compare"
+            id="compare-title"
+            title="Markdrop Guides, GitBook and Mintlify."
+            lede={
+              <>
+                What each includes and costs, {COMPARED_LABEL}. Every GitBook and Mintlify cell links to its source, checked on{" "}
+                <time dateTime={COMPARED_ON}>2 November 2026</time>. Prices change: check theirs before you decide.
+              </>
+            }
+          />
+          <Compare />
+          <ul className={s.notes}>
+            {COMPARISON_NOTES.map((n) => (
+              <li key={n.text}>
+                {n.text}{" "}
+                <a href={n.href} target="_blank" rel="noopener noreferrer">
+                  {n.label}
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </SnapSection>
+
+        {/* ── 8. Pricing ──────────────────────────────────────────────── */}
+        <SnapSection id="pricing" labelledBy="pricing-title" className={`${s.sec} ${s.tall}`}>
+          <div className={s.headRow}>
+            <Head
+              eyebrow="Pricing"
+              id="pricing-title"
+              title="Free while in beta."
+              lede="Everything that's live is free today. Below is what we plan to charge after the beta: the plans aren't final, the rules are."
+            />
+            <StartLink cta="pricing" className={PRIMARY}>
+              Start a guide free
+              <Icon name="arrowRight" size={16} />
+            </StartLink>
+          </div>
+          <div className={s.plans}>
+            <PlanCard plan={BETA_PLAN} />
+            {PLANNED_PLANS.map((x) => (
+              <PlanCard key={x.id} plan={x} planned />
+            ))}
+          </div>
+          <p className={s.rules}>
+            <Icon name="checkCircle" size={15} />
+            <span>{PRICING_RULES.join(" ")}</span>
+          </p>
+        </SnapSection>
+
+        {/* ── 9. FAQ ──────────────────────────────────────────────────── */}
+        <SnapSection id="faq" labelledBy="faq-title" className={s.sec}>
+          <div className={s.faqGrid}>
+            <div className={p.copy}>
+              <p className={p.eyebrow}>Questions</p>
+              <h2 id="faq-title" className={`${p.h2} ${s.h2c}`}>Before you switch.</h2>
+              <p className={p.lede}>The six we hear most. Pricing, limits, imports and troubleshooting are in the full FAQ.</p>
+              <div className={p.actions}>
+                <More href={docs("studioFaq")}>All questions</More>
+              </div>
+            </div>
+            <div className={s.faq}>
+              {FAQS.map((f) => (
+                <details key={f.q} className={s.qa}>
+                  <summary>
+                    <h3 className={s.q}>{f.q}</h3>
+                    <Icon name="chevronDown" size={16} />
+                  </summary>
+                  <div className={s.a}>
+                    <p>{f.a}</p>
+                    {f.links && (
+                      <p className={s.aLinks}>
+                        {f.links.map((l) => (
+                          <a key={l.href} href={l.href}>{l.label}</a>
+                        ))}
+                      </p>
+                    )}
                   </div>
-                  <LoopVideo {...LOOPS.import} />
-                </div>
-                <figcaption>A GitBook import: the navigation, pages and images come across as drafts, sped up.</figcaption>
-              </figure>
-              <div className={s.moves}>
-                <article className={s.move}>
-                  <h3 className={s.h3}>From GitBook</h3>
-                  <p>Paste your public GitBook address. Pages, groups, images, icons, logo and colour come across; old addresses redirect.</p>
-                  <StartLink path={`${NEW_GUIDE}?start=gitbook`} cta="start" className={s.moveLink}>Import from GitBook<Icon name="arrowRight" size={14} /></StartLink>
-                </article>
-                <article className={s.move}>
-                  <h3 className={s.h3}>From a GitHub repository</h3>
-                  <p>
-                    Markdown, GitBook Git Sync, Mintlify (<code>docs.json</code>), Docusaurus or MkDocs, blocks included.{" "}
-                    <strong>Keep in sync</strong> updates the guide on every push.
-                  </p>
-                  <StartLink path={`${NEW_GUIDE}?start=github`} cta="start" className={s.moveLink}>Import from GitHub<Icon name="arrowRight" size={14} /></StartLink>
-                </article>
-                <article className={s.move}>
-                  <h3 className={s.h3}>From an OpenAPI file</h3>
-                  <p>Upload OpenAPI 3.0 or 3.1: every endpoint gets a page, code samples and Try it.</p>
-                  <StartLink path={`${NEW_GUIDE}?start=openapi`} cta="start" className={s.moveLink}>Start an API reference<Icon name="arrowRight" size={14} /></StartLink>
-                </article>
-              </div>
-              </div>
+                </details>
+              ))}
             </div>
-          </SnapSection>
+          </div>
+        </SnapSection>
 
-          {/* ── Comparison ──────────────────────────────────────────── */}
-          <SnapSection id="compare" labelledBy="compare-title" bare className={`${s.section} ${s.alt}`}>
-            <div className={s.wrap}>
-              <SectionHead
-                eyebrow="Compare"
-                id="compare-title"
-                title="Markdrop Guides, GitBook and Mintlify."
-                lead={<>What each includes and costs, {COMPARED_LABEL}. Every GitBook and Mintlify cell links to its source, checked on <time dateTime={COMPARED_ON}>2 November 2026</time>. Prices change: check theirs before you decide.</>}
-              />
-              <div className={s.tableWrap}>
-                <table className={s.table}>
-                  <caption className="sr-only">Markdrop Guides compared with GitBook and Mintlify, {COMPARED_LABEL}</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col"><span className="sr-only">Feature</span></th>
-                      <th scope="col" className={s.us}>Markdrop Guides</th>
-                      <th scope="col">GitBook</th>
-                      <th scope="col">Mintlify</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {COMPARISON.map((r) => (
-                      <tr key={r.label}>
-                        <th scope="row">{r.label}</th>
-                        <td className={s.us} data-col="Markdrop Guides"><CellView c={r.guides} guides /></td>
-                        <td data-col="GitBook"><CellView c={r.gitbook} /></td>
-                        <td data-col="Mintlify"><CellView c={r.mintlify} /></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <ul className={s.notes}>
-                {COMPARISON_NOTES.map((n) => (
-                  <li key={n.text}>
-                    {n.text}{" "}
-                    <a href={n.href} target="_blank" rel="noopener noreferrer">{n.label}<span className="sr-only"> (opens in a new tab)</span></a>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Host it yourself: the engine is MIT, any guide exports as a folder, one docker command. */}
-              <section id="self-host" className={s.selfHost} aria-labelledby="self-host-title">
-                <div className={s.selfHostText}>
-                  <h3 id="self-host-title" className={s.h3}><Icon name="server" size={18} />Host it yourself</h3>
-                  <p>
-                    The engine is open source (MIT). Export any guide as a folder of Markdown and files, and serve it on
-                    your own server with one command. No lock-in.
-                  </p>
-                  <p className={s.selfHostLinks}>
-                    <a href={docs("studioSelfHost")} className={s.moveLink} data-cta="docs">Self-hosting steps<Icon name="arrowRight" size={14} /></a>
-                    <a href={SELF_HOST_REPO} className={s.moveLink} data-cta="github">The engine on GitHub<Icon name="arrowUpRight" size={14} /></a>
-                  </p>
-                </div>
-                <pre className={s.selfHostCmd}><code>{SELF_HOST_COMMAND}</code></pre>
-              </section>
+        {/* ── 10. Close ───────────────────────────────────────────────── */}
+        <SnapSection id="start" labelledBy="start-title" className={s.sec}>
+          <div className={s.close}>
+            <h2 id="start-title" className={s.closeH}>
+              Fewer drop-offs, every week.
+            </h2>
+            <p className={p.lede}>Bring your docs from GitBook, Mintlify, Docusaurus, MkDocs or GitHub. Free while in beta.</p>
+            <div className={s.ctas}>
+              <StartLink cta="start" className={PRIMARY}>
+                Start a guide free
+                <Icon name="arrowRight" size={16} />
+              </StartLink>
+              <StartLink cta="start" path={IMPORT_GUIDE} className={SECONDARY}>
+                Import your docs
+              </StartLink>
             </div>
-          </SnapSection>
-
-          {/* ── Pricing ─────────────────────────────────────────────── */}
-          <SnapSection id="pricing" labelledBy="pricing-title" bare className={s.section}>
-            <div className={s.wrap}>
-              <SectionHead
-                eyebrow="Pricing"
-                id="pricing-title"
-                title="Free while in beta."
-                lead="Everything that's live is free today. Below is what we plan to charge after the beta: the plans aren't final, the rules are."
-              />
-              <div className={s.plans}>
-                <PlanCard p={BETA_PLAN} />
-                {PLANNED_PLANS.map((p) => <PlanCard key={p.id} p={p} planned />)}
-              </div>
-              <ul className={s.rulesList}>
-                {PRICING_RULES.map((r) => (
-                  <li key={r}><Icon name="checkCircle" size={16} />{r}</li>
-                ))}
-              </ul>
-              <div className={s.pillarCta}>
-                <StartLink cta="pricing" className={`md-btn md-btn--lg ${s.primary}`}>
-                  Start a guide free
-                  <Icon name="arrowRight" size={16} />
-                </StartLink>
-              </div>
-            </div>
-          </SnapSection>
-
-          {/* ── FAQ ─────────────────────────────────────────────────── */}
-          <SnapSection id="faq" labelledBy="faq-title" bare className={`${s.section} ${s.alt}`}>
-            <div className={`${s.wrap} ${s.narrow}`}>
-              <SectionHead eyebrow="Questions" id="faq-title" title="Before you switch." />
-              <div className={s.faq}>
-                {FAQS.map((f) => (
-                  <details key={f.q} className={s.qa}>
-                    <summary><h3 className={s.q}>{f.q}</h3><Icon name="chevronDown" size={16} /></summary>
-                    <div className={s.a}>
-                      <p>{f.a}</p>
-                      {f.links && (
-                        <p className={s.aLinks}>
-                          {f.links.map((l) => <a key={l.href} href={l.href}>{l.label}</a>)}
-                        </p>
-                      )}
-                    </div>
-                  </details>
-                ))}
-              </div>
-            </div>
-          </SnapSection>
-
-          {/* ── Final CTA ───────────────────────────────────────────── */}
-          <section id="start" aria-labelledby="start-title" className={s.final}>
-            <div className={`${s.wrap} ${s.finalIn}`}>
-              <h2 id="start-title" className={s.h2}>Find out what your readers are stuck on.</h2>
-              <p className={s.lead}>Start a guide, or bring yours over from GitBook, Mintlify or GitHub. Free while in beta.</p>
-              <div className={s.ctas}>
-                <StartLink cta="start" className={`md-btn md-btn--lg ${s.primary}`}>
-                  Start a guide free
-                  <Icon name="arrowRight" size={16} />
-                </StartLink>
-                <a href={docs("guidesOverview")} className="md-btn md-btn--secondary md-btn--lg" data-cta="docs">Read the docs</a>
-              </div>
-            </div>
-          </section>
-        </main>
-        <SiteFooter />
-        <FeedbackWidget />
-        <LandingTracker />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
-      </SnapPage>
-    </>
+            <p className={s.from}>
+              Or start from{" "}
+              <StartLink cta="start" path="/new?start=github">a GitHub repository</StartLink>,{" "}
+              <StartLink cta="start" path="/new?start=openapi">an OpenAPI file</StartLink>, or{" "}
+              <a href={docs("guidesOverview")} data-cta="docs">read the docs</a>.
+            </p>
+          </div>
+        </SnapSection>
+      </main>
+      <SiteFooter />
+      <FeedbackWidget />
+      <LandingTracker />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
+    </SnapPage>
   );
 }
