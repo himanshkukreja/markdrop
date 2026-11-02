@@ -12,7 +12,7 @@ import { LOOPS } from "./loops";
 import LandingTracker from "./LandingTracker";
 import {
   BETA_PLAN, COMPARED_LABEL, COMPARED_ON, COMPARISON, COMPARISON_NOTES, FAQS, PLANNED_PLANS, PRICING_RULES,
-  PRIVATE_PAGES_LIVE, type Cell, type Plan,
+  PRIVATE_PAGES_LIVE, SELF_HOST_COMMAND, SELF_HOST_REPO, type Cell, type Plan,
 } from "./content";
 import { studioUrl } from "@/lib/studioHost";
 import s from "./GuidesLanding.module.css";
@@ -507,6 +507,22 @@ export default function GuidesLanding() {
                   </li>
                 ))}
               </ul>
+
+              {/* Host it yourself: the engine is MIT, any guide exports as a folder, one docker command. */}
+              <section id="self-host" className={s.selfHost} aria-labelledby="self-host-title">
+                <div className={s.selfHostText}>
+                  <h3 id="self-host-title" className={s.h3}><Icon name="server" size={18} />Host it yourself</h3>
+                  <p>
+                    The engine behind Markdrop Guides is open source (MIT). Export any guide as a folder of Markdown and
+                    files whenever you like, and serve it on your own server with one command. No lock-in.
+                  </p>
+                  <p className={s.selfHostLinks}>
+                    <a href={docs("studioSelfHost")} className={s.moveLink} data-cta="docs">Self-hosting steps<Icon name="arrowRight" size={14} /></a>
+                    <a href={SELF_HOST_REPO} className={s.moveLink} data-cta="github">The engine on GitHub<Icon name="arrowUpRight" size={14} /></a>
+                  </p>
+                </div>
+                <pre className={s.selfHostCmd}><code>{SELF_HOST_COMMAND}</code></pre>
+              </section>
             </div>
           </section>
 
