@@ -1,125 +1,76 @@
 WEBVTT
 
-1
-00:00:00.600 --> 00:00:01.900
-A reader has a question.
+00:00:00.800 --> 00:00:04.101
+Your product ships every week. Your docs fall behind.
 
-2
-00:00:03.551 --> 00:00:06.991
-The answer comes from your docs, with a link to the exact section.
+00:00:04.451 --> 00:00:08.626
+Readers give up halfway down a page. AI agents read it too.
 
-3
-00:00:10.821 --> 00:00:12.421
-It's built with Markdrop Guides.
+00:00:08.676 --> 00:00:10.590
+And you can't see where it goes wrong.
 
-4
-00:00:13.001 --> 00:00:14.061
-Here's how it comes together.
+00:00:11.240 --> 00:00:14.733
+Markdrop Guides. Docs that show you what to fix next.
 
-5
-00:00:15.555 --> 00:00:18.135
-Start blank, from a template, or bring what you have.
+00:00:15.783 --> 00:00:24.374
+Start with the docs you have. Import a GitHub repository: Markdown, GitBook, Mintlify, Docusaurus or MkDocs.
 
-6
-00:00:19.022 --> 00:00:20.562
-Paste your GitBook site's address.
+00:00:24.424 --> 00:00:27.874
+Turn on Keep in sync, and every push updates the guide.
 
-7
-00:00:21.082 --> 00:00:24.482
-Pages, images, navigation and old links come across.
+00:00:28.724 --> 00:00:32.238
+Once readers arrive, Guides watches what they run into:
 
-8
-00:00:27.297 --> 00:00:29.197
-Nothing is public until you publish.
+00:00:32.288 --> 00:00:40.645
+the section where they leave, searches that find nothing, questions Ask AI couldn't answer, the moment a video loses them, broken links.
 
-9
-00:00:32.166 --> 00:00:33.686
-Writing feels like a document.
+00:00:40.695 --> 00:00:44.422
+It all becomes one list, ranked by how many readers it affects.
 
-10
-00:00:35.058 --> 00:00:38.078
-Select a passage, and ask AI to tighten it.
+00:00:45.072 --> 00:00:50.975
+Riya opens the top item. Forty-two percent of readers stop at Install the CLI.
 
-11
-00:00:38.498 --> 00:00:40.478
-You see the suggestion before you accept it.
+00:00:51.025 --> 00:00:58.977
+AI drafts a fix from the evidence. It opens in the editor as a suggestion, and nothing changes until she accepts it.
 
-12
-00:00:43.477 --> 00:00:45.917
-Find and replace works across the page.
+00:00:59.027 --> 00:01:01.815
+She publishes, and the item moves to Fixed.
 
-13
-00:00:46.317 --> 00:00:49.097
-And checks catch a broken link before your readers do.
+00:01:02.665 --> 00:01:06.073
+Your docs have a second audience now: AI agents.
 
-14
-00:00:52.330 --> 00:00:54.830
-Pick one of fourteen themes, or match your brand.
+00:01:06.123 --> 00:01:11.983
+Every guide serves llms.txt, Markdown pages and an MCP server.
 
-15
-00:00:59.554 --> 00:01:03.754
-Add your logo, and the colours follow, checked for contrast in light and dark.
+00:01:12.033 --> 00:01:18.534
+Agent reads are counted apart from people, and the Fix list flags pages agents find hard to use.
 
-16
-00:01:07.663 --> 00:01:10.503
-When it's ready, see exactly what changed, then publish.
+00:01:19.384 --> 00:01:21.746
+Show the real thing, not a screenshot.
 
-17
-00:01:15.071 --> 00:01:18.691
-About a minute later, it's live at its own address, on every screen.
+00:01:21.796 --> 00:01:30.942
+Embed a live demo, a video or a PDF right in the page. Demos run in a locked sandbox, with a text version for search and AI.
 
-18
-00:01:22.083 --> 00:01:25.283
-Readers get fast search, and answers that link to the source.
+00:01:30.992 --> 00:01:34.784
+And when a video loses viewers, that shows up in the Fix list too.
 
-19
-00:01:27.811 --> 00:01:29.731
-One tap tells you whether a page helped.
+00:01:35.634 --> 00:01:38.337
+Some pages are only for one customer.
 
-20
-00:01:32.638 --> 00:01:37.275
-Add an OpenAPI file, and you get an API reference, with Try it.
+00:01:38.387 --> 00:01:45.314
+Make a page or a section private: for your team, for anyone with a Northwind email, or behind a password.
 
-21
-00:01:38.975 --> 00:01:41.475
-Readers call your API right from the page.
+00:01:45.364 --> 00:01:49.518
+Dana signs in with a link we email her. Everyone else sees a lock.
 
-22
-00:01:41.975 --> 00:01:44.210
-Their keys never pass through Markdrop.
+00:01:49.568 --> 00:01:51.333
+Private pages are free.
 
-23
-00:01:47.010 --> 00:01:50.290
-Insights shows what readers search for, and what they couldn't find.
+00:01:52.183 --> 00:01:57.980
+Pick one of fourteen themes, or build your own, and put it on your domain with one DNS record.
 
-24
-00:01:52.623 --> 00:01:54.503
-One click starts the page that's missing.
+00:01:58.030 --> 00:02:05.234
+Readers get search, Ask AI answers that link to the source, an API reference with Try it, and a changelog.
 
-25
-00:01:59.535 --> 00:02:03.115
-And when you're ready, put it on your own domain, with one DNS record.
-
-26
-00:02:07.719 --> 00:02:08.619
-Shipped a new feature?
-
-27
-00:02:09.079 --> 00:02:10.650
-Write it up in the changelog.
-
-28
-00:02:12.550 --> 00:02:16.010
-When you publish, readers get a What's new page and a feed to follow.
-
-29
-00:02:16.570 --> 00:02:19.214
-Entries show up in search and Ask AI too.
-
-30
-00:02:21.536 --> 00:02:22.336
-Markdrop Guides.
-
-31
-00:02:22.356 --> 00:02:26.472
-Free while in beta, at markdrop.in/guides.
+00:02:06.084 --> 00:02:11.070
+Markdrop Guides. Free while in beta, at markdrop.in/guides.

@@ -61,8 +61,8 @@
   "guides-trailer": {
     "src": "/docs-assets/videos/guides-trailer.mp4",
     "poster": "/docs-assets/videos/guides-trailer.webp",
-    "duration": "2:29",
-    "title": "Markdrop Guides in two minutes",
+    "duration": "2:13",
+    "title": "Markdrop Guides: docs that show you what to fix next",
     "chapters": "/docs-assets/videos/guides-trailer.vtt",
     "captions": "/docs-assets/videos/guides-trailer.captions.vtt"
   },

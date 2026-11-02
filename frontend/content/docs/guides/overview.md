@@ -6,7 +6,7 @@ updated: 2026-11-02
 keywords: [markdrop guides, guides, documentation site, help center, knowledge base, product guide, docs platform, gitbook alternative, mintlify alternative, hosted docs, fix list, beta, guides.markdrop.in]
 ---
 
-::video{id="guides-trailer" title="Markdrop Guides in two minutes" duration="2:29"}
+::video{id="guides-trailer" title="Markdrop Guides: docs that show you what to fix next" duration="2:13"}
 
 **Docs that show you what to fix next.** Markdrop Guides builds and hosts docs for your product: help centers, product guides, API references and handbooks. You write in the browser (or sync from GitHub), pick a theme and publish to an address like `acme.guides.markdrop.in` or your own domain. Then the **Fix list** tells you, from what readers and AI agents actually run into, which page to fix first, and drafts the fix.
 

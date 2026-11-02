@@ -40,8 +40,8 @@ const EMBED_DOCS = docs("studioEmbedFiles");
 const TRAILER: Trailer = {
   src: "/docs-assets/videos/guides-trailer.mp4",
   poster: "/docs-assets/videos/guides-trailer.webp",
-  title: "Markdrop Guides in two minutes",
-  duration: "2:29",
+  title: "Markdrop Guides: docs that show you what to fix next",
+  duration: "2:13",
   chaptersSrc: "/docs-assets/videos/guides-trailer.vtt",
   captionsSrc: "/docs-assets/videos/guides-trailer.captions.vtt",
   w: 1920,

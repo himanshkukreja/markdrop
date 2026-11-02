@@ -2441,16 +2441,13 @@
     "kind": "poster"
   },
   "/docs-assets/videos/guides-trailer.mp4": {
-    "w": 1920,
-    "h": 1080,
-    "duration": 148.87,
-    "bytes": 16596610,
+    "bytes": 10550458,
     "kind": "video"
   },
   "/docs-assets/videos/guides-trailer.webp": {
     "w": 1920,
     "h": 1080,
-    "bytes": 73482,
+    "bytes": 41884,
     "kind": "poster"
   },
   "/docs-assets/videos/local-mcp-publish.mp4": {
