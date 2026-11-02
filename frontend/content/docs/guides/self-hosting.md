@@ -12,7 +12,7 @@ The engine that builds every Markdrop Guides site, and docs.markdrop.in, is open
 You can export any guide from the studio as that folder at any time, so your guide is never locked in.
 
 :::note[Early]
-Self-hosting is new. The image is published from the repository with each release; the first one appears with the first release tag. Commands may still change before version 1.
+Self-hosting is new. The image is published from the repository with each release; the current release is `0.1.0` (`ghcr.io/himanshkukreja/markdrop-guides:0.1.0`, also tagged `latest`). Commands may still change before version 1.
 :::
 
 ## What works on your own server
