@@ -1,5 +1,5 @@
 /**
- * Server-safe mirrors of the few design-system pieces the hero draws: same markup, same `md-*`
+ * Server-safe mirrors of the few design-system pieces the landing pages draw (/, /guides): same markup, same `md-*`
  * classes (markdrop.css), so they look identical to `@/components/ui/primitives` / `markdrop`.
  *
  * Why local: primitives.tsx and markdrop.tsx call `createContext` / hooks at module scope without
@@ -8,7 +8,8 @@
  */
 import type { CSSProperties, ReactNode } from "react";
 import { ICONS } from "@/components/ui/icons";
-import type { Tone } from "./data";
+
+export type Tone = "neutral" | "info" | "success" | "warning" | "danger";
 
 const cx = (...a: Array<string | false | null | undefined>) => a.filter(Boolean).join(" ");
 
