@@ -288,15 +288,17 @@ export interface PageRendererProps {
   title?: string | null;
   href?: (slug: string, ancestors: string[]) => string;
   className?: string;
+  /** Who is reading (a user id, or null): embeds are resolved again when it changes. */
+  viewer?: string | null;
 }
 
 const defaultHref = (s: string) => `/${encodeURIComponent(s)}`;
 
-export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className }: PageRendererProps) {
+export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null }: PageRendererProps) {
   // The page's properties (icon, cover, width…) live in its front matter; the body is the rest.
   const content = useMemo(() => splitFrontmatter(source).body, [source]);
   const refs = useMemo(() => pageRefs(content), [content]);
-  const own = usePageEmbeds(slug, refs.slugs, !given);
+  const own = usePageEmbeds(slug, refs.slugs, !given, viewer);
   const embeds = given ?? own;
   const collected = useRef<Heading[]>([]);
   const sent = useRef<string | null>(null);

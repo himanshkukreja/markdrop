@@ -10,6 +10,10 @@
  * names the slug, never a version or a blob, so replacing the file updates every page that embeds it.
  */
 
+// Two helpers the document view needs on every page load live in their own small module, so a
+// reader of a classic document doesn't load the rest of this one (BUGS.md, bundle).
+export { assetId, pagePath } from "./pageAddress.mjs";
+
 export const SLUG_RE = /^[A-Za-z0-9_-]{1,128}$/;
 export const PAGE_EMBED_MODES = ["live", "preview", "card"];
 const MARKDROP_HOSTS = ["markdrop.in", "www.markdrop.in"];
@@ -85,12 +89,6 @@ export function webEmbedUrl(src) {
   return null;
 }
 
-/** `asset:<id>` → id (null for any other address). */
-export function assetId(src) {
-  if (typeof src !== "string") return null;
-  const m = /^asset:([A-Za-z0-9_-]{1,128})$/.exec(src.trim());
-  return m ? m[1] : null;
-}
 
 
 /**
@@ -126,14 +124,6 @@ export function assetRefreshDelay(assets, now = Date.now(), margin = 60_000) {
   return refreshDelay(assets, now, margin);
 }
 
-/**
- * A page's address. On markdrop.in it is `/<slug>`; on a workspace's own domain a page lives under
- * its folders and its ancestors: `/<folders…>/<parent-slug>/<child-slug>`.
- */
-export function pagePath(slug, { tenant = false, folderPath = [], ancestors = [] } = {}) {
-  const segs = tenant ? [...folderPath, ...ancestors, slug] : [slug];
-  return `/${segs.filter(Boolean).map(encodeURIComponent).join("/")}`;
-}
 
 /** The text a template's `{{title}}` / `{{date}}` become (the API fills them; the gallery's preview too). */
 export function fillTemplate(content, { title = "", date = new Date() } = {}) {

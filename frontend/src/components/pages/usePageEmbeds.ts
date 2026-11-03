@@ -12,12 +12,20 @@ import { pageRefs } from "@/lib/pageRefs.mjs";
  *
  * `undefined` for a slug: still resolving. `null`: resolving failed (shown as unavailable).
  */
-export function usePageEmbeds(pageSlug: string | null, slugs: string[], enabled = true) {
+export function usePageEmbeds(pageSlug: string | null, slugs: string[], enabled = true, viewer: string | null = null) {
   const [map, setMap] = useState<Record<string, ResolvedEmbed | null>>({});
   const key = useMemo(() => [...new Set(slugs)].sort().join(","), [slugs]);
   const known = useRef(map);
   known.current = map;
   const [tick, setTick] = useState(0);
+  // Someone signed in (or out) while the page was open, e.g. a workspace domain's sign-in coming
+  // back with its token after the first resolve: what they may see changed, so ask again.
+  const lastViewer = useRef(viewer);
+  useEffect(() => {
+    if (lastViewer.current === viewer) return;
+    lastViewer.current = viewer;
+    setTick((n) => n + 1);
+  }, [viewer]);
 
   useEffect(() => {
     if (!pageSlug || !enabled || !key) return;

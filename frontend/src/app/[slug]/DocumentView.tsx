@@ -27,12 +27,8 @@ import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
-import { Backlinks, PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
-import { PageHead } from "@/components/pages/PageHead";
 import { readPageProps } from "@/components/pages/pageProps";
-import { deletePage, setEditor } from "@/lib/pages";
-import { assetId, pagePath } from "@/lib/pageBlocks.mjs";
-import { DeletePageDialog } from "@/components/pages/DeletePageDialog";
+import { assetId, pagePath } from "@/lib/pageAddress.mjs";
 
 // Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
 // load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
@@ -55,6 +51,15 @@ const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m)
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
 const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
 const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
+// A page's chrome (head, breadcrumbs, page tree, sub-pages, backlinks) ships only with a page: a
+// classic document's reader never loads it. Still rendered on the server for a page.
+const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
+const PageBreadcrumbs = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageBreadcrumbs), { loading: () => null });
+const PageTree = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageTree), { loading: () => null });
+const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.SubPages), { loading: () => null });
+const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
+const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
+const pagesApi = () => import("@/lib/pages");
 
 /**
  * Does the document already open with its own title?
@@ -273,6 +278,11 @@ export default function DocumentView(props: DocumentViewProps) {
                   v.setDisplayTitle(latest.title || null);
                   v.setDisplayContent(latest.content);
                   setEditing(false);
+                  // Images added while editing (a cover, an icon, pasted ones) have no link in the
+                  // page fields loaded before: fetch this reader's links for what's saved now.
+                  pagesApi().then((m) => m.refreshAssetUrls(slug))
+                    .then((r) => v.setPage((p) => (p ? { ...p, assets: r.assets } : p)))
+                    .catch(() => {});
                   // The cached anonymous render would keep the old version for a minute.
                   fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
                 }}
@@ -288,7 +298,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 onClose={() => setDeleting(false)}
                 count={page?.children_count ?? 0}
                 onDelete={async (children) => {
-                  await deletePage(slug, children, v.secretInput || null);
+                  await (await pagesApi()).deletePage(slug, children, v.secretInput || null);
                   fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
                   router.push(crumbs.length ? `/${encodeURIComponent(crumbs[crumbs.length - 1].slug)}` : "/dashboard");
                 }}
@@ -499,7 +509,7 @@ export default function DocumentView(props: DocumentViewProps) {
               {(tocEntries.length > 0 || (isPage && readable && (crumbs.length > 0 || (page?.children_count ?? 0) > 0))) && (
                 <div className="sticky top-32 flex max-h-[calc(100dvh-9rem)] flex-col gap-6 overflow-y-auto pb-6">
                   {isPage && readable && !gated && (
-                    <PageTree slug={slug} title={displayTitle} crumbs={crumbs} childrenCount={page?.children_count ?? 0} addressing={addressing} />
+                    <PageTree key={user?.id ?? "anon"} slug={slug} title={displayTitle} crumbs={crumbs} childrenCount={page?.children_count ?? 0} addressing={addressing} />
                   )}
                   {tocEntries.length > 0 && <Toc headings={headings} encrypted={encrypted} footer={tocFooter} markers={tocMarkers} />}
                 </div>
@@ -641,7 +651,7 @@ export default function DocumentView(props: DocumentViewProps) {
                     />
                   )}
                   {isPage && readable && !showRaw && !tenant && (
-                    <Backlinks slug={slug} addressing={addressing} />
+                    <Backlinks key={user?.id ?? "anon"} slug={slug} addressing={addressing} />
                   )}
                   {!isPage && readable && displayTitle && !showRaw && !empty && !opensWithOwnTitle(displayContent, displayTitle) && (
                     <h1 dir="auto" className="no-print mb-8 break-words text-h1 text-text">
@@ -678,6 +688,7 @@ export default function DocumentView(props: DocumentViewProps) {
                       crumbs={crumbs}
                       title={displayTitle}
                       href={pageHref}
+                      viewer={user?.id ?? null}
                     />
                   ) : (
                     <MarkdownPreview
@@ -810,7 +821,7 @@ export default function DocumentView(props: DocumentViewProps) {
         onConfirm={async () => {
           setToBlocksBusy(true);
           try {
-            await setEditor(slug, "blocks", v.secretInput || null);
+            await (await pagesApi()).setEditor(slug, "blocks", v.secretInput || null);
             v.setPage({ ...(page ?? {}), editor: "blocks" });
             setToBlocks(false);
             track("page_open_blocks");
