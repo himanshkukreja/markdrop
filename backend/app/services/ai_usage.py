@@ -217,6 +217,8 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[REQUESTS].create_index([("feature", 1), ("visitor", 1), ("ts", -1)])
     await db[REQUESTS].create_index([("conversation_id", 1), ("turn", 1)])
     await db[REQUESTS].create_index([("site", 1), ("feature", 1), ("ts", -1)])
+    # Admin → AI → Users and the per-person checks (user_check).
+    await db[REQUESTS].create_index([("user_id", 1), ("ts", -1)])
     # Day rows are only read for today; month rows for this month. A year is plenty.
     await db[SPEND].create_index("expires_at", expireAfterSeconds=0)
 
@@ -364,3 +366,242 @@ class Stopwatch:
     @property
     def elapsed_ms(self) -> int:
         return int((time.monotonic() - self.t0) * 1000)
+
+
+# ── Features, admin settings and per-person checks ────────────────────────────
+#
+# Every feature that records to the ledger is listed in FEATURES. Its caps and switch have a
+# config default (config.py) that the admin panel can override (routers/admin_ai.py, collection
+# `ai_settings`); "*" is the cap on all features together. Overrides are cached in-process for
+# CACHE_TTL seconds and the cache is dropped on every admin write, so a change takes effect at
+# once on the process that saved it and within CACHE_TTL on the others.
+#
+# A feature asks, before it calls the model:
+#
+#     if not await ai_usage.feature_on(db, FEATURE): ...           # admin switch AND config switch
+#     why = await ai_usage.user_check(db, user_id, FEATURE)          # blocked | user_daily | burst
+#     state = await ai_usage.check_budget(db, FEATURE, reserve=R)    # its caps, then the global ones
+#     ai_usage.hold_request(FEATURE, R); ...; ai_usage.release_request(FEATURE, R)
+
+#: key → label, for every feature that records to the ledger. The admin panel lists these.
+FEATURES: dict[str, str] = {
+    "docs_ask": "Docs Ask AI",
+    "docs_editor": "Guides editor AI",
+    "pages_ai": "Pages AI",
+}
+
+SETTINGS = "ai_settings"
+SETTINGS_AUDIT = "ai_settings_audit"
+BUDGETS_ID = "budgets"
+CACHE_TTL = 10.0
+INF = float("inf")
+
+# feature → (daily cap field, monthly cap field, kill-switch fields that must all be true).
+# A missing or None config value means "no cap".
+_CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
+    ALL: ("ai_daily_usd", "ai_monthly_usd", ()),
+    "docs_ask": ("docs_ai_daily_usd", "docs_ai_monthly_usd", ("docs_ai_enabled",)),
+    # Guides editor AI is off whenever Ask AI is (services/docs_editor_ai.py).
+    "docs_editor": ("docs_editor_ai_daily_usd", "docs_editor_ai_monthly_usd",
+                    ("docs_editor_ai_enabled", "docs_ai_enabled")),
+    "pages_ai": ("pages_ai_daily_usd", "pages_ai_monthly_usd", ("pages_ai_enabled",)),
+}
+
+_cache: dict[tuple[str, str], tuple[float, Any]] = {}
+
+
+def invalidate_settings() -> None:
+    """Drop the cached admin settings (every admin write calls this)."""
+    _cache.clear()
+
+
+async def _cached(db: AsyncIOMotorDatabase, key: str, load) -> Any:
+    ck = (getattr(db, "name", ""), key)
+    hit = _cache.get(ck)
+    t = time.monotonic()
+    if hit is not None and hit[0] > t:
+        return hit[1]
+    value = await load()
+    _cache[ck] = (t + CACHE_TTL, value)
+    return value
+
+
+async def admin_settings(db: AsyncIOMotorDatabase) -> dict:
+    """The admin's overrides (cached): {caps: {feature: {daily_usd, monthly_usd}}, enabled:
+    {feature: bool}, burst: {per_minute, per_day}, user_daily_usd}. A missing key = the default."""
+    async def load() -> dict:
+        try:
+            row = await db[SETTINGS].find_one({"_id": BUDGETS_ID})
+        except Exception:
+            log.warning("ai settings: read failed, using the config defaults")
+            row = None
+        return row or {}
+    return await _cached(db, BUDGETS_ID, load)
+
+
+async def user_settings(db: AsyncIOMotorDatabase, user_id: str) -> dict:
+    """One person's AI settings (cached): {blocked: bool, daily_usd: float | None}."""
+    async def load() -> dict:
+        try:
+            row = await db[SETTINGS].find_one({"_id": f"user:{user_id}"})
+        except Exception:
+            row = None
+        return row or {}
+    return await _cached(db, f"user:{user_id}", load)
+
+
+def _num(v) -> float | None:
+    if v is None or isinstance(v, bool):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def default_caps(feature: str) -> tuple[float, float]:
+    """The config default (daily, monthly) USD caps of a feature or "*"; INF = no cap."""
+    from app.config import get_settings
+
+    s = get_settings()
+    fields = _CONFIG.get(feature)
+    if fields is None:
+        return INF, INF
+    d, m = (_num(getattr(s, f, None)) for f in fields[:2])
+    return (INF if d is None else d), (INF if m is None else m)
+
+
+def default_on(feature: str) -> bool:
+    from app.config import get_settings
+
+    s = get_settings()
+    fields = _CONFIG.get(feature)
+    return all(bool(getattr(s, f, False)) for f in (fields[2] if fields else ()))
+
+
+async def caps(db: AsyncIOMotorDatabase, feature: str) -> tuple[float, float]:
+    """(daily_usd, monthly_usd) for a feature, or "*" for all features together: the admin's
+    override from `ai_settings`, else the config default. float('inf') means no cap; 0 blocks
+    all spend."""
+    d, m = default_caps(feature)
+    o = ((await admin_settings(db)).get("caps") or {}).get(feature) or {}
+    od, om = _num(o.get("daily_usd")), _num(o.get("monthly_usd"))
+    return (d if od is None else od), (m if om is None else om)
+
+
+async def feature_on(db: AsyncIOMotorDatabase, feature: str) -> bool:
+    """The admin's per-feature switch (default on) AND the config kill switch."""
+    if not default_on(feature):
+        return False
+    return (await admin_settings(db)).get("enabled", {}).get(feature, True) is not False
+
+
+async def burst_limits(db: AsyncIOMotorDatabase) -> tuple[int, int]:
+    """(per_minute, per_day) requests per signed-in person across all AI features."""
+    from app.config import get_settings
+
+    s = get_settings()
+    b = (await admin_settings(db)).get("burst") or {}
+    pm, pd = _num(b.get("per_minute")), _num(b.get("per_day"))
+    return (int(pm) if pm is not None else int(s.ai_burst_per_minute),
+            int(pd) if pd is not None else int(s.ai_burst_per_day))
+
+
+async def default_user_daily(db: AsyncIOMotorDatabase) -> float | None:
+    """The per-person daily USD cap everyone gets unless their own is set (None: no cap)."""
+    from app.config import get_settings
+
+    o = await admin_settings(db)
+    if "user_daily_usd" in o:
+        return _num(o.get("user_daily_usd"))
+    return _num(get_settings().ai_user_daily_usd)
+
+
+async def user_daily_cap(db: AsyncIOMotorDatabase, user_id: str) -> float | None:
+    """This person's daily USD cap: their own override, else the default (None: no cap)."""
+    own = _num((await user_settings(db, user_id)).get("daily_usd"))
+    return own if own is not None else await default_user_daily(db)
+
+
+def utc_midnight(now: datetime | None = None) -> datetime:
+    n = (now or now_utc()).astimezone(timezone.utc)
+    return n.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+async def user_spend_today(db: AsyncIOMotorDatabase, user_id: str, now: datetime | None = None) -> float:
+    """USD this person's AI requests cost since UTC midnight, all features (from the ledger)."""
+    total = 0.0
+    async for r in db[REQUESTS].find({"user_id": user_id, "ts": {"$gte": utc_midnight(now)}}, {"cost_usd": 1}):
+        total += float(r.get("cost_usd") or 0)
+    return total
+
+
+# Checks passed in this process per person (monotonic times), so a burst of concurrent requests
+# can't all pass before any of them is recorded. The ledger covers the other API processes.
+_recent: dict[str, list[float]] = {}
+
+
+def _recent_count(user_id: str, seconds: float) -> int:
+    t = time.monotonic()
+    xs = [x for x in _recent.get(user_id, []) if t - x < 86_400]
+    if xs:
+        _recent[user_id] = xs
+    else:
+        _recent.pop(user_id, None)
+    return sum(1 for x in xs if t - x < seconds)
+
+
+async def user_check(db: AsyncIOMotorDatabase, user_id: str | None, feature: str,
+                     now: datetime | None = None) -> str | None:
+    """Can this signed-in person make one more AI request? None = yes; else why not:
+    "blocked" (an admin blocked them from AI), "user_daily" (their daily USD cap is reached),
+    "burst" (more than the per-minute or per-day request limit, all AI features together).
+    Signed-out callers (no user_id) are not checked here. A passing check counts towards the
+    burst limit."""
+    if not user_id:
+        return None
+    if (await user_settings(db, user_id)).get("blocked"):
+        return "blocked"
+    cap = await user_daily_cap(db, user_id)
+    if cap is not None and await user_spend_today(db, user_id, now) >= cap:
+        return "user_daily"
+    per_minute, per_day = await burst_limits(db)
+    n = now or now_utc()
+    q = {"user_id": user_id, "outcome": {"$ne": "limit"}}
+    minute = await db[REQUESTS].count_documents({**q, "ts": {"$gte": n - timedelta(minutes=1)}})
+    if max(minute, _recent_count(user_id, 60)) >= per_minute:
+        return "burst"
+    today = await db[REQUESTS].count_documents({**q, "ts": {"$gte": utc_midnight(n)}})
+    if max(today, _recent_count(user_id, (n - utc_midnight(n)).total_seconds())) >= per_day:
+        return "burst"
+    _recent.setdefault(user_id, []).append(time.monotonic())
+    return None
+
+
+async def check_budget(db: AsyncIOMotorDatabase, feature: str, *, reserve: float = 0.0,
+                       now: datetime | None = None) -> BudgetState:
+    """The feature's caps (caps(feature)), then all features' together (caps("*")). A failing
+    global check says reason "global_daily" / "global_monthly"."""
+    d, m = await caps(db, feature)
+    state = await budget(db, feature, daily_cap=d, monthly_cap=m, reserve=reserve, now=now)
+    if not state.ok:
+        return state
+    gd, gm = await caps(db, ALL)
+    if gd == INF and gm == INF:
+        return state
+    g = await budget(db, ALL, daily_cap=gd, monthly_cap=gm, reserve=reserve, now=now)
+    if not g.ok:
+        g.reason = f"global_{g.reason}"
+        return g
+    return state
+
+
+def hold_request(feature: str, usd: float) -> None:
+    """hold() for the feature and for "*" (check_budget reads both)."""
+    hold(feature, usd)
+    hold(ALL, usd)
+
+
+def release_request(feature: str, usd: float) -> None:
+    release(feature, usd)
+    release(ALL, usd)
