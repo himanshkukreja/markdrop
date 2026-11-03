@@ -136,6 +136,10 @@ export interface DocumentResponse {
    * for any document an anonymous visitor couldn't read (access policy §2.7). Opaque.
    */
   read_ticket?: string | null;
+  /** Who's viewing: the signed-in reader's ticket for the live socket's hello (lib/presence). Opaque. */
+  presence_ticket?: string | null;
+  /** The owner only: whether the page shows who's viewing (default on). */
+  show_presence?: boolean | null;
   /** v2: bumped on every narrowing; the OG image URL carries it (`e=`) so caches re-fetch. */
   access_epoch?: number;
   /** v2: what the caller may do (server-computed, access policy §7). */

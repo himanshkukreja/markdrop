@@ -43,6 +43,9 @@ import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
+import { fromFrameOrigin, type BridgeMessage } from "@/lib/engageCore";
+import { usePresenceChannel } from "@/lib/presence";
+import { DocPresence } from "@/components/presence/DocPresence";
 
 /**
  * Viewer for kind="artifact" documents.
@@ -279,6 +282,9 @@ export default function ArtifactView({
   const beaconSent = useRef(false);
   // Every beacon and the live socket carry the read ticket (§2.7); each read replaces it.
   const [readTicket, setReadTicket] = useState<string | null>(initialReadTicket);
+  // Who's viewing (lib/presence): the signed-in reader's presence ticket, from any read made here.
+  const [presenceTicket, setPresenceTicket] = useState<string | null>(null);
+  const presence = usePresenceChannel(user ? presenceTicket : null);
 
   // Bumped on every live update. The blob URL is stable now, so React would
   // see an unchanged src and leave the iframe alone; keying on this forces it
@@ -309,6 +315,7 @@ export default function ArtifactView({
   ) {
     setTitle(doc.title);
     if (doc.read_ticket) setReadTicket(doc.read_ticket);
+    if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
     // A URL arriving late (password unlock, the owner's authorised re-read) goes immersive in the
     // same render, so the framed iframe never mounts just to be thrown away (one fetch, not two).
     if (doc.artifact_url && !artifactUrlRef.current) setImmersive(true);
@@ -352,9 +359,13 @@ export default function ArtifactView({
       } catch {
         return;
       }
+      const sock = ws;
+      ws.onopen = () => presence.channel.attach(sock);
       ws.onmessage = (ev) => {
         let msg: { type?: string } | null = null;
         try { msg = JSON.parse(ev.data); } catch { return; }
+        // Who's viewing: the presence channel takes its own messages.
+        if (msg && presence.channel.handle(msg)) return;
         // Deleted, expired or renamed away: let the page answer (404 or redirect).
         if (msg?.type === "gone") { window.location.reload(); return; }
         // Narrowed: re-read (fresh ticket, reconnect) or, if refused now, show the gate.
@@ -370,13 +381,17 @@ export default function ArtifactView({
           })
           .catch(() => { if (narrowed) window.location.reload(); });
       };
-      ws.onclose = () => { if (!closed) retry = setTimeout(connect, 3000); };
+      ws.onclose = () => {
+        presence.channel.detach();
+        if (!closed) retry = setTimeout(connect, 3000);
+      };
     }
     connect();
     return () => {
       closed = true;
       if (retry) clearTimeout(retry);
       ws?.close();
+      presence.channel.detach();
     };
   }, [slug, locked, isPasswordProtected, readTicket]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -399,6 +414,7 @@ export default function ArtifactView({
       setCanEditTitle(false);
       setCanShare(false);
       setOwnGrantEmail(null);
+      setPresenceTicket(null);
       return;
     }
     let cancelled = false;
@@ -406,6 +422,7 @@ export default function ArtifactView({
     getDocument(slug)
       .then((doc) => {
         if (cancelled) return;
+        if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
         setOwnerCheckedFor(uid);
         setIsOwner(!!doc.is_owner);
         setCanReplace(!!doc.can?.replace);
@@ -624,6 +641,24 @@ export default function ArtifactView({
     origin: frameOrigin,
   });
 
+  // Who's viewing: where this reader is in the file (a PDF's page, a video's time in 5 s steps),
+  // from the viewer frame's bridge, checked like the engagement tracker's (lib/engage).
+  useEffect(() => {
+    if (!frameOrigin || locked) return;
+    const onMessage = (e: MessageEvent) => {
+      const f = frameRef.current;
+      if (!f || e.source !== f.contentWindow || !fromFrameOrigin(e.origin, frameOrigin)) return;
+      const m = e.data as BridgeMessage | null;
+      if (!m || typeof m !== "object" || m.md !== 1) return;
+      if (m.ev === "page" && typeof m.p === "number" && m.p >= 1) presence.channel.setSection({ p: Math.floor(m.p) });
+      else if (m.ev === "media" && typeof m.t === "number" && Number.isFinite(m.t) && m.t >= 0) {
+        presence.channel.setSection({ s: Math.floor(m.t / 5) * 5 });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [frameOrigin, locked, presence.channel]);
+
   const fileRenderer = artifactFileRenderer(renderer);
   const paper = isPaper(renderer);
   const loadingLabel = `Loading ${typeLabel}…`;
@@ -721,6 +756,7 @@ export default function ArtifactView({
             onDownload={handleDownload}
             onExpand={() => setImmersive(true)}
             menu={menu}
+            presence={!locked ? <DocPresence presence={presence} signedIn={!!user} /> : null}
           />
 
           {locked ? (
@@ -771,6 +807,13 @@ export default function ArtifactView({
           {frame}
           {liveProgress}
           {cover}
+          <DocPresence
+            presence={presence}
+            signedIn={!!user}
+            variant="float"
+            hideWhenAlone
+            corner={renderer === "video" ? "top-right" : "bottom-right"}
+          />
           {/* Withheld only from anonymous viewers, and only on a domain whose
               owner asked for it. A signed-in visitor keeps the way out, so the
               owner can still reach Report, settings and the framed view. */}

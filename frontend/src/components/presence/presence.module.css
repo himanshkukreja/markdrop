@@ -1,0 +1,149 @@
+/* Who's viewing (PresenceStack). Tokens only; --pc is the viewer's colour (--chart-1…6), which
+   the design system already tunes for light and dark. */
+
+.stackWrap { display: inline-flex; align-items: center; flex: none; }
+
+.stack {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  min-height: 32px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: transparent;
+  cursor: pointer;
+}
+.stack:hover { background: var(--surface-hover); }
+/* The list is open: the avatars' own tooltips step aside. */
+.stack[aria-expanded="true"] :global(.md-tip__bubble) { display: none; }
+.stack > * + * { margin-left: -4px; }
+.stack > .self { margin-left: 6px; }
+
+.face {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  border-radius: var(--radius-full);
+  background: color-mix(in oklab, var(--pc) 18%, var(--surface));
+  color: var(--pc);
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 0 0 2px var(--surface);
+  user-select: none;
+}
+.ring { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--pc); }
+.faceSm { width: 24px; height: 24px; font-size: 10px; }
+.faceMd { width: 32px; height: 32px; font-size: 12px; }
+.face img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.glyph { font-size: 1.45em; line-height: 1; }
+.faceMd .glyph { font-size: 17px; }
+.faceSm .glyph { font-size: 14px; }
+.away { opacity: 0.55; filter: saturate(0.4); }
+.awayDot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--warning-fill);
+  border: 2px solid var(--surface);
+}
+
+.more {
+  display: inline-grid;
+  place-items: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: var(--radius-full);
+  background: var(--surface-active);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.narrowOnly { display: none; }
+@media (max-width: 639px) {
+  .wideOnly { display: none; }
+  .narrowOnly { display: inline-grid; }
+}
+
+.count {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* Over a full-screen reader (z-overlay / z-immersive): a raised chip beside "Show details". */
+.float {
+  position: fixed;
+  right: var(--space-4);
+  z-index: calc(var(--z-immersive) + 1);
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+}
+.floatBr { bottom: calc(var(--space-4) + 56px + env(safe-area-inset-bottom, 0px)); }
+.floatTr { top: calc(var(--space-4) + 56px + env(safe-area-inset-top, 0px)); }
+.float .face, .float .more { box-shadow: 0 0 0 2px var(--surface-raised); }
+.float .count { border: 0; background: transparent; }
+.float .ring { box-shadow: 0 0 0 2px var(--surface-raised), 0 0 0 3.5px var(--pc); }
+/* Out of the way while a dialog is open over the reader (like ImmersiveExit). */
+:global(body:has([role="dialog"][aria-modal="true"])) .float { display: none; }
+
+/* The list (popover above a full-screen reader too, and the phone sheet). */
+.panel.panel { z-index: calc(var(--z-immersive) + 2); }
+.sheet.sheet { z-index: calc(var(--z-immersive) + 2); }
+:global(body):has(.sheet) :global(.md-drawer-scrim) { z-index: calc(var(--z-immersive) + 1); }
+
+.list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; max-height: min(50dvh, 360px); overflow-y: auto; }
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 4px;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.rowButton { cursor: pointer; }
+.rowButton:hover { background: var(--surface-hover); }
+
+/* Section markers in the reading column's margin (no Contents rail on screen). */
+.margin { position: absolute; inset: 0 auto 0 0; width: 0; pointer-events: none; }
+.marker {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  transform: translateY(2px);
+  transition: top var(--duration-panel) var(--ease-out);
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pc);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.dot.dotAway { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) { .marker { transition: none; } }

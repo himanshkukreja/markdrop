@@ -90,6 +90,8 @@ export interface AccessState {
   /** The custom-domain address when its workspace has a live primary domain, else null. */
   workspace_url?: string | null;
   expires_at?: string | null;
+  /** "Show who's viewing" (live presence on the page); absent means on. */
+  show_presence?: boolean;
 }
 
 export const getAccess = (slug: string) =>
@@ -105,6 +107,13 @@ export const setResharing = (slug: string, allow: boolean) =>
   request<void>(`/api/v1/documents/${encodeURIComponent(slug)}/access/resharing`, {
     method: "PUT",
     body: JSON.stringify({ allow }),
+  });
+
+/** The owner's "Show who's viewing" switch. */
+export const setShowPresence = (slug: string, show: boolean) =>
+  request<void>(`/api/v1/documents/${encodeURIComponent(slug)}/access/presence`, {
+    method: "PUT",
+    body: JSON.stringify({ show }),
   });
 
 export const addPerson = (
