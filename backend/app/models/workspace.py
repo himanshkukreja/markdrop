@@ -66,6 +66,8 @@ class WorkspaceSettings:
     members_can_share_folders: bool = True
     # What the app preselects for "Who can open it" when filing here.
     default_access: Literal["link", "workspace", "private"] = "workspace"
+    # Page AI (routers/pages_ai.py) on this workspace's pages. Admins can turn it off.
+    ai_enabled: bool = True
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "WorkspaceSettings":
@@ -78,6 +80,7 @@ class WorkspaceSettings:
             members_can_share_folders=bool(raw.get("members_can_share_folders", True)),
             default_access=default_access if default_access in ("link", "workspace", "private")
             else "workspace",
+            ai_enabled=raw.get("ai_enabled") is not False,
         )
 
 

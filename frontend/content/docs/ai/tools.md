@@ -3,10 +3,10 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 39 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 42 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -66,6 +66,9 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `list_page_templates` | read | The built-in templates: feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank. | none |
 | `list_subpages` | read | The pages inside a page that you can open. | `document` |
 | `move_page` | write | Puts a page inside another page of the same workspace, or at the top level. When that changes who can read it, the tool says how and needs `confirm_access_change`. | `document`, `parent`, `confirm_access_change` |
+| `translate_page` | write | Translates a page into another language as a new page next to it, titled "Title (Español)", with the same blocks, embeds, images and properties. Only the text is translated, and the original isn't changed. Uses Markdrop's AI. | `document`, `language` |
+| `summarize_page` | write | Writes a short summary of a page as a Summary callout, with Markdrop's AI. With `insert`, it's added at the top of the page; otherwise it's only returned. | `document`, `insert` |
+| `suggest_page_meta` | write | Suggests a title, a one-sentence description and an emoji icon for a page, with Markdrop's AI. Changes nothing. | `document` |
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 
