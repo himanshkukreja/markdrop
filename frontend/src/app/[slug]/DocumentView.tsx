@@ -19,7 +19,7 @@ import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { useDocumentViewer } from "./doc/useDocumentViewer";
-import type { DocumentViewProps } from "./doc/types";
+import { pageFieldsOf, type DocumentViewProps } from "./doc/types";
 import { DocumentActionBar, DocumentBar } from "./doc/DocumentBar";
 import { DetailsPanel, readingMinutes } from "./doc/DetailsPanel";
 import { DeviceKeyNotice, EncryptionState, RotatedNotice } from "./doc/EncryptionState";
@@ -27,10 +27,11 @@ import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
-import { Backlinks, PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
+import { Backlinks, PageBreadcrumbs, SubPages } from "@/components/pages/PageChrome";
+import type { PageActionRequest } from "@/components/pages/PageActions";
 import { PageHead } from "@/components/pages/PageHead";
 import { readPageProps } from "@/components/pages/pageProps";
-import { deletePage, setEditor } from "@/lib/pages";
+import { deletePage, getPage, setEditor } from "@/lib/pages";
 import { assetId, pagePath } from "@/lib/pageBlocks.mjs";
 import { DeletePageDialog } from "@/components/pages/DeletePageDialog";
 
@@ -54,6 +55,9 @@ const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m)
 // template gallery load when used.
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
 const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
+// Drag and drop, Move to and Duplicate load only for pages.
+const PageTree = dynamic(() => import("@/components/pages/PageTree").then((m) => m.PageTree), { loading: () => null });
+const PageActions = dynamic(() => import("@/components/pages/PageActions").then((m) => m.PageActions), { loading: () => null });
 const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
 
 /**
@@ -162,6 +166,42 @@ export default function DocumentView(props: DocumentViewProps) {
     return id ? page?.assets?.[id]?.url ?? "" : src;
   };
   const [deleting, setDeleting] = useState(false);
+  // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
+  const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
+  const [treeKey, setTreeKey] = useState(0);
+  const [kidsKey, setKidsKey] = useState(0);
+  const pagePathSlugs = page?.page_path ?? [];
+  const movable = {
+    slug,
+    title: displayTitle,
+    workspaceId: page?.workspace_id ?? null,
+    parent: page?.parent?.slug ?? pagePathSlugs[pagePathSlugs.length - 1] ?? null,
+    parentTitle: page?.parent?.title ?? null,
+    childrenCount: page?.children_count ?? 0,
+    folderPath: page?.folder_path ?? [],
+  };
+  // This page's place changed (moved, or an ancestor moved) or its sub-pages did: read its
+  // breadcrumbs, address and "Pages inside" again. The tree redraws itself unless asked to.
+  const rereadPage = (redrawTree = true) => {
+    getPage(slug)
+      .then((doc) => {
+        v.setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
+        if (redrawTree) setTreeKey((k) => k + 1);
+        setKidsKey((k) => k + 1);
+        // A move can change who reads it (it inherits from somewhere else now).
+        v.loadAccess();
+      })
+      .catch(() => {});
+    fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
+  };
+  const pageActions = isPage && canAddSubPage ? (
+    <PageActions
+      request={pageAction}
+      page={movable}
+      onClose={() => setPageAction(null)}
+      onMoved={() => rereadPage()}
+    />
+  ) : null;
   const pageHref = (s: string, ancestors: string[]) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors });
   // The tab shows the page's icon.
   useEffect(() => {
@@ -277,6 +317,8 @@ export default function DocumentView(props: DocumentViewProps) {
                   fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
                 }}
                 onAddSubPage={canAddSubPage ? () => setNewSubPage(true) : null}
+                onMoveTo={canAddSubPage ? () => setPageAction({ kind: "move" }) : null}
+                onDuplicate={canAddSubPage ? () => setPageAction({ kind: "duplicate", open: true }) : null}
                 onDelete={isOwner || v.canEditSettings ? () => setDeleting(true) : null}
                 isOwner={isOwner || v.canEditSettings}
                 url={url}
@@ -296,6 +338,7 @@ export default function DocumentView(props: DocumentViewProps) {
               {newSubPage && (
                 <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={displayTitle} />
               )}
+              {pageActions}
             </div>
           ) : secretUnlocked ? (
             <EditorScreen
@@ -400,6 +443,8 @@ export default function DocumentView(props: DocumentViewProps) {
       ? [{ label: "Open in block editor", icon: "layers", description: "Write it with blocks. The Markdown is unchanged.", onClick: () => setToBlocks(true) }]
       : []),
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
+    ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
+    ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -499,7 +544,21 @@ export default function DocumentView(props: DocumentViewProps) {
               {(tocEntries.length > 0 || (isPage && readable && (crumbs.length > 0 || (page?.children_count ?? 0) > 0))) && (
                 <div className="sticky top-32 flex max-h-[calc(100dvh-9rem)] flex-col gap-6 overflow-y-auto pb-6">
                   {isPage && readable && !gated && (
-                    <PageTree slug={slug} title={displayTitle} crumbs={crumbs} childrenCount={page?.children_count ?? 0} addressing={addressing} />
+                    <PageTree
+                      key={`${crumbs[0]?.slug ?? slug}:${treeKey}`}
+                      slug={slug}
+                      title={displayTitle}
+                      crumbs={crumbs}
+                      childrenCount={page?.children_count ?? 0}
+                      addressing={addressing}
+                      canEdit={canAddSubPage}
+                      workspaceId={page?.workspace_id ?? null}
+                      // The tree's top page is at the top level when every ancestor is readable.
+                      rootParent={pagePathSlugs.length === crumbs.length ? null : undefined}
+                      onMoved={(s, from, to) => {
+                        if (s === slug || crumbs.some((c) => c.slug === s) || from === slug || to === slug) rereadPage(false);
+                      }}
+                    />
                   )}
                   {tocEntries.length > 0 && <Toc headings={headings} encrypted={encrypted} footer={tocFooter} markers={tocMarkers} />}
                 </div>
@@ -698,6 +757,7 @@ export default function DocumentView(props: DocumentViewProps) {
                       ancestors={crumbs.map((c) => c.slug)}
                       addressing={addressing}
                       onAdd={canAddSubPage ? () => setNewSubPage(true) : null}
+                      refreshKey={kidsKey}
                     />
                   )}
                   {readable && !empty && <Colophon />}
@@ -826,6 +886,7 @@ export default function DocumentView(props: DocumentViewProps) {
       {newSubPage && !editing && (
         <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
       )}
+      {!editing && pageActions}
 
       <ConfirmDialog
         open={leaving}

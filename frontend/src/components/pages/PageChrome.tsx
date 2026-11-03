@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * A page's chrome: breadcrumbs (its readable ancestors), "Pages inside" (its sub-pages, with
- * "Add a sub-page") and the page tree (the rail: the top page and its sub-pages, opened lazily).
+ * A page's chrome: breadcrumbs (its readable ancestors) and "Pages inside" (its sub-pages, with
+ * "Add a sub-page"). The page tree in the rail is PageTree.tsx (loaded lazily: it carries drag and drop).
  * Every list comes from the API already filtered to what this reader can open.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Anchor, Button, Icon, Skeleton, cx } from "@/components/ui";
 import { listBacklinks, listChildren, type ChildPage, type Crumb } from "@/lib/pages";
 import { pagePath } from "@/lib/pageBlocks.mjs";
@@ -162,102 +162,5 @@ export function Backlinks({ slug, addressing }: { slug: string; addressing: Page
         </ul>
       )}
     </div>
-  );
-}
-
-interface TreeItem {
-  slug: string;
-  title: string | null;
-  has_children: boolean;
-}
-
-function TreeBranch({ item, ancestors, current, addressing, open, toggle, kidsOf, level }: {
-  item: TreeItem;
-  ancestors: string[];
-  current: string;
-  addressing: PageAddressing;
-  open: Set<string>;
-  toggle: (slug: string) => void;
-  kidsOf: Record<string, ChildPage[] | "loading" | "error">;
-  level: number;
-}) {
-  const isOpen = open.has(item.slug);
-  const kids = kidsOf[item.slug];
-  return (
-    <li>
-      <div className="pb-tree__row">
-        {item.has_children ? (
-          <button type="button" className="pb-tree__toggle md-focus" aria-expanded={isOpen} aria-label={isOpen ? "Collapse" : "Expand"} onClick={() => toggle(item.slug)}>
-            <Icon name="chevronRight" size={12} />
-          </button>
-        ) : (
-          <span className="pb-tree__spacer" aria-hidden />
-        )}
-        <Anchor
-          href={hrefFor(item.slug, ancestors, addressing)}
-          className="pb-tree__link md-focus ph-sensitive ph-mask"
-          aria-current={item.slug === current ? "page" : undefined}
-          dir="auto"
-          style={{ paddingLeft: 4 }}
-          data-level={level}
-        >
-          {item.title || "Untitled"}
-        </Anchor>
-      </div>
-      {isOpen && item.has_children && (
-        kids === "loading" || kids === undefined ? (
-          <div className="pl-6 py-1"><Skeleton width="70%" /></div>
-        ) : kids === "error" ? (
-          <p className="pl-6 text-caption text-text-muted m-0">Couldn&apos;t load</p>
-        ) : (
-          <ul>
-            {kids.map((k) => (
-              <TreeBranch key={k.slug} item={k} ancestors={[...ancestors, item.slug]} current={current} addressing={addressing} open={open} toggle={toggle} kidsOf={kidsOf} level={level + 1} />
-            ))}
-          </ul>
-        )
-      )}
-    </li>
-  );
-}
-
-/**
- * The page tree in the rail: the top page of this one's chain and its sub-pages, the path to this
- * page open. Sub-pages load when a branch opens (GET …/children).
- */
-export function PageTree({ slug, title, crumbs, childrenCount, addressing }: { slug: string; title: string | null; crumbs: Crumb[]; childrenCount: number; addressing: PageAddressing }) {
-  const root: TreeItem = crumbs.length ? { slug: crumbs[0].slug, title: crumbs[0].title, has_children: true } : { slug, title, has_children: childrenCount > 0 };
-  const [open, setOpen] = useState<Set<string>>(() => new Set([...crumbs.map((c) => c.slug), ...(childrenCount > 0 ? [slug] : [])]));
-  const [kidsOf, setKidsOf] = useState<Record<string, ChildPage[] | "loading" | "error">>({});
-
-  const load = useCallback((s: string) => {
-    setKidsOf((m) => (m[s] && m[s] !== "error" ? m : { ...m, [s]: "loading" }));
-    listChildren(s)
-      .then((k) => setKidsOf((m) => ({ ...m, [s]: k })))
-      .catch(() => setKidsOf((m) => ({ ...m, [s]: "error" })));
-  }, []);
-
-  useEffect(() => {
-    open.forEach((s) => {
-      if (!kidsOf[s]) load(s);
-    });
-  }, [open, kidsOf, load]);
-
-  const toggle = (s: string) =>
-    setOpen((o) => {
-      const n = new Set(o);
-      if (n.has(s)) n.delete(s);
-      else n.add(s);
-      return n;
-    });
-
-  if (!root.has_children && !crumbs.length) return null;
-  return (
-    <nav aria-label="Pages" className="no-print">
-      <h2 className="text-eyebrow uppercase text-text-muted mb-2 mt-0">Pages</h2>
-      <ul className="pb-tree ph-no-capture">
-        <TreeBranch item={root} ancestors={[]} current={slug} addressing={addressing} open={open} toggle={toggle} kidsOf={kidsOf} level={0} />
-      </ul>
-    </nav>
   );
 }
