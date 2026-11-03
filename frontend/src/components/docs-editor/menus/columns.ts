@@ -54,7 +54,8 @@ export function columnView() {
           dom.style.flexBasis = w ?? "0";
           dom.style.flexGrow = w ? "0" : "1";
           dom.style.flexShrink = w ? "0" : "1";
-          handle.hidden = !editor.isEditable;
+          // (Shown only while the editor is editable: CSS, since the page opens read only and its
+          // node views aren't redrawn when it becomes editable.)
         };
         apply();
 
@@ -193,6 +194,55 @@ export function insertColumns(editor: Editor, n: number, range?: { from: number;
   if (target !== null) editor.view.dispatch(editor.state.tr.setSelection(TextSelection.near(editor.state.doc.resolve(target))));
 }
 
+/* ── table flags ─────────────────────────────────────────────────────────── */
+
+/** Whether any step of `tr` replaced content inside or around a node of one of `types`. */
+function touches(tr: Transaction, types: Set<string>): boolean {
+  let hit = false;
+  tr.mapping.maps.forEach((map, i) => {
+    if (hit) return;
+    map.forEach((_a, _b, from, to) => {
+      if (hit) return;
+      // Positions in this step's result, then mapped to the final document.
+      const tail = tr.mapping.slice(i + 1);
+      const a = tail.map(from, -1);
+      const b = Math.max(a, tail.map(to, 1));
+      const doc = tr.doc;
+      const lo = Math.max(0, Math.min(a, doc.content.size));
+      const hi = Math.max(lo, Math.min(b, doc.content.size));
+      const $a = doc.resolve(lo);
+      for (let d = $a.depth; d > 0 && !hit; d--) if (types.has($a.node(d).type.name)) hit = true;
+      if (!hit) doc.nodesBetween(lo, hi, (n) => {
+        if (types.has(n.type.name)) hit = true;
+        return !hit && !n.isTextblock;
+      });
+    });
+  });
+  return hit;
+}
+
+const TABLE = new Set(["table"]);
+const COLUMN_TYPES = new Set(["columns", "column"]);
+
+/**
+ * A table's header column / header row off, as node decorations on the table (its wrapper carries
+ * them, for CSS). Rebuilt from scratch only when an edit touched a table; otherwise mapped.
+ */
+function tableFlags(doc: PMNode, old?: DecorationSet, tr?: Transaction): DecorationSet {
+  if (old && tr && !touches(tr, TABLE)) return old.map(tr.mapping, tr.doc);
+  const decos: Decoration[] = [];
+  doc.descendants((n, pos) => {
+    if (n.type.name === "table") {
+      const b = n.attrs.battrs as Record<string, string> | null;
+      if (b && (b["header-column"] !== undefined || b["header-row"] === "off"))
+        decos.push(Decoration.node(pos, pos + n.nodeSize, { ...(b["header-column"] !== undefined ? { "data-hcol": "" } : {}), ...(b["header-row"] === "off" ? { "data-hrow": "off" } : {}) }));
+      return false;
+    }
+    return !n.isTextblock && !n.isAtom;
+  });
+  return DecorationSet.create(doc, decos);
+}
+
 /* ── normalising after edits ─────────────────────────────────────────────── */
 
 /**
@@ -319,20 +369,16 @@ export const ColumnsExt = Extension.create({
     return [
       // A table's header column / header row off (its attributes) on the table's wrapper, for CSS:
       // the resizable table's node view doesn't render the node's attributes itself.
+      // (Kept in the plugin's state and rebuilt only when the document changes: not on every
+      // selection change or keystroke's view update.)
       new Plugin({
+        state: {
+          init: (_c, state) => tableFlags(state.doc),
+          apply: (tr, old) => (tr.docChanged ? tableFlags(tr.doc, old, tr) : old),
+        },
         props: {
           decorations(state) {
-            const decos: Decoration[] = [];
-            state.doc.descendants((n, pos) => {
-              if (n.type.name === "table") {
-                const b = n.attrs.battrs as Record<string, string> | null;
-                if (b && (b["header-column"] !== undefined || b["header-row"] === "off"))
-                  decos.push(Decoration.node(pos, pos + n.nodeSize, { ...(b["header-column"] !== undefined ? { "data-hcol": "" } : {}), ...(b["header-row"] === "off" ? { "data-hrow": "off" } : {}) }));
-                return false;
-              }
-              return !n.isTextblock && !n.isAtom;
-            });
-            return decos.length ? DecorationSet.create(state.doc, decos) : null;
+            return this.getState(state);
           },
         },
       }),
@@ -346,6 +392,8 @@ export const ColumnsExt = Extension.create({
             emptied = sources.map((p) => trs.reduce((q, t) => t.mapping.map(q, 1), p));
             sources = [];
           }
+          // Typing elsewhere can't leave a row with one column: skip the walk over the page.
+          if (!emptied.length && !trs.some((t) => t.docChanged && touches(t, COLUMN_TYPES))) return null;
           return normalise(state, emptied);
         },
         props: {

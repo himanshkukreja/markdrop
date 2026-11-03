@@ -113,6 +113,12 @@ function ToolMenu({ options, label, onClose }: { options: MenuOption[]; label: s
   );
 }
 
+/** The toolbar's state while the selection is empty (it is hidden then). */
+const IDLE = {
+  bold: false, italic: false, strike: false, code: false, underline: false, span: null as Record<string, string> | null, kbd: false,
+  link: false, href: "", h2: false, h3: false, h4: false, bullet: false, ordered: false, quote: false, from: -1, to: -1,
+};
+
 export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; stickyTop?: () => number; assist?: AssistStore }) {
   const host = useHost();
   const [view, setView] = useState<View>("buttons");
@@ -124,7 +130,9 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
   const langInput = useRef<HTMLInputElement>(null);
   const st = useEditorState({
     editor,
-    selector: ({ editor: e }) => ({
+    // The toolbar is hidden while the selection is empty or is whole blocks, so typing (and
+    // Shift+↓ over a hundred blocks) gets one constant state: no isActive walks, no re-render.
+    selector: ({ editor: e }) => (e.state.selection.empty || e.state.selection instanceof NodeSelection || "anchorBlock" in e.state.selection ? IDLE : {
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
       strike: e.isActive("strike"),
