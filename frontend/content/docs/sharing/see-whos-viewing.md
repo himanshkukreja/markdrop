@@ -37,7 +37,7 @@ Everyone else appears as an anonymous animal, like **Anonymous Otter** or **Anon
 Your animal stays the same while the tab stays open, even if your connection drops and comes back. Another tab, or another document, gets another animal.
 
 :::note
-Markdrop decides who appears by name on its servers, from the document's access settings, every time someone joins and again every minute after. If you're removed from a workspace or someone takes away your access, you turn anonymous within a minute, or leave the list at once when the change closes the page.
+Markdrop decides who appears by name on its servers, from the document's access settings, every time someone joins and again about every minute after. When someone takes away your access to the document, you leave the list at once. If you're removed from its workspace but can still open it by its link, you turn anonymous within a minute or two.
 :::
 
 ## Show me as anonymous
