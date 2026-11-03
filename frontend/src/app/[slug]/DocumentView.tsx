@@ -27,6 +27,8 @@ import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
+import { PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
+import { setEditor } from "@/lib/pages";
 
 // Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
 // load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
@@ -44,6 +46,11 @@ const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.Re
 const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog), { loading: () => null });
 const EncryptedCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.EncryptedCopyDialog), { loading: () => null });
 const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m) => m.ProtectionDialog), { loading: () => null });
+// Pages (documents in the block editor): the renderer ships with a page; the editor and the
+// template gallery load when used.
+const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
+const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
+const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
 
 /**
  * Does the document already open with its own title?
@@ -131,6 +138,16 @@ export default function DocumentView(props: DocumentViewProps) {
   const [panelDismissed, setPanelDismissed] = useState(false);
   const [secretCopied, setSecretCopied] = useState(false);
   const [wsShareFailed, setWsShareFailed] = useState(false);
+  const [newSubPage, setNewSubPage] = useState(false);
+  const [toBlocks, setToBlocks] = useState(false);
+  const [toBlocksBusy, setToBlocksBusy] = useState(false);
+  // A page: a document in the block editor (never an encrypted one).
+  const page = v.page;
+  const isPage = !encrypted && page?.editor === "blocks";
+  const addressing = { tenant: !!tenant, folderPath: page?.folder_path ?? [] };
+  const crumbs = isPage ? page?.breadcrumbs ?? [] : [];
+  // Sub-pages are made by signed-in editors on markdrop.in (a workspace's domain is read-only).
+  const canAddSubPage = isPage && !!user && v.secretUnlocked && !tenant;
 
   // /new leaves this flag when publishing worked but adding the document to a
   // workspace didn't (REVAMP_PLAN 7.6 "Workspace share failure").
@@ -215,7 +232,37 @@ export default function DocumentView(props: DocumentViewProps) {
       <>
         {header}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
-          {secretUnlocked ? (
+          {secretUnlocked && isPage ? (
+            <div className="mx-auto w-full max-w-reading px-4 pb-24 pt-2 sm:px-6">
+              <PageEditor
+                slug={slug}
+                title={displayTitle}
+                content={displayContent}
+                rev={v.docRev}
+                secret={v.secretInput || null}
+                workspaceId={page?.workspace_id ?? null}
+                crumbs={crumbs}
+                assets={page?.assets ?? null}
+                addressing={addressing}
+                subscribeLive={v.subscribeLive}
+                onSaved={(doc) => {
+                  if (typeof doc.rev === "number") v.setDocRev(doc.rev);
+                }}
+                onDone={(latest) => {
+                  v.setDisplayTitle(latest.title || null);
+                  v.setDisplayContent(latest.content);
+                  setEditing(false);
+                  // The cached anonymous render would keep the old version for a minute.
+                  fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
+                }}
+                onAddSubPage={canAddSubPage ? () => setNewSubPage(true) : null}
+                stickyTop={() => 64}
+              />
+              {newSubPage && (
+                <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={displayTitle} />
+              )}
+            </div>
+          ) : secretUnlocked ? (
             <EditorScreen
               v={v}
               slug={slug}
@@ -313,6 +360,11 @@ export default function DocumentView(props: DocumentViewProps) {
             }]
       : []),
     ...(!secretUnlocked ? [{ label: "Edit", icon: "edit", disabled: editBlocked, onClick: startEdit }] : []),
+    // Any document that isn't encrypted can be written with blocks; the Markdown stays as it is.
+    ...(secretUnlocked && readable && !encrypted && !isPage && !tenant
+      ? [{ label: "Open in block editor", icon: "layers", description: "Write it with blocks. The Markdown is unchanged.", onClick: () => setToBlocks(true) }]
+      : []),
+    ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -409,9 +461,12 @@ export default function DocumentView(props: DocumentViewProps) {
         >
           {framed && (
             <aside className="no-print hidden xl:block" aria-label="Contents">
-              {tocEntries.length > 0 && (
-                <div className="sticky top-32 max-h-[calc(100dvh-9rem)] overflow-y-auto pb-6">
-                  <Toc headings={headings} encrypted={encrypted} footer={tocFooter} markers={tocMarkers} />
+              {(tocEntries.length > 0 || (isPage && readable && (crumbs.length > 0 || (page?.children_count ?? 0) > 0))) && (
+                <div className="sticky top-32 flex max-h-[calc(100dvh-9rem)] flex-col gap-6 overflow-y-auto pb-6">
+                  {isPage && readable && !gated && (
+                    <PageTree slug={slug} title={displayTitle} crumbs={crumbs} childrenCount={page?.children_count ?? 0} addressing={addressing} />
+                  )}
+                  {tocEntries.length > 0 && <Toc headings={headings} encrypted={encrypted} footer={tocFooter} markers={tocMarkers} />}
                 </div>
               )}
             </aside>
@@ -542,6 +597,7 @@ export default function DocumentView(props: DocumentViewProps) {
                   <div className="hidden print-only">
                     {displayTitle && <h1 className="mb-4 text-h1">{displayTitle}</h1>}
                   </div>
+                  {isPage && readable && !showRaw && <PageBreadcrumbs crumbs={crumbs} title={displayTitle} addressing={addressing} />}
                   {readable && displayTitle && !showRaw && !empty && !opensWithOwnTitle(displayContent, displayTitle) && (
                     <h1 dir="auto" className="no-print mb-8 break-words text-h1 text-text">
                       {displayTitle}
@@ -567,6 +623,14 @@ export default function DocumentView(props: DocumentViewProps) {
                         {displayContent}
                       </pre>
                     </div>
+                  ) : isPage ? (
+                    <PageRenderer
+                      slug={slug}
+                      content={displayContent}
+                      assets={page?.assets ?? null}
+                      signInHref={signInHref}
+                      onHeadings={setHeadings}
+                    />
                   ) : (
                     <MarkdownPreview
                       content={displayContent}
@@ -577,6 +641,15 @@ export default function DocumentView(props: DocumentViewProps) {
                       onCodeCopy={encrypted ? undefined : v.onCodeCopy}
                       remoteImages={encrypted && !v.remoteImagesOk ? "ask" : "allow"}
                       onAllowRemoteImages={v.allowRemoteImages}
+                    />
+                  )}
+                  {isPage && readable && !showRaw && (
+                    <SubPages
+                      slug={slug}
+                      count={page?.children_count ?? 0}
+                      ancestors={crumbs.map((c) => c.slug)}
+                      addressing={addressing}
+                      onAdd={canAddSubPage ? () => setNewSubPage(true) : null}
                     />
                   )}
                   {readable && !empty && <Colophon />}
@@ -677,6 +750,33 @@ export default function DocumentView(props: DocumentViewProps) {
           onClose={() => setShowShare(false)}
           onChanged={v.loadAccess}
         />
+      )}
+
+      <ConfirmDialog
+        open={toBlocks}
+        onClose={() => !toBlocksBusy && setToBlocks(false)}
+        title="Open in the block editor?"
+        body="You'll write this document with blocks: headings, toggles, checklists, callouts, tables, images and embeds of your Markdrop files. The Markdown is unchanged, the link stays the same, and you can switch back to the classic editor any time."
+        confirmLabel="Open in block editor"
+        tone="default"
+        onConfirm={async () => {
+          setToBlocksBusy(true);
+          try {
+            await setEditor(slug, "blocks", v.secretInput || null);
+            v.setPage({ ...(page ?? {}), editor: "blocks" });
+            setToBlocks(false);
+            track("page_open_blocks");
+            handleEditClick();
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : "Couldn't switch editors. Try again.");
+          } finally {
+            setToBlocksBusy(false);
+          }
+        }}
+      />
+
+      {newSubPage && !editing && (
+        <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
       )}
 
       <ConfirmDialog

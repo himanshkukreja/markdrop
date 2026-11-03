@@ -30,7 +30,7 @@ import { engagementOptedOut, useAuthSettled, useDocEngagement } from "@/lib/enga
 import { getAccess, type AccessState } from "@/lib/access";
 import { shortcutsEnabled } from "@/lib/shortcuts";
 import { usePresenceChannel } from "@/lib/presence";
-import type { DocumentViewProps } from "./types";
+import { pageFieldsOf, type DocumentViewProps, type PageFields } from "./types";
 
 export type ViewMode = "write" | "split" | "preview";
 /**
@@ -57,8 +57,18 @@ export function useDocumentViewer({
   readTicket: initialReadTicket = null,
   rev: initialRev = null,
   gate = null,
+  page: initialPage = null,
 }: DocumentViewProps) {
   const router = useRouter();
+  // A page (block editor): breadcrumbs, sub-pages, page images. Every read refreshes it.
+  const [page, setPage] = useState<PageFields | null>(initialPage);
+  // The live socket's messages, for the page editor while it's open (it follows `appended` and
+  // `changed` itself; the reader below ignores them while editing).
+  const liveListeners = useRef(new Set<(msg: Record<string, unknown>) => void>());
+  const subscribeLive = useCallback((fn: (msg: Record<string, unknown>) => void) => {
+    liveListeners.current.add(fn);
+    return () => { liveListeners.current.delete(fn); };
+  }, []);
   // Encrypted, as far as anyone knows yet. The server render can't tell for a gated document (its
   // read is refused), so a client read that turns up an envelope switches this on (adoptDoc).
   const [encrypted, setEncrypted] = useState(encryptedProp);
@@ -351,6 +361,7 @@ export function useDocumentViewer({
     }
     // The rev that goes with this exact content: a save sends it back as base_rev.
     setDocRev(typeof doc.rev === "number" ? doc.rev : null);
+    setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
     setServerPassword(!!doc.is_password_protected);
     if (doc.encrypted) {
       // A gated document only now turns out to be encrypted: from here on it is
@@ -868,6 +879,8 @@ export function useDocumentViewer({
         if (cancelled) return;
         if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
         if (doc.is_owned || doc.is_owner) setDocOwned(true);
+        // A signed-in read: its page fields (breadcrumbs, page images) are this reader's.
+        if (doc.kind !== "artifact" && !doc.encrypted) setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
         setOwnerCheckedFor(uid);
         if (!doc.is_owner) return;
         setIsOwner(true);
@@ -927,6 +940,10 @@ export function useDocumentViewer({
         try { msg = JSON.parse(ev.data); } catch { return; }
         // Who's viewing: the presence channel takes its own messages.
         if (msg && presence.channel.handle(msg)) return;
+        // The page editor, while open, follows `changed` and `appended` itself.
+        if (msg && liveListeners.current.size) liveListeners.current.forEach((fn) => fn(msg as Record<string, unknown>));
+        // An AI app appended blocks (MCP append_blocks): readers re-read like any change.
+        if (msg?.type === "appended") msg = { type: "changed" };
         // Deleted, expired or renamed away: the page itself has to answer now (404 or a redirect).
         if (msg?.type === "gone") { if (!editingRef.current) window.location.reload(); return; }
         // Who may read it narrowed: the server closes this socket and the old ticket stops
@@ -1454,6 +1471,12 @@ export function useDocumentViewer({
   }, [showImmersive, editing, pwdLocked, pwdFetching, artifactDoc, readable, displayContent, toggleImmersive]);
 
   return {
+    page,
+    setPage,
+    subscribeLive,
+    setDocRev,
+    setDisplayContent,
+    setDisplayTitle,
     presence,
     access,
     encrypted,

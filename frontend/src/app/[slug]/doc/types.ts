@@ -31,4 +31,34 @@ export interface DocumentViewProps {
   viewerChrome?: "full" | "minimal" | "none";
   /** The server render's `read_ticket` (beacons + live socket, §2.7). Client reads replace it. */
   readTicket?: string | null;
+  /** A page (the block editor): its page fields from the server render. Client reads replace them. */
+  page?: PageFields | null;
+}
+
+/** What a document read says about it as a page (lib/pages PageDocument). */
+export interface PageFields {
+  editor?: "blocks" | null;
+  parent?: { slug: string; title: string | null } | null;
+  breadcrumbs?: Array<{ slug: string; title: string | null }>;
+  children_count?: number;
+  access_inherit?: boolean | null;
+  assets?: Record<string, { url: string; expires_at?: string | null }>;
+  workspace_id?: string | null;
+  folder_path?: string[];
+}
+
+/** The page fields of a document read (null when it says nothing about pages). */
+export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): PageFields | null {
+  if (!doc) return null;
+  const d = doc as PageFields & Record<string, unknown>;
+  return {
+    editor: d.editor === "blocks" ? "blocks" : null,
+    parent: d.parent && typeof d.parent === "object" ? d.parent : null,
+    breadcrumbs: Array.isArray(d.breadcrumbs) ? d.breadcrumbs : [],
+    children_count: typeof d.children_count === "number" ? d.children_count : 0,
+    access_inherit: typeof d.access_inherit === "boolean" ? d.access_inherit : null,
+    assets: d.assets && typeof d.assets === "object" ? d.assets : {},
+    workspace_id: typeof d.workspace_id === "string" ? d.workspace_id : null,
+    folder_path: Array.isArray(d.folder_path) ? d.folder_path : [],
+  };
 }
