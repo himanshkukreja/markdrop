@@ -439,6 +439,7 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
         align="left"
         portal
         minWidth={240}
+        menuClassName="dxe-blockmenu"
         aria-label={`${many ? `${many} blocks` : what} actions`}
         trigger={
           <button

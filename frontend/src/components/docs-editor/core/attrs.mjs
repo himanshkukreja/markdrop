@@ -100,11 +100,16 @@ export function attrText(attrs) {
 export function cleanAttrs(attrs) {
   if (!attrs || typeof attrs !== "object") return null;
   const out = {};
-  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null && !(v === "" && k !== "header-column")) out[k] = String(v);
+  for (const [k, v] of Object.entries(attrs)) if (v !== undefined && v !== null && !(v === "" && k !== "header-column")) out[k] = k === "caption" ? captionText(v) : String(v);
   return Object.keys(out).length ? out : null;
 }
 
-const TRAIL = /([ \t]*)\{([^{}\n]*)\}[ \t]*$/;
+/** A caption as an attribute value can hold it: no quotes, braces, backslashes or entities. */
+export function captionText(v) {
+  return String(v).replace(/"/g, "”").replace(/\{/g, "(").replace(/\}/g, ")").replace(/\\/g, "/").replace(/&/g, "and").replace(/[\r\n]+/g, " ");
+}
+
+const TRAIL =/([ \t]*)\{([^{}\n]*)\}[ \t]*$/;
 
 /**
  * The trailing `{…}` of a line of source, if it is an attribute list for `kind`:

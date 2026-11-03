@@ -26,6 +26,7 @@ import { TableBar } from "./menus/TableBar";
 import { markdownSlice, sliceMarkdown } from "./menus/markdownSlice";
 import { createAnnotations, refreshAnnotations, type AnnotationSource } from "./menus/annotations";
 import { AssistPanel, AssistStore } from "./menus/assist";
+import { PasteController, PasteMenu } from "./menus/PasteMenu";
 import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
 import { BlockMarquee, SelectionBar, TouchBar, useEditorAnchor } from "./menus/BlockTools";
@@ -91,6 +92,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   const source = useMemo<AnnotationSource>(() => ({ find: null, flagImages, comments: comments ?? [], checkLink, onCommentClick }), []); // eslint-disable-line react-hooks/exhaustive-deps
   source.onCommentClick = onCommentClick;
   const assistStore = useMemo(() => new AssistStore(), []);
+  const paste = useMemo(() => new PasteController(`${listboxId.replace(/-slash$/, "")}-paste`), []); // eslint-disable-line react-hooks/exhaustive-deps
+  Object.assign(paste, { pages, upload: onUploadImage });
   // A page: Notion-style keys, Markdown shortcuts and the `:emoji` menu.
   const emoji = useMemo(() => (pages ? { store: new SlashStore(), listboxId: `${listboxId.replace(/-slash$/, "")}-emoji` } : null), []); // eslint-disable-line react-hooks/exhaustive-deps
   const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks, emoji }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -158,9 +161,13 @@ export default function VisualEditor(props: VisualEditorProps) {
       },
       clipboardTextParser: (text, _ctx, plain, view: EditorView) => markdownSlice(text, view.state.schema, plain),
       clipboardTextSerializer: (slice) => sliceMarkdown(slice),
+      transformPastedHTML: (html) => paste.html(html),
+      transformPasted: (slice) => paste.slice(slice),
+      transformPastedText: (text, plain) => paste.text(text, plain),
+      handleKeyDown: (view, event) => paste.keyDown(view, event),
       handlePaste: (view, event) => {
         const files = imageFiles(event.clipboardData?.files);
-        if (!files.length || !uploadRef.current) return false;
+        if (!files.length || !uploadRef.current) return paste.handle(view, event);
         event.preventDefault();
         void insertImages(files, view.state.selection.from);
         return true;
@@ -269,6 +276,7 @@ export default function VisualEditor(props: VisualEditorProps) {
               </>
             )}
             <TableBar editor={editor} container={wrap} />
+            <PasteMenu editor={editor} paste={paste} stickyTop={stickyTop} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
             {emoji && <SlashMenu store={emoji.store} listboxId={emoji.listboxId} stickyTop={stickyTop} label="Insert an emoji" />}
           </>

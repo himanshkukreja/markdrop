@@ -69,6 +69,9 @@
 
 /* The editor's resizable image: handles on both sides, alignment buttons */
 .dxe-content .dxe-figure--sized { display: flex; flex-direction: column; }
+.dxe-figure--sized .dx-fig__frame { padding: 0; border: 0; background: none; box-shadow: none; border-radius: var(--radius-lg); overflow: hidden; }
+.dxe-figure--sized .dx-fig__img { display: block; width: 100%; height: auto; margin: 0; border-radius: var(--radius-lg); }
+.dxe-figure--sized .dxe-figure__cap { text-align: left; margin-top: 6px; }
 .dxe-figure__box { position: relative; width: min(var(--pb-w, 100%), 100%); max-width: 100%; margin: 0 auto; transition: width 80ms linear; }
 .dxe-figure__box[data-align="left"] { margin-left: 0; }
 .dxe-figure__box[data-align="right"] { margin-right: 0; }
@@ -166,6 +169,7 @@
 .dxe-touchbar__btn:active { background: var(--surface-hover); }
 .dxe-touchbar__btn:focus-visible { outline: 2px solid var(--border-focus); }
 
+.dxe-blockmenu { max-height: min(72vh, 640px); overflow-y: auto; overscroll-behavior: contain; }
 .dxe-handle.dxe-handle--touch { display: flex !important; transform: none; }
 .dxe-handle--touch .dxe-handle__btn { width: 28px; height: 28px; background: var(--surface-raised); border: 1px solid var(--border); }
 body.dxe-sidedrop .prosemirror-dropcursor-block { display: none; }

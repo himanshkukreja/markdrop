@@ -194,7 +194,7 @@ export const MathBlock = Node.create({
     return { meta: str("meta"), battrs: BATTRS, md: MD };
   },
   parseHTML() {
-    return [{ tag: "pre[data-docs=mathBlock]", preserveWhitespace: "full" }];
+    return [{ tag: "pre[data-docs=mathBlock]", preserveWhitespace: "full", priority: 60 }];
   },
   renderHTML({ HTMLAttributes }) {
     return ["pre", mergeAttributes(HTMLAttributes, { "data-docs": "mathBlock" }), ["code", 0]];

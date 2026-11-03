@@ -1,0 +1,23 @@
+/* Paste (menus/PasteMenu.tsx): the menu at a pasted link, and figures uploading after a paste. */
+
+.dxe-paste { position: fixed; z-index: 1000; width: 264px; max-width: calc(100vw - 16px); padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: var(--shadow-lg); font-family: var(--font-sans); color: var(--text); }
+.dxe-paste__head { padding: 6px 8px 4px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.02em; color: var(--text-muted); }
+.dxe-paste__list { display: flex; flex-direction: column; gap: 1px; }
+.dxe-paste__item { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 4px 8px; border-radius: var(--radius-md); cursor: pointer; outline: none; }
+.dxe-paste__item--on { background: var(--surface-hover); }
+.dxe-paste__icon { flex: 0 0 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text-secondary); }
+.dxe-paste__item--on .dxe-paste__icon { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.dxe-paste__text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.dxe-paste__label { font-size: 13px; line-height: 18px; font-weight: 600; }
+.dxe-paste__hint { font-size: 12px; line-height: 16px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dxe-paste__key { flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0 5px; border: 1px solid var(--border-strong, var(--border)); border-radius: var(--radius-sm); background: var(--surface); box-shadow: 0 1px 0 var(--border-strong, var(--border)); color: var(--text-muted); font-family: var(--font-sans); font-size: 11px; font-weight: 500; }
+
+/* A pasted image on its way to the page's uploads: dimmed, with a quiet badge. */
+.dxe-uploading { position: relative; }
+.dxe-uploading img { opacity: 0.6; transition: opacity 0.2s ease; }
+.dxe-uploading::after { content: "Uploading…"; position: absolute; top: 10px; right: 10px; z-index: 1; padding: 2px 8px; border-radius: 999px; background: var(--surface-raised); box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.12)); border: 1px solid var(--border); color: var(--text-secondary); font: 500 11px/18px var(--font-sans); pointer-events: none; animation: dxe-paste-pulse 1.4s ease-in-out infinite; }
+@keyframes dxe-paste-pulse { 50% { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) {
+  .dxe-uploading::after { animation: none; }
+  .dxe-uploading img { transition: none; }
+}
