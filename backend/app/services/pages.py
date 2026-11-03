@@ -384,7 +384,7 @@ async def release_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
 
 _DIRECTIVE = re.compile(r"(?<![A-Za-z0-9_]):{1,2}markdrop(?:\[(?:\\.|[^\]\\\n])*\])?\{([^}\n]*)\}")
 _ATTR = re.compile(r"""([A-Za-z_][\w-]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'}]+))""")
-_ASSET = re.compile(r"!\[[^\]\n]*\]\(\s*<?asset:([A-Za-z0-9_-]{8,64})>?(?:\s+\"[^\"\n]*\")?\s*\)")
+_ASSET = re.compile(r"!\[[^\]\n]*\]\(\s*<?asset\\?:([A-Za-z0-9_-]{8,64})>?(?:\s+\"[^\"\n]*\")?\s*\)")
 _HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?[ \t]*$")
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 

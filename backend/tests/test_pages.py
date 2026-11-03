@@ -1044,6 +1044,7 @@ class Embeds(PageWorld):
         self.assertEqual([(r["slug"], r["mention"]) for r in refs][:3],
                          [("abc-1", False), ("q3", True), ("zz", True)])
         self.assertEqual(pages.asset_ids(md), ["0123456789abcdef01234567"])
+        self.assertEqual(pages.asset_ids("![x](asset\\:abcdefabcdef12)"), ["abcdefabcdef12"])
 
 
 # ── Page properties (front matter) and the locked page ───────────────────────
