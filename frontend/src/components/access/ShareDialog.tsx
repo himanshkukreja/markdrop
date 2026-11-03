@@ -11,7 +11,7 @@ import { Combobox, type ComboboxSuggestion } from "@/components/kit/Combobox";
 import { useToast } from "@/components/Toast";
 import { API_BASE, updateDocumentSettings, type ExpiresIn } from "@/lib/api";
 import {
-  addPerson, getAccess, removePerson, setAccessLevel, setResharing,
+  addPerson, getAccess, removePerson, setAccessLevel, setResharing, setShowPresence,
   type AccessLevel, type AccessState,
 } from "@/lib/access";
 import {
@@ -530,6 +530,28 @@ export default function ShareDialog({
                     <span className="flex flex-col">
                       <span className="text-body text-text">Let people I share with add others</span>
                       <span className="text-caption text-text-muted">They can never give more access than they have themselves.</span>
+                    </span>
+                  }
+                />
+              )}
+              {canManage && (
+                <Switch
+                  className="mt-1"
+                  checked={state.show_presence !== false}
+                  disabled={busy === "presence"}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    void run("presence", () => setShowPresence(slug, on), () =>
+                      setState((st) => (st ? { ...st, show_presence: on } : st)));
+                  }}
+                  label={
+                    <span className="flex flex-col">
+                      <span className="text-body text-text">Show who&apos;s viewing</span>
+                      <span className="text-caption text-text-muted">
+                        {state.encrypted
+                          ? "Readers see how many people have it open. Never names: it's end-to-end encrypted."
+                          : "Readers see each other live: people with access by name, everyone else as an anonymous animal."}
+                      </span>
                     </span>
                   }
                 />
