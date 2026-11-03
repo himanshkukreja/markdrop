@@ -576,9 +576,10 @@ function serializeFlowImpl(children, opts = {}) {
   let out = "";
   let prev = null;
   let prevText = null;
-  for (const child of children) {
-    if (isEmptyParagraph(child)) continue;
-    const text = serializeBlock(child, { preserve, prev, prevText });
+  const kids = children.filter((c) => !isEmptyParagraph(c));
+  for (let i = 0; i < kids.length; i++) {
+    const child = kids[i];
+    const text = serializeBlock(child, { preserve, prev, prevText, next: kids[i + 1] ?? null });
     if (prev) out += gapFor(child, prev, preserve);
     out += text;
     prev = child;
@@ -618,7 +619,11 @@ function serializeBlockImpl(node, opts = {}) {
   // Indented code right after a list (or a footnote definition) would continue its last item.
   const footnoteDef = prev?.type === "rawBlock" && /^\[\^[^\]]+\]:/m.test(prevText ?? prev.attrs?.value ?? "");
   const indentHazard = (isList(prev) || footnoteDef) && md?.prev !== fp(prev) && /^[ \t]/.test(md?.src ?? "");
-  if (preserve && md && typeof md.src === "string" && md.fp === fp(node) && (!listHazard || listSafe) && !indentHazard) return md.src;
+  // Indented code right before an ordered list that doesn't start at 1: micromark reads that list as a
+  // paragraph (it can't open there), so such code is written fenced. (The list keeps its number.)
+  const { next } = opts;
+  const beforeOddList = node.type === "codeBlock" && next?.type === "orderedList" && (next.attrs?.start ?? 1) !== 1 && /^[ \t]/.test(md?.src ?? "");
+  if (preserve && md && typeof md.src === "string" && md.fp === fp(node) && (!listHazard || listSafe) && !indentHazard && !beforeOddList) return md.src;
   if (node.type === "rawBlock") return node.attrs.value ?? "";
   if (CONTAINER_TYPES.has(node.type)) return serializeContainer(node, preserve);
   if (node.type === "directiveLeaf") return serializeLeaf(node);
