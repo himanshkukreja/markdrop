@@ -99,7 +99,7 @@ export async function context(browser, { width = 1280, height = 900, touch = fal
   p.on("requestfinished", (r) => open.delete(r));
   p.on("requestfailed", (r) => open.delete(r));
   p.on("response", (r) => {
-    if (r.status() >= 400 && !/example\.com/.test(r.url())) console.log(`  [${r.status()}]`, r.request().method(), r.url().slice(0, 160));
+    if (r.status() >= 400 && !/example\.com|\/_vercel\//.test(r.url())) console.log(`  [${r.status()}]`, r.request().method(), r.url().slice(0, 160));
   });
   p.on("console", (m) => m.type() === "error" && !/ERR_BLOCKED_BY_ORB|Failed to load resource/.test(m.text()) && console.log("  [console]", m.text().slice(0, 300)));
   pendingOf.set(p, open);
