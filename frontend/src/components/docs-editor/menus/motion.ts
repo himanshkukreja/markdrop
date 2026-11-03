@@ -59,13 +59,30 @@ export function ghostOut(el: Element | null | undefined, at?: DOMRect | null) {
   setTimeout(done, EXIT_MS + 80);
 }
 
-/** The blocks a FLIP looks at: the document's top-level blocks and those inside containers, in view. */
+/** The first of `els` (in page order) whose bottom is below `y`: a binary search, a few measurements. */
+function firstBelow(els: Element[], y: number): number {
+  let lo = 0, hi = els.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (els[mid].getBoundingClientRect().bottom < y) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * The blocks a FLIP looks at: the document's top-level blocks on screen (and a little either side),
+ * and the blocks inside them. A long page measures a screenful, not every block.
+ */
 function blockEls(view: EditorView): HTMLElement[] {
   const out: HTMLElement[] = [];
   const vh = window.innerHeight;
   const walk = (parent: Element, depth: number) => {
-    for (const c of Array.from(parent.children)) {
+    const kids = Array.from(parent.children);
+    for (let i = firstBelow(kids, -200); i < kids.length; i++) {
+      const c = kids[i];
       if (!(c instanceof HTMLElement)) continue;
+      if (c.getBoundingClientRect().top > vh + 200) break;
       out.push(c);
       if (depth < 2) {
         const inner = c.querySelector(":scope [data-node-view-content-react], :scope > .dxe-li");
@@ -75,11 +92,7 @@ function blockEls(view: EditorView): HTMLElement[] {
     }
   };
   walk(view.dom, 0);
-  // Only what can be seen (a 300-block page measures a screenful, not the page).
-  return out.filter((el) => {
-    const r = el.getBoundingClientRect();
-    return r.bottom > -200 && r.top < vh + 200;
-  });
+  return out;
 }
 
 let flipping: Animation[] = [];
