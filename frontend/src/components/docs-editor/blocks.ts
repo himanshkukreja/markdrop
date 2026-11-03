@@ -6,6 +6,8 @@ export interface BlockItem {
   label: string;
   hint: string;
   icon: string;
+  /** Shown instead of the icon (an emoji). */
+  glyph?: string;
   keywords: string;
   /** Inserts the block in place of the typed "/query" range. */
   run: (editor: Editor, range: Range) => void;
@@ -17,6 +19,40 @@ const h = (level: number): JSONContent => ({ type: "heading", attrs: { level } }
 function insert(content: JSONContent | JSONContent[]) {
   return (editor: Editor, range: Range) => {
     editor.chain().focus().deleteRange(range).insertContent(content).run();
+    // A block with text inside (a callout, a toggle…): put the caret in it, ready to type.
+    const first = Array.isArray(content) ? content[0] : content;
+    if (first?.content?.length) {
+      const { state } = editor;
+      const at = Math.max(0, Math.min(range.from - 1, state.doc.content.size));
+      let target: number | null = null;
+      state.doc.nodesBetween(at, Math.min(state.doc.content.size, at + 4000), (n, pos) => {
+        if (target !== null) return false;
+        if (n.isTextblock && pos >= at) {
+          target = pos + 1;
+          return false;
+        }
+        return true;
+      });
+      if (target !== null) editor.commands.setTextSelection(target);
+    } else if (first && (first.type === "directiveLeaf" || first.type === "figure")) {
+      // A one-line block (an embed, a bookmark…): keep typing on a new line below it.
+      const { state } = editor;
+      const at = Math.max(0, Math.min(range.from - 1, state.doc.content.size));
+      let after: number | null = null;
+      state.doc.nodesBetween(at, Math.min(state.doc.content.size, at + 4), (n, pos) => {
+        if (after !== null) return false;
+        if (n.type.name === first.type && pos >= at) {
+          after = pos + n.nodeSize;
+          return false;
+        }
+        return true;
+      });
+      if (after !== null) {
+        const next = state.doc.resolve(after).nodeAfter;
+        if (next && next.type.name === "paragraph" && next.content.size === 0) editor.commands.setTextSelection(after + 1);
+        else editor.chain().insertContentAt(after, { type: "paragraph" }).setTextSelection(after + 1).run();
+      }
+    }
   };
 }
 
@@ -122,11 +158,135 @@ export const BLOCK_ITEMS: BlockItem[] = [
   },
 ];
 
+/**
+ * Blocks only a page (a Markdrop document in the block editor) offers: a toggle written the way
+ * pages write it (`:::details{summary="…"}`), an H1, and the embed and mention of a Markdrop item.
+ * Empty, the embed and the mention open the page's picker.
+ */
+export const PAGE_ONLY_ITEMS: BlockItem[] = [
+  { id: "h1", label: "Heading 1", hint: "Big section title", icon: "heading", keywords: "h1 title heading", run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
+  {
+    id: "toggle",
+    label: "Toggle",
+    hint: "Collapsible section",
+    icon: "chevronRight",
+    keywords: "toggle details collapse accordion faq",
+    run: insert({ type: "details", attrs: { label: null, attributes: { summary: "More details" } }, content: [p()] }),
+  },
+  ...([1, 2, 3] as const).map(
+    (level): BlockItem => ({
+      id: `toggle-h${level}`,
+      label: `Toggle heading ${level}`,
+      hint: "A heading that hides what's under it",
+      icon: "chevronRight",
+      keywords: `toggle heading h${level} collapse section`,
+      run: insert({ type: "details", attrs: { label: null, attributes: { summary: "", heading: String(level) } }, content: [p()] }),
+    }),
+  ),
+  {
+    id: "subpage",
+    label: "Page",
+    hint: "A sub-page inside this one",
+    icon: "doc",
+    keywords: "page sub-page subpage child new nested",
+    run: insert({ type: "directiveLeaf", attrs: { name: "page", attributes: {} } }),
+  },
+  {
+    id: "bookmark",
+    label: "Bookmark",
+    hint: "A link with its preview",
+    icon: "link",
+    keywords: "bookmark link preview url card web",
+    run: insert({ type: "directiveLeaf", attrs: { name: "bookmark", attributes: {} } }),
+  },
+  {
+    id: "web-embed",
+    label: "Web embed",
+    hint: "YouTube, Loom, Figma, Google Maps…",
+    icon: "globe",
+    keywords: "embed web youtube loom figma maps codepen vimeo iframe video",
+    run: insert({ type: "directiveLeaf", attrs: { name: "embed", attributes: {} } }),
+  },
+  {
+    id: "mermaid",
+    label: "Diagram",
+    hint: "Mermaid: flowcharts, sequences",
+    icon: "listTree",
+    keywords: "mermaid diagram flowchart chart graph sequence",
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent({ type: "codeBlock", attrs: { language: "mermaid" }, content: [{ type: "text", text: "graph TD\n  A[Start] --> B[Finish]" }] }).run();
+    },
+  },
+  { id: "toc", label: "Table of contents", hint: "The page's headings, kept up to date", icon: "list", keywords: "toc table contents outline headings", run: insert({ type: "directiveLeaf", attrs: { name: "toc", attributes: {} } }) },
+  { id: "breadcrumb", label: "Breadcrumb", hint: "Where this page sits", icon: "chevronRight", keywords: "breadcrumb path parent location", run: insert({ type: "directiveLeaf", attrs: { name: "breadcrumb", attributes: {} } }) },
+  {
+    id: "date",
+    label: "Date",
+    hint: "Today, as a date chip",
+    icon: "calendar",
+    keywords: "date today tomorrow day calendar when due",
+    run: (e, r) => {
+      const d = new Date();
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      e.chain().focus().deleteRange(r).insertContent([{ type: "mention", attrs: { name: "date", label: iso, attributes: {} } }, { type: "text", text: " " }]).run();
+    },
+  },
+  {
+    id: "person",
+    label: "Person",
+    hint: "Mention someone in the workspace",
+    icon: "user",
+    keywords: "person people mention member user at",
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent({ type: "mention", attrs: { name: "person", label: "", attributes: {} } }).run();
+    },
+  },
+  {
+    id: "page-embed",
+    label: "Embed",
+    hint: "A file or page from Markdrop",
+    icon: "layers",
+    keywords: "embed markdrop file pdf video image html page document artifact",
+    run: insert({ type: "directiveLeaf", attrs: { name: "markdrop", attributes: {} } }),
+  },
+  {
+    id: "mention",
+    label: "Mention",
+    hint: "Link a Markdrop item inline",
+    icon: "link",
+    keywords: "mention link markdrop page document file at",
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent({ type: "mention", attrs: { label: "", attributes: {} } }).run();
+    },
+  },
+];
+
+/**
+ * The page's "/" menu, in order: text and headings, lists, toggle, callouts, quote, code, table,
+ * divider, image, embed, mention, math. Guides-only blocks (private sections, steps, tabs, cards,
+ * API endpoints, videos and clips of a docs site, other sites' embeds) aren't offered.
+ */
+export const PAGE_BLOCKS = [
+  "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
+  "subpage", "callout-note", "callout-tip", "callout-warning", "callout-danger",
+  "quote", "divider", "code", "table", "image", "page-embed", "mention", "bookmark", "web-embed",
+  "math", "mermaid", "toc", "breadcrumb", "date", "person",
+] as const;
+
+const ALL_ITEMS = [...BLOCK_ITEMS, ...PAGE_ONLY_ITEMS];
+
+/** The items for a block set (ids, in order); every Guides block when no set is given. */
+export function itemsFor(ids?: readonly string[] | null): BlockItem[] {
+  if (!ids) return BLOCK_ITEMS;
+  const byId = new Map(ALL_ITEMS.map((it) => [it.id, it]));
+  return ids.map((id) => byId.get(id)).filter((x): x is BlockItem => !!x);
+}
+
 /** Items matching a query: label prefix first, then any keyword or label word. */
-export function filterItems(query: string): BlockItem[] {
+export function filterItems(query: string, items: BlockItem[] = BLOCK_ITEMS): BlockItem[] {
   const q = query.trim().toLowerCase();
-  if (!q) return BLOCK_ITEMS;
-  const scored = BLOCK_ITEMS.map((it) => {
+  if (!q) return items;
+  const scored = items.map((it) => {
     const label = it.label.toLowerCase();
     const words = `${label} ${it.keywords}`.split(/\s+/);
     const score = label.startsWith(q) ? 0 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;

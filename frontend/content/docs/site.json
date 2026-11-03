@@ -142,6 +142,21 @@
       ]
     },
     {
+      "group": "Pages",
+      "icon": "layers",
+      "tab": "platform",
+      "new": true,
+      "pages": [
+        "/pages/overview",
+        "/pages/templates",
+        "/pages/embed-and-mention",
+        "/pages/sub-pages",
+        "/pages/images",
+        "/pages/markdown-reference",
+        "/pages/keyboard-shortcuts"
+      ]
+    },
+    {
       "group": "Files",
       "icon": "film",
       "tab": "platform",

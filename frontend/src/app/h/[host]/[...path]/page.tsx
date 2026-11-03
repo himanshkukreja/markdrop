@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { ogImageUrl, type DocumentResponse } from "@/lib/api";
 import ArtifactView from "@/app/[slug]/ArtifactView";
 import DocumentView from "@/app/[slug]/DocumentView";
+import { pageFieldsOf } from "@/app/[slug]/doc/types";
 import { signInUrlFor } from "@/lib/hosts";
 import { assertTenantHost, tenantHostOf } from "@/components/tenant/assertHost";
 import {
@@ -66,9 +67,18 @@ function splitPath(path: string[]): { folders: string[]; slug: string } {
   return { folders: segments.slice(0, -1), slug: segments[segments.length - 1] || "" };
 }
 
+/**
+ * Where a document lives on the workspace's domain, before its slug: its folders, then (a sub-page)
+ * its ancestors' slugs: `/<folders…>/<parent-slug>/<child-slug>`.
+ */
+function livesUnder(doc: { folder_path?: string[] } | null): string[] {
+  // The API's folder_path already ends with a sub-page's ancestors (page_path).
+  return [...(doc?.folder_path ?? [])];
+}
+
 /** Does this document actually live where the URL says it does? */
 function pathMatches(doc: { folder_path?: string[] } | null, folders: string[]): boolean {
-  const actual = doc?.folder_path ?? [];
+  const actual = livesUnder(doc);
   return actual.length === folders.length && actual.every((seg, i) => seg === folders[i]);
 }
 
@@ -229,7 +239,7 @@ export default async function TenantDocumentPage({ params }: Props) {
     if (listing) {
       return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
     }
-    const canonical = [...(doc.folder_path ?? []), slug].map(encodeURIComponent).join("/");
+    const canonical = [...livesUnder(doc as never), slug].map(encodeURIComponent).join("/");
     redirect(`/${canonical}`);
   }
 
@@ -283,6 +293,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         encrypted={doc?.encrypted ?? false}
         rev={doc?.rev ?? null}
         readTicket={doc?.read_ticket ?? null}
+        page={doc && !doc.encrypted ? pageFieldsOf(doc as unknown as Record<string, unknown>) : null}
         viewerChrome={viewerChrome}
       />
     </Suspense>

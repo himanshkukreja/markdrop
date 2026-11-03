@@ -11,7 +11,7 @@ import Suggestion, { exitSuggestion, type SuggestionKeyDownProps, type Suggestio
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
-import { filterItems, type BlockItem } from "../blocks";
+import { BLOCK_ITEMS, filterItems, type BlockItem } from "../blocks";
 import { cx } from "../views/shared";
 
 interface SlashState {
@@ -43,9 +43,29 @@ export class SlashStore {
 export const slashKey = new PluginKey("docsSlash");
 export const LISTBOX_ID_SUFFIX = "-slash";
 
-export function SlashCommand(store: SlashStore, listboxId: string) {
+export function SlashCommand(store: SlashStore, listboxId: string, items: BlockItem[] = BLOCK_ITEMS) {
+  return SuggestMenu({ name: "docsSlash", key: slashKey, char: "/", store, listboxId, find: (q) => filterItems(q, items), allowInTables: false });
+}
+
+export const emojiKey = new PluginKey("docsEmoji");
+
+/**
+ * A "/"-style menu for another trigger (`:` for emoji). `find` lists the items for the typed query;
+ * with `minQuery`, the menu waits for that many characters (so "10:30" or "Note:" never open it).
+ */
+export function SuggestMenu({ name, key, char, store, listboxId, find, minQuery = 0, allowInTables = true }: {
+  name: string;
+  key: PluginKey;
+  char: string;
+  store: SlashStore;
+  listboxId: string;
+  find: (query: string) => BlockItem[];
+  minQuery?: number;
+  allowInTables?: boolean;
+}) {
+  const items = { find };
   return Extension.create({
-    name: "docsSlash",
+    name,
     // Before the keymaps, so Enter / arrows reach the menu while it is open.
     priority: 1000,
     addProseMirrorPlugins() {
@@ -65,24 +85,25 @@ export function SlashCommand(store: SlashStore, listboxId: string) {
       return [
         Suggestion<BlockItem, BlockItem>({
           editor,
-          pluginKey: slashKey,
-          char: "/",
+          pluginKey: key,
+          char,
           allowSpaces: false,
           startOfLine: false,
           allowedPrefixes: [" ", " "],
-          items: ({ query }) => filterItems(query),
+          items: ({ query }) => (query.length < minQuery ? [] : items.find(query)),
           allow: ({ state, range }) => {
             const $from = state.doc.resolve(range.from);
-            return !$from.parent.type.spec.code && $from.parent.type.name !== "tableCell" && $from.parent.type.name !== "tableHeader";
+            if ($from.parent.type.spec.code) return false;
+            return allowInTables || ($from.parent.type.name !== "tableCell" && $from.parent.type.name !== "tableHeader");
           },
           command: ({ editor: e, range, props }) => props.run(e, range),
           render: () => ({
             onStart: (p: SuggestionProps<BlockItem, BlockItem>) => {
-              store.set({ open: true, items: p.items, index: 0, getRect: p.clientRect ?? null, query: p.query, pick: (it) => p.command(it) });
+              store.set({ open: char === "/" || p.items.length > 0, items: p.items, index: 0, getRect: p.clientRect ?? null, query: p.query, pick: (it) => p.command(it) });
               aria(p.items.length > 0, 0);
             },
             onUpdate: (p: SuggestionProps<BlockItem, BlockItem>) => {
-              store.set({ items: p.items, index: 0, getRect: p.clientRect ?? null, query: p.query, pick: (it) => p.command(it) });
+              store.set({ open: char === "/" || p.items.length > 0, items: p.items, index: 0, getRect: p.clientRect ?? null, query: p.query, pick: (it) => p.command(it) });
               aria(p.items.length > 0, 0);
             },
             onKeyDown: ({ event }: SuggestionKeyDownProps) => {
@@ -91,7 +112,7 @@ export function SlashCommand(store: SlashStore, listboxId: string) {
               if (event.key === "Escape") {
                 store.set(CLOSED);
                 aria(false);
-                exitSuggestion(editor.view, slashKey);
+                exitSuggestion(editor.view, key);
                 return true;
               }
               if (!s.items.length) return false;
@@ -125,7 +146,7 @@ export function openSlashAt(editor: Editor, pos: number) {
   editor.chain().focus().insertContentAt(pos, { type: "paragraph" }).setTextSelection(pos + 1).insertContent("/").run();
 }
 
-export function SlashMenu({ store, listboxId, stickyTop }: { store: SlashStore; listboxId: string; stickyTop?: () => number }) {
+export function SlashMenu({ store, listboxId, stickyTop, label = "Insert a block" }: { store: SlashStore; listboxId: string; stickyTop?: () => number; label?: string }) {
   const s = useSyncExternalStore(store.subscribe, store.get, store.get);
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
@@ -175,7 +196,7 @@ export function SlashMenu({ store, listboxId, stickyTop }: { store: SlashStore; 
       onMouseDown={(e) => e.preventDefault()} // keep focus (and the selection) in the editor
     >
       {s.items.length ? (
-        <div id={listboxId} role="listbox" aria-label="Insert a block" className="dxe-slash__list">
+        <div id={listboxId} role="listbox" aria-label={label} className="dxe-slash__list">
           {s.items.map((it, i) => (
             <div
               key={it.id}
@@ -187,7 +208,7 @@ export function SlashMenu({ store, listboxId, stickyTop }: { store: SlashStore; 
               onClick={() => s.pick?.(it)}
             >
               <span className="dxe-slash__icon" aria-hidden>
-                <Icon name={it.icon} />
+                {it.glyph ? <span className="dxe-slash__glyph">{it.glyph}</span> : <Icon name={it.icon} />}
               </span>
               <span className="dxe-slash__text">
                 <span className="dxe-slash__label">{it.label}</span>

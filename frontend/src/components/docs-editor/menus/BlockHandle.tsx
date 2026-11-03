@@ -9,7 +9,10 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { Extension, type Editor } from "@tiptap/core";
 import { NodeSelection, type EditorState } from "@tiptap/pm/state";
 import type { Node as PMNode, ResolvedPos } from "@tiptap/pm/model";
-import { Dropdown, Icon } from "@/components/ui";
+import { Dropdown, Icon, copyText } from "@/components/ui";
+import { slugify } from "@/components/reading/slug";
+import { useHost } from "../host";
+import { turnInto, type TurnInto } from "../pageKeys";
 import { serializeFlow } from "../core/markdown.mjs";
 import { openSlashAt } from "./slash";
 
@@ -67,12 +70,12 @@ export function moveBlock(editor: Editor, t: BlockTarget, dir: -1 | 1): boolean 
   return true;
 }
 
-function duplicate(editor: Editor, t: BlockTarget) {
+export function duplicate(editor: Editor, t: BlockTarget) {
   const at = t.pos + t.node.nodeSize;
   editor.view.dispatch(editor.state.tr.insert(at, t.node.copy(t.node.content)).scrollIntoView());
 }
 
-function remove(editor: Editor, t: BlockTarget) {
+export function remove(editor: Editor, t: BlockTarget) {
   editor.view.dispatch(editor.state.tr.delete(t.pos, t.pos + t.node.nodeSize));
   editor.view.focus();
 }
@@ -135,7 +138,23 @@ function emptyLineAt(editor: Editor, wrap: HTMLElement): { pos: number; top: num
   return { pos: $p.before(), top: r.top - w.top + Math.max(0, (line - 24) / 2), left: r.left - w.left };
 }
 
+/** A page's "Turn into" (the block handle menu): kind, label, icon, shortcut. */
+const TURN: Array<[TurnInto, string, string, string]> = [
+  ["text", "Text", "lines", "⌘ ⌥ 0"],
+  ["h1", "Heading 1", "heading", "⌘ ⌥ 1"],
+  ["h2", "Heading 2", "heading", "⌘ ⌥ 2"],
+  ["h3", "Heading 3", "heading", "⌘ ⌥ 3"],
+  ["todo", "To-do list", "checkSquare", "⌘ ⌥ 4"],
+  ["bullet", "Bulleted list", "list", "⌘ ⌥ 5"],
+  ["numbered", "Numbered list", "list", "⌘ ⌥ 6"],
+  ["toggle", "Toggle", "chevronRight", "⌘ ⌥ 7"],
+  ["code", "Code", "code", "⌘ ⌥ 8"],
+  ["quote", "Quote", "message", "⌘ ⌥ 9"],
+];
+const turnable = (n: PMNode) => n.isTextblock && n.type.name !== "codeBlock" ? true : n.type.name === "listItem" || n.type.name === "blockquote" ? !!n.firstChild?.isTextblock : false;
+
 export function BlockHandle({ editor, container }: { editor: Editor; container: RefObject<HTMLDivElement | null> }) {
+  const host = useHost();
   const [t, setT] = useState<Placed | null>(null);
   const [caret, setCaret] = useState<{ pos: number; top: number; left: number } | null>(null);
 
@@ -225,6 +244,7 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
     );
   }
   const what = LABEL[t.node.type.name] ?? "block";
+  const pageMode = !!host.pages;
   const current = (): BlockTarget | null => {
     const n = editor.state.doc.nodeAt(t.pos);
     return n ? { pos: t.pos, node: n } : null;
@@ -287,7 +307,28 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
         items={[
           { label: "Move up", icon: "arrowUp", kbd: "Alt ⇧ ↑", onClick: () => { const c = current(); if (c) moveBlock(editor, c, -1); } },
           { label: "Move down", icon: "arrowDown", kbd: "Alt ⇧ ↓", onClick: () => { const c = current(); if (c) moveBlock(editor, c, 1); } },
-          { label: "Duplicate", icon: "copy", onClick: () => { const c = current(); if (c) duplicate(editor, c); } },
+          { label: "Duplicate", icon: "copy", kbd: pageMode ? "⌘ D" : undefined, onClick: () => { const c = current(); if (c) duplicate(editor, c); } },
+          ...(pageMode && turnable(t.node)
+            ? [
+                { header: "Turn into", separated: true },
+                ...TURN.map(([kind, label, icon, keys]) => ({
+                  label,
+                  icon,
+                  kbd: keys,
+                  onClick: () => {
+                    const c = current();
+                    if (!c) return;
+                    // The caret into the block, then turn it (the same as ⌘ ⌥ 0…9).
+                    const inside = Math.min(c.pos + 1 + (c.node.isTextblock ? 0 : 1), editor.state.doc.content.size);
+                    editor.chain().focus().setTextSelection(inside).run();
+                    turnInto(editor, kind);
+                  },
+                })),
+              ]
+            : []),
+          ...(pageMode && t.node.type.name === "heading" && t.node.textContent.trim()
+            ? [{ label: "Copy link to section", icon: "link", separated: true, onClick: () => { void copyText(`${window.location.origin}${window.location.pathname.replace(/\/$/, "")}#user-content-${slugify(t.node.textContent)}`); } }]
+            : []),
           { label: `Delete ${what}`, icon: "trash", danger: true, separated: true, onClick: () => { const c = current(); if (c) remove(editor, c); setT(null); } },
         ]}
       />

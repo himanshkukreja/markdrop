@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import ArtifactView from "./ArtifactView";
 import { MarkdropLoader } from "@/components/ui";
 import DocumentView from "./DocumentView";
+import { pageFieldsOf } from "./doc/types";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -177,6 +178,7 @@ export default async function SlugPage({ params }: Props) {
       rev={doc?.rev ?? null}
       docRef={doc?.ref ?? null}
       readTicket={doc?.read_ticket ?? null}
+      page={doc && !doc.encrypted ? pageFieldsOf(doc as unknown as Record<string, unknown>) : null}
     />
     </Suspense>
     </div>

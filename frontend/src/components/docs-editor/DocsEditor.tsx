@@ -188,6 +188,9 @@ export function DocsEditor({
   flagImages,
   onFindOpen,
   markdrop,
+  blocks,
+  pages,
+  darkImages,
 }: DocsEditorProps) {
   const [own, setOwn] = useState<EditorMode>("visual");
   const mode = modeProp ?? own;
@@ -248,10 +251,50 @@ export function DocsEditor({
       const md = valueRef.current;
       onChangeRef.current(`${md.replace(/\s*$/, "")}\n\n::markdrop{src="https://markdrop.in/"}\n`);
     },
+    append(markdown) {
+      const add = markdown.replace(/^\s+|\s+$/g, "");
+      if (!add) return;
+      const v = visualRef.current;
+      if (modeRef.current === "visual" && v && !v.editor.isDestroyed) {
+        const ed = v.editor;
+        void import("./core/markdown.mjs").then(({ parseBlocks }) => {
+          if (ed.isDestroyed) return;
+          const blocks = parseBlocks(`${add}\n`);
+          if (!blocks.length) return;
+          // At the very end, as its own transaction: the caret stays where the author is typing.
+          ed.view.dispatch(ed.state.tr.insert(ed.state.doc.content.size, blocks.map((b) => ed.schema.nodeFromJSON(b))));
+        });
+        return;
+      }
+      const md = valueRef.current;
+      onChangeRef.current(md.replace(/\s+$/, "") ? `${md.replace(/\s+$/, "")}\n\n${add}\n` : `${add}\n`);
+    },
     focus() {
       const v = visualRef.current;
-      if (modeRef.current === "visual" && v) v.editor.commands.focus();
-      else textarea.current?.focus();
+      if (modeRef.current === "visual" && v) {
+        // Now, not on the next frame: keys typed right after must land in the page.
+        v.editor.view.focus();
+        v.editor.commands.focus();
+      } else textarea.current?.focus();
+    },
+    focusStart() {
+      const v = visualRef.current;
+      if (modeRef.current !== "visual" || !v || v.editor.isDestroyed) {
+        const ta = textarea.current;
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(0, 0);
+        }
+        return;
+      }
+      const ed = v.editor;
+      const first = ed.state.doc.firstChild;
+      let tr = ed.state.tr;
+      // A new empty line at the top, unless the page already starts with one.
+      if (!(first && first.type.name === "paragraph" && first.content.size === 0)) tr = tr.insert(0, ed.schema.nodes.paragraph.create());
+      tr = tr.setSelection(TextSelection.create(tr.doc, 1)).scrollIntoView();
+      ed.view.dispatch(tr);
+      ed.view.focus();
     },
     reveal(t) {
       const v = visualRef.current;
@@ -470,6 +513,9 @@ export function DocsEditor({
             checkLink={checkLink}
             flagImages={flagImages}
             markdrop={markdrop}
+            blocks={blocks}
+            pages={pages}
+            darkImages={darkImages}
           />
         </>
       ) : (

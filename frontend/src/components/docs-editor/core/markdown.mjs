@@ -37,7 +37,29 @@ import { directiveFromMarkdown, directiveToMarkdown } from "mdast-util-directive
 
 export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
 /** Leaf directives the editor renders as blocks (`api` is the OpenAPI operation placeholder). */
-export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api"];
+export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api", "bookmark", "toc", "breadcrumb", "page"];
+/**
+ * Inline chips (pages), each on one line (anything else stays raw):
+ *   :markdrop[Title]{src=<slug>}   a Markdrop item
+ *   :person[Name]{id=<user id>}    a workspace member
+ *   :date[2026-11-03]              a date
+ */
+const MENTION_SRC = {
+  markdrop: /^:markdrop\[[^\n]*\]\{[^\n]*\}$/,
+  person: /^:person\[[^\n]*\]\{[^\n]*\}$/,
+  date: /^:date\[\d{4}-\d{2}-\d{2}\](?:\{[^\n]*\})?$/,
+};
+const MENTION_KEY = { markdrop: "src", person: "id" };
+
+function mentionOf(c, s) {
+  const re = MENTION_SRC[c.name];
+  if (!re || !re.test(s)) return null;
+  const key = MENTION_KEY[c.name];
+  if (key && !(typeof c.attributes?.[key] === "string" && c.attributes[key].trim())) return null;
+  const label = bracket(s, c.name.length + 1);
+  if (label === null) return null;
+  return { type: "mention", attrs: { name: c.name, label, attributes: { ...(c.attributes ?? {}) } } };
+}
 /** Container node types that serialize as `:::name` directives. */
 const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private"]);
 
@@ -64,6 +86,7 @@ const SEM = {
   rawBlock: ["value"],
   rawInline: ["value"],
   inlineMath: ["value"],
+  mention: ["name", "label", "attributes"],
 };
 const MARK_SEM = { link: ["href", "title", "kind"] };
 /** Nesting order when marks become mdast wrappers (outermost first); `code` is always the leaf. */
@@ -411,6 +434,9 @@ function inline(children, ctx, marks = []) {
         const s = ctx.src.slice(start(c), end(c));
         if (c.name === "kbd" && /^:kbd\[[\s\S]*\]$/.test(s) && c.children.length) {
           out.push(...inline(c.children, ctx, [...marks, { type: "kbd" }]));
+        } else if (mentionOf(c, s)) {
+          // `:markdrop[Title]{src}`, `:person[Name]{id}`, `:date[…]`: an inline chip (pages).
+          push(mentionOf(c, s));
         } else if (s === `:${c.name}`) {
           // "0:30", "Note:this": a colon before a word is just text (the renderer prints it as such).
           push({ type: "text", text: s });
@@ -550,7 +576,7 @@ function signature(node) {
   return JSON.stringify([node.type, attrs, body]);
 }
 
-const INLINE = new Set(["text", "hardBreak", "image", "inlineMath", "rawInline"]);
+const INLINE = new Set(["text", "hardBreak", "image", "inlineMath", "rawInline", "mention"]);
 const isInline = (n) => INLINE.has(n.type);
 
 /* ── serializing ─────────────────────────────────────────────────────────── */
@@ -777,6 +803,12 @@ const TO_MD = {
     mdRaw(node) {
       return node.value;
     },
+    image(node, parent, state, info) {
+      // A page image's address is `asset:<id>`: the colon needs no escape there (it reads back the
+      // same), and the API and AI apps look for `](asset:` as written.
+      const out = defaultHandlers.image(node, parent, state, info);
+      return /^asset:[A-Za-z0-9_-]+$/.test(node.url ?? "") ? out.replace(/\]\(asset\\:/, "](asset:") : out;
+    },
   },
 };
 
@@ -906,11 +938,33 @@ export function phrasing(nodes) {
       case "rawInline":
         parent.children.push({ type: "mdRaw", value: n.attrs?.value ?? "" });
         break;
+      case "mention":
+        // A chip whose picker is still open (no item yet) isn't written.
+        if (mentionComplete(n.attrs)) parent.children.push({ type: "mdRaw", value: mentionSource(n.attrs) });
+        break;
       default:
         break;
     }
   }
   return literalLinks(root.children);
+}
+
+/**
+ * `:markdrop[label]{src=… …}`. A label read from the page is written as it was; a new one (the
+ * picker's title) loses brackets, backslashes and line breaks, which would end the label early.
+ */
+export function mentionSource(attrs) {
+  const name = MENTION_SRC[attrs?.name] ? attrs.name : "markdrop";
+  const raw = String(attrs?.label ?? "");
+  const label = bracket(`[${raw}]`, 0) === raw ? raw : raw.replace(/[[\]\\]/g, "");
+  return `:${name}[${label.replace(/[\n\r]+/g, " ")}]${directiveAttrs(attrs?.attributes ?? {})}`;
+}
+
+/** Whether a chip has what it needs to be written (a src, an id, a date). */
+export function mentionComplete(attrs) {
+  const name = MENTION_SRC[attrs?.name] ? attrs.name : "markdrop";
+  if (name === "date") return /^\d{4}-\d{2}-\d{2}$/.test(String(attrs?.label ?? ""));
+  return !!attrs?.attributes?.[MENTION_KEY[name]];
 }
 
 /** A bare-URL link (`https://…` typed as text) goes back as the text it was. */

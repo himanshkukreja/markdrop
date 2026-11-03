@@ -216,6 +216,27 @@ export const RawInline = Node.create({
   },
 });
 
+/**
+ * `:markdrop[Title]{src=<slug>}`: an inline chip naming a Markdrop item (a page's mention). `label`
+ * is the title as written; `attributes` holds `src` and anything else the directive carries.
+ */
+export const Mention = Node.create({
+  name: "mention",
+  group: "inline",
+  inline: true,
+  atom: true,
+  selectable: true,
+  addAttributes() {
+    return { name: str("name", "markdrop"), label: str("label", ""), attributes: json("attributes", {}) };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-docs=mention]" }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["span", mergeAttributes(HTMLAttributes, { "data-docs": "mention", class: "dxe-mention" }), HTMLAttributes["data-label"] ?? ""];
+  },
+});
+
 /** `:kbd[⌘ K]`. */
 export const Kbd = Mark.create({
   name: "kbd",
@@ -308,6 +329,7 @@ export function baseExtensions() {
     InlineImage,
     InlineMath,
     RawInline,
+    Mention,
   ];
 }
 

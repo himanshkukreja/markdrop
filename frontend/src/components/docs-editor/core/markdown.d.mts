@@ -30,6 +30,7 @@ export function parseBlocks(md: string, options?: { verify?: boolean }): JsonNod
 export function serializeMarkdown(state: DocState, options?: { preserve?: boolean }): string;
 export function serializeFlow(children: JsonNode[], options?: { preserve?: boolean }): string;
 export function serializeBlock(node: JsonNode, options?: { preserve?: boolean; prev?: JsonNode | null; prevText?: string | null }): string;
+export function mentionSource(attrs: { label?: string | null; attributes?: Record<string, unknown> | null } | null | undefined): string;
 export function directiveAttrs(attributes: Record<string, unknown> | null | undefined): string;
 export function phrasing(nodes: JsonNode[]): unknown[];
 export function fp(node: JsonNode): string;

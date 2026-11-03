@@ -74,7 +74,7 @@ function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" 
 function tooltipText(v: PresenceViewer, you: boolean): string {
   const where = sectionText(v.sec);
   const name = you ? `${viewerName(v)} (you)` : viewerName(v);
-  return [name, where, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ");
+  return [name, v.editing ? "Editing" : where, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ");
 }
 
 function Row({ v, you, onSelect }: { v: PresenceViewer; you: boolean; onSelect?: (v: PresenceViewer) => void }) {
@@ -87,9 +87,9 @@ function Row({ v, you, onSelect }: { v: PresenceViewer; you: boolean; onSelect?:
           {viewerName(v)}
           {you && <span className="text-text-muted"> (you)</span>}
         </span>
-        {(where || v.state === "away") && (
+        {(where || v.editing || v.state === "away") && (
           <span className="ph-mask block truncate text-caption text-text-muted">
-            {[where, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ")}
+            {[v.editing ? "Editing" : where, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ")}
           </span>
         )}
       </span>

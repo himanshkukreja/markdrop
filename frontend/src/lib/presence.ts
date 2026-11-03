@@ -31,6 +31,8 @@ export interface PresenceViewer {
   color: number;
   state: "active" | "away";
   sec: PresenceSection | null;
+  /** A page's edit lock holder (the block editor): shown as "Editing". */
+  editing?: boolean;
 }
 
 export interface PresenceSnapshot {

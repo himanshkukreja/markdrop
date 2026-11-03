@@ -11,6 +11,8 @@ import { darkVariantPath, uploadUrl, useHost } from "../host";
 import { createProbe } from "../core/assetProbe.mjs";
 import { cx, TextField, withAttr } from "./shared";
 import { MarkdropView } from "./markdrop";
+import { PageEmbedView } from "./pageItems";
+import { PageLeafView } from "./pageLeaves";
 
 /* ── Figure ──────────────────────────────────────────────────────────────── */
 
@@ -69,7 +71,7 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
   // Is there a dark-theme version next to the image (x.dark.webp)? Shown as a small thumbnail.
   useEffect(() => {
     setDark(null);
-    if (!src) return;
+    if (!src || host.darkImages === false) return;
     const d = host.resolveAsset(darkVariantPath(src));
     let live = true;
     void darkProbe.probe(d).then((ok) => {
@@ -166,9 +168,11 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
               <Button size="sm" variant="ghost" iconLeft="upload" onClick={() => pickFile(upload)} loading={up.busy}>
                 Replace
               </Button>
-              <Button size="sm" variant="ghost" iconLeft="moon" onClick={() => pickFile(uploadDark)} title="Shown instead in the dark theme">
-                {dark ? "Replace dark version" : "Add dark version"}
-              </Button>
+              {host.darkImages !== false && (
+                <Button size="sm" variant="ghost" iconLeft="moon" onClick={() => pickFile(uploadDark)} title="Shown instead in the dark theme">
+                  {dark ? "Replace dark version" : "Add dark version"}
+                </Button>
+              )}
             </>
           )}
           <IconButton icon="trash" label="Delete image" size="sm" onClick={() => deleteNode()} />
@@ -189,8 +193,21 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 
 export function LeafView(props: ReactNodeViewProps) {
   // ::markdrop{src=…}: a Markdrop file, with its own picker and preview (views/markdrop.tsx).
-  if ((props.node.attrs.name as string) === "markdrop") return <MarkdropView {...props} />;
+  if ((props.node.attrs.name as string) === "markdrop") return <MarkdropLeaf {...props} />;
+  return <PageOrGuideLeaf {...props} />;
+}
+
+/** A page draws its own blocks (bookmark, toc, breadcrumb, sub-page, web embed); a guide its forms. */
+function PageOrGuideLeaf(props: ReactNodeViewProps) {
+  const host = useHost();
+  if (host.pages) return <PageLeafView {...props} fallback={<DirectiveLeafForm {...props} />} />;
   return <DirectiveLeafForm {...props} />;
+}
+
+/** A page (EditorHost.pages) embeds by slug with its own picker; a guide uses the Markdrop file block. */
+function MarkdropLeaf(props: ReactNodeViewProps) {
+  const host = useHost();
+  return host.pages ? <PageEmbedView {...props} /> : <MarkdropView {...props} />;
 }
 
 function DirectiveLeafForm({ node, updateAttributes, deleteNode, selected }: ReactNodeViewProps) {

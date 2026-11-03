@@ -120,6 +120,64 @@ export interface MarkdropFilesHost {
   onEvent?(name: "inserted" | "uploaded" | "shared" | "pinned", detail?: Record<string, unknown>): void;
 }
 
+/* ── Pages (a Markdrop document in the block editor) ─────────────────────── */
+
+/** One item the page embed / mention picker offers. */
+export interface PagePickItem {
+  slug: string;
+  title: string | null;
+  kind: "markdown" | "artifact";
+  renderer?: string | null;
+  type_label?: string | null;
+  mime?: string | null;
+  updated_at?: string | null;
+  encrypted?: boolean;
+}
+
+/** An embed or mention resolved for the person editing (the page's embeds endpoint). */
+export interface PageResolvedItem {
+  state: "ok" | "signin" | "denied" | "password" | "encrypted" | "missing";
+  kind?: "document" | "artifact";
+  renderer?: string;
+  title?: string | null;
+  url?: string | null;
+  artifact_url?: string | null;
+  viewer_url?: string | null;
+  download_url?: string | null;
+  poster_url?: string | null;
+  expires_at?: string | null;
+  preview?: { excerpt?: string | null; updated_at?: string | null; author_name?: string | null } | null;
+}
+
+/**
+ * Hosts a page (a document, not a guide): `::markdrop{src=<slug> mode=…}` embeds and
+ * `:markdrop[Title]{src=<slug>}` mentions get a picker over the author's documents and files and
+ * their workspace's items, and a live preview resolved for the author.
+ */
+export interface PagesEditorHost {
+  /** Search one source; `cursor` pages on (null: no more). */
+  search(scope: "mine" | "workspace", q: string, cursor?: string | null): Promise<{ items: PagePickItem[]; cursor: string | null }>;
+  /** The page's workspace (the picker's second tab), null for a personal page. */
+  workspaceName?: string | null;
+  /** Resolve slugs for the preview (batched by the caller). */
+  resolve(slugs: string[]): Promise<Record<string, PageResolvedItem>>;
+  /** Draws a resolved embed exactly as readers see it (the page renderer's component). */
+  renderEmbed(p: { slug: string | null; mode: "live" | "preview" | "card"; label?: string | null; resolved: PageResolvedItem | null | undefined }): React.ReactNode;
+  /** Draws a mention chip as readers see it. */
+  renderMention(p: { slug: string | null; label?: string | null; resolved: PageResolvedItem | null | undefined }): React.ReactNode;
+  /** A link's preview for a bookmark (title, description, image), fetched by the server. */
+  linkPreview?(url: string): Promise<{ title?: string | null; description?: string | null; image_url?: string | null; site_name?: string | null; favicon_url?: string | null }>;
+  /** Workspace members, for `@person`. */
+  people?(q: string): Promise<Array<{ id: string; name: string; avatar_url?: string | null }>>;
+  /** Creates a sub-page of this page (the "/page" block); resolves with its slug and title. */
+  createSubPage?(title: string): Promise<{ slug: string; title: string }>;
+  /** This page's ancestors and title, for the breadcrumb block. */
+  crumbs?: Array<{ slug: string; title: string | null }>;
+  pageTitle?: string | null;
+  /** A page's address (links in the breadcrumb and sub-page blocks). */
+  href?(slug: string, ancestors: string[]): string;
+}
+
 /** What a host can do to the editor from outside (both modes). */
 export interface DocsEditorApi {
   /** Opens the Find and replace bar (with the selection as the search, when there is one). */
@@ -138,8 +196,15 @@ export interface DocsEditorApi {
    */
   suggest(s: { heading: string | null; level?: number; markdown: string; title: string; note?: string; onAccept?: () => void }): boolean;
   focus(): void;
+  /** The caret at the very start of the page, on an empty line (Enter in a page's title). */
+  focusStart(): void;
   /** Adds an empty "Markdrop file" block at the caret (its picker opens); Markdown mode adds the line. */
   insertMarkdropFile(): void;
+  /**
+   * Adds Markdown at the end of the page without touching the rest (the caret, the selection and
+   * undo stay): a page's live `appended` event (an AI app adding blocks while someone edits).
+   */
+  append(markdown: string): void;
 }
 
 export interface CommentMark {
@@ -208,4 +273,13 @@ export interface DocsEditorProps {
   onFindOpen?: () => void;
   /** Enables the "Markdrop file" block's picker, sharing check, version pins and live preview. */
   markdrop?: MarkdropFilesHost;
+  /**
+   * The "/" menu's blocks, by id (blocks.ts), in this order; default: every block. A page offers
+   * PAGE_BLOCKS (no Guides-only blocks).
+   */
+  blocks?: readonly string[];
+  /** A page: embeds and mentions of Markdrop items (replaces `markdrop` for the ::markdrop block). */
+  pages?: PagesEditorHost;
+  /** Images may have a dark-theme version (default true; a page's images don't). */
+  darkImages?: boolean;
 }
