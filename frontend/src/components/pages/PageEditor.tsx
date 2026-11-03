@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import type { Heading } from "@/components/reading";
-import { Alert, Button, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
+import { Alert, Badge, Button, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { DocsEditor } from "@/components/docs-editor";
 import { PAGE_BLOCKS } from "@/components/docs-editor/blocks";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
@@ -381,7 +381,16 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
     { label: "Open in the classic editor", icon: "lines", description: "The same Markdown, in a text editor", onClick: () => void toClassic(), disabled: switching || readOnly },
     ...(chrome.menu ?? []),
     ...(onDelete ? [{ label: "Delete page", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
-    { header: <span className="pb-meta">{words(content).toLocaleString()} words{updatedAt ? ` · edited ${when(updatedAt)}` : ""}</span>, separated: true },
+    // The footer: the word count, and that pages are in beta.
+    {
+      header: (
+        <span className="pb-meta pb-meta--foot">
+          <span>{words(content).toLocaleString()} words{updatedAt ? ` · edited ${when(updatedAt)}` : ""}</span>
+          <Badge tone="info" size="sm" upper>Beta</Badge>
+        </span>
+      ),
+      separated: true,
+    },
   ];
 
   const layout = [props.smallText && "pb-small", props.font !== "default" && `pb-font-${props.font}`].filter(Boolean).join(" ");

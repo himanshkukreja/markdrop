@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { EmptyState, MarkdropLoader } from "@/components/ui";
+import { Badge, EmptyState, MarkdropLoader } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import { TemplateGallery } from "./TemplateGallery";
@@ -30,7 +30,7 @@ export function NewPageScreen() {
   }
   return (
     <>
-      <EmptyState icon="layers" title="New page" description="Pick a template or start blank. You write pages with blocks, and they're published at their own link like every Markdrop document." className="py-16" />
+      <EmptyState icon="layers" title={<span className="inline-flex items-center gap-2">New page <Badge tone="info" size="sm" upper>Beta</Badge></span>} description="Pick a template or start blank. You write pages with blocks, and they're published at their own link like every Markdrop document." className="py-16" />
       <TemplateGallery
         open={open}
         onClose={() => {
