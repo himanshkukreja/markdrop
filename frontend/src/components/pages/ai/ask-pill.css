@@ -1,0 +1,44 @@
+/* "✦ Ask": the floating pill (AskLauncher). The panel's own styles load with it (ask.css). */
+.pa-pill {
+  position: fixed;
+  right: max(20px, env(safe-area-inset-right, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  z-index: calc(var(--z-sticky) + 3);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 40px;
+  padding: 0 16px 0 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--surface-raised) 90%, transparent);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  backdrop-filter: saturate(1.4) blur(14px);
+  color: var(--text);
+  font: 600 14px/1 var(--font-sans);
+  letter-spacing: -0.005em;
+  box-shadow: var(--shadow-lg);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  animation: pa-pill-in 220ms var(--ease-out) backwards;
+  transition: transform 140ms var(--ease-out), opacity 140ms var(--ease-out), box-shadow 140ms var(--ease-out), background-color 100ms var(--ease-out), border-color 100ms var(--ease-out);
+}
+[data-theme="light"] .pa-pill { background: color-mix(in srgb, #FFFFFF 92%, transparent); }
+.pa-pill:hover { transform: translateY(-1px); border-color: var(--border-strong); box-shadow: var(--shadow-xl); }
+.pa-pill:active { transform: scale(0.97); }
+.pa-pill:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.pa-pill__icon { width: 16px; height: 16px; color: var(--accent-text); }
+.pa-pill[aria-busy="true"] .pa-pill__icon { animation: pa-pill-spin 900ms linear infinite; }
+.pa-pill[data-hidden] { opacity: 0; transform: translateY(6px) scale(0.96); pointer-events: none; }
+/* While a phone's editing toolbar is up, the pill gets out of its way. */
+body:has(.pb-phonebar[data-on]) .pa-pill { opacity: 0; transform: translateY(6px) scale(0.96); pointer-events: none; }
+@keyframes pa-pill-in { from { opacity: 0; transform: translateY(6px) scale(0.96); } }
+@keyframes pa-pill-spin { to { transform: rotate(360deg); } }
+@media (max-width: 639px) {
+  .pa-pill { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); height: 44px; padding: 0 18px 0 15px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pa-pill, .pa-pill[data-hidden] { animation: none; transition: none; transform: none; }
+  .pa-pill[aria-busy="true"] .pa-pill__icon { animation: none; }
+}
+@media print { .pa-pill { display: none; } }
