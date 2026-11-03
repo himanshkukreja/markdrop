@@ -410,7 +410,8 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-bar__share-icon { display: inline-flex !important; }
   .pb-crumb--wide { display: none; }
   .pb-crumb--narrow { display: flex; }
-  .pb-crumb__link { max-width: 120px; }
+  .pb-crumb__link { max-width: 120px; height: 44px; }
+  .pb-crumb__more { min-width: 40px; }
   .pb-save { margin: 0 2px; font-size: 11px; }
   .pb-head__body { padding-top: 28px; }
   .pb-head--cover .pb-head__icon { margin-top: -44px; }
