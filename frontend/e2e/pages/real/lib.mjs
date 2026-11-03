@@ -88,8 +88,14 @@ export async function ctx(browser, { token = null, theme = "light", width = 1440
     ...(mobile ? { hasTouch: true, isMobile: BROWSER !== "webkit" ? true : undefined } : {}),
     ...(video ? { recordVideo: { dir: video, size: { width, height } } } : {}),
   });
-  await c.route(/^https:\/\/localhost:3450\//, (r) => r.fulfill({ status: 302, headers: { location: r.request().url().replace("https://localhost:3450", APP) } }));
-  await c.route(/^https:\/\/acme\.localhost(:3450)?\//, (r) => r.fulfill({ status: 302, headers: { location: r.request().url().replace(/^https:\/\/acme\.localhost(:3450)?/, TENANT) } }));
+  // WebKit can't fulfill a route with a redirect: a page that replaces its location does the same
+  // (and keeps the fragment, where the handoff carries its token).
+  const hop = (r, from, to) =>
+    BROWSER === "webkit"
+      ? r.fulfill({ status: 200, contentType: "text/html", body: `<script>location.replace(location.href.replace(${from.toString()}, ${JSON.stringify(to)}))</script>` })
+      : r.fulfill({ status: 302, headers: { location: r.request().url().replace(from, to) } });
+  await c.route(/^https:\/\/localhost:3450\//, (r) => hop(r, /^https:\/\/localhost:3450/, APP));
+  await c.route(/^https:\/\/acme\.localhost(:3450)?\//, (r) => hop(r, /^https:\/\/acme\.localhost(:3450)?/, TENANT));
   await c.addInitScript(
     ([t, th]) => {
       try {

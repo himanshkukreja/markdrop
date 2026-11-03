@@ -22,6 +22,15 @@ const save = () => fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 const SECRET_TITLES = ["Team offsite photo", "Q3 report", "Pricing calculator", "Launch plan"];
 const content = async (slug) => (await docOf(slug, T.owner)).content;
 
+/** Page images load lazily (WebKit only near the viewport): bring each into view first. */
+async function scrollToImages(p) {
+  for (const el of await p.locator(".pb-page img").all()) {
+    await el.scrollIntoViewIfNeeded().catch(() => {});
+    await p.waitForTimeout(400);
+  }
+  await p.evaluate(() => window.scrollTo(0, 0));
+}
+
 async function slashPick(p, q) {
   await p.keyboard.type(`/${q}`);
   await p.locator(".dxe-slash").waitFor({ timeout: 5000 });
@@ -129,6 +138,7 @@ await step("create", async () => {
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
   await p.locator(".pb-embed__img").first().waitFor({ timeout: 15000 });
   // Page images: served by the Worker, really loaded.
+  await scrollToImages(p);
   const imgs = await p.locator(".pb-page figure img, .pb-page img").evaluateAll((els) => els.map((e) => ({ src: e.currentSrc || e.src, w: e.naturalWidth })));
   const pageImgs = imgs.filter((i) => i.src.includes("/pa/") || i.src.includes("pa%2F"));
   log("page images", JSON.stringify(pageImgs.map((i) => [i.src.slice(0, 80), i.w])));
@@ -176,6 +186,7 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
     for (const b of bodies) for (const t of SECRET_TITLES) if (b.body.includes(t)) fail(`${who}: “${t}” is in the response of ${b.url}`);
     for (const b of bodies) if (/\/r\/art\/|viewer_url|artifact_url"\s*:\s*"http/.test(b.body)) fail(`${who}: an item URL is in ${b.url}`);
     if (await p.locator(".pb-embed__img").count()) fail(`${who} got an embedded image`);
+    await scrollToImages(p);
     const n = await p.locator(".pb-page img").evaluateAll((els) => els.filter((e) => e.naturalWidth > 0).length);
     if (n < 2) fail(`${who} doesn't see the page images (the page is public): ${n}`);
     await shot(p, `10-${who}-locked`, { full: true, wait: 1500 });
