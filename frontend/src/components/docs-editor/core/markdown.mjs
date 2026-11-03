@@ -232,10 +232,20 @@ function flow(children, ctx, strip, convert = block) {
     if (attrs) node = node.type === "rawBlock" ? raw(src) : withBlockAttrs(node, attrs);
     // A tab or card only reads back inside its tabs/cards parent, which is verified as a whole.
     const nested = CHILD_TYPES.has(node.type);
-    if (ctx.verify && node.type !== "rawBlock" && !nested && !readsAs(serializeBlock(node, { preserve: false }), fp(node), ctx)) node = raw(src);
+    let canon = null;
+    let canonOk = false;
+    if (ctx.verify && node.type !== "rawBlock" && !nested) {
+      // A block written exactly as the editor would write it (any page the editor saved) reads
+      // back as itself: re-parsing it alone is the same parse again. Only the others are checked
+      // (re-reading was about two thirds of the time it took to open a long page).
+      canon = serializeBlock(node, { preserve: false });
+      canonOk = (!strip.length && !ctx.defs?.count && canon === src) || readsAs(canon, fp(node), ctx);
+      if (!canonOk) node = raw(src);
+    }
     const fpv = fp(node);
-    // Inside a list item / quote the dedent is a heuristic: keep `src` only if it reads back the same.
-    const srcOk = !strip.length || node.type === "rawBlock" || (!nested && readsAs(src, fpv, ctx));
+    // Inside a list item / quote the dedent is a heuristic: keep `src` only if it reads back the same
+    // (already known when it is the canonical text that was just checked).
+    const srcOk = !strip.length || node.type === "rawBlock" || (!nested && ((canonOk && canon === src) || readsAs(src, fpv, ctx)));
     const gap = prevEnd === null ? null : dedent(ctx.src.slice(prevEnd, s), strip);
     node.attrs = { ...node.attrs, md: { src: srcOk ? src : null, fp: fpv, gap, prev: prevFp, ...(node.__md ?? {}) } };
     out.push(node);

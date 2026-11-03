@@ -129,8 +129,9 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
   const langInput = useRef<HTMLInputElement>(null);
   const st = useEditorState({
     editor,
-    // No selection, no toolbar: one constant state, so typing doesn't redraw it on every key.
-    selector: ({ editor: e }) => (e.state.selection.empty ? IDLE : {
+    // The toolbar is hidden while the selection is empty or is whole blocks, so typing (and
+    // Shift+↓ over a hundred blocks) gets one constant state: no isActive walks, no re-render.
+    selector: ({ editor: e }) => (e.state.selection.empty || e.state.selection instanceof NodeSelection || "anchorBlock" in e.state.selection ? IDLE : {
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
       strike: e.isActive("strike"),

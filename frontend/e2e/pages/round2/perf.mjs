@@ -12,27 +12,7 @@
  */
 import fs from "node:fs";
 import { APP, context, launch, newPage } from "./lib.mjs";
-
-const COLORS = ["red", "blue", "green", "purple", "orange"];
-export function page300() {
-  const out = [];
-  for (let i = 0; out.length < 300; i++) {
-    const k = i % 12;
-    if (k === 0) out.push(`## Section ${i} {#b-s${String(i).padStart(4, "0")}}`);
-    else if (k === 1) out.push(`Paragraph ${i} with **bold**, :span[colour]{color="${COLORS[i % 5]}"}, :u[underline] and a [link](https://example.com/${i}). Some more words to make the line longer than one line on the page.`);
-    else if (k === 2) out.push(`- item ${i} a\n- item ${i} b {bg="yellow"}\n  - nested ${i}`);
-    else if (k === 3) out.push(`- [ ] task ${i}\n- [x] done ${i}`);
-    else if (k === 4) out.push(`:::note\nA callout ${i} with text.\n:::`);
-    else if (k === 5) out.push("```js\nconst x = " + i + ";\nconsole.log(x);\n```\n{caption=\"Example " + i + "\"}");
-    else if (k === 6) out.push(`| A | B | C |\n| --- | --- | --- |\n| ${i} | b {bg="blue"} | c |\n| d | e | f |\n\n{header-column widths="120,200,"}`);
-    else if (k === 7) out.push(`::::columns\n:::column{width="40%"}\nLeft ${i}\n:::\n\n:::column{width="60%"}\nRight ${i}\n:::\n::::`);
-    else if (k === 8) out.push(`> Quote ${i} {color="gray"}`);
-    else if (k === 9) out.push(`Parent ${i}\n\n:::indent\nChild ${i}\n:::`);
-    else if (k === 10) out.push(`:::details{summary="Toggle ${i}"}\nHidden ${i}\n:::`);
-    else out.push(`Plain paragraph number ${i}, just text.`);
-  }
-  return out.join("\n\n") + "\n";
-}
+import { page300 } from "./page300.mjs";
 
 const stat = (a) => {
   const s = [...a].sort((x, y) => x - y);
@@ -119,6 +99,27 @@ profile.samples.forEach((id, i) => {
   self.set(key, (self.get(key) ?? 0) + (dt[i] ?? 0) / 1000);
 });
 const busy = [...self.values()].reduce((a, b) => a + b, 0);
+/** Inclusive time of this app's own functions (any frame from src/, not node_modules). */
+function appInclusive(prof) {
+  const nodes = new Map(prof.nodes.map((n) => [n.id, n]));
+  const parent = new Map();
+  for (const n of prof.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
+  const ours = new Map();
+  prof.samples.forEach((id, i) => {
+    if (["(idle)", "(program)", "(garbage collector)"].includes(nodes.get(id).callFrame.functionName)) return;
+    const seen = new Set();
+    for (let cur = id; cur !== undefined; cur = parent.get(cur)) {
+      const f = nodes.get(cur).callFrame;
+      if (!/\/src\/|_src_|components_|\/(lib|app)\//.test(f.url) || /node_modules/.test(f.url)) continue;
+      const key = `${f.functionName || "(anonymous)"} ${(f.url.split("/").pop() || "").split("?")[0]}:${f.lineNumber + 1}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      ours.set(key, (ours.get(key) ?? 0) + (prof.timeDeltas[i] ?? 0) / 1000);
+    }
+  });
+  return [...ours.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([k, v]) => `${v.toFixed(1)} ms  ${k}`);
+}
+const topOurs = appInclusive(profile);
 const top = [...self.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15).map(([k, v]) => `${v.toFixed(1)} ms  ${k}`);
 
 // Arrow keys: selection changes only.
@@ -127,11 +128,14 @@ await p.waitForTimeout(400);
 const arrows = await take();
 
 // Select 100 blocks (Esc, then Shift+↓ ×99) and clear it.
+await cdp.send("Profiler.start");
 await p.keyboard.press("Escape");
 for (let i = 0; i < 99; i++) await p.keyboard.press("Shift+ArrowDown");
 await p.waitForTimeout(400);
+const selProfile = (await cdp.send("Profiler.stop")).profile;
 const selected = await p.locator(".ProseMirror .dxe-block-sel").count();
 const blockSel = await take();
+const slowest = blockSel.d.map((ms, i) => [i, +ms.toFixed(1)]).sort((a, b) => b[1] - a[1]).slice(0, 5);
 await p.keyboard.press("ArrowDown");
 
 // Hover sweep over the page (the block handle follows the pointer).
@@ -153,9 +157,9 @@ const res = {
   app: APP,
   blocks,
   load: { to_editable_ms: loadMs, long_tasks: loadLong.length, worst_long_task_ms: Math.round(Math.max(0, ...loadLong)), total_long_ms: Math.round(loadLong.reduce((a, b) => a + b, 0)) },
-  typing: { keystrokes: text.length, dispatch_ms: stat(typing.d), ...evStat(typing), cpu_busy_ms: Math.round(busy), cpu_ms_per_key: +(busy / text.length).toFixed(2), top_self_time: top },
+  typing: { keystrokes: text.length, dispatch_ms: stat(typing.d), ...evStat(typing), cpu_busy_ms: Math.round(busy), cpu_ms_per_key: +(busy / text.length).toFixed(2), top_self_time: top, top_app_inclusive: topOurs },
   arrows: { dispatch_ms: stat(arrows.d), ...evStat(arrows) },
-  select_100_blocks: { selected, dispatch_ms: stat(blockSel.d), ...evStat(blockSel) },
+  select_100_blocks: { selected, dispatch_ms: stat(blockSel.d), slowest_dispatches: slowest, ...evStat(blockSel), top_app_inclusive: appInclusive(selProfile) },
   hover_sweep: evStat(hover),
   reader: { to_first_heading_ms: readerMs, long_tasks: readerLong.length, worst_long_task_ms: Math.round(Math.max(0, ...readerLong)) },
 };
