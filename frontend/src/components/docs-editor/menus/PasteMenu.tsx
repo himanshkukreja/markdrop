@@ -16,7 +16,7 @@
 import "./paste.css";
 import type { Editor } from "@tiptap/core";
 import type { Mark, Node as PMNode } from "@tiptap/pm/model";
-import { TextSelection, type Transaction } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
@@ -53,6 +53,31 @@ function literalOk(url: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * A paste that ends with a block (an image, an embed) leaves that block selected, and the next key
+ * would replace it: put the caret on the line after it instead (a new one when there is none).
+ * Dispatched right after the paste, so one undo still takes back both.
+ */
+function caretAfter(editor: Editor) {
+  queueMicrotask(() => {
+    if (editor.isDestroyed) return;
+    const { state } = editor;
+    const sel = state.selection;
+    if (!(sel instanceof NodeSelection) || !sel.node.isBlock) return;
+    const after = sel.to;
+    const $after = state.doc.resolve(after);
+    const next = $after.nodeAfter;
+    const para = state.schema.nodes.paragraph;
+    const tr = state.tr;
+    if (next && next.isTextblock) tr.setSelection(TextSelection.create(tr.doc, after + 1));
+    else if ($after.parent.canReplaceWith($after.index(), $after.index(), para)) {
+      tr.insert(after, para.create());
+      tr.setSelection(TextSelection.create(tr.doc, after + 1));
+    } else return;
+    editor.view.dispatch(tr.scrollIntoView());
+  });
 }
 
 export class PasteController {
@@ -343,6 +368,7 @@ export class PasteController {
   attach(editor: Editor, onDataFailed: (n: number) => void): () => void {
     this.editor = editor;
     const onTr = ({ transaction: tr }: { transaction: Transaction }) => {
+      if (tr.getMeta("uiEvent") === "paste" && tr.selection instanceof NodeSelection && tr.selection.node.isBlock) caretAfter(editor);
       const s = this.state;
       if (!s.open || tr.getMeta(OWN)) return;
       if (tr.docChanged) {
