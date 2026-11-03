@@ -82,7 +82,9 @@ INSTRUCTIONS = (
     "document has one access level for every address it has (markdrop.in and its workspace's "
     "domains); 'workspace' access means members only. Give the user the returned url, which is "
     "the workspace's own domain when it has a live one. get_document and get_file_info accept "
-    "links on a workspace's custom domain too."
+    "links on a workspace's custom domain too. "
+    "get_viewers says who has a document open right now and where they're reading, with the "
+    "page's own rules (anonymous people stay anonymous); set_presence lets the owner turn that off."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000

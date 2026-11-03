@@ -3,7 +3,7 @@ title: See who's viewing
 description: Avatars on a document or file show who has it open right now and where they're reading. People with access appear by name; everyone else as an anonymous animal.
 updated: 2026-11-03
 prerequisites: [/sharing/who-can-open]
-keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter]
+keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, mcp, get_viewers, set_presence, ai]
 ---
 
 When other people have the same document or file open, their avatars appear at the top of the page, next to **Copy link**. Choose the avatars to see the list: everyone who's viewing and the section each of them is reading.
@@ -61,6 +61,12 @@ With it off, nobody on that document sees any avatars, and the pages stop report
 ## Encrypted documents
 
 On an [end-to-end encrypted](/sharing/end-to-end-encryption) document you only see how many people have it open, for example "3 viewing". Never names, and never sections: the headings are part of the encrypted text, which Markdrop's servers never see.
+
+## Ask your AI app who's viewing
+
+With Markdrop [connected to your AI app](/ai/hosted-mcp), ask "Who's reading the launch notes right now?" and it answers with the same list the page shows: names for the people with a relationship to the document, an anonymous animal for everyone else, where each one is reading and who's away. It works for any document you can open, and asking doesn't put you on the list.
+
+The rules don't change: no email addresses, only the count on an encrypted document, and "presence is off" when the owner has turned it off. As the owner, you can also say "Turn off who's viewing on the Q3 report." The tools are `get_viewers` and `set_presence` in [MCP tools](/ai/tools#whos-viewing).
 
 ## Privacy
 

@@ -2,7 +2,7 @@
 title: Use Markdrop from an AI app
 nav: Overview
 description: Connect Claude, ChatGPT, Cursor or VS Code to Markdrop so your assistant can publish, read and update documents and files as links.
-updated: 2026-11-02
+updated: 2026-11-03
 keywords: [ai, mcp, model context protocol, claude, chatgpt, cursor, copilot, assistant, agent, connector]
 ---
 
@@ -19,7 +19,7 @@ There are two Markdrop servers. Which one you add depends on where your AI app r
 | Works with | claude.ai and the Claude apps, ChatGPT, Claude Code, Cursor, VS Code, Windsurf and other apps that add remote servers | Claude Code, Claude Desktop, Cursor, VS Code and other apps that start local servers |
 | Signs in with | Markdrop's approval screen (OAuth). No key to paste. | An API token (`MARKDROP_TOKEN` or `markdrop login`) for publishing |
 | Best for | Publishing what the assistant writes, reading and updating your documents, access, analytics, workspaces | Publishing and replacing files from your disk (videos up to 2 GB), sending and receiving files peer to peer |
-| Tools | 26 | 11 |
+| Tools | 28 | 11 |
 
 You can add both to the same app: the hosted server for documents, the local one for files on your disk.
 
@@ -30,6 +30,7 @@ You can add both to the same app: the hosted server for documents, the local one
 - **Control access.** Change who can open a document, delete one, file it in a workspace folder.
 - **Work with big files.** Upload a video, PDF or other file and later replace it behind the same link, with the last five versions kept.
 - **See how it's doing.** Views, readers, where people drop off in a video, how far they read.
+- **See who's viewing.** Who has a document open right now and where they're reading, by the same rules as the page.
 - **Send files peer to peer.** From an app on your computer, share files as a markdrop.in/share link and download links people send you.
 
 Every tool is listed in [MCP tools](/ai/tools).

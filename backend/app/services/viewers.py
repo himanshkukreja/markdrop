@@ -370,6 +370,29 @@ def snapshots(r: Room) -> dict[str, dict]:
     return out
 
 
+def observe(slug: str, doc_id: str, *, enabled: bool, encrypted: bool,
+            user_id: str | None = None) -> dict:
+    """What a page on the document shows right now, for someone who isn't on it
+    (the MCP ``get_viewers`` tool). Same rules as :func:`snapshots`, and it adds
+    nobody to the room: ``{"on": False}``; ``{"on": True, "count_only": True,
+    "total": N}``; or ``{"on": True, "total": N, "viewers": [...]}`` with the
+    entries a page lists, each with ``you`` (one of ``user_id``'s own tabs).
+    ``enabled`` and ``encrypted`` come from the document as just read, so a
+    switch flipped a moment ago applies even before the room hears of it."""
+    if not enabled:
+        return {"on": False}
+    r = _rooms.get(slug)
+    entries = _entries(r) if r is not None and r.doc_id == doc_id else []
+    if encrypted:
+        return {"on": True, "count_only": True, "total": len(entries)}
+    listed = []
+    for e in entries[:MAX_LISTED]:
+        mine = bool(user_id) and any(
+            (c := r.conns.get(cid)) is not None and c.user_id == user_id for cid in e["_conns"])
+        listed.append({**_public(e), "you": mine})
+    return {"on": True, "total": len(entries), "viewers": listed}
+
+
 def flush(slug: str) -> None:
     """Send every joined socket its snapshot now."""
     r = _rooms.get(slug)
