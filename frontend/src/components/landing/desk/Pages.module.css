@@ -1,0 +1,256 @@
+/*
+ * Pages: the desk object. A mat (the hero's) with a browser window holding the page editor's
+ * loop, the kinds of file that embed live, the locked placeholder a reader without access sees, and
+ * a note. From 900px it is drawn at 760 × 620 and scaled to fit its box (Sections .fitBox /
+ * .fitCanvas); phones get the window, then the kinds and the placeholder, stacked. Tokens only,
+ * light and dark (the loop has twins for both themes).
+ */
+
+/* The headline: one sentence per line, so a wrap never splits "here. Embed". */
+.line {
+  display: block;
+}
+
+.mat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 28px;
+  padding: 52px 14px 22px;
+  border-radius: 24px;
+  background-color: var(--surface-inset);
+  background-image: radial-gradient(color-mix(in srgb, var(--text) 9%, transparent) 1px, transparent 1.4px);
+  background-size: 22px 22px;
+  border: 1px solid var(--border);
+}
+
+.tag {
+  position: absolute;
+  left: 16px;
+  top: -14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 11px;
+  box-sizing: border-box;
+  border-radius: 9999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.tag svg {
+  font-size: 14px;
+  color: var(--accent-text);
+}
+
+/* The browser window (its tag sits above it, clear of the address bar) */
+.window {
+  position: relative;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--border-strong),
+    0 18px 30px -12px rgb(17 26 44 / 0.28);
+}
+.window > div:last-child {
+  border-radius: 0 0 12px 12px;
+}
+.window > .tag {
+  left: 0;
+  top: -38px;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+}
+.dots {
+  display: inline-flex;
+  gap: 6px;
+}
+.dots i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+.url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  height: 22px;
+  line-height: 22px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+}
+
+/* What embeds live */
+.kinds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.kindsHead {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-raised);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.kind svg {
+  font-size: 15px;
+  color: var(--accent-text);
+}
+
+/* The locked placeholder (as a page shows it) */
+.locked {
+  position: relative;
+  padding-top: 14px;
+}
+.lockedBody {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-strong);
+  background: var(--surface-raised);
+}
+.lockedBody > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.lockedBody b {
+  font-size: 14px;
+  color: var(--text);
+}
+.lockedBody > span:last-child > span {
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.lockIcon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface-inset);
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.note {
+  display: none;
+}
+
+@media (min-width: 900px) {
+  .mat {
+    display: block;
+    width: 760px;
+    height: 620px;
+    padding: 0;
+    border-radius: 32px;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+  .window {
+    position: absolute;
+    left: 28px;
+    top: 60px;
+    width: 556px;
+  }
+  .kinds {
+    position: absolute;
+    left: 606px;
+    top: 66px;
+    width: 128px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .kindsHead {
+    margin-bottom: 2px;
+  }
+  .kind {
+    transform: rotate(var(--r, 0deg));
+  }
+  .kind:nth-child(2) {
+    --r: -1.5deg;
+  }
+  .kind:nth-child(3) {
+    --r: 1deg;
+  }
+  .kind:nth-child(4) {
+    --r: -0.8deg;
+  }
+  .kind:nth-child(5) {
+    --r: 1.4deg;
+  }
+  .locked {
+    position: absolute;
+    left: 600px;
+    top: 318px;
+    width: 140px;
+    transform: rotate(2deg);
+    filter: drop-shadow(0 12px 16px rgb(17 26 44 / 0.18));
+  }
+  .locked .tag {
+    left: 8px;
+    top: 0;
+  }
+  .lockedBody {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 26px 14px 14px;
+  }
+  .note {
+    display: block;
+    position: absolute;
+    left: 40px;
+    top: 538px;
+    transform: rotate(-3deg);
+    color: var(--accent-text);
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+}

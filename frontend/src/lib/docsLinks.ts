@@ -13,6 +13,8 @@ export const DOCS_PAGES = {
   passwordsAndExpiry: "/documents/passwords-and-expiry",
   linkPreviews: "/documents/link-previews",
   readmeBuilder: "/documents/readme-builder",
+  // Pages (the block editor)
+  pagesOverview: "/pages/overview",
   // Files
   supportedTypes: "/files/supported-types",
   fileLimits: "/files/limits",
