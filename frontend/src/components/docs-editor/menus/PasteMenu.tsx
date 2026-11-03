@@ -15,7 +15,7 @@
  */
 import "./paste.css";
 import type { Editor } from "@tiptap/core";
-import type { Mark, Node as PMNode } from "@tiptap/pm/model";
+import { Fragment, Slice, type Mark, type Node as PMNode } from "@tiptap/pm/model";
 import { NodeSelection, TextSelection, type Transaction } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -25,7 +25,7 @@ import { parseBlocks } from "../core/markdown.mjs";
 import { cx } from "../views/shared";
 import type { PageResolvedItem, PagesEditorHost, UploadImage } from "../types";
 import { markdownSlice } from "./markdownSlice";
-import { bareUrl, normalizePastedHTML, pasteMarkdown, pasteTargets, pickSource, type PasteTarget, type PasteTargetId } from "./paste";
+import { bareUrl, MATH_LANG, normalizePastedHTML, pasteMarkdown, pasteTargets, pickSource, type PasteTarget, type PasteTargetId } from "./paste";
 import { watchPastedImages } from "./pasteImages";
 
 interface MenuState {
@@ -137,6 +137,24 @@ export class PasteController {
     } catch {
       return html;
     }
+  };
+
+  /** transformPasted: equations that came in as code (see MATH_LANG) become math blocks. */
+  slice = (slice: Slice): Slice => {
+    let changed = false;
+    const map = (frag: Fragment): Fragment => {
+      const out: PMNode[] = [];
+      frag.forEach((n) => {
+        const math = n.type.schema.nodes.mathBlock;
+        if (n.type.name === "codeBlock" && n.attrs.language === MATH_LANG && math) {
+          changed = true;
+          out.push(math.create(null, n.textContent ? n.type.schema.text(n.textContent) : null));
+        } else out.push(n.isLeaf || !n.content.size ? n : n.copy(map(n.content)));
+      });
+      return Fragment.from(out);
+    };
+    const content = map(slice.content);
+    return changed ? new Slice(content, slice.openStart, slice.openEnd) : slice;
   };
 
   /** transformPastedText: Markdown other tools write (Notion's callouts, GitHub's alerts, details). */

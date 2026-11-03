@@ -159,6 +159,7 @@ export default function VisualEditor(props: VisualEditorProps) {
       clipboardTextParser: (text, _ctx, plain, view: EditorView) => markdownSlice(text, view.state.schema, plain),
       clipboardTextSerializer: (slice) => sliceMarkdown(slice),
       transformPastedHTML: (html) => paste.html(html),
+      transformPasted: (slice) => paste.slice(slice),
       transformPastedText: (text, plain) => paste.text(text, plain),
       handleKeyDown: (view, event) => paste.keyDown(view, event),
       handlePaste: (view, event) => {

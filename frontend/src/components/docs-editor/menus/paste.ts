@@ -287,6 +287,9 @@ const JUNK = "style, script, meta, link, title, noscript, template, iframe, obje
 const CALLOUT_COLORS = new Set(["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"]);
 const KEEP_ATTRS = new Set(["href", "start", "data-checked", "data-docs", "data-src", "data-alt", "data-title", "data-label", "data-kind", "data-attributes", "data-value", "data-name"]);
 
+/** The code language a pasted display equation travels in (PasteController.slice makes it a math block). */
+export const MATH_LANG = "x-markdrop-math";
+
 export interface NormalizeOptions {
   /** A page (Notion-style blocks: toggles with `summary`, callout icons and colours, H1–H3 only). */
   page?: boolean;
@@ -345,8 +348,10 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
     const display = k.matches(".katex-display, figure.equation") || !!k.closest("figure.equation");
     const host = k.closest("figure.equation") ?? k;
     if (display) {
+      // The schema's code block reads every <pre> first, so an equation travels as code in a
+      // language of its own, which PasteController.slice makes a math block.
       const pre = el("pre", { "data-docs": "mathBlock" });
-      const code = el("code");
+      const code = el("code", { class: `language-${MATH_LANG}` });
       code.textContent = tex;
       pre.append(code);
       host.replaceWith(pre);
@@ -385,6 +390,11 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
   // 5. Callouts: Notion (`figure.callout`, `aside`), GitHub alerts, docs-site admonitions.
   for (const e of $("figure.callout, aside, .markdown-alert, .admonition, .theme-admonition, div[role='note']")) {
     if (!e.isConnected || e.closest("[data-docs]")) continue;
+    // A page's sidebar is an `aside` too: only a short note is a callout.
+    if (e.tagName === "ASIDE" && e.querySelector("nav, ul, ol, h1, h2, h3, h4, table, form")) {
+      unwrap(e);
+      continue;
+    }
     callout(e);
   }
 
@@ -399,7 +409,7 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
     if (!li) {
       // A checkbox on its own line: that line becomes a one-item to-do list.
       const line = blockOf(box);
-      if (line === body || !line.parentNode) {
+      if (line === body || !line.parentNode || /^(TD|TH|DT|DD|SUMMARY|CAPTION)$/.test(line.tagName) || line.closest("table")) {
         box.remove();
         continue;
       }
@@ -417,7 +427,7 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
   for (const li of $("li:not([data-checked])")) {
     const first = firstText(li);
     const m = first ? /^\s*(\[([ xX])\]|([☐☑☒✅]))\s+/.exec(first.data) : null;
-    if (!first || !m) continue;
+    if (!first || !m || first.parentElement?.closest("li") !== li) continue;
     li.setAttribute("data-checked", String(m[2] ? m[2] !== " " : m[3] !== "☐"));
     first.data = first.data.slice(m[0].length);
   }
@@ -564,7 +574,7 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
 
   // 15. Empty lines: paragraphs and headings with nothing in them, stray line breaks between blocks.
   for (const e of $("p, h1, h2, h3, h4, h5, h6, li:not([data-checked]), blockquote, span, font").reverse()) {
-    if (!e.isConnected || e.querySelector("img, figure, [data-docs], hr, input, ul, ol, pre, table")) continue;
+    if (!e.isConnected || e.hasAttribute("data-docs") || e.querySelector("img, figure, [data-docs], hr, input, ul, ol, pre, table")) continue;
     if (!hasText(e)) e.remove();
   }
   for (const br of $("br")) {
@@ -575,6 +585,9 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
       br.remove();
     else if (!br.nextSibling && /^(P|LI|H[1-6])$/.test(parent.tagName)) br.remove(); // a trailing break
   }
+
+  // Lists left with no items.
+  for (const list of $("ul, ol").reverse()) if (!list.querySelector(":scope > li")) list.remove();
 
   // 16. Attributes: only what the schema reads.
   for (const e of $("*")) {
@@ -778,7 +791,11 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
         ci += cs;
       }
     });
-    const width = Math.max(...grid.map((r) => r.length));
+    const width = Math.max(0, ...grid.map((r) => r.length));
+    if (!width) {
+      t.remove();
+      return;
+    }
     const out = el("table");
     const tbody = el("tbody");
     out.append(tbody);
