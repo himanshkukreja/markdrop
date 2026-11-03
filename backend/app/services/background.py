@@ -2,7 +2,7 @@
 one API worker runs it (§5.1, §5.5, A6):
 
     revalidate   every 5 s   send due purge jobs from the outbox
-    sweeper      every 60 s  destroy expired documents (bytes, versions, grants)
+    sweeper      every 60 s  destroy expired documents (bytes, versions, grants); abort lapsed uploads
     reconciler   every 60 s  re-derive dirty rows; a full pass once a day
     guide_insights  hourly   roll up Markdrop Guides' reader insights (services/guide_insights.py) and
                              reader signals (services/guide_signals.py), and re-detect each active
@@ -81,9 +81,14 @@ async def _sweep(db: AsyncIOMotorDatabase) -> None:
     """Destroy what has expired; then, for documents expiring before the next
     pass, wait for each and sweep again (B3) — the policy says gone *at*
     expires_at, so a 60 s pass must not mean up to 60 s of late deletion."""
-    from app.services import lifecycle
+    from app.services import file_uploads, lifecycle
 
     await lifecycle.sweep_expired(db)
+    try:
+        # Uploads (files and page images) nobody finished: abort their parts.
+        await file_uploads.sweep_all_expired(db)
+    except Exception:
+        log.warning("sweeping lapsed uploads failed", exc_info=True)
     deadline = _now() + timedelta(seconds=SWEEP_EVERY)
     while True:
         nxt = await lifecycle.next_expiry(db, deadline - _now())

@@ -171,6 +171,9 @@ class Settings(BaseSettings):
     file_upload_url_ttl: int = 3600
     # An upload session stays usable this long; its row is purged (TTL) a day later.
     file_upload_session_hours: int = 24
+    # A page image sent straight to storage (create_page_image_upload) that isn't
+    # completed within this many hours is aborted (its parts are dropped).
+    page_image_upload_hours: int = 6
     # How long `complete` waits for the sha256 check before answering 202.
     file_complete_wait_seconds: float = 45.0
     # Server-side media probing (duration, size, codecs) and video posters.

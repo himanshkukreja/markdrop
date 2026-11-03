@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "page-image-upload",
+      "date": "2026-11-04",
+      "title": "AI apps add image files and covers to pages, no base64",
+      "kind": "new",
+      "area": "AI and MCP",
+      "products": [
+        "mcp"
+      ],
+      "summary": "Your AI app can now add an image file from disk to a page, up to 20 MB, and make it the page's cover or icon. The file goes straight to storage with one curl command, instead of being pasted into the chat as base64.",
+      "body": "- **`create_page_image_upload`** returns a storage address and the exact `curl` command that sends the file there; **`complete_page_image_upload`** checks the size, the SHA-256 and that the file really is a PNG, JPEG, GIF or WebP image, then returns `asset:<id>` and the Markdown `![alt](asset:<id>)` to put in the page.\n- **Covers and icons:** pass that `asset:<id>` to `set_page_properties` as `cover` or `icon`. Like every page image, it shows only to people who can read the page.\n- **`copy_page_asset`** copies an image from one page to another you can edit, as a new image of that page.\n- Images up to 20 MB this way; an upload not finished within 6 hours is discarded. `upload_page_image` still takes small images as base64, up to 10 MB.",
+      "docs": [
+        "/pages/images",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",
