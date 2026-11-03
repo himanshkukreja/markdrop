@@ -1433,6 +1433,24 @@ class Lock(PageWorld):
         await self.http.delete(f"/api/v1/documents/{page['slug']}/lock", headers=self.session("owner"))
         self.assertEqual((await self.lock(page["slug"], "owner")).status_code, 423)
 
+    async def test_release_as_the_page_closes(self):
+        """navigator.sendBeacon: the session token as a text/plain body, no Authorization header."""
+        page = await self.mkdoc("UP")
+        url = f"/api/v1/documents/{page['slug']}/lock/release"
+        beacon = lambda who: self.session(who)["Authorization"].removeprefix("Bearer ")  # noqa: E731
+        await self.lock(page["slug"], "ge")
+        # Nothing, garbage, someone else's token or a workspace domain's token: 204, and the lock stays.
+        for body in ("", "not-a-token", beacon("owner"), self.tenant("wm", "W1")["Authorization"][7:]):
+            r = await self.http.post(url, content=body, headers={"Content-Type": "text/plain"})
+            self.assertEqual(r.status_code, 204)
+            self.assertEqual((await self.lock(page["slug"], "owner")).status_code, 423)
+        # The holder's own token lets it go.
+        r = await self.http.post(url, content=beacon("ge"), headers={"Content-Type": "text/plain"})
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual((await self.lock(page["slug"], "owner")).status_code, 200)
+        r = await self.http.post("/api/v1/documents/no-such-page/lock/release", content=beacon("ge"))
+        self.assertEqual(r.status_code, 204)
+
     async def test_presence_marks_the_holder_editing(self):
         page = await self.mkdoc("UP")
         await self.lock(page["slug"], "ge")

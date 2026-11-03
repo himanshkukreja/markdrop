@@ -572,6 +572,41 @@ async def release_page_lock(
     await pages.release_lock(db, raw, actor, _ctx(db, request))
 
 
+@router.post("/{slug}/lock/release", status_code=204)
+@limiter.limit(settings.rate_limit_edit)
+async def release_page_lock_on_close(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+):
+    """``DELETE …/lock`` for a page that is closing. The browser sends it with
+    ``navigator.sendBeacon``: a keepalive DELETE needs a CORS preflight that
+    browsers don't make while a page unloads, and a beacon can't carry an
+    Authorization header, so the markdrop.in session token is the text/plain
+    body. Anything else (no token, a tenant or API token, someone else's lock)
+    is ignored; the answer is always 204."""
+    import jwt
+
+    from app.services import user as user_service
+    from app.utils.auth import decode_access_token
+
+    token = (await request.body())[:4096].decode("utf-8", "ignore").strip()
+    try:
+        payload = decode_access_token(token)
+    except jwt.InvalidTokenError:
+        return
+    if payload.get("typ") == "tenant":
+        return
+    user = await user_service.get_user_by_id(db, payload.get("sub", ""))
+    raw = await db["documents"].find_one({"slug": slug}) if user else None
+    if raw is None:
+        return
+    try:
+        await pages.release_lock(db, raw, access.Actor(user=user, cred="session"), _ctx(db, request))
+    except HTTPException:
+        return
+
+
 async def _beacon_target(db: AsyncIOMotorDatabase, slug: str, ticket: str | None) -> dict | None:
     """The document a beacon may be recorded against, or None. Anonymous-
     readable documents need no ticket; anything else needs a valid one (§2.7).

@@ -248,20 +248,24 @@ export function savePage(slug: string, input: { title: string | null; content: s
 }
 
 /** Take (or refresh) the edit lock: held 2 minutes, refreshed every 30 s. 423 when someone else has it. */
-// Chromium sends the unlock as a page closes (a keepalive DELETE) only when a DELETE to that address
-// has already passed its CORS preflight. So before the first lock of a page in this tab, one DELETE:
-// harmless, it lets go only of a lock this person holds, which the POST takes straight back.
-const unlockReady = new Set<string>();
-
-export async function lockPage(slug: string, secret?: string | null) {
-  if (!unlockReady.has(slug)) {
-    unlockReady.add(slug);
-    await unlockPage(slug, { secret }).catch(() => {});
-  }
+export function lockPage(slug: string, secret?: string | null) {
   return call<LockInfo>(`/api/v1/documents/${enc(slug)}/lock`, { method: "POST", secret });
 }
 
 export function unlockPage(slug: string, opts?: { keepalive?: boolean; secret?: string | null }) {
+  // The page is closing: a beacon, with the session token as its body. A keepalive DELETE needs a
+  // CORS preflight (the API is on another origin) that browsers don't make while a page unloads, so
+  // the lock would stay taken for two more minutes.
+  const t = opts?.keepalive ? getToken() : null;
+  if (t && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+    try {
+      if (navigator.sendBeacon(`${API_BASE}/api/v1/documents/${enc(slug)}/lock/release`, new Blob([t], { type: "text/plain" }))) {
+        return Promise.resolve();
+      }
+    } catch {
+      /* fall through to the DELETE */
+    }
+  }
   return call<void>(`/api/v1/documents/${enc(slug)}/lock`, { method: "DELETE", keepalive: opts?.keepalive, secret: opts?.secret });
 }
 

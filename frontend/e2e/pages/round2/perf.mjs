@@ -11,7 +11,7 @@
  *   PERF_OUT=result.json          also write the numbers to a file
  */
 import fs from "node:fs";
-import { APP, context, launch, newPage } from "./lib.mjs";
+import { APP, context, launch, newPage, readerContext } from "./lib.mjs";
 import { page300 } from "./page300.mjs";
 
 const stat = (a) => {
@@ -144,13 +144,20 @@ for (let y = 120; y < 860; y += 12) await p.mouse.move(box.x + 40, y);
 await p.waitForTimeout(400);
 const hover = await take();
 
-// The reader.
+// The reader (signed out: the owner opens the editor at the page's address).
+const rd = (await readerContext(browser, slug)).p;
+await rd.addInitScript(() => {
+  window.__long = [];
+  try {
+    new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(e.duration))).observe({ type: "longtask", buffered: true });
+  } catch {}
+});
 const r0 = Date.now();
-await p.goto(`${APP}/${slug}`, { waitUntil: "domcontentloaded" });
-await p.locator(".pb-page h2").first().waitFor({ timeout: 90000 });
+await rd.goto(`${APP}/${slug}`, { waitUntil: "domcontentloaded" });
+await rd.locator(".pb-page h2").first().waitFor({ timeout: 90000 });
 const readerMs = Date.now() - r0;
-await p.waitForTimeout(2000);
-const readerLong = await p.evaluate(() => window.__long);
+await rd.waitForTimeout(2000);
+const readerLong = await rd.evaluate(() => window.__long);
 
 const evStat = (x) => ({ slow_events: x.e.length, worst_event_ms: Math.max(0, ...x.e.map((e) => e.duration)), long_tasks: x.long.length, worst_long_task_ms: Math.round(Math.max(0, ...x.long)) });
 const res = {

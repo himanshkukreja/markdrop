@@ -79,18 +79,28 @@ export function pending(p) {
   return [...open].sort((a, b) => a[1] - b[1]).map(([r, at]) => `${r.method()} ${r.url().slice(0, 140)} (${Date.now() - at} ms)`);
 }
 
-export async function context(browser, { width = 1280, height = 900, touch = false } = {}) {
+/**
+ * A reader of the page: signed out, with the page opened to anyone with the link. (Pages open in the
+ * editor for anyone who can edit them, so reader checks need someone who can't.)
+ */
+export async function readerContext(browser, slug, opts = {}) {
+  const w = await seed();
+  await call("PUT", `/api/v1/documents/${slug}/access/level`, w.token, { level: "link" });
+  return context(browser, { ...opts, anon: true });
+}
+
+export async function context(browser, { width = 1280, height = 900, touch = false, anon = false } = {}) {
   const w = await seed();
   const c = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: width < 500 ? 2 : 1, colorScheme: THEME, hasTouch: touch, isMobile: touch && BROWSER === "chromium" });
   if (BROWSER === "chromium") await c.grantPermissions(["clipboard-read", "clipboard-write"], { origin: APP }).catch(() => {});
   await c.addInitScript(([th, tok]) => {
     try {
-      localStorage.setItem("markdrop_token", tok);
+      if (tok) localStorage.setItem("markdrop_token", tok);
       localStorage.setItem("md_theme", th);
       localStorage.setItem("md_theme_beta", "1");
       localStorage.setItem("md_consent", "denied");
     } catch {}
-  }, [THEME, w.token]);
+  }, [THEME, anon ? null : w.token]);
   const p = await c.newPage();
   p.on("pageerror", (e) => console.log("  [pageerror]", e.message.slice(0, 300)));
   // Requests still open (printed when a step fails, to tell a hang from a bug).

@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { APP, BROWSER, SHOTS, THEME, context, edit, fail, launch, md, newPage, pending, saved, shot } from "./lib.mjs";
+import { APP, BROWSER, SHOTS, THEME, context, edit, fail, launch, md, newPage, pending, readerContext, saved, shot } from "./lib.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(here, "../../../src/components/docs-editor/test/fixtures/pages.md");
@@ -403,8 +403,10 @@ await step("code-caption-button", async () => {
   const m = await saved(p, slug, [':::button{label="Add a task"}']);
   if ((m.match(/- \[ \] Call the client/g) ?? []).length !== 2) fail(`the button didn't insert:\n${m}`);
   await shot(p, "21-code-caption-button");
-  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
-  const body = await p.locator(".pb-page").innerText();
+  // A reader (the owner now opens the editor at the page's address).
+  const r = await readerContext(browser, slug);
+  await r.p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  const body = await r.p.locator(".pb-page").innerText();
   if (!body.includes("Build the site")) fail("caption missing for readers");
   if ((body.match(/Call the client/g) ?? []).length !== 1) fail("readers see the button's template");
 });
