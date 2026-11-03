@@ -1044,6 +1044,8 @@ export function useDocumentViewer({
   // back from. Stored for this origin only, and stripped from the address bar
   // straight away so it is not left sitting in a URL people copy and paste.
   const [handoffDone, setHandoffDone] = useState(false);
+  /** The signed-in retry below: which read is the latest (an older one's answer is dropped). */
+  const retryGen = useRef(0);
   //
   // Only a tenant token minted for this very host, and never on markdrop.in
   // (`consumeHandoffToken`): a fragment is attacker-controllable, and taking any
@@ -1107,17 +1109,22 @@ export function useDocumentViewer({
       setPwdFetching(false);
       return;
     }
-    let cancelled = false;
+    // Only the latest read answers, and a read always answers unless a newer one has started. A
+    // cleanup must not silence it: when this effect runs again (StrictMode's double run in dev, or a
+    // suspended part re-running effects on show) and returns early, nothing else would lower
+    // "Opening…".
+    const gen = ++retryGen.current;
+    const cancelled = () => gen !== retryGen.current;
     let leaving = false;
     setPwdFetching(true);
     getDocument(slug)
       .then((doc) => {
-        if (cancelled) return;
+        if (cancelled()) return;
         adoptDoc(doc);
         setPwdLocked(false);
       })
       .catch((e) => {
-        if (cancelled) return;
+        if (cancelled()) return;
         // The token itself was not accepted: the API answered as it answers a stranger (a 401
         // "sign in"; a workspace domain's token refused outright has no gate header). A signed-in
         // reader the document isn't shared with gets a 404, never a 401, so this is not a denial
@@ -1143,8 +1150,7 @@ export function useDocumentViewer({
         if (denied) void loadRequestState();
         setPwdLocked(true);
       })
-      .finally(() => { if (!cancelled && !leaving) setPwdFetching(false); });
-    return () => { cancelled = true; };
+      .finally(() => { if (!cancelled() && !leaving) setPwdFetching(false); });
   }, [handoffDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
