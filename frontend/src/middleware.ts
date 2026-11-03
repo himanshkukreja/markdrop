@@ -113,6 +113,8 @@ export function middleware(request: NextRequest) {
 
   // Our own route handlers (geo, revalidate) answer on every host.
   if (pathname.startsWith("/api/")) return NextResponse.next();
+  // So do the built-in page covers: a page on a workspace's domain shows them too.
+  if (pathname.startsWith("/page-covers/")) return NextResponse.next();
 
   if (pathname === "/robots.txt") {
     return new NextResponse(TENANT_ROBOTS, {

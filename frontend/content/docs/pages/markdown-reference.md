@@ -15,7 +15,7 @@ The page's icon, cover and options sit in front matter at the top. Every key is 
 ```yaml
 ---
 icon: 🚀                 # an emoji, or asset:<id> for an uploaded image
-cover: gallery:aurora    # gallery:<name>, asset:<id>, or an https:// image
+cover: gallery:dawn      # gallery:<name>, asset:<id>, or an https:// image
 cover_y: 40              # the cover's focal point, 0 (top) to 100 (bottom); default 50
 full_width: true
 small_text: true
@@ -24,7 +24,7 @@ locked: true             # only the owner and workspace admins can edit
 ---
 ```
 
-The built-in covers are `aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` and `mint`. The page's title isn't in the front matter: it's the document's title.
+The built-in covers come in four sets: paper (`mist`, `linen`, `graphite`), duotone (`fold`, `halftone`, `dusk`), lines (`contour`, `blueprint`, `strata`) and calm (`dawn`, `sage`, `moonlit`). A page that uses a name from the first gallery (`aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` or `mint`) shows the closest of these. The page's title isn't in the front matter: it's the document's title.
 
 ## Text
 

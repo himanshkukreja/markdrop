@@ -40,7 +40,7 @@ from app.mcp.tools import (
     url_pair,
 )
 from app.services import access as access_service
-from app.services import live, page_assets, page_templates, pages, revalidate
+from app.services import live, page_assets, page_props, page_templates, pages, revalidate
 
 settings = get_settings()
 
@@ -163,8 +163,6 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if content:
         _check_embeds(content)
     if args.get("properties"):
-        from app.services import page_props
-
         props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
         if any(str(v or "").startswith("asset:") for v in props.values()):
             raise ToolError("A new page has no images yet: create it, upload_page_image, then "
@@ -350,8 +348,6 @@ async def move_page(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
-    from app.services import page_props
-
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
     changes = {k: args[k] for k in page_props.KEYS if k in args}
@@ -442,7 +438,8 @@ PAGE_TOOLS: list[Tool] = [
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (
-                "Optional page properties: icon (an emoji), cover (gallery:<name>), cover_y, full_width, "
+                "Optional page properties: icon (an emoji), cover (gallery:<name>, one of "
+                f"{', '.join(page_props.GALLERY)}; or an https:// image), cover_y, full_width, "
                 "small_text, font (default, serif, mono), locked.")},
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
@@ -588,7 +585,8 @@ PAGE_TOOLS: list[Tool] = [
         name="set_page_properties",
         title="Set a page's properties",
         description=("Set a page's icon (an emoji, or asset:<id> of an image uploaded with upload_page_image), "
-                     "cover (asset:<id> or gallery:<name>) and its focal point cover_y (0 top .. 100 bottom), "
+                     "cover (asset:<id>, an https:// image, or gallery:<name>, a built-in cover: "
+                     f"{', '.join(page_props.GALLERY)}) and its focal point cover_y (0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one). Pass null to clear one. "
                      "They live in the page's front matter. Refused while someone is editing the page."),
