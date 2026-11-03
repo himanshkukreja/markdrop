@@ -514,15 +514,23 @@ async def update_document(
 
 
 async def delete_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx,
-                          children: str | None = None) -> None:
+                          children: str | None = None, *, expected_id=None) -> dict:
     """Owner or edit secret (D4). Everything goes with it: bytes, old versions,
     posters, grants; caches are purged and the slug is reserved for the same
     owner for 30 days (A8). A page with sub-pages needs ``children``
-    (``delete`` | ``lift``; services/pages.py), else a 409 ``has_children``."""
+    (``delete`` | ``lift``; services/pages.py), else a 409 ``has_children``.
+
+    Only the row at exactly ``slug`` (never one found by title); with
+    ``expected_id``, only if that row is still the one the caller resolved
+    (a rename in between is a 409, not a delete of whatever took the slug).
+    Returns ``{deleted: [{slug, title, kind}], lifted: [...]}``."""
     from app.services import pages
 
     raw = await db["documents"].find_one({"slug": slug})
-    await pages.delete_page(db, raw, actor, ctx, children)
+    if raw is not None and expected_id is not None and raw["_id"] != expected_id:
+        raise HTTPException(status_code=409, detail="That link now points at a different item. "
+                                                    "Look it up again before deleting.")
+    return await pages.delete_page(db, raw, actor, ctx, children)
 
 
 async def claim_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> Document:

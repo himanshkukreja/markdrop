@@ -1050,11 +1050,19 @@ async def delete_document(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "delete", "delete")
     slug = raw["slug"]
     try:
-        await doc_service.delete_document(ctx.db, slug, actor_of(ctx), access_service.Ctx(ctx.db),
-                                          children=args.get("children"))
+        res = await doc_service.delete_document(ctx.db, slug, actor_of(ctx), access_service.Ctx(ctx.db),
+                                                children=args.get("children"), expected_id=raw["_id"])
     except HTTPException as exc:
         raise ToolError(http_message(exc))
-    return f"Deleted {slug}.", {"deleted": True, "slug": slug}
+    items, lifted = res["deleted"], res["lifted"]
+
+    def name(i: dict) -> str:
+        return f"{i['title']!r} ({i['slug']}, {i['kind']})" if i.get("title") else f"{i['slug']} ({i['kind']})"
+
+    text = f"Deleted {len(items)} item{'s' if len(items) != 1 else ''}: " + "; ".join(name(i) for i in items) + "."
+    if lifted:
+        text += " Moved up a level (not deleted): " + "; ".join(name(i) for i in lifted) + "."
+    return text, {"deleted": True, "slug": slug, "deleted_items": items, "lifted_items": lifted}
 
 
 async def get_document_stats(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2002,6 +2010,11 @@ def _ann(read_only: bool, destructive: bool, idempotent: bool) -> dict:
             "idempotentHint": idempotent, "openWorldHint": False}
 
 
+_DELETED_ITEMS = {"type": "array", "items": {"type": "object", "properties": {
+    "slug": {"type": "string"}, "title": _NULLABLE_STR,
+    "kind": {"type": "string", "enum": ["file", "page", "document"]},
+}, "required": ["slug", "title", "kind"]}}
+
 TOOLS: list[Tool] = [
     Tool(
         name="publish_document",
@@ -2182,9 +2195,12 @@ TOOLS: list[Tool] = [
     Tool(
         name="delete_document",
         title="Delete a document",
-        description=("Permanently delete one of the user's documents or files. The link stops working and this "
-                     "can't be undone. A page with pages inside it needs children: 'delete' (they go too) or "
-                     "'lift' (they move up a level)."),
+        description=("Permanently delete one of the user's documents, pages or files: exactly the one at the "
+                     "slug or link given (never matched by title, so another item with the same title is "
+                     "untouched). The link stops working and this can't be undone. A page with pages inside it "
+                     "needs children: 'delete' (they go too) or 'lift' (they move up a level). The result lists "
+                     "every item deleted in deleted_items ({slug, title, kind: file|page|document}, sub-pages "
+                     "first, the item itself last) and any sub-pages moved up in lifted_items."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -2192,7 +2208,9 @@ TOOLS: list[Tool] = [
             "children": {"type": "string", "enum": ["delete", "lift"],
                          "description": "Only for a page with sub-pages: delete them too, or move them up a level."},
         }, "required": ["document"]},
-        output_schema=_out({"deleted": {"type": "boolean"}, "slug": {"type": "string"}}),
+        output_schema=_out({"deleted": {"type": "boolean"}, "slug": {"type": "string"},
+                            "deleted_items": _DELETED_ITEMS, "lifted_items": _DELETED_ITEMS},
+                           ["deleted", "slug", "deleted_items", "lifted_items"]),
         annotations=_ann(False, True, True),
         handler=delete_document,
     ),
