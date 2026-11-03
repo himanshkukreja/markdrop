@@ -63,6 +63,7 @@ const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) 
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
+const ChangeLinkDialog = dynamic(() => import("@/components/pages/slug/ChangeLinkDialog").then((m) => m.ChangeLinkDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
 
 /**
@@ -209,6 +210,7 @@ export default function DocumentView(props: DocumentViewProps) {
     };
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const [deleting, setDeleting] = useState(false);
+  const [changingLink, setChangingLink] = useState(false);
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
   const [treeKey, setTreeKey] = useState(0);
@@ -446,6 +448,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
     ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
     ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
+    ...(isPage && !tenant && (isOwner || v.canEditSettings) ? [{ label: "Change link…", icon: "link", description: "The old link keeps working", onClick: () => setChangingLink(true) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -1065,6 +1068,7 @@ export default function DocumentView(props: DocumentViewProps) {
         <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
       )}
       {pageActions}
+      {changingLink && <ChangeLinkDialog slug={slug} secret={v.secretInput || null} onClose={() => setChangingLink(false)} />}
       {isPage && (
         <DeletePageDialog
           open={deleting}

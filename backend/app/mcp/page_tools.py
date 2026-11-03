@@ -27,6 +27,7 @@ from app.mcp.tools import (
     ENCRYPTED_READ,
     ENCRYPTED_WRITE,
     MAX_RETURNED_CHARS,
+    SLUG_ARG,
     Context,
     Tool,
     ToolError,
@@ -37,6 +38,7 @@ from app.mcp.tools import (
     load_for,
     precheck_workspace,
     resolve_doc,
+    slug_error,
     url_pair,
 )
 from app.services import access as access_service
@@ -178,9 +180,9 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         raw, _secret, error = await pages.create_page(
             ctx.db, ctx.user, actor_of(ctx), _actx(ctx), title=args["title"], workspace=ws_id,
             folder=args.get("folder") if ws_id else None, parent=parent_slug,
-            template=args.get("template"), content=content)
+            template=args.get("template"), content=content, slug=args.get("slug") or None)
     except HTTPException as exc:
-        raise ToolError(http_message(exc))
+        raise ToolError(slug_error(args.get("slug"), exc))
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
            "editor": "blocks", "parent": parent_slug, "workspace_error": error}
     where = f" inside {parent_slug}" if parent_slug else ""
@@ -439,6 +441,9 @@ PAGE_TOOLS: list[Tool] = [
         description=("Create a Markdrop page (a document that opens in the block editor), optionally from a "
                      "template (see list_page_templates), in a workspace folder, or inside another page "
                      "(parent: it then lives in that page's workspace and folder and has the same access). "
+                     "slug sets its link: markdrop.in/<slug>, and on the workspace's domain "
+                     "/<folders>/<parent pages>/<slug>; a taken slug is an error naming it (never a silent "
+                     "rename); change it later with set_slug. "
                      "Always give the user the returned url. " + _SYNTAX),
         scope=WRITE,
         writes=True,
@@ -449,6 +454,8 @@ PAGE_TOOLS: list[Tool] = [
             "parent": {**_DOC_REF, "description": "Optional: the page to put it inside (slug or link). The user "
                                                   "must be able to edit it."},
             "template": {"type": "string", "enum": [t["id"] for t in page_templates.TEMPLATES]},
+            "slug": {**SLUG_ARG, "description": ("Optional: its link (random if omitted). 3-50 letters, digits, "
+                                                 "- or _. If it is taken you get an error naming it.")},
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (

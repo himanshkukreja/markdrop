@@ -347,6 +347,9 @@ class PageCreate(BaseModel):
     parent: str | None = Field(None, min_length=1, max_length=64)
     template: str | None = Field(None, min_length=1, max_length=64)
     content: str | None = Field(None, max_length=MAX_CONTENT)
+    # Its link (markdrop.in/<slug>, and its last segment on a workspace's domain):
+    # publish's custom-slug rules; 409 when taken. Random when left out.
+    slug: str | None = Field(None, min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
 
 
 class PageCreateResponse(BaseModel):

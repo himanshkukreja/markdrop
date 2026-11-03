@@ -622,6 +622,9 @@ async def publish_document(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError('Access "workspace" needs a workspace: pass workspace too.')
     expires_in, custom_at = expiry(args.get("expires"))
     title = (args.get("title") or "").strip() or None
+    editor = args.get("editor") or "classic"
+    if editor not in ("blocks", "classic"):
+        raise ToolError('editor is "blocks" (a page, opened in the block editor) or "classic".')
     try:
         data = DocumentCreate(
             title=title,
@@ -635,10 +638,19 @@ async def publish_document(ctx: Context, args: dict) -> tuple[str, dict]:
         )
     except ValidationError:
         raise ToolError("Those publish settings aren't valid. Check the slug, title and password.")
+    if ws_id and args.get("slug"):
+        # A custom slug beside a folder of that slug is refused before anything exists (B5).
+        from app.services import folder as _folder
+
+        try:
+            await _folder.assert_doc_fits(ctx.db, ws_id, folder_id, args["slug"])
+        except HTTPException as exc:
+            raise ToolError(http_message(exc))
     try:
-        doc, _secret = await doc_service.create_document(ctx.db, data, owner_id=ctx.user.id)
+        doc, _secret = await doc_service.create_document(
+            ctx.db, data, owner_id=ctx.user.id, extra={"editor": "blocks"} if editor == "blocks" else None)
     except HTTPException as exc:
-        raise ToolError(http_message(exc))
+        raise ToolError(slug_error(args.get("slug"), exc))
     raw = await ctx.db["documents"].find_one({"slug": doc.slug})
     if ws_id:
         raw = await place(ctx, raw, args["workspace"], args.get("folder"), access, password)
@@ -648,8 +660,10 @@ async def publish_document(ctx: Context, args: dict) -> tuple[str, dict]:
         "title": doc.title,
         "access": access,
         "expires_at": iso(doc.expires_at),
+        "editor": editor,
     }
-    return f"Published: {out['url']} (visible to {await audience(ctx, raw)}).", out
+    what = "page" if editor == "blocks" else "document"
+    return f"Published the {what}: {out['url']} (visible to {await audience(ctx, raw)}).", out
 
 
 def who_text(access: str, raw: dict | None = None, *, require_auth: bool = False) -> str:
@@ -1903,8 +1917,10 @@ _PUBLISH_OPTIONS = {
     "title": {"type": "string", "maxLength": 200, "description": "Optional title shown on the page."},
     "slug": {
         "type": "string", "pattern": "^[a-zA-Z0-9_-]{3,50}$",
-        "description": ("Optional custom address: markdrop.in/<slug>. 3-50 letters, digits, - or _. "
-                        "Random if omitted. If it is taken you get an error (never a silent rename)."),
+        "description": ("Optional custom address: markdrop.in/<slug> (and the last part of its address on "
+                        "a workspace's domain). 3-50 letters, digits, - or _. Random if omitted. If it is "
+                        "taken you get an error naming it (never a silent rename). Change it later with "
+                        "set_slug."),
     },
     "access": {
         "type": "string", "enum": ACCESS_WITH_WORKSPACE,
@@ -1923,6 +1939,29 @@ _PUBLISH_OPTIONS = {
     "expires": {"type": "string", "enum": EXPIRY_CHOICES, "default": "never",
                 "description": "When the link stops working."},
 }
+
+
+SLUG_ARG = {
+    "type": "string", "pattern": "^[a-zA-Z0-9_-]{3,50}$",
+    "description": ("The link: markdrop.in/<slug>, and the last part of its address on its workspace's "
+                    "domain. 3-50 letters, digits, - or _. If it is taken you get an error (never a "
+                    "silent rename)."),
+}
+
+
+def slug_error(slug: str | None, exc: HTTPException) -> str:
+    """A refused custom link, naming it. Anything else: the API's own words."""
+    detail = http_message(exc)
+    if not slug:
+        return detail
+    if exc.status_code == 422 and "3-50" in detail:
+        return f"'{slug}' can't be a link: use 3-50 letters, digits, - or _. Nothing was changed."
+    if exc.status_code == 409 and "reserved" in detail.lower():
+        return f"The link '{slug}' is reserved for Markdrop's own pages. Choose another; nothing was changed."
+    if exc.status_code == 409 and "already taken" in detail:
+        return (f"The link '{slug}' is already taken (another document has it or had it, or it was "
+                "deleted less than 30 days ago). Choose another; nothing was changed.")
+    return detail
 
 
 def _out(properties: dict, required: list[str] | None = None) -> dict:
@@ -1975,7 +2014,9 @@ TOOLS: list[Tool] = [
             "Publish markdown as a Markdrop document and get back a link that opens it "
             "rendered in any browser (headings, tables, code, Mermaid diagrams and math). "
             "Use it for notes, reports, docs and write-ups. Always give the user the returned url. "
-            "Documents are readable by anyone with the link unless access is 'private' or 'password'."
+            "Documents are readable by anyone with the link unless access is 'private' or 'password'. "
+            "slug sets its link (change it later with set_slug). editor 'blocks' makes it a page that opens "
+            "in the block editor (like create_page); 'classic' (the default) opens in the Markdown editor."
         ),
         scope=WRITE,
         writes=True,
@@ -1985,12 +2026,17 @@ TOOLS: list[Tool] = [
                 "markdown": {"type": "string", "minLength": 1, "maxLength": settings.max_content_chars,
                              "description": "The document, in GitHub-flavoured markdown."},
                 **_PUBLISH_OPTIONS,
+                "editor": {"type": "string", "enum": ["classic", "blocks"], "default": "classic",
+                           "description": ("Optional: 'blocks' makes it a page (it opens in the block editor; "
+                                           "see create_page for page Markdown); 'classic' (the default) "
+                                           "opens in the Markdown editor.")},
             },
             "required": ["markdown"],
         },
         output_schema=_out({
             **_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
             "access": _ACCESS_OUT, "expires_at": _NULLABLE_STR,
+            "editor": {"type": "string", "enum": ["classic", "blocks"]},
         }, ["url", "markdrop_url", "slug", "title", "access", "expires_at"]),
         annotations=_ann(False, False, False),
         handler=publish_document,
@@ -2705,5 +2751,10 @@ TOOLS += [
 from app.mcp.page_tools import PAGE_TOOLS  # noqa: E402  (it imports helpers from here)
 
 TOOLS += PAGE_TOOLS
+
+# A document's link (set_slug): app/mcp/slug_tools.py.
+from app.mcp.slug_tools import SLUG_TOOLS  # noqa: E402
+
+TOOLS += SLUG_TOOLS
 
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

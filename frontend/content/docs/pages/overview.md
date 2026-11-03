@@ -1,8 +1,8 @@
 ---
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
-updated: 2026-11-03
-keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move]
+updated: 2026-11-04
+keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move, link, slug, change link, url, redirect]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -58,11 +58,30 @@ The **⋯** menu in the top bar has:
 
 - The font: **Default**, **Serif** or **Mono**, then the **Small text** and **Full width** switches.
 - **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
-- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
+- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Change link…** (owners), **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
 - **Export PDF** and **Details** (published, views and who can open it).
 - The word count.
 
 These options are saved in the page's Markdown, so they travel with it. See [Page Markdown reference](/pages/markdown-reference).
+
+## Change a page's link
+
+A page's link ends with its slug: `markdrop.in/q3-plan`, and in a workspace with its own domain `docs.acme.com/product-hub/q3-plan` (its folders first, then any pages it sits inside, then the slug). To change it, you need to own the page:
+
+::::steps
+### Open Change link
+Choose **Change link…** from the page's **⋯** menu.
+
+### Type the new link
+Type the new slug: 3 to 50 letters, numbers, hyphens (`-`) or underscores (`_`). As you type, Markdrop checks it and shows the whole new address, with your domain and folders. A slug another document uses or used, or one deleted in the last 30 days, can't be used, and neither can the name of a folder next to the page.
+
+### Choose Change link
+The page opens at its new link.
+::::
+
+The old link keeps working. Anyone who can open the page and follows it is sent to the new link, on markdrop.in and on your workspace's domain, and the addresses of its sub-pages follow. Embeds and mentions of the page in other pages keep working without any change. Nobody else can ever take the old link.
+
+You can also choose the link when an AI app makes the page, and change it later from the app: see `create_page` and `set_slug` in [MCP tools](/ai/tools#pages). More about links in [Choose a link for your document](/documents/addresses).
 
 ## Duplicate a page
 

@@ -186,7 +186,7 @@ export function ArtifactSettingsDrawer({
               error={slugShort ? "Use at least 3 characters." : undefined}
               hint={
                 value.slug !== currentSlug
-                  ? "The old link stops working. Views and analytics carry over."
+                  ? "The old link keeps working: it redirects here. Views and analytics carry over."
                   : "Letters, numbers, hyphens and underscores."
               }
             >

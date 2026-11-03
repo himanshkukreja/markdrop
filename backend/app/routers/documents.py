@@ -358,6 +358,26 @@ async def change_slug(
     return DocumentResponse(**await _full_response(db, after, actor, ctx))
 
 
+@router.get("/{slug}/slug-check")
+@limiter.limit(settings.rate_limit_read)
+async def check_slug(
+    request: Request,
+    slug: str,
+    new_slug: str = Query(..., max_length=100),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """Could the document at ``slug`` move to ``new_slug``? For whoever may
+    rename it (``PATCH …/slug``'s rule): ``{slug, current, available, code
+    (null | same | invalid | reserved | taken | folder), detail, url,
+    markdrop_url, workspace_url, redirects_from}`` — the links it would have
+    (its workspace's domain with folders and parent pages, when it is filed)
+    and the old slugs that already redirect to it."""
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    return await doc_service.check_new_slug(db, slug, new_slug.strip(), actor, _ctx(db, request))
+
+
 @router.patch("/{slug}/settings", response_model=DocumentResponse)
 @limiter.limit(settings.rate_limit_create)
 async def update_settings(
