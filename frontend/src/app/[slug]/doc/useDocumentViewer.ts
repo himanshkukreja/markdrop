@@ -14,9 +14,15 @@ import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
 import { ApiError, createDocument, updateDocument, updateDocumentSettings, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
-import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT, silentSignInUrl } from "@/lib/hosts";
+import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT } from "@/lib/hosts";
 import { isPrimaryHost } from "@/components/tenant/hosts";
-import { consumeHandoffToken, peekHandoffToken } from "@/components/tenant/handoff";
+import {
+  consumeHandoffToken,
+  forgetSessionToken,
+  peekHandoffToken,
+  startSilentHandoff,
+  usableSessionToken,
+} from "@/components/tenant/handoff";
 import { useAuth } from "@/contexts/AuthContext";
 import { track } from "@/lib/track";
 import { useReadDepth } from "@/lib/readDepth";
@@ -701,13 +707,21 @@ export function useDocumentViewer({
   // kept. Raising the flag a second time then, with the retry long finished and nothing left to
   // clear it, left a published password document on the loading skeleton for good.
   const fetchHinted = useRef(false);
+  // Whether this browser has decided what a gated page shows. Until it has, the page shows
+  // "Opening…" rather than the gate: the server render is anonymous, so its gate is the right
+  // answer only for a reader with no session anywhere, and printing it first put "This document is
+  // private" in front of every signed-in reader (and in front of the silent check's round trip on
+  // a workspace's domain) for as long as hydration took. Decided once per mounted view, below.
+  const [gateDecided, setGateDecided] = useState(!isPasswordProtected || !!initialSecret);
   useEffect(() => {
     if (fetchHinted.current) return;
     fetchHinted.current = true;
     if (!isPasswordProtected) return;
-    if (peekHandoffToken() || localStorage.getItem("markdrop_token")) {
+    // usableSessionToken also drops a tenant token that has expired, before anything reads it.
+    if (peekHandoffToken() || usableSessionToken()) {
       setPwdFetching(true);
     }
+    setGateDecided(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [pwdInput, setPwdInput] = useState("");
   const [pwdError, setPwdError] = useState("");
@@ -1020,24 +1034,18 @@ export function useDocumentViewer({
       return;
     }
     if (!hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) {
-      // A gated page on a workspace's own domain, with no session for this origin yet: the
-      // reader may well be signed in on markdrop.in already (they usually came from there). Ask
-      // it quietly, once per tab and page, before showing "Sign in" to someone who already is.
-      // Members, and readers who said yes to this site before, come straight back signed in;
-      // everyone else comes straight back to the gate. No screen is ever shown on the way.
-      if (isPasswordProtected && signInUrl && !localStorage.getItem("markdrop_token")) {
-        const key = `md_silent_handoff:${window.location.host}${window.location.pathname}`;
-        let tried = true;
-        try {
-          tried = sessionStorage.getItem(key) === "1";
-          if (!tried) sessionStorage.setItem(key, "1");
-        } catch {
-          /* storage blocked: never loop, just show the gate */
-        }
-        if (!tried) {
-          setPwdFetching(true); // "Opening…", not a Sign in screen that is about to vanish
+      // A gated page on a workspace's own domain, with no live session for this origin (none
+      // yet, or a tenant token that has expired: usableSessionToken drops those): the reader may
+      // well be signed in on markdrop.in already (they usually came from there). Ask it quietly
+      // before showing "Sign in" to someone who already is. Members, and readers who said yes to
+      // this site before, come straight back signed in; everyone else comes straight back to the
+      // gate. No screen is ever shown on the way. At most once per page every couple of minutes
+      // (startSilentHandoff), so it can never loop.
+      if (isPasswordProtected && signInUrl && !usableSessionToken()) {
+        if (startSilentHandoff(signInUrl)) {
+          // Still on this page until the navigation commits, so this runs first.
           stashKeyForSignIn(); // the handoff comes back on #mdt=…, without the key
-          window.location.replace(silentSignInUrl(signInUrl));
+          setPwdFetching(true); // "Opening…", not a Sign in screen that is about to vanish
           return;
         }
       }
@@ -1062,8 +1070,21 @@ export function useDocumentViewer({
     if (!handoffDone) return;
     if (!pwdLocked && !pwdFetching) return;
     if (typeof window === "undefined") return;
-    if (!localStorage.getItem("markdrop_token")) return;
+    if (!usableSessionToken()) {
+      // The session seen a moment ago is gone: AuthContext dropped it when /auth/me refused it
+      // (this view can hydrate after the app shell, so that check may have answered first). Ask
+      // markdrop.in for a fresh one on a workspace's domain, or show the gate; never leave the
+      // "Opening…" raised above with nothing left to lower it.
+      if (initialSecret) return; // the edit-secret read owns pwdFetching
+      if (pwdLocked && startSilentHandoff(signInUrl)) {
+        stashKeyForSignIn();
+        return;
+      }
+      setPwdFetching(false);
+      return;
+    }
     let cancelled = false;
+    let leaving = false;
     setPwdFetching(true);
     getDocument(slug)
       .then((doc) => {
@@ -1073,16 +1094,32 @@ export function useDocumentViewer({
       })
       .catch((e) => {
         if (cancelled) return;
-        // A password gate is not a denial — they simply have not typed it yet.
-        // Anything else, with a token in hand, means this account was checked
-        // and refused.
+        // The token itself was not accepted: the API answered as it answers a stranger (a 401
+        // "sign in"; a workspace domain's token refused outright has no gate header). A signed-in
+        // reader the document isn't shared with gets a 404, never a 401, so this is not a denial
+        // and must not say "you don't have access". On a workspace's domain the token is dead:
+        // drop it and ask markdrop.in for a fresh one (once; startSilentHandoff guards the loop).
+        const tokenRefused = e instanceof ApiError && e.status === 401
+          && (e.message === "SIGNIN_REQUIRED" || gate === "signin");
+        if (tokenRefused && !isPrimaryHost(window.location.host)) {
+          forgetSessionToken();
+          refreshAuth().catch(() => {});
+          if (startSilentHandoff(signInUrl)) {
+            leaving = true;
+            stashKeyForSignIn();
+            return;
+          }
+        }
+        // A password gate is not a denial either: they simply have not typed it yet.
+        // Anything else, with a token in hand, means this account was checked and refused.
         const needsPassword = e instanceof Error && e.message === "PASSWORD_REQUIRED";
-        setAccessDenied(!needsPassword);
+        const denied = !needsPassword && !tokenRefused;
+        setAccessDenied(denied);
         setDeniedInfo(null);
-        if (!needsPassword) void loadRequestState();
+        if (denied) void loadRequestState();
         setPwdLocked(true);
       })
-      .finally(() => { if (!cancelled) setPwdFetching(false); });
+      .finally(() => { if (!cancelled && !leaving) setPwdFetching(false); });
     return () => { cancelled = true; };
   }, [handoffDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1520,7 +1557,9 @@ export function useDocumentViewer({
     keySource,
     previewRef,
     pwdError,
-    pwdFetching,
+    // "Opening…" also while this browser hasn't decided yet whether the gate is the answer (the
+    // server render and the first client render, see `gateDecided`).
+    pwdFetching: pwdFetching || (pwdLocked && !gateDecided),
     pwdInput,
     pwdLocked,
     pwdUnlocking,
