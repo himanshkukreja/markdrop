@@ -59,7 +59,7 @@ test("SSE: limit and error events", () => {
 test("limit messages: the spec's words per reason", () => {
   assert.equal(limitMessage("daily"), "AI limit reached for today. Try again tomorrow.");
   assert.equal(limitMessage("burst"), "You're going a bit fast. Try again in a minute.");
-  for (const r of ["monthly", "blocked", "user_daily", "workspace_off", "off", "not_configured"]) assert.ok(LIMIT_MESSAGES[r], r);
+  for (const r of ["monthly", "global_daily", "global_monthly", "blocked", "user_daily", "workspace_off", "off", "not_configured"]) assert.ok(LIMIT_MESSAGES[r], r);
   assert.equal(limitMessage("something-new"), LIMIT_MESSAGES.daily);
 });
 

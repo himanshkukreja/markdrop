@@ -44,7 +44,7 @@ export class AiError extends Error {
 
 const GENERIC = "AI couldn't do that just now. Try again.";
 const OFFLINE = "Couldn't reach Markdrop. Check your connection and try again.";
-const LIMIT_REASONS = new Set(["daily", "monthly", "burst", "off", "workspace_off", "not_configured", "blocked", "user_daily"]);
+const LIMIT_REASONS = new Set(["daily", "monthly", "global_daily", "global_monthly", "burst", "off", "workspace_off", "not_configured", "blocked", "user_daily"]);
 
 function headers(extra?: Record<string, string | null | undefined>): Record<string, string> {
   const t = getToken();

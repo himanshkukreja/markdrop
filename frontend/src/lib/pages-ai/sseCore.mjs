@@ -8,7 +8,8 @@
  *
  *   {type:"delta", text}   more of the answer
  *   {type:"done", usage?}  finished
- *   {type:"limit", reason} daily | monthly | burst | off | workspace_off | not_configured | blocked | user_daily
+ *   {type:"limit", reason} daily | monthly | global_daily | global_monthly | burst | off | workspace_off |
+ *                          not_configured | blocked | user_daily
  *   {type:"error", detail} something went wrong (a sentence to show)
  *
  * The type is the data's `type`, else the SSE event name (the docs Ask AI stream names its events
@@ -86,6 +87,8 @@ export function toAiEvent(msg) {
 export const LIMIT_MESSAGES = {
   daily: "AI limit reached for today. Try again tomorrow.",
   monthly: "AI limit reached for this month. It resets on the 1st.",
+  global_daily: "AI limit reached for today. Try again tomorrow.",
+  global_monthly: "AI limit reached for this month. It resets on the 1st.",
   burst: "You're going a bit fast. Try again in a minute.",
   blocked: "AI isn't available on your account. Contact support if this looks wrong.",
   user_daily: "You've used your AI for today. Try again tomorrow.",
