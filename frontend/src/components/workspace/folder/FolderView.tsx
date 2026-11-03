@@ -48,6 +48,10 @@ import { ExposureBar, FolderDefaultDialog, exposureOf } from "./ExposureBar";
 import { ItemRow } from "./ItemRow";
 import ItemSheet, { type SheetAction } from "./ItemSheet";
 import PreviewMode from "./PreviewMode";
+import dynamic from "next/dynamic";
+
+// New page: the template gallery loads when it's opened.
+const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
 import RenameItemDialog, { type RenameTarget } from "./RenameItemDialog";
 import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
@@ -271,6 +275,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
 
   /* ── Dialogs ──────────────────────────────────────────────────────── */
   const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [newPageOpen, setNewPageOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [renameFor, setRenameFor] = useState<TreeFolder | null>(null);
   const [deleteFor, setDeleteFor] = useState<TreeFolder | null>(null);
@@ -354,6 +359,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   const countBits = [subfolders.length ? plural(subfolders.length, "folder") : null, plural(directCount, "item")].filter(Boolean).join(" · ");
 
   const newMenu: MenuEntry[] = [
+    { label: "New page", icon: "layers", onClick: () => setNewPageOpen(true), description: "From a template: write with blocks, embed your files" },
     { label: "New document", icon: "lines", href: newDocHref, description: <>Write markdown straight into <Masked>{folder ? `“${folder.name}”` : wsName}</Masked></> },
     uploadTarget
       ? { label: "Upload", icon: "upload", onClick: pickFiles, description: "Videos, PDFs, pages and documents" }
@@ -386,6 +392,9 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       )}
       {shareVisible && (
         <Button variant="secondary" iconLeft="link" onClick={() => setShareTab(folder && canShareFolders ? "link" : "invite")} aria-haspopup="dialog">Share</Button>
+      )}
+      {isMember && (
+        <Button variant="secondary" iconLeft="layers" onClick={() => setNewPageOpen(true)} aria-haspopup="dialog">New page</Button>
       )}
       {isMember && (
         <Dropdown
@@ -784,6 +793,16 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
           toast.success(`Removed from ${wsName}`);
         }}
       />
+
+      {newPageOpen && (
+        <TemplateGallery
+          open
+          onClose={() => setNewPageOpen(false)}
+          workspace={workspaceId}
+          folder={folderId}
+          placeLabel={<>In <Masked>{wsName}</Masked>{folder ? <> › <Masked>{folder.name}</Masked></> : null}. New items here start as {startsAs === "link" ? "anyone with the link" : startsAs === "private" ? "only you" : "everyone in the workspace"}.</>}
+        />
+      )}
 
       <NewFolderDialog
         open={newFolderOpen}

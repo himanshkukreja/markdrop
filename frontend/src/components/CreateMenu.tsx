@@ -6,9 +6,11 @@ import { useMounted } from "@/components/shell/useLocation";
 import { studioUrl } from "@/lib/studioHost";
 
 /**
- * The one Create entry point (REVAMP_PLAN 4.4): a design-system Dropdown with five rows, each a
+ * The one Create entry point (REVAMP_PLAN 4.4): a design-system Dropdown with six rows, each a
  * cat-* tile, a label and one line of description:
  *   Markdown document / "Write or paste markdown, publish a link"            → /new
+ *   Page / "Write with blocks, embed your files, add sub-pages"               → /pages/new
+ *       (the template gallery, then the block editor; signed out: "Needs an account")
  *   Artifact (New) / "HTML page, PDF, spreadsheet, Word doc or video"          → /upload
  *       signed out it adds the caption "Needs an account" (/upload keeps a signed-out draft
  *       and asks for sign-in before publishing)

@@ -9,6 +9,7 @@ import { TreeView, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { can, type TreeFolder, type Workspace } from "@/lib/workspaces";
 import { childrenMap, descendants, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
+import { railPageKey, useRailPages, type RailPage } from "@/components/pages/railPages";
 
 /** What the rail shows. Every field may be missing: the rail omits what failed to load. */
 export interface RailData {
@@ -152,11 +153,27 @@ export function WorkspaceTile({ ws, active, size = 18 }: { ws: Pick<Workspace, "
 
 /** The workspace's tree as rail nodes: the workspace (its root folder view), then its folders by
  *  depth with total counts. Drop targets for rows and folders (dnd-kit) and for files (uploads). */
+/** A page in the rail, with its sub-pages (lazy) a level down. */
+function pageNode(wsId: string, p: RailPage, pagesOf: (key: string) => RailPage[] | undefined): TreeNode {
+  const key = railPageKey(wsId, p.slug);
+  const kids = p.has_children ? pagesOf(key) : [];
+  return {
+    key,
+    label: p.title || "Untitled",
+    icon: <Icon name="layers" size={16} />,
+    href: `/${encodeURIComponent(p.slug)}`,
+    children: kids?.length ? kids.map((k) => pageNode(wsId, k, pagesOf)) : undefined,
+    lazy: p.has_children && kids === undefined,
+    leaf: !p.has_children,
+  };
+}
+
 function workspaceNode(
   ws: Workspace,
   slot: TreeSlot,
   active: boolean,
   onFiles: ((wsId: string, folderId: string | null, label: string, files: File[]) => void) | null,
+  pagesOf: (key: string) => RailPage[] | undefined = () => [],
 ): TreeNode {
   const tree = slot || null;
   const admin = can(tree?.workspace.role ?? ws.role, "admin");
@@ -169,13 +186,17 @@ function workspaceNode(
     const kids = childrenMap(tree.folders);
     const build = (f: TreeFolder): TreeNode => {
       const sub = kids.get(f.id) ?? [];
+      // Its pages, once the folder is open (it may have pages only when it has items).
+      const pages = f.item_count > 0 ? pagesOf(wsFolderKey(ws.id, f.id)) : [];
+      const children = [...sub.map(build), ...(pages ?? []).map((p) => pageNode(ws.id, p, pagesOf))];
       return {
         key: wsFolderKey(ws.id, f.id),
         label: f.name,
         icon: <Icon name="folder" size={16} />,
         count: f.total_count,
         href: `/w/${encodeURIComponent(ws.id)}/f/${encodeURIComponent(f.id)}`,
-        children: sub.length ? sub.map(build) : undefined,
+        children: children.length ? children : undefined,
+        lazy: !children.length && pages === undefined,
         marker: f.share ? (
           <span className="inline-flex shrink-0 text-text-muted" title={f.share.level === "link" ? "Shared by link" : "Shared with the team"}>
             <Icon name="link" size={12} />
@@ -193,6 +214,8 @@ function workspaceNode(
     // header); this link opens it filtered to the workspace.
     children = [
       ...(kids.get(null) ?? []).map(build),
+      // Pages filed at the top of the workspace.
+      ...(tree.unfiled_count > 0 ? pagesOf(wsRootKey(ws.id)) ?? [] : []).map((p) => pageNode(ws.id, p, pagesOf)),
       { key: wsDocsKey(ws.id), label: "Guides", icon: <Icon name="layers" size={16} />, href: studioUrl(`/?ws=${encodeURIComponent(ws.id)}`), leaf: true },
     ];
     total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
@@ -251,9 +274,10 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
       : null),
     [uploads],
   );
+  const pagesOf = useRailPages(expanded);
   const nodes = useMemo(
-    () => (data.workspaces ?? []).map((ws) => workspaceNode(ws, trees[ws.id] ?? null, ws.id === activeWs, onFiles)),
-    [data.workspaces, trees, activeWs, onFiles],
+    () => (data.workspaces ?? []).map((ws) => workspaceNode(ws, trees[ws.id] ?? null, ws.id === activeWs, onFiles, pagesOf)),
+    [data.workspaces, trees, activeWs, onFiles, pagesOf],
   );
 
   const layoutKey = [
