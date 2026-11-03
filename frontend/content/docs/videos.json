@@ -121,6 +121,14 @@
     "duration": "0:31",
     "chapters": "/docs-assets/videos/send-files-p2p.vtt"
   },
+  "series-01-overview": {
+    "src": "/docs-assets/videos/series-01-overview.mp4",
+    "poster": "/docs-assets/videos/series-01-overview.webp",
+    "duration": "2:31",
+    "title": "Markdrop in two and a half minutes",
+    "chapters": "/docs-assets/videos/series-01-overview.vtt",
+    "captions": "/docs-assets/videos/series-01-overview.captions.vtt"
+  },
   "series-02-publish-documents": {
     "src": "/docs-assets/videos/series-02-publish-documents.mp4",
     "poster": "/docs-assets/videos/series-02-publish-documents.webp",
