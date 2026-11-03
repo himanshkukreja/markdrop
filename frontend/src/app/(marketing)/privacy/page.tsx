@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "2 November 2026";
+const UPDATED = "3 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -40,6 +40,7 @@ export default function PrivacyPage() {
         <Li>Documents and files you publish are stored so the link can show them. Anyone with a link-access link can open it; private, password-protected and workspace documents are checked before they open.</Li>
         <Li>Encrypted documents are encrypted in your browser. Our servers store only the encrypted text and never receive the key — the part of the link after <code className="font-mono text-code">#</code>. Anyone with the full link can read it, and we can&rsquo;t recover it. We still see the link name, the size of the encrypted text, dates and view counts, and the page code that does the encrypting is served by us.</Li>
         <Li>Documents you set to expire are deleted when they expire. You can delete anything you own from your dashboard.</Li>
+        <Li>Who&rsquo;s viewing a document is shown live to the others on it and never stored. You appear by name only on documents you have access to (you own it, it&rsquo;s in your workspace, or it was shared with you); everywhere else you&rsquo;re an anonymous animal.</Li>
       </ul>
 
       <H2 id="account">Your account</H2>

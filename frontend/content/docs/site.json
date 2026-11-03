@@ -163,6 +163,7 @@
         "/sharing/who-can-open",
         "/sharing/share-with-people",
         "/sharing/request-access",
+        "/sharing/see-whos-viewing",
         "/sharing/end-to-end-encryption"
       ]
     },
