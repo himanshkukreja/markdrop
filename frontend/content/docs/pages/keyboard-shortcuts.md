@@ -3,7 +3,7 @@ title: Keyboard shortcuts
 description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks.
 updated: 2026-11-03
 prerequisites: [/pages/overview]
-keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo]
+keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest]
 ---
 
 On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** where it says **⌥**.
@@ -17,13 +17,17 @@ On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** wher
 | **⌘ Z** / **⌘ ⇧ Z** | Undo / redo |
 | **⌘ F** | Find and replace |
 | **⌘ K** | Link the selected text |
-| **⌘ B** / **⌘ I** / **⌘ E** | Bold / italic / inline code |
+| **⌘ B** / **⌘ I** / **⌘ U** / **⌘ E** | Bold / italic / underline / inline code |
+| **⌘ ⇧ H** | Apply the last text colour or highlight again |
 | **⌘ ⇧ K** | Keyboard key style |
 | **Esc** | Select the block you're in |
-| **⌘ D** | Duplicate the block |
+| **⇧ ↑** / **⇧ ↓** | With a block selected: add the block above / below |
+| **⌘ A**, then **⌘ A** again | Select the line's text, then every block |
+| **⌘ D** | Duplicate the block (or the selected blocks) |
+| **Delete**, **⌘ C**, **⌘ X** | With blocks selected: delete, copy or cut them |
 | **⌘ ⇧ ↑** / **⌘ ⇧ ↓** (or **⌥ ⇧ ↑ / ↓**) | Move the block up / down |
 | **⌘ Enter** | Check or uncheck a to-do |
-| **Tab** / **⇧ Tab** | Indent / outdent a list item; in a table, the next / previous cell |
+| **Tab** / **⇧ Tab** | Nest the line under the block above / bring it back out (a list item: indent / outdent); in a table, the next / previous cell |
 | **Enter** in the title | Start writing at the top of the page |
 
 ## Turn into

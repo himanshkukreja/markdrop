@@ -3,7 +3,7 @@ title: Page Markdown reference
 description: Every block of a page as Markdown, for people who write it by hand and AI apps that read and write pages.
 updated: 2026-11-03
 prerequisites: [/pages/overview]
-keywords: [markdown, syntax, reference, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark]
+keywords: [markdown, syntax, reference, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption]
 ---
 
 A page is stored as Markdown: GitHub-flavoured Markdown plus a few directives for the blocks Markdown doesn't have. The editor reads and writes exactly this, without changing what it doesn't touch, so a page written by hand, by VS Code or by an AI app opens in the block editor as it was written. AI apps use the same syntax with `get_page`, `update_page`, `append_blocks` and `create_page`.
@@ -161,6 +161,79 @@ Due :date[2026-11-10], owner :person[Ada Lovelace]{id=6650f0c2a1}.
 ```
 
 Dates are `YYYY-MM-DD`. A person is a member of the page's workspace, by their account id.
+
+## Colours and underline
+
+```markdown
+A :span[red word]{color="red"}, a :span[highlight]{bg="yellow"} and :u[underlined text].
+```
+
+The colours are `gray`, `brown`, `orange`, `yellow`, `green`, `blue`, `purple`, `pink` and `red`. A `:span` takes either `color` (the text) or `bg` (the background), not both.
+
+## Block options
+
+A block's colour, its link name and other options go in braces at the end of the block. For tables, code blocks, dividers and equations, they go on a line of their own just after the block:
+
+````markdown
+A paragraph in green, with a link name. {#b-k3x9a1 color="green"}
+
+### A heading on a blue background {bg="blue"}
+
+- An item {bg="pink"}
+- [ ] A to-do {color="orange"}
+
+> A quote {color="gray"}
+
+![A chart](asset:a1b2c3d4 "Its caption"){width="60%" align="left"}
+
+```js
+console.log("hello");
+```
+{caption="A small example"}
+
+| Name | Role {bg="blue"} |
+| --- | --- |
+| Ada {bg="yellow"} | Owner |
+
+{header-column widths="120,240,"}
+````
+
+- `#b-…` is the block's link name: `b-` and then 4 to 12 lowercase letters or digits. A link to the page ending in `#b-k3x9a1` opens it at that block. **Copy link to block** adds a link name.
+- `color` and `bg` take the colours above. In a table cell, they colour the cell.
+- An image's `width` is a percentage. Its `align` is `left`, `center` (the default) or `right`.
+- A table's `widths` are its column widths in pixels, left to right. An empty value means automatic.
+- `header-column` styles a table's first column. `header-row="off"` makes its first row an ordinary row.
+- A toggle or callout takes its colour in its own braces: `:::details{summary="More" color="blue"}`, `:::note{color="green"}`.
+- Braces that aren't a list of these options stay as text, and so does a brace written `\{`.
+
+## Columns, nesting and buttons
+
+```markdown
+::::columns
+:::column{width="40%"}
+Left column.
+:::
+
+:::column{width="60%"}
+Right column.
+:::
+::::
+
+A parent line.
+
+:::indent
+A line nested under it.
+:::
+
+:::button{label="Add a task"}
+- [ ] New task
+:::
+```
+
+- `::::columns` holds two to five `:::column` blocks. `width` is optional.
+- `:::indent` holds the blocks nested under the block before it.
+- A `:::button` holds the blocks that clicking it inserts. Readers don't see buttons.
+- An outer fence needs more colons than the fences inside it. For example, columns that hold a callout use `:::::columns`, then `::::column`, then `:::note`.
 
 ## Anything else
 

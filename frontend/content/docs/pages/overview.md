@@ -27,8 +27,8 @@ Type `/` on any line to open the block menu. Keep typing to filter it, use the a
 | Text | Text, Heading 1, 2 and 3, Quote, Divider |
 | Lists | To-do list, Bulleted list, Numbered list, Toggle, Toggle heading 1, 2 and 3 |
 | Callouts | Callout (note), Tip, Warning, Danger, each with an optional emoji and background colour |
-| Media | Image, Embed (a Markdrop file or page), Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen), Bookmark |
-| Structure | Page (a sub-page), Table, Table of contents, Breadcrumb |
+| Media | Image, Video, Audio, File, Embed (a Markdrop file or page), Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen), Bookmark |
+| Structure | Page (a sub-page), Table, 2 to 5 columns, Table of contents, Breadcrumb, Button |
 | Technical | Code, Math, Diagram (Mermaid) |
 | Inline | Mention (a Markdrop item), Person, Date |
 
@@ -36,7 +36,7 @@ You can also type Markdown as you go: `#` and a space makes a heading, `-` a bul
 
 Paste from Google Docs, Notion, GitHub, Word or a web page and you get blocks, not plain text. Paste a link on its own to make it a mention, a bookmark or an embed. See [Paste into a page](/pages/paste).
 
-Select text to format it, add a link, or turn a line into another kind of block. Hover a block to see its handle: drag it to move the block, or click it for **Move up**, **Move down**, **Duplicate** and **Delete**. Press **Esc** to select the block you're in.
+Select text to format it, add a link, or turn a line into another kind of block. Hover a block to see its handle: drag it to move the block, or click it for **Move up**, **Move down**, **Duplicate**, **Copy link to block**, **Colour** and **Delete**. Press **Esc** to select the block you're in. Colours, columns, nesting and selecting several blocks are in [Colours, columns and block tools](/pages/blocks-and-layout).
 
 ## Title, icon and cover
 
