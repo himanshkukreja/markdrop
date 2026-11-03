@@ -113,7 +113,11 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
   const inset = useKeyboardInset(shown);
   if (!editor || editor.isDestroyed) return null;
 
-  const keep = (e: React.PointerEvent | React.MouseEvent) => e.preventDefault();
+  // Keep the caret (and the keyboard) in the page. Not on a touch's pointerdown: WebKit then sends no
+  // click at all, so every button was dead on iPhones; the mousedown that follows a tap keeps the focus.
+  const keep = (e: React.PointerEvent | React.MouseEvent) => {
+    if ((e as React.PointerEvent).pointerType !== "touch") e.preventDefault();
+  };
   // The block menu opens on a "/" at the start of a line or after a space (as when typed).
   const slashAtCaret = () => {
     const { $from } = editor.state.selection;
@@ -184,6 +188,7 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
                 aria-label={m.label}
                 aria-pressed={editor.isActive(m.mark)}
                 onPointerDown={keep}
+                onMouseDown={keep}
                 onClick={() => run(editor, m.cmd)}
               >
                 {m.icon ? <Icon name={m.icon} size={18} aria-hidden /> : <span className={`pb-format__t pb-format__t--${m.mark}`} aria-hidden>{m.text}</span>}
@@ -196,6 +201,7 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
                 aria-label="Link"
                 aria-pressed={editor.isActive("link")}
                 onPointerDown={keep}
+                onMouseDown={keep}
                 onClick={() => {
                   if (editor.isActive("link")) {
                     run(editor, "unsetLink");
@@ -218,6 +224,7 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
                 className="pb-format__row md-focus"
                 aria-pressed={t.on(editor)}
                 onPointerDown={keep}
+                onMouseDown={keep}
                 onClick={() => {
                   t.go(editor);
                   setSheet(false);
