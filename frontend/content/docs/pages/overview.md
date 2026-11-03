@@ -2,10 +2,14 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-03
-keywords: [page, pages, block editor, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move]
+keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
+
+:::note[Pages are in beta]
+Pages and the block editor are new and still changing, so they carry a **Beta** label in Markdrop. A page is saved and published like any other document, and it stays plain Markdown, so nothing you write is locked in.
+:::
 
 ## Make a page
 

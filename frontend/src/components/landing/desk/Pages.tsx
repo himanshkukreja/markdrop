@@ -29,7 +29,7 @@ export default function Pages() {
     <SnapSection id="pages" labelledBy="pages-h">
       <div className={`${s.split} ${s.splitRev}`}>
         <div className={s.copy}>
-          <span className={s.eyebrow}>Pages</span>
+          <span className={s.eyebrow}>Pages · Beta</span>
           <h2 id="pages-h" className={s.h2}>
             <span className={v.line}>Write it here.</span> <span className={v.line}>Embed everything.</span>
           </h2>

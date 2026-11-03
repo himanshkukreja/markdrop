@@ -39,9 +39,9 @@
 .faceSm { width: 24px; height: 24px; font-size: 10px; }
 .faceMd { width: 32px; height: 32px; font-size: 12px; }
 .face img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
-.glyph { font-size: 1.45em; line-height: 1; }
-.faceMd .glyph { font-size: 17px; }
-.faceSm .glyph { font-size: 14px; }
+/* Anonymous: the animal's line glyph, stroked in --pc on the tint (3:1 or better in both themes). */
+.animal { font-size: 15px; }
+.faceMd .animal { font-size: 20px; }
 .away { opacity: 0.55; filter: saturate(0.4); }
 .awayDot {
   position: absolute;

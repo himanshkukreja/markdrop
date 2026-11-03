@@ -93,7 +93,7 @@ export function AppHeader({ nav = [], user, onSignIn, onToggleTheme, theme = "da
 type CreateKey = "document" | "page" | "artifact" | "builder" | "share" | "docs";
 const CREATE: Array<{ key: CreateKey; href: string; label: React.ReactNode; description: string; icon: string; tint: string }> = [
   { key: "document", href: "/new", label: "Markdown document", description: "Write or paste markdown, publish a link", icon: "lines", tint: "cat-document" },
-  { key: "page", href: "/pages/new", label: "Page", description: "Write with blocks, embed your files, add sub-pages", icon: "layers", tint: "cat-document" },
+  { key: "page", href: "/pages/new", label: <>Page <Badge tone="info" size="sm" upper>Beta</Badge></>, description: "Write with blocks, embed your files, add sub-pages", icon: "layers", tint: "cat-document" },
   { key: "artifact", href: "/upload", label: <>Artifact <Badge tone="warning" size="sm" upper>New</Badge></>, description: "HTML page, PDF, spreadsheet, Word doc or video", icon: "doc", tint: "cat-artifact" },
   { key: "builder", href: "/builder", label: "README builder", description: "Assemble a README from ready-made blocks", icon: "builder", tint: "cat-builder" },
   { key: "share", href: "/share", label: "Send a file", description: "Peer-to-peer. Files are never stored on our servers.", icon: "send", tint: "cat-share" },
