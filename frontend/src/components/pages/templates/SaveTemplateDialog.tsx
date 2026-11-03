@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Save as template (a page's ⋯ menu): a copy of the page, and if asked the sub-pages you can open,
+ * Use as template (a page's ⋯ menu; "Save as template" before): a copy of the page, and if asked the sub-pages you can open,
  * becomes a template in the page's workspace (members and up) or one of your own. Name,
  * description and an emoji; then it's in the New page gallery. Opening the template edits it.
  */
@@ -118,8 +118,8 @@ export function SaveTemplateDialog({ open, onClose, slug, title, workspaceId, wo
       onClose={() => !busy && onClose()}
       dismissible={!busy}
       size="md"
-      title="Save as template"
-      description="A copy of this page that anyone it's shared with can start new pages from."
+      title="Use as template"
+      description="Saves a copy of this page that new pages start from, in New page and Add a sub-page."
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={busy}>
@@ -178,7 +178,7 @@ export function SaveTemplateDialog({ open, onClose, slug, title, workspaceId, wo
           />
         )}
         <p className="tpl-hint">
-          Write <code>{"{{date}}"}</code>, <code>{"{{author}}"}</code> or <code>{"{{title}}"}</code> in the page: each new page gets the day it was made, who made it and its title there. Images are copied with it.
+          Write <code>{"{{title}}"}</code>, <code>{"{{date}}"}</code>, <code>{"{{author}}"}</code> or <code>{"{{folder}}"}</code> in the page: each new page gets its title, the day it was made, who made it and its folder there. Images are copied with it.
         </p>
       </form>
     </Dialog>

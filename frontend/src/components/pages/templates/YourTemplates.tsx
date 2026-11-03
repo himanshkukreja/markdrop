@@ -5,11 +5,11 @@
  * workspace's ("Acme") for its members, then yours. Hovering or focusing a card fetches its
  * Markdown, so choosing it shows the preview at once; "Manage" opens Manage templates.
  */
-import { useCallback, useEffect, useState } from "react";
-import { Button, Icon, Skeleton, Spinner } from "@/components/ui";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Button, Icon, Select, Skeleton, Spinner, useToast } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import type { AssetUrl, PageTemplate } from "@/lib/pages";
-import { fillAuthor, getTemplate, listTemplates, type TemplateListing, type UserTemplate } from "./api";
+import { fillAuthor, getTemplate, listTemplates, setFolderDefault, type TemplateListing, type UserTemplate } from "./api";
 import { ManageTemplatesDialog } from "./ManageTemplatesDialog";
 import { TemplateEmoji } from "./TemplateEmoji";
 import "./templates.css";
@@ -20,6 +20,8 @@ export type ChosenTemplate = PageTemplate & { assets?: Record<string, AssetUrl> 
 export interface YourTemplatesProps {
   open: boolean;
   workspace?: string | null;
+  /** The folder the new page goes in (id): its default template is chosen at first. */
+  folder?: string | null;
   workspaceName?: string | null;
   chosen: string;
   onChoose: (t: ChosenTemplate | null) => void;
@@ -27,8 +29,10 @@ export interface YourTemplatesProps {
   onCreate?: (t: ChosenTemplate) => void;
 }
 
-export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose, onCreate }: YourTemplatesProps) {
+export function YourTemplates({ open, workspace, folder, workspaceName, chosen, onChoose, onCreate }: YourTemplatesProps) {
   const { user } = useAuth();
+  const toast = useToast();
+  const appliedDefault = useRef(false);
   const [list, setList] = useState<TemplateListing | null>(null);
   const [failed, setFailed] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
@@ -37,25 +41,26 @@ export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose
 
   const reload = useCallback(() => {
     if (!user) return;
-    listTemplates(workspace)
+    listTemplates(workspace, folder)
       .then((l) => {
         setList(l);
         setFailed(false);
       })
       .catch(() => setFailed(true));
-  }, [user, workspace]);
+  }, [user, workspace, folder]);
 
   useEffect(() => {
     if (open) reload();
   }, [open, reload]);
 
+  const folderName = list?.folder?.name ?? null;
   const choose = async (t: UserTemplate, thenCreate = false) => {
     setLoading(t.id);
     // Chosen at once (the title's placeholder, the Create button); the preview follows.
     onChoose({ id: t.id, name: t.name, description: t.description, icon: "layers", category: "", content: "" });
     try {
       const full = await getTemplate(t.id);
-      const picked: ChosenTemplate = { id: t.id, name: t.name, description: t.description, icon: "layers", category: "", content: fillAuthor(full.content, author), assets: full.assets };
+      const picked: ChosenTemplate = { id: t.id, name: t.name, description: t.description, icon: "layers", category: "", content: fillAuthor(full.content, author, folderName ?? ""), assets: full.assets };
       onChoose(picked);
       if (thenCreate) onCreate?.(picked);
     } catch {
@@ -64,6 +69,30 @@ export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose
       setLoading(null);
     }
   };
+
+  // New page in a folder with a default template starts from it (once; the person can pick another).
+  useEffect(() => {
+    const def = list?.folder?.default_template;
+    if (!list || !def || appliedDefault.current || chosen !== "blank") return;
+    appliedDefault.current = true;
+    const builtin = list.builtin.find((b) => b.id === def);
+    if (builtin) onChoose({ ...builtin, content: fillAuthor(builtin.content, author, folderName ?? "") });
+    else {
+      const t = [...list.workspace, ...list.personal].find((x) => x.id === def);
+      if (t) void choose(t);
+    }
+  }, [list]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function changeDefault(value: string) {
+    if (!list?.folder || !workspace) return;
+    try {
+      const out = await setFolderDefault(workspace, list.folder.id, value || null);
+      setList({ ...list, folder: { ...list.folder, default_template: out.default_template } });
+      toast.success(out.default_template ? `New pages in ${list.folder.name} start from it` : `New pages in ${list.folder.name} start blank`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't change the folder's default.");
+    }
+  }
 
   if (!user || failed) return null;
   if (!list) {
@@ -80,8 +109,9 @@ export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose
 
   const wsName = workspaceName || "Your workspace";
   const showWs = !!list.workspace_id && (list.workspace.length > 0 || list.can_save_workspace);
+  const hasFolderLine = !!list.folder?.can_set_default || !!list.folder?.default_template;
   const canManageAny = [...list.workspace, ...list.personal].some((t) => t.can_manage) || list.can_reorder_workspace;
-  if (!showWs && list.personal.length === 0) return null;
+  if (!showWs && list.personal.length === 0 && !hasFolderLine) return null;
 
   const card = (t: UserTemplate) => (
     <button
@@ -134,7 +164,7 @@ export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose
             <div className="tpl-empty">
               <Icon name="layers" />
               <span>
-                No templates in {wsName} yet. Open any page and choose <strong>Save as template</strong> from its ⋯ menu: everyone in {wsName} can then start from it here.
+                No templates in {wsName} yet. Open any page and choose <strong>Use as template</strong> from its ⋯ menu: everyone in {wsName} can then start from it here.
               </span>
             </div>
           )}
@@ -157,6 +187,33 @@ export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose
           </div>
           <div className="pb-templates">{list.personal.map(card)}</div>
         </div>
+      )}
+      {list.folder?.can_set_default && (
+        <div className="tpl-default" data-testid="tpl-folder-default">
+          <Icon name="folder" />
+          <label htmlFor="tpl-folder-default" className="tpl-default__label">
+            New pages in <strong className="ph-mask">{list.folder.name}</strong> start from
+          </label>
+          <Select
+            id="tpl-folder-default"
+            value={list.folder.default_template ?? ""}
+            onChange={(e) => void changeDefault(e.target.value)}
+            className="tpl-default__select"
+            options={[
+              { value: "", label: "A blank page" },
+              ...list.workspace.map((t) => ({ value: t.id, label: `${t.icon ? `${t.icon} ` : ""}${t.name}` })),
+              ...list.builtin.filter((b) => b.id !== "blank").map((b) => ({ value: b.id, label: `${b.name} (built in)` })),
+            ]}
+          />
+        </div>
+      )}
+      {!list.folder?.can_set_default && list.folder?.default_template && (
+        <p className="tpl-default tpl-default--note">
+          <Icon name="folder" />
+          <span>
+            <strong className="ph-mask">{list.folder.name}</strong> starts new pages from a template. Pick Blank or another one if you like.
+          </span>
+        </p>
       )}
       <div className="tpl-sec__head tpl-sec__builtin">
         <span className="tpl-sec__title">

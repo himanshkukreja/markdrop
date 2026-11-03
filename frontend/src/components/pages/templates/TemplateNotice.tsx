@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, useToast } from "@/components/ui";
 import { createPage } from "@/lib/pages";
-import { listTemplates, type TemplateListing } from "./api";
+import { listTemplates, setPageTemplate, type TemplateListing } from "./api";
 import { ManageTemplatesDialog } from "./ManageTemplatesDialog";
 import "./templates.css";
 
@@ -21,7 +21,7 @@ export interface PageTemplateInfo {
   part_of?: boolean;
 }
 
-export function TemplateNotice({ template, title, workspaceId }: { template: PageTemplateInfo; title?: string | null; workspaceId?: string | null }) {
+export function TemplateNotice({ template, title, workspaceId, slug }: { template: PageTemplateInfo; title?: string | null; workspaceId?: string | null; slug?: string }) {
   const router = useRouter();
   const toast = useToast();
   const [busy, setBusy] = useState(false);
@@ -51,6 +51,19 @@ export function TemplateNotice({ template, title, workspaceId }: { template: Pag
     }
   }
 
+  async function backToPage() {
+    if (!slug) return;
+    setBusy(true);
+    try {
+      await setPageTemplate(slug, false);
+      toast.success("It's an ordinary page again");
+      window.location.reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't change it back.");
+      setBusy(false);
+    }
+  }
+
   async function openManage() {
     try {
       setManage(await listTemplates(template.scope === "workspace" ? workspaceId : null));
@@ -67,7 +80,7 @@ export function TemplateNotice({ template, title, workspaceId }: { template: Pag
           <span className="tpl-notice__title">
             {template.scope === "workspace" ? "A workspace template" : "Your template"}
           </span>
-          New pages made from it start as a copy of this one, with {"{{date}}"}, {"{{author}}"} and {"{{title}}"} filled in. It never shows up in lists or search.
+          New pages made from it start as a copy of this one, with {"{{title}}"}, {"{{date}}"}, {"{{author}}"} and {"{{folder}}"} filled in. Editing it never changes pages already made from it, and it never shows up in lists or search.
         </span>
         <span className="tpl-notice__actions">
           <Button size="sm" variant="secondary" iconLeft="plus" loading={busy} onClick={() => void makePage()}>
@@ -76,6 +89,11 @@ export function TemplateNotice({ template, title, workspaceId }: { template: Pag
           <Button size="sm" variant="ghost" iconLeft="settings" onClick={() => void openManage()}>
             Manage templates
           </Button>
+          {slug && (
+            <Button size="sm" variant="ghost" iconLeft="undo" disabled={busy} onClick={() => void backToPage()}>
+              Make it a page again
+            </Button>
+          )}
         </span>
       </div>
       {manage && (

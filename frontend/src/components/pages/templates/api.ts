@@ -43,6 +43,8 @@ export interface TemplateListing {
   workspace_role: "owner" | "admin" | "member" | "viewer" | null;
   can_save_workspace: boolean;
   can_reorder_workspace: boolean;
+  /** With `folder`: the folder and the template New page there starts from (a built-in id or a template id). */
+  folder?: { id: string; name: string; default_template: string | null; can_set_default: boolean } | null;
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -68,8 +70,24 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 const enc = encodeURIComponent;
 
 /** Everything the gallery offers here: built-ins, this workspace's (members and up) and yours. */
-export function listTemplates(workspace?: string | null) {
-  return call<TemplateListing>(`/api/v1/page-templates/all${workspace ? `?workspace=${enc(workspace)}` : ""}`);
+export function listTemplates(workspace?: string | null, folder?: string | null) {
+  const q = new URLSearchParams();
+  if (workspace) q.set("workspace", workspace);
+  if (workspace && folder) q.set("folder", folder);
+  return call<TemplateListing>(`/api/v1/page-templates/all${q.size ? `?${q}` : ""}`);
+}
+
+/** Admins: what New page in this folder starts from (null: blank). */
+export function setFolderDefault(workspace: string, folder: string, template: string | null) {
+  return call<{ folder_id: string; folder: string | null; default_template: string | null }>(
+    `/api/v1/workspaces/${enc(workspace)}/folders/${enc(folder)}/default-template`,
+    { method: "PUT", body: JSON.stringify({ template }) },
+  );
+}
+
+/** Turn a page itself into a template, or back. */
+export function setPageTemplate(slug: string, template: boolean) {
+  return call<{ slug: string; template: boolean; id: string | null }>(`/api/v1/documents/${enc(slug)}/template`, { method: "PUT", body: JSON.stringify({ template }) });
 }
 
 const full = new Map<string, Promise<UserTemplateFull>>();
@@ -102,9 +120,10 @@ export function deleteTemplate(id: string) {
   return call<void>(`/api/v1/page-templates/${enc(id)}`, { method: "DELETE" });
 }
 
-/** The gallery's preview: {{author}} as the person making the page (the server fills it the same way). */
-export function fillAuthor(content: string, author: string) {
-  return content.replace(/\{\{\s*author\s*\}\}/g, author);
+/** The gallery's preview: {{author}} as the person making the page and {{folder}} as where it goes (the server fills them the same way). */
+export function fillAuthor(content: string, author: string, folder?: string | null) {
+  const out = content.replace(/\{\{\s*author\s*\}\}/g, author);
+  return folder == null ? out : out.replace(/\{\{\s*folder\s*\}\}/g, folder);
 }
 
 /** Emoji people pick most for a template. */

@@ -88,7 +88,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
     setBusy(true);
     setError("");
     try {
-      const created = await createPage({ title: name, workspace, folder, parent, template: current.id === "blank" ? null : current.id });
+      const created = await createPage({ title: name, workspace, folder, parent, template: current.id === "blank" ? (folder ? "blank" : null) : current.id });
       rememberSecret(created);
       track("page_create", { template: /^[0-9a-f]{24}$/.test(current.id) ? "custom" : current.id, sub_page: !!parent, workspace: !!workspace });
       if (onCreated) onCreated(created);
@@ -141,7 +141,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           {loadError ? (
             <Alert tone="warning">{loadError} You can still start from a blank page.</Alert>
           ) : null}
-          <YourTemplates open={open} workspace={workspace ?? templatesWorkspace} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={(t) => void create(undefined, t)} />
+          <YourTemplates open={open} workspace={workspace ?? templatesWorkspace} folder={workspace ? folder : null} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={(t) => void create(undefined, t)} />
           <div className="pb-templates" role="group" aria-labelledby={`${titleId}-t`}>
             {!templates && !loadError
               ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={96} />)

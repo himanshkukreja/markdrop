@@ -122,7 +122,7 @@ export function ManageTemplatesDialog({ open, onClose, listing, workspaceName, o
             <EmptyState
               icon="layers"
               title={tab === "workspace" ? "No workspace templates yet" : "No templates of your own yet"}
-              description="Open a page and choose Save as template from its ⋯ menu."
+              description="Open a page and choose Use as template from its ⋯ menu."
             />
           ) : (
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>

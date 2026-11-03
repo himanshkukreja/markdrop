@@ -447,7 +447,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
     ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
     ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
-    ...(canAddSubPage && !page?.template ? [{ label: "Save as template", icon: "layers", description: "Start new pages from a copy of it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
+    ...(canAddSubPage && !page?.template ? [{ label: "Use as template", icon: "layers", description: "Everyone in the workspace can start pages from it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -504,7 +504,7 @@ export default function DocumentView(props: DocumentViewProps) {
 
   const notices = (
     <>
-      {isPage && page?.template && !tenant && <TemplateNotice template={page.template} title={displayTitle} workspaceId={page.workspace_id} />}
+      {isPage && page?.template && !tenant && <TemplateNotice template={page.template} title={displayTitle} workspaceId={page.workspace_id} slug={slug} />}
       {showPanel && (
         <PublishedPanel
           url={url}

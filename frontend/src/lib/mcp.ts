@@ -53,6 +53,7 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "upload_page_image", scope: "write" },
       { name: "list_page_templates", scope: "read" },
       { name: "save_page_as_template", scope: "write" },
+      { name: "set_folder_default_template", scope: "write" },
       { name: "list_subpages", scope: "read" },
       { name: "move_page", scope: "write" },
     ],
