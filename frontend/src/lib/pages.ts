@@ -257,6 +257,32 @@ export async function resolveEmbeds(pageSlug: string, slugs: string[]): Promise<
   return out;
 }
 
+/* ── bookmarks, people, backlinks (DEVIATIONS "Frontend → backend requests") ─── */
+
+export interface LinkPreview {
+  url?: string;
+  title?: string | null;
+  description?: string | null;
+  site_name?: string | null;
+  favicon_url?: string | null;
+  image_url?: string | null;
+}
+
+/** A link's preview for a bookmark block, fetched by the server (SSRF-safe). */
+export function linkPreview(url: string) {
+  return call<LinkPreview>("/api/v1/link-preview", { method: "POST", body: JSON.stringify({ url }) });
+}
+
+/** Members of a workspace whose name matches `q` (for `@person`). */
+export function searchPeople(workspaceId: string, q: string) {
+  return call<Array<{ id: string; name: string; avatar_url?: string | null }>>(`/api/v1/workspaces/${enc(workspaceId)}/members/search?q=${enc(q)}`);
+}
+
+/** Pages that mention or embed this one, that the caller can read. */
+export function listBacklinks(slug: string) {
+  return call<Array<{ slug: string; title: string | null; icon?: string | null }>>(`/api/v1/documents/${enc(slug)}/backlinks`);
+}
+
 /* ── the embed picker's search ──────────────────────────────────────────── */
 
 export interface PickableItem {

@@ -23,8 +23,9 @@ import { PAGE_BLOCKS } from "@/components/docs-editor/blocks";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
 import type { DocsEditorApi, EditorMode, PagesEditorHost } from "@/components/docs-editor/types";
 import { getWorkspace } from "@/lib/workspaces";
-import { assetId, fillTemplate } from "@/lib/pageBlocks.mjs";
-import { PAGE_IMAGE_MAX, listPageTemplates, resolveEmbeds, searchMine, searchWorkspace, setEditor, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
+import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
+import { rememberSecret } from "./TemplateGallery";
+import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, setEditor, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBreadcrumbs, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
@@ -209,8 +210,18 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
       resolve: (slugs) => resolveEmbeds(slug, slugs),
       renderEmbed: (p) => <PageEmbed slug={p.slug} mode={p.mode} label={p.label} resolved={p.resolved as never} />,
       renderMention: (p) => <PageMention slug={p.slug} resolved={p.resolved as never} />,
+      linkPreview: (u) => linkPreview(u),
+      people: workspaceId ? (q) => searchPeople(workspaceId, q) : undefined,
+      createSubPage: async (t) => {
+        const created = await createPage({ title: t, parent: slug });
+        rememberSecret(created);
+        return { slug: created.document.slug, title: created.document.title ?? t };
+      },
+      crumbs,
+      pageTitle: title,
+      href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
     }),
-    [slug, workspaceId, workspaceName],
+    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath],
   );
 
   const setBody = useCallback(

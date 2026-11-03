@@ -31,7 +31,7 @@ import { PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChro
 import { PageHead } from "@/components/pages/PageHead";
 import { readPageProps } from "@/components/pages/pageProps";
 import { deletePage, setEditor } from "@/lib/pages";
-import { assetId } from "@/lib/pageBlocks.mjs";
+import { assetId, pagePath } from "@/lib/pageBlocks.mjs";
 import { DeletePageDialog } from "@/components/pages/DeletePageDialog";
 
 // Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
@@ -162,6 +162,7 @@ export default function DocumentView(props: DocumentViewProps) {
     return id ? page?.assets?.[id]?.url ?? "" : src;
   };
   const [deleting, setDeleting] = useState(false);
+  const pageHref = (s: string, ancestors: string[]) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors });
   // The tab shows the page's icon.
   useEffect(() => {
     if (!isPage || !displayTitle) return;
@@ -671,6 +672,9 @@ export default function DocumentView(props: DocumentViewProps) {
                       assets={page?.assets ?? null}
                       signInHref={signInHref}
                       onHeadings={setHeadings}
+                      crumbs={crumbs}
+                      title={displayTitle}
+                      href={pageHref}
                     />
                   ) : (
                     <MarkdownPreview

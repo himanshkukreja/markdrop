@@ -53,6 +53,45 @@ export function embedMode(v) {
   return PAGE_EMBED_MODES.includes(m) ? m : "live";
 }
 
+/**
+ * A web embed's frame address, for the providers pages allow (YouTube, Vimeo, Loom, Figma, Google
+ * Maps, CodePen), or null. A watch / share link becomes the provider's embed link.
+ */
+export function webEmbedUrl(src) {
+  let u;
+  try {
+    u = new URL(String(src ?? "").trim());
+  } catch {
+    return null;
+  }
+  if (u.protocol !== "https:") return null;
+  const h = u.hostname.replace(/^www\./, "").toLowerCase();
+  const id = (re, s) => (re.exec(s) ?? [])[1] ?? null;
+  if (h === "youtube.com" || h === "m.youtube.com" || h === "youtu.be" || h === "youtube-nocookie.com") {
+    const v = h === "youtu.be" ? id(/^\/([\w-]{6,20})/, u.pathname) : u.pathname.startsWith("/embed/") ? id(/^\/embed\/([\w-]{6,20})/, u.pathname) : u.pathname.startsWith("/shorts/") ? id(/^\/shorts\/([\w-]{6,20})/, u.pathname) : u.searchParams.get("v");
+    return v && /^[\w-]{6,20}$/.test(v) ? `https://www.youtube-nocookie.com/embed/${v}` : null;
+  }
+  if (h === "vimeo.com" || h === "player.vimeo.com") {
+    const v = id(/(\d{5,12})/, u.pathname);
+    return v ? `https://player.vimeo.com/video/${v}` : null;
+  }
+  if (h === "loom.com") {
+    const v = id(/^\/(?:share|embed)\/([0-9a-f]{20,40})/, u.pathname);
+    return v ? `https://www.loom.com/embed/${v}` : null;
+  }
+  if (h === "figma.com") {
+    return /^\/(file|design|proto|board)\//.test(u.pathname) ? `https://www.figma.com/embed?embed_host=markdrop&url=${encodeURIComponent(u.toString())}` : null;
+  }
+  if ((h === "google.com" && u.pathname.startsWith("/maps/embed")) || h === "maps.google.com") {
+    return u.pathname.startsWith("/maps/embed") ? u.toString() : null;
+  }
+  if (h === "codepen.io") {
+    const m = /^\/([\w-]+)\/(?:pen|embed)\/([\w-]+)/.exec(u.pathname);
+    return m ? `https://codepen.io/${m[1]}/embed/${m[2]}?default-tab=result` : null;
+  }
+  return null;
+}
+
 /** `asset:<id>` → id (null for any other address). */
 export function assetId(src) {
   if (typeof src !== "string") return null;
@@ -81,7 +120,10 @@ export function pageRefs(markdown) {
   }
   const walk = (n) => {
     if (!n || typeof n !== "object") return;
-    if (n.type === "leafDirective" && n.name === "markdrop") {
+    if (n.type === "leafDirective" && n.name === "page") {
+      const s = embedSlug(n.attributes?.src);
+      if (s) embeds.push(s);
+    } else if (n.type === "leafDirective" && n.name === "markdrop") {
       const s = embedSlug(n.attributes?.src);
       if (s) embeds.push(s);
     } else if (n.type === "textDirective" && n.name === "markdrop") {

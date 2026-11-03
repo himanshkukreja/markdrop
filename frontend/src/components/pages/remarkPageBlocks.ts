@@ -72,10 +72,11 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
         case "containerDirective": {
           const name = node.name ?? "";
           if (CALLOUTS.has(name)) {
-            set(node, "div", { dataPb: "callout", dataKind: CALLOUT_KIND[name] ?? name, dataLabel: takeLabel(node) || attr(node, "title") });
+            set(node, "div", { dataPb: "callout", dataKind: CALLOUT_KIND[name] ?? name, dataLabel: takeLabel(node) || attr(node, "title"), dataIcon: attr(node, "icon"), dataColor: attr(node, "color") });
           } else if (name === "details") {
             const label = takeLabel(node) || attr(node, "summary") || attr(node, "title") || "Details";
-            set(node, "details", { dataPb: "details", dataLabel: label });
+            const heading = /^[123]$/.test(attr(node, "heading") ?? "") ? attr(node, "heading") : undefined;
+            set(node, "details", { dataPb: "details", dataLabel: label, dataHeading: heading });
           } else {
             // Unknown container (e.g. Guides-only blocks): its content, without the fences' meaning.
             takeLabel(node);
@@ -89,6 +90,18 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
             const label = takeLeafLabel(node);
             set(node, "div", { dataPb: "embed", dataSrc: slug ?? "", dataMode: embedMode(attr(node, "mode")), dataLabel: attr(node, "title") || label });
             node.children = [];
+          } else if (node.name === "bookmark") {
+            set(node, "div", { dataPb: "bookmark", dataUrl: attr(node, "url"), dataTitle: attr(node, "title"), dataDesc: attr(node, "description"), dataImage: attr(node, "image"), dataSite: attr(node, "site") });
+            node.children = [];
+          } else if (node.name === "toc" || node.name === "breadcrumb") {
+            set(node, "div", { dataPb: node.name });
+            node.children = [];
+          } else if (node.name === "page") {
+            set(node, "div", { dataPb: "subpage", dataSrc: embedSlug(attr(node, "src")) ?? "" });
+            node.children = [];
+          } else if (node.name === "embed") {
+            set(node, "div", { dataPb: "webembed", dataUrl: attr(node, "src"), dataTitle: attr(node, "title") });
+            node.children = [];
           } else if (parent) {
             parent.children![index] = { type: "paragraph", children: [{ type: "text", value: sourceOf(node) }] };
             return;
@@ -99,6 +112,12 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           if (node.name === "markdrop") {
             const slug = embedSlug(attr(node, "src"));
             set(node, "span", { dataPb: "mention", dataSrc: slug ?? "", dataLabel: textOf(node).trim() });
+            node.children = [];
+          } else if (node.name === "date" && /^\d{4}-\d{2}-\d{2}$/.test(textOf(node).trim())) {
+            set(node, "span", { dataPb: "date", dataLabel: textOf(node).trim() });
+            node.children = [];
+          } else if (node.name === "person" && textOf(node).trim()) {
+            set(node, "span", { dataPb: "person", dataLabel: textOf(node).trim() });
             node.children = [];
           } else if (node.name === "kbd" && node.children?.length) {
             set(node, "kbd", { className: ["md-kbd"] });

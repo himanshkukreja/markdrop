@@ -12,6 +12,7 @@ import { createProbe } from "../core/assetProbe.mjs";
 import { cx, TextField, withAttr } from "./shared";
 import { MarkdropView } from "./markdrop";
 import { PageEmbedView } from "./pageItems";
+import { PageLeafView } from "./pageLeaves";
 
 /* ── Figure ──────────────────────────────────────────────────────────────── */
 
@@ -193,6 +194,13 @@ const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
 export function LeafView(props: ReactNodeViewProps) {
   // ::markdrop{src=…}: a Markdrop file, with its own picker and preview (views/markdrop.tsx).
   if ((props.node.attrs.name as string) === "markdrop") return <MarkdropLeaf {...props} />;
+  return <PageOrGuideLeaf {...props} />;
+}
+
+/** A page draws its own blocks (bookmark, toc, breadcrumb, sub-page, web embed); a guide its forms. */
+function PageOrGuideLeaf(props: ReactNodeViewProps) {
+  const host = useHost();
+  if (host.pages) return <PageLeafView {...props} fallback={<DirectiveLeafForm {...props} />} />;
   return <DirectiveLeafForm {...props} />;
 }
 

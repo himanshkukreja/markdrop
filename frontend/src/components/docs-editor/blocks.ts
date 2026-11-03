@@ -34,6 +34,24 @@ function insert(content: JSONContent | JSONContent[]) {
         return true;
       });
       if (target !== null) editor.commands.setTextSelection(target);
+    } else if (first && (first.type === "directiveLeaf" || first.type === "figure")) {
+      // A one-line block (an embed, a bookmark…): keep typing on a new line below it.
+      const { state } = editor;
+      const at = Math.max(0, Math.min(range.from - 1, state.doc.content.size));
+      let after: number | null = null;
+      state.doc.nodesBetween(at, Math.min(state.doc.content.size, at + 4), (n, pos) => {
+        if (after !== null) return false;
+        if (n.type.name === first.type && pos >= at) {
+          after = pos + n.nodeSize;
+          return false;
+        }
+        return true;
+      });
+      if (after !== null) {
+        const next = state.doc.resolve(after).nodeAfter;
+        if (next && next.type.name === "paragraph" && next.content.size === 0) editor.commands.setTextSelection(after + 1);
+        else editor.chain().insertContentAt(after, { type: "paragraph" }).setTextSelection(after + 1).run();
+      }
     }
   };
 }
@@ -155,6 +173,74 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     keywords: "toggle details collapse accordion faq",
     run: insert({ type: "details", attrs: { label: null, attributes: { summary: "More details" } }, content: [p()] }),
   },
+  ...([1, 2, 3] as const).map(
+    (level): BlockItem => ({
+      id: `toggle-h${level}`,
+      label: `Toggle heading ${level}`,
+      hint: "A heading that hides what's under it",
+      icon: "chevronRight",
+      keywords: `toggle heading h${level} collapse section`,
+      run: insert({ type: "details", attrs: { label: null, attributes: { summary: "", heading: String(level) } }, content: [p()] }),
+    }),
+  ),
+  {
+    id: "subpage",
+    label: "Page",
+    hint: "A sub-page inside this one",
+    icon: "doc",
+    keywords: "page sub-page subpage child new nested",
+    run: insert({ type: "directiveLeaf", attrs: { name: "page", attributes: {} } }),
+  },
+  {
+    id: "bookmark",
+    label: "Bookmark",
+    hint: "A link with its preview",
+    icon: "link",
+    keywords: "bookmark link preview url card web",
+    run: insert({ type: "directiveLeaf", attrs: { name: "bookmark", attributes: {} } }),
+  },
+  {
+    id: "web-embed",
+    label: "Web embed",
+    hint: "YouTube, Loom, Figma, Google Maps…",
+    icon: "globe",
+    keywords: "embed web youtube loom figma maps codepen vimeo iframe video",
+    run: insert({ type: "directiveLeaf", attrs: { name: "embed", attributes: {} } }),
+  },
+  {
+    id: "mermaid",
+    label: "Diagram",
+    hint: "Mermaid: flowcharts, sequences",
+    icon: "listTree",
+    keywords: "mermaid diagram flowchart chart graph sequence",
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent({ type: "codeBlock", attrs: { language: "mermaid" }, content: [{ type: "text", text: "graph TD\n  A[Start] --> B[Finish]" }] }).run();
+    },
+  },
+  { id: "toc", label: "Table of contents", hint: "The page's headings, kept up to date", icon: "list", keywords: "toc table contents outline headings", run: insert({ type: "directiveLeaf", attrs: { name: "toc", attributes: {} } }) },
+  { id: "breadcrumb", label: "Breadcrumb", hint: "Where this page sits", icon: "chevronRight", keywords: "breadcrumb path parent location", run: insert({ type: "directiveLeaf", attrs: { name: "breadcrumb", attributes: {} } }) },
+  {
+    id: "date",
+    label: "Date",
+    hint: "Today, as a date chip",
+    icon: "calendar",
+    keywords: "date today tomorrow day calendar when due",
+    run: (e, r) => {
+      const d = new Date();
+      const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      e.chain().focus().deleteRange(r).insertContent([{ type: "mention", attrs: { name: "date", label: iso, attributes: {} } }, { type: "text", text: " " }]).run();
+    },
+  },
+  {
+    id: "person",
+    label: "Person",
+    hint: "Mention someone in the workspace",
+    icon: "user",
+    keywords: "person people mention member user at",
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent({ type: "mention", attrs: { name: "person", label: "", attributes: {} } }).run();
+    },
+  },
   {
     id: "page-embed",
     label: "Embed",
@@ -181,9 +267,10 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
  * API endpoints, videos and clips of a docs site, other sites' embeds) aren't offered.
  */
 export const PAGE_BLOCKS = [
-  "text", "h1", "h2", "h3", "bullets", "numbers", "tasks", "toggle",
-  "callout-note", "callout-tip", "callout-warning", "callout-danger",
-  "quote", "code", "table", "divider", "image", "page-embed", "mention", "math",
+  "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
+  "subpage", "callout-note", "callout-tip", "callout-warning", "callout-danger",
+  "quote", "divider", "code", "table", "image", "page-embed", "mention", "bookmark", "web-embed",
+  "math", "mermaid", "toc", "breadcrumb", "date", "person",
 ] as const;
 
 const ALL_ITEMS = [...BLOCK_ITEMS, ...PAGE_ONLY_ITEMS];

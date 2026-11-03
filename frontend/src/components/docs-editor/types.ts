@@ -165,6 +165,17 @@ export interface PagesEditorHost {
   renderEmbed(p: { slug: string | null; mode: "live" | "preview" | "card"; label?: string | null; resolved: PageResolvedItem | null | undefined }): React.ReactNode;
   /** Draws a mention chip as readers see it. */
   renderMention(p: { slug: string | null; label?: string | null; resolved: PageResolvedItem | null | undefined }): React.ReactNode;
+  /** A link's preview for a bookmark (title, description, image), fetched by the server. */
+  linkPreview?(url: string): Promise<{ title?: string | null; description?: string | null; image_url?: string | null; site_name?: string | null; favicon_url?: string | null }>;
+  /** Workspace members, for `@person`. */
+  people?(q: string): Promise<Array<{ id: string; name: string; avatar_url?: string | null }>>;
+  /** Creates a sub-page of this page (the "/page" block); resolves with its slug and title. */
+  createSubPage?(title: string): Promise<{ slug: string; title: string }>;
+  /** This page's ancestors and title, for the breadcrumb block. */
+  crumbs?: Array<{ slug: string; title: string | null }>;
+  pageTitle?: string | null;
+  /** A page's address (links in the breadcrumb and sub-page blocks). */
+  href?(slug: string, ancestors: string[]): string;
 }
 
 /** What a host can do to the editor from outside (both modes). */

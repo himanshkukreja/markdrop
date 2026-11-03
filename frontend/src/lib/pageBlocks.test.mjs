@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { embedSlug, embedMode, assetId, pageRefs, lockedOf, LOCKED, refreshDelay, pagePath, fillTemplate, appendMarkdown } from "./pageBlocks.mjs";
+import { embedSlug, embedMode, assetId, webEmbedUrl, pageRefs, lockedOf, LOCKED, refreshDelay, pagePath, fillTemplate, appendMarkdown } from "./pageBlocks.mjs";
 
 test("embedSlug: bare slugs and Markdrop links", () => {
   assert.equal(embedSlug("q3-plan"), "q3-plan");
@@ -20,6 +20,18 @@ test("embedMode defaults to live", () => {
   assert.equal(embedMode("preview"), "preview");
   assert.equal(embedMode("full"), "live");
   assert.equal(embedMode(undefined), "live");
+});
+
+test("webEmbedUrl allows known providers only, as their embed links", () => {
+  assert.equal(webEmbedUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ"), "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
+  assert.equal(webEmbedUrl("https://youtu.be/dQw4w9WgXcQ?t=3"), "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ");
+  assert.equal(webEmbedUrl("https://vimeo.com/123456789"), "https://player.vimeo.com/video/123456789");
+  assert.equal(webEmbedUrl("https://www.loom.com/share/0123456789abcdef0123456789abcdef"), "https://www.loom.com/embed/0123456789abcdef0123456789abcdef");
+  assert.match(webEmbedUrl("https://www.figma.com/design/abc/Thing"), /^https:\/\/www\.figma\.com\/embed\?embed_host=markdrop&url=/);
+  assert.equal(webEmbedUrl("https://codepen.io/ada/pen/xyz"), "https://codepen.io/ada/embed/xyz?default-tab=result");
+  assert.equal(webEmbedUrl("https://evil.example/embed"), null);
+  assert.equal(webEmbedUrl("http://www.youtube.com/watch?v=dQw4w9WgXcQ"), null);
+  assert.equal(webEmbedUrl("javascript:alert(1)"), null);
 });
 
 test("assetId reads asset: addresses only", () => {

@@ -47,6 +47,8 @@ export function LabelInput({
   className,
   readOnly,
   "aria-label": ariaLabel,
+  autoFocus,
+  onEnter,
 }: {
   label: string | null | undefined;
   onChange: (label: string | null) => void;
@@ -54,6 +56,9 @@ export function LabelInput({
   className?: string;
   readOnly?: boolean;
   "aria-label": string;
+  autoFocus?: boolean;
+  /** Enter: move on (e.g. into the block's body). */
+  onEnter?: () => void;
 }) {
   return (
     <input
@@ -66,10 +71,12 @@ export function LabelInput({
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          (e.currentTarget.closest("[data-node-view-wrapper]")?.querySelector("[data-node-view-content] [contenteditable], [data-node-view-content]") as HTMLElement | null)?.focus();
+          if (onEnter) onEnter();
+          else (e.currentTarget.closest("[data-node-view-wrapper]")?.querySelector("[data-node-view-content] [contenteditable], [data-node-view-content]") as HTMLElement | null)?.focus();
         }
       }}
       spellCheck
+      autoFocus={autoFocus}
     />
   );
 }

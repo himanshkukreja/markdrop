@@ -11,7 +11,7 @@
  * and the page's workspace. The preview is resolved for the author through the page's embeds
  * endpoint, so it shows exactly what they may see (each reader gets their own answer).
  */
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { Button, Dialog, EmptyState, FileIcon, Icon, IconButton, Input, SegmentedControl, Spinner, Tabs, type FileRenderer } from "@/components/ui";
 import { useHost } from "../host";
@@ -64,7 +64,7 @@ function resolveOne(host: PagesEditorHost, slug: string, fresh = false): Promise
   return p;
 }
 
-function useResolved(host: PagesEditorHost | undefined, slug: string | null): PageResolvedItem | null | undefined {
+export function useResolved(host: PagesEditorHost | undefined, slug: string | null): PageResolvedItem | null | undefined {
   const [r, setR] = useState<{ slug: string; v: PageResolvedItem | null } | null>(null);
   useEffect(() => {
     if (!host || !slug) return;
@@ -223,7 +223,7 @@ export function PageEmbedView({ node, updateAttributes, deleteNode, selected, ed
   const pick = (it: PagePickItem, m: Mode) => {
     setPicking(false);
     updateAttributes({ attributes: { src: it.slug, ...(m !== "live" ? { mode: m } : {}) } });
-    editor.commands.focus();
+    editor.view.focus();
   };
   const close = () => {
     setPicking(false);
@@ -278,7 +278,126 @@ export function PageEmbedView({ node, updateAttributes, deleteNode, selected, ed
 
 /* ── the mention chip ────────────────────────────────────────────────────── */
 
-export function MentionView({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
+export function MentionView(props: ReactNodeViewProps) {
+  const name = String(props.node.attrs.name ?? "markdrop");
+  if (name === "date") return <DateChip {...props} />;
+  if (name === "person") return <PersonChip {...props} />;
+  return <ItemMention {...props} />;
+}
+
+/** `:date[2026-11-03]`: shown as "Nov 3, 2026"; click to change it. */
+function DateChip({ node, updateAttributes, selected }: ReactNodeViewProps) {
+  const host = useHost();
+  const iso = String(node.attrs.label ?? "");
+  const [editing, setEditing] = useState(false);
+  const d = new Date(`${iso}T12:00:00`);
+  const shown = Number.isFinite(d.getTime()) ? d.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }) : iso;
+  return (
+    <NodeViewWrapper as="span" className={cx("dxe-mention-wrap", selected && "dxe-selected")} contentEditable={false}>
+      {editing ? (
+        <input
+          type="date"
+          className="pb-date-input"
+          defaultValue={iso}
+          autoFocus
+          aria-label="Date"
+          onBlur={() => setEditing(false)}
+          onChange={(e) => {
+            if (/^\d{4}-\d{2}-\d{2}$/.test(e.target.value)) updateAttributes({ label: e.target.value });
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === "Escape") setEditing(false);
+          }}
+        />
+      ) : (
+        <button type="button" className="pb-mention pb-mention--date" disabled={host.readOnly} onClick={() => setEditing(true)} aria-label={`Date: ${shown}. Change it`}>
+          <Icon name="calendar" size={13} aria-hidden />
+          <span>{shown}</span>
+        </button>
+      )}
+    </NodeViewWrapper>
+  );
+}
+
+/** `:person[Name]{id}`: a workspace member, picked from a search. */
+function PersonChip({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
+  const host = useHost();
+  const id = String((node.attrs.attributes ?? {}).id ?? "");
+  const label = String(node.attrs.label ?? "");
+  const [q, setQ] = useState("");
+  const [people, setPeople] = useState<Array<{ id: string; name: string }> | null>(null);
+  const picking = !id && !host.readOnly && !!host.pages?.people;
+  const picked = useRef(false);
+  useEffect(() => {
+    if (!picking) return;
+    let live = true;
+    const t = window.setTimeout(() => {
+      host.pages!.people!(q).then((p) => live && setPeople(p)).catch(() => live && setPeople([]));
+    }, 150);
+    return () => {
+      live = false;
+      window.clearTimeout(t);
+    };
+  }, [picking, q, host.pages]);
+  if (!picking) {
+    return (
+      <NodeViewWrapper as="span" className={cx("dxe-mention-wrap", selected && "dxe-selected")} contentEditable={false}>
+        <span className="pb-mention pb-mention--person">
+          <span aria-hidden>@</span>
+          <span className="ph-mask">{label || "someone"}</span>
+        </span>
+      </NodeViewWrapper>
+    );
+  }
+  return (
+    <NodeViewWrapper as="span" className="dxe-mention-wrap pb-person-pick" contentEditable={false}>
+      <span className="pb-mention pb-mention--loading">@</span>
+      <span className="pb-person-pop" role="dialog" aria-label="Mention someone">
+        <Input
+          size="sm"
+          autoFocus
+          placeholder="Search people in this workspace"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          aria-label="Search people"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              deleteNode();
+              editor.view.focus();
+            }
+            if (e.key === "Enter" && people?.[0]) {
+              e.preventDefault();
+              picked.current = true;
+              updateAttributes({ label: people[0].name.replace(/[[\]\\\n\r]+/g, " "), attributes: { id: people[0].id } });
+              editor.view.focus();
+            }
+          }}
+          onBlur={() => window.setTimeout(() => { if (!picked.current) deleteNode(); }, 200)}
+        />
+        <span className="pb-person-list ph-no-capture">
+          {(people ?? []).map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="dxe-pick__row"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                picked.current = true;
+                updateAttributes({ label: p.name.replace(/[[\]\\\n\r]+/g, " "), attributes: { id: p.id } });
+                editor.view.focus();
+              }}
+            >
+              <Icon name="user" size={14} aria-hidden /> <span className="ph-mask">{p.name}</span>
+            </button>
+          ))}
+          {people && !people.length && <span className="pb-meta">No one matches</span>}
+        </span>
+      </span>
+    </NodeViewWrapper>
+  );
+}
+
+function ItemMention({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
   const host = useHost();
   const pages = host.pages;
   const a = (node.attrs.attributes ?? {}) as Record<string, string>;
@@ -310,7 +429,7 @@ export function MentionView({ node, updateAttributes, deleteNode, selected, edit
           onPick={(it) => {
             setPicking(false);
             updateAttributes({ label: (it.title || it.slug).replace(/[[\]\\\n\r]+/g, " ").trim(), attributes: { src: it.slug } });
-            editor.commands.focus();
+            editor.view.focus();
           }}
           host={pages}
           purpose="mention"

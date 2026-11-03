@@ -16,6 +16,10 @@ import { cardColumns } from "@/docs/render/rules.mjs";
 import { cardAt } from "../core/cards.mjs";
 import { IconPicker, LabelInput, childPositions, cx, setAttrsAt, withAttr } from "./shared";
 import { focusGripAt, pressCardGrip, stepCardIn } from "./cardDrag";
+import { EmojiPicker } from "./EmojiPicker";
+
+/** Notion's block colours (a page's callout backgrounds; styles in pages.css `.pb-bg-*`). */
+export const BLOCK_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];
 
 /* ── Callout ─────────────────────────────────────────────────────────────── */
 
@@ -46,8 +50,20 @@ export function CalloutView(props: ReactNodeViewProps) {
   const host = useHost();
   const kind = (node.attrs.kind in CALLOUT_KINDS ? node.attrs.kind : "note") as Kind;
   const k = CALLOUT_KINDS[kind];
+  // A page's callout can have its own emoji and a background colour ({icon="🚀" color=blue}).
+  const a = (node.attrs.attributes ?? {}) as Record<string, string>;
+  const [picking, setPicking] = useState(false);
+  const setA = (patch: Record<string, string | null>) => {
+    const next: Record<string, string> = { ...a };
+    for (const [key, v] of Object.entries(patch)) {
+      if (v) next[key] = v;
+      else delete next[key];
+    }
+    updateAttributes({ attributes: next });
+  };
+  const color = BLOCK_COLORS.includes(a.color) ? a.color : null;
   return (
-    <NodeViewWrapper className={cx("md-alert", `md-alert--${k.tone}`, "dx-callout", `dx-callout--${kind}`, "dxe-callout")} data-kind={kind}>
+    <NodeViewWrapper className={cx("md-alert", `md-alert--${k.tone}`, "dx-callout", `dx-callout--${kind}`, "dxe-callout", color && `pb-bg-${color}`)} data-kind={kind}>
       <span contentEditable={false} className="dxe-callout__kind">
         <Dropdown
           aria-label="Callout type"
@@ -55,7 +71,7 @@ export function CalloutView(props: ReactNodeViewProps) {
           portal
           trigger={
             <button type="button" className="dxe-callout__kindbtn" aria-label={`${k.label} callout: change type`} disabled={host.readOnly}>
-              <Icon name={k.icon} />
+              {a.icon ? <span className="dxe-callout__emoji">{a.icon}</span> : <Icon name={k.icon} />}
             </button>
           }
           items={[
@@ -64,10 +80,20 @@ export function CalloutView(props: ReactNodeViewProps) {
               icon: CALLOUT_KINDS[key].icon,
               onClick: () => updateAttributes({ kind: key }),
             })),
+            ...(host.pages
+              ? [
+                  { label: a.icon ? "Change icon…" : "Choose an icon…", icon: "sparkle", separated: true, onClick: () => setPicking(true) },
+                  ...(a.icon ? [{ label: "Remove icon", icon: "x", onClick: () => setA({ icon: null }) }] : []),
+                  { header: "Background", separated: true },
+                  { label: `${!color ? "✓ " : ""}Default`, onClick: () => setA({ color: null }) },
+                  ...BLOCK_COLORS.map((c) => ({ label: `${color === c ? "✓ " : ""}${c[0].toUpperCase()}${c.slice(1)}`, tile: <span className={`pb-swatch pb-bg-${c}`} />, onClick: () => setA({ color: c }) })),
+                ]
+              : []),
             { label: "Remove callout, keep text", icon: "x", separated: true, onClick: () => unwrap(props) },
             { label: "Delete callout", icon: "trash", danger: true, onClick: () => deleteNode() },
           ]}
         />
+        {picking && <EmojiPicker onPick={(e) => { setA({ icon: e }); setPicking(false); }} onRemove={a.icon ? () => { setA({ icon: null }); setPicking(false); } : undefined} onClose={() => setPicking(false)} />}
       </span>
       <div className="md-alert__main">
         <span contentEditable={false} className="dxe-callout__title">
@@ -455,7 +481,7 @@ export function PrivateView({ node, updateAttributes }: ReactNodeViewProps) {
 
 /* ── Details ─────────────────────────────────────────────────────────────── */
 
-export function DetailsView({ node, updateAttributes }: ReactNodeViewProps) {
+export function DetailsView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const host = useHost();
   const [open, setOpen] = useState(true);
   return (
@@ -468,8 +494,16 @@ export function DetailsView({ node, updateAttributes }: ReactNodeViewProps) {
           // A page's toggle keeps its summary as `{summary="…"}`.
           <LabelInput
             label={node.attrs.attributes.summary}
-            placeholder="Summary"
+            className={/^[123]$/.test(String(node.attrs.attributes.heading ?? "")) ? `dxe-details__h dxe-details__h--${node.attrs.attributes.heading}` : undefined}
+            placeholder={node.attrs.attributes.heading ? `Toggle heading ${node.attrs.attributes.heading}` : "Toggle"}
             aria-label="Toggle summary"
+            autoFocus={!host.readOnly && !node.attrs.attributes.summary && !!node.attrs.attributes.heading}
+            onEnter={() => {
+              const pos = getPos();
+              if (typeof pos !== "number") return;
+              editor.chain().setTextSelection(pos + 2).run();
+              editor.view.focus();
+            }}
             readOnly={host.readOnly}
             onChange={(summary) => updateAttributes({ attributes: { ...node.attrs.attributes, summary: summary ?? "" } })}
           />

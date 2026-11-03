@@ -111,7 +111,7 @@ test("the page's / menu: every block exists, no Guides-only block", () => {
   const ids = items.map((i) => i.id);
   for (const guides of ["private", "steps", "tabs", "cards", "api", "video", "clip", "embed", "markdrop"]) assert.ok(!ids.includes(guides), guides);
   assert.deepEqual(filterItems("embed", items).map((i) => i.id)[0], "page-embed");
-  assert.deepEqual(filterItems("mention", items).map((i) => i.id), ["mention"]);
+  assert.equal(filterItems("mention", items)[0].id, "mention");
   assert.equal(itemsFor(undefined).length, itemsFor(null).length);
 });
 

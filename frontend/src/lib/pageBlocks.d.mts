@@ -3,6 +3,7 @@ export const PAGE_EMBED_MODES: readonly ["live", "preview", "card"];
 export type PageEmbedMode = "live" | "preview" | "card";
 export function embedSlug(src: unknown, extraHosts?: string[]): string | null;
 export function embedMode(v: unknown): PageEmbedMode;
+export function webEmbedUrl(src: unknown): string | null;
 export function assetId(src: unknown): string | null;
 export function pageRefs(markdown: string): { slugs: string[]; embeds: string[]; mentions: string[]; assets: string[] };
 export interface LockedText {
