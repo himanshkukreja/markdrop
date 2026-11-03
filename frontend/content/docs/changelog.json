@@ -24,6 +24,21 @@
   "next": [],
   "entries": [
     {
+      "id": "workspace-domain-sign-in-fix",
+      "date": "2026-11-03",
+      "title": "No more \"Sign in to read\" on your workspace's domain when you're already signed in",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "Members signed in on markdrop.in could still get the sign-in screen on their workspace's own domain, usually after the 12-hour sign-in there ran out. Those pages now open on their own.",
+      "body": "- When the sign-in on a workspace's domain has run out (it lasts 12 hours), Markdrop renews it in the background the next time you open a page that needs it, instead of showing **Sign in to read** followed by the workspace's name.\n- This also works on a page you opened earlier in the same tab. Before, Markdrop checked only once per tab.\n- Pages that need sign-in show **Opening…** while Markdrop checks, instead of showing the sign-in screen for a moment first. This applies on markdrop.in too.\n- A sign-in that has run out is no longer reported as **You don't have access**.",
+      "docs": [
+        "/workspaces/sign-in-on-your-domain"
+      ]
+    },
+    {
       "id": "guides-mcp-connect",
       "date": "2026-11-02",
       "title": "Connect AI tools to any guide's MCP server in one click",
