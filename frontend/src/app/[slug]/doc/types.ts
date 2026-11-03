@@ -44,7 +44,10 @@ export interface PageFields {
   access_inherit?: boolean | null;
   assets?: Record<string, { url: string; expires_at?: string | null }>;
   workspace_id?: string | null;
+  /** The workspace folders' slugs only (not the ancestors). */
   folder_path?: string[];
+  /** The page's properties as the API reads them, with per-viewer URLs for an uploaded icon or cover. */
+  props?: { icon?: string | null; icon_url?: string | null; cover?: string | null; cover_url?: string | null } | null;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -57,8 +60,28 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     breadcrumbs: Array.isArray(d.breadcrumbs) ? d.breadcrumbs : [],
     children_count: typeof d.children_count === "number" ? d.children_count : 0,
     access_inherit: typeof d.access_inherit === "boolean" ? d.access_inherit : null,
-    assets: d.assets && typeof d.assets === "object" ? d.assets : {},
+    assets: withPropAssets(d.assets && typeof d.assets === "object" ? d.assets : {}, d.page),
     workspace_id: typeof d.workspace_id === "string" ? d.workspace_id : null,
-    folder_path: Array.isArray(d.folder_path) ? d.folder_path : [],
+    // The API's folder_path is the whole prefix (folders, then every ancestor's slug) and
+    // page_path the ancestors alone; keep the folders here (links add the ancestors back).
+    folder_path: foldersOnly(d.folder_path, (d as { page_path?: unknown }).page_path),
+    props: d.page && typeof d.page === "object" ? (d.page as PageFields["props"]) : null,
   };
+}
+
+/** An uploaded icon or cover (`asset:<id>`) resolves like the page's other images. */
+function withPropAssets(assets: Record<string, { url: string; expires_at?: string | null }>, page: unknown) {
+  const out = { ...assets };
+  const p = (page && typeof page === "object" ? page : {}) as Record<string, unknown>;
+  for (const [key, url] of [["icon", "icon_url"], ["cover", "cover_url"]] as const) {
+    const id = /^asset:([A-Za-z0-9_-]+)$/.exec(String(p[key] ?? ""))?.[1];
+    if (id && typeof p[url] === "string" && !out[id]) out[id] = { url: p[url] as string };
+  }
+  return out;
+}
+
+function foldersOnly(full: unknown, ancestors: unknown): string[] {
+  const f = Array.isArray(full) ? full.filter((s): s is string => typeof s === "string") : [];
+  const a = Array.isArray(ancestors) ? ancestors.length : 0;
+  return a && a <= f.length ? f.slice(0, f.length - a) : f;
 }

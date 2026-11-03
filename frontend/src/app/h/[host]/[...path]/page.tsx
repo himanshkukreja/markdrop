@@ -71,13 +71,13 @@ function splitPath(path: string[]): { folders: string[]; slug: string } {
  * Where a document lives on the workspace's domain, before its slug: its folders, then (a sub-page)
  * its ancestors' slugs: `/<folders…>/<parent-slug>/<child-slug>`.
  */
-function livesUnder(doc: { folder_path?: string[]; breadcrumbs?: Array<{ slug?: unknown }> } | null): string[] {
-  const crumbs = Array.isArray(doc?.breadcrumbs) ? doc!.breadcrumbs!.map((c) => c?.slug).filter((s): s is string => typeof s === "string" && !!s) : [];
-  return [...(doc?.folder_path ?? []), ...crumbs];
+function livesUnder(doc: { folder_path?: string[] } | null): string[] {
+  // The API's folder_path already ends with a sub-page's ancestors (page_path).
+  return [...(doc?.folder_path ?? [])];
 }
 
 /** Does this document actually live where the URL says it does? */
-function pathMatches(doc: { folder_path?: string[]; breadcrumbs?: Array<{ slug?: unknown }> } | null, folders: string[]): boolean {
+function pathMatches(doc: { folder_path?: string[] } | null, folders: string[]): boolean {
   const actual = livesUnder(doc);
   return actual.length === folders.length && actual.every((seg, i) => seg === folders[i]);
 }

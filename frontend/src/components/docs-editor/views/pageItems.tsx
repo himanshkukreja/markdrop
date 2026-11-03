@@ -78,6 +78,16 @@ export function useResolved(host: PagesEditorHost | undefined, slug: string | nu
   return r && r.slug === slug ? r.v : undefined;
 }
 
+/**
+ * After a picker dialog closes: the dialog hands focus back to the page itself (and the page puts
+ * the caret back where it was); if it couldn't, focus the page once the dialog has gone.
+ */
+function refocusAfterDialog(editor: ReactNodeViewProps["editor"]) {
+  window.setTimeout(() => {
+    if (!editor.isDestroyed && !editor.view.hasFocus() && !document.querySelector('[role="dialog"][aria-modal="true"]')) editor.commands.focus();
+  }, 260);
+}
+
 /* ── the picker ──────────────────────────────────────────────────────────── */
 
 const RENDERER_ICON: Record<string, FileRenderer> = { bundle: "zip" };
@@ -223,7 +233,7 @@ export function PageEmbedView({ node, updateAttributes, deleteNode, selected, ed
   const pick = (it: PagePickItem, m: Mode) => {
     setPicking(false);
     updateAttributes({ attributes: { src: it.slug, ...(m !== "live" ? { mode: m } : {}) } });
-    editor.view.focus();
+    refocusAfterDialog(editor);
   };
   const close = () => {
     setPicking(false);
@@ -344,7 +354,7 @@ function PersonChip({ node, updateAttributes, deleteNode, selected, editor }: Re
       <NodeViewWrapper as="span" className={cx("dxe-mention-wrap", selected && "dxe-selected")} contentEditable={false}>
         <span className="pb-mention pb-mention--person">
           <span aria-hidden>@</span>
-          <span className="ph-mask">{label || "someone"}</span>
+          <span className="ph-mask">{label || "a person"}</span>
         </span>
       </NodeViewWrapper>
     );
@@ -429,7 +439,7 @@ function ItemMention({ node, updateAttributes, deleteNode, selected, editor }: R
           onPick={(it) => {
             setPicking(false);
             updateAttributes({ label: (it.title || it.slug).replace(/[[\]\\\n\r]+/g, " ").trim(), attributes: { src: it.slug } });
-            editor.view.focus();
+            refocusAfterDialog(editor);
           }}
           host={pages}
           purpose="mention"

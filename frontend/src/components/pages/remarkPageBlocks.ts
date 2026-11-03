@@ -116,8 +116,8 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           } else if (node.name === "date" && /^\d{4}-\d{2}-\d{2}$/.test(textOf(node).trim())) {
             set(node, "span", { dataPb: "date", dataLabel: textOf(node).trim() });
             node.children = [];
-          } else if (node.name === "person" && textOf(node).trim()) {
-            set(node, "span", { dataPb: "person", dataLabel: textOf(node).trim() });
+          } else if (node.name === "person") {
+            set(node, "span", { dataPb: "person", dataLabel: textOf(node).trim() || "a person" });
             node.children = [];
           } else if (node.name === "kbd" && node.children?.length) {
             set(node, "kbd", { className: ["md-kbd"] });

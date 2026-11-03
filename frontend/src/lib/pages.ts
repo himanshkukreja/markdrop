@@ -204,7 +204,7 @@ export function savePage(slug: string, input: { title: string | null; content: s
     secret,
     body: JSON.stringify({
       title: input.title?.trim() || null,
-      content: input.content,
+      content: input.content || "\n",
       ...(typeof input.baseRev === "number" && input.baseRev > 0 ? { base_rev: input.baseRev } : {}),
     }),
   });

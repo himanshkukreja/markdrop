@@ -40,7 +40,7 @@ async function load(key: string): Promise<RailPage[]> {
   }
   const r = await listWorkspaceItems(p.ws, { folder: p.folder!, kind: "markdown", limit: 100 });
   return r.items
-    .filter((it) => (it as { editor?: string | null }).editor === "blocks" && !(it as { parent_id?: string | null }).parent_id)
+    .filter((it) => { const r = it as { editor?: string | null; is_subpage?: boolean; parent_id?: string | null }; return r.editor === "blocks" && !r.is_subpage && !r.parent_id; })
     .map((it) => ({ slug: it.slug, title: it.title, has_children: !!(it as { has_children?: boolean }).has_children }));
 }
 

@@ -36,10 +36,9 @@ An embed or mention never changes who can open the item. For each reader, Markdr
 | Placeholder | When |
 | --- | --- |
 | **Sign in to see this** | The item is shared with a workspace or with people by email, and the reader isn't signed in. |
-| **You don't have access** | The reader is signed in but can't open it. |
 | **Password-protected — open it** | The item has a password. The reader can open it on its own page and type it there. |
 | **Encrypted document** | The item is end-to-end encrypted, so its key is only in the link its author shares. |
-| **Not available** | The item was deleted, or the reader can't know it exists. |
+| **Not available** | The item was deleted, or the reader is signed in and can't open it. Markdrop doesn't say which, so a page never reveals that a private item exists. |
 
 A mention the reader can't open shows **Restricted item**.
 
