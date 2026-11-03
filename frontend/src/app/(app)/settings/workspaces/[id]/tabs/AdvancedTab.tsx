@@ -94,7 +94,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
             <SwitchRow
               id="ws-ai"
               label="AI features"
-              hint="Ask AI, summaries and suggestions on this workspace's pages. When someone uses them, the text they're working on is sent to Anthropic to answer, and isn't used to train models."
+              hint="Ask AI, summaries and suggestions on this workspace's pages. What someone asks about is sent to Anthropic to process; Markdrop keeps only usage counts."
               checked={ws.settings.ai_enabled !== false}
               disabled={saving === "ai"}
               locked={!isAdmin}
