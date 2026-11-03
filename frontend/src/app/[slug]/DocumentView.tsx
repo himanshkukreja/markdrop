@@ -54,6 +54,7 @@ const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m
 // Drag and drop, Move to and Duplicate load only for pages.
 const PageTree = dynamic(() => import("@/components/pages/PageTree").then((m) => m.PageTree), { loading: () => null });
 const PageActions = dynamic(() => import("@/components/pages/PageActions").then((m) => m.PageActions), { loading: () => null });
+const PageHistory = dynamic(() => import("@/components/pages/history/PageHistory").then((m) => m.PageHistory), { loading: () => null });
 const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
 // A page's chrome (frame, top bar, head, sub-pages, backlinks) and the pages API ship only with a
 // page: a classic document's reader never loads them. Still rendered on the server for a page.
@@ -211,6 +212,7 @@ export default function DocumentView(props: DocumentViewProps) {
   const [deleting, setDeleting] = useState(false);
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
+  const [historyOpen, setHistoryOpen] = useState<boolean | null>(null); // null: never opened (not loaded)
   const [treeKey, setTreeKey] = useState(0);
   const [kidsKey, setKidsKey] = useState(0);
   const pagePathSlugs = page?.page_path ?? [];
@@ -446,6 +448,8 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
     ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
     ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
+    ...(canAddSubPage ? [{ label: "Version history", icon: "history", description: "See and restore earlier versions", onClick: () => setHistoryOpen(true) }] : []),
+    ...(encrypted && secretUnlocked && readable ? [{ label: "Version history", icon: "history", description: "Not kept for end-to-end encrypted documents", disabled: true, onClick: () => {} }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -1065,6 +1069,9 @@ export default function DocumentView(props: DocumentViewProps) {
         <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
       )}
       {pageActions}
+      {canAddSubPage && historyOpen !== null && (
+        <PageHistory open={historyOpen} slug={slug} title={displayTitle} onClose={() => setHistoryOpen(false)} signInHref={signInHref} crumbs={crumbs} href={pageHref} viewer={user?.id ?? null} />
+      )}
       {isPage && (
         <DeletePageDialog
           open={deleting}

@@ -308,12 +308,26 @@ export function usePageEditSession({
       }
       if (msg.type === "changed") {
         if (rev !== null && baseRev.current !== null && rev <= baseRev.current) return; // our own save
+        // A version was restored (history/PageHistory): it replaces what's here, even while ours.
+        if (msg.restored === true) {
+          void fetchLatest().then(adopt).catch(() => {});
+          return;
+        }
         // Someone else's edit: show it, unless this editor has text on its way to the server (that
         // save then meets the newer version and asks).
         if (lockRef.current.kind !== "mine" && !dirty.current) void fetchLatest().then(adopt).catch(() => {});
       }
     });
   }, [subscribeLive, fetchLatest, adopt]);
+
+  // A restore from this tab's version history: load it now (the live socket may be down).
+  useEffect(() => {
+    const onRestored = (e: Event) => {
+      if ((e as CustomEvent<{ slug?: string }>).detail?.slug === slug) void fetchLatest().then(adopt).catch(() => {});
+    };
+    window.addEventListener("markdrop:page-restored", onRestored);
+    return () => window.removeEventListener("markdrop:page-restored", onRestored);
+  }, [slug, fetchLatest, adopt]);
 
   // Closing the tab with unsaved changes: ask; and release the lock either way.
   useEffect(() => {

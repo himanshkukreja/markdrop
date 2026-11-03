@@ -455,10 +455,10 @@ class Retention(HistoryWorld):
         self.assertIsNone(await page_history.run_due(self.db))
         await self.db[page_history.RUNS].update_one({"_id": "page_history"}, {"$set": {"at": now() - timedelta(days=1)}})
         self.assertIsNotNone(await page_history.run_due(self.db))
-        # Dry run: never records a run (the real one still happens).
+        # A dry run counts once a day too.
         await self.db[page_history.RUNS].delete_many({})
         self.assertTrue((await page_history.run_due(self.db, dry_run=True))["images"]["dry_run"])
-        self.assertIsNone(await self.db[page_history.RUNS].find_one({}))
+        self.assertIsNone(await page_history.run_due(self.db, dry_run=True))
 
 
 # ── Page images nothing references ────────────────────────────────────────────

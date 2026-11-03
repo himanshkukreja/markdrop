@@ -3,7 +3,7 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
+keywords: [mcp tools, list_page_versions, get_page_version, restore_page_version, version history, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 39 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
@@ -66,6 +66,9 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `list_page_templates` | read | The built-in templates: feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank. | none |
 | `list_subpages` | read | The pages inside a page that you can open. | `document` |
 | `move_page` | write | Puts a page inside another page of the same workspace, or at the top level. When that changes who can read it, the tool says how and needs `confirm_access_change`. | `document`, `parent`, `confirm_access_change` |
+| `list_page_versions` | read | A page's saved versions, newest first: when, who (a person, an AI app, or a restore) and which one matches the page now. Only people who can edit the page see them. | `document`, `cursor` |
+| `get_page_version` | read | One saved version of a page: its Markdown, when and who. | `document`, `version` |
+| `restore_page_version` | write | Makes an earlier version the page again, as a new version; the page as it was is kept, so a restore can be undone. Refused while someone has the page open in the editor. | `document`, `version` |
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 

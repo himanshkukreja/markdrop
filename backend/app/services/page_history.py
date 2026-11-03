@@ -228,7 +228,7 @@ async def _on_save(db: AsyncIOMotorDatabase, before: dict, after: dict, actor, *
     top = await latest(db, str(after["_id"]))
     if top is not None and top.get("sha") == new_sha and kind == "user":
         return  # nothing changed (a save of the same text)
-    if kind == "user" and top is not None and author_id and not top.get("sealed") \
+    if kind == "user" and top is not None and not top.get("sealed") \
             and top.get("author_kind") == "user" and top.get("author_id") == author_id \
             and (_aware(top.get("started_at")) or now_utc()) > now_utc() - COALESCE:
         await db[COLL].update_one({"_id": top["_id"]}, {"$set": {**_state(after), "ts": now_utc()}})
@@ -397,7 +397,7 @@ async def thin(db: AsyncIOMotorDatabase, now: datetime | None = None, *, dry_run
     doomed: list = []
     last_key: tuple | None = None
     cur = db[COLL].find({"ts": {"$lt": keep_all_after, "$gte": drop_before}}, {"doc_id": 1, "ts": 1, "n": 1}) \
-        .sort([("doc_id", 1), ("ts", DESCENDING), ("n", DESCENDING)])
+        .sort([("doc_id", 1), ("ts", DESCENDING)])
     async for r in cur:
         ts = _aware(r["ts"])
         key = (r["doc_id"], ts.date())
@@ -519,9 +519,9 @@ async def run_due(db: AsyncIOMotorDatabase, *, dry_run: bool | None = None, forc
             return None
     thinned = await thin(db, now, dry_run=dry_run)
     images = await cleanup_images(db, now, dry_run=dry_run)
-    if not dry_run:
-        await db[RUNS].update_one({"_id": "page_history"}, {"$set": {"at": now, "thin": thinned, "images": images}},
-                                  upsert=True)
+    # Recorded either way, so a dry run also counts once a day (not every hour).
+    await db[RUNS].update_one({"_id": "page_history"}, {"$set": {"at": now, "thin": thinned, "images": images}},
+                              upsert=True)
     return {"thin": thinned, "images": images}
 
 

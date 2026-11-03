@@ -1,7 +1,7 @@
 ---
 title: Images in pages
 description: Paste, drop or upload images into a page. They're stored with the page and shown only to people who can read it.
-updated: 2026-11-03
+updated: 2026-11-04
 prerequisites: [/pages/overview]
 keywords: [image, images, screenshot, paste, upload, drop, alt text, caption, cover, icon, asset]
 ---
@@ -21,6 +21,8 @@ Hover an image to align it left, centre or right, view it full screen, download 
 An image you add to a page belongs to the page: anyone who can read the page sees it, and nobody else. It has no address of its own to share. When a page is open to **Anyone with the link**, its images load from a public address; otherwise each reader gets a short-lived address of their own, which the page renews while it's open.
 
 If you change who can read the page, its images follow.
+
+An image stays while the page or any of its [earlier versions](/pages/history) shows it. One that nothing shows any more is deleted 30 days later.
 
 A page's [icon and cover](/pages/overview) can be images too. They work the same way.
 
