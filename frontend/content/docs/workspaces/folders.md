@@ -26,7 +26,8 @@ Two folders in the same place can't share a name that gives the same address. A 
 
 ## File things into folders
 
-- **Add new things straight into a folder**: open the folder and choose **New**, then **New document**, **Upload** or **Add existing…**.
+- **Add new things straight into a folder**: open the folder and choose **New page** (a [page](/pages/overview) from a template), or **New**, then **New document**, **Upload** or **Add existing…**.
+- **Pages in the sidebar**: open a folder in the sidebar to see its pages, and open a page there to see its [sub-pages](/pages/sub-pages). A sub-page always lives in its parent's folder.
 - **Move something you already filed**: open the item's menu and choose **Move to…**. Can view members can't move items.
 
 ## Rename, move or delete a folder

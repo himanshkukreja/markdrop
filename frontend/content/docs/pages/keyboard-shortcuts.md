@@ -1,0 +1,61 @@
+---
+title: Keyboard shortcuts
+description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks.
+updated: 2026-11-03
+prerequisites: [/pages/overview]
+keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo]
+---
+
+On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** where it says **⌥**.
+
+## Anywhere in the page
+
+| Shortcut | What it does |
+| --- | --- |
+| `/` | Open the block menu |
+| `:` and a name | Insert an emoji (`:rocket` gives 🚀) |
+| **⌘ Z** / **⌘ ⇧ Z** | Undo / redo |
+| **⌘ F** | Find and replace |
+| **⌘ K** | Link the selected text |
+| **⌘ B** / **⌘ I** / **⌘ E** | Bold / italic / inline code |
+| **⌘ ⇧ K** | Keyboard key style |
+| **Esc** | Select the block you're in |
+| **⌘ D** | Duplicate the block |
+| **⌘ ⇧ ↑** / **⌘ ⇧ ↓** (or **⌥ ⇧ ↑ / ↓**) | Move the block up / down |
+| **⌘ Enter** | Check or uncheck a to-do |
+| **Tab** / **⇧ Tab** | Indent / outdent a list item; in a table, the next / previous cell |
+| **Enter** in the title | Start writing at the top of the page |
+
+## Turn into
+
+| Shortcut | Turns the line into |
+| --- | --- |
+| **⌘ ⌥ 0** | Text |
+| **⌘ ⌥ 1** / **2** / **3** | Heading 1 / 2 / 3 |
+| **⌘ ⌥ 4** | To-do list |
+| **⌘ ⌥ 5** | Bulleted list |
+| **⌘ ⌥ 6** | Numbered list |
+| **⌘ ⌥ 7** | Toggle (the line becomes its summary) |
+| **⌘ ⌥ 8** | Code |
+| **⌘ ⌥ 9** | Quote |
+
+## Markdown as you type
+
+At the start of a line:
+
+| Type | You get |
+| --- | --- |
+| `#`, `##`, `###` and a space | Heading 1, 2, 3 |
+| `-`, `*` or `+` and a space | Bulleted list |
+| `1.` and a space | Numbered list |
+| `[]` or `[x]` and a space | To-do |
+| `>` or `"` and a space | Quote |
+| ` ``` ` | Code block |
+| `---` | Divider |
+| `$$` and a space | Equation |
+
+Inside a line: `**bold**`, `*italic*`, `` `code` `` and `~~strike~~`.
+
+## In menus
+
+The block menu, the emoji menu and pickers work from the keyboard: **↑** / **↓** to move, **Enter** to choose, **Esc** to close.
