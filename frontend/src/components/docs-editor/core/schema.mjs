@@ -368,7 +368,8 @@ export function baseExtensions() {
         defaultProtocol: "https",
         HTMLAttributes: { target: null, rel: null, class: null },
       },
-      dropcursor: { color: "var(--accent)", width: 2 },
+      // The editor draws its own drop line (menus/dnd.ts).
+      dropcursor: false,
     }),
     // Separate from StarterKit so the editor can give them node views (withOverrides).
     CodeBlock.configure({ defaultLanguage: null, enableTabIndentation: true }),

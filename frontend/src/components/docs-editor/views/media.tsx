@@ -52,6 +52,7 @@ function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUplo
   const [full, setFull] = useState(false);
   const [live, setLive] = useState<number | null>(null); // width (%) while dragging
   const box = useRef<HTMLDivElement>(null);
+  const sizeLabel = useRef<HTMLSpanElement>(null);
   const width = live ?? (battrs?.width ? parseFloat(battrs.width) : 100);
   const align = (battrs?.align as Align | undefined) ?? "center";
   const set = (patch: Record<string, string | null>) => onAttrs({ battrs: cleanAttrs({ ...(battrs ?? {}), ...patch }) });
@@ -71,14 +72,23 @@ function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUplo
     // Centred images grow on both sides, so a pixel of pointer is two of width.
     const k = align === "center" ? 2 : 1;
     let w = (start / total) * 100;
+    // Every frame, straight to the box's style (no React render per pointer move): 60 fps.
+    let raf = 0;
+    const paint = () => {
+      raf = 0;
+      el.style.setProperty("--pb-w", `${w}%`);
+      if (sizeLabel.current) sizeLabel.current.textContent = `${Math.round(w)}%`;
+    };
+    setLive(w);
     const move = (ev: PointerEvent) => {
       const dx = (ev.clientX - x0) * (side === "r" ? 1 : -1) * k;
       w = Math.max(15, Math.min(100, ((start + dx) / total) * 100));
-      setLive(w);
+      if (!raf) raf = requestAnimationFrame(paint);
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
+      cancelAnimationFrame(raf);
       setLive(null);
       commitWidth(w);
     };
@@ -99,7 +109,7 @@ function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUplo
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={src || undefined} alt={alt} className="dx-fig__img" draggable={false} loading="lazy" decoding="async" onDoubleClick={() => setFull(true)} />
         </div>
-        {live !== null && <span className="dxe-figure__size">{Math.round(live)}%</span>}
+        {live !== null && <span ref={sizeLabel} className="dxe-figure__size">{Math.round(live)}%</span>}
         {!readOnly && (
           <>
             <button type="button" contentEditable={false} className="dxe-figure__handle dxe-figure__handle--l" aria-label="Resize the image (left edge)" onPointerDown={startResize("l")} onKeyDown={keyResize("l")} />

@@ -109,7 +109,7 @@ export function ColorGrid({ current, onPick, bgOnly = false }: { current: ColorC
     </button>
   );
   return (
-    <div className="pb-colorgrid" role="group" aria-label="Colour">
+    <div className="pb-colorgrid dxe-swatches" role="group" aria-label="Colour">
       {!bgOnly && (
         <div className="pb-colorgrid__row">
           {cell(null, "default")}

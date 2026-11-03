@@ -18,6 +18,7 @@ import type { AssistAction } from "../types";
 import { ASSIST_LABEL, type AssistStore } from "./assist";
 import { ColorList } from "./ColorMenu";
 import { setTextColor } from "../pageKeys";
+import { ghostOut } from "./motion";
 
 const CODE_PARENTS = new Set(["codeBlock", "mathBlock"]);
 
@@ -120,6 +121,8 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
   const [href, setHref] = useState("");
   const [lang, setLang] = useState("");
   const bar = useRef<HTMLDivElement>(null);
+  // Where the toolbar was last placed: TipTap removes it before saying so, and it fades out there.
+  const lastRect = useRef<DOMRect | null>(null);
   const linkInput = useRef<HTMLInputElement>(null);
   const langInput = useRef<HTMLInputElement>(null);
   const st = useEditorState({
@@ -134,6 +137,7 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
       kbd: e.isActive("kbd"),
       link: e.isActive("link"),
       href: (e.getAttributes("link").href as string | undefined) ?? "",
+      h1: e.isActive("heading", { level: 1 }),
       h2: e.isActive("heading", { level: 2 }),
       h3: e.isActive("heading", { level: 3 }),
       h4: e.isActive("heading", { level: 4 }),
@@ -221,13 +225,24 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
 
   const toggle = (m: Exclude<Menu, null>) => setMenu((cur) => (cur === m ? null : m));
   const chain = () => editor.chain().focus();
-  const textOn = !st.h2 && !st.h3 && !st.h4;
+  const textOn = !st.h1 && !st.h2 && !st.h3 && !st.h4;
 
   return (
     <BubbleMenu
       editor={editor}
       // Above the selection, or below it when the host's sticky bars (stickyTop) would cover it.
-      options={{ placement: "top", offset: 8, flip: () => ({ padding: { top: (stickyTop?.() ?? 0) + 8 } }) }}
+      options={{
+        placement: "top",
+        offset: 8,
+        flip: () => ({ padding: { top: (stickyTop?.() ?? 0) + 8 } }),
+        onUpdate: () => {
+          lastRect.current = bar.current?.parentElement?.getBoundingClientRect() ?? null;
+        },
+        onHide: () => {
+          ghostOut(bar.current?.parentElement, lastRect.current);
+          lastRect.current = null;
+        },
+      }}
       shouldShow={({ editor: e, state, from, to }) => {
         if (!e.isEditable || from === to) return false;
         if (assist?.busy) return false;
@@ -350,9 +365,10 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
                   onClose={() => setMenu(null)}
                   options={[
                     { label: "Text", icon: "lines", on: textOn && !st.bullet && !st.ordered, run: () => chain().setParagraph().run() },
-                    { label: "Heading", glyph: "H2", hint: `${mod}${alt}2`, on: st.h2, run: () => chain().setHeading({ level: 2 }).run() },
-                    { label: "Subheading", glyph: "H3", hint: `${mod}${alt}3`, on: st.h3, run: () => chain().setHeading({ level: 3 }).run() },
-                    { label: "Small heading", glyph: "H4", hint: `${mod}${alt}4`, on: st.h4, run: () => chain().setHeading({ level: 4 }).run() },
+                    ...(host.pages ? [{ label: "Heading 1", glyph: "H1", hint: `${mod}${alt}1`, on: st.h1, run: () => chain().setHeading({ level: 1 }).run() }] : []),
+                    { label: "Heading 2", glyph: "H2", hint: `${mod}${alt}2`, on: st.h2, run: () => chain().setHeading({ level: 2 }).run() },
+                    { label: "Heading 3", glyph: "H3", hint: `${mod}${alt}3`, on: st.h3, run: () => chain().setHeading({ level: 3 }).run() },
+                    ...(host.pages ? [] : [{ label: "Heading 4", glyph: "H4", hint: `${mod}${alt}4`, on: st.h4, run: () => chain().setHeading({ level: 4 }).run() }]),
                   ]}
                 />
               )}

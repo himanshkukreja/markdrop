@@ -17,6 +17,7 @@ import { itemsFor } from "./blocks";
 import { EmojiCommand, PageKeys } from "./pageKeys";
 import { SlashCommand, type SlashStore } from "./menus/slash";
 import { MoveBlockKeys } from "./menus/BlockHandle";
+import { BlockDnd } from "./menus/dnd";
 import { BlockSelectionExt } from "./menus/blockSelection";
 import { ColumnsExt, columnView, columnsView } from "./menus/columns";
 import { ButtonView } from "./views/ButtonView";
@@ -49,18 +50,29 @@ function taskItemView() {
               box.addEventListener("mousedown", (e) => e.preventDefault());
               box.addEventListener("change", () => {
                 const pos = getPos();
-                if (typeof pos !== "number" || !editor.isEditable) return;
+                // Read only (a page opens so until its edit lock is taken): the box stays as it is.
+                // (Not `disabled`: the node view isn't redrawn when the editor becomes editable.)
+                if (typeof pos !== "number" || !editor.isEditable) {
+                  if (box) box.checked = node.attrs.checked === true;
+                  return;
+                }
                 editor.view.dispatch(editor.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, checked: !!box?.checked }));
               });
+              box.addEventListener("animationend", () => box?.classList.remove("dxe-task--pop"));
               li.prepend(box);
+            } else if (checked && li.dataset.checked === undefined) {
+              // Checked just now: the box pops (docs-editor.css; nothing with reduced motion).
+              box.classList.add("dxe-task--pop");
             }
             box.checked = checked;
-            box.disabled = !editor.isEditable;
             li.dataset.task = "";
+            if (checked) li.dataset.checked = "";
+            else delete li.dataset.checked;
           } else {
             box?.remove();
             box = null;
             delete li.dataset.task;
+            delete li.dataset.checked;
           }
         };
         li.append(content);
@@ -172,6 +184,7 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
     SlashCommand(slash, listboxId, itemsFor(blocks)),
     ...(emoji ? [PageKeys, EmojiCommand(emoji.store, emoji.listboxId)] : []),
     MoveBlockKeys,
+    BlockDnd,
     DocsKeys,
   ];
 }

@@ -4,7 +4,7 @@
  * Row / column controls shown above a table while the cursor is in it: add and delete rows and
  * columns, align the current column (GFM `:--`, `:-:`, `--:`), delete the table.
  */
-import { useState, type RefObject } from "react";
+import { useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { CellSelection } from "@tiptap/pm/tables";
 import { useHost } from "../host";
 import { cleanAttrs } from "../core/attrs.mjs";
@@ -13,6 +13,7 @@ import type { Editor } from "@tiptap/core";
 import { useEditorState } from "@tiptap/react";
 import { IconButton } from "@/components/ui";
 import { cx } from "../views/shared";
+import { ghostOut } from "./motion";
 
 interface Where {
   tablePos: number;
@@ -50,6 +51,16 @@ export function TableBar({ editor, container }: { editor: Editor; container: Ref
   const host = useHost();
   const [colors, setColors] = useState(false);
   const w = useEditorState({ editor, selector: ({ editor: e }) => (e.isEditable ? where(e) : null), equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b) });
+  // Leaving the table, the bar fades out where it was (a copy: this one is gone by then).
+  const barEl = useRef<HTMLDivElement | null>(null);
+  const barRect = useRef<DOMRect | null>(null);
+  useLayoutEffect(() => {
+    if (w && barEl.current) barRect.current = barEl.current.getBoundingClientRect();
+    else if (!w && barEl.current) {
+      ghostOut(barEl.current, barRect.current);
+      barEl.current = null;
+    }
+  });
   if (!w || !container.current) return null;
   const dom = editor.view.nodeDOM(w.tablePos);
   if (!(dom instanceof HTMLElement)) return null;
@@ -104,7 +115,7 @@ export function TableBar({ editor, container }: { editor: Editor; container: Ref
   };
   const run = (fn: (ch: ReturnType<Editor["chain"]>) => ReturnType<Editor["chain"]>) => fn(editor.chain().focus()).run();
   return (
-    <div className="dxe-tablebar" role="toolbar" aria-label="Table" style={{ top: r.top - c.top - 40, left: r.left - c.left }} contentEditable={false} onMouseDown={(e) => e.preventDefault()}>
+    <div ref={(el) => { if (el) barEl.current = el; }} className="dxe-tablebar" role="toolbar" aria-label="Table" style={{ top: r.top - c.top - 40, left: r.left - c.left }} contentEditable={false} onMouseDown={(e) => e.preventDefault()}>
       <IconButton icon="plus" label="Add row below" size="sm" onClick={() => run((ch) => ch.addRowAfter())} />
       <IconButton icon="minus" label="Delete row" size="sm" onClick={() => run((ch) => ch.deleteRow())} />
       <span className="dxe-tb__sep" aria-hidden />

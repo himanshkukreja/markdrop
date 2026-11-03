@@ -5,7 +5,7 @@
  * the grip drags the block (drop anywhere; the drop cursor shows where) or, clicked, opens Move up /
  * Move down / Duplicate / Delete. Alt+Shift+↑/↓ moves the block at the cursor from the keyboard.
  */
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import { Extension, type Editor } from "@tiptap/core";
 import { NodeSelection, type EditorState } from "@tiptap/pm/state";
 import { Fragment, type Node as PMNode, type ResolvedPos } from "@tiptap/pm/model";
@@ -18,6 +18,8 @@ import { openSlashAt } from "./slash";
 import { anchorable, anchors, blockColor, colorBlock, colorable, ensureAnchor, withoutAnchors } from "./blockOps";
 import { BlockSelection, duplicateBlocks } from "./blockSelection";
 import { ColorGrid, type ColorChoice } from "./ColorMenu";
+import { startBlockDrag } from "./dnd";
+import { flip, ghostOut } from "./motion";
 
 /** Containers whose children can be reordered freely. */
 const FLOW = new Set(["doc", "callout", "steps", "details", "private", "tab", "card", "blockquote", "column", "indent", "button"]);
@@ -68,8 +70,12 @@ export function moveBlock(editor: Editor, t: BlockTarget, dir: -1 | 1): boolean 
   const at = dir < 0 ? t.pos - other.nodeSize : t.pos + other.nodeSize;
   tr.insert(at, t.node);
   tr.setSelection(NodeSelection.create(tr.doc, at));
-  editor.view.dispatch(tr.scrollIntoView());
-  editor.view.focus();
+  // The block and its neighbour trade places, sliding (FLIP).
+  const view = editor.view;
+  const old = view.nodeDOM(t.pos);
+  const r = old instanceof HTMLElement ? old.getBoundingClientRect() : null;
+  flip(view, () => view.dispatch(tr.scrollIntoView()), r ? { from: { x: r.left, y: r.top }, find: () => view.nodeDOM(at) as HTMLElement | null } : undefined);
+  view.focus();
   return true;
 }
 
@@ -163,7 +169,7 @@ const TURN: Array<[TurnInto, string, string, string]> = [
   ["todo", "To-do list", "checkSquare", "⌘ ⌥ 4"],
   ["bullet", "Bulleted list", "list", "⌘ ⌥ 5"],
   ["numbered", "Numbered list", "list", "⌘ ⌥ 6"],
-  ["toggle", "Toggle", "chevronRight", "⌘ ⌥ 7"],
+  ["toggle", "Toggle list", "chevronRight", "⌘ ⌥ 7"],
   ["code", "Code", "code", "⌘ ⌥ 8"],
   ["quote", "Quote", "message", "⌘ ⌥ 9"],
 ];
@@ -281,7 +287,10 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
       const cs = getComputedStyle(dom);
       const line = Math.min(parseFloat(cs.lineHeight) || 24, 40);
       const padTop = parseFloat(cs.paddingTop) || 0;
-      setT({ ...target, top: r.top - w.top + padTop + Math.max(0, (line - 24) / 2), left: r.left - w.left });
+      const top = Math.round(r.top - w.top + padTop + Math.max(0, (line - 24) / 2));
+      const left = Math.round(r.left - w.left);
+      // The same block where it was: nothing to redraw (the pointer moves every frame).
+      setT((cur) => (cur && !cur.touch && cur.pos === target.pos && cur.node === target.node && cur.top === top && cur.left === left ? cur : { ...target, top, left }));
     };
     const onMove = (e: MouseEvent) => {
       cancelAnimationFrame(raf);
@@ -302,11 +311,27 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
     };
   }, [editor, container]);
 
+  // The handle stays drawn (faded out) at the last block it was on, so it can fade back in there or
+  // glide to the next block: it follows the pointer from block to block (transform, 120 ms) and
+  // appears in place after being hidden.
+  const lastT = useRef<Placed | null>(null);
+  if (t) lastT.current = t;
+  const shown = t ?? lastT.current;
+  const handleRef = useRef<HTMLDivElement>(null);
+  const wasOn = useRef(false);
+  useLayoutEffect(() => {
+    const el = handleRef.current;
+    if (el && t && !wasOn.current) {
+      el.dataset.jump = "";
+      requestAnimationFrame(() => requestAnimationFrame(() => delete el.dataset.jump));
+    }
+    wasOn.current = !!t;
+  }, [t]);
+
   if (!editor.isEditable) return null;
-  if (!t) {
-    if (!caret) return null;
-    return (
-      <div className="dxe-handle dxe-handle--caret" style={{ top: caret.top, left: caret.left }} contentEditable={false}>
+  const caretHandle =
+    !t && caret ? (
+      <div className="dxe-handle dxe-handle--caret" style={{ transform: `translate(calc(${caret.left}px - 100% - 6px), ${caret.top}px)` }} contentEditable={false}>
         <button
           type="button"
           className="dxe-handle__btn"
@@ -322,17 +347,17 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
           <Icon name="plus" />
         </button>
       </div>
-    );
-  }
-  const what = LABEL[t.node.type.name] ?? "block";
+    ) : null;
+  if (!shown) return caretHandle;
+  const what = LABEL[shown.node.type.name] ?? "block";
   const pageMode = !!host.pages;
   const current = (): BlockTarget | null => {
-    const n = editor.state.doc.nodeAt(t.pos);
-    return n ? { pos: t.pos, node: n } : null;
+    const n = editor.state.doc.nodeAt(shown.pos);
+    return n ? { pos: shown.pos, node: n } : null;
   };
   // A block selection that includes this block: the menu and the drag act on all of it.
   const sel = editor.state.selection;
-  const inSel = sel instanceof BlockSelection && t.pos >= sel.from && t.pos < sel.to ? sel : null;
+  const inSel = sel instanceof BlockSelection && shown.pos >= sel.from && shown.pos < sel.to ? sel : null;
   const many = inSel && inSel.blocks().length > 1 ? inSel.blocks().length : 0;
   const targets = () => (inSel ? (editor.state.selection instanceof BlockSelection ? editor.state.selection.blocks() : []) : current() ? [current()!] : []);
   const label = many ? `${many} blocks` : `this ${what}`;
@@ -360,24 +385,24 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
           { label: "Move down", icon: "arrowDown", kbd: "Alt ⇧ ↓", onClick: () => { const c = current(); if (c) moveBlock(editor, c, 1); } },
           { label: "Duplicate", icon: "copy", kbd: pageMode ? "⌘ D" : undefined, onClick: () => { const c = current(); if (c) duplicate(editor, c); } },
         ]),
-    ...(pageMode && !many && anchorable(editor.state.doc, t.pos)
+    ...(pageMode && !many && anchorable(editor.state.doc, shown.pos)
       ? [{
           label: "Copy link to block",
           icon: "link",
           onClick: () => {
-            const id = ensureAnchor(editor, t.pos);
+            const id = ensureAnchor(editor, shown.pos);
             if (!id) return;
             void copyText(blockLink(id)).then((ok) => (ok ? toast.success("Link to block copied") : toast.error("Couldn't copy the link")));
           },
         }]
       : []),
-    ...(pageMode && !many && t.node.type.name === "heading" && t.node.textContent.trim()
-      ? [{ label: "Copy link to section", icon: "hash", onClick: () => { void copyText(`${window.location.origin}${window.location.pathname.replace(/\/$/, "")}#user-content-${slugify(t.node.textContent)}`); } }]
+    ...(pageMode && !many && shown.node.type.name === "heading" && shown.node.textContent.trim()
+      ? [{ label: "Copy link to section", icon: "hash", onClick: () => { void copyText(`${window.location.origin}${window.location.pathname.replace(/\/$/, "")}#user-content-${slugify(shown.node.textContent)}`); } }]
       : []),
     ...(canColor
       ? [
           { header: "Colour", separated: true },
-          { custom: <ColorGrid current={many ? null : blockColor(t.node)} onPick={color} /> },
+          { custom: <ColorGrid current={many ? null : blockColor(shown.node)} onPick={color} /> },
         ]
       : []),
     ...(pageMode && targets().some((b) => turnable(b.node))
@@ -414,8 +439,16 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
   ];
 
   return (
-    <div className={`dxe-handle${t.touch ? " dxe-handle--touch" : ""}`} style={{ top: t.top, left: t.left }} contentEditable={false}>
-      {!t.touch && (
+    <>
+    {caretHandle}
+    <div
+      ref={handleRef}
+      className={`dxe-handle${shown.touch ? " dxe-handle--touch" : ""}`}
+      data-on={t ? "" : undefined}
+      style={{ transform: shown.touch ? `translate(${shown.left}px, ${shown.top}px)` : `translate(calc(${shown.left}px - 100% - 6px), ${shown.top}px)` }}
+      contentEditable={false}
+    >
+      {!shown.touch && (
         <button
           type="button"
           className="dxe-handle__btn"
@@ -433,8 +466,10 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
       <Dropdown
         open={menu}
         onOpenChange={(o) => {
+          // The menu fades out (a copy of it: the UI kit's menu goes at once).
+          if (!o) ghostOut(document.querySelector(".dxe-blockmenu"));
           setMenu(o);
-          if (!o && t.touch) setT(null);
+          if (!o && shown.touch) setT(null);
         }}
         align="left"
         portal
@@ -447,7 +482,7 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
             className="dxe-handle__btn dxe-handle__grip"
             aria-label={`Move or change ${label}`}
             title="Drag to move · click for options"
-            draggable={!t.touch}
+            draggable={!shown.touch}
             onDragStart={(e) => {
               const c = current();
               if (!c) return;
@@ -461,8 +496,8 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
               e.dataTransfer.effectAllowed = "copyMove";
               e.dataTransfer.clearData();
               e.dataTransfer.setData("text/plain", serializeFlow(slice.content.toJSON() as never));
-              const dom = view.nodeDOM(dragSel instanceof BlockSelection ? dragSel.from : c.pos);
-              if (dom instanceof HTMLElement) e.dataTransfer.setDragImage(dom, 0, 0);
+              // The ghost, the dimmed originals and the drop line: dnd.ts.
+              startBlockDrag(view, e.nativeEvent, dragSel.from, dragSel.to);
             }}
             onDragEnd={() => {
               const view = editor.view as unknown as { dragging: unknown };
@@ -479,5 +514,6 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
         items={items}
       />
     </div>
+    </>
   );
 }

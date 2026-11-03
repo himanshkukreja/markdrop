@@ -40,9 +40,9 @@ export function usePresence(open: boolean, ms = EXIT_MS): { mounted: boolean; cl
  * Fades out a copy of `el` where it is (the original is about to be removed): for menus whose
  * owner unmounts them at once (the UI kit's Dropdown, TipTap's bubble menu).
  */
-export function ghostOut(el: Element | null | undefined) {
-  if (!(el instanceof HTMLElement) || !el.isConnected || reducedMotion()) return;
-  const r = el.getBoundingClientRect();
+export function ghostOut(el: Element | null | undefined, at?: DOMRect | null) {
+  if (!(el instanceof HTMLElement) || (!el.isConnected && !at) || reducedMotion()) return;
+  const r = el.isConnected ? el.getBoundingClientRect() : at!;
   if (!r.width || !r.height) return;
   const copy = el.cloneNode(true) as HTMLElement;
   copy.removeAttribute("id");
@@ -50,7 +50,7 @@ export function ghostOut(el: Element | null | undefined) {
   copy.setAttribute("aria-hidden", "true");
   copy.setAttribute("inert", "");
   // Fixed where the original is, whatever positioned it.
-  Object.assign(copy.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, right: "auto", bottom: "auto", width: `${r.width}px`, height: `${r.height}px`, margin: "0", pointerEvents: "none", visibility: "visible", opacity: "1", zIndex: getComputedStyle(el).zIndex === "auto" ? "1000" : getComputedStyle(el).zIndex, animation: "none", transition: "none" });
+  Object.assign(copy.style, { position: "fixed", left: `${r.left}px`, top: `${r.top}px`, right: "auto", bottom: "auto", width: `${r.width}px`, height: `${r.height}px`, margin: "0", pointerEvents: "none", visibility: "visible", opacity: "1", zIndex: el.isConnected && getComputedStyle(el).zIndex !== "auto" ? getComputedStyle(el).zIndex : "1000", animation: "none", transition: "none" });
   copy.classList.add("dxe-ghostout");
   document.body.appendChild(copy);
   const a = copy.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateY(4px) scale(.98)" }], { duration: EXIT_MS, easing: "ease-in", fill: "forwards" });
@@ -95,13 +95,16 @@ export function flip(view: EditorView, run: () => void, entering?: { from: { x: 
   flipping = [];
   const before = new Map<HTMLElement, DOMRect>();
   for (const el of blockEls(view)) before.set(el, el.getBoundingClientRect());
+  const sx = window.scrollX, sy = window.scrollY;
   run();
+  // In page coordinates: a change that scrolls the page (to keep the block in view) moves nothing.
+  const ox = window.scrollX - sx, oy = window.scrollY - sy;
   const moved: Array<[HTMLElement, number, number]> = [];
   for (const [el, r] of before) {
     if (!el.isConnected) continue;
     const n = el.getBoundingClientRect();
-    const dx = r.left - n.left;
-    const dy = r.top - n.top;
+    const dx = r.left - n.left - ox;
+    const dy = r.top - n.top - oy;
     if (Math.abs(dy) > 0.5 || Math.abs(dx) > 0.5) moved.push([el, dx, dy]);
   }
   // Nested blocks move with their parent: only animate the outermost that moved.
@@ -122,8 +125,8 @@ export function flip(view: EditorView, run: () => void, entering?: { from: { x: 
   const el = entering?.find();
   if (el && entering) {
     const n = el.getBoundingClientRect();
-    const dx = entering.from.x - n.left;
-    const dy = entering.from.y - n.top;
+    const dx = entering.from.x - n.left - ox;
+    const dy = entering.from.y - n.top - oy;
     flipping.push(el.animate([{ transform: `translate(${dx}px, ${dy}px) scale(.98)`, opacity: 0.6 }, { transform: "none", opacity: 1 }], { duration: FLIP_MS + 30, easing: EASE }));
   }
 }
