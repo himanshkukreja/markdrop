@@ -146,8 +146,11 @@ async def refresh_page_paths(db: AsyncIOMotorDatabase, root: dict) -> None:
             path = [*(parent.get("page_path") or []), parent["slug"]]
             for child in await children_rows(db, parent["_id"], projection={"slug": 1, "page_path": 1}):
                 if list(child.get("page_path") or []) != path:
+                    # Its address on a custom domain changed: purge the cached renders.
                     await db["documents"].update_one({"_id": child["_id"]}, {"$set": {"page_path": path}})
-                    live.publish(child["slug"], 0)
+                    from app.services import revalidate
+
+                    await revalidate.purge_doc(db, {**child, "page_path": path})
                 child["page_path"] = path
                 nxt.append(child)
         if not nxt:
