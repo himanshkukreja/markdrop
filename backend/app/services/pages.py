@@ -754,7 +754,10 @@ async def resolve_embed(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
             text = redact_people(text)
         # Labels of other items, unchecked for this reader: left out of an excerpt.
         text = strip_ref_labels(text) or ""
-        preview["excerpt"] = excerpt(_PERSON.sub(lambda m: m.group(1) or "a person", text), EXCERPT_CHARS)
+        from app.services.page_people import _BARE as _BARE_PERSON
+
+        text = _BARE_PERSON.sub(lambda m: m.group(1), _PERSON.sub(lambda m: m.group(1) or "a person", text))
+        preview["excerpt"] = excerpt(text, EXCERPT_CHARS)
         out["preview"] = preview
         return out
     mime = raw.get("mime") or ""
@@ -880,12 +883,14 @@ async def children_listing(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
 async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: access.Ctx, *,
                       title: str, workspace: str | None = None, folder: str | None = None,
                       parent: str | None = None, template: str | None = None,
-                      content: str | None = None) -> tuple[dict, str, str | None]:
+                      content: str | None = None,
+                      access_level: str | None = None) -> tuple[dict, str, str | None]:
     """A new page: (row, edit secret, workspace error). From a template when
     one is named (``{{date}}`` / ``{{title}}`` filled in), else ``content``.
     Under ``parent`` (a slug the caller can edit): in its workspace and folder,
     inheriting its access. In ``workspace`` (member+): filed like any new
-    document there. Otherwise a personal page (anyone with the link)."""
+    document there. Otherwise a personal page (anyone with the link, or
+    ``access_level`` when given: ``private`` for a duplicate, page_copy.py)."""
     from app.config import get_settings
     from app.schemas.document import DocumentCreate
     from app.services import document as doc_service
@@ -966,7 +971,8 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
 
     if folder:
         raise HTTPException(status_code=422, detail="A folder needs a workspace.")
-    data = DocumentCreate(title=title, content=content, access_level="link")
+    data = DocumentCreate(title=title, content=content,
+                          access_level="private" if access_level == "private" else "link")
     doc, secret = await doc_service.create_document(db, data, owner_id=user.id, extra=extra)
     return await db["documents"].find_one({"slug": doc.slug}), secret, None
 

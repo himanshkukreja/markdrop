@@ -1,9 +1,9 @@
 ---
 title: Page Markdown reference
 description: Every block of a page as Markdown, for people who write it by hand and AI apps that read and write pages.
-updated: 2026-11-03
+updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [markdown, syntax, reference, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption]
+keywords: [markdown, syntax, reference, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption, person, people, mention by name]
 ---
 
 A page is stored as Markdown: GitHub-flavoured Markdown plus a few directives for the blocks Markdown doesn't have. The editor reads and writes exactly this, without changing what it doesn't touch, so a page written by hand, by VS Code or by an AI app opens in the block editor as it was written. AI apps use the same syntax with `get_page`, `update_page`, `append_blocks` and `create_page`.
@@ -161,7 +161,11 @@ A bookmark keeps its title, description and image in the Markdown, so readers ne
 Due :date[2026-11-10], owner :person[Ada Lovelace]{id=6650f0c2a1}.
 ```
 
-Dates are `YYYY-MM-DD`. A person is a member of the page's workspace, by their account id.
+Dates are `YYYY-MM-DD`. A person is a member of the page's workspace, by their account id. AI apps get the ids from `list_workspace_members`.
+
+You can also write just the name, `:person[Ada Lovelace]`. When the page is saved, by you or an AI app, Markdrop looks the name up among the members of the page's workspace, ignoring upper and lower case. If exactly one member has that name, the mention gets their id and works like one you picked from the list. If nobody has it, or more than one member does, it stays as you wrote it and shows as plain text; an AI app is told which names weren't found. Names are looked up only when whoever saves is a member of the page's workspace, and only in pages.
+
+A person's name shows only to the page's owner and the members of its workspace. Everyone else, including the Markdown an AI app reads for them, gets `:person[]{id=…}`, shown as "a person".
 
 ## Keys
 

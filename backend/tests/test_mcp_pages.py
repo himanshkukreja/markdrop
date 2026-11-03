@@ -19,7 +19,8 @@ from app.services import live, viewers
 from tests.test_pages import png
 
 PAGE_TOOLS = {"create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
-              "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties"}
+              "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
+              "duplicate_page"}
 
 
 class McpPages(AccessWorld):
@@ -54,7 +55,7 @@ class McpPages(AccessWorld):
 
     def test_catalogue(self):
         names = {t.name for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 39)
+        self.assertEqual(len(mcp_tools.TOOLS), 41)
         self.assertTrue(PAGE_TOOLS <= names)
         for t in mcp_tools.TOOLS:
             if t.name in PAGE_TOOLS:

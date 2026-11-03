@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "page-duplicate-members",
+      "date": "2026-11-04",
+      "title": "AI apps can duplicate pages, list a workspace's members and mention people by name",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Three additions for teams that build pages with an AI app: duplicate_page copies a page with its images, list_workspace_members gives the ids to mention people, and a mention written with just a name finds the member it means.",
+      "body": "- **duplicate_page** copies a page you can read, with its properties and its own copies of its images, into a folder or page you choose, or next to the original. The copy is yours, and a locked page gives an unlocked copy, so a locked template can be the start of a new page. Sub-pages come along when you ask.\n- **list_workspace_members** lists the members of a workspace you're in: name, account id and role, and email addresses for admins.\n- In a page, `:person[Ada Lovelace]` without an id now finds the one member of the page's workspace with that name when the page is saved. A name that matches nobody, or more than one member, stays plain text, and the AI app is told which.",
+      "docs": [
+        "/ai/tools",
+        "/pages/overview",
+        "/pages/markdown-reference"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

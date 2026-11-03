@@ -94,7 +94,9 @@ INSTRUCTIONS = (
     "Markdrop item in a page (embedded, or as a link); readers who can't open that item see a "
     "locked placeholder. upload_page_image adds an image (![alt](asset:<id>)). list_subpages and "
     "move_page manage sub-pages; when a move changes who can read a page, confirm with the user "
-    "before passing confirm_access_change."
+    "before passing confirm_access_change. duplicate_page copies a page with its images (a locked "
+    "page gives an unlocked copy). list_workspace_members gives the account ids to mention people "
+    "in a page (:person[Name]{id=\"<id>\"})."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000
