@@ -131,8 +131,9 @@ await glide(1600, 50);
 await pause(1200);
 
 // 6. The same page for someone outside the workspace: the items they can't open stay hidden.
+await p.evaluate(() => sessionStorage.clear()); // signing out drops the tab's edit secrets
 await signIn(T.stranger);
-await p.reload({ waitUntil: "networkidle" });
+await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
 await p.locator(".pb-locked").first().waitFor({ timeout: 20000 });
 await pause(1200);
 await glide(1200, 45);

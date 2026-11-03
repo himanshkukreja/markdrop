@@ -162,7 +162,7 @@ export function stepper(browser) {
 /** A PNG made by the browser (a coloured box with a label). */
 export async function pngBytes(browser, label = "Pasted screenshot", colors = ["#f97316", "#db2777"]) {
   const tmp = await browser.newPage({ viewport: { width: 640, height: 360 } });
-  await tmp.setContent(`<div style="width:640px;height:360px;display:grid;place-items:center;background:linear-gradient(135deg,${colors[0]},${colors[1]});font:700 40px system-ui;color:#fff">${label}</div>`);
+  await tmp.setContent(`<style>body{margin:0}</style><div style="width:640px;height:360px;display:grid;place-items:center;background:linear-gradient(135deg,${colors[0]},${colors[1]});font:700 40px system-ui;color:#fff">${label}</div>`);
   const buf = await tmp.screenshot();
   await tmp.close();
   return [...buf];

@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, SHOTS, BROWSER, log, fail, seedNow, api, docOf, launch, ctx, shot, stepper } from "./lib.mjs";
+import { APP, SHOTS, BROWSER, log, fail, seedNow, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper } from "./lib.mjs";
 
 const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -226,6 +226,38 @@ await step("draft-restore", async () => {
   await p.getByRole("button", { name: "Restore them" }).click();
   const md = await settle(p, slug, (m) => m.includes("typed while offline"));
   if (!md.includes("Start typed while offline")) fail(`draft not restored: ${JSON.stringify(md)}`);
+  await c.close();
+});
+
+/* An AI app appends while the page is open, then Done: no local copy is left behind to be offered
+   later as "unsaved changes", and nobody else signing in on this browser is offered one. */
+await step("draft-after-append", async () => {
+  const slug = await newPage("Draft after append", "Start\n");
+  await api("PUT", `/api/v1/documents/${slug}/access/level`, T.owner, { level: "link" });
+  const c = await browser.newContext({ viewport: { width: 1200, height: 900 } });
+  await c.addInitScript(() => { try { localStorage.setItem("md_consent", "denied"); } catch {} });
+  const p = await c.newPage();
+  await p.goto(`${APP}/robots.txt`);
+  await p.evaluate((t) => localStorage.setItem("markdrop_token", t), T.owner);
+  await openEditor(p, slug);
+  await clickText(p, "Start");
+  await p.keyboard.press("End");
+  await p.keyboard.type(" typed");
+  await settle(p, slug, (m) => m.includes("Start typed"));
+  const r = await mcp(mcpToken("ada@acme.test"), "append_blocks", { document: slug, markdown: "## From the AI app\n\nAppended." });
+  if (r.isError) fail(r.text);
+  await p.getByText("From the AI app").waitFor({ timeout: 15000 });
+  await p.waitForTimeout(1500);
+  await p.getByRole("button", { name: "Done" }).click();
+  await p.locator(".pb-head").waitFor();
+  await p.waitForTimeout(800);
+  const left = await p.evaluate((s) => localStorage.getItem(`md_page_draft:${s}`), slug);
+  if (left) fail(`a local copy stayed after Done: ${left.slice(0, 120)}`);
+  // Another account on this browser, straight into the editor address: no one's draft is offered.
+  await p.evaluate((t) => { sessionStorage.clear(); localStorage.setItem("markdrop_token", t); }, T.member);
+  await p.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
+  await p.waitForTimeout(3000);
+  if (await p.getByText("Unsaved changes from this browser").count()) fail("another account is offered a draft");
   await c.close();
 });
 

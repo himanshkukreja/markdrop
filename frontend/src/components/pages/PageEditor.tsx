@@ -237,6 +237,11 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
 
   async function done() {
     await session.flush();
+    // Nothing was left to save: the server has what this browser kept (an AI app's append, for
+    // one, changes the page without a save of ours), so the local copy goes.
+    if (session.save.state === "saved") {
+      try { localStorage.removeItem(DRAFT(slug)); } catch { /* ignore */ }
+    }
     onDone({ title, content });
   }
 
@@ -285,7 +290,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
         </Button>
       </div>
 
-      {draft && (
+      {draft && !readOnly && (
         <Alert
           tone="info"
           title="Unsaved changes from this browser"
