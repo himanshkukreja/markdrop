@@ -601,6 +601,14 @@ body.dxe-sidedrop .dxe-dropline { opacity: 0; }
 .dxe-visual .dxe-figure__handle::before { transition: transform 120ms var(--dxe-ease), background-color 120ms ease; }
 .dxe-visual .dxe-figure__handle:hover::before, .dxe-visual .dxe-figure__box[data-resizing] .dxe-figure__handle::before { transform: scaleY(1.12); background: var(--accent); }
 
+/* ── phones: the block menu is a bottom sheet ─────────────────────────────── */
+@keyframes dxe-sheet-in { from { transform: translateY(24px); opacity: 0; } }
+@media (max-width: 640px) and (pointer: coarse) {
+  .md-menu.dxe-blockmenu { position: fixed !important; z-index: 80 !important; box-shadow: 0 -12px 40px rgb(0 0 0 / 0.22); top: auto !important; right: 0 !important; bottom: 0 !important; left: 0 !important; width: auto !important; max-width: none !important; min-width: 0 !important; max-height: min(72vh, 560px); overflow-y: auto; overscroll-behavior: contain; padding: 18px 8px calc(12px + env(safe-area-inset-bottom, 0px)); border-radius: 16px 16px 0 0; transform-origin: bottom center; animation: dxe-sheet-in 180ms var(--dxe-ease) both; }
+  .md-menu.dxe-blockmenu::before { content: ""; position: absolute; top: 7px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--border-strong); }
+  .md-menu.dxe-blockmenu [role="menuitem"] { min-height: 44px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .dxe-visual *, .dxe-visual *::before, .dxe-visual *::after,
   .dxe-slash, .dxe-slash *, .dxe-tb, .dxe-tb *, .dxe-tablebar, .md-menu.dxe-blockmenu, .dxe-dropline, .dxe-dragghost, .dxe-selbar__menu {

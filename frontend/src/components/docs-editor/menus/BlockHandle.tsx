@@ -471,7 +471,8 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
           setMenu(o);
           if (!o && shown.touch) setT(null);
         }}
-        align="left"
+        // On a touch screen the handle sits at the block's right edge: the menu opens leftwards.
+        align={shown.touch ? "right" : "left"}
         portal
         minWidth={240}
         menuClassName="dxe-blockmenu"
