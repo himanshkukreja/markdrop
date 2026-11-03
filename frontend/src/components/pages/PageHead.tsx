@@ -7,7 +7,10 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Button, Icon, Input, cx } from "@/components/ui";
-import { EmojiPicker } from "@/components/docs-editor/views/EmojiPicker";
+import dynamic from "next/dynamic";
+
+// The picker (and its emoji list) loads when someone edits a page's icon, never for readers.
+const EmojiPicker = dynamic(() => import("@/components/docs-editor/views/EmojiPicker").then((m) => m.EmojiPicker), { ssr: false, loading: () => null });
 import { COVER_GALLERY, coverStyle, type PageProps } from "./pageProps";
 import "./pages.css";
 

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { embedSlug, embedMode, assetId, webEmbedUrl, pageRefs, lockedOf, LOCKED, refreshDelay, pagePath, fillTemplate, appendMarkdown } from "./pageBlocks.mjs";
+import { pageRefs } from "./pageRefs.mjs";
+import { embedSlug, embedMode, assetId, webEmbedUrl, lockedOf, LOCKED, refreshDelay, pagePath, fillTemplate, appendMarkdown } from "./pageBlocks.mjs";
 
 test("embedSlug: bare slugs and Markdrop links", () => {
   assert.equal(embedSlug("q3-plan"), "q3-plan");

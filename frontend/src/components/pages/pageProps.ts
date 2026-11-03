@@ -14,7 +14,28 @@
  *
  * Unknown keys are kept as written.
  */
-import { readFrontmatter, splitFrontmatter, writeFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
+// No YAML parser here: the document view reads these few keys on every page load.
+const FRONT_RE = /^﻿?---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+function frontKeys(markdown: string): Record<string, string> {
+  const m = FRONT_RE.exec(String(markdown ?? ""));
+  const out: Record<string, string> = {};
+  if (!m) return out;
+  for (const line of m[1].split(/\r?\n/)) {
+    const kv = /^([A-Za-z_][\w-]*):[ \t]*(.*?)[ \t]*$/.exec(line);
+    if (!kv) continue;
+    let v = kv[2];
+    if (/^"(.*)"$/.test(v)) {
+      try {
+        v = JSON.parse(v);
+      } catch {
+        v = v.slice(1, -1);
+      }
+    } else if (/^'(.*)'$/.test(v)) v = v.slice(1, -1).replace(/''/g, "'");
+    else v = v.replace(/[ \t]+#.*$/, "");
+    out[kv[1]] = v;
+  }
+  return out;
+}
 
 export type PageFont = "default" | "serif" | "mono";
 
@@ -31,37 +52,18 @@ export interface PageProps {
 const yes = (v: unknown) => v === true || v === "true" || v === "yes" || v === 1;
 
 export function readPageProps(markdown: string): PageProps {
-  const d = readFrontmatter(splitFrontmatter(markdown).front) as Record<string, unknown>;
+  const d = frontKeys(markdown) as Record<string, unknown>;
   const y = Number(d.cover_y);
   const font = String(d.font ?? "default");
   return {
     icon: typeof d.icon === "string" && d.icon.trim() ? d.icon.trim() : null,
     cover: typeof d.cover === "string" && d.cover.trim() ? d.cover.trim() : null,
-    coverY: Number.isFinite(y) ? Math.max(0, Math.min(100, Math.round(y))) : 50,
+    coverY: Number.isFinite(y) ? Math.max(0, Math.min(100, Math.round(y > 0 && y < 1 ? y * 100 : y))) : 50,
     fullWidth: yes(d.full_width),
     smallText: yes(d.small_text),
     font: font === "serif" || font === "mono" ? font : "default",
     locked: yes(d.locked),
   };
-}
-
-/** The Markdown with some properties changed (null / false / default removes the key). */
-export function writePageProps(markdown: string, patch: Partial<PageProps>): string {
-  const { front, body } = splitFrontmatter(markdown);
-  const p: Record<string, string | null> = {};
-  if ("icon" in patch) p.icon = patch.icon || null;
-  if ("cover" in patch) p.cover = patch.cover || null;
-  if ("coverY" in patch) p.cover_y = patch.coverY === undefined || patch.coverY === 50 ? null : String(Math.round(patch.coverY));
-  if ("fullWidth" in patch) p.full_width = patch.fullWidth ? "true" : null;
-  if ("smallText" in patch) p.small_text = patch.smallText ? "true" : null;
-  if ("font" in patch) p.font = patch.font && patch.font !== "default" ? patch.font : null;
-  if ("locked" in patch) p.locked = patch.locked ? "true" : null;
-  let next = writeFrontmatter(front, p);
-  // Booleans and numbers as YAML values, not strings.
-  next = next.replace(/^(full_width|small_text|locked): "true"$/gm, "$1: true").replace(/^cover_y: "(\d+)"$/gm, "cover_y: $1");
-  // Nothing left in it: no front matter at all.
-  if (/^---[ \t]*\r?\n---[ \t]*(\r?\n)?$/.test(next)) next = "";
-  return next + body;
 }
 
 /** Built-in covers: gradients, so a page needs no upload to look finished. */

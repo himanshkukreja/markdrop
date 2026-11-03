@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { refreshAssetUrls, resolveEmbeds, type AssetUrl, type ResolvedEmbed } from "@/lib/pages";
-import { pageRefs, refreshDelay } from "@/lib/pageBlocks.mjs";
+import { refreshDelay } from "@/lib/pageBlocks.mjs";
+import { pageRefs } from "@/lib/pageRefs.mjs";
 
 /**
  * The page's embeds and mentions, resolved for this viewer in one batch (POST …/embeds), and again

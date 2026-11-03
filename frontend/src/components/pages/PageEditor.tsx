@@ -29,7 +29,8 @@ import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbe
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBreadcrumbs, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
-import { readPageProps, writePageProps, type PageFont, type PageProps } from "./pageProps";
+import { readPageProps, type PageFont, type PageProps } from "./pageProps";
+import { writePageProps } from "./pagePropsWrite";
 import { usePageEditSession, type SaveState } from "./usePageEditSession";
 import { usePageAssets } from "./usePageEmbeds";
 import "./pages.css";

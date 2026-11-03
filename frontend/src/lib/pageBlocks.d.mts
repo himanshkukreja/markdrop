@@ -5,7 +5,6 @@ export function embedSlug(src: unknown, extraHosts?: string[]): string | null;
 export function embedMode(v: unknown): PageEmbedMode;
 export function webEmbedUrl(src: unknown): string | null;
 export function assetId(src: unknown): string | null;
-export function pageRefs(markdown: string): { slugs: string[]; embeds: string[]; mentions: string[]; assets: string[] };
 export interface LockedText {
   title: string;
   body: string;
