@@ -7,7 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { Anchor, Button, Icon, Skeleton, cx } from "@/components/ui";
-import { listChildren, type ChildPage, type Crumb } from "@/lib/pages";
+import { listBacklinks, listChildren, type ChildPage, type Crumb } from "@/lib/pages";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import "./pages.css";
 
@@ -27,7 +27,7 @@ export function PageBreadcrumbs({ crumbs, title, addressing, className }: { crum
         {crumbs.map((c, i) => (
           <li key={c.slug}>
             <Anchor href={hrefFor(c.slug, crumbs.slice(0, i).map((x) => x.slug), addressing)} className="md-focus ph-sensitive ph-mask" dir="auto">
-              {c.title || "Untitled"}
+              {c.icon && !/^(asset:|https?:)/.test(c.icon) ? `${c.icon} ` : ""}{c.title || "Untitled"}
             </Anchor>
             <Icon name="chevronRight" size={12} aria-hidden />
           </li>
@@ -127,6 +127,41 @@ export function SubPages({
         </ul>
       )}
     </section>
+  );
+}
+
+/** "N backlinks": the pages that mention or embed this one, that this reader can open. */
+export function Backlinks({ slug, addressing }: { slug: string; addressing: PageAddressing }) {
+  const [links, setLinks] = useState<Array<{ slug: string; title: string | null; icon?: string | null }> | null>(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    let live = true;
+    listBacklinks(slug)
+      .then((l) => live && setLinks(l))
+      .catch(() => live && setLinks([]));
+    return () => {
+      live = false;
+    };
+  }, [slug]);
+  if (!links?.length) return null;
+  return (
+    <div className="pb-backlinks no-print">
+      <button type="button" className="pb-backlinks__btn md-focus" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <Icon name="arrowUpRight" size={14} aria-hidden /> {links.length === 1 ? "1 backlink" : `${links.length} backlinks`}
+      </button>
+      {open && (
+        <ul className="pb-backlinks__list ph-no-capture">
+          {links.map((l) => (
+            <li key={l.slug}>
+              <Anchor href={hrefFor(l.slug, [], addressing)} className="md-focus ph-sensitive ph-mask" dir="auto">
+                {l.icon && !/^(asset:|https?:)/.test(l.icon) ? `${l.icon} ` : ""}
+                {l.title || "Untitled"}
+              </Anchor>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -66,6 +66,8 @@ export type EditorKind = "blocks" | "classic";
 export interface Crumb {
   slug: string;
   title: string | null;
+  /** The page's icon (an emoji or asset:<id>), when the API sends it. */
+  icon?: string | null;
 }
 
 export interface AssetUrl {

@@ -191,6 +191,14 @@ button.pb-mention--date { cursor: pointer; }
 .pb-person-pop { position: absolute; z-index: 50; top: calc(100% + 4px); left: 0; display: flex; flex-direction: column; gap: 6px; width: 280px; padding: 8px; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: 0 12px 32px rgb(0 0 0 / 0.18); }
 .pb-person-list { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; }
 
+/* Backlinks */
+.pb-backlinks { margin: -4px 0 16px; font-size: 13px; }
+.pb-backlinks__btn { display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; margin-left: -6px; border: 0; border-radius: var(--radius-md); background: none; color: var(--text-muted); font: inherit; cursor: pointer; }
+.pb-backlinks__btn:hover { background: var(--surface-hover); color: var(--text); }
+.pb-backlinks__list { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; }
+.pb-backlinks__list a { color: var(--text-secondary); text-decoration: none; }
+.pb-backlinks__list a:hover { color: var(--text); text-decoration: underline; }
+
 /* Page options: width, size, font */
 .pb-wide { max-width: min(1100px, 100%) !important; }
 .pb-small .md-prose--reading, .pb-small .dxe-content { font-size: 15px; line-height: 24px; }

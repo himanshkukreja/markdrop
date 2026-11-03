@@ -27,7 +27,7 @@ import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
-import { PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
+import { Backlinks, PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
 import { PageHead } from "@/components/pages/PageHead";
 import { readPageProps } from "@/components/pages/pageProps";
 import { deletePage, setEditor } from "@/lib/pages";
@@ -639,6 +639,9 @@ export default function DocumentView(props: DocumentViewProps) {
                       resolve={resolvePageAsset}
                       top={<PageBreadcrumbs crumbs={crumbs} title={displayTitle} addressing={addressing} />}
                     />
+                  )}
+                  {isPage && readable && !showRaw && !tenant && (
+                    <Backlinks slug={slug} addressing={addressing} />
                   )}
                   {!isPage && readable && displayTitle && !showRaw && !empty && !opensWithOwnTitle(displayContent, displayTitle) && (
                     <h1 dir="auto" className="no-print mb-8 break-words text-h1 text-text">
