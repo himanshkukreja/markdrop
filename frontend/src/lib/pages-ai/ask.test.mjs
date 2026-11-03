@@ -145,3 +145,26 @@ test("messages: each limit reason and HTTP status reads as a sentence", () => {
   assert.equal(httpMessage(429), limitMessage("burst"));
   for (const s of [0, 401, 403, 404, 500]) assert.match(httpMessage(s), /^[A-Z].+\.$/);
 });
+
+test("SSE: the backend's shapes: reset deltas, the final markdown, a limit's own sentence", () => {
+  const raw = [
+    'event: delta\ndata: {"type":"delta","text":"Draft"}\n\n',
+    'event: delta\ndata: {"type":"delta","text":"","reset":true}\n\n',
+    'event: delta\ndata: {"type":"delta","text":"Final [Goals](#goals)","reset":true}\n\n',
+    'event: done\ndata: {"type":"done","request_id":"r1","trimmed":false,"truncated":false,"markdown":"Final [Goals](#goals)"}\n\n',
+    'event: limit\ndata: {"type":"limit","reason":"guide_budget","message":"This guide\'s AI budget for the month is used up."}\n\n',
+  ].join("");
+  const ev = collect([raw]).map(toAiEvent);
+  assert.deepEqual(ev[0], { type: "delta", text: "Draft" });
+  assert.deepEqual(ev[1], { type: "delta", text: "", reset: true });
+  assert.deepEqual(ev[2], { type: "delta", text: "Final [Goals](#goals)", reset: true });
+  assert.equal(ev[3].markdown, "Final [Goals](#goals)");
+  assert.deepEqual(ev[4], { type: "limit", reason: "guide_budget", detail: "This guide's AI budget for the month is used up." });
+  // Applying them the way the panel does leaves the final text.
+  let shown = "";
+  for (const e of ev) if (e.type === "delta") shown = e.reset ? e.text : shown + e.text;
+  assert.equal(shown, "Final [Goals](#goals)");
+  // A reason the UI has its own words for keeps them; an unknown one uses the server's.
+  assert.equal(limitMessage("daily", "Server words."), "AI limit reached for today. Try again tomorrow.");
+  assert.equal(limitMessage("guide_budget", ev[4].detail), ev[4].detail);
+});

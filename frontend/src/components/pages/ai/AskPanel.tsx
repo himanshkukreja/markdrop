@@ -127,13 +127,16 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
     let ended = false;
     try {
       await streamAsk(slug, { question: text, history }, c.signal, (e) => {
-        if (e.type === "delta") patch((t) => ({ ...t, a: t.a + e.text }));
+        if (e.type === "delta") patch((t) => ({ ...t, a: e.reset ? e.text : t.a + e.text }));
         else if (e.type === "done") {
           ended = true;
-          patch((t) => ({ ...t, state: t.a.trim() ? "done" : "error", note: t.a.trim() ? undefined : FAILED, trimmed: e.trimmed === true }));
+          patch((t) => {
+            const a = typeof e.markdown === "string" && e.markdown.trim() ? e.markdown : t.a;
+            return { ...t, a, state: a.trim() ? "done" : "error", note: a.trim() ? undefined : FAILED, trimmed: e.trimmed === true };
+          });
         } else if (e.type === "limit") {
           ended = true;
-          patch((t) => ({ ...t, state: "limit", note: limitMessage(e.reason) }));
+          patch((t) => ({ ...t, state: "limit", note: limitMessage(e.reason, e.detail) }));
         } else if (e.type === "error") {
           ended = true;
           patch((t) => ({ ...t, state: "error", note: e.detail || FAILED }));
@@ -263,7 +266,7 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
               className="pa-field__input"
               rows={1}
               value={q}
-              maxLength={1000}
+              maxLength={2000}
               placeholder={turns.length ? "Ask a follow-up…" : "Ask a question about this page…"}
               aria-label="Your question"
               enterKeyHint="send"

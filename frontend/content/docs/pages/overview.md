@@ -1,8 +1,8 @@
 ---
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
-updated: 2026-11-03
-keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move]
+updated: 2026-11-04
+keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move, ai, ask]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -59,6 +59,7 @@ The **⋯** menu in the top bar has:
 - The font: **Default**, **Serif** or **Mono**, then the **Small text** and **Full width** switches.
 - **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
 - **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
+- AI: **Summarize page**, **Find action items**, **Suggest title & icon** and **Translate…**. See [AI in pages](/pages/ai).
 - **Export PDF** and **Details** (published, views and who can open it).
 - The word count.
 
@@ -92,6 +93,10 @@ If someone saved a newer version anyway (from the classic editor, VS Code or an 
 
 Pages work the same on a phone. While you edit, a toolbar above the keyboard adds blocks, formats text and undoes, and menus open as sheets from the bottom of the screen. See [On a phone](/pages/blocks-and-layout#on-a-phone).
 
+## AI in pages
+
+If you can edit a page, AI can rewrite a selection, draft with `/ai` (or **⌘ J**), summarize the page, find its action items, translate it and suggest alt text for its images. Signed-in readers can ask the page questions with **✦ Ask**. Every result is a suggestion until you accept it. See [AI in pages](/pages/ai).
+
 ## Readers
 
 People who can open the page see it as you laid it out, with the same blocks. Embeds of your files show only to readers who can open those files: everyone else sees a locked placeholder. See [Embed and mention Markdrop items](/pages/embed-and-mention).
@@ -102,4 +107,5 @@ People who can open the page see it as you laid it out, with the same blocks. Em
 - [Sub-pages and access inheritance](/pages/sub-pages)
 - [Images in pages](/pages/images)
 - [Paste into a page](/pages/paste)
+- [AI in pages](/pages/ai)
 - [Page Markdown reference](/pages/markdown-reference)

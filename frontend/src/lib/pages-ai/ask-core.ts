@@ -13,7 +13,7 @@
 export const HEADING_ID_PREFIX = "user-content-";
 export const HISTORY_TURNS = 6;
 const MAX_HISTORY_ANSWER = 4000;
-const MAX_HISTORY_QUESTION = 1000;
+const MAX_HISTORY_QUESTION = 2000;
 
 /** github-slugger-like (mirror of components/reading/slug.ts `slugify`; keep in step). */
 export function slugify(text: string): string {
@@ -131,13 +131,13 @@ export function historyFor(turns: AskTurn[], n: number = HISTORY_TURNS): { q: st
     .map((t) => ({ q: t.q.slice(0, MAX_HISTORY_QUESTION), a: t.a.slice(0, MAX_HISTORY_ANSWER) }));
 }
 
-/** What the reader sees when AI refuses, per `limit` reason. */
-export function limitMessage(reason: string | null | undefined): string {
+/** What the reader sees when AI refuses, per `limit` reason (`fallback`: the server's sentence, for a reason this doesn't know). */
+export function limitMessage(reason: string | null | undefined, fallback?: string | null): string {
   switch (reason) {
     case "daily":
       return "AI limit reached for today. Try again tomorrow.";
     case "monthly":
-      return "AI has reached its limit for this month. It will be back on the 1st.";
+      return "AI limit reached for this month. It resets on the 1st (UTC).";
     case "burst":
       return "That's a lot of questions in a short time. Wait a minute, then try again.";
     case "user_daily":
@@ -150,7 +150,7 @@ export function limitMessage(reason: string | null | undefined): string {
     case "not_configured":
       return "AI isn't available right now.";
     default:
-      return "AI isn't available right now. Try again later.";
+      return fallback || "AI isn't available right now. Try again later.";
   }
 }
 

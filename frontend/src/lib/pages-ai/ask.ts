@@ -49,7 +49,7 @@ async function refusal(res: Response): Promise<PageAiError> {
   const detail = body?.detail;
   const info = detail && typeof detail === "object" && !Array.isArray(detail) ? (detail as Record<string, unknown>) : body ?? {};
   const reason = typeof info.reason === "string" ? info.reason : typeof body?.reason === "string" ? (body.reason as string) : null;
-  if (reason) return new PageAiError(limitMessage(reason), res.status, reason);
+  if (reason) return new PageAiError(limitMessage(reason, typeof detail === "string" ? detail : null), res.status, reason);
   return new PageAiError(httpMessage(res.status, typeof detail === "string" ? detail : null), res.status);
 }
 
@@ -153,7 +153,7 @@ export async function translatePage(slug: string, lang: string, onProgress: (p: 
     (e) => {
       if (e.type === "progress") onProgress({ done: e.done, total: e.total, label: e.label });
       else if (e.type === "done" && typeof e.slug === "string") result = { slug: e.slug, url: typeof e.url === "string" ? e.url : null, title: typeof e.title === "string" ? e.title : null };
-      else if (e.type === "limit") failure = new PageAiError(limitMessage(e.reason), 200, e.reason);
+      else if (e.type === "limit") failure = new PageAiError(limitMessage(e.reason, e.detail), 200, e.reason);
       else if (e.type === "error") failure = new PageAiError(e.detail || "The translation failed. Try again.", 200);
     },
     signal,

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/privacy" },
 };
 
-const UPDATED = "3 November 2026";
+const UPDATED = "4 November 2026";
 
 function H2({ id, children }: { id: string; children: React.ReactNode }) {
   return <h2 id={id} className="mt-12 mb-3 scroll-mt-24 text-h3 text-text">{children}</h2>;
@@ -103,6 +103,7 @@ export default function PrivacyPage() {
         <Li>MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the Share relay).</Li>
         <Li>Resend (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
+        <Li>Anthropic (AI in pages and guides): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer; we keep only usage counts (tokens, cost, which feature), never the text.</Li>
       </ul>
       <P>We don&rsquo;t sell personal data, and we don&rsquo;t use it for advertising.</P>
 

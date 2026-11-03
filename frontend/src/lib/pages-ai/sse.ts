@@ -36,8 +36,11 @@ export interface AiUsage {
 }
 
 export type AiEvent =
-  | { type: "delta"; text: string }
-  | { type: "done"; usage?: AiUsage; trimmed?: boolean; slug?: string; url?: string; title?: string; [k: string]: unknown }
+  /** `reset`: replace what was shown so far with `text` (the server cleaned the answer up). */
+  | { type: "delta"; text: string; reset?: boolean }
+  /** `markdown`: the whole final answer; translate's `done` carries the copy's `slug`, `url`, `title`. */
+  | { type: "done"; usage?: AiUsage; trimmed?: boolean; truncated?: boolean; markdown?: string; slug?: string; url?: string; title?: string; [k: string]: unknown }
+  /** `detail`: the server's own sentence for it (`message`), used when the UI has none for `reason`. */
   | { type: "limit"; reason: AiLimitReason; detail?: string }
   | { type: "error"; detail: string }
   | { type: "progress"; done?: number; total?: number; label?: string };
@@ -106,12 +109,14 @@ export function toAiEvent(m: SseMessage): AiEvent | null {
   const type = typeof body?.type === "string" ? body.type : m.event;
   if (type === "delta") {
     const text = typeof body?.text === "string" ? body.text : body ? "" : m.data;
+    if (body?.reset === true) return { type: "delta", text, reset: true };
     return text ? { type: "delta", text } : null;
   }
   if (type === "done") return { ...(body ?? {}), type: "done" } as AiEvent;
   if (type === "limit") {
     const reason = typeof body?.reason === "string" ? body.reason : "daily";
-    return { type: "limit", reason, ...(typeof body?.detail === "string" ? { detail: body.detail } : {}) };
+    const detail = typeof body?.message === "string" ? body.message : typeof body?.detail === "string" ? body.detail : null;
+    return { type: "limit", reason, ...(detail ? { detail } : {}) };
   }
   if (type === "error") {
     const detail = typeof body?.detail === "string" ? body.detail : typeof body?.message === "string" ? body.message : "";

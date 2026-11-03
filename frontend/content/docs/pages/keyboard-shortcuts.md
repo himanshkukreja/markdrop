@@ -1,9 +1,9 @@
 ---
 title: Keyboard shortcuts
 description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks.
-updated: 2026-11-03
+updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest]
+keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j]
 ---
 
 On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** where it says **⌥**.
@@ -29,6 +29,16 @@ On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** wher
 | **⌘ Enter** | Check or uncheck a to-do |
 | **Tab** / **⇧ Tab** | Nest the line under the block above / bring it back out (a list item: indent / outdent); in a table, the next / previous cell |
 | **Enter** in the title | Start writing at the top of the page |
+
+## AI
+
+| Shortcut | What it does |
+| --- | --- |
+| **⌘ J** | With text selected: **Ask AI** for the selection. Otherwise: draft with `/ai` at the caret |
+| **Space** on an empty line | Draft with `/ai` |
+| **Esc** | Discard an AI suggestion |
+
+See [AI in pages](/pages/ai).
 
 ## Turn into
 
