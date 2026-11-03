@@ -132,9 +132,10 @@ await step("block-colour-anchor", async () => {
   const id = /\{#(b-[a-z0-9]{6})/.exec(m)[1];
   await shot(p, "04-block-coloured");
   // The reader opens at the block and flashes it.
-  await p.goto(`${APP}/${slug}#${id}`, { waitUntil: "networkidle" });
-  await p.locator(`[data-bid="${id}"].pb-flash`).waitFor({ timeout: 10000 });
-  await shot(p, "05-anchor-flash", { wait: 300 });
+  const rd = (await readerContext(browser, slug)).p;
+  await rd.goto(`${APP}/${slug}#${id}`, { waitUntil: "networkidle" });
+  await rd.locator(`[data-bid="${id}"].pb-flash`).waitFor({ timeout: 10000 });
+  await shot(rd, "05-anchor-flash", { wait: 300 });
   // …and so does the editor.
   await p.goto(`${APP}/${slug}?edit=1#${id}`, { waitUntil: "networkidle" });
   await p.locator(".dxe-visual .dxe-flash").waitFor({ timeout: 10000 });
@@ -168,9 +169,10 @@ await step("columns-slash", async () => {
   await p.mouse.up();
   await saved(p, slug, [/:::column\{width="\d+(\.\d)?%"\}/]);
   await shot(p, "07-columns");
-  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
-  await p.locator(".pb-columns .pb-column").nth(1).waitFor();
-  await shot(p, "08-columns-reader");
+  const rd = (await readerContext(browser, slug)).p;
+  await rd.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await rd.locator(".pb-columns .pb-column").nth(1).waitFor();
+  await shot(rd, "08-columns-reader");
 });
 
 await step("columns-drag", async () => {
@@ -248,12 +250,13 @@ await step("image", async () => {
   await p.keyboard.press("Escape");
   await p.locator(".dxe-lightbox").waitFor({ state: "detached" });
   // The reader: same width and alignment, full screen on click.
-  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
-  await p.locator('.pb-figure[data-align="left"]').waitFor();
-  await p.locator(".pb-figure__open").click();
-  await p.locator(".dxe-lightbox").waitFor();
-  await p.getByRole("button", { name: "Download" }).waitFor();
-  await shot(p, "13-reader-image-full-screen");
+  const rd = (await readerContext(browser, slug)).p;
+  await rd.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await rd.locator('.pb-figure[data-align="left"]').waitFor();
+  await rd.locator(".pb-figure__open").click();
+  await rd.locator(".dxe-lightbox").waitFor();
+  await rd.getByRole("button", { name: "Download" }).waitFor();
+  await shot(rd, "13-reader-image-full-screen");
 });
 
 /* ── 5. multi-block selection ───────────────────────────────────────────────── */
@@ -350,9 +353,10 @@ await step("nesting", async () => {
   await caretAfter(p, "Under the item");
   await p.keyboard.press("Tab");
   await saved(p, slug, ["- Item\n\n  Under the item"]);
-  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
-  await p.locator(".pb-indent").waitFor();
-  await shot(p, "18-nested-reader");
+  const rd = (await readerContext(browser, slug)).p;
+  await rd.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await rd.locator(".pb-indent").waitFor();
+  await shot(rd, "18-nested-reader");
 });
 
 /* ── 7. tables, code caption, button ────────────────────────────────────────── */
@@ -376,9 +380,10 @@ await step("table", async () => {
   await p.mouse.up();
   await saved(p, slug, [/header-column widths="\d+,/]);
   await shot(p, "19-table");
-  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
-  await p.locator("table[data-hcol] col").first().waitFor({ state: "attached" });
-  await shot(p, "20-table-reader");
+  const rd = (await readerContext(browser, slug)).p;
+  await rd.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await rd.locator("table[data-hcol] col").first().waitFor({ state: "attached" });
+  await shot(rd, "20-table-reader");
 });
 
 await step("code-caption-button", async () => {
@@ -436,7 +441,7 @@ await step("reader", async () => {
   const slug = await newPage("All of round 2", content);
   const stored = await md(slug);
   for (const width of [1280, 390]) {
-    const { p, c } = await ctx({ width, height: width < 500 ? 844 : 900 });
+    const { p, c } = await readerContext(browser, slug, { width, height: width < 500 ? 844 : 900 });
     await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
     await p.locator(".pb-columns").first().waitFor();
     await shot(p, `23-reader-${width}`, { full: true, wait: 1200 });
@@ -462,13 +467,15 @@ await step("touch", async () => {
   const { p } = await ctx({ width: 390, height: 844, touch: true });
   await edit(p, slug);
   await para(p, "Second on the phone").tap();
-  await p.locator(".dxe-touchbar").waitFor({ timeout: 5000 });
+  // On a page, the page's own phone toolbar stands in for the editor's touch bar.
+  const bar = p.locator(".pb-phonebar[data-on]");
+  await bar.waitFor({ timeout: 5000 });
   await shot(p, "25-touch-bar");
-  await p.getByRole("button", { name: "Add a block" }).tap();
-  await p.locator(".dxe-slash").waitFor();
+  await bar.getByRole("button", { name: "Add a block" }).tap();
+  await p.locator(".dxe-slash").first().waitFor();
   await shot(p, "26-touch-slash");
   await p.keyboard.press("Escape");
-  await p.getByRole("button", { name: "Block menu" }).tap();
+  await bar.getByRole("button", { name: "This block's menu" }).tap();
   await p.locator('[role="menu"]').first().waitFor();
   await shot(p, "27-touch-block-menu");
   await p.keyboard.press("Escape");

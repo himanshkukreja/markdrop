@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/react";
 import { Icon, cx } from "@/components/ui";
 import { PageSheet } from "./PageChrome";
+import { openSlashAt } from "@/components/docs-editor/menus/slash";
 
 type Cmds = Record<string, ((...a: unknown[]) => boolean) | undefined>;
 const has = (ed: Editor, name: string) => typeof (ed.commands as unknown as Cmds)[name] === "function";
@@ -113,24 +114,23 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
   if (!editor || editor.isDestroyed) return null;
 
   const keep = (e: React.PointerEvent | React.MouseEvent) => e.preventDefault();
-  const slashAtCaret = () => editor.chain().focus().insertContent("/").run();
+  // The block menu opens on a "/" at the start of a line or after a space (as when typed).
+  const slashAtCaret = () => {
+    const { $from } = editor.state.selection;
+    const before = $from.parent.textBetween(Math.max(0, $from.parentOffset - 1), $from.parentOffset, "\n", "\n");
+    editor.chain().focus().insertContent(before && !/\s/.test(before) ? " /" : "/").run();
+  };
+  // A new block under this one, with the block menu open (what "+" beside a block does).
   const addBlock = () => {
     const { $from } = editor.state.selection;
     const empty = $from.parent.type.name === "paragraph" && !$from.parent.content.size;
-    if (empty) {
+    const pos = blockPos(editor);
+    const node = pos === null ? null : editor.state.doc.nodeAt(pos);
+    if (empty || !node) {
       slashAtCaret();
       return;
     }
-    editor
-      .chain()
-      .focus()
-      .command(({ tr }) => {
-        tr.split($from.end());
-        return true;
-      })
-      .setParagraph()
-      .insertContent("/")
-      .run();
+    openSlashAt(editor, pos! + node.nodeSize);
   };
   const blockMenu = () => {
     const api = (editor.storage as unknown as { dxeBlockMenu?: { open: (pos: number) => void } }).dxeBlockMenu;
