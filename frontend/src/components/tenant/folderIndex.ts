@@ -21,7 +21,8 @@
  * Links are always built from `folder_path` + `slug` on this host, never from a URL in the payload.
  */
 
-import { API_BASE, getToken } from "@/lib/api";
+import { API_BASE } from "@/lib/api";
+import { usableSessionToken } from "./handoff";
 
 export interface TenantFolderRef {
   name: string;
@@ -84,7 +85,8 @@ export function parseFolderListing(data: unknown): TenantFolderListing | null {
  * tenant token). Null when signed out, refused, or unavailable — callers keep what they had.
  */
 export async function fetchTenantFolderAsReader(host: string, path: string[]): Promise<TenantFolderListing | null> {
-  const token = getToken();
+  // Not a tenant token that has expired: that one is dropped, and the page asks for a fresh one.
+  const token = usableSessionToken();
   if (!token) return null;
   try {
     const q = new URLSearchParams({ host, path: path.join("/") });

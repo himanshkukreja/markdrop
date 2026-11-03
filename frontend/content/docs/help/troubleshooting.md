@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting
 description: Fixes for the problems people hit most - signing in, links that won't open, uploads, invitations, domains, analytics and transfers.
-updated: 2026-10-30
+updated: 2026-11-03
 keywords: [help, problem, error, not working, can't sign in, link broken, 404, 429, upload failed, troubleshoot]
 ---
 
@@ -48,7 +48,7 @@ Enter the password you were given. After too many wrong passwords, Markdrop stop
 :::
 
 :::details[It opens on markdrop.in but not on our own domain]
-On a workspace's own domain you sign in separately. Choose **Sign in** in the domain's header. See [Sign-in on your domain](/workspaces/sign-in-on-your-domain).
+A workspace's own domain has its own sign-in. Markdrop carries yours across in the background if you're a member of the workspace, or if you chose **Don't ask again** for that domain. Otherwise choose **Sign in** in the domain's header once and confirm the site. If you're signed in on markdrop.in and the domain still asks, reload the page after a couple of minutes, or choose **Sign in**. See [Sign-in on your domain](/workspaces/sign-in-on-your-domain).
 :::
 
 ## Uploading files

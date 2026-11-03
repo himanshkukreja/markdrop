@@ -5,11 +5,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { fetchTenantFolderAsReader, type TenantFolderListing } from "./folderIndex";
 import { TenantFolderIndex } from "./TenantFolderIndex";
 import { Button, EmptyState, MarkdropLoader } from "@/components/ui";
-import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT, silentSignInUrl } from "@/lib/hosts";
+import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT } from "@/lib/hosts";
+import { startSilentHandoff, usableSessionToken } from "./handoff";
 import { TenantFooter } from "./TenantFooter";
 import { TenantHandoff } from "./TenantHandoff";
 import { TenantHeader } from "./TenantHeader";
 import { TenantHome } from "./TenantHome";
+import { TenantLoading } from "./TenantLoading";
 
 /**
  * A folder (or the site root) on a workspace's own domain, for whoever is reading.
@@ -32,14 +34,20 @@ export interface TenantFolderPageProps {
 }
 
 export function TenantFolderPage({ host, siteName, path, initial, signInHref = null }: TenantFolderPageProps) {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const [listing, setListing] = useState<TenantFolderListing | null>(initial);
+  // Whether the reader's own listing (with their token, if any) has been asked for yet. Until it
+  // has, a sign-in-required site shows "Opening…", not "Sign in": the server render is anonymous,
+  // and its gate is only the answer for a reader with no session.
+  const [readerAsked, setReaderAsked] = useState(false);
   const key = path.join("/");
 
   useEffect(() => {
     let cancelled = false;
     void fetchTenantFolderAsReader(host, path).then((mine) => {
-      if (!cancelled && mine) setListing(mine);
+      if (cancelled) return;
+      if (mine) setListing(mine);
+      setReaderAsked(true);
     });
     return () => {
       cancelled = true;
@@ -49,7 +57,17 @@ export function TenantFolderPage({ host, siteName, path, initial, signInHref = n
   }, [host, key, user?.id]);
 
   const returnPath = path.length ? `/${path.join("/")}` : "/";
-  if (!listing && signInHref && !user) return <TenantSignInGate siteName={siteName} signInHref={signInHref} />;
+  if (!listing && signInHref && !user) {
+    if (authLoading || !readerAsked) {
+      return (
+        <>
+          <TenantHandoff />
+          <TenantLoading label="Opening" />
+        </>
+      );
+    }
+    return <TenantSignInGate siteName={siteName} signInHref={signInHref} />;
+  }
   if (!listing) return <TenantHome siteName={siteName} />;
   return (
     <TenantFolderIndex
@@ -75,16 +93,11 @@ function TenantSignInGate({ siteName, signInHref }: { siteName: string; signInHr
       return;
     }
     if (hash.startsWith(`#${HANDOFF_FRAGMENT}=`)) return; // TenantHandoff takes it
-    if (localStorage.getItem("markdrop_token")) return;
-    const key = `md_silent_handoff:${window.location.host}${window.location.pathname}`;
-    try {
-      if (sessionStorage.getItem(key) === "1") return;
-      sessionStorage.setItem(key, "1");
-    } catch {
-      return; // storage blocked: never loop, just show the gate
-    }
-    setChecking(true);
-    window.location.replace(silentSignInUrl(signInHref));
+    // A live tenant token: the reader fetch decides. An expired one is dropped here and does not
+    // count (it used to, and kept a signed-in reader on this screen).
+    if (usableSessionToken()) return;
+    // At most once per page every couple of minutes (the loop guard is in startSilentHandoff).
+    if (startSilentHandoff(signInHref)) setChecking(true);
   }, [signInHref]);
 
   if (checking) {

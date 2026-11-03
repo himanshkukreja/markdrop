@@ -1,7 +1,7 @@
 ---
 title: Sign-in on your domain
 description: How readers sign in on a workspace's own domain, what the domain's owner can see, and how long the sign-in lasts.
-updated: 2026-10-30
+updated: 2026-11-03
 prerequisites: [/workspaces/custom-domain, /workspaces/privacy]
 keywords: [sign in, login, sso, custom domain, handoff, consent, locked]
 ---
@@ -9,6 +9,15 @@ keywords: [sign in, login, sso, custom domain, handoff, consent, locked]
 Readers sign in to Markdrop on markdrop.in. A browser keeps sign-ins separate for each site, so on `docs.acme.com` a reader looks signed out, however recently they signed in on markdrop.in. Markdrop carries the sign-in across for them, with their say-so.
 
 Readers only need to sign in for things that aren't open to anyone: items for the team, items shared with them by name, and everything in a [Locked](/workspaces/privacy#the-three-presets) workspace.
+
+## Already signed in on markdrop.in
+
+When someone opens a page on your domain that needs sign-in, Markdrop first checks markdrop.in in the background. The page shows **Opening…** for a moment and then opens. It doesn't show **Sign in to read Acme** when the reader is signed in on markdrop.in and either:
+
+- is a member of the workspace, or
+- chose **Don't ask again** for your domain before.
+
+Everyone else sees the sign-in steps below. That includes readers who are signed out on markdrop.in, and readers who haven't confirmed your site yet. Markdrop checks at most once every two minutes for each page, so a reader who isn't signed in never gets stuck in a loop.
 
 ## What readers see
 
@@ -38,7 +47,7 @@ The sign-in Markdrop hands to your domain is deliberately small:
 
 - It works only on that one domain, and only for that workspace's documents.
 - It can only read. It can't edit, share or delete anything, or touch the reader's own documents, other workspaces or account.
-- It lasts 12 hours. After that, the reader chooses **Sign in** again.
+- It lasts 12 hours. After that, Markdrop renews it in the background the next time the reader opens a page that needs it, in the cases described in [Already signed in on markdrop.in](#already-signed-in-on-markdropin). Otherwise the reader chooses **Sign in** again.
 - It doesn't contain the reader's email address.
 
 Every document still runs its normal access check for that person. Signing in on a domain never opens anything the reader couldn't already open on markdrop.in.

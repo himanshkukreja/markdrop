@@ -1,7 +1,7 @@
 ---
 title: Limits
 description: Every limit in one place - document size, file sizes, storage, versions, sharing, workspaces, domains and request rates.
-updated: 2026-10-30
+updated: 2026-11-03
 keywords: [limits, quota, storage, max size, file size, rate limit, how many, maximum]
 ---
 
@@ -62,7 +62,7 @@ The PDF viewer shows the first 50 pages of a PDF and offers the rest as a downlo
 | --- | --- |
 | Sign-in on markdrop.in | Lasts 30 days |
 | Email sign-in code | 6 digits, expires after 15 minutes, 5 tries |
-| Sign-in on a workspace's own domain | Lasts 12 hours |
+| Sign-in on a workspace's own domain | Lasts 12 hours, then renews in the background (see [Sign-in on your domain](/workspaces/sign-in-on-your-domain)) |
 | API tokens | No expiry; revoke them in Settings |
 | Connected AI apps | Access renews every hour on its own. An app that isn't used for 60 days has to connect again. |
 
