@@ -11,7 +11,7 @@ A page can hold other pages. Sub-pages show at the bottom of their parent under 
 ## Add a sub-page
 
 - At the bottom of a page, choose **Add a sub-page**, pick a template and choose **Create page**.
-- While editing, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
+- In the page, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
 
 You need to be signed in and able to edit the parent.
 
@@ -49,7 +49,7 @@ In your workspace's sidebar, drag a page onto another page to put it inside, or 
 
 ### Move to
 
-Without dragging (or from the keyboard), choose **Move to…** from the page's **More actions** menu, from the **⋯** menu while editing, or from the **⋯** next to a page in the page tree. Search, then pick:
+Without dragging (or from the keyboard), choose **Move to…** from the page's **⋯** menu, or from the **⋯** next to a page in the page tree. Search, then pick:
 
 - **Top level of** its folder (for a sub-page): it leaves its parent.
 - A **folder** of the workspace, or the workspace's top level.
