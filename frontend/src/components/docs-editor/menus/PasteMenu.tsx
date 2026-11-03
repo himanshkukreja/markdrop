@@ -163,7 +163,7 @@ export class PasteController {
   };
 
   /** handleKeyDown: the menu's keys while it's open (the editor keeps focus). */
-  keyDown = (_view: EditorView, e: KeyboardEvent): boolean => {
+  keyDown = (view: EditorView, e: KeyboardEvent): boolean => {
     const s = this.state;
     if (!s.open) return false;
     if (e.isComposing) return false;
@@ -178,13 +178,25 @@ export class PasteController {
       return true;
     }
     if (e.key === "Escape") {
+      this.unlinkTyping(view);
       this.close();
       return true;
     }
     if (MODIFIERS.has(e.key)) return false;
+    if (e.key.length === 1 && !e.metaKey && !e.ctrlKey) this.unlinkTyping(view);
     this.close(); // anything else: the link stays, and the key does what it does
     return false;
   };
+
+  /** What's typed right after the pasted link isn't part of it (links extend as you type). */
+  private unlinkTyping(view: EditorView) {
+    const { state } = view;
+    const sel = state.selection;
+    const link = state.schema.marks.link;
+    if (!link || !sel.empty || sel.from !== this.state.to) return;
+    const marks = (state.storedMarks ?? sel.$from.marks()).filter((m: Mark) => m.type !== link);
+    view.dispatch(state.tr.setStoredMarks(marks).setMeta(OWN, true));
+  }
 
   hover = (index: number) => {
     if (this.state.open && index !== this.state.index) this.set({ ...this.state, index });
@@ -204,7 +216,8 @@ export class PasteController {
     tr.setSelection(TextSelection.create(tr.doc, to));
     // Typing on after it isn't part of the link.
     tr.setStoredMarks(around);
-    tr.scrollIntoView().setMeta("paste", true).setMeta("uiEvent", "paste").setMeta(OWN, true);
+    // Not `uiEvent: paste`: the link's paste rule and autolink would make it again, as a `[text](url)` link.
+    tr.scrollIntoView().setMeta("paste", true).setMeta("preventAutolink", true).setMeta(OWN, true);
     view.dispatch(tr);
 
     const $at = view.state.doc.resolve(from);
@@ -362,6 +375,8 @@ export function PasteMenu({ editor, paste, stickyTop }: { editor: Editor; paste:
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   const [tick, setTick] = useState(0);
+  const pointer = useRef<string | null>(null);
+  if (!s.open) pointer.current = null;
 
   useEffect(
     () =>
@@ -391,16 +406,28 @@ export function PasteMenu({ editor, paste, stickyTop }: { editor: Editor; paste:
     setPos({ left: Math.max(8, Math.min(rect.left - 12, window.innerWidth - w - 8)), top: down ? rect.bottom + 6 : rect.top - 6 - h });
   }, [s, tick, editor, stickyTop]);
 
+  // Follow the link while the menu is open: scrolling, resizing, and the page moving under it
+  // (a helper above the text going away once the page has content). Checked once a frame.
   useEffect(() => {
     if (!s.open) return;
-    const on = () => setTick((t) => t + 1);
-    window.addEventListener("scroll", on, true);
-    window.addEventListener("resize", on);
-    return () => {
-      window.removeEventListener("scroll", on, true);
-      window.removeEventListener("resize", on);
+    let raf = 0;
+    let last = "";
+    const loop = () => {
+      try {
+        const r = editor.view.coordsAtPos(Math.min(paste.get().to, editor.state.doc.content.size));
+        const key = `${Math.round(r.left)},${Math.round(r.top)},${window.innerWidth},${window.innerHeight}`;
+        if (key !== last) {
+          last = key;
+          setTick((t) => t + 1);
+        }
+      } catch {
+        /* the editor is going away */
+      }
+      raf = requestAnimationFrame(loop);
     };
-  }, [s.open]);
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [s.open, editor, paste]);
 
   if (!s.open || typeof document === "undefined") return null;
   const labelId = `${paste.menuId}-label`;
@@ -423,7 +450,13 @@ export function PasteMenu({ editor, paste, stickyTop }: { editor: Editor; paste:
             tabIndex={-1}
             aria-label={`${it.label}: ${it.hint}`}
             className={cx("dxe-paste__item", i === s.index && "dxe-paste__item--on")}
-            onMouseEnter={() => paste.hover(i)}
+            onMouseMove={(e) => {
+              // Only a pointer that moves picks: a menu opening under a still one (WebKit sends a
+              // mousemove then) keeps its choice.
+              const at = `${e.screenX},${e.screenY}`;
+              if (pointer.current === null) pointer.current = at;
+              else if (pointer.current !== at) paste.hover(i);
+            }}
             onClick={() => paste.pick(it.id)}
           >
             <span className="dxe-paste__icon" aria-hidden>

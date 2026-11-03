@@ -159,7 +159,7 @@ export function pickSource({ types, html, text, vscode }: { types: readonly stri
 
 /* ── Markdown from other tools ───────────────────────────────────────────── */
 
-const EMOJI_HEAD = /^(\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s*/u;
+const EMOJI_HEAD = /^(\p{Extended_Pictographic}(?:️|\u200d\p{Extended_Pictographic}|\p{Emoji_Modifier})*)\s*/u;
 const attr = (v: string) => `"${v.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/\n/g, " ")}"`;
 const ALERT_KIND: Record<string, string> = { NOTE: "note", TIP: "tip", IMPORTANT: "note", WARNING: "warning", CAUTION: "danger" };
 
@@ -558,7 +558,7 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
   while (tw.nextNode()) texts.push(tw.currentNode as Text);
   for (const t of texts) {
     if (t.parentElement?.closest("pre, code")) continue;
-    const v = t.data.replace(/ /g, " ").replace(/[​‌‍﻿]/g, (c) => (c === "‍" ? c : ""));
+    const v = t.data.replace(/\u00a0/g, " ").replace(/[\u200b\u200c\u200d\ufeff]/g, (c) => (c === "\u200d" ? c : ""));
     if (v !== t.data) t.data = v;
   }
 
@@ -604,17 +604,21 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
   }
 
   function hasText(e: Element) {
-    return !!(e.textContent ?? "").replace(/[\s ​﻿]+/g, "");
+    return !!(e.textContent ?? "").replace(/[\s\u00a0\u200b\ufeff]+/g, "");
   }
 
-  /** Text next to `top` on the same line (inline siblings up to the nearest block). */
+  /**
+   * Whether `top` shares its line with text or other images (inline siblings up to the nearest
+   * block or line break): a row of badges stays a row.
+   */
   function hasInlineText(top: Element) {
     const look = (dir: "previousSibling" | "nextSibling") => {
       for (let n = top[dir]; n; n = n[dir]) {
         if (n.nodeType === 1 && BLOCK.has((n as Element).tagName)) return false;
         if (n.nodeType === 1 && (n as Element).tagName === "BR") return false;
         if (n.nodeType === 1 && (n as Element).matches("figure[data-docs]")) continue;
-        if ((n.textContent ?? "").replace(/[\s ​﻿]+/g, "")) return true;
+        if (n.nodeType === 1 && ((n as Element).tagName === "IMG" || (n as Element).querySelector("img"))) return true;
+        if ((n.textContent ?? "").replace(/[\s\u00a0\u200b\ufeff]+/g, "")) return true;
       }
       return false;
     };
@@ -671,7 +675,7 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
       if (block && !out.endsWith("\n")) out += "\n";
     };
     pre.childNodes.forEach(visit);
-    return out.replace(/ /g, " ");
+    return out.replace(/\u00a0/g, " ");
   }
 
   function callout(e: Element) {
@@ -784,6 +788,8 @@ export function normalizePastedHTML(html: string, opts: NormalizeOptions = {}): 
         const cell = el(ri === 0 ? "th" : "td");
         const src = r[ci]?.cell;
         if (src) flattenInto(src, cell);
+        // A header cell is bold already.
+        if (ri === 0) cell.querySelectorAll("strong, b").forEach((x) => unwrap(x));
         tr.append(cell);
       }
       tbody.append(tr);

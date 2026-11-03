@@ -58,6 +58,19 @@ export function changedRanges(tr: Transaction): Array<[number, number]> {
 
 const remote = (src: string) => /^https?:\/\//i.test(src) || /^data:image\//i.test(src);
 
+/** A `data:` image as a Blob, decoded here (not fetched: the page's connect-src needn't allow `data:`). */
+function dataBlob(src: string): Blob | null {
+  const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/i.exec(src);
+  if (!m) return null;
+  let bytes: Uint8Array;
+  if (m[2]) {
+    const bin = atob(m[3].replace(/\s+/g, ""));
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } else bytes = new TextEncoder().encode(decodeURIComponent(m[3]));
+  return new Blob([bytes as BlobPart], { type: m[1].toLowerCase() });
+}
+
 let seq = 0;
 
 /**
@@ -68,6 +81,8 @@ export function watchPastedImages(editor: Editor, getUpload: () => UploadImage |
   const plugin = pasteUploadPlugin();
   editor.registerPlugin(plugin);
   const cache = new Map<string, Promise<string | null>>();
+  // Uploads that went through (remote address → upload): an undone paste that is redone gets them back.
+  const done = new Map<string, string>();
   let running = 0;
   const queue: Array<() => void> = [];
   const next = () => {
@@ -89,14 +104,17 @@ export function watchPastedImages(editor: Editor, getUpload: () => UploadImage |
     const hit = cache.get(src);
     if (hit) return hit;
     const p = limited(async () => {
-      let blob: Blob;
+      let blob: Blob | null;
       try {
-        const r = await fetch(src, { mode: "cors", credentials: "omit", referrerPolicy: "no-referrer" });
-        if (!r.ok) return null;
-        blob = await r.blob();
+        if (src.startsWith("data:")) blob = dataBlob(src);
+        else {
+          const r = await fetch(src, { mode: "cors", credentials: "omit", referrerPolicy: "no-referrer" });
+          blob = r.ok ? await r.blob() : null;
+        }
       } catch {
         return null; // cross-origin refused, offline: the remote address stays
       }
+      if (!blob) return null;
       const type = blob.type.split(";")[0].trim().toLowerCase();
       if (!KINDS.has(type) || blob.size > MAX || blob.size === 0) return null;
       let name = "pasted-image";
@@ -117,7 +135,8 @@ export function watchPastedImages(editor: Editor, getUpload: () => UploadImage |
     cache.set(src, p);
     // A failure isn't remembered: pasting the same image again tries again.
     void p.then((u) => {
-      if (!u) cache.delete(src);
+      if (u) done.set(src, u);
+      else cache.delete(src);
     });
     return p;
   };
@@ -144,22 +163,41 @@ export function watchPastedImages(editor: Editor, getUpload: () => UploadImage |
   };
 
   const onTransaction = ({ transaction: tr }: { transaction: Transaction }) => {
+    if (!tr.docChanged) return;
     const ui = tr.getMeta("uiEvent");
-    if ((ui !== "paste" && ui !== "drop") || !tr.docChanged) return;
+    const pasted = ui === "paste" || ui === "drop";
+    // Undo / redo brings back a figure with the address it was pasted with: swap in its upload again.
+    const history = !pasted && tr.getMeta("history$") !== undefined && done.size > 0;
+    if (!pasted && !history) return;
     const up = getUpload();
     if (!up) return;
     const found: Array<{ pos: number; size: number; src: string }> = [];
     const seen = new Set<number>();
     for (const [from, to] of changedRanges(tr)) {
       tr.doc.nodesBetween(Math.max(0, from), Math.min(tr.doc.content.size, to), (n, pos) => {
-        if (n.type.name === "figure" && !seen.has(pos) && remote(String(n.attrs.src ?? ""))) {
+        const src = String(n.attrs.src ?? "");
+        if (n.type.name === "figure" && !seen.has(pos) && remote(src) && (pasted || done.has(src))) {
           seen.add(pos);
-          found.push({ pos, size: n.nodeSize, src: String(n.attrs.src) });
+          found.push({ pos, size: n.nodeSize, src });
         }
         return !n.isAtom;
       });
     }
     if (!found.length) return;
+    if (history) {
+      // Known uploads: swapped at once, outside the history (so redo / undo stay as they are).
+      queueMicrotask(() => {
+        if (editor.isDestroyed) return;
+        const t = editor.state.tr.setMeta("addToHistory", false);
+        for (const f of found) {
+          const n = t.doc.nodeAt(f.pos);
+          const url = done.get(f.src);
+          if (n && url && n.type.name === "figure" && n.attrs.src === f.src) t.setNodeMarkup(f.pos, undefined, { ...n.attrs, src: url });
+        }
+        if (t.docChanged) editor.view.dispatch(t);
+      });
+      return;
+    }
     const items = found.map((f) => ({ ...f, id: `u${++seq}` }));
     // After this transaction has been applied: mark them, then upload.
     queueMicrotask(() => {
