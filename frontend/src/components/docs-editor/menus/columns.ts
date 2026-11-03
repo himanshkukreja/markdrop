@@ -270,7 +270,9 @@ function sideAt(view: EditorView, x: number, y: number): Side | null {
   const dom = view.nodeDOM(pos);
   if (!(dom instanceof HTMLElement)) return null;
   const rect = dom.getBoundingClientRect();
-  if (y < rect.top || y > rect.bottom) return null;
+  // Beside a block means level with it: near its top or bottom edge, the drop goes above or below.
+  const band = Math.min(rect.height * 0.25, 12);
+  if (y < rect.top + band || y > rect.bottom - band) return null;
   if (x < rect.left + SIDE_ZONE) return { pos, node, side: "left", rect };
   if (x > rect.right - SIDE_ZONE) return { pos, node, side: "right", rect };
   return null;

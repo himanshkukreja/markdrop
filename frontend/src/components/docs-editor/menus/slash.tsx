@@ -237,9 +237,16 @@ export function SlashMenu({ store, listboxId, stickyTop, label = "Insert a block
     if (!live.open) setHovered(null);
   }, [live.open]);
 
-  // The chosen row stays in view (below the sticky section header), scrolling smoothly.
+  // The chosen row stays in view (below the sticky section header), scrolling smoothly. Not when the
+  // pointer chose it: the list doesn't move under the pointer.
   const prevIndex = useRef(-1);
+  const byPointer = useRef(false);
   useEffect(() => {
+    if (byPointer.current) {
+      byPointer.current = false;
+      prevIndex.current = s.index;
+      return;
+    }
     const sc = scroller.current;
     const el = sc?.querySelector<HTMLElement>(`#${CSS.escape(`${listboxId}-${s.index}`)}`);
     if (!sc || !el || !live.open) return;
@@ -292,7 +299,10 @@ export function SlashMenu({ store, listboxId, stickyTop, label = "Insert a block
                     className={cx("dxe-slash__opt", i === s.index && "dxe-slash__opt--on")}
                     // Moving the pointer picks a row; a row scrolled under a still pointer doesn't.
                     onMouseMove={() => {
-                      if (store.get().index !== i) store.set({ index: i });
+                      if (store.get().index !== i) {
+                        byPointer.current = true;
+                        store.set({ index: i });
+                      }
                       if (hovered !== it.id) setHovered(it.id);
                     }}
                     onClick={() => s.pick?.(it)}
