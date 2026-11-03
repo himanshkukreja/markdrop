@@ -882,6 +882,12 @@ export function useDocumentViewer({
         if (doc.is_owned || doc.is_owner) setDocOwned(true);
         // A signed-in read: its page fields (breadcrumbs, page images) are this reader's.
         if (doc.kind !== "artifact" && !doc.encrypted) setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
+        // …and so is a page's Markdown: the anonymous server render leaves out the names of the
+        // people it mentions and the labels of items, which this reader may be allowed to see.
+        if (doc.kind !== "artifact" && !doc.encrypted && (doc as { editor?: string }).editor === "blocks" && typeof doc.content === "string") {
+          setDisplayContent(doc.content);
+          setDocRev(typeof doc.rev === "number" ? doc.rev : null);
+        }
         setOwnerCheckedFor(uid);
         if (!doc.is_owner) return;
         setIsOwner(true);

@@ -158,7 +158,7 @@ await step("tools", async () => {
   log("upload_page_image", JSON.stringify(img.data).slice(0, 160));
   await ok(ada, "append_blocks", { document: st.slug, markdown: img.data.markdown });
   // set_page_properties
-  await ok(ada, "set_page_properties", { document: st.slug, properties: { full_width: true, font: "serif" } });
+  await ok(ada, "set_page_properties", { document: st.slug, full_width: true, font: "serif" });
   // list_subpages
   const ls = await ok(ada, "list_subpages", { document: st.slug });
   if (!JSON.stringify(ls.data).includes(st.child)) fail("list_subpages lacks the child");
@@ -220,7 +220,17 @@ await step("roundtrip", async () => {
   for (const [k, sel] of Object.entries(checks)) if (!(await m.p.locator(sel).count())) missing.push(k);
   await shot(m.p, "51-mcp-every-block-view", { full: true, wait: 2000 });
   if (missing.length) fail(`the reader lacks: ${missing.join(", ")}`);
+  // A member sees the teammate's name; someone outside the workspace sees "a person".
+  const person = await m.p.locator(".pb-mention--person").first().innerText();
+  if (!person.includes("Ben Member")) fail(`a member sees the person mention as ${JSON.stringify(person)}`);
   await m.c.close();
+  const o = await ctx(browser, { token: T.stranger });
+  await o.p.goto(`${APP}/${st.slug}`, { waitUntil: "networkidle" });
+  await o.p.locator(".pb-mention--person").first().waitFor();
+  await o.p.waitForTimeout(2000);
+  const theirs = await o.p.locator(".pb-mention--person").first().innerText();
+  if (theirs.includes("Ben Member") || (await o.p.content()).includes("Ben Member")) fail("a stranger sees the person's name");
+  await o.c.close();
 });
 
 await browser.close();

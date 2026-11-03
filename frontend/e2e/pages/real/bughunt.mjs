@@ -101,7 +101,7 @@ await step("drag", async () => {
   await handle.waitFor({ timeout: 5000 });
   // Drop on the top edge of the first block: the block goes above it.
   const one = p.locator(".ProseMirror p", { hasText: "One" });
-  await handle.dragTo(one, { targetPosition: { x: 40, y: 2 } });
+  await handle.dragTo(one, { targetPosition: { x: Number(process.env.DX ?? 40), y: 2 } });
   const md = await settle(p, slug, (m) => m.startsWith("Three"));
   if (md !== "Three\n\nOne\n\nTwo\n") fail(`drag saved ${JSON.stringify(md)}`);
   await c.close();
