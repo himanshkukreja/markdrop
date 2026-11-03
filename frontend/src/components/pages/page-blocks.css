@@ -103,6 +103,7 @@
 .dxe-column__resize::after { content: ""; position: absolute; top: 0; bottom: 0; left: 5px; width: 2px; border-radius: 2px; background: var(--accent); opacity: 0; transition: opacity var(--duration-fast, 120ms) ease; }
 .dxe-column__resize:hover::after, .dxe-columns[data-resizing] .dxe-column__resize[data-active]::after, .dxe-column__resize:focus-visible::after { opacity: 0.8; }
 .dxe-column__resize:focus-visible { outline: none; }
+.ProseMirror[contenteditable="false"] .dxe-column__resize { display: none; }
 @media (max-width: 640px) {
   .pb-columns, .dxe-columns { flex-direction: column; gap: 4px; }
   .pb-column, .dxe-column { flex-basis: auto !important; width: 100% !important; padding: 0 !important; }

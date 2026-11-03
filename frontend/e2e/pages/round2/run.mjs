@@ -11,7 +11,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { APP, BROWSER, SHOTS, THEME, context, edit, fail, launch, md, newPage, saved, shot } from "./lib.mjs";
+import { APP, BROWSER, SHOTS, THEME, context, edit, fail, launch, md, newPage, pending, saved, shot } from "./lib.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.resolve(here, "../../../src/components/docs-editor/test/fixtures/pages.md");
@@ -30,7 +30,11 @@ async function step(name, fn) {
     console.log("• ok", name);
   } catch (e) {
     results.push([name, `FAIL ${e.message.split("\n")[0]}`, Date.now() - t0]);
-    for (const cx of browser.contexts()) for (const pg of cx.pages()) await pg.screenshot({ path: path.join(SHOTS, `fail-${name}-${THEME}.png`) }).catch(() => {});
+    for (const cx of browser.contexts())
+      for (const pg of cx.pages()) {
+        await pg.screenshot({ path: path.join(SHOTS, `fail-${name}-${THEME}.png`) }).catch(() => {});
+        for (const r of pending(pg)) console.error("   still open:", r);
+      }
     console.error(`✗ ${name}:`, e.message.slice(0, 1500));
   } finally {
     for (const cx of browser.contexts()) await cx.close().catch(() => {});
@@ -153,6 +157,11 @@ await step("columns-slash", async () => {
   const h = p.locator(".dxe-column__resize").first();
   const b = await h.boundingBox();
   await p.mouse.move(b.x + b.width / 2, b.y + 20);
+  // The block handle of the right column's first block sits on the divider until the pointer
+  // moves there; it steps aside on the next frame.
+  await p.waitForTimeout(250);
+  const under = await p.evaluate(([x, y]) => document.elementFromPoint(x, y)?.className ?? "", [b.x + b.width / 2, b.y + 20]);
+  if (!String(under).includes("dxe-column__resize")) fail(`the divider isn't under the pointer (${under})`);
   await p.mouse.down();
   await p.mouse.move(b.x + 120, b.y + 20, { steps: 8 });
   await shot(p, "06-columns-resizing", { wait: 100 });
@@ -182,6 +191,18 @@ await step("columns-drag", async () => {
   if (!/:::column\nAlpha block\n:::\n\n:::column\nGamma block\n:::/.test(m)) fail(`not side by side:\n${m}`);
   if (!m.includes("Beta block")) fail("Beta lost");
   await shot(p, "09-columns-by-drag");
+});
+
+/* ── 3b. controls drawn before the edit lock (the page opens read only) work after it ── */
+await step("after-lock", async () => {
+  const slug = await newPage("After the lock", "- [ ] A task\n\n::::columns\n:::column\nLeft\n:::\n\n:::column\nRight\n:::\n::::\n");
+  const { p } = await ctx();
+  await edit(p, slug);
+  const box = p.locator("input.dxe-task").first();
+  if (await box.isDisabled()) fail("the to-do's checkbox stays disabled once the page is editable");
+  if (!(await p.locator(".dxe-column__resize").first().isVisible())) fail("the column divider is hidden once the page is editable");
+  await box.click();
+  await saved(p, slug, ["- [x] A task"]);
 });
 
 /* ── 4. images: resize, align, caption, full screen (editor and reader) ────────── */
