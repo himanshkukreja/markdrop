@@ -1,12 +1,20 @@
 ---
 title: Watch the videos
 nav: Videos
-description: A short video for each part of Markdrop, from publishing a document to sending files peer to peer, with chapters and captions, on the page it belongs to.
-updated: 2026-11-02
+description: A two-and-a-half-minute overview of Markdrop, then a short video for each part, with chapters and captions, on the page it belongs to.
+updated: 2026-11-03
 keywords: [videos, video, tutorial, walkthrough, demo, watch, overview, captions]
 ---
 
-Each part of Markdrop has a video of a minute and a half or less, with chapters and captions. Each one plays at the top of the page that covers that part, so you can watch it and then read the details underneath. Choose a card to go to its page.
+Start with the overview: all of Markdrop in two and a half minutes. Then each part of Markdrop has a video of a minute and a half or less. Every video has chapters and captions, and plays at the top of the page that covers that part, so you can watch it and then read the details underneath. Choose a card to go to its page.
+
+## Start here
+
+::::cards
+:::card[Markdrop in two and a half minutes]{href="/get-started/what-is-markdrop" icon="film"}
+Documents, files that render, who can open a link, encryption, analytics, teams, your tools, sending device to device, and Markdrop Guides. (2:31)
+:::
+::::
 
 ## Using Markdrop
 

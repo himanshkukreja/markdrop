@@ -1,13 +1,15 @@
 ---
 title: What is Markdrop
 description: Markdrop turns documents and files into links that open rendered in any browser. Here is what it does and where to start.
-updated: 2026-11-02
-keywords: [overview, introduction, markdown, artifacts, files, links]
+updated: 2026-11-03
+keywords: [overview, introduction, markdown, artifacts, files, links, overview video]
 ---
 
 Markdrop gives you a link that renders what you drop into it. Paste a Markdown write-up and people see a formatted page. Upload `deck.pdf`, a spreadsheet or a screen recording and people see the PDF, the grid or the video, in their browser, without downloading anything or installing an app.
 
 Anything you would otherwise paste as raw text, or send as an attachment someone can't open on their phone, becomes one address like `markdrop.in/q3-plan`.
+
+::video{id="series-01-overview" title="Markdrop in two and a half minutes" duration="2:31"}
 
 ## Two kinds of things you can publish
 

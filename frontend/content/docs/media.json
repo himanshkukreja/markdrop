@@ -2570,6 +2570,19 @@
     "bytes": 66380,
     "kind": "poster"
   },
+  "/docs-assets/videos/series-01-overview.mp4": {
+    "w": 1920,
+    "h": 1080,
+    "duration": 151.87,
+    "bytes": 15317914,
+    "kind": "video"
+  },
+  "/docs-assets/videos/series-01-overview.webp": {
+    "w": 1600,
+    "h": 900,
+    "bytes": 58250,
+    "kind": "poster"
+  },
   "/docs-assets/videos/series-02-publish-documents.mp4": {
     "w": 1920,
     "h": 1080,
