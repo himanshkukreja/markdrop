@@ -18,6 +18,7 @@ import { webEmbedUrl } from "@/lib/pageBlocks.mjs";
 import { useHost } from "../host";
 import { cx } from "./shared";
 import { useResolved } from "./pageItems";
+import { BookmarkCard } from "./BookmarkCard";
 
 function useHeadings(editor: ReactNodeViewProps["editor"]) {
   const [list, setList] = useState<Array<{ level: number; text: string }>>([]);
@@ -96,29 +97,8 @@ function Bookmark({ a, set, del }: { a: Record<string, string>; set: (p: Record<
   return <BookmarkCard a={a} />;
 }
 
-export function BookmarkCard({ a }: { a: Record<string, string | undefined> }) {
-  let host = "";
-  try {
-    host = new URL(a.url ?? "").host;
-  } catch {
-    /* not a URL */
-  }
-  const safe = /^https?:\/\//.test(a.url ?? "") ? a.url : undefined;
-  const img = /^https:\/\//.test(a.image ?? "") ? a.image : undefined;
-  return (
-    <a className="pb-bookmark not-prose" href={safe} target="_blank" rel="noopener noreferrer nofollow">
-      <span className="pb-bookmark__text">
-        <strong className="pb-bookmark__title">{a.title || host || a.url}</strong>
-        {a.description && <span className="pb-bookmark__desc">{a.description}</span>}
-        <span className="pb-bookmark__url">
-          <Icon name="link" size={12} aria-hidden /> {a.site || host}
-        </span>
-      </span>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      {img && <img className="pb-bookmark__img" src={img} alt="" loading="lazy" referrerPolicy="no-referrer" />}
-    </a>
-  );
-}
+// In its own module: the reading view uses it too, without the editor.
+export { BookmarkCard };
 
 function SubPage({ a, set, del }: { a: Record<string, string>; set: (p: Record<string, string>) => void; del: () => void }) {
   const host = useHost();

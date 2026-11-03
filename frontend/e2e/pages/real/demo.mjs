@@ -2,14 +2,14 @@
  * A recorded walkthrough of the page builder on the real stack (up.sh), at a human pace:
  * create a page from a template in a workspace folder, write with the slash menu, mention and embed
  * workspace items, set an icon and a cover, an AI app appends through MCP while the page is open,
- * read it, then read it as someone outside the workspace (restricted items stay hidden).
+ * read it as a workspace reader, then as someone outside the workspace (restricted items stay hidden).
  *
  *   node demo.mjs   (after real.mjs has seeded; writes $PB_WORK/real-shots/demo-raw/*.webm)
  * Encode afterwards, one at a time: nice -n 10 ffmpeg -i <raw>.webm … real-shots/demo.webm
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, WORK, log, seedNow, mcpToken, api, mcp, launch, ctx, pngBytes, waitSaved } from "./lib.mjs";
+import { APP, WORK, log, seedNow, mcpToken, api, mcp, launch, ctx, waitSaved } from "./lib.mjs";
 
 const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -65,7 +65,7 @@ await pause(700);
 await p.getByRole("dialog").getByRole("button", { name: "Create page" }).click();
 await p.waitForURL(/\?edit=1/, { timeout: 30000 });
 const slug = new URL(p.url()).pathname.split("/").pop();
-await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
 await pause(1500);
 
 // 2. Icon and cover.
@@ -78,16 +78,16 @@ await p.getByRole("button", { name: "rocket" }).first().click();
 await pause(600);
 await p.locator(".pb-head").hover();
 await p.getByRole("button", { name: "Add cover" }).click();
-await pause(800);
-const cover = await pngBytes(browser, " ", ["#dbeafe", "#c7d2fe"]);
-const chooser = p.waitForEvent("filechooser");
-await p.getByText("Upload an image").click();
-await (await chooser).setFiles({ name: "cover.png", mimeType: "image/png", buffer: Buffer.from(cover) });
-await p.waitForFunction(() => /url\(/.test(getComputedStyle(document.querySelector(".pb-cover-img") || document.body).backgroundImage), null, { timeout: 20000 });
+await pause(900);
+await p.getByRole("tab", { name: "Calm" }).click();
+await pause(900);
+await p.getByRole("button", { name: "Dawn" }).click();
+await p.keyboard.press("Escape");
+await p.waitForFunction(() => (document.querySelector(".pb-cover-img__img")?.naturalWidth ?? 0) > 0, null, { timeout: 20000 });
 await pause(900);
 
 // 3. Write: a mention, embeds of workspace items, a callout.
-const ed = p.locator(".ProseMirror");
+const ed = p.locator(".pb-live .ProseMirror");
 await ed.getByText("Announcement sent").click();
 await pause(300);
 await p.keyboard.press("End");
@@ -118,10 +118,11 @@ await p.getByText("Added by Claude").waitFor({ timeout: 15000 });
 await p.getByText("Added by Claude").scrollIntoViewIfNeeded();
 await pause(2200);
 
-// 5. Done: the page as its readers see it.
-await p.getByRole("button", { name: "Done" }).click();
-await p.locator(".pb-head").waitFor();
-await p.evaluate(() => window.scrollTo({ top: 0 }));
+// 5. The page as a reader in the workspace sees it (a viewer: the same layout, read only).
+await p.evaluate(() => sessionStorage.clear()); // signing out drops the tab's edit secrets
+await signIn(T.reader);
+await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+await p.locator(".pb-page .pb-embed").first().waitFor({ timeout: 20000 });
 await pause(1500);
 await glide(1400, 50);
 await pause(1200);

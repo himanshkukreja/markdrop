@@ -32,12 +32,17 @@ function headers(json = true, extra?: Record<string, string>): Record<string, st
 
 async function call<T>(path: string, init?: RequestInit & { secret?: string | null }): Promise<T> {
   const { secret, ...rest } = init ?? {};
+  // A keepalive request (the lock let go as the page closes) asks its preflight for nothing but
+  // Authorization: Chromium drops one that also wants Content-Type, the no-store cache headers or
+  // the edit secret header while the page unloads. The session alone identifies the editor.
+  const leaving = !!rest.keepalive && !!getToken();
+  const json = typeof rest.body === "string";
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
-      cache: "no-store",
+      ...(leaving ? {} : { cache: "no-store" as RequestCache }),
       ...rest,
-      headers: { ...headers(!(rest.body instanceof FormData), secret ? { "x-edit-secret": secret } : undefined), ...((rest.headers as Record<string, string>) ?? {}) },
+      headers: { ...headers(json, secret && !leaving ? { "x-edit-secret": secret } : undefined), ...((rest.headers as Record<string, string>) ?? {}) },
     });
   } catch {
     throw new PagesApiError("Couldn't reach Markdrop. Check your connection and try again.", 0);

@@ -1,7 +1,7 @@
 """Seed the page builder's real-stack world (db markdrop_docs_demo_5) through the sandbox API.
 
 People: Ada Owner (workspace owner), Ben Member (member), Cy Stranger (signed in, not a member),
-Wes Admin (admin). Acme workspace with a Guides folder holding three files (an image, a PDF and an
+Wes Admin (admin), Vic Viewer (a workspace viewer: reads, never edits). Acme workspace with a Guides folder holding three files (an image, a PDF and an
 HTML page) and a Markdown document, all "workspace" access; a public classic document owned by Ben;
 the custom domain acme.localhost (verified, live). Writes seed.json to $PB_STACK.
 """
@@ -45,7 +45,8 @@ for c in DB.list_collection_names():
     DB[c].drop()
 
 people = {"owner": ("ada@acme.test", "Ada Owner"), "member": ("ben@acme.test", "Ben Member"),
-          "stranger": ("cy@else.test", "Cy Stranger"), "admin": ("wes@acme.test", "Wes Admin")}
+          "stranger": ("cy@else.test", "Cy Stranger"), "admin": ("wes@acme.test", "Wes Admin"),
+          "reader": ("vic@acme.test", "Vic Viewer")}
 users = {k: call("POST", "/__sandbox/user", json={"email": e, "name": n}) for k, (e, n) in people.items()}
 ada = users["owner"]["token"]
 ws = call("POST", "/api/v1/workspaces", ada, json={"name": "Acme"})
@@ -53,7 +54,7 @@ ws_id = ws["id"]
 from datetime import datetime, timezone  # noqa: E402
 
 now = datetime.now(timezone.utc)
-for key, role in (("member", "member"), ("admin", "admin")):
+for key, role in (("member", "member"), ("admin", "admin"), ("reader", "viewer")):
     u = users[key]
     DB["memberships"].insert_one({"workspace_id": ws_id, "user_id": u["id"], "role": role, "created_at": now,
                                   "email": u["email"], "name": u["name"]})

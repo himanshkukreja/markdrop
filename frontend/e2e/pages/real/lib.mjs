@@ -168,9 +168,10 @@ export async function pngBytes(browser, label = "Pasted screenshot", colors = ["
   return [...buf];
 }
 
+/** The editor's save state: "saved", "saving", "offline" or "error" (the top bar's indicator). */
+export const saveState = (p) => p.locator(".pb-save").first().getAttribute("data-state").catch(() => null);
+
 export async function waitSaved(p, timeout = 20000) {
   await p.waitForTimeout(2600);
-  await p.locator(".pb-editor__status, [data-save-status]").filter({ hasText: /Saved|All changes saved/ }).first().waitFor({ timeout }).catch(async () => {
-    await p.getByText(/^(Saved|All changes saved)/).first().waitFor({ timeout: 5000 });
-  });
+  await p.locator('.pb-save[data-state="saved"]').first().waitFor({ state: "attached", timeout });
 }

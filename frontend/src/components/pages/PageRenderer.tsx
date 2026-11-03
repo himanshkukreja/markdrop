@@ -32,7 +32,7 @@ import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs"
 import type { AssetUrl, Crumb, ResolvedEmbed } from "@/lib/pages";
 import { remarkPageBlocks } from "./remarkPageBlocks";
 import { LockedEmbed, PageEmbed, PageMention } from "./PageEmbed";
-import { BookmarkCard } from "@/components/docs-editor/views/pageLeaves";
+import { BookmarkCard } from "@/components/docs-editor/views/BookmarkCard";
 import { usePageEmbeds } from "./usePageEmbeds";
 import { useBlockAnchor } from "./anchors";
 import { ImageLightbox } from "@/components/docs-editor/views/Lightbox";

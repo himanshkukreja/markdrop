@@ -184,13 +184,13 @@ await step("roundtrip", async () => {
   p.on("request", (r) => { if (r.method() === "PUT" && r.url().includes(`/documents/${st.slug}`)) puts.push(r.postData()); });
   p.on("console", (m) => { if (m.type() === "error" && !/Failed to load resource|Vercel/.test(m.text())) log("[console]", m.text().slice(0, 200)); });
   await p.goto(`${APP}/${st.slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.waitForTimeout(5000);
   await shot(p, "50-mcp-every-block-editor", { full: true, wait: 1500 });
   if (puts.length) fail(`opening the editor saved without an edit (${puts.length} PUT)`);
   // Ask the editor for its Markdown: unchanged.
   // A small edit at the very end; everything else must stay byte-identical.
-  await p.locator(".ProseMirror").getByText("Appended while Ben edits.").click();
+  await p.locator(".pb-live .ProseMirror").getByText("Appended while Ben edits.").click();
   await p.waitForTimeout(250);
   await p.keyboard.press("End");
   await p.keyboard.type(" Edited.");
@@ -203,11 +203,9 @@ await step("roundtrip", async () => {
     fs.writeFileSync(path.join(SHOTS, "mcp-after.md"), after);
     fail("the editor changed more than the edit (see mcp-before.md / mcp-after.md)");
   }
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-page").waitFor();
   await c.close();
-  // The reader renders every block.
-  const m = await ctx(browser, { token: T.member });
+  // A reader (a workspace viewer) gets every block rendered.
+  const m = await ctx(browser, { token: T.reader });
   await m.p.goto(`${APP}/${st.slug}`, { waitUntil: "networkidle" });
   await m.p.waitForTimeout(4000);
   const checks = {
@@ -220,9 +218,9 @@ await step("roundtrip", async () => {
   for (const [k, sel] of Object.entries(checks)) if (!(await m.p.locator(sel).count())) missing.push(k);
   await shot(m.p, "51-mcp-every-block-view", { full: true, wait: 2000 });
   if (missing.length) fail(`the reader lacks: ${missing.join(", ")}`);
-  // A member sees the teammate's name; someone outside the workspace sees "a person".
+  // Someone in the workspace sees the teammate's name; someone outside it sees "a person".
   const person = await m.p.locator(".pb-mention--person").first().innerText();
-  if (!person.includes("Ben Member")) fail(`a member sees the person mention as ${JSON.stringify(person)}`);
+  if (!person.includes("Ben Member")) fail(`a workspace reader sees the person mention as ${JSON.stringify(person)}`);
   await m.c.close();
   const o = await ctx(browser, { token: T.stranger });
   await o.p.goto(`${APP}/${st.slug}`, { waitUntil: "networkidle" });

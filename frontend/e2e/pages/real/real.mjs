@@ -4,6 +4,9 @@
  * frontend. Ported from mock/run.mjs, plus inherited access, move, delete with children, the edit
  * lock with MCP, a custom domain, page properties and a real bookmark.
  *
+ * Pages are always editable: the owner and members land in the editor (no Done), and the edit lock
+ * is taken on the first key or click. Reader checks run as Vic, a workspace viewer.
+ *
  *   BROWSER=chromium|webkit [ONLY=create,member] node real.mjs
  */
 import fs from "node:fs";
@@ -39,7 +42,7 @@ async function slashPick(p, q) {
 
 /* ── 1. create from a template in a folder; slash; mention; embeds; paste + drop images ── */
 await step("create", async () => {
-  const { c, p } = await ctx(browser, { token: T.owner });
+  let { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/w/${WS}/f/${FOLDER}`, { waitUntil: "networkidle" });
   await p.getByRole("button", { name: "New page" }).first().waitFor({ timeout: 30000 });
   await shot(p, "01-folder-new-page");
@@ -52,9 +55,9 @@ await step("create", async () => {
   state.slug = new URL(p.url()).pathname.split("/").pop();
   save();
   log("page", state.slug, p.url());
-  const ed = p.locator(".ProseMirror");
+  const ed = p.locator(".pb-live .ProseMirror");
   await ed.waitFor({ timeout: 30000 });
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 15000 });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 15000 });
   await p.waitForTimeout(1500);
   await ed.getByText("Announcement sent").click();
   await p.waitForTimeout(250); // ProseMirror reads a click's caret on the next selectionchange
@@ -133,17 +136,23 @@ await step("create", async () => {
   if (assetIds.length < 2) fail(`expected two page images, got ${assetIds.length}\n${md}`);
   state.assets = assetIds;
   save();
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-page").waitFor();
+  // Always editable: no Done. A reload opens the editor again, as saved.
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
-  await p.locator(".pb-embed__img").first().waitFor({ timeout: 15000 });
-  // Page images: served by the Worker, really loaded.
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  if (!(await p.locator(".pb-live").innerText()).includes("Read the plan first")) fail("the reloaded editor lacks what was typed");
+  await shot(p, "08-owner-editor-after-reload", { wait: 2000 });
+  await c.close();
+  // A reader (a workspace viewer): the page images, served by the Worker, really loaded.
+  ({ c, p } = await ctx(browser, { token: T.reader }));
+  await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
+  await p.locator(".pb-page .pb-embed__img").first().waitFor({ timeout: 15000 });
+  if (await p.locator(".pb-live").count()) fail("a viewer got the editor");
   await scrollToImages(p);
   const imgs = await p.locator(".pb-page figure img, .pb-page img").evaluateAll((els) => els.map((e) => ({ src: e.currentSrc || e.src, w: e.naturalWidth })));
   const pageImgs = imgs.filter((i) => i.src.includes("/pa/") || i.src.includes("pa%2F"));
   log("page images", JSON.stringify(pageImgs.map((i) => [i.src.slice(0, 80), i.w])));
   if (pageImgs.length < 2 || pageImgs.some((i) => !i.w)) fail(`page images not loaded from the Worker: ${JSON.stringify(imgs)}`);
-  await shot(p, "08-owner-view-after-reload", { full: true, wait: 3000 });
+  await shot(p, "08-reader-view", { full: true, wait: 3000 });
   await c.close();
 });
 
@@ -155,18 +164,30 @@ await step("open-link", async () => {
 
 /* ── 2. member, stranger, anonymous ── */
 await step("member", async () => {
+  // A member can edit: the page opens in the editor, every item in place.
   const { c, p } = await ctx(browser, { token: T.member });
+  await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
+  await p.locator(".pb-live .pb-embed__img").first().waitFor({ timeout: 20000 });
+  const inEditor = await p.locator(".pb-live").innerText();
+  for (const t of SECRET_TITLES) if (!inEditor.includes(t)) fail(`member's editor lacks ${t}`);
+  await shot(p, "09a-member-editor", { wait: 2500 });
+  await c.close();
+});
+
+await step("reader", async () => {
+  const { c, p } = await ctx(browser, { token: T.reader });
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
   await p.locator(".pb-embed__img").first().waitFor({ timeout: 20000 });
   await p.locator(".pb-mention").first().waitFor();
   const body = await p.locator(".pb-page").innerText();
-  for (const t of SECRET_TITLES) if (!body.includes(t)) fail(`member doesn't see ${t}`);
-  if (await p.locator(".pb-locked").count()) fail("member sees a locked placeholder");
+  for (const t of SECRET_TITLES) if (!body.includes(t)) fail(`the reader doesn't see ${t}`);
+  if (await p.locator(".pb-locked").count()) fail("the reader sees a locked placeholder");
   // The PDF and HTML frames are really there and loaded.
   const frames = await p.locator(".pb-page iframe").evaluateAll((els) => els.map((e) => ({ src: e.src, h: e.getBoundingClientRect().height })));
   log("frames", JSON.stringify(frames.map((f) => [f.src.slice(0, 70), Math.round(f.h)])));
   if (frames.length < 2 || frames.some((f) => f.h < 200)) fail(`frames missing or collapsed: ${JSON.stringify(frames)}`);
-  await shot(p, "09-member-1440-light", { full: true, wait: 4000 });
+  await shot(p, "09-reader-1440-light", { full: true, wait: 4000 });
   await c.close();
 });
 
@@ -174,6 +195,14 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
   await step(who, async () => {
     const { c, p } = await ctx(browser, { token: key ? T[key] : null });
     const bodies = captureApi(p);
+    const scripts = [];
+    p.on("response", async (r) => {
+      if (r.request().resourceType() !== "script") return;
+      try {
+        const t = await r.text();
+        if (/prosemirror|tiptap|dxe-slash/i.test(t)) scripts.push(r.url());
+      } catch {}
+    });
     await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
     await p.locator(".pb-locked").first().waitFor({ timeout: 20000 });
     await p.waitForTimeout(1500);
@@ -189,6 +218,7 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
     await scrollToImages(p);
     const n = await p.locator(".pb-page img").evaluateAll((els) => els.filter((e) => e.naturalWidth > 0).length);
     if (n < 2) fail(`${who} doesn't see the page images (the page is public): ${n}`);
+    if (scripts.length) fail(`${who} loaded the editor: ${scripts.join(", ")}`);
     await shot(p, `10-${who}-locked`, { full: true, wait: 1500 });
     await c.close();
   });
@@ -207,13 +237,15 @@ await step("subpage", async () => {
   await p.waitForURL(/\?edit=1/, { timeout: 30000 });
   state.child = new URL(p.url()).pathname.split("/").pop();
   save();
-  await p.locator(".ProseMirror").waitFor();
+  await p.locator(".pb-live .ProseMirror").waitFor();
   await p.locator(".pb-crumbs").waitFor();
   await shot(p, "12-subpage-editor-breadcrumbs");
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-page").waitFor();
-  await shot(p, "13-subpage-view", { full: true });
   await c.close();
+  const v = await ctx(browser, { token: T.reader });
+  await v.p.goto(`${APP}/${state.child}`, { waitUntil: "networkidle" });
+  await v.p.locator(".pb-page").waitFor();
+  await shot(v.p, "13-subpage-view", { full: true });
+  await v.c.close();
   const d = await docOf(state.child, T.owner);
   if (!d.access_inherit || d.parent?.slug !== state.slug) fail(`child doesn't inherit: ${JSON.stringify({ ai: d.access_inherit, parent: d.parent })}`);
   // Anonymous can read it: it inherits the parent's "anyone with the link".
@@ -238,7 +270,7 @@ await step("subpage", async () => {
   await api("PUT", `/api/v1/documents/${state.slug}/access/level`, T.owner, { level: "link" });
   await a.c.close();
   // The parent lists it.
-  const o = await ctx(browser, { token: T.member });
+  const o = await ctx(browser, { token: T.reader });
   await o.p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
   await o.p.locator(".pb-children__item").first().waitFor({ timeout: 15000 });
   await o.p.locator(".pb-children").scrollIntoViewIfNeeded();
@@ -290,7 +322,7 @@ await step("delete-children", async () => {
   if (r.status !== 409 || r.body.code !== "has_children" || r.body.count !== 2) fail(`delete w/o children= → ${r.status} ${JSON.stringify(r.body)}`);
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${top}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator(".ProseMirror").waitFor({ timeout: 20000 });
+  await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
   await p.getByRole("button", { name: "Page options" }).click();
   await p.getByRole("menuitem", { name: /Delete page/ }).click();
   const dlg = p.getByRole("dialog");
@@ -305,7 +337,7 @@ await step("delete-children", async () => {
   if ((await docOf(g1, T.owner)).parent?.slug !== k1) fail("grandchild lost its parent");
   // Delete k1 with its child.
   await p.goto(`${APP}/${k1}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator(".ProseMirror").waitFor({ timeout: 20000 });
+  await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
   await p.getByRole("button", { name: "Page options" }).click();
   await p.getByRole("menuitem", { name: /Delete page/ }).click();
   await dlg.getByText("Delete the sub-page too").click();
@@ -319,19 +351,19 @@ await step("delete-children", async () => {
 /* ── 4. themes and widths ── */
 for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]]) {
   await step(`view-${theme}-${width}`, async () => {
-    const { c, p } = await ctx(browser, { token: T.member, theme, width, height: width < 500 ? 844 : 900 });
+    const { c, p } = await ctx(browser, { token: T.reader, theme, width, height: width < 500 ? 844 : 900 });
     await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
     await p.locator(".pb-embed__img").first().waitFor({ timeout: 20000 });
     const over = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 1) fail(`horizontal overflow ${over}px at ${width}`);
-    await shot(p, `16-member-${width}-${theme}`, { full: true, wait: 3000 });
+    await shot(p, `16-reader-${width}-${theme}`, { full: true, wait: 3000 });
     await c.close();
   });
 }
 await step("editor-dark-390", async () => {
   const { c, p } = await ctx(browser, { token: T.owner, theme: "dark", width: 390, height: 844 });
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator(".ProseMirror").waitFor({ timeout: 20000 });
+  await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
   await shot(p, "17-editor-390-dark", { wait: 2000 });
   await c.close();
 });
@@ -348,14 +380,21 @@ await step("lock-mcp", async () => {
   const tok = mcpToken("ada@acme.test");
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
-  await p.getByText("Saved").first().waitFor({ timeout: 15000 }).catch(() => {});
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.waitForTimeout(1500);
-  // A second editor (Ben, a member) sees "Ada Owner is editing" and a read-only editor.
+  // Opening takes nothing: the first click takes the lock.
+  if ((await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin)).status !== 200) fail("opening the editor took the lock");
+  await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  await p.locator(".pb-live .ProseMirror p").first().click();
+  await p.waitForTimeout(1500);
+  // A second editor (Ben, a member) is told "Ada Owner is editing" (now, or on his first click) and stays read only.
   const b = await ctx(browser, { token: T.member });
   await b.p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
+  await b.p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
+  await b.p.waitForTimeout(1500);
+  if (!(await b.p.getByText("Ada Owner is editing").count())) await b.p.locator(".pb-live .ProseMirror p").first().click();
   await b.p.getByText("Ada Owner is editing").waitFor({ timeout: 20000 });
-  if (!(await b.p.locator('.ProseMirror[contenteditable="false"]').count())) fail("the second editor isn't read only");
+  if (!(await b.p.locator('.pb-live .ProseMirror[contenteditable="false"]').count())) fail("the second editor isn't read only");
   await shot(b.p, "20-locked-read-only", { wait: 1500 });
   // MCP update_page during the lock → refused (423 locked, as a tool error).
   const before = await docOf(state.slug, T.owner);
@@ -372,7 +411,7 @@ await step("lock-mcp", async () => {
   await b.p.getByText("Added by Claude").waitFor({ timeout: 15000 });
   await shot(p, "19-editor-live-appended", { wait: 3500 });
   // Keep typing after the append: no lost or doubled text.
-  await p.locator(".ProseMirror").getByText("Record the demo video").click();
+  await p.locator(".pb-live .ProseMirror").getByText("Record the demo video").click();
   await p.waitForTimeout(250);
   await p.keyboard.press("End");
   await p.keyboard.type(" Typed after the append.");
@@ -382,13 +421,12 @@ await step("lock-mcp", async () => {
   if ((md.match(/Added by Claude/g) || []).length !== 1) fail("the appended section is missing or doubled");
   if (!md.includes("Typed after the append.")) fail("typing after the append was lost");
   if (md.includes("Nope")) fail("a refused MCP write landed");
-  // Done releases the lock: then update_page works (with the fresh rev).
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-page").waitFor();
-  await p.waitForTimeout(800);
+  // Leaving the page lets go of the lock: then update_page works (with the fresh rev).
+  await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
+  await p.waitForTimeout(1500);
   const now = await docOf(state.slug, T.owner);
   const up2 = await mcp(tok, "update_page", { document: state.slug, markdown: now.content + "\nAfter the lock.\n", base_rev: now.rev });
-  if (up2.isError) fail(`update_page after Done refused: ${up2.text}`);
+  if (up2.isError) fail(`update_page after leaving refused: ${up2.text}`);
   const stale = await mcp(tok, "update_page", { document: state.slug, markdown: "stale", base_rev: now.rev });
   if (!stale.isError || !/rev|changed|stale|409/i.test(stale.text)) fail(`stale base_rev not refused: ${stale.text}`);
   await b.c.close();
@@ -437,30 +475,32 @@ await step("properties", async () => {
   save();
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.locator(".pb-head").hover();
   await p.getByRole("button", { name: "Add icon" }).click();
   await p.getByLabel("Search emoji").fill("rocket");
   await p.getByRole("button", { name: "rocket" }).first().click();
   await p.locator(".pb-head").hover();
   await p.getByRole("button", { name: "Add cover" }).click();
+  await p.getByRole("tab", { name: "Upload" }).click();
   const cover = await pngBytes(browser, "Cover photo", ["#0ea5e9", "#a855f7"]);
   const chooser = p.waitForEvent("filechooser");
   await p.getByText("Upload an image").click();
   await (await chooser).setFiles({ name: "cover.png", mimeType: "image/png", buffer: Buffer.from(cover) });
-  await p.waitForFunction(() => /url\(/.test(getComputedStyle(document.querySelector(".pb-cover-img") || document.body).backgroundImage), null, { timeout: 20000 });
-  // Reposition: drag the button down 60 px.
+  await p.waitForFunction(() => (document.querySelector(".pb-cover-img__img")?.naturalWidth ?? 0) > 0, null, { timeout: 20000 });
+  // Reposition: drag the image down 60 px (shows more of its top), then save the position.
   await p.locator(".pb-cover-img").hover();
-  const rep = p.getByRole("button", { name: "Reposition" });
-  const rb = await rep.boundingBox();
-  await p.mouse.move(rb.x + rb.width / 2, rb.y + rb.height / 2);
+  await p.getByRole("button", { name: "Reposition" }).click();
+  const cb = await p.locator(".pb-cover-img").boundingBox();
+  await p.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
   await p.mouse.down();
-  await p.mouse.move(rb.x + rb.width / 2, rb.y + 60, { steps: 6 });
+  await p.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2 + 60, { steps: 8 });
   await p.mouse.up();
+  await p.getByRole("button", { name: "Save position" }).click();
   await p.getByRole("button", { name: "Page options" }).click();
-  await p.getByRole("menuitem", { name: /Full width/ }).click();
-  await p.getByRole("button", { name: "Page options" }).click();
-  await p.getByRole("menuitem", { name: "Serif" }).click();
+  await p.locator(".pb-toggles").getByText("Full width").click();
+  await p.getByRole("radio", { name: /Serif/ }).click();
+  await p.keyboard.press("Escape");
   await p.getByRole("button", { name: "Page options" }).click();
   await p.getByRole("menuitem", { name: /Lock page/ }).click();
   await waitSaved(p);
@@ -473,18 +513,18 @@ await step("properties", async () => {
   const d = await docOf(slug, T.member);
   if (!d.page?.cover_url || !d.page.locked) fail(`page props: ${JSON.stringify(d.page)}`);
   await shot(p, "29-properties-editor", { wait: 1000 });
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-head").waitFor();
-  await p.locator(".ProseMirror").waitFor({ state: "detached" });
-  // The cover uploaded in this session shows in the view right away (no reload).
-  await p.waitForFunction(() => /url\(/.test(getComputedStyle(document.querySelector(".pb-cover-img") || document.body).backgroundImage), null, { timeout: 15000 });
-  await shot(p, "29b-properties-view", { wait: 2000 });
   await c.close();
+  // A reader sees the uploaded cover, full width and serif.
+  const rv = await ctx(browser, { token: T.reader });
+  await rv.p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await rv.p.waitForFunction(() => (document.querySelector(".pb-cover-img__img")?.naturalWidth ?? 0) > 0, null, { timeout: 15000 });
+  await shot(rv.p, "29b-properties-view", { wait: 2000 });
+  await rv.c.close();
   // Ben (a member who could edit) can't: the page is locked.
   const m = await ctx(browser, { token: T.member });
   await m.p.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
   await m.p.getByText(/locked/i).first().waitFor({ timeout: 20000 });
-  if (await m.p.locator('.ProseMirror[contenteditable="true"]').count()) fail("a member can edit a locked page");
+  if (await m.p.locator('.pb-live .ProseMirror[contenteditable="true"]').count()) fail("a member can edit a locked page");
   await shot(m.p, "29c-locked-member");
   const put = await api("PUT", `/api/v1/documents/${slug}`, T.member, { content: md + "\nx\n", base_rev: d.rev });
   if (put.status !== 423) fail(`member PUT on a locked page → ${put.status}`);
@@ -513,7 +553,7 @@ await step("to-blocks", async () => {
   await p.getByRole("menuitem", { name: /Open in block editor/ }).click();
   await shot(p, "21-open-in-block-editor");
   await p.getByRole("button", { name: "Open in block editor" }).click();
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.waitForTimeout(4000);
   await shot(p, "22-classic-doc-in-block-editor", { wait: 1200 });
   const after = await docOf("public-handbook", T.member);
@@ -550,8 +590,8 @@ await step("parity", async () => {
   save();
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${d.slug}?edit=1`, { waitUntil: "networkidle" });
-  const ed = p.locator(".ProseMirror");
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  const ed = p.locator(".pb-live .ProseMirror");
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.locator(".pb-empty").waitFor({ timeout: 10000 });
   await shot(p, "30-empty-page-helpers");
   await p.locator(".pb-head").hover();
@@ -560,7 +600,8 @@ await step("parity", async () => {
   await p.getByRole("button", { name: "rocket" }).first().click();
   await p.locator(".pb-head").hover();
   await p.getByRole("button", { name: "Add cover" }).click();
-  await p.getByRole("button", { name: "Aurora" }).click();
+  await p.getByRole("tab", { name: "Calm" }).click();
+  await p.getByRole("button", { name: "Sage" }).click();
   await p.getByLabel("Page title").click();
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
@@ -591,7 +632,7 @@ await step("parity", async () => {
   await p.waitForTimeout(1000);
   const md = await content(d.slug);
   fs.writeFileSync(path.join(SHOTS, "parity.md"), md);
-  for (const want of ["icon: 🚀", "cover: gallery:aurora", "## Plan", "- [ ] Book the venue", "- [x] Send invites", "Launch day 🚀 is **Monday** with `v2`.", "### Make this a heading", "> Quote via shortcut", ':::details{summary="More details"}', "Hidden detail"]) {
+  for (const want of ["icon: 🚀", "cover: gallery:sage", "## Plan", "- [ ] Book the venue", "- [x] Send invites", "Launch day 🚀 is **Monday** with `v2`.", "### Make this a heading", "> Quote via shortcut", ':::details{summary="More details"}', "Hidden detail"]) {
     if (!md.includes(want)) fail(`parity markdown lacks ${want}\n${md}`);
   }
   await shot(p, "34-parity-editor", { full: true, wait: 800 });
@@ -607,9 +648,12 @@ await step("parity", async () => {
   await waitSaved(p);
   await p.waitForTimeout(1000);
   if (!(await content(d.slug)).includes("Unsaved tail.")) fail("the restored draft wasn't saved");
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-page").waitFor();
-  await shot(p, "37-parity-view", { full: true, wait: 1000 });
+  await c.close();
+  const rv = await ctx(browser, { token: T.reader });
+  await rv.p.goto(`${APP}/${d.slug}`, { waitUntil: "networkidle" });
+  await rv.p.locator(".pb-page").waitFor();
+  await shot(rv.p, "37-parity-view", { full: true, wait: 1000 });
+  await rv.c.close();
   await c.close();
 });
 
@@ -621,7 +665,7 @@ await step("blocks", async () => {
   save();
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${d.slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.getByLabel("Page title").click();
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
@@ -637,7 +681,7 @@ await step("blocks", async () => {
   await p.keyboard.type("for ");
   await slashPick(p, "person");
   await p.getByLabel("Search people").fill("ben");
-  await p.getByRole("button", { name: "Ben Member" }).click();
+  await p.getByRole("dialog", { name: "Mention someone" }).getByRole("button", { name: "Ben Member" }).click();
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/toggle");
@@ -681,11 +725,12 @@ await step("blocks", async () => {
     if (!md.includes(want)) fail(`blocks markdown lacks ${want}\n${md}`);
   }
   if (!/::bookmark\{[^}]*title="[^"]+"/.test(md)) fail(`the bookmark has no title (preview not fetched)\n${md}`);
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-page").waitFor();
-  await p.goto(`${APP}/${d.slug}`, { waitUntil: "networkidle" });
-  await p.locator(".pb-bookmark").waitFor({ timeout: 15000 });
-  await shot(p, "41-blocks-view", { full: true, wait: 2000 });
+  await c.close();
+  const rv = await ctx(browser, { token: T.reader });
+  await rv.p.goto(`${APP}/${d.slug}`, { waitUntil: "networkidle" });
+  await rv.p.locator(".pb-bookmark").waitFor({ timeout: 15000 });
+  await shot(rv.p, "41-blocks-view", { full: true, wait: 2000 });
+  await rv.c.close();
   await c.close();
 });
 

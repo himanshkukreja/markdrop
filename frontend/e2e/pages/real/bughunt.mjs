@@ -4,7 +4,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, SHOTS, BROWSER, log, fail, seedNow, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper } from "./lib.mjs";
+import { APP, SHOTS, BROWSER, log, fail, seedNow, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper, saveState } from "./lib.mjs";
 
 const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -20,19 +20,19 @@ async function settle(p, slug, pred = () => true, timeout = 20000) {
   let md = "";
   while (Date.now() - t0 < timeout) {
     await p.waitForTimeout(700);
-    const status = (await p.locator(".pb-editor__status").allInnerTexts()).join(" ");
+    const status = await saveState(p);
     md = await content(slug);
-    if (/Saved/.test(status) && pred(md)) return md;
+    if (status === "saved" && pred(md)) return md;
   }
   return md;
 }
 async function openEditor(p, slug) {
   await p.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator('.ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.waitForTimeout(800);
 }
 async function clickText(p, text) {
-  await p.locator(".ProseMirror").getByText(text, { exact: false }).first().click();
+  await p.locator(".pb-live .ProseMirror").getByText(text, { exact: false }).first().click();
   await p.waitForTimeout(250);
 }
 
@@ -70,7 +70,7 @@ await step("typing-undo", async () => {
   const slug = await newPage("Typing");
   const { c, p } = await ctx(browser, { token: T.owner });
   await openEditor(p, slug);
-  await p.locator(".ProseMirror").click();
+  await p.locator(".pb-live .ProseMirror").click();
   await p.waitForTimeout(250);
   const lines = ["First line typed fast with **bold** words", "## A heading", "- one", "two", "", "Last paragraph 1234567890 the quick brown fox."];
   for (const [i, l] of lines.entries()) {
@@ -95,12 +95,12 @@ await step("drag", async () => {
   const slug = await newPage("Drag", "One\n\nTwo\n\nThree\n");
   const { c, p } = await ctx(browser, { token: T.owner });
   await openEditor(p, slug);
-  const three = p.locator(".ProseMirror p", { hasText: "Three" });
+  const three = p.locator(".pb-live .ProseMirror p", { hasText: "Three" });
   await three.hover();
   const handle = p.getByRole("button", { name: /Move or change this/ }).first();
   await handle.waitFor({ timeout: 5000 });
   // Drop on the top edge of the first block: the block goes above it.
-  const one = p.locator(".ProseMirror p", { hasText: "One" });
+  const one = p.locator(".pb-live .ProseMirror p", { hasText: "One" });
   await handle.dragTo(one, { targetPosition: { x: Number(process.env.DX ?? 40), y: 2 } });
   const md = await settle(p, slug, (m) => m.startsWith("Three"));
   if (md !== "Three\n\nOne\n\nTwo\n") fail(`drag saved ${JSON.stringify(md)}`);
@@ -121,9 +121,9 @@ await step("paste", async () => {
     const slug = await newPage(`Paste ${name}`);
     const { c, p } = await ctx(browser, { token: T.owner });
     await openEditor(p, slug);
-    await p.locator(".ProseMirror").click();
+    await p.locator(".pb-live .ProseMirror").click();
     await p.waitForTimeout(250);
-    await p.locator(".ProseMirror").evaluate((el, [h, t]) => {
+    await p.locator(".pb-live .ProseMirror").evaluate((el, [h, t]) => {
       const dt = new DataTransfer();
       if (h) dt.setData("text/html", h);
       dt.setData("text/plain", t);
@@ -156,7 +156,7 @@ await step("long-page", async () => {
     try { new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__long.push(e.duration))).observe({ type: "longtask", buffered: false }); } catch {}
   });
   const lat = await p.evaluate(async () => {
-    const ed = document.querySelector(".ProseMirror");
+    const ed = document.querySelector(".pb-live .ProseMirror");
     const times = [];
     for (let i = 0; i < 40; i++) {
       const t = performance.now();
@@ -188,10 +188,10 @@ await step("offline", async () => {
   await c.setOffline(true);
   await p.keyboard.type(" typed offline");
   await p.waitForTimeout(3500);
-  const status = (await p.locator(".pb-editor__status").allInnerTexts()).join(" ");
+  const status = await saveState(p);
   log("offline status:", status);
   await shot(p, "61-offline");
-  if (!/Offline/.test(status)) fail(`no offline status: ${status}`);
+  if (status !== "offline") fail(`no offline status: ${status}`);
   await c.setOffline(false);
   let md = await settle(p, slug, (m) => m.includes("typed offline"), 30000);
   if (!md.includes("Start typed offline")) fail(`not saved after coming back online: ${JSON.stringify(md)}`);
@@ -229,8 +229,8 @@ await step("draft-restore", async () => {
   await c.close();
 });
 
-/* An AI app appends while the page is open, then Done: no local copy is left behind to be offered
-   later as "unsaved changes", and nobody else signing in on this browser is offered one. */
+/* An AI app appends while the page is open: no local copy is left behind to be offered later as
+   "unsaved changes", and nobody else signing in on this browser is offered one. */
 await step("draft-after-append", async () => {
   const slug = await newPage("Draft after append", "Start\n");
   await api("PUT", `/api/v1/documents/${slug}/access/level`, T.owner, { level: "link" });
@@ -247,12 +247,9 @@ await step("draft-after-append", async () => {
   const r = await mcp(mcpToken("ada@acme.test"), "append_blocks", { document: slug, markdown: "## From the AI app\n\nAppended." });
   if (r.isError) fail(r.text);
   await p.getByText("From the AI app").waitFor({ timeout: 15000 });
-  await p.waitForTimeout(1500);
-  await p.getByRole("button", { name: "Done" }).click();
-  await p.locator(".pb-head").waitFor();
-  await p.waitForTimeout(800);
+  await p.waitForTimeout(2500);
   const left = await p.evaluate((s) => localStorage.getItem(`md_page_draft:${s}`), slug);
-  if (left) fail(`a local copy stayed after Done: ${left.slice(0, 120)}`);
+  if (left) fail(`a local copy stayed after the append was in: ${left.slice(0, 120)}`);
   // Another account on this browser, straight into the editor address: no one's draft is offered.
   await p.evaluate((t) => { sessionStorage.clear(); localStorage.setItem("markdrop_token", t); }, T.member);
   await p.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
@@ -276,7 +273,7 @@ await step("two-tabs", async () => {
   let md = await settle(a, slug, (m) => m.includes("from A"));
   await b.bringToFront();
   await b.waitForTimeout(1500);
-  const bText = await b.locator(".ProseMirror").innerText();
+  const bText = await b.locator(".pb-live .ProseMirror").innerText();
   log("tab B sees:", JSON.stringify(bText.slice(0, 60)));
   await clickText(b, "Shared line");
   await b.keyboard.press("End");
@@ -304,7 +301,7 @@ await step("classic-roundtrip", async () => {
   await openEditor(p, slug);
   await p.waitForTimeout(4000);
   await shot(p, "63-classic-odd-in-blocks", { full: true });
-  await p.getByRole("button", { name: "Done" }).click();
+  await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1500);
   const after = await content(slug);
   if (after !== MD) fail(`untouched Markdown changed (PUTs: ${puts.length}):\n${JSON.stringify(after)}`);
@@ -329,7 +326,7 @@ await step("phone-touch", async () => {
   const slug = await newPage("Phone", "Tap here\n\nSecond\n");
   const { c, p } = await ctx(browser, { token: T.owner, width: 390, height: 844, mobile: true });
   await openEditor(p, slug);
-  await p.locator(".ProseMirror").getByText("Tap here").tap();
+  await p.locator(".pb-live .ProseMirror").getByText("Tap here").tap();
   await p.waitForTimeout(300);
   await p.keyboard.press("End");
   await p.keyboard.type(" typed on a phone");
@@ -344,7 +341,7 @@ await step("phone-touch", async () => {
   const over = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (over > 1) fail(`editor overflows the phone by ${over}px`);
   // The block menu on touch: tap the block, then its handle (or long-press).
-  await p.locator(".ProseMirror").getByText("Second").tap();
+  await p.locator(".pb-live .ProseMirror").getByText("Second").tap();
   await p.waitForTimeout(300);
   const handles = await p.getByRole("button", { name: /Move or change this|actions/ }).count();
   log("block handle buttons on touch:", handles);
