@@ -36,7 +36,7 @@ async function scrollToImages(p) {
 
 async function slashPick(p, q) {
   await p.keyboard.type(`/${q}`);
-  await p.locator(".dxe-slash").waitFor({ timeout: 5000 });
+  await p.locator(".dxe-slash").first().waitFor({ timeout: 5000 });
   await p.keyboard.press("Enter");
 }
 
@@ -66,7 +66,7 @@ await step("create", async () => {
   await p.keyboard.press("Enter");
   await p.keyboard.type("Read the plan first: ");
   await p.keyboard.type("/");
-  await p.locator(".dxe-slash").waitFor();
+  await p.locator(".dxe-slash").first().waitFor();
   await shot(p, "04-slash-menu");
   await p.keyboard.type("mention");
   await p.keyboard.press("Enter");
@@ -85,7 +85,7 @@ await step("create", async () => {
 
   for (const [q, title, mode] of [["offsite", "Team offsite photo", "Live"], ["q3", "Q3 report", "Live"], ["pricing", "Pricing calculator", "Live"], ["launch", "Launch plan", "Card"]]) {
     await p.keyboard.type("/embed");
-    await p.locator(".dxe-slash").waitFor();
+    await p.locator(".dxe-slash").first().waitFor();
     await p.keyboard.press("Enter");
     await dlg.waitFor();
     await dlg.getByRole("tab", { name: "Acme" }).click();
@@ -99,7 +99,7 @@ await step("create", async () => {
     await p.keyboard.press("Enter");
   }
   await p.keyboard.type("/warn");
-  await p.locator(".dxe-slash").waitFor();
+  await p.locator(".dxe-slash").first().waitFor();
   await p.keyboard.press("Enter");
   await p.keyboard.type("Ship the docs before the announcement.");
 
@@ -200,7 +200,8 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
       if (r.request().resourceType() !== "script") return;
       try {
         const t = await r.text();
-        if (/prosemirror|tiptap|dxe-slash/i.test(t)) scripts.push(r.url());
+        // ProseMirror's and Tiptap's own messages: only their library code has them.
+        if (/Called contentMatchAt on a node with invalid content|\[tiptap warn\]/.test(t)) scripts.push(r.url());
       } catch {}
     });
     await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
@@ -614,7 +615,7 @@ await step("parity", async () => {
   await p.keyboard.press("Enter");
   await p.keyboard.press("Enter");
   await p.keyboard.type("Launch day :rock");
-  await p.locator(".dxe-slash").filter({ hasText: ":rocket:" }).waitFor();
+  await p.locator(".dxe-slash").filter({ hasText: ":rocket:" }).first().waitFor();
   await p.keyboard.press("Enter");
   await p.keyboard.type(" is **Monday** with `v2`.");
   await p.keyboard.press("Enter");
@@ -625,7 +626,7 @@ await step("parity", async () => {
   await p.keyboard.press("Enter");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/toggle");
-  await p.locator(".dxe-slash").waitFor();
+  await p.locator(".dxe-slash").first().waitFor();
   await p.keyboard.press("Enter");
   await p.keyboard.type("Hidden detail");
   await waitSaved(p);
@@ -685,7 +686,7 @@ await step("blocks", async () => {
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/toggle");
-  await p.locator(".dxe-slash").waitFor();
+  await p.locator(".dxe-slash").first().waitFor();
   await p.keyboard.press("ArrowDown");
   await p.keyboard.press("ArrowDown");
   await p.keyboard.press("Enter");

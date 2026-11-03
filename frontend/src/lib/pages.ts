@@ -248,7 +248,16 @@ export function savePage(slug: string, input: { title: string | null; content: s
 }
 
 /** Take (or refresh) the edit lock: held 2 minutes, refreshed every 30 s. 423 when someone else has it. */
-export function lockPage(slug: string, secret?: string | null) {
+// Chromium sends the unlock as a page closes (a keepalive DELETE) only when a DELETE to that address
+// has already passed its CORS preflight. So before the first lock of a page in this tab, one DELETE:
+// harmless, it lets go only of a lock this person holds, which the POST takes straight back.
+const unlockReady = new Set<string>();
+
+export async function lockPage(slug: string, secret?: string | null) {
+  if (!unlockReady.has(slug)) {
+    unlockReady.add(slug);
+    await unlockPage(slug, { secret }).catch(() => {});
+  }
   return call<LockInfo>(`/api/v1/documents/${enc(slug)}/lock`, { method: "POST", secret });
 }
 

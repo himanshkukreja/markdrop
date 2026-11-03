@@ -32,7 +32,7 @@ async function glide(dy, steps = 30) {
 }
 async function slash(q) {
   await type(`/${q}`);
-  await p.locator(".dxe-slash").waitFor({ timeout: 5000 });
+  await p.locator(".dxe-slash").first().waitFor({ timeout: 5000 });
   await pause(450);
   await p.keyboard.press("Enter");
 }

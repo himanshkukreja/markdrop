@@ -219,13 +219,23 @@ await step("perf-typing", async () => {
   for (const u of urls) if (/Cannot close document|micromark/.test(await (await fetch(u)).text())) parserFiles.add(u);
   const self = new Map();
   let parser = 0;
+  const callers = new Map();
   prof.samples.forEach((id, i) => {
     const us = prof.timeDeltas[i] ?? 0;
     const f = byId.get(id).callFrame;
     const key = `${f.functionName || "(anon)"} ${(f.url || "").split("/").pop().slice(0, 40)}:${f.lineNumber}`;
     self.set(key, (self.get(key) ?? 0) + us);
-    if (parserFiles.has(f.url)) parser += us;
+    if (parserFiles.has(f.url)) {
+      parser += us;
+      // Who called the parser: the first frame outside its chunks.
+      let x = id;
+      while (x != null && parserFiles.has(byId.get(x).callFrame.url)) x = parent.get(x);
+      const cf = x != null ? byId.get(x).callFrame : null;
+      const k = cf ? `${cf.url.split("/").pop()}:${cf.lineNumber}:${cf.columnNumber}` : "(root)";
+      callers.set(k, (callers.get(k) ?? 0) + us);
+    }
   });
+  for (const [k, us] of [...callers].sort((a, b) => b[1] - a[1]).slice(0, 4)) log("   parser called from", k, Math.round(us / 1000), "ms");
   log("parser chunks:", [...parserFiles].map((u) => u.split("/").pop()).join(", "));
   const top = [...self].filter(([k]) => !/^\((idle|program|garbage collector)\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, 8);
   log("long tasks while typing", JSON.stringify(typing), "| after", JSON.stringify(all.slice(typing.length)));
@@ -390,7 +400,7 @@ await step("phone-touch", async () => {
   await p.keyboard.type(" typed on a phone");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/todo");
-  await p.locator(".dxe-slash").waitFor({ timeout: 5000 });
+  await p.locator(".dxe-slash").first().waitFor({ timeout: 5000 });
   await shot(p, "64-phone-slash");
   await p.keyboard.press("Enter");
   await p.keyboard.type("Phone task");
