@@ -181,7 +181,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   const upload = useCallback(
     async (file: File) => {
       if (file.size > PAGE_IMAGE_MAX) throw new Error("Images can be up to 10 MB.");
-      if (!file.type.startsWith("image/")) throw new Error("Choose an image file (PNG, JPG, WebP, GIF or SVG).");
+      if (!file.type.startsWith("image/")) throw new Error("Choose an image file (PNG, JPG, WebP or GIF).");
       const a = await uploadPageAsset(slug, file, secret);
       local.current.set(a.id, URL.createObjectURL(file));
       setLocalTick((n) => n + 1);

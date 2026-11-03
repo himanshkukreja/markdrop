@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getDocument } from "@/lib/api";
 import { lockHolder, lockPage, pagesErrorStatus, savePage, unlockPage, PagesApiError, type PageDocument } from "@/lib/pages";
 
+const pageLocked = (e: unknown) => e instanceof PagesApiError && e.info.code === "page_locked";
+
 /** The server lets a lock lapse 2 minutes after the last heartbeat. */
 export const HEARTBEAT_MS = 30_000;
 /** Autosave this long after the last change. */
@@ -114,7 +116,10 @@ export function usePageEditSession({
     } catch (e) {
       dirty.current = true;
       const status = pagesErrorStatus(e);
-      if (status === 423) {
+      if (status === 423 && pageLocked(e)) {
+        setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
+        setSave({ state: "error", message: "Not saved: this page is locked." });
+      } else if (status === 423) {
         setLock({ kind: "theirs", name: lockHolder(e), lost: true });
         setSave({ state: "error", message: "Not saved: someone else is editing this page." });
       } else if (status === 409) {
@@ -158,7 +163,8 @@ export function usePageEditSession({
       return true;
     } catch (e) {
       const status = pagesErrorStatus(e);
-      if (status === 423) setLock({ kind: "theirs", name: lockHolder(e) });
+      if (status === 423 && pageLocked(e)) setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
+      else if (status === 423) setLock({ kind: "theirs", name: lockHolder(e) });
       else if (status === 403 || status === 401) setLock({ kind: "readonly", message: e instanceof Error ? e.message : "You can't edit this page." });
       else setLock({ kind: "theirs", name: null });
       return false;

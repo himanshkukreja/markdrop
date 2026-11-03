@@ -250,4 +250,5 @@ button.pb-mention--date { cursor: pointer; }
   .pb-templates { grid-template-columns: 1fr 1fr; }
   .pb-editor__title { font-size: 26px; line-height: 34px; }
   .pb-embed__type { display: none; }
+  .pb-embed__frame { max-height: 70vh; }
 }

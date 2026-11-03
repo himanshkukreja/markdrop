@@ -45,7 +45,7 @@ Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search
 The **⋯** menu next to **Done** has:
 
 - **Full width**, **Small text**, and the font: **Default**, **Serif** or **Mono**.
-- **Lock page** (owners): nobody else can edit it until you unlock it.
+- **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
 - **Copy link**, **Add a sub-page**, **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
 - The word count.
 

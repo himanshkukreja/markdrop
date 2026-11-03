@@ -12,7 +12,7 @@ keywords: [image, images, screenshot, paste, upload, drop, alt text, caption, co
 - **Drop** an image file onto the page.
 - Type `/image` and choose **Upload an image**, or paste an image link.
 
-Images can be PNG, JPG, WebP, GIF or SVG, up to 10 MB each. They count toward your [storage](/account/limits), like files you publish.
+Images can be PNG, JPG, WebP or GIF, up to 10 MB each. They count toward your [storage](/account/limits), like files you publish.
 
 Hover an image to add **Alt text** (what the image shows, for people who can't see it), **Replace** it or delete it. Type a caption under it.
 
