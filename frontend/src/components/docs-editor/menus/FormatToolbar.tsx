@@ -3,10 +3,10 @@
 /**
  * The floating format toolbar over a text selection: bold, italic, inline code, link (with an
  * inline address form), turn into heading, turn into list, more (strikethrough, keyboard key), then
- * Ask AI (rewrite the selection; the answer is a suggestion to accept or discard, see assist.tsx)
- * and Comment. A toolbar in the ARIA sense: one tab stop, arrow keys move between buttons.
+ * Ask AI ✦ (what AI can do with the selection, aiMenu.tsx; the answer is a suggestion to accept or
+ * discard, assist.tsx; ⌘/Ctrl J opens it; a bottom sheet on phones) and Comment. A toolbar in the ARIA sense: one tab stop, arrow keys move between buttons.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Editor } from "@tiptap/core";
 import { NodeSelection } from "@tiptap/pm/state";
 import { BubbleMenu } from "@tiptap/react/menus";
@@ -14,8 +14,8 @@ import { useEditorState } from "@tiptap/react";
 import { Icon } from "@/components/ui";
 import { cx } from "../views/shared";
 import { useHost } from "../host";
-import type { AssistAction } from "../types";
-import { ASSIST_LABEL, type AssistStore } from "./assist";
+import type { AssistStore } from "./assist";
+import { AiMenu, type AiPick } from "./aiMenu";
 import { ColorList } from "./ColorMenu";
 import { setTextColor } from "../pageKeys";
 import { ghostOut } from "./motion";
@@ -54,7 +54,7 @@ const alt = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator
 const IDLE = { bold: false, italic: false, strike: false, code: false, underline: false, span: null as Record<string, string> | null, kbd: false, link: false, href: "", h1: false, h2: false, h3: false, h4: false, bullet: false, ordered: false, quote: false, from: -1, to: -1 };
 
 type Menu = null | "heading" | "list" | "more" | "ai" | "color";
-type View = "buttons" | "link" | "lang";
+type View = "buttons" | "link";
 
 interface MenuOption {
   label: string;
@@ -121,12 +121,10 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
   const [view, setView] = useState<View>("buttons");
   const [menu, setMenu] = useState<Menu>(null);
   const [href, setHref] = useState("");
-  const [lang, setLang] = useState("");
   const bar = useRef<HTMLDivElement>(null);
   // Where the toolbar was last placed: TipTap removes it before saying so, and it fades out there.
   const lastRect = useRef<DOMRect | null>(null);
   const linkInput = useRef<HTMLInputElement>(null);
-  const langInput = useRef<HTMLInputElement>(null);
   const st = useEditorState({
     editor,
     // The toolbar is hidden while the selection is empty or is whole blocks, so typing (and
@@ -156,12 +154,10 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
   // A new selection starts on the buttons.
   useEffect(() => {
     setMenu(null);
-    if (view === "lang") setView("buttons");
-  }, [st.from, st.to]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [st.from, st.to]);
 
   useEffect(() => {
     if (view === "link") linkInput.current?.focus();
-    if (view === "lang") langInput.current?.focus();
   }, [view]);
 
   // Ctrl/⌘ K opens the link form when there is a selection.
@@ -170,15 +166,24 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
       setHref(editor.getAttributes("link").href ?? "");
       setView("link");
     };
-    const h = editor.storage as unknown as { docsLink?: { open?: () => void } };
+    const h = editor.storage as unknown as { docsLink?: { open?: () => void }; docsAiMenu?: { open?: () => boolean } };
     h.docsLink = { open };
-  }, [editor]);
+    // ⌘/Ctrl J (aiKeys.ts): the AI menu under the toolbar's button, or the sheet on phones.
+    h.docsAiMenu = {
+      open: () => {
+        if (!assist || (!host.ai && !host.assist)) return false;
+        if (window.matchMedia("(max-width: 640px)").matches) {
+          assist.openSheet(true);
+          return true;
+        }
+        setView("buttons");
+        setMenu("ai");
+        return true;
+      },
+    };
+  }, [editor, assist, host.ai, host.assist]);
 
-  const languages = host.assistLanguages ?? [];
-  const shownLangs = useMemo(() => {
-    const q = lang.trim().toLowerCase();
-    return q ? languages.filter((l) => l.toLowerCase().includes(q)) : languages;
-  }, [languages, lang]);
+  const aiOn = !!assist && (!!host.ai || !!host.assist);
 
   const applyLink = () => {
     const v = href.trim();
@@ -188,11 +193,16 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
     setView("buttons");
   };
 
-  const ask = (action: AssistAction, language?: string) => {
-    if (!host.assist || !assist) return;
+  const ask = (p: AiPick) => {
+    if (!assist) return;
     setMenu(null);
     setView("buttons");
-    assist.start(editor, host.assist, action, language);
+    if ("command" in p) assist.actions(editor, "selection");
+    else assist.start(editor, p.action, { tone: p.tone, lang: p.lang });
+  };
+  const openAi = () => {
+    if (window.matchMedia("(max-width: 640px)").matches) assist?.openSheet(true);
+    else toggle("ai");
   };
 
   const comment = () => {
@@ -276,48 +286,6 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
               </button>
             )}
           </form>
-        )}
-        {view === "lang" && (
-          <div className="dxe-tb__lang">
-            <div className="dxe-tb__langhead">
-              <button type="button" className="dxe-tb__btn" aria-label="Back" onMouseDown={(e) => e.preventDefault()} onClick={() => setView("buttons")}>
-                <Icon name="arrowLeft" />
-              </button>
-              <input
-                ref={langInput}
-                value={lang}
-                onChange={(e) => setLang(e.target.value)}
-                placeholder="Translate to…"
-                aria-label="Search languages"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && shownLangs[0]) {
-                    e.preventDefault();
-                    ask("translate", shownLangs[0]);
-                  } else if (e.key === "ArrowDown") {
-                    e.preventDefault();
-                    (e.currentTarget.closest(".dxe-tb__lang")?.querySelector(".dxe-tb__langlist button") as HTMLButtonElement | null)?.focus();
-                  }
-                }}
-              />
-            </div>
-            <div className="dxe-tb__langlist" role="menu" aria-label="Languages"
-              onKeyDown={(e) => {
-                if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-                e.preventDefault();
-                const items = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
-                const i = items.indexOf(document.activeElement as HTMLButtonElement);
-                if (e.key === "ArrowUp" && i <= 0) return langInput.current?.focus();
-                items[Math.min(items.length - 1, i + (e.key === "ArrowDown" ? 1 : -1))]?.focus();
-              }}
-            >
-              {shownLangs.map((l) => (
-                <button key={l} type="button" role="menuitem" className="dxe-tb__item" onMouseDown={(e) => e.preventDefault()} onClick={() => ask("translate", l)}>
-                  <span className="dxe-tb__itemlabel">{l}</span>
-                </button>
-              ))}
-              {!shownLangs.length && <p className="dxe-tb__none">No language matches.</p>}
-            </div>
-          </div>
         )}
         {view === "buttons" && (
           <>
@@ -408,25 +376,27 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
                 />
               )}
             </span>
-            {(host.assist || host.onComment) && <span className="dxe-tb__sep" aria-hidden />}
-            {host.assist && assist && (
+            {(aiOn || host.onComment) && <span className="dxe-tb__sep" aria-hidden />}
+            {aiOn && (
               <span className="dxe-tb__group">
-                <Btn label="Ask AI" className="dxe-tb__btn--text" expanded={menu === "ai"} onClick={() => toggle("ai")}>
-                  <Icon name="zap" size={15} />
+                <Btn label="Ask AI" keys={`${mod}J`} className="dxe-tb__btn--text dxe-tb__btn--ai" expanded={menu === "ai"} onClick={openAi}>
+                  <Icon name="sparkle" size={15} />
                   <span>Ask AI</span>
-                  <Icon name="chevronDown" size={12} />
                 </Btn>
                 {menu === "ai" && (
-                  <ToolMenu
-                    label="Ask AI"
-                    onClose={() => setMenu(null)}
-                    options={[
-                      { label: ASSIST_LABEL.improve, icon: "sparkle", run: () => ask("improve") },
-                      { label: ASSIST_LABEL.shorten, icon: "minimize", run: () => ask("shorten") },
-                      { label: ASSIST_LABEL.fix, icon: "checkCircle", run: () => ask("fix") },
-                      ...(languages.length ? [{ label: "Translate…", icon: "globe", run: () => { setLang(""); setView("lang"); } }] : []),
-                    ]}
-                  />
+                  <div className="dxe-tb__menu dxe-tb__menu--ai">
+                    <AiMenu
+                      onPick={ask}
+                      onClose={() => {
+                        setMenu(null);
+                        editor.commands.focus();
+                      }}
+                      off={host.ai?.off}
+                      languages={host.ai ? host.ai.languages : host.assistLanguages}
+                      legacy={!host.ai}
+                      actions={!!host.ai?.actionItems}
+                    />
+                  </div>
                 )}
               </span>
             )}

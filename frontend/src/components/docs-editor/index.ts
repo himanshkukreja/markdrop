@@ -11,6 +11,7 @@
 export { DocsEditor, preloadDocsEditor } from "./DocsEditor";
 export type {
   DocsEditorProps, EditorMode, UploadImage, UploadImageInfo, ApiOperationOption, AssistAction, AssistFn, AssistRequest, CommentMark, DocsEditorApi, RevealTarget, TextAnchor,
+  EditorAi, AiAction, AiTone, AiStreamOptions,
 } from "./types";
 export { darkVariantPath } from "./host";
 /** Frontmatter helpers for hosts that store title / description / icon separately from the body. */

@@ -21,6 +21,7 @@ import { BlockDnd } from "./menus/dnd";
 import { BlockSelectionExt } from "./menus/blockSelection";
 import { ColumnsExt, columnView, columnsView } from "./menus/columns";
 import { ButtonView } from "./views/ButtonView";
+import { AiKeys, aiHooks } from "./menus/aiKeys";
 
 const view = (component: ComponentType<ReactNodeViewProps>, options?: Parameters<typeof ReactNodeViewRenderer>[1]) => ({
   addNodeView() {
@@ -122,7 +123,10 @@ const DocsKeys = Extension.create({
 });
 
 function placeholderFor({ node, editor, pos }: { node: PMNode; editor: Editor; pos: number }, empty: string) {
-  if (editor.isEmpty) return empty;
+  if (editor.isEmpty) {
+    const ai = aiHooks(editor);
+    return ai?.on && ai.space ? "Press Space for AI, or / for commands" : empty;
+  }
   if (node.type.name === "heading") {
     const $p = editor.state.doc.resolve(pos);
     if ($p.parent.type.name === "steps") return "Step title";
@@ -136,18 +140,15 @@ function placeholderFor({ node, editor, pos }: { node: PMNode; editor: Editor; p
   }
   if (node.type.name === "codeBlock") return "Code";
   if (node.type.name === "mathBlock") return "LaTeX, e.g. E = mc^2";
+  // A page with AI: the empty line says Space asks it (as the key does, menus/aiKeys.ts).
+  const ai = aiHooks(editor);
+  if (ai?.on && ai.space && node.type.name === "paragraph") return "Press Space for AI, or / for blocks";
   return "Type / for blocks";
 }
 
-export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }: {
-  slash: SlashStore;
-  listboxId: string;
-  placeholder?: string;
-  blocks?: readonly string[];
-  /** A page: Notion-style keys and Markdown shortcuts, and the `:emoji` menu in this store. */
-  emoji?: { store: SlashStore; listboxId: string } | null;
-}): AnyExtension[] {
-  const overrides = {
+/** The React node views (the same in the editor and in an AI suggestion's preview). */
+function viewOverrides() {
+  return {
     callout: view(CalloutView),
     steps: view(StepsView),
     tabs: view(TabsView),
@@ -167,6 +168,17 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
     column: columnView(),
     button: view(ButtonView),
   };
+}
+
+export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }: {
+  slash: SlashStore;
+  listboxId: string;
+  placeholder?: string;
+  blocks?: readonly string[];
+  /** A page: Notion-style keys and Markdown shortcuts, and the `:emoji` menu in this store. */
+  emoji?: { store: SlashStore; listboxId: string } | null;
+}): AnyExtension[] {
+  const overrides = viewOverrides();
   const page = !!emoji;
   const base = withOverrides(baseExtensions(), overrides as unknown as Record<string, Record<string, unknown>>).map((e) =>
     // Pages: table columns resize by dragging their edges (widths are written as `{widths=…}`).
@@ -193,5 +205,14 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
     MoveBlockKeys,
     BlockDnd,
     DocsKeys,
+    AiKeys,
   ];
+}
+
+/**
+ * A read-only editor's extensions: the schema and node views, nothing interactive (an AI
+ * suggestion's preview draws its answer with them, exactly as Accept will put it in).
+ */
+export function previewExtensions(): AnyExtension[] {
+  return withOverrides(baseExtensions(), viewOverrides() as unknown as Record<string, Record<string, unknown>>);
 }

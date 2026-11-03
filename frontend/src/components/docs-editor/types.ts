@@ -36,6 +36,40 @@ export interface AssistRequest {
 /** Rewrites a selection: resolves with the suggested Markdown, or rejects with a message to show. */
 export type AssistFn = (req: AssistRequest) => Promise<string>;
 
+/* ── AI (streaming): one interface, a page's and a guide's implementation ── */
+
+/** What AI can do with a selection (Ask AI ✦ in the format toolbar). */
+export type AiAction = "improve" | "shorten" | "fix" | "tone" | "translate" | "checklist" | "table" | "explain";
+export type AiTone = "professional" | "friendly" | "concise";
+
+export interface AiStreamOptions {
+  /** Stop: aborts the request (the promise rejects with an AbortError). */
+  signal: AbortSignal;
+  /** Each piece of the answer as it arrives (Markdown). `reset`: replace what came so far. */
+  onDelta: (text: string, reset?: boolean) => void;
+}
+
+/**
+ * The editor's AI, implemented by its host (lib/pages-ai/client.ts: a page's endpoints or a
+ * guide's). Every stream resolves with the whole answer (page Markdown) or rejects with an Error
+ * whose message is a sentence to show (limits included); a stop rejects with name "AbortError".
+ */
+export interface EditorAi {
+  /** Why AI can't be used here, shown in its menu instead of the actions ("AI is off for this workspace"). */
+  off?: string | null;
+  /** Languages Translate offers first (any other can be typed). */
+  languages?: string[];
+  transform(req: { action: AiAction; text: string; tone?: AiTone; lang?: string; before?: string; after?: string }, o: AiStreamOptions): Promise<string>;
+  /** "/ai": a draft from a prompt, with the text around the caret as context. */
+  write?(req: { prompt: string; before?: string; after?: string }, o: AiStreamOptions): Promise<string>;
+  /** To-dos from the selection (or the whole page when `text` is left out). */
+  actionItems?(req: { text?: string }, o: AiStreamOptions): Promise<string>;
+  /** A `:::note[Summary]` callout for the top of the page. */
+  summary?(o: AiStreamOptions): Promise<string>;
+  /** A description for an image just uploaded (its address as written: `asset:<id>`, `/docs-assets/…`); null: none. */
+  altText?(src: string): Promise<string | null>;
+}
+
 /** A comment's anchor in the text: what was selected and a little of what came before and after it. */
 export interface TextAnchor {
   quote: string;
@@ -197,6 +231,12 @@ export interface DocsEditorApi {
    * suggestions, Accept / Discard. False when the section isn't on the page or in Markdown mode.
    */
   suggest(s: { heading: string | null; level?: number; markdown: string; title: string; note?: string; onAccept?: () => void }): boolean;
+  /**
+   * Runs one of the editor's AI commands (needs `ai`; Visual mode): "summary" suggests a summary
+   * callout at the top, "actions" the page's action items, "write" opens the "/ai" prompt at the
+   * caret. False when it can't (Markdown mode, no AI, something else open).
+   */
+  runAi(command: "summary" | "actions" | "write"): boolean;
   focus(): void;
   /** The caret at the very start of the page, on an empty line (Enter in a page's title). */
   focusStart(): void;
@@ -257,8 +297,13 @@ export interface DocsEditorProps {
   headerTop?: React.ReactNode;
   /** Receives the editor's API (Find, reveal, fixes). */
   apiRef?: React.Ref<DocsEditorApi | null>;
-  /** Enables "Ask AI" in the format toolbar. */
+  /** Enables "Ask AI" in the format toolbar (non-streaming; `ai` replaces it when given). */
   assist?: AssistFn;
+  /**
+   * AI in the editor: Ask AI ✦ on a selection, "/ai" and Space on an empty line, ⌘/Ctrl J, Find
+   * action items, Summarize, alt text for uploaded images. Leave out to show no AI at all.
+   */
+  ai?: EditorAi | null;
   /** Languages offered by Ask AI › Translate. */
   assistLanguages?: string[];
   /** Enables "Comment" in the format toolbar: called with the selected text. */

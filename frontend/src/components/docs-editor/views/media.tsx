@@ -15,6 +15,16 @@ import { PageEmbedView } from "./pageItems";
 import { PageLeafView } from "./pageLeaves";
 import { ImageLightbox, downloadImage } from "./Lightbox";
 import { cleanAttrs } from "../core/attrs.mjs";
+import { suggestedAlts } from "../menus/aiAlt";
+
+/** "✦ Alt text suggested": AI described the image; shown until someone edits the description. */
+function AltSuggested({ onReview }: { onReview: () => void }) {
+  return (
+    <button type="button" contentEditable={false} className="dxe-altsug" onClick={onReview} title="AI described this image. Check the alt text.">
+      <Icon name="sparkle" size={12} aria-hidden /> Alt text suggested
+    </button>
+  );
+}
 
 /* ── A page's image: resize handles, alignment, full screen, download, replace ── */
 
@@ -32,7 +42,7 @@ function AlignIcon({ a }: { a: Align }) {
   );
 }
 
-function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUpload, onAttrs, onReplace, onDelete, onAlt, altOpen, altId, altEditor }: {
+function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUpload, onAttrs, onReplace, onDelete, onAlt, altOpen, altId, altEditor, altSuggested }: {
   src: string;
   alt: string;
   title: string | null;
@@ -48,6 +58,7 @@ function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUplo
   altOpen: boolean;
   altId: string;
   altEditor: React.ReactNode;
+  altSuggested?: boolean;
 }) {
   const [full, setFull] = useState(false);
   const [live, setLive] = useState<number | null>(null); // width (%) while dragging
@@ -150,6 +161,7 @@ function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUplo
           <input value={title ?? ""} placeholder="Add a caption" aria-label="Caption" readOnly={readOnly} onChange={(e) => onAttrs({ title: e.target.value || null })} />
         </figcaption>
       </div>
+      {altSuggested && !readOnly && !altOpen && <AltSuggested onReview={onAlt} />}
       {altEditor}
       {full && <ImageLightbox src={src} alt={alt} caption={title} onClose={() => setFull(false)} />}
     </NodeViewWrapper>
@@ -201,10 +213,12 @@ function pickFile(onFile: (f: File) => void) {
   input.click();
 }
 
-export function FigureView({ node, updateAttributes, deleteNode, selected }: ReactNodeViewProps) {
+export function FigureView({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
   const host = useHost();
   const up = useUpload();
   const { src, alt, title } = node.attrs as { src: string; alt: string; title: string | null };
+  const aiAlt = !!alt && suggestedAlts(editor).get(src) === alt;
+  const altLabel = aiAlt ? "✦ Suggested by AI. Alt text: what the image shows, for people who can't see it" : "Alt text: what the image shows, for people who can't see it";
   const [url, setUrl] = useState("");
   const [dark, setDark] = useState<string | null>(null);
   const [showAlt, setShowAlt] = useState(false);
@@ -303,7 +317,7 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
           <>
             {showAlt && (
               <div contentEditable={false} id={altId} className="dxe-figure__alt">
-                <TextField label="Alt text: what the image shows, for people who can't see it" wide value={alt} onChange={(v) => updateAttributes({ alt: v })} placeholder="e.g. The Share dialog with Anyone with the link selected" />
+                <TextField label={altLabel} wide value={alt} onChange={(v) => updateAttributes({ alt: v })} placeholder="e.g. The Share dialog with Anyone with the link selected" />
               </div>
             )}
           </>
@@ -311,6 +325,7 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
         onAlt={() => setShowAlt(!showAlt)}
         altOpen={showAlt}
         altId={altId}
+        altSuggested={aiAlt}
       />
     );
   }
@@ -350,9 +365,10 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
           <IconButton icon="trash" label="Delete image" size="sm" onClick={() => deleteNode()} />
         </div>
       )}
+      {aiAlt && !host.readOnly && !showAlt && <AltSuggested onReview={() => setShowAlt(true)} />}
       {showAlt && (
         <div contentEditable={false} id={altId} className="dxe-figure__alt">
-          <TextField label="Alt text: what the image shows, for people who can't see it" wide value={alt} onChange={(v) => updateAttributes({ alt: v })} placeholder="e.g. The Share dialog with Anyone with the link selected" />
+          <TextField label={altLabel} wide value={alt} onChange={(v) => updateAttributes({ alt: v })} placeholder="e.g. The Share dialog with Anyone with the link selected" />
         </div>
       )}
     </NodeViewWrapper>

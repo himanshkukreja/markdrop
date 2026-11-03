@@ -8,15 +8,20 @@ interface BlockServices {
   insertColumns?: (e: Editor, n: number, r: Range) => void;
   uploadMedia?: (e: Editor, r: Range, kind: "video" | "audio" | "file") => void;
   openEmoji?: (e: Editor, r: Range) => void;
+  /** AI's commands (VisualEditor, when the host gives `ai`). */
+  ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
 }
 const svc = (e: Editor) => (e.storage as unknown as { dxeServices?: BlockServices }).dxeServices ?? {};
 const insertColumns = (e: Editor, n: number, r: Range) => svc(e).insertColumns?.(e, n, r);
 const uploadMedia = (e: Editor, r: Range, kind: "video" | "audio" | "file") => svc(e).uploadMedia?.(e, r, kind);
 const openEmoji = (e: Editor, r: Range) => svc(e).openEmoji?.(e, r);
+const runAi = (command: "write" | "actions" | "summary") => (e: Editor, r: Range) => svc(e).ai?.(e, r, command);
 
 /** The "/" menu's sections, in order. */
-export type BlockGroup = "basic" | "media" | "markdrop" | "docs" | "advanced" | "inline";
+export type BlockGroup = "ai" | "basic" | "media" | "markdrop" | "docs" | "advanced" | "inline";
 export const GROUPS: ReadonlyArray<readonly [BlockGroup, string]> = [
+  // Only when the editor has AI (slash.tsx adds AI_ITEMS then): first, as in Notion.
+  ["ai", "AI"],
   ["basic", "Basic blocks"],
   // Guides only (steps, tabs, cards…): right after the basics, the studio's everyday blocks.
   ["docs", "Guide blocks"],
@@ -92,6 +97,15 @@ function insert(content: JSONContent | JSONContent[]) {
     }
   };
 }
+
+const MOD = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform) ? "⌘J" : "Ctrl J";
+
+/** AI's commands in the "/" menu (shown only when the editor has AI: slash.tsx). */
+export const AI_ITEMS: BlockItem[] = [
+  { id: "ai-write", label: "Ask AI to write…", hint: "Draft anything, using this page as context", icon: "sparkle", keywords: "ai write draft generate assistant claude continue brainstorm outline", group: "ai", shortcut: MOD, run: runAi("write") },
+  { id: "ai-actions", label: "Find action items", hint: "To-dos with owners and dates, from this page", icon: "checkSquare", keywords: "ai action items todos tasks extract follow up", group: "ai", run: runAi("actions") },
+  { id: "ai-summary", label: "Summarize page", hint: "A short summary callout at the top", icon: "lines", keywords: "ai summary summarize tldr tl;dr overview", group: "ai", run: runAi("summary") },
+];
 
 const CALLOUTS: Array<[string, string, string, string]> = [
   ["note", "Note", "info", "Extra context worth a look"],

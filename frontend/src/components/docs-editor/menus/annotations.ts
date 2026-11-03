@@ -42,13 +42,17 @@ interface PluginStateShape {
   matches: Match[];
   /** The AI suggestion's target range, mapped through every change. */
   pending: { from: number; to: number } | null;
+  /** Where an AI suggestion would be inserted (a point between blocks), mapped through every change. */
+  anchor: number | null;
+  /** Blocks AI just put in, glowing for a moment (dxe-ai-new). */
+  flash: { from: number; to: number } | null;
   /** Where each comment's quote is in the document now. */
   anchors: Record<string, { from: number; to: number }>;
 }
 
 export const annotationsKey = new PluginKey<PluginStateShape>("docsAnnotations");
 
-type Meta = { refresh?: true; pending?: { from: number; to: number } | null };
+type Meta = { refresh?: true; pending?: { from: number; to: number } | null; anchor?: number | null; flash?: { from: number; to: number } | null };
 
 export const IMAGE_PROBLEM = "This image has no description. Screen readers and search engines use it.";
 
@@ -70,7 +74,7 @@ function anchorOf(doc: PMNode, c: CommentHighlight): { from: number; to: number 
   return ms[0]!;
 }
 
-function build(doc: PMNode, src: AnnotationSource, pending: PluginStateShape["pending"]): Omit<PluginStateShape, "pending"> {
+function build(doc: PMNode, src: AnnotationSource, pending: PluginStateShape["pending"], flash: PluginStateShape["flash"] = null): Omit<PluginStateShape, "pending" | "anchor" | "flash"> {
   const decos: Decoration[] = [];
   // Problems: links and images.
   if (src.checkLink || src.flagImages) {
@@ -117,6 +121,12 @@ function build(doc: PMNode, src: AnnotationSource, pending: PluginStateShape["pe
     matches.forEach((m, i) => decos.push(Decoration.inline(m.from, m.to, { class: i === src.find!.current ? "dxe-hit dxe-hit--on" : "dxe-hit" })));
   }
   if (pending && pending.to > pending.from) decos.push(Decoration.inline(pending.from, pending.to, { class: "dxe-pending" }));
+  if (flash && flash.to > flash.from) {
+    doc.nodesBetween(flash.from, flash.to, (node, pos) => {
+      if (pos >= flash.from && pos + node.nodeSize <= flash.to) decos.push(Decoration.node(pos, pos + node.nodeSize, { class: "dxe-ai-new" }));
+      return false;
+    });
+  }
   return { decos: DecorationSet.create(doc, decos), matches, anchors };
 }
 
@@ -128,7 +138,7 @@ export function createAnnotations(src: AnnotationSource) {
         new Plugin<PluginStateShape>({
           key: annotationsKey,
           state: {
-            init: (_c, state: EditorState) => ({ ...build(state.doc, src, null), pending: null }),
+            init: (_c, state: EditorState) => ({ ...build(state.doc, src, null), pending: null, anchor: null, flash: null }),
             apply: (tr: Transaction, prev: PluginStateShape, _old, state: EditorState) => {
               const meta = tr.getMeta(annotationsKey) as Meta | undefined;
               let pending = prev.pending;
@@ -138,8 +148,18 @@ export function createAnnotations(src: AnnotationSource) {
                 pending = to > from ? { from, to } : null;
               }
               if (meta && "pending" in meta) pending = meta.pending ?? null;
+              let anchor = prev.anchor;
+              if (anchor !== null && tr.docChanged) anchor = tr.mapping.map(anchor, -1);
+              if (meta && "anchor" in meta) anchor = meta.anchor ?? null;
+              let flash = prev.flash;
+              if (flash && tr.docChanged) {
+                const from = tr.mapping.map(flash.from, 1);
+                const to = tr.mapping.map(flash.to, -1);
+                flash = to > from ? { from, to } : null;
+              }
+              if (meta && "flash" in meta) flash = meta.flash ?? null;
               if (!tr.docChanged && !meta) return prev;
-              return { ...build(state.doc, src, pending), pending };
+              return { ...build(state.doc, src, pending, flash), pending, anchor, flash };
             },
           },
           props: {
@@ -171,6 +191,18 @@ export function refreshAnnotations(editor: Editor) {
 export function setPending(editor: Editor, range: { from: number; to: number } | null) {
   if (editor.isDestroyed) return;
   editor.view.dispatch(editor.state.tr.setMeta(annotationsKey, { pending: range } satisfies Meta).setMeta("addToHistory", false));
+}
+
+/** The AI suggestion's insertion point (null: none). */
+export function setAnchor(editor: Editor, at: number | null) {
+  if (editor.isDestroyed) return;
+  editor.view.dispatch(editor.state.tr.setMeta(annotationsKey, { anchor: at } satisfies Meta).setMeta("addToHistory", false));
+}
+
+/** Blocks AI just put in glow for a moment (none with reduced motion: the class has no animation). */
+export function flashRange(editor: Editor, range: { from: number; to: number } | null) {
+  if (editor.isDestroyed) return;
+  editor.view.dispatch(editor.state.tr.setMeta(annotationsKey, { flash: range } satisfies Meta).setMeta("addToHistory", false));
 }
 
 export function annotationState(state: EditorState) {

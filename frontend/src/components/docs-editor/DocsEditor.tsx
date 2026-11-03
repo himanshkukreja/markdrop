@@ -181,6 +181,7 @@ export function DocsEditor({
   apiRef,
   assist,
   assistLanguages,
+  ai,
   onComment,
   comments,
   onCommentClick,
@@ -397,6 +398,26 @@ export function DocsEditor({
       } catch { /* not rendered */ }
       return true;
     },
+    runAi(command) {
+      const v = visualRef.current;
+      if (modeRef.current !== "visual" || !v || v.editor.isDestroyed || !v.assist?.ai || v.assist.busy) return false;
+      const ed = v.editor;
+      if (command === "summary") {
+        if (!v.assist.ai.summary) return false;
+        v.assist.summary(ed);
+        try {
+          scrollToY(ed.view.coordsAtPos(Math.min(1, ed.state.doc.content.size)).top, covered());
+        } catch { /* not rendered */ }
+        return true;
+      }
+      if (command === "actions") {
+        if (!v.assist.ai.actionItems) return false;
+        v.assist.actions(ed, "end");
+        return true;
+      }
+      ed.commands.focus();
+      return v.assist.openPrompt(ed);
+    },
     setImageAlt(src, alt) {
       const v = visualRef.current;
       const clean = alt.replace(/[\n\r\]]/g, " ").trim();
@@ -513,6 +534,7 @@ export function DocsEditor({
             onHandle={onReady}
             assist={assist}
             assistLanguages={assistLanguages}
+            ai={ai}
             onComment={onComment}
             comments={comments}
             onCommentClick={onCommentClick}

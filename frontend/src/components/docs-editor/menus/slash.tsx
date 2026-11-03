@@ -15,7 +15,8 @@ import Suggestion, { exitSuggestion, type SuggestionKeyDownProps, type Suggestio
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
-import { BLOCK_ITEMS, GROUP_LABEL, filterItems, type BlockItem } from "../blocks";
+import { AI_ITEMS, BLOCK_ITEMS, GROUP_LABEL, filterItems, type BlockItem } from "../blocks";
+import { aiHooks } from "./aiKeys";
 import { cx } from "../views/shared";
 import { reducedMotion, usePresence } from "./motion";
 import { SlashPreview } from "./slashPreview";
@@ -54,7 +55,8 @@ export const slashKey = new PluginKey("docsSlash");
 export const LISTBOX_ID_SUFFIX = "-slash";
 
 export function SlashCommand(store: SlashStore, listboxId: string, items: BlockItem[] = BLOCK_ITEMS) {
-  return SuggestMenu({ name: "docsSlash", key: slashKey, char: "/", store, listboxId, find: (q) => filterItems(q, items), allowInTables: false });
+  // AI's commands lead the menu while the editor has AI it can use (menus/aiKeys.ts).
+  return SuggestMenu({ name: "docsSlash", key: slashKey, char: "/", store, listboxId, find: (q, e) => filterItems(q, e && aiHooks(e)?.on ? [...AI_ITEMS, ...items] : items), allowInTables: false });
 }
 
 export const emojiKey = new PluginKey("docsEmoji");
@@ -70,7 +72,7 @@ export function SuggestMenu({ name, key, char, store, listboxId, find, minQuery 
   char: string;
   store: SlashStore;
   listboxId: string;
-  find: (query: string) => BlockItem[];
+  find: (query: string, editor?: Editor) => BlockItem[];
   minQuery?: number;
   allowInTables?: boolean;
 }) {
@@ -115,7 +117,7 @@ export function SuggestMenu({ name, key, char, store, listboxId, find, minQuery 
           allowSpaces: false,
           startOfLine: false,
           allowedPrefixes: [" ", " "],
-          items: ({ query }) => (query.length < minQuery && !store.force ? [] : items.find(query)),
+          items: ({ query, editor: e }) => (query.length < minQuery && !store.force ? [] : items.find(query, e)),
           allow: ({ state, range }) => {
             const $from = state.doc.resolve(range.from);
             if ($from.parent.type.spec.code) return false;
