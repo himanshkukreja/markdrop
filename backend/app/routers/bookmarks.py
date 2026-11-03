@@ -48,3 +48,32 @@ async def preview(
         return await bookmarks.preview(db, data.url)
     except bookmarks.BookmarkError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+# ── Web embeds (services/web_embeds.py) ──────────────────────────────────────
+
+web_router = APIRouter(prefix="/api/v1/web-embeds", tags=["pages"])
+
+
+@web_router.get("/providers")
+@limiter.limit("120/minute")
+async def web_embed_providers(request: Request):
+    """The providers a page may embed: ``[{id, name, example}]``."""
+    from app.services import web_embeds
+
+    return list(web_embeds.PROVIDERS)
+
+
+@web_router.get("/resolve")
+@limiter.limit("120/minute")
+async def resolve_web_embed(request: Request, url: str = ""):
+    """``{provider, name, embed_url, aspect_ratio, url}`` for an allowlisted
+    link (YouTube, Vimeo, Loom, Figma, Google Maps embed links, CodePen); 422
+    for anything else. Computed from the link alone: nothing is fetched."""
+    from app.services import web_embeds
+
+    hit = web_embeds.resolve(url)
+    if hit is None:
+        raise HTTPException(status_code=422, detail=f"Only links from {web_embeds.providers_text()} can be "
+                                                    "embedded. Paste it as a bookmark or a link instead.")
+    return hit

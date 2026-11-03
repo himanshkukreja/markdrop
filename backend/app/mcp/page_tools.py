@@ -73,6 +73,7 @@ async def _save(ctx: Context, raw: dict, content: str, base_rev: int | None) -> 
 
     if len(content) > settings.max_content_chars:
         raise ToolError(f"Pages are limited to {settings.max_content_chars:,} characters.")
+    _check_embeds(content, raw.get("content"))
     try:
         data = DocumentUpdate(title=raw.get("title"), content=content or "\n", base_rev=base_rev)
     except ValidationError:
@@ -87,6 +88,17 @@ async def _save(ctx: Context, raw: dict, content: str, base_rev: int | None) -> 
         raise ToolError(http_message(exc))
 
 
+def _check_embeds(new: str, old: str | None = None) -> None:
+    """Refuse web embeds (``::embed{src}``) from providers outside the allowlist
+    (ones already on the page are left alone)."""
+    from app.services import web_embeds
+
+    bad = [b for b in web_embeds.check_markdown(new) if b not in set(web_embeds.check_markdown(old or ""))]
+    if bad:
+        raise ToolError(f"Only links from {web_embeds.providers_text()} can be web embeds (::embed); "
+                        f"{bad[0]!r} isn't one. Use '::bookmark{{url=\"…\"}}' or a plain link for other sites.")
+
+
 def _lock_check(raw: dict, ctx: Context) -> None:
     try:
         pages.check_write_lock(raw, actor_of(ctx))
@@ -99,6 +111,7 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
     lock (their editor inserts it live: the socket gets ``appended``)."""
     from datetime import datetime, timezone
 
+    _check_embeds(block)
     for _ in range(5):
         cur = await ctx.db["documents"].find_one({"_id": raw["_id"]})
         if cur is None:
@@ -147,6 +160,8 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         parent_raw = await load_for(ctx, parent, "edit_content", "add pages to")
         parent_slug = parent_raw["slug"]
     content = args.get("content")
+    if content:
+        _check_embeds(content)
     if args.get("properties"):
         from app.services import page_props
 
