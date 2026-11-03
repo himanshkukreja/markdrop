@@ -19,7 +19,7 @@ There are two Markdrop servers. Which one you add depends on where your AI app r
 | Works with | claude.ai and the Claude apps, ChatGPT, Claude Code, Cursor, VS Code, Windsurf and other apps that add remote servers | Claude Code, Claude Desktop, Cursor, VS Code and other apps that start local servers |
 | Signs in with | Markdrop's approval screen (OAuth). No key to paste. | An API token (`MARKDROP_TOKEN` or `markdrop login`) for publishing |
 | Best for | Publishing what the assistant writes, reading and updating your documents, access, analytics, workspaces | Publishing and replacing files from your disk (videos up to 2 GB), sending and receiving files peer to peer |
-| Tools | 28 | 11 |
+| Tools | 39 | 11 |
 
 You can add both to the same app: the hosted server for documents, the local one for files on your disk.
 
@@ -27,6 +27,7 @@ You can add both to the same app: the hosted server for documents, the local one
 
 - **Publish.** Markdown becomes a rendered document with diagrams and math; an HTML page, CSV, JSON, SVG or text file becomes a link that opens rendered. You can ask for a custom address, a password, an expiry or private access.
 - **Read and update.** Read documents you can open, replace a document's content and keep its link, list and search your documents.
+- **Build pages.** Create pages from templates, add or replace sections, embed other Markdrop items, add images and sub-pages. Adding to the end works even while someone is editing the page.
 - **Control access.** Change who can open a document, delete one, file it in a workspace folder.
 - **Work with big files.** Upload a video, PDF or other file and later replace it behind the same link, with the last five versions kept.
 - **See how it's doing.** Views, readers, where people drop off in a video, how far they read.

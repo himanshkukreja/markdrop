@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 28 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 39 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -37,6 +37,23 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "list_documents", scope: "read" },
       { name: "search", scope: "read" },
       { name: "fetch", scope: "read" },
+    ],
+  },
+  {
+    title: "Pages",
+    icon: "doc",
+    tools: [
+      { name: "create_page", scope: "write" },
+      { name: "get_page", scope: "read" },
+      { name: "update_page", scope: "write" },
+      { name: "append_blocks", scope: "write" },
+      { name: "replace_section", scope: "write" },
+      { name: "insert_embed", scope: "write" },
+      { name: "set_page_properties", scope: "write" },
+      { name: "upload_page_image", scope: "write" },
+      { name: "list_page_templates", scope: "read" },
+      { name: "list_subpages", scope: "read" },
+      { name: "move_page", scope: "write" },
     ],
   },
   { title: "Access", icon: "lock", tools: [{ name: "set_access", scope: "write" }] },

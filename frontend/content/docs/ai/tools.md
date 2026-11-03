@@ -3,10 +3,10 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, scopes, reference]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 28 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 39 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -21,7 +21,7 @@ Wherever a tool takes `document`, it accepts a slug (`q3-report`), a markdrop.in
 | `publish_document` | write | Publishes Markdown as a document that renders headings, tables, code, Mermaid diagrams and math. Returns the link. | `markdown`, and the publish options below |
 | `publish_page` | write | Publishes a complete HTML page, or a `.txt`, `.csv`, `.json` or `.svg` file, as a link that opens rendered. Up to 25 MB. | `filename` (with its extension), `content`, and the publish options |
 | `update_document` | write | Replaces the full content of a document or text file, keeping its link. Works on documents you own or can edit. | `document`, `content`, `title` |
-| `delete_document` | write | Deletes a document or file you own, permanently. Marked as destructive, so apps that honour that ask you first. | `document` |
+| `delete_document` | write | Deletes a document or file you own, permanently. Marked as destructive, so apps that honour that ask you first. A page with pages inside it needs `children`: `delete` deletes them too, `lift` moves them up a level. | `document`, `children` |
 
 The **publish options** are all optional:
 
@@ -48,6 +48,28 @@ Results carry `url` (on the workspace's custom domain when it has a live one), `
 `scope` is `mine` (default: your own), `workspaces` (what you can open in your workspaces) or `all` (both, plus documents shared with you).
 
 Password-protected and end-to-end encrypted documents can't be read by any tool.
+
+### Pages
+
+Pages are documents that open in the block editor, with sub-pages, embedded Markdrop items, images and page properties.
+
+| Tool | Permission | What it does | Main inputs |
+|---|---|---|---|
+| `create_page` | write | Creates a page, from a template or your own Markdown, in a workspace folder or inside another page. A page made inside another page lives in that page's workspace and folder and has the same access. | `title`, `template`, `content`, `properties`, `workspace`, `folder`, `parent` |
+| `get_page` | read | Reads a page for editing: its Markdown, revision, properties, parent and sub-pages, the Markdrop items it embeds or mentions (each with whether you can open it) and its images. Also says who is editing it right now. | `document` |
+| `update_page` | write | Replaces a page's whole Markdown. Nothing is saved if the page changed since the revision you read. | `document`, `markdown`, `base_rev` |
+| `append_blocks` | write | Adds Markdown at the end of a page. Works even while someone is editing it: their editor shows the new blocks at once. | `document`, `markdown` |
+| `replace_section` | write | Replaces one section: from the heading you name to the next heading of the same or a higher level. | `document`, `heading`, `markdown` |
+| `insert_embed` | write | Puts a Markdrop item you can open into a page, embedded or as an inline link, at the end or at the end of a section. | `document`, `item`, `as` (`embed`, `link`), `mode` (`live`, `preview`, `card`), `after_heading` |
+| `set_page_properties` | write | Sets a page's icon, cover and its focal point, full width, small text, font and lock. | `document`, `icon`, `cover`, `cover_y`, `full_width`, `small_text`, `font`, `locked` |
+| `upload_page_image` | write | Uploads a PNG, JPEG, GIF or WebP image (up to 10 MB) to a page and returns the Markdown that shows it. Anyone who can read the page sees it, nobody else. | `document`, `filename`, `content_base64` |
+| `list_page_templates` | read | The built-in templates: feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank. | none |
+| `list_subpages` | read | The pages inside a page that you can open. | `document` |
+| `move_page` | write | Puts a page inside another page of the same workspace, or at the top level. When that changes who can read it, the tool says how and needs `confirm_access_change`. | `document`, `parent`, `confirm_access_change` |
+
+While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
+
+Readers who can't open an embedded or mentioned item see a locked placeholder with no title. In a page, people mentioned with `@` are named only to the page's owner and its workspace's members.
 
 ### Access
 
