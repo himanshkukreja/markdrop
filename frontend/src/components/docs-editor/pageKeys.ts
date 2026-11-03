@@ -307,7 +307,8 @@ export function EmojiCommand(store: SlashStore, listboxId: string) {
     listboxId,
     minQuery: 2,
     find: (q) =>
-      /^[a-z0-9_+-]+$/i.test(q)
+      // Empty only when "/emoji" opened it (store.force): the first few to start from.
+      /^[a-z0-9_+-]*$/i.test(q)
         ? searchEmoji(q, 8).map(
             (em): BlockItem => ({
               id: `emoji-${em.n}`,
