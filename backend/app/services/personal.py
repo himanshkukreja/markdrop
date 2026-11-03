@@ -104,7 +104,7 @@ async def _docs_by_id(db: AsyncIOMotorDatabase, ids: list) -> dict[str, dict]:
             continue
     if not oids:
         return {}
-    rows = await db["documents"].find({"_id": {"$in": oids}}).to_list(length=len(oids))
+    rows = await db["documents"].find({"_id": {"$in": oids}, **access.NOT_TEMPLATE}).to_list(length=len(oids))
     return {str(r["_id"]): r for r in rows}
 
 
@@ -285,7 +285,7 @@ async def quick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     # Titles and slugs only — never content — and never an encrypted title
     # (ciphertext would match at random).
     text = {"$or": [{"title": _rx(q)}, {"slug": _rx(q)}, {"original_filename": _rx(q)}],
-            "encrypted": {"$ne": True}}
+            "encrypted": {"$ne": True}, **access.NOT_TEMPLATE}
     alive = access.not_expired_clause(now)
     found: dict[str, dict] = {}
 

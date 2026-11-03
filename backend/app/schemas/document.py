@@ -163,6 +163,8 @@ class DocumentResponse(BaseModel):
     # them (it is the address prefix: folders, then ancestor pages).
     page_path: list[str] = []
     template_id: str | None = None
+    # This page is a workspace or personal template (or part of one): {id, description, icon, scope}.
+    template: dict | None = None
     # Page properties from the content's front matter (services/page_props.py):
     # {icon, icon_url, cover, cover_url, cover_y, full_width, small_text, font, locked}.
     page: dict | None = None

@@ -667,7 +667,7 @@ async def list_user_documents(
 ) -> tuple[list[Document], int]:
     """Return (documents, total) owned by the user, newest first. Expired
     documents are gone (I11) even before the sweeper deletes them."""
-    query: dict = {"owner_id": user_id, "$and": [{"$or": [
+    query: dict = {"owner_id": user_id, "template": {"$ne": True}, "$and": [{"$or": [
         {"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}]}]}
     if kind in ("markdown", "document"):
         # Documents created before artifacts existed have no `kind` field.
@@ -695,7 +695,7 @@ async def count_user_documents(db: AsyncIOMotorDatabase, user_id: str) -> dict:
     renders all three counts together, and they must not cost three round trips.
     """
     rows = await db["documents"].aggregate([
-        {"$match": {"owner_id": user_id, "$or": [
+        {"$match": {"owner_id": user_id, "template": {"$ne": True}, "$or": [
             {"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}]}},
         {"$group": {"_id": {"$ifNull": ["$kind", "markdown"]}, "n": {"$sum": 1}}},
     ]).to_list(length=10)

@@ -909,7 +909,7 @@ async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind:
             ors.append({"_id": {"$in": granted}})
     if not ors:
         return [], 0
-    clauses = [{"$or": ors}, access_service.not_expired_clause(actx.now)]
+    clauses = [{"$or": ors}, access_service.not_expired_clause(actx.now), access_service.NOT_TEMPLATE]
     kc = lib_service.kind_clause(kind)
     sf = lib_service.search_filter(query)
     clauses += [c for c in (kc, sf) if c]
@@ -1340,6 +1340,7 @@ async def search(ctx: Context, args: dict) -> tuple[str, dict]:
                 "encrypted": {"$ne": True},
                 "kind": {"$ne": "artifact"},
                 "slug": {"$nin": list(seen)},
+                "template": {"$ne": True},
                 "content": {"$regex": re.escape(query), "$options": "i"},
                 "$or": [{"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}],
             },

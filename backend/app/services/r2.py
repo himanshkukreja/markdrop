@@ -137,6 +137,24 @@ def put_bytes(
         return False
 
 
+def copy_object(src: str, dst: str, content_type: str, public: bool) -> bool:
+    """Server-side copy of ``src`` to ``dst`` (a page image copied into a page
+    made from a template), with fresh metadata: public or not, no epoch yet."""
+    try:
+        _client().copy_object(
+            Bucket=settings.r2_bucket,
+            Key=dst,
+            CopySource={"Bucket": settings.r2_bucket, "Key": src},
+            MetadataDirective="REPLACE",
+            ContentType=content_type,
+            Metadata={"public": "1"} if public else {},
+            CacheControl="public, max-age=300" if public else "private, no-store",
+        )
+        return True
+    except Exception:
+        return False
+
+
 def list_prefix(prefix: str, limit: int = 1000) -> list[str]:
     """All object keys under ``prefix`` (bundles explode into many objects)."""
     keys: list[str] = []

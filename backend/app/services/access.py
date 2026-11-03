@@ -773,6 +773,11 @@ def not_expired_clause(now: datetime) -> dict:
     return {"$or": [{"expires_at": None}, {"expires_at": {"$gt": now}}]}
 
 
+# Workspace and personal templates (services/page_user_templates.py) are pages
+# that never appear in a listing, a search, a tree or a folder page.
+NOT_TEMPLATE: dict = {"template": {"$ne": True}}
+
+
 def public_clause() -> dict:
     """What an anonymous visitor can open (outside a sign-in workspace)."""
     return {"access_level": {"$in": ["link", None]}, "read_password_hash": None,
@@ -814,7 +819,7 @@ async def readable_filter(actor: Actor, workspace_id: str, ctx: Ctx) -> Readable
     never see an unreadable row (A1)."""
     ws = await ctx.workspace(workspace_id)
     require_auth = bool(ws is not None and ws.settings.require_auth_to_view)
-    base = [{"workspace_id": workspace_id}, not_expired_clause(ctx.now)]
+    base = [{"workspace_id": workspace_id}, not_expired_clause(ctx.now), NOT_TEMPLATE]
     uid = actor.user_id
     role = await ctx.role(workspace_id, uid) if (uid and ws is not None) else None
     granted = await granted_ids(actor, ctx)

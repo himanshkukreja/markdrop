@@ -169,6 +169,12 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
                             "set_page_properties with icon or cover asset:<id>.")
         if content is None and args.get("template"):
             tpl = page_templates.get(args["template"])
+            if tpl is None:
+                from app.services import page_user_templates
+
+                if page_user_templates.is_template_id(args["template"]):
+                    raise ToolError("properties can't be combined with a workspace or personal template: "
+                                    "create the page, then set_page_properties.")
             content = page_templates.fill(tpl["content"], title=args["title"]) if tpl else None
         try:
             content = page_props.apply(content or "", props)
@@ -304,9 +310,44 @@ async def insert_embed(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def list_page_templates(ctx: Context, args: dict) -> tuple[str, dict]:
-    items = [{k: t[k] for k in ("id", "name", "description", "category")} for t in page_templates.all_templates()]
-    return "Page templates:\n" + "\n".join(f"- {t['id']}: {t['name']} — {t['description']}" for t in items), \
+    from app.services import page_user_templates
+
+    items = [{**{k: t[k] for k in ("id", "name", "description", "category")}, "scope": "builtin"}
+             for t in page_templates.all_templates()]
+    for t in await page_user_templates.all_usable(ctx.db, ctx.user):
+        items.append({"id": t["id"], "name": t["name"], "description": t["description"],
+                      "category": t.get("workspace_name") or "Personal", "scope": t["scope"],
+                      "workspace_id": t["workspace_id"], "subpages": t["subpages"], "slug": t["slug"]})
+
+    def line(t: dict) -> str:
+        where = {"builtin": "built-in", "personal": "your template"}.get(
+            t["scope"], f"workspace template in {t['category']}")
+        return f"- {t['id']}: {t['name']} ({where})" + (f" — {t['description']}" if t["description"] else "")
+
+    return "Page templates (pass the id to create_page as template):\n" + "\n".join(map(line, items)), \
         {"templates": items}
+
+
+async def save_page_as_template(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import page_user_templates
+
+    raw = await load_for(ctx, args["document"], "read", "read")
+    ws_id = None
+    if args.get("workspace"):
+        ws_id, _f = await precheck_workspace(ctx, {"workspace": args["workspace"]})
+    scope = args.get("scope")
+    try:
+        t = await page_user_templates.save_as_template(
+            ctx.db, ctx.user, actor_of(ctx), _actx(ctx), raw, name=args.get("name"),
+            description=args.get("description"), icon=args.get("icon"),
+            include_subpages=bool(args.get("include_subpages")), scope=scope, workspace=ws_id)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    out = {k: t[k] for k in ("id", "slug", "name", "description", "scope", "workspace_id", "subpages")}
+    where = "the workspace's templates" if t["scope"] == "workspace" else "your personal templates"
+    subs = f" with {t['subpages']} sub-page{'s' if t['subpages'] != 1 else ''}" if t["subpages"] else ""
+    return (f"Saved {t['name']!r}{subs} to {where} (id {t['id']}). Make a page from it with "
+            f"create_page(template={t['id']!r})."), out
 
 
 async def list_subpages(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -448,7 +489,11 @@ PAGE_TOOLS: list[Tool] = [
             "folder": {**_FOLDER_ARG, "description": "Optional: an existing folder of that workspace."},
             "parent": {**_DOC_REF, "description": "Optional: the page to put it inside (slug or link). The user "
                                                   "must be able to edit it."},
-            "template": {"type": "string", "enum": [t["id"] for t in page_templates.TEMPLATES]},
+            "template": {"type": "string", "minLength": 1, "maxLength": 64, "description": (
+                "Optional: a template id from list_page_templates — a built-in one ("
+                + ", ".join(t["id"] for t in page_templates.TEMPLATES)
+                + ") or one of the user's workspace or personal templates. {{date}}, {{author}} and "
+                "{{title}} are filled in; a template's images and sub-pages are copied.")},
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (
@@ -558,13 +603,41 @@ PAGE_TOOLS: list[Tool] = [
     Tool(
         name="list_page_templates",
         title="List page templates",
-        description="The built-in page templates create_page accepts (feature guide, how-to, QA plan, spec, "
-                    "meeting notes, runbook, blank).",
+        description="The page templates create_page accepts: the built-in ones (feature guide, how-to, QA plan, "
+                    "spec, meeting notes, runbook, blank), then the user's personal templates and the templates "
+                    "of each workspace they're a member of.",
         scope=READ,
         input_schema={"type": "object", "properties": {}},
         output_schema=_out({"templates": {"type": "array"}}),
         annotations=_ann(True, False, True),
         handler=list_page_templates,
+    ),
+    Tool(
+        name="save_page_as_template",
+        title="Save a page as a template",
+        description=("Save a copy of a page as a template the user (scope personal) or their workspace "
+                     "(scope workspace: the page's own workspace unless another is named; members and up) can "
+                     "make new pages from. Its images are copied; include_subpages copies the sub-pages the "
+                     "user can open too. Templates never appear in listings or search. Placeholders "
+                     "{{date}}, {{author}} and {{title}} in it are filled in on each new page."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "name": {"type": "string", "maxLength": 120, "description": "Default: the page's title."},
+            "description": {"type": "string", "maxLength": 300},
+            "icon": {"type": "string", "maxLength": 16, "description": "Optional: an emoji."},
+            "include_subpages": {"type": "boolean", "default": False},
+            "scope": {"type": "string", "enum": ["workspace", "personal"],
+                      "description": "Default: workspace for a page in a workspace, else personal."},
+            "workspace": {**_WORKSPACE_ARG, "description": "Optional: save it to this workspace instead."},
+        }, "required": ["document"]},
+        output_schema=_out({"id": {"type": "string"}, "slug": {"type": "string"}, "name": {"type": "string"},
+                            "description": {"type": "string"}, "scope": {"type": "string"},
+                            "workspace_id": _NULLABLE_STR, "subpages": {"type": "integer"}},
+                           ["id", "slug", "name", "scope"]),
+        annotations=_ann(False, False, False),
+        handler=save_page_as_template,
     ),
     Tool(
         name="list_subpages",

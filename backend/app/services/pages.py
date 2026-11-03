@@ -816,6 +816,12 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
         "access_inherit": (raw.get("access_inherit") is not False) if raw.get("parent_id") is not None else None,
         "page_path": list(raw.get("page_path") or []),
         "template_id": raw.get("template_id"),
+        # This page *is* a template (services/page_user_templates.py).
+        "template": ({"id": str(raw["_id"]), "description": raw.get("template_description") or "",
+                      "icon": raw.get("template_icon"),
+                      "scope": "workspace" if raw.get("workspace_id") else "personal"}
+                     if raw.get("template") and raw.get("parent_id") is None
+                     else ({"part_of": True} if raw.get("template") else None)),
         "assets": {},
     }
     if raw.get("parent_id") is not None:
@@ -900,6 +906,13 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
     if template:
         tpl = page_templates.get(template)
         if tpl is None:
+            from app.services import page_user_templates
+
+            if page_user_templates.is_template_id(template):
+                # A workspace or personal template (services/page_user_templates.py).
+                return await page_user_templates.create_from(
+                    db, user, actor, ctx, template, title=title, workspace=workspace, folder=folder,
+                    parent=parent, content=content)
             raise HTTPException(status_code=422, detail="Unknown template. See GET /api/v1/page-templates.")
     if content is None:
         content = page_templates.fill(tpl["content"], title=title) if tpl else ""
@@ -921,6 +934,8 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
         if not is_page_capable(parent_raw):
             raise HTTPException(status_code=422, detail="Sub-pages go inside Markdown documents (not files "
                                                         "or end-to-end encrypted documents).")
+        if parent_raw.get("template"):
+            extra["template"] = True  # a page inside a template is part of it
         depth = len(parent_raw.get("page_path") or []) + 1
         if depth >= access.MAX_PAGE_DEPTH:
             raise HTTPException(status_code=422, detail=f"Pages nest at most {access.MAX_PAGE_DEPTH} deep.")
@@ -1047,6 +1062,9 @@ async def move(db: AsyncIOMotorDatabase, raw: dict, parent_slug: str | None, act
         below = {str(r["_id"]) for r in await descendants(db, raw, projection={"_id": 1})}
         if str(new_parent["_id"]) in below:
             raise HTTPException(status_code=422, detail="A page can't go inside one of its own sub-pages.")
+        if bool(new_parent.get("template")) != bool(raw.get("template")):
+            raise HTTPException(status_code=422, detail="Pages move into and out of templates only by saving "
+                                                        "a template or making a page from one.")
         if (new_parent.get("workspace_id") or None) != (raw.get("workspace_id") or None):
             raise HTTPException(status_code=422, detail="Pages move only within their own workspace (or among "
                                                         "personal pages).")

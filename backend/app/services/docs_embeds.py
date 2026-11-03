@@ -486,7 +486,7 @@ async def library(db: AsyncIOMotorDatabase, actor, user_id: str, site: dict, *, 
         query = rf.query(*clauses)
         sort = [("updated_at", -1)]
     else:
-        query = {"owner_id": user_id, "$and": [alive, *clauses]}
+        query = {"owner_id": user_id, "$and": [alive, access.NOT_TEMPLATE, *clauses]}
         sort = [("updated_at", -1), ("created_at", -1)]
     total = await db["documents"].count_documents(query)
     rows = await db["documents"].find(query).sort(sort).skip((page - 1) * per_page).limit(per_page).to_list(length=per_page)
