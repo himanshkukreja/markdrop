@@ -72,6 +72,11 @@ test("mentionSource keeps balanced labels and cleans unsafe ones", () => {
   assert.equal(mentionSource({ label: "Line\nbreak", attributes: { src: "x" } }), ':markdrop[Line break]{src="x"}');
 });
 
+test("a page image is written as ![alt](asset:<id>), unescaped", () => {
+  assert.equal(write({ type: "figure", attrs: { src: "asset:a1b2c3", alt: "Shot", title: null } }), "![Shot](asset:a1b2c3)\n");
+  assert.equal(throughEditor("![Shot](asset:a1b2c3)\n").out, "![Shot](asset:a1b2c3)\n");
+});
+
 test("a chip still waiting for its item isn't written", () => {
   assert.equal(write(para(text("A "), { type: "mention", attrs: { label: "", attributes: {} } }, text("b"))), "A b\n");
 });
@@ -89,7 +94,7 @@ test("the page's / menu: every block exists, no Guides-only block", () => {
 test("the page's toggle is written as :::details{summary}", () => {
   const toggle = itemsFor(["toggle"])[0];
   let inserted = null;
-  const fake = { chain: () => ({ focus: () => ({ deleteRange: () => ({ insertContent: (c) => ({ run: () => (inserted = c) }) }) }) }) };
+  const fake = { chain: () => ({ focus: () => ({ deleteRange: () => ({ insertContent: (c) => ({ run: () => (inserted = c) }) }) }) }), state: { doc: { content: { size: 0 }, nodesBetween: () => {} } }, commands: { setTextSelection: () => true } };
   toggle.run(fake, { from: 0, to: 0 });
   const md = write({ ...inserted, content: [para(text("Hidden."))] });
   assert.equal(md, ':::details{summary="More details"}\nHidden.\n:::\n');

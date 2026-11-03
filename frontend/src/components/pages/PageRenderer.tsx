@@ -27,6 +27,7 @@ import { Prose } from "@/components/reading/Prose";
 import { ScrollBox } from "@/components/reading/ScrollBox";
 import { rehypeHeadingIds, type Heading } from "@/components/reading/slug";
 import { embedMode, pageRefs } from "@/lib/pageBlocks.mjs";
+import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
 import type { AssetUrl, ResolvedEmbed } from "@/lib/pages";
 import { remarkPageBlocks } from "./remarkPageBlocks";
 import { PageEmbed, PageMention } from "./PageEmbed";
@@ -184,7 +185,9 @@ export interface PageRendererProps {
   className?: string;
 }
 
-export function PageRenderer({ slug, content, assets, signInHref, onHeadings, embeds: given, className }: PageRendererProps) {
+export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, className }: PageRendererProps) {
+  // The page's properties (icon, cover, width…) live in its front matter; the body is the rest.
+  const content = useMemo(() => splitFrontmatter(source).body, [source]);
   const refs = useMemo(() => pageRefs(content), [content]);
   const own = usePageEmbeds(slug, refs.slugs, !given);
   const embeds = given ?? own;

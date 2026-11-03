@@ -17,6 +17,22 @@ const h = (level: number): JSONContent => ({ type: "heading", attrs: { level } }
 function insert(content: JSONContent | JSONContent[]) {
   return (editor: Editor, range: Range) => {
     editor.chain().focus().deleteRange(range).insertContent(content).run();
+    // A block with text inside (a callout, a toggle…): put the caret in it, ready to type.
+    const first = Array.isArray(content) ? content[0] : content;
+    if (first?.content?.length) {
+      const { state } = editor;
+      const at = Math.max(0, Math.min(range.from - 1, state.doc.content.size));
+      let target: number | null = null;
+      state.doc.nodesBetween(at, Math.min(state.doc.content.size, at + 4000), (n, pos) => {
+        if (target !== null) return false;
+        if (n.isTextblock && pos >= at) {
+          target = pos + 1;
+          return false;
+        }
+        return true;
+      });
+      if (target !== null) editor.commands.setTextSelection(target);
+    }
   };
 }
 

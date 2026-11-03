@@ -783,6 +783,12 @@ const TO_MD = {
     mdRaw(node) {
       return node.value;
     },
+    image(node, parent, state, info) {
+      // A page image's address is `asset:<id>`: the colon needs no escape there (it reads back the
+      // same), and the API and AI apps look for `](asset:` as written.
+      const out = defaultHandlers.image(node, parent, state, info);
+      return /^asset:[A-Za-z0-9_-]+$/.test(node.url ?? "") ? out.replace(/\]\(asset\\:/, "](asset:") : out;
+    },
   },
 };
 

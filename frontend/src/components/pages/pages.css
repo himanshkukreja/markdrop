@@ -89,6 +89,10 @@ a.pb-mention:hover { background: var(--accent-soft); color: var(--accent-text); 
 .pb-editor__title::placeholder { color: var(--text-muted); }
 .pb-editor__title:read-only { cursor: default; }
 
+/* The page's text lines up with its title (the handles live in the gutter to the left). */
+.pb-editor .dxe-visual { margin-left: calc(-1 * var(--dxe-gutter)); }
+.pb-editor .dxe-root { margin-top: 8px; }
+
 /* The template gallery */
 .pb-templates { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
 .pb-template { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); color: var(--text); text-align: left; cursor: pointer; font: inherit; }

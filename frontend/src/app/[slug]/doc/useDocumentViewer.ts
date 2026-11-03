@@ -758,7 +758,7 @@ export function useDocumentViewer({
   // is already full-bleed, and a reader never sees the boxed view flash past
   // while the page hydrates.
   const [immersive, setImmersive] = useState(
-    () => !isPasswordProtected && !encrypted && !!initialContent.trim()
+    () => !isPasswordProtected && !encrypted && !!initialContent.trim() && initialPage?.editor !== "blocks"
   );
   const decided = useRef(false);
 
@@ -803,7 +803,8 @@ export function useDocumentViewer({
     if (encrypted && decryptState !== "ok") return;
     decided.current = true;
     const chromeFlow = isNew || startInEdit || startCopy || startGoogleSync;
-    setImmersive(!chromeFlow && !!displayContent.trim());
+    // A page (block editor) opens framed: its breadcrumbs, page tree and Edit live in the chrome.
+    setImmersive(!chromeFlow && !!displayContent.trim() && page?.editor !== "blocks");
   }, [editing, pwdLocked, pwdFetching, artifactDoc, isNew, startInEdit, startCopy, startGoogleSync, displayContent, encrypted, decryptState, flagsReady]);
 
   useEffect(() => {
