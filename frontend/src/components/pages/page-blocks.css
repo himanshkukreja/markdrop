@@ -35,6 +35,11 @@
 :is(.pb-page, .dxe-content) :is(td, th)[data-bg] { border-radius: 0; }
 .pb-page u, .dxe-content u { text-decoration-thickness: 1px; text-underline-offset: 3px; }
 
+/* The format toolbar's underline and colour buttons */
+.dxe-tb__u { font: 600 15px/1 var(--font-sans); text-decoration: underline; text-underline-offset: 3px; }
+.dxe-tb__color { display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 2px; border-radius: 3px; font: 700 14px/1 var(--font-sans); color: var(--pb-fg, currentColor); background: color-mix(in srgb, var(--pb-bgc, transparent) var(--pb-mix), transparent); }
+.dxe-tb__menu--color { padding: 0; max-height: none; }
+
 /* Swatches in the colour menus */
 .pb-colors { display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-height: min(420px, 70vh); overflow-y: auto; padding: 4px; }
 .pb-colors__head { margin: 6px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
@@ -43,6 +48,13 @@
 .pb-colors__row:focus-visible { box-shadow: 0 0 0 2px var(--border-focus) inset; }
 .pb-colors__row[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--text-secondary); }
 .pb-colors__chip { display: grid; place-items: center; width: 22px; height: 22px; flex: none; border: 1px solid var(--border); border-radius: var(--radius-sm, 4px); font: 600 13px/1 var(--font-sans); color: var(--pb-fg, var(--text)); background: color-mix(in srgb, var(--pb-bgc, transparent) var(--pb-mix), var(--surface)); }
+
+.pb-colorgrid { display: flex; flex-direction: column; gap: 2px; padding: 2px 6px 6px; }
+.pb-colorgrid__row { display: flex; gap: 2px; }
+.pb-colorgrid__cell { display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: var(--radius-sm, 4px); background: none; cursor: pointer; }
+.pb-colorgrid__cell:hover { background: var(--surface-hover); }
+.pb-colorgrid__cell[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--accent) inset; }
+.pb-colorgrid__gap { width: 26px; flex: none; }
 
 /* ── Images: width and alignment ─────────────────────────────────────────────────────────── */
 .pb-figure { --pb-w: 100%; display: flex; flex-direction: column; width: min(var(--pb-w), 100%); margin: 24px auto; }
@@ -106,6 +118,14 @@
 :is(.pb-page, .dxe-content) table[data-hcol] tbody tr > :first-child, :is(.pb-page, .dxe-content) table[data-hcol] tr > td:first-child { font-weight: 600; background: var(--surface-inset, var(--surface-hover)); }
 :is(.pb-page, .dxe-content) table[data-hrow="off"] thead th, :is(.pb-page, .dxe-content) table[data-hrow="off"] tr:first-child > th { font-weight: inherit; background: none; }
 
+/* The editor's table: the wrapper carries the header flags; column resizing */
+.dxe-content .tableWrapper[data-hcol] tbody tr > :first-child, .dxe-content .tableWrapper[data-hcol] tr > td:first-child { font-weight: 600; background: var(--surface-inset, var(--surface-hover)); }
+.dxe-content .tableWrapper[data-hrow="off"] tr:first-child > th { font-weight: inherit; background: none; }
+.dxe-content .tableWrapper { overflow-x: auto; }
+.dxe-content :is(td, th) { position: relative; }
+.dxe-content .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: var(--accent); pointer-events: none; z-index: 3; }
+.ProseMirror.resize-cursor { cursor: col-resize; }
+
 /* ── Block anchors: the block a link points to flashes when the page opens ─────────────────── */
 @keyframes pb-flash { 0%, 30% { background-color: color-mix(in srgb, var(--accent) 26%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 26%, transparent); } 100% { background-color: transparent; box-shadow: 0 0 0 4px transparent; } }
 .pb-flash { animation: pb-flash 2.2s ease-out; border-radius: var(--radius-sm, 4px); }
@@ -129,6 +149,9 @@
 .dxe-content.dxe-has-blocksel ::selection { background: transparent; }
 .dxe-marquee { position: absolute; z-index: 30; border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); border-radius: 2px; pointer-events: none; }
 .dxe-selbar { position: fixed; z-index: 70; left: 50%; bottom: 24px; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface-raised); box-shadow: 0 12px 32px rgb(0 0 0 / 0.22); animation: dxe-fade 120ms ease-out; }
+.dxe-selbar { max-width: calc(100vw - 24px); flex-wrap: wrap; justify-content: center; }
+@media (hover: none) and (pointer: coarse) { .dxe-selbar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); } }
+.dxe-selbar__menu { overflow: visible; }
 .dxe-selbar__count { padding: 0 8px 0 6px; font: 600 13px/1 var(--font-sans); color: var(--text-secondary); white-space: nowrap; }
 .dxe-selbar__btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--text); font: 500 13px/1 var(--font-sans); cursor: pointer; white-space: nowrap; }
 .dxe-selbar__btn:hover, .dxe-selbar__btn[aria-expanded="true"] { background: var(--surface-hover); }
@@ -141,6 +164,10 @@
 .dxe-touchbar__btn { display: inline-flex; align-items: center; gap: 6px; height: 40px; min-width: 44px; padding: 0 12px; border: 0; border-radius: var(--radius-full, 999px); background: none; color: var(--text); font: 600 14px/1 var(--font-sans); cursor: pointer; justify-content: center; }
 .dxe-touchbar__btn:active { background: var(--surface-hover); }
 .dxe-touchbar__btn:focus-visible { outline: 2px solid var(--border-focus); }
+
+.dxe-handle.dxe-handle--touch { display: flex !important; transform: none; }
+.dxe-handle--touch .dxe-handle__btn { width: 28px; height: 28px; background: var(--surface-raised); border: 1px solid var(--border); }
+body.dxe-sidedrop .prosemirror-dropcursor-block { display: none; }
 
 /* ── Button block ────────────────────────────────────────────────────────────────────────── */
 .dxe-button { margin: 12px 0; }
@@ -166,6 +193,6 @@
 .pb-page .dx-details[data-color] > summary { color: var(--pb-fg); }
 
 /* ── Code caption (editor) ───────────────────────────────────────────────────────────────── */
-.dxe-codecap { display: block; width: 100%; margin: 6px 0 0; padding: 0; border: 0; background: none; color: var(--text-muted); font: 14px/20px var(--font-sans); outline: none; }
+.dxe-codecap { display: block; width: 100%; margin: 0; padding: 6px 14px 8px; border-top: 1px solid var(--border) !important; border: 0; background: none; color: var(--text-muted); font: 14px/20px var(--font-sans); outline: none; }
 .dxe-codecap::placeholder { color: var(--text-muted); opacity: 0.7; }
 .dxe-codecap:focus-visible { box-shadow: 0 1px 0 0 var(--border-focus); }

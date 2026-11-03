@@ -169,6 +169,8 @@ export interface PagesEditorHost {
   linkPreview?(url: string): Promise<{ title?: string | null; description?: string | null; image_url?: string | null; site_name?: string | null; favicon_url?: string | null }>;
   /** Workspace members, for `@person`. */
   people?(q: string): Promise<Array<{ id: string; name: string; avatar_url?: string | null }>>;
+  /** Uploads a video, audio or other file to Markdrop (beside the page) for a `::markdrop` embed. */
+  uploadFile?(file: File, onProgress?: (pct: number) => void): Promise<{ slug: string; title?: string | null }>;
   /** Creates a sub-page of this page (the "/page" block); resolves with its slug and title. */
   createSubPage?(title: string): Promise<{ slug: string; title: string }>;
   /** This page's ancestors and title, for the breadcrumb block. */

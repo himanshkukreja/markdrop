@@ -16,6 +16,9 @@ import { itemsFor } from "./blocks";
 import { EmojiCommand, PageKeys } from "./pageKeys";
 import { SlashCommand, type SlashStore } from "./menus/slash";
 import { MoveBlockKeys } from "./menus/BlockHandle";
+import { BlockSelectionExt } from "./menus/blockSelection";
+import { ColumnsExt, columnView, columnsView } from "./menus/columns";
+import { ButtonView } from "./views/ButtonView";
 
 const view = (component: ComponentType<ReactNodeViewProps>, options?: Parameters<typeof ReactNodeViewRenderer>[1]) => ({
   addNodeView() {
@@ -140,9 +143,18 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
     inlineMath: view(InlineMathView, { as: "span" }),
     mention: view(MentionView, { as: "span" }),
     listItem: taskItemView(),
+    columns: columnsView(),
+    column: columnView(),
+    button: view(ButtonView),
   };
+  const page = !!emoji;
+  const base = withOverrides(baseExtensions(), overrides as unknown as Record<string, Record<string, unknown>>).map((e) =>
+    // Pages: table columns resize by dragging their edges (widths are written as `{widths=…}`).
+    page && e.name === "table" ? (e as unknown as { configure: (o: Record<string, unknown>) => AnyExtension }).configure({ resizable: true, allowTableNodeSelection: true, cellMinWidth: 64, lastColumnResizable: false }) : e,
+  );
   return [
-    ...withOverrides(baseExtensions(), overrides as unknown as Record<string, Record<string, unknown>>),
+    ...base,
+    ...(page ? [BlockSelectionExt, ColumnsExt] : []),
     Placeholder.configure({
       placeholder: (p) => placeholderFor(p as never, placeholder ?? "Start writing, or type / to add a block"),
       includeChildren: true,

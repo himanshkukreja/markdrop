@@ -23,6 +23,7 @@ import { PAGE_BLOCKS } from "@/components/docs-editor/blocks";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
 import type { DocsEditorApi, EditorMode, PagesEditorHost } from "@/components/docs-editor/types";
 import { getWorkspace } from "@/lib/workspaces";
+import { uploadArtifact } from "@/lib/api";
 import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
 import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, setEditor, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
@@ -214,6 +215,15 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
       renderMention: (p) => <PageMention slug={p.slug} resolved={p.resolved as never} />,
       linkPreview: (u) => linkPreview(u),
       people: workspaceId ? (q) => searchPeople(workspaceId, q) : undefined,
+      // Video, audio and other files: a Markdrop item beside the page (its workspace and folder),
+      // embedded with ::markdrop (page assets are images only; DEVIATIONS "Frontend → backend").
+      uploadFile: async (file, onProgress) => {
+        const r = await uploadArtifact(file, file.name.replace(/\.[a-z0-9]+$/i, ""), {
+          onProgress,
+          ...(workspaceId ? { workspace: workspaceId, folder: addressing.folderPath.length ? addressing.folderPath.join("/") : null } : { accessLevel: "link" as const }),
+        });
+        return { slug: r.slug, title: r.title ?? file.name };
+      },
       createSubPage: async (t) => {
         const created = await createPage({ title: t, parent: slug });
         rememberSecret(created);

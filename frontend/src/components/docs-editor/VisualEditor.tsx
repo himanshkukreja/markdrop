@@ -28,6 +28,9 @@ import { createAnnotations, refreshAnnotations, type AnnotationSource } from "./
 import { AssistPanel, AssistStore } from "./menus/assist";
 import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
+import { BlockMarquee, SelectionBar, TouchBar, useEditorAnchor } from "./menus/BlockTools";
+import { insertColumns } from "./menus/columns";
+import { services, uploadMedia } from "./menus/mediaUpload";
 import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage, MarkdropFilesHost, PagesEditorHost } from "./types";
 
 export interface VisualEditorProps {
@@ -238,6 +241,16 @@ export default function VisualEditor(props: VisualEditorProps) {
     [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop, pages, darkImages],
   );
 
+  // What blocks need from the host (slash items, uploads), on the editor's storage.
+  useEffect(() => {
+    if (!editor) return;
+    const s = services(editor);
+    s.pages = pages;
+    s.toast = { success: (m) => toast.success(m), error: (m) => toast.error(m), info: (m) => toast.info?.(m) };
+    Object.assign(s, { insertColumns: (e: Editor, n: number, r: { from: number; to: number }) => insertColumns(e, n, r), uploadMedia });
+  }, [editor, pages, toast]);
+  useEditorAnchor(pages ? editor : null);
+
   return (
     <EditorHostContext.Provider value={host}>
       <div ref={wrap} className="dxe-visual" data-readonly={readOnly ? "" : undefined}>
@@ -248,6 +261,13 @@ export default function VisualEditor(props: VisualEditorProps) {
             <FormatToolbar editor={editor} stickyTop={stickyTop} assist={assistStore} />
             <AssistPanel editor={editor} store={assistStore} assist={assist} container={wrap} />
             <BlockHandle editor={editor} container={wrap} />
+            {pages && (
+              <>
+                <SelectionBar editor={editor} />
+                <BlockMarquee editor={editor} container={wrap} />
+                <TouchBar editor={editor} />
+              </>
+            )}
             <TableBar editor={editor} container={wrap} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
             {emoji && <SlashMenu store={emoji.store} listboxId={emoji.listboxId} stickyTop={stickyTop} label="Insert an emoji" />}

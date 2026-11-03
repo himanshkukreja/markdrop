@@ -16,6 +16,8 @@ import { cx } from "../views/shared";
 import { useHost } from "../host";
 import type { AssistAction } from "../types";
 import { ASSIST_LABEL, type AssistStore } from "./assist";
+import { ColorList } from "./ColorMenu";
+import { setTextColor } from "../pageKeys";
 
 const CODE_PARENTS = new Set(["codeBlock", "mathBlock"]);
 
@@ -48,7 +50,7 @@ function Btn({ label, active, onClick, children, keys, className, expanded }: {
 const mod = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform) ? "⌘" : "Ctrl+";
 const alt = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform) ? "⌥" : "Alt+";
 
-type Menu = null | "heading" | "list" | "more" | "ai";
+type Menu = null | "heading" | "list" | "more" | "ai" | "color";
 type View = "buttons" | "link" | "lang";
 
 interface MenuOption {
@@ -127,6 +129,8 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
       italic: e.isActive("italic"),
       strike: e.isActive("strike"),
       code: e.isActive("code"),
+      underline: e.isActive("underline"),
+      span: (e.getAttributes("span").attributes as Record<string, string> | undefined) ?? null,
       kbd: e.isActive("kbd"),
       link: e.isActive("link"),
       href: (e.getAttributes("link").href as string | undefined) ?? "",
@@ -304,6 +308,11 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
             <Btn label="Italic" keys={`${mod}I`} active={st.italic} onClick={() => chain().toggleItalic().run()}>
               <Icon name="italic" />
             </Btn>
+            {host.pages && (
+              <Btn label="Underline" keys={`${mod}U`} active={st.underline} onClick={() => chain().toggleMark("underline").run()}>
+                <span className="dxe-tb__u" aria-hidden>U</span>
+              </Btn>
+            )}
             <Btn label="Inline code" keys={`${mod}E`} active={st.code} onClick={() => chain().toggleCode().run()}>
               <Icon name="code" />
             </Btn>
@@ -318,6 +327,19 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
             >
               <Icon name="link" />
             </Btn>
+            {host.pages && (
+              <span className="dxe-tb__group">
+                <Btn label="Colour" keys={`${mod}⇧H: last colour`} active={!!st.span} expanded={menu === "color"} onClick={() => toggle("color")}>
+                  <span className="dxe-tb__color" data-color={st.span?.color} data-bg={st.span?.bg} aria-hidden>A</span>
+                  <Icon name="chevronDown" size={12} />
+                </Btn>
+                {menu === "color" && (
+                  <div className="dxe-tb__menu dxe-tb__menu--color">
+                    <ColorList current={st.span ? (st.span.color ? { color: st.span.color } : { bg: st.span.bg }) : null} onPick={(c) => setTextColor(editor, c)} onClose={() => setMenu(null)} />
+                  </div>
+                )}
+              </span>
+            )}
             <span className="dxe-tb__group">
               <Btn label="Turn into heading" active={!textOn} expanded={menu === "heading"} onClick={() => toggle("heading")}>
                 <Icon name="heading" />
