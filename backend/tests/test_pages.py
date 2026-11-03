@@ -1122,6 +1122,122 @@ class Props(PageWorld):
                                               headers=self.session("wm"))).status_code, 200)
 
 
+# ── Person mentions and member search ─────────────────────────────────────────
+
+
+class People(PageWorld):
+    async def test_member_search(self):
+        await self.db["users"].update_one({"_id": ObjectId(self.uid["wm"])},
+                                          {"$set": {"name": "Priya Member", "picture": "https://img/p.png"}})
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search?q=priya",
+                                headers=self.session("wv"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), [{"id": self.uid["wm"], "name": "Priya Member", "avatar": "https://img/p.png"}])
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search?q=wa@example",
+                                headers=self.session("wv"))
+        self.assertEqual([m["id"] for m in r.json()], [self.uid["wa"]])
+        self.assertNotIn("@", r.text)  # never an address
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search", headers=self.session("wm"))
+        self.assertGreaterEqual(len(r.json()), 6)
+        for h in (self.session("stranger"), self.session("wm2")):
+            r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search?q=a", headers=h)
+            self.assertIn(r.status_code, (403, 404))
+        self.assertEqual((await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search")).status_code, 401)
+
+    async def test_names_only_inside_the_circle(self):
+        md = f'# Notes\n\nAsk :person[Priya Member]{{id="{self.uid["wm"]}"}} about it.\n'
+        page = await self.mkdoc("L", content=md)
+        for who in ("owner", "wm", "wv"):
+            self.assertIn("Priya Member", (await self.get(page["slug"], self.session(who))).json()["content"], who)
+        for h in ({}, self.session("stranger"), self.session("gv")):
+            body = (await self.get(page["slug"], h)).json()
+            self.assertNotIn("Priya", body["content"])
+            self.assertIn(f':person[]{{id="{self.uid["wm"]}"}}', body["content"])
+        # A grantee editor who isn't a member saves what they saw: the name survives.
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}",
+                                json={"title": "t", "content": (await self.get(page["slug"], self.session("ge"))).json()["content"] + "\nmore\n"},
+                                headers=self.session("ge"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn("Priya Member", (await self.doc(page["slug"]))["content"])
+        # Copies, embeds and preview cards don't name them either.
+        r = await self.http.post(f"/api/v1/documents/{page['slug']}/copy", json={}, headers=self.session("stranger"))
+        self.assertNotIn("Priya", (await self.doc(r.json()["slug"]))["content"])
+        host = await self.mkdoc("UL")
+        e = (await self.http.post(f"/api/v1/documents/{host['slug']}/embeds", json={"slugs": [page["slug"]]},
+                                  headers=self.session("stranger"))).json()["embeds"][page["slug"]]
+        self.assertNotIn("Priya", e["preview"]["excerpt"])
+        self.assertIn("a person", e["preview"]["excerpt"])
+
+    def test_redact_and_restore(self):
+        md = ':person[A]{id="1"} :person[B \\] x]{id=2} :person[]{id="3"}'
+        red = pages.redact_people(md)
+        self.assertEqual(red, ':person[]{id="1"} :person[]{id=2} :person[]{id="3"}')
+        self.assertEqual(pages.restore_people(red, md), ':person[A]{id="1"} :person[B \\] x]{id=2} :person[]{id="3"}')
+
+
+# ── Backlinks ─────────────────────────────────────────────────────────────────
+
+
+class Backlinks(PageWorld):
+    async def test_backlinks_filtered_to_readable(self):
+        target = await self.mkdoc("UL", title="Target")
+        public = await self.create(title="Public page", content=f'::markdrop{{src="{target["slug"]}" mode="card"}}\n')
+        secret = await self.create(title="Secret plan", content=f':markdrop[T]{{src="{target["slug"]}"}}\n')
+        await self.set_level(secret["slug"], "private")
+        ws_page = await self.create("wm", workspace=self.ws["W1"], title="Team page",
+                                    content=f"See [it](https://markdrop.in/{target['slug']}).\n")
+        url = f"/api/v1/documents/{target['slug']}/backlinks"
+        anon = (await self.http.get(url)).json()
+        self.assertEqual([b["slug"] for b in anon], [public["slug"]] if True else [])
+        self.assertNotIn("Secret", str(anon))
+        mine = (await self.http.get(url, headers=self.session("owner"))).json()
+        self.assertEqual({b["slug"] for b in mine}, {public["slug"], secret["slug"], ws_page["slug"]})
+        self.assertEqual(next(b for b in mine if b["slug"] == secret["slug"])["kinds"], ["mention"])
+        self.assertEqual(next(b for b in mine if b["slug"] == ws_page["slug"])["kinds"], ["link"])
+        member = (await self.http.get(url, headers=self.session("wm"))).json()
+        self.assertNotIn(secret["slug"], [b["slug"] for b in member])
+        # On the workspace's own domain, only that workspace's pages.
+        r = await self.http.get(url, headers=self.tenant("wm", "W1"))
+        self.assertEqual(r.status_code, 404)  # the target itself is unfiled: out of scope
+
+    async def test_backlinks_follow_writes_and_deletes(self):
+        target = await self.mkdoc("UL")
+        page = await self.create(content="nothing yet")
+        url = f"/api/v1/documents/{target['slug']}/backlinks"
+        self.assertEqual((await self.http.get(url)).json(), [])
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}",
+                                json={"title": "t", "content": f'::markdrop{{src="{target["slug"]}"}}'},
+                                headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([b["slug"] for b in (await self.http.get(url)).json()], [page["slug"]])
+        await self.http.put(f"/api/v1/documents/{page['slug']}", json={"title": "t", "content": "gone"},
+                            headers=self.session("owner"))
+        self.assertEqual((await self.http.get(url)).json(), [])
+        await self.http.put(f"/api/v1/documents/{page['slug']}",
+                            json={"title": "t", "content": f':markdrop[x]{{src="{target["slug"]}"}}'},
+                            headers=self.session("owner"))
+        await self.http.delete(f"/api/v1/documents/{page['slug']}", headers=self.session("owner"))
+        self.assertEqual((await self.http.get(url)).json(), [])
+        self.assertEqual(await self.db["page_links"].count_documents({}), 0)
+
+    async def test_backlinks_of_unreadable_target(self):
+        target = await self.mkdoc("UP")
+        await self.create(content=f'::markdrop{{src="{target["slug"]}"}}')
+        url = f"/api/v1/documents/{target['slug']}/backlinks"
+        self.assertEqual((await self.http.get(url)).status_code, 401)
+        self.assertEqual((await self.http.get(url, headers=self.session("stranger"))).status_code, 404)
+        self.assertEqual(len((await self.http.get(url, headers=self.session("gv"))).json()), 1)
+
+    async def test_renamed_target_keeps_its_backlinks(self):
+        target = await self.mkdoc("UL")
+        page = await self.create(content=f'::markdrop{{src="{target["slug"]}"}}')
+        r = await self.http.patch(f"/api/v1/documents/{target['slug']}/slug", json={"new_slug": "new-target"},
+                                  headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200)
+        b = (await self.http.get("/api/v1/documents/new-target/backlinks")).json()
+        self.assertEqual([x["slug"] for x in b], [page["slug"]])
+
+
 # ── The edit lock ─────────────────────────────────────────────────────────────
 
 

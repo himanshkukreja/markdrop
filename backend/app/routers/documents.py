@@ -121,6 +121,8 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     body["show_presence"] = (raw.get("show_presence") is not False) if body.get("is_owner") else None
     # Pages (services/pages.py): parent, breadcrumbs, sub-page count, images.
     body.update(await pages.page_fields(db, raw, actor, ctx))
+    # Person mentions name people only inside the page's circle.
+    body["content"] = await pages.content_for(actor, raw, ctx)
     return body
 
 
@@ -432,6 +434,27 @@ async def list_children(
     raw, actor, ctx = await _readable_page(db, request, slug, user, read_password=x_read_password,
                                            edit_secret=x_edit_secret, scope=x_markdrop_workspace)
     return await pages.children_listing(db, raw, actor, ctx)
+
+
+@router.get("/{slug}/backlinks")
+@limiter.limit(settings.rate_limit_read)
+async def list_backlinks(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_read_password: str | None = Header(None),
+    x_edit_secret: str | None = Header(None),
+    x_markdrop_workspace: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """Pages that mention, embed or link to this one — only those this caller
+    can read: ``[{slug, title, editor, updated_at, kinds}]``."""
+    from app.services import page_links
+
+    raw, _actor, ctx = await _readable_page(db, request, slug, user, read_password=x_read_password,
+                                            edit_secret=x_edit_secret, scope=x_markdrop_workspace)
+    # The pages are checked for the person, not with this page's password or secret.
+    return await page_links.backlinks(db, raw, access.actor_from_request(request, user), ctx)
 
 
 @router.put("/{slug}/parent", response_model=DocumentResponse)

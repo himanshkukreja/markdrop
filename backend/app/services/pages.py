@@ -87,10 +87,11 @@ def is_page_capable(raw: dict | None) -> bool:
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["documents"].create_index("parent_id", sparse=True)
-    from app.services import bookmarks, page_assets
+    from app.services import bookmarks, page_assets, page_links
 
     await page_assets.ensure_indexes(db)
     await bookmarks.ensure_indexes(db)
+    await page_links.ensure_indexes(db)
 
 
 # ── The tree ──────────────────────────────────────────────────────────────────
@@ -440,6 +441,63 @@ def asset_ids(markdown: str | None) -> list[str]:
     return list(dict.fromkeys(ids))
 
 
+# ── Person mentions: :person[Name]{id="<user id>"} ────────────────────────────
+#
+# A name is shown only to people inside the page's circle: its owner (or edit
+# secret) and members of its workspace. Everyone else gets the Markdown with the
+# label emptied (``:person[]{id=…}``), which the page renders as "a person"; a
+# save that comes back with emptied labels gets them restored from the page.
+
+_PERSON = re.compile(r":person\[((?:\\.|[^\]\\\n])*)\]\{([^}\n]*)\}")
+
+
+def _person_id(attrs: str) -> str | None:
+    for a in _ATTR.finditer(attrs or ""):
+        if a.group(1) == "id":
+            v = a.group(3) if a.group(3) is not None else (a.group(4) if a.group(4) is not None else a.group(5))
+            return v or None
+    return None
+
+
+def redact_people(markdown: str | None) -> str | None:
+    if not markdown or ":person[" not in markdown:
+        return markdown
+    return _PERSON.sub(lambda m: f":person[]{{{m.group(2)}}}", markdown)
+
+
+def restore_people(new: str, old: str | None) -> str:
+    """Labels a reader couldn't see (emptied) come back from the stored page."""
+    if ":person[]" not in (new or "") or not old:
+        return new
+    names: dict[str, str] = {}
+    for m in _PERSON.finditer(old):
+        pid = _person_id(m.group(2))
+        if pid and m.group(1) and pid not in names:
+            names[pid] = m.group(1)
+
+    def fill(m: re.Match) -> str:
+        if m.group(1):
+            return m.group(0)
+        name = names.get(_person_id(m.group(2)) or "")
+        return f":person[{name}]{{{m.group(2)}}}" if name else m.group(0)
+
+    return _PERSON.sub(fill, new)
+
+
+async def sees_people(actor: access.Actor, raw: dict, ctx: access.Ctx) -> bool:
+    f = await access.facts(actor, raw, ctx)
+    return bool(f.is_owner or f.secret_ok or f.ws_role is not None)
+
+
+async def content_for(actor: access.Actor, raw: dict, ctx: access.Ctx) -> str | None:
+    """The document's Markdown as this reader may see it (person names redacted
+    outside the page's circle)."""
+    content = raw.get("content")
+    if raw.get("encrypted") or not content or ":person[" not in content:
+        return content
+    return content if await sees_people(actor, raw, ctx) else redact_people(content)
+
+
 def _norm_heading(text: str) -> str:
     t = re.sub(r"^\s*#{1,6}\s*", "", text or "")
     t = re.sub(r"[ \t]+#+[ \t]*$", "", t)
@@ -587,7 +645,8 @@ async def resolve_embed(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
 
         out.update(renderer="markdown",
                    title=raw.get("title") or heading_title((raw.get("content") or "")[:400]) or raw["slug"])
-        preview["excerpt"] = excerpt(raw.get("content"), EXCERPT_CHARS)
+        text = await content_for(actor, raw, ctx) or ""
+        preview["excerpt"] = excerpt(_PERSON.sub(lambda m: m.group(1) or "a person", text), EXCERPT_CHARS)
         out["preview"] = preview
         return out
     mime = raw.get("mime") or ""

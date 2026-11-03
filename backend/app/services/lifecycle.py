@@ -123,6 +123,9 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     if res.deleted_count == 0:
         return False
     await page_assets.forget_document(db, doc_id)
+    from app.services import page_links
+
+    await page_links.forget(db, doc_id)
     await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [], inline=True)  # B2
     live.gone(slug)
     await db["document_grants"].delete_many({"document_id": doc_id})

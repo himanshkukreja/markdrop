@@ -117,6 +117,7 @@ _TENANT_ALLOWED = (
     ("POST", re.compile(r"^/api/v1/documents/[^/]+/embeds$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/assets/urls$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/children$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/backlinks$")),
 )
 
 

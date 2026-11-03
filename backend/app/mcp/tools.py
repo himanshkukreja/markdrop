@@ -855,6 +855,11 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
         }
         return f"{out['title'] or doc.slug} ({out['url']}): {describe_file(info)}", out
     content, note = await text_of(doc)
+    if doc.kind != "artifact":
+        # Person mentions name people only inside the page's circle (services/pages.py).
+        from app.services import pages
+
+        content = await pages.content_for(actor_of(ctx), raw, access_service.Ctx(ctx.db))
     content, clipped = _clip(content)
     if clipped:
         note = f"Only the first {MAX_RETURNED_CHARS:,} characters are included."
@@ -1353,6 +1358,11 @@ async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
     if doc.encrypted:
         raise ToolError(ENCRYPTED_READ)
     content, note = await text_of(doc)
+    if doc.kind != "artifact" and content and ":person[" in content:
+        from app.services import pages
+
+        content = pages.redact_people(content) if not await pages.sees_people(
+            actor_of(ctx), await load_raw(ctx.db, doc.slug), access_service.Ctx(ctx.db)) else content
     content, _clipped = _clip(content)
     out = {
         "id": doc.slug,

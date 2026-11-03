@@ -248,6 +248,48 @@ async def list_members(
     )
 
 
+@router.get("/{workspace_id}/members/search")
+@limiter.limit("120/minute")
+async def search_members(
+    request: Request,
+    workspace_id: str,
+    q: str = "",
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """People to @-mention in a page (``:person[Name]{id="…"}``): members whose
+    name or address matches ``q``, as ``[{id, name, avatar}]`` (never the
+    address). Members of the workspace only; at most 20."""
+    import re
+
+    from app.services import viewers
+
+    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    needle = " ".join((q or "").split())[:100].casefold()
+    from bson import ObjectId as _Oid
+
+    members = await ws_service.list_members(db, workspace_id)
+    oids = [_Oid(m.user_id) for m in members if _Oid.is_valid(m.user_id)]
+    users = {str(u["_id"]): u for u in await db["users"].find(
+        {"_id": {"$in": oids}}, {"name": 1, "email": 1, "picture": 1}).to_list(length=len(oids))}
+    ids = []
+    for m in members:
+        u = users.get(m.user_id) or {}
+        hay = " ".join(str(x or "") for x in (u.get("name"), u.get("email"), m.name, m.email)).casefold()
+        if not needle or needle in hay:
+            ids.append(m.user_id)
+        if len(ids) >= 20:
+            break
+    out = []
+    for i in ids:
+        u = users.get(i) or {}
+        pic = u.get("picture")
+        out.append({"id": i,
+                    "name": viewers.display_name(type("U", (), {"name": u.get("name"), "email": u.get("email")})),
+                    "avatar": pic if isinstance(pic, str) and re.match(r"^https://", pic) else None})
+    return out
+
+
 @router.delete("/{workspace_id}", response_model=WorkspaceDeleteResponse)
 @limiter.limit("10/hour")
 async def delete_workspace(

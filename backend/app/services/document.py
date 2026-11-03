@@ -314,7 +314,12 @@ async def _kept_after_insert(db: AsyncIOMotorDatabase, doc_dict: dict, owner_id:
 
 
 async def _schedule_expiry(db: AsyncIOMotorDatabase, doc_dict: dict) -> None:
-    """B3: a document born with an expiry gets its purge booked for that moment."""
+    """B3: a document born with an expiry gets its purge booked for that moment.
+    (Also where a new document's links are indexed for backlinks.)"""
+    if doc_dict.get("_id") is not None and "markdrop" in (doc_dict.get("content") or ""):
+        from app.services import page_links
+
+        await page_links.reindex(db, doc_dict)
     if doc_dict.get("expires_at") is None:
         return
     from app.services import revalidate
@@ -475,7 +480,9 @@ async def update_document(
     # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
     # never let a markdown-shaped edit overwrite it.
     if raw.get("kind") != "artifact":
-        sets["content"] = data.content
+        # Person names a reader couldn't see come back from the stored page.
+        sets["content"] = data.content if raw.get("encrypted") else pages.restore_people(
+            data.content, raw.get("content"))
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,
@@ -550,9 +557,11 @@ async def copy_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> tupl
         )
     plain_public = publicity.is_public(
         raw, require_auth=await publicity.workspace_requires_auth(db, raw.get("workspace_id")))
+    from app.services import pages
+
     data = DocumentCreate(
         title=raw.get("title"),
-        content=raw["content"],
+        content=await pages.content_for(actor, raw, ctx),
         custom_slug=None,
         expires_in="never",
         read_password=None,
@@ -874,4 +883,7 @@ async def sync_push(
     if not updated:
         fresh = await db["documents"].find_one({"_id": ObjectId(doc_id)})
         return ("conflict", _doc_from_mongo(fresh))
+    from app.services import page_links
+
+    await page_links.reindex(db, updated)
     return ("ok", _doc_from_mongo(updated))

@@ -121,6 +121,9 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
             live.notify(after["slug"], {"type": "appended", "rev": new_rev, "markdown": block.strip("\n")})
             live.publish(after["slug"], new_rev)
             await revalidate.purge_doc(ctx.db, after)
+            from app.services import page_links
+
+            await page_links.reindex(ctx.db, after)
             return after
     raise ToolError("The page kept changing while this was being added. Try again.")
 
@@ -193,7 +196,7 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         if e["state"] == "ok":
             item.update(title=e.get("title"), kind=e.get("kind"), url=e.get("url"))
         embeds.append(item)
-    content = raw.get("content") or ""
+    content = await pages.content_for(actor, raw, actx) or ""
     note = None
     if len(content) > MAX_RETURNED_CHARS:
         content = content[:MAX_RETURNED_CHARS]

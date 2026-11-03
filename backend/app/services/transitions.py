@@ -24,7 +24,7 @@ from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
-from app.services import live, page_assets, pages, publicity, revalidate
+from app.services import live, page_assets, page_links, pages, publicity, revalidate
 
 log = logging.getLogger(__name__)
 
@@ -121,6 +121,8 @@ async def change(
             # Narrower but still public (only the epoch moved on): reopen the
             # page's images under the new epoch.
             await page_assets.apply(db, after, True)
+        if "content" in sets:
+            await page_links.reindex(db, after)
         await pages.cascade(db, raw, after)
         return after
 
@@ -161,6 +163,8 @@ async def change(
         live.publish(after.get("slug"), int(after.get("rev") or 1))
     # Sub-pages live in their parent's workspace and folder, and inheriting
     # ones take its access: re-evaluate them (each through this same function).
+    if "content" in sets:
+        await page_links.reindex(db, after)
     await pages.cascade(db, raw, after)
     return after
 

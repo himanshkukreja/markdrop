@@ -301,7 +301,10 @@ async def og_image(
             brand=brand,
         )
     else:
-        content = raw.get("content") or ""
+        from app.services.pages import redact_people
+
+        # A preview card is for anyone: person mentions never name anyone in it.
+        content = redact_people(raw.get("content") or "") or ""
         heading = og_render.lead_heading(content)
         # Most documents store no title and name themselves with an opening
         # heading; use it before falling back to the slug, and don't repeat it
