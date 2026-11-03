@@ -302,11 +302,11 @@ async def og_image(
         )
     else:
         from app.services.page_props import split as split_front_matter
-        from app.services.pages import redact_people
+        from app.services.pages import redact_people, strip_ref_labels
 
         # A preview card is for anyone: person mentions never name anyone in it,
         # and a page's front matter (icon, cover…) isn't text.
-        content = redact_people(split_front_matter(raw.get("content") or "")[1]) or ""
+        content = strip_ref_labels(redact_people(split_front_matter(raw.get("content") or "")[1])) or ""
         heading = og_render.lead_heading(content)
         # Most documents store no title and name themselves with an opening
         # heading; use it before falling back to the slug, and don't repeat it

@@ -493,12 +493,113 @@ async def sees_people(actor: access.Actor, raw: dict, ctx: access.Ctx) -> bool:
 
 
 async def content_for(actor: access.Actor, raw: dict, ctx: access.Ctx) -> str | None:
-    """The document's Markdown as this reader may see it (person names redacted
-    outside the page's circle)."""
+    """The document's Markdown as this reader may see it: person names redacted
+    outside the page's circle, and the labels of Markdrop items the reader can't
+    open (``redact_refs``)."""
     content = raw.get("content")
-    if raw.get("encrypted") or not content or ":person[" not in content:
+    if raw.get("encrypted") or not content:
         return content
-    return content if await sees_people(actor, raw, ctx) else redact_people(content)
+    if ":person[" in content and not await sees_people(actor, raw, ctx):
+        content = redact_people(content)
+    if "markdrop" in content:
+        content = await redact_refs(actor, ctx, content)
+    return content
+
+
+# ── Item labels: :markdrop[Title]{src=…} and ::markdrop{… title="…"} ───────────
+#
+# A mention is written with the item's title as its label, and an embed may carry
+# a ``title``. Both name the item, so a reader who can't open it gets the label
+# emptied (``:markdrop[]{src=…}``) and the title dropped, like an embed resolved
+# for them (no title unless "ok"). A save that comes back that way gets them
+# restored from the stored page (``restore_refs``).
+
+_REF = re.compile(r"(?<![A-Za-z0-9_])(:{1,2})markdrop(?:\[((?:\\.|[^\]\\\n])*)\])?\{([^}\n]*)\}")
+_TITLE_ATTR = re.compile(r"""(^|\s+)title\s*=\s*("[^"]*"|'[^']*'|[^\s"'}]+)""")
+
+
+def _ref_slug(attrs: str) -> str | None:
+    for a in _ATTR.finditer(attrs or ""):
+        if a.group(1) == "src":
+            v = a.group(3) if a.group(3) is not None else (a.group(4) if a.group(4) is not None else a.group(5))
+            return slug_of_src(_unescape(v or ""))
+    return None
+
+
+def _labelled(m: re.Match) -> bool:
+    return bool(m.group(2)) or bool(_TITLE_ATTR.search(m.group(3)))
+
+
+def _bare_ref(m: re.Match) -> str:
+    attrs = _TITLE_ATTR.sub("", m.group(3)).strip()
+    return f":markdrop[]{{{attrs}}}" if m.group(1) == ":" else f"::markdrop{{{attrs}}}"
+
+
+def strip_ref_labels(markdown: str | None) -> str | None:
+    """Every item label and embed title removed (excerpts of another document)."""
+    if not markdown or "markdrop" not in markdown:
+        return markdown
+    return _REF.sub(lambda m: _bare_ref(m) if _labelled(m) else m.group(0), markdown)
+
+
+async def _readable(actor: access.Actor, ctx: access.Ctx, slugs: set[str]) -> set[str]:
+    from app.services import document as doc_service
+
+    out = set()
+    for s in list(slugs)[:MAX_EMBEDS]:
+        if not SLUG_RE.match(s):
+            continue
+        raw, _moved = await doc_service.find_for_read(ctx.db, s)
+        if raw is not None and not raw.get("encrypted") and (await access.can(actor, raw, "read", ctx)).allowed:
+            out.add(s)
+    return out
+
+
+async def redact_refs(actor: access.Actor, ctx: access.Ctx, markdown: str) -> str:
+    refs = [m for m in _REF.finditer(markdown) if _labelled(m)]
+    if not refs:
+        return markdown
+    slugs = {s for s in (_ref_slug(m.group(3)) for m in refs) if s}
+    ok = await _readable(actor, ctx, slugs)
+    return _REF.sub(lambda m: m.group(0) if not _labelled(m) or _ref_slug(m.group(3)) in ok else _bare_ref(m),
+                    markdown)
+
+
+async def restore_refs(actor: access.Actor, ctx: access.Ctx, new: str, old: str | None) -> str:
+    """Labels and embed titles of items this writer can't open come back from
+    the stored page (they were emptied in what they read)."""
+    if not new or not old or "markdrop" not in new:
+        return new
+    labels: dict[tuple[str, str], str] = {}
+    for m in _REF.finditer(old):
+        s = _ref_slug(m.group(3))
+        if not s:
+            continue
+        if m.group(1) == ":" and m.group(2):
+            labels.setdefault((":", s), m.group(2))
+        t = _TITLE_ATTR.search(m.group(3))
+        if m.group(1) == "::" and t:
+            labels.setdefault(("::", s), t.group(2))
+    if not labels:
+        return new
+    bare = [m for m in _REF.finditer(new) if not _labelled(m) and (m.group(1), _ref_slug(m.group(3))) in labels]
+    if not bare:
+        return new
+    # Only items this writer can't read: one who can removed a title on purpose.
+    hidden = {s for s in {_ref_slug(m.group(3)) for m in bare} if s} - await _readable(
+        actor, ctx, {_ref_slug(m.group(3)) for m in bare if _ref_slug(m.group(3))})
+
+    def fill(m: re.Match) -> str:
+        s = _ref_slug(m.group(3))
+        key = (m.group(1), s)
+        if _labelled(m) or s not in hidden or key not in labels:
+            return m.group(0)
+        if m.group(1) == ":":
+            return f":markdrop[{labels[key]}]{{{m.group(3)}}}"
+        attrs = " ".join(a for a in (m.group(3).strip(), f"title={labels[key]}") if a)
+        return f"::markdrop{{{attrs}}}"
+
+    return _REF.sub(fill, new)
 
 
 def _norm_heading(text: str) -> str:
@@ -648,7 +749,11 @@ async def resolve_embed(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
 
         out.update(renderer="markdown",
                    title=raw.get("title") or heading_title((raw.get("content") or "")[:400]) or raw["slug"])
-        text = await content_for(actor, raw, ctx) or ""
+        text = raw.get("content") or ""
+        if ":person[" in text and not await sees_people(actor, raw, ctx):
+            text = redact_people(text)
+        # Labels of other items, unchecked for this reader: left out of an excerpt.
+        text = strip_ref_labels(text) or ""
         preview["excerpt"] = excerpt(_PERSON.sub(lambda m: m.group(1) or "a person", text), EXCERPT_CHARS)
         out["preview"] = preview
         return out

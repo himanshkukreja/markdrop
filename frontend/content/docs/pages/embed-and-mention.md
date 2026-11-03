@@ -44,7 +44,7 @@ A mention the reader can't open shows **Restricted item**.
 
 Share the items too if every reader of the page should see them. For example, a page shared with **Anyone with the link** that embeds a file shared only with your workspace shows that file to members and a placeholder to everyone else.
 
-The title you see in a mention is written into the page's Markdown when you insert it (`:markdrop[Q3 plan]{src=q3-plan}`). Readers never see that text in the page, but anyone who can read the page's Markdown (**View raw**, or an AI app) can. Rename the chip's label in **Edit as Markdown** if the title itself is private.
+The title you see in a mention is written into the page's Markdown when you insert it (`:markdrop[Q3 plan]{src=q3-plan}`). Only people who can open the item get that label: everyone else's copy of the Markdown (**View raw**, an AI app, a copy of the page) has `:markdrop[]{src=q3-plan}`, and an embed's `title` is left out the same way. If they edit the page, the labels they couldn't see are kept.
 
 ## Other kinds of embed
 

@@ -1358,11 +1358,12 @@ async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
     if doc.encrypted:
         raise ToolError(ENCRYPTED_READ)
     content, note = await text_of(doc)
-    if doc.kind != "artifact" and content and ":person[" in content:
+    if doc.kind != "artifact" and content and (":person[" in content or "markdrop" in content):
         from app.services import pages
 
-        content = pages.redact_people(content) if not await pages.sees_people(
-            actor_of(ctx), await load_raw(ctx.db, doc.slug), access_service.Ctx(ctx.db)) else content
+        # Person names and locked items' labels, as content_for shows them to this reader.
+        content = await pages.content_for(actor_of(ctx), await load_raw(ctx.db, doc.slug),
+                                          access_service.Ctx(ctx.db))
     content, _clipped = _clip(content)
     out = {
         "id": doc.slug,

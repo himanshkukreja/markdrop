@@ -1208,6 +1208,58 @@ class People(PageWorld):
         self.assertEqual(pages.restore_people(red, md), ':person[A]{id="1"} :person[B \\] x]{id=2} :person[]{id="3"}')
 
 
+class ItemLabels(PageWorld):
+    """A mention's label (the item's title, written at insert time) and an embed's
+    ``title`` name the item: a reader who can't open it never gets them (BUGS.md #1)."""
+
+    async def test_labels_only_for_readers_of_the_item(self):
+        ws_doc = await self.mkdoc("W", title="Secret roadmap", grants=False)
+        pub = await self.mkdoc("UL", title="Public notes")
+        md = (f'See :markdrop[Secret roadmap]{{src="{ws_doc["slug"]}"}} and :markdrop[Public notes]{{src="{pub["slug"]}"}}.\n\n'
+              f'::markdrop{{src="{ws_doc["slug"]}" mode="card" title="Secret roadmap"}}\n\n'
+              f'::markdrop{{src="https://markdrop.in/{pub["slug"]}" title="Public notes"}}\n')
+        page = await self.mkdoc("L", content=md, grants=False)
+        for who in ("owner", "wm"):
+            self.assertEqual((await self.get(page["slug"], self.session(who))).json()["content"], md, who)
+        for h in ({}, self.session("stranger")):
+            got = (await self.get(page["slug"], h)).json()["content"]
+            self.assertNotIn("Secret roadmap", got)
+            self.assertIn(f':markdrop[]{{src="{ws_doc["slug"]}"}}', got)
+            self.assertIn(f'::markdrop{{src="{ws_doc["slug"]}" mode="card"}}', got)
+            self.assertEqual(got.count("Public notes"), 2)  # items they can open keep their labels
+        # MCP fetch and copies don't name it either.
+        r = await self.http.post(f"/api/v1/documents/{page['slug']}/copy", json={}, headers=self.session("stranger"))
+        self.assertNotIn("Secret roadmap", (await self.doc(r.json()["slug"]))["content"])
+        # An excerpt of the page embedded elsewhere drops every item label.
+        host = await self.mkdoc("UL")
+        e = (await self.http.post(f"/api/v1/documents/{host['slug']}/embeds", json={"slugs": [page["slug"]]},
+                                  headers=self.session("wm"))).json()["embeds"][page["slug"]]
+        self.assertNotIn("Secret roadmap", e["preview"]["excerpt"])
+
+    async def test_a_save_keeps_the_labels_the_writer_could_not_see(self):
+        ws_doc = await self.mkdoc("W", title="Secret roadmap", grants=False)
+        md = (f'See :markdrop[Secret roadmap]{{src="{ws_doc["slug"]}"}}.\n\n'
+              f'::markdrop{{src="{ws_doc["slug"]}" title="Secret roadmap"}}\n')
+        page = await self.mkdoc("L", content=md)
+        seen = (await self.get(page["slug"], self.session("ge"))).json()["content"]  # a grantee editor, not a member
+        self.assertNotIn("Secret roadmap", seen)
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}", json={"title": "t", "content": seen + "\nmore\n"},
+                                headers=self.session("ge"))
+        self.assertEqual(r.status_code, 200, r.text)
+        stored = (await self.doc(page["slug"]))["content"]
+        self.assertEqual(stored, md + "\nmore\n")
+        # Someone who can read the item and removes the title on purpose: it stays removed.
+        plain = stored.replace(' title="Secret roadmap"', "")
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}", json={"title": "t", "content": plain},
+                                headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertNotIn('title="Secret roadmap"', (await self.doc(page["slug"]))["content"])
+
+    def test_strip_and_bare(self):
+        md = ':markdrop[A \\] b]{src="x"} ::markdrop{src=y title="T" mode=card} ::markdrop{src=z}'
+        self.assertEqual(pages.strip_ref_labels(md), ':markdrop[]{src="x"} ::markdrop{src=y mode=card} ::markdrop{src=z}')
+
+
 # ── Backlinks ─────────────────────────────────────────────────────────────────
 
 

@@ -481,9 +481,9 @@ async def update_document(
     # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
     # never let a markdown-shaped edit overwrite it.
     if raw.get("kind") != "artifact":
-        # Person names a reader couldn't see come back from the stored page.
-        sets["content"] = data.content if raw.get("encrypted") else pages.restore_people(
-            data.content, raw.get("content"))
+        # Person names and item labels a reader couldn't see come back from the stored page.
+        sets["content"] = data.content if raw.get("encrypted") else await pages.restore_refs(
+            actor, ctx, pages.restore_people(data.content, raw.get("content")), raw.get("content"))
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,
