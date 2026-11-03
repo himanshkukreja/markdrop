@@ -79,6 +79,8 @@ export interface WorkspaceSettings {
   /** v2: who can open a new item unless its author says otherwise (mirrors `Workspace.default_access`).
    *  The settings PUT replaces the whole object, so it must be sent back as it came. */
   default_access?: ItemAccess;
+  /** Page AI on this workspace's pages (Ask AI, summaries, suggestions). Absent on older backends (= true). */
+  ai_enabled?: boolean;
 }
 
 /** v2 `GET /workspaces` item domain summary. */
