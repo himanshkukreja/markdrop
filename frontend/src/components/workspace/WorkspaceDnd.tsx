@@ -18,11 +18,14 @@ import {
 import { Icon, useToast } from "@/components/ui";
 import { errorStatus, moveItems, updateFolder } from "@/lib/workspaces";
 import { workspaceChanged } from "@/lib/workspaceStore";
+import { moveErrorText, useMovePage } from "@/components/pages/MovePage";
 
 export type DragData =
   /** `fromFolderId` undefined: the items come from more than one folder (search results). */
   | { type: "items"; workspaceId: string; slugs: string[]; label: string; fromFolderId: string | null | undefined }
-  | { type: "folder"; workspaceId: string; folderId: string; label: string; parentId: string | null; blocked: string[] };
+  | { type: "folder"; workspaceId: string; folderId: string; label: string; parentId: string | null; blocked: string[] }
+  /** A page in the rail (a document in the block editor): `parent` is its parent page's slug. */
+  | { type: "page"; workspaceId: string; slug: string; label: string; parent: string | null; folderId: string | null };
 
 export interface DropData {
   workspaceId: string;
@@ -31,11 +34,19 @@ export interface DropData {
   label: string;
   /** Folders may only be dropped by admins. */
   acceptsFolders: boolean;
+  /** A page row: a page dropped here goes inside it (`ancestors`: the pages above it). */
+  page?: { slug: string; ancestors: string[] };
 }
 
 /** Whether `drag` may land on `drop` (same workspace, not where it already is, not into itself). */
 export function canDrop(drag: DragData | null, drop: DropData | null): boolean {
   if (!drag || !drop || drag.workspaceId !== drop.workspaceId) return false;
+  if (drop.page) {
+    // Only pages go inside pages; never into itself or a page below it, nor where it already is.
+    if (drag.type !== "page") return false;
+    return drop.page.slug !== drag.slug && !drop.page.ancestors.includes(drag.slug) && drop.page.slug !== drag.parent;
+  }
+  if (drag.type === "page") return drag.parent !== null || drag.folderId !== drop.folderId;
   if (drag.type === "items") return drag.fromFolderId === undefined || drag.fromFolderId !== drop.folderId;
   if (!drop.acceptsFolders) return false;
   if (drop.folderId === drag.folderId || drop.folderId === drag.parentId) return false;
@@ -53,6 +64,9 @@ const collision: CollisionDetection = (args) => {
 
 export function WorkspaceDndProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast();
+  // Pages move with PUT …/parent, which asks first when who can read the page would change.
+  const mover = useMovePage();
+  const movePageTo = mover.move;
   const [active, setActive] = useState<DragData | null>(null);
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
@@ -69,6 +83,36 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
     setActive(null);
     if (!drag || !drop || !canDrop(drag, drop)) return;
     const ws = drag.workspaceId;
+    if (drag.type === "page") {
+      // Inside a page, or to a folder's top level (a sub-page leaves its parent first).
+      const into = drop.page?.slug ?? null;
+      const doc = into || drag.parent ? await movePageTo({ slug: drag.slug, title: drag.label, parent: into }) : null;
+      if ((into || drag.parent) && !doc) return;
+      if (!into && drag.folderId !== drop.folderId) {
+        try {
+          await moveItems(ws, [drag.slug], drop.folderId);
+        } catch (err) {
+          workspaceChanged(ws);
+          toast.error(moveErrorText(err));
+          return;
+        }
+      }
+      workspaceChanged(ws);
+      const back = async () => {
+        if (drag.parent) await movePageTo({ slug: drag.slug, title: drag.label, parent: drag.parent });
+        else {
+          if (into) await movePageTo({ slug: drag.slug, title: drag.label, parent: null });
+          await moveItems(ws, [drag.slug], drag.folderId);
+        }
+        workspaceChanged(ws);
+      };
+      toast.toast({
+        message: `Moved “${drag.label}” ${into ? "into" : "to"} ${drop.label}`,
+        kind: "success",
+        action: { label: "Undo", onClick: () => void back().then(() => toast.success("Moved back"), (err) => toast.error(moveErrorText(err))) },
+      });
+      return;
+    }
     try {
       if (drag.type === "items") {
         await moveItems(ws, drag.slugs, drop.folderId);
@@ -111,13 +155,13 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
           : err instanceof Error && err.message ? err.message : "Couldn't move it. Try again.",
       );
     }
-  }, [toast]);
+  }, [toast, movePageTo]);
 
   const announcements: Announcements = useMemo(() => ({
     onDragStart: ({ active: a }) => `Picked up ${(a.data.current as DragData | undefined)?.label ?? "item"}.`,
     onDragOver: ({ active: a, over }) => {
       const drop = over?.data.current as DropData | undefined;
-      if (!drop) return "Not over a folder.";
+      if (!drop) return "Not over a folder or a page.";
       return canDrop(a.data.current as DragData, drop) ? `Over ${drop.label}. Release to move here.` : `Can't move here: ${drop.label}.`;
     },
     onDragEnd: ({ over }) => {
@@ -144,12 +188,13 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
         <DragOverlay dropAnimation={null}>
           {active ? (
             <div className="pointer-events-none inline-flex max-w-72 items-center gap-2 rounded-lg border border-border-strong bg-surface-raised px-3 py-2 text-body-strong text-text shadow-lg">
-              <Icon name={active.type === "folder" ? "folder" : active.type === "items" && active.slugs.length > 1 ? "layers" : "doc"} size={16} className="shrink-0 text-accent-text" />
+              <Icon name={active.type === "folder" ? "folder" : active.type === "page" || (active.type === "items" && active.slugs.length > 1) ? "layers" : "doc"} size={16} className="shrink-0 text-accent-text" />
               <span className="ph-sensitive ph-mask truncate" dir="auto">{active.label}</span>
             </div>
           ) : null}
         </DragOverlay>
       </DndContext>
+      {mover.dialog}
     </Ctx.Provider>
   );
 }

@@ -152,6 +152,8 @@
         "/pages/embed-and-mention",
         "/pages/sub-pages",
         "/pages/images",
+        "/pages/blocks-and-layout",
+        "/pages/paste",
         "/pages/markdown-reference",
         "/pages/keyboard-shortcuts"
       ]

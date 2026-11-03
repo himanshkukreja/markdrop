@@ -169,6 +169,8 @@ export interface PagesEditorHost {
   linkPreview?(url: string): Promise<{ title?: string | null; description?: string | null; image_url?: string | null; site_name?: string | null; favicon_url?: string | null }>;
   /** Workspace members, for `@person`. */
   people?(q: string): Promise<Array<{ id: string; name: string; avatar_url?: string | null }>>;
+  /** Uploads a video, audio or other file to Markdrop (beside the page) for a `::markdrop` embed. */
+  uploadFile?(file: File, onProgress?: (pct: number) => void): Promise<{ slug: string; title?: string | null }>;
   /** Creates a sub-page of this page (the "/page" block); resolves with its slug and title. */
   createSubPage?(title: string): Promise<{ slug: string; title: string }>;
   /** This page's ancestors and title, for the breadcrumb block. */
@@ -282,4 +284,10 @@ export interface DocsEditorProps {
   pages?: PagesEditorHost;
   /** Images may have a dark-theme version (default true; a page's images don't). */
   darkImages?: boolean;
+  /**
+   * The Visual editor is ready (its TipTap editor), or gone (null: Markdown mode, unmount). A page
+   * uses it to swap its server-rendered body for the editor without a flash, and for its phone
+   * toolbar (undo, redo, format, the block menu).
+   */
+  onEditor?: (editor: import("@tiptap/react").Editor | null) => void;
 }

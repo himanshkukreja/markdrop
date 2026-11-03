@@ -1,0 +1,11 @@
+export type BlockAttrs = Record<string, string>;
+export const COLORS: readonly string[];
+export const BLOCK_KEYS: Record<string, readonly string[]>;
+export const ANCHOR_RE: RegExp;
+export function parseAttrList(inner: string, kind: string): BlockAttrs | null;
+export function attrText(attrs: BlockAttrs | null | undefined): string;
+export function cleanAttrs(attrs: Record<string, unknown> | null | undefined): BlockAttrs | null;
+export function trailingAttrs(source: string, kind: string): { attrs: BlockAttrs; length: number } | null;
+export function attrLine(source: string, kind: string): BlockAttrs | null;
+export function newAnchor(taken?: Set<string>, rand?: () => number): string;
+export function spanColor(attributes: Record<string, unknown> | null | undefined): { color?: string; bg?: string } | null;

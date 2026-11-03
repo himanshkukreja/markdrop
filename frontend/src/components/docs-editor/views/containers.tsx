@@ -485,7 +485,7 @@ export function DetailsView({ node, updateAttributes, editor, getPos }: ReactNod
   const host = useHost();
   const [open, setOpen] = useState(true);
   return (
-    <NodeViewWrapper className="dx-details dxe-details" data-open={open ? "" : undefined}>
+    <NodeViewWrapper className="dx-details dxe-details" data-open={open ? "" : undefined} data-color={node.attrs.attributes?.color || undefined} data-bg={node.attrs.attributes?.bg || undefined}>
       <div contentEditable={false} className="dxe-details__summary">
         <button type="button" className="dxe-details__toggle" aria-expanded={open} aria-label={open ? "Collapse" : "Expand"} onClick={() => setOpen(!open)}>
           <Icon name="chevronRight" className="dx-details__chev" />

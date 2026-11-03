@@ -46,6 +46,8 @@ export interface PageFields {
   workspace_id?: string | null;
   /** The workspace folders' slugs only (not the ancestors). */
   folder_path?: string[];
+  /** Every ancestor page's slug, top first (readable or not). */
+  page_path?: string[];
   /** The page's properties as the API reads them, with per-viewer URLs for an uploaded icon or cover. */
   props?: { icon?: string | null; icon_url?: string | null; cover?: string | null; cover_url?: string | null } | null;
 }
@@ -65,6 +67,7 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     // The API's folder_path is the whole prefix (folders, then every ancestor's slug) and
     // page_path the ancestors alone; keep the folders here (links add the ancestors back).
     folder_path: foldersOnly(d.folder_path, (d as { page_path?: unknown }).page_path),
+    page_path: Array.isArray((d as { page_path?: unknown }).page_path) ? ((d as { page_path: unknown[] }).page_path.filter((s) => typeof s === "string") as string[]) : [],
     props: d.page && typeof d.page === "object" ? (d.page as PageFields["props"]) : null,
   };
 }

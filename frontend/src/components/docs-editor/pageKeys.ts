@@ -14,7 +14,11 @@
 import { Extension, InputRule, type Editor, type Range } from "@tiptap/core";
 import { NodeSelection, Plugin, TextSelection } from "@tiptap/pm/state";
 import { ReplaceStep } from "@tiptap/pm/transform";
+import type { Node as PMNode } from "@tiptap/pm/model";
 import { blockAtCursor, duplicate, moveBlock } from "./menus/BlockHandle";
+import { BlockSelection, blockStartAt, currentBlock, siblings } from "./menus/blockSelection";
+import { indentRun, outdentRun, runOf } from "./menus/blockOps";
+import type { ColorChoice } from "./menus/ColorMenu";
 import { SuggestMenu, emojiKey, type SlashStore } from "./menus/slash";
 import { searchEmoji } from "./emoji";
 import type { BlockItem } from "./blocks";
@@ -84,6 +88,108 @@ function setChecked(editor: Editor, value: boolean | null): boolean {
 
 const TURN_KEYS: TurnInto[] = ["text", "h1", "h2", "h3", "todo", "bullet", "numbered", "toggle", "code", "quote"];
 
+/**
+ * Turn into for several blocks (a block selection): one text selection over all of them, then the
+ * same command (a toggle is made per block); the result stays selected as blocks.
+ */
+export function turnBlocks(editor: Editor, blocks: Array<{ pos: number; node: PMNode }>, kind: TurnInto): boolean {
+  if (!blocks.length) return false;
+  if (blocks.length === 1 || kind === "toggle") {
+    let ok = false;
+    // Last first: earlier positions don't move.
+    for (const b of [...blocks].reverse()) {
+      const n = editor.state.doc.nodeAt(b.pos);
+      if (!n) continue;
+      const inside = firstText(editor.state.doc, b.pos);
+      if (inside === null) continue;
+      editor.chain().setTextSelection(inside).run();
+      ok = turnInto(editor, kind) || ok;
+    }
+    return ok;
+  }
+  const first = firstText(editor.state.doc, blocks[0].pos);
+  const lastB = blocks[blocks.length - 1];
+  const last = lastText(editor.state.doc, lastB.pos, lastB.pos + lastB.node.nodeSize);
+  if (first === null || last === null) return false;
+  editor.chain().setTextSelection({ from: first, to: last }).run();
+  const ok = turnInto(editor, kind);
+  const { from, to } = editor.state.selection;
+  const a = blockStartAt(editor.state.doc.resolve(from));
+  const b = blockStartAt(editor.state.doc.resolve(to));
+  if (a !== null && b !== null) {
+    const pair = siblings(editor.state.doc, a, b);
+    if (pair) editor.view.dispatch(editor.state.tr.setSelection(BlockSelection.create(editor.state.doc, pair[0], pair[1])));
+  }
+  return ok;
+}
+
+function firstText(doc: PMNode, pos: number): number | null {
+  let at: number | null = null;
+  const n = doc.nodeAt(pos);
+  if (!n) return null;
+  if (n.isTextblock) return pos + 1;
+  doc.nodesBetween(pos, pos + n.nodeSize, (k, p) => {
+    if (at !== null) return false;
+    if (k.isTextblock && k.type.name !== "codeBlock") {
+      at = p + 1;
+      return false;
+    }
+    return true;
+  });
+  return at;
+}
+
+function lastText(doc: PMNode, from: number, to: number): number | null {
+  let at: number | null = null;
+  doc.nodesBetween(from, to, (k, p) => {
+    if (k.isTextblock && k.type.name !== "codeBlock") at = p + 1 + k.content.size;
+    return true;
+  });
+  return at;
+}
+
+/** Tab / Shift+Tab on the block at the caret: nest it under the block before it, or take it out. */
+function nest(editor: Editor, dir: 1 | -1): boolean {
+  const { state } = editor;
+  const { $from } = state.selection;
+  if ($from.parent.type.name === "codeBlock" || $from.parent.type.name === "tableCell" || $from.parent.type.name === "tableHeader") return false;
+  const at = currentBlock(state);
+  const n = at === null ? null : state.doc.nodeAt(at);
+  if (at === null || !n) return true;
+  // A list item's first line: the list's own Tab (sink / lift) already had its say.
+  if (n.type.name === "listItem") return true;
+  const run = runOf(state, at, at + n.nodeSize);
+  if (run) (dir > 0 ? indentRun : outdentRun)(editor, run);
+  return true;
+}
+
+/** The last colour used with the format toolbar (⌘⇧H applies it). */
+export const lastColor = {
+  get(): ColorChoice {
+    try {
+      const v = localStorage.getItem("dxe_last_color");
+      return v ? (JSON.parse(v) as ColorChoice) : { bg: "yellow" };
+    } catch {
+      return { bg: "yellow" };
+    }
+  },
+  set(c: ColorChoice) {
+    try {
+      localStorage.setItem("dxe_last_color", JSON.stringify(c));
+    } catch {
+      /* private mode */
+    }
+  },
+};
+
+/** The selected text's colour (`:span`), or none. */
+export function setTextColor(editor: Editor, c: ColorChoice) {
+  if (c) {
+    editor.chain().focus().setMark("span", { attributes: c }).run();
+    lastColor.set(c);
+  } else editor.chain().focus().unsetMark("span").run();
+}
+
 export const PageKeys = Extension.create({
   name: "pageKeys",
   addKeyboardShortcuts() {
@@ -103,6 +209,14 @@ export const PageKeys = Extension.create({
         return true;
       },
       "Mod-Enter": () => setChecked(this.editor, null),
+      Tab: () => nest(this.editor, 1),
+      "Shift-Tab": () => nest(this.editor, -1),
+      "Mod-u": () => this.editor.commands.toggleMark("underline"),
+      "Mod-Shift-h": () => {
+        if (this.editor.state.selection.empty) return false;
+        setTextColor(this.editor, lastColor.get());
+        return true;
+      },
       Escape: () => {
         const { state } = this.editor;
         if (state.selection instanceof NodeSelection) return false;

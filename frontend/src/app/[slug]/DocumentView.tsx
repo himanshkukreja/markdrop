@@ -19,7 +19,7 @@ import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { useDocumentViewer } from "./doc/useDocumentViewer";
-import type { DocumentViewProps } from "./doc/types";
+import { pageFieldsOf, type DocumentViewProps } from "./doc/types";
 import { DocumentActionBar, DocumentBar } from "./doc/DocumentBar";
 import { DetailsPanel, readingMinutes } from "./doc/DetailsPanel";
 import { DeviceKeyNotice, EncryptionState, RotatedNotice } from "./doc/EncryptionState";
@@ -27,10 +27,11 @@ import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
-import { Backlinks, PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
+import { Backlinks, PageFrame, PageTopBar, SubPages } from "@/components/pages/PageChrome";
+import type { PageActionRequest } from "@/components/pages/PageActions";
 import { PageHead } from "@/components/pages/PageHead";
 import { readPageProps } from "@/components/pages/pageProps";
-import { deletePage, setEditor } from "@/lib/pages";
+import { deletePage, getPage, setEditor } from "@/lib/pages";
 import { assetId, pagePath } from "@/lib/pageBlocks.mjs";
 import { DeletePageDialog } from "@/components/pages/DeletePageDialog";
 
@@ -54,6 +55,9 @@ const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m)
 // template gallery load when used.
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
 const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
+// Drag and drop, Move to and Duplicate load only for pages.
+const PageTree = dynamic(() => import("@/components/pages/PageTree").then((m) => m.PageTree), { loading: () => null });
+const PageActions = dynamic(() => import("@/components/pages/PageActions").then((m) => m.PageActions), { loading: () => null });
 const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
 
 /**
@@ -161,7 +165,81 @@ export default function DocumentView(props: DocumentViewProps) {
     const id = assetId(src);
     return id ? page?.assets?.[id]?.url ?? "" : src;
   };
+  // A page is always editable for the people who can edit it: the editor loads behind the
+  // server-rendered page and takes its place when it's ready (the same frame, so nothing moves).
+  const pageEditable = isPage && secretUnlocked && readable && !showRaw;
+  const [editorReady, setEditorReady] = useState(false);
+  useEffect(() => {
+    if (!pageEditable) setEditorReady(false);
+  }, [pageEditable]);
+  // While the page's editor is on screen it follows the live socket itself; the viewer stops
+  // re-reading on every save (useDocumentViewer ignores `changed` while editing).
+  const setViewerEditing = v.setEditing;
+  useEffect(() => {
+    if (!editorReady) return;
+    setViewerEditing(true);
+    return () => setViewerEditing(false);
+  }, [editorReady, setViewerEditing]);
+  // A reader's full screen (F) isn't offered for pages.
+  const toggleImmersive = v.toggleImmersive;
+  useEffect(() => {
+    if (isPage && showImmersive) toggleImmersive(false);
+  }, [isPage, showImmersive, toggleImmersive]);
+  // The cached anonymous render follows the saves (at most every 20 s, and on leaving).
+  const revalidated = useRef(0);
+  const revalidate = (force = false) => {
+    if (!force && Date.now() - revalidated.current < 20_000) return;
+    revalidated.current = Date.now();
+    fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }), keepalive: force }).catch(() => {});
+  };
+  const pendingRevalidate = useRef(false);
+  useEffect(() => {
+    const hide = () => {
+      if (pendingRevalidate.current) revalidate(true);
+    };
+    window.addEventListener("pagehide", hide);
+    return () => {
+      window.removeEventListener("pagehide", hide);
+      hide();
+    };
+  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const [deleting, setDeleting] = useState(false);
+  // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
+  const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
+  const [treeKey, setTreeKey] = useState(0);
+  const [kidsKey, setKidsKey] = useState(0);
+  const pagePathSlugs = page?.page_path ?? [];
+  const movable = {
+    slug,
+    title: displayTitle,
+    workspaceId: page?.workspace_id ?? null,
+    parent: page?.parent?.slug ?? pagePathSlugs[pagePathSlugs.length - 1] ?? null,
+    parentTitle: page?.parent?.title ?? null,
+    childrenCount: page?.children_count ?? 0,
+    folderPath: page?.folder_path ?? [],
+  };
+  // This page's place changed (moved, or an ancestor moved) or its sub-pages did: read its
+  // breadcrumbs, address and "Pages inside" again. The tree redraws itself unless asked to.
+  const rereadPage = (redrawTree = true) => {
+    getPage(slug)
+      .then((doc) => {
+        v.setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
+        if (redrawTree) setTreeKey((k) => k + 1);
+        setKidsKey((k) => k + 1);
+        // A move can change who reads it (it inherits from somewhere else now).
+        v.loadAccess();
+      })
+      .catch(() => {});
+    fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
+  };
+  const pageActions = isPage && canAddSubPage ? (
+    <PageActions
+      request={pageAction}
+      page={movable}
+      onClose={() => setPageAction(null)}
+      onMoved={() => rereadPage()}
+    />
+  ) : null;
   const pageHref = (s: string, ancestors: string[]) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors });
   // The tab shows the page's icon.
   useEffect(() => {
@@ -247,57 +325,17 @@ export default function DocumentView(props: DocumentViewProps) {
     ? <TenantHeader returnPath={pathname || undefined} hideAuth={gated && !pwdFetching && gateMode === "signin"} />
     : <SiteHeader />;
 
+  // A page (the block editor) has one screen for readers and editors: its frame, always editable
+  // for editors (below). Someone who must type the edit secret first gets the edit flow's prompt.
+  const pageScreen = isPage && readable && !gated && !(editing && !secretUnlocked);
+
   // ── Edit flow ──────────────────────────────────────────────────────────────
-  if (editing) {
+  if (editing && !pageScreen) {
     return (
       <>
         {header}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
-          {secretUnlocked && isPage ? (
-            <div className={`mx-auto w-full max-w-reading px-4 pb-24 pt-2 sm:px-6 ${pageProps?.fullWidth ? "pb-wide" : ""}`}>
-              <PageEditor
-                slug={slug}
-                title={displayTitle}
-                content={displayContent}
-                rev={v.docRev}
-                secret={v.secretInput || null}
-                workspaceId={page?.workspace_id ?? null}
-                crumbs={crumbs}
-                assets={page?.assets ?? null}
-                addressing={addressing}
-                subscribeLive={v.subscribeLive}
-                onSaved={(doc) => {
-                  if (typeof doc.rev === "number") v.setDocRev(doc.rev);
-                }}
-                onDone={(latest) => {
-                  v.setDisplayTitle(latest.title || null);
-                  v.setDisplayContent(latest.content);
-                  setEditing(false);
-                  // The cached anonymous render would keep the old version for a minute.
-                  fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
-                }}
-                onAddSubPage={canAddSubPage ? () => setNewSubPage(true) : null}
-                onDelete={isOwner || v.canEditSettings ? () => setDeleting(true) : null}
-                isOwner={isOwner || v.canEditSettings}
-                url={url}
-                updatedAt={null}
-                stickyTop={() => 64}
-              />
-              <DeletePageDialog
-                open={deleting}
-                onClose={() => setDeleting(false)}
-                count={page?.children_count ?? 0}
-                onDelete={async (children) => {
-                  await deletePage(slug, children, v.secretInput || null);
-                  fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
-                  router.push(crumbs.length ? `/${encodeURIComponent(crumbs[crumbs.length - 1].slug)}` : "/dashboard");
-                }}
-              />
-              {newSubPage && (
-                <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={displayTitle} />
-              )}
-            </div>
-          ) : secretUnlocked ? (
+          {secretUnlocked && !isPage ? (
             <EditorScreen
               v={v}
               slug={slug}
@@ -400,6 +438,8 @@ export default function DocumentView(props: DocumentViewProps) {
       ? [{ label: "Open in block editor", icon: "layers", description: "Write it with blocks. The Markdown is unchanged.", onClick: () => setToBlocks(true) }]
       : []),
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
+    ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
+    ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -454,12 +494,256 @@ export default function DocumentView(props: DocumentViewProps) {
   const owned = isOwned || isOwner || v.docOwned;
   const guardActive = isNew && !!claimSecret && !secretCopied && !panelDismissed && !isOwner;
 
+  const notices = (
+    <>
+      {showPanel && (
+        <PublishedPanel
+          url={url}
+          shareUrl={shareUrl}
+          access={publishedAccess}
+          encrypted={encrypted}
+          password={v.publishedPassword}
+          passwordProtected={v.opened?.mode === "password" || !!v.publishedPassword}
+          secret={claimSecret}
+          signedIn={!!user}
+          isOwner={isOwner}
+          onOpenFullScreen={canFullScreen ? () => v.toggleImmersive(true) : undefined}
+          onSaveToAccount={user && !owned && !claimed ? handleClaim : undefined}
+          secretSaved={claimed}
+          signInHref={signInHref}
+          workspaceShareFailed={wsShareFailed}
+          onDismiss={() => setPanelDismissed(true)}
+          onLinkCopied={copyLinkEvent}
+          onSecretCopied={() => setSecretCopied(true)}
+          className="no-print mb-4"
+        />
+      )}
+      {/* Save to account, for a secret holder who isn't on the
+          publish panel (a reload, or ?edit). */}
+      {!showPanel && !owned && !claimed && claimSecret && v.ownerKnown && (
+        user ? (
+          <Alert
+            tone="info"
+            className="no-print"
+            actions={<Button size="sm" variant="secondary" onClick={handleClaim}>Save to my account</Button>}
+          >
+            Save this document to your account to manage it and see analytics.
+          </Alert>
+        ) : (
+          <Alert tone="info" className="no-print">
+            <a href={signInHref} className="font-semibold text-accent-text underline underline-offset-4">Sign in</a>{" "}
+            to save this document to your account and track analytics.
+          </Alert>
+        )
+      )}
+      {claimMsg && !showPanel && <p className="no-print text-caption text-text-secondary" role="status">{claimMsg}</p>}
+      {rotated && <div className="no-print"><RotatedNotice link={rotated} /></div>}
+      {v.passwordChange && (
+        <Alert
+          tone={v.passwordChange === "set" ? "info" : "warning"}
+          icon="lock"
+          className="no-print"
+          onDismiss={() => v.setPasswordChange(null)}
+          title={v.passwordChange === "set" ? "New password set" : "Password removed"}
+        >
+          {v.passwordChange === "set"
+            ? "Readers now need the link and the new password — send them separately. Anyone who saved an old copy can still read that copy with the old password."
+            : "Anyone with the link can read the current version."}
+        </Alert>
+      )}
+      {keySource === "device" && !rotated && readable && <div className="no-print"><DeviceKeyNotice shareUrl={shareUrl} linkStale={v.linkKeyStale} /></div>}
+      {v.gError && (
+        <Alert
+          tone="danger"
+          className="no-print"
+          onDismiss={() => { v.setGError(null); v.setGNeedsReconnect(false); }}
+          actions={v.gNeedsReconnect ? <Button size="sm" variant="secondary" onClick={handleGoogleReconnect}>Reconnect Google Docs</Button> : undefined}
+        >
+          {v.gError}
+        </Alert>
+      )}
+    </>
+  );
+
+  // ── A page: one frame for readers and editors (components/pages/PageChrome) ──────────
+  // The app header scrolls away; the page's own bar sticks. The rail (≥1280 px) keeps the page
+  // tree (and a reader's contents); the paper beside it carries the page.
+  const pageHeader = tenant
+    ? <TenantHeader returnPath={pathname || undefined} className="pb-appheader" />
+    : <SiteHeader className="pb-appheader" />;
+  const pageLayoutClass = pageProps
+    ? [pageProps.smallText && "pb-small", pageProps.font !== "default" && `pb-font-${pageProps.font}`].filter(Boolean).join(" ")
+    : "";
+  const pagePresence = readable ? <DocPresence presence={presence} signedIn={!!user} /> : null;
+  const pageShare = v.canShare && !pwdLocked ? () => setShowShare(true) : null;
+  const detailsItem: MenuEntry = { label: "Details", icon: "info", description: "Published, views, who can open it", onClick: () => setDetailsOpen(true) };
+  const copyItem: MenuEntry = { label: "Copy link", icon: "link", onClick: () => void navigator.clipboard?.writeText(shareUrl).then(() => { copyLinkEvent(); toast.success("Link copied"); }, () => toast.error("Couldn't copy")) };
+  // A reader's ⋯: the document's menu, with Details (and Copy link when Share takes the bar).
+  const readerPageMenu: MenuEntry[] = [...(pageShare ? [copyItem] : []), ...menu, { ...detailsItem, separated: true }];
+  // An editor's ⋯ has the page's own options first (PageEditor); these follow them.
+  const EDITOR_HAS = new Set(["View raw", "View rendered", "Add a sub-page", "Move to…", "Duplicate", "Edit", "Report", "Save a copy"]);
+  const editorDocMenu: MenuEntry[] = [
+    ...menu.filter((m) => !("label" in m) || typeof m.label !== "string" || !EDITOR_HAS.has(m.label)).map((m, i) => (i === 0 ? { ...m, separated: true } : m)),
+    detailsItem,
+  ];
+  // Someone else holds the page's edit lock, as who's viewing says: their editor opens read only.
+  const snap = presence.snapshot;
+  // (`you` is this person's own entry, all their tabs; without it, their name stands in.)
+  const otherEditor = snap?.viewers.find((x) => x.editing && x.id !== snap.you && x.id !== snap.me?.id && !(snap.you == null && !!user?.name && x.name === user.name)) ?? null;
+  const othersEditing = otherEditor ? otherEditor.name || (otherEditor.animal ? `Anonymous ${otherEditor.animal}` : "Someone") : null;
+  const pageBacklinks = !tenant ? <Backlinks slug={slug} addressing={addressing} /> : null;
+  const pageFooter = isPage ? (
+    <>
+      <SubPages
+        slug={slug}
+        count={page?.children_count ?? 0}
+        ancestors={crumbs.map((c) => c.slug)}
+        addressing={addressing}
+        onAdd={canAddSubPage ? () => setNewSubPage(true) : null}
+        refreshKey={kidsKey}
+      />
+      {!pageEditable && !empty && <Colophon />}
+    </>
+  ) : null;
+  // In the editor, Contents entries are the editor's own headings, in order (PageEditor onHeadings).
+  const toEditorHeading = (id: string) => {
+    const n = /^pb-eh-(\d+)$/.exec(id)?.[1];
+    if (n === undefined) return;
+    const el = document.querySelectorAll<HTMLElement>(".pb-live .ProseMirror :is(h1, h2, h3, h4)")[Number(n)];
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+  };
+  const pageRail = isPage && (tocEntries.length > 0 || crumbs.length > 0 || (page?.children_count ?? 0) > 0);
+  const pageMain = pageScreen ? (
+    <div className={`pb-shell${pageRail ? " pb-shell--rail" : ""}`}>
+      {pageRail && (
+        <aside className="pb-rail no-print" aria-label="Pages">
+          <div className="pb-rail__in">
+            <PageTree
+              key={`${crumbs[0]?.slug ?? slug}:${treeKey}`}
+              slug={slug}
+              title={displayTitle}
+              crumbs={crumbs}
+              childrenCount={page?.children_count ?? 0}
+              addressing={addressing}
+              canEdit={canAddSubPage}
+              workspaceId={page?.workspace_id ?? null}
+              // The tree's top page is at the top level when every ancestor is readable.
+              rootParent={pagePathSlugs.length === crumbs.length ? null : undefined}
+              onMoved={(s, from, to) => {
+                if (s === slug || crumbs.some((c) => c.slug === s) || from === slug || to === slug) rereadPage(false);
+              }}
+            />
+            {tocEntries.length > 0 && (
+              pageEditable
+                ? <Toc headings={headings} encrypted={false} activeId={null} onNavigate={toEditorHeading} />
+                : <Toc headings={headings} encrypted={false} footer={tocFooter} markers={tocMarkers} />
+            )}
+          </div>
+        </aside>
+      )}
+      <div className="pb-paper">
+        {(!pageEditable || !editorReady) && (
+          <PageFrame
+            layout={pageLayoutClass}
+            full={!!pageProps?.fullWidth}
+            innerRef={readRef}
+            className="ph-no-capture"
+            bar={
+              <PageTopBar
+                crumbs={crumbs}
+                title={displayTitle}
+                icon={pageProps?.icon ?? null}
+                resolve={resolvePageAsset}
+                addressing={addressing}
+                presence={pagePresence}
+                onShare={pageShare}
+                shareUrl={shareUrl}
+                onCopied={copyLinkEvent}
+                menu={readerPageMenu}
+              />
+            }
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={pageBacklinks} />}
+            footer={pageFooter}
+          >
+            {notices}
+            <div className="hidden print-only">{displayTitle && <h1 className="mb-4 text-h1">{displayTitle}</h1>}</div>
+            {empty ? (
+              <p className="pb-emptyread">This page is empty.</p>
+            ) : showRaw ? (
+              <div className="flex flex-col gap-3">
+                <CopyButton text={displayContent} label="Copy all" size="sm" variant="secondary" className="no-print self-end" />
+                <pre className="whitespace-pre-wrap break-words rounded-xl border border-border bg-surface-inset p-4 font-mono text-code text-text">{displayContent}</pre>
+              </div>
+            ) : (
+              <PageRenderer
+                slug={slug}
+                content={displayContent}
+                assets={page?.assets ?? null}
+                signInHref={signInHref}
+                onHeadings={setHeadings}
+                crumbs={crumbs}
+                title={displayTitle}
+                href={pageHref}
+              />
+            )}
+            {!showRaw && !(wideRail && pageRail && tocEntries.length > 0) && <PresenceMargin root={readRef} markers={markers} left={-14} />}
+          </PageFrame>
+        )}
+        {pageEditable && (
+          <div className={editorReady ? "pb-live" : "pb-preload"} aria-hidden={editorReady ? undefined : true}>
+            <PageEditor
+              slug={slug}
+              title={displayTitle}
+              content={displayContent}
+              rev={v.docRev}
+              secret={v.secretInput || null}
+              workspaceId={page?.workspace_id ?? null}
+              crumbs={crumbs}
+              assets={page?.assets ?? null}
+              addressing={addressing}
+              subscribeLive={v.subscribeLive}
+              onReady={() => setEditorReady(true)}
+              othersEditing={othersEditing}
+              onHeadings={setHeadings}
+              onSaved={(doc) => {
+                if (typeof doc.rev === "number") v.setDocRev(doc.rev);
+                if (typeof doc.content === "string") v.setDisplayContent(doc.content);
+                v.setDisplayTitle(doc.title || null);
+                pendingRevalidate.current = true;
+                revalidate();
+              }}
+              onAddSubPage={canAddSubPage ? () => setNewSubPage(true) : null}
+              onMoveTo={canAddSubPage ? () => setPageAction({ kind: "move" }) : null}
+              onDuplicate={canAddSubPage ? () => setPageAction({ kind: "duplicate", open: true }) : null}
+              onDelete={isOwner || v.canEditSettings ? () => setDeleting(true) : null}
+              isOwner={isOwner || v.canEditSettings}
+              url={url}
+              updatedAt={null}
+              chrome={{
+                presence: pagePresence,
+                onShare: pageShare,
+                shareUrl,
+                onCopied: copyLinkEvent,
+                menu: editorDocMenu,
+                below: pageBacklinks,
+                footer: pageFooter,
+                notices,
+              }}
+            />
+          </div>
+        )}
+      </div>
+      {!pageEditable && <LiveUpdatePill show={livePill} />}
+    </div>
+  ) : null;
   return (
     // data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page.
     <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
-      {framed && header}
+      {pageScreen ? pageHeader : framed && header}
 
-      <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+      <main id="main" tabIndex={-1} className={pageScreen ? "pb-screen outline-none" : "flex min-w-0 flex-1 flex-col outline-none"}>
+        {pageScreen ? pageMain : <>
         {framed && (
           <DocumentBar
             slug={slug}
@@ -499,7 +783,21 @@ export default function DocumentView(props: DocumentViewProps) {
               {(tocEntries.length > 0 || (isPage && readable && (crumbs.length > 0 || (page?.children_count ?? 0) > 0))) && (
                 <div className="sticky top-32 flex max-h-[calc(100dvh-9rem)] flex-col gap-6 overflow-y-auto pb-6">
                   {isPage && readable && !gated && (
-                    <PageTree slug={slug} title={displayTitle} crumbs={crumbs} childrenCount={page?.children_count ?? 0} addressing={addressing} />
+                    <PageTree
+                      key={`${crumbs[0]?.slug ?? slug}:${treeKey}`}
+                      slug={slug}
+                      title={displayTitle}
+                      crumbs={crumbs}
+                      childrenCount={page?.children_count ?? 0}
+                      addressing={addressing}
+                      canEdit={canAddSubPage}
+                      workspaceId={page?.workspace_id ?? null}
+                      // The tree's top page is at the top level when every ancestor is readable.
+                      rootParent={pagePathSlugs.length === crumbs.length ? null : undefined}
+                      onMoved={(s, from, to) => {
+                        if (s === slug || crumbs.some((c) => c.slug === s) || from === slug || to === slug) rereadPage(false);
+                      }}
+                    />
                   )}
                   {tocEntries.length > 0 && <Toc headings={headings} encrypted={encrypted} footer={tocFooter} markers={tocMarkers} />}
                 </div>
@@ -508,76 +806,7 @@ export default function DocumentView(props: DocumentViewProps) {
           )}
 
           <div className={framed ? "mx-auto flex w-full min-w-0 max-w-reading flex-col gap-4 xl:mx-0" : "contents"}>
-            {framed && (
-              <>
-                {showPanel && (
-                  <PublishedPanel
-                    url={url}
-                    shareUrl={shareUrl}
-                    access={publishedAccess}
-                    encrypted={encrypted}
-                    password={v.publishedPassword}
-                    passwordProtected={v.opened?.mode === "password" || !!v.publishedPassword}
-                    secret={claimSecret}
-                    signedIn={!!user}
-                    isOwner={isOwner}
-                    onOpenFullScreen={canFullScreen ? () => v.toggleImmersive(true) : undefined}
-                    onSaveToAccount={user && !owned && !claimed ? handleClaim : undefined}
-                    secretSaved={claimed}
-                    signInHref={signInHref}
-                    workspaceShareFailed={wsShareFailed}
-                    onDismiss={() => setPanelDismissed(true)}
-                    onLinkCopied={copyLinkEvent}
-                    onSecretCopied={() => setSecretCopied(true)}
-                    className="no-print mb-4"
-                  />
-                )}
-                {/* Save to account, for a secret holder who isn't on the
-                    publish panel (a reload, or ?edit). */}
-                {!showPanel && !owned && !claimed && claimSecret && v.ownerKnown && (
-                  user ? (
-                    <Alert
-                      tone="info"
-                      className="no-print"
-                      actions={<Button size="sm" variant="secondary" onClick={handleClaim}>Save to my account</Button>}
-                    >
-                      Save this document to your account to manage it and see analytics.
-                    </Alert>
-                  ) : (
-                    <Alert tone="info" className="no-print">
-                      <a href={signInHref} className="font-semibold text-accent-text underline underline-offset-4">Sign in</a>{" "}
-                      to save this document to your account and track analytics.
-                    </Alert>
-                  )
-                )}
-                {claimMsg && !showPanel && <p className="no-print text-caption text-text-secondary" role="status">{claimMsg}</p>}
-                {rotated && <div className="no-print"><RotatedNotice link={rotated} /></div>}
-                {v.passwordChange && (
-                  <Alert
-                    tone={v.passwordChange === "set" ? "info" : "warning"}
-                    icon="lock"
-                    className="no-print"
-                    onDismiss={() => v.setPasswordChange(null)}
-                    title={v.passwordChange === "set" ? "New password set" : "Password removed"}
-                  >
-                    {v.passwordChange === "set"
-                      ? "Readers now need the link and the new password — send them separately. Anyone who saved an old copy can still read that copy with the old password."
-                      : "Anyone with the link can read the current version."}
-                  </Alert>
-                )}
-                {keySource === "device" && !rotated && readable && <div className="no-print"><DeviceKeyNotice shareUrl={shareUrl} linkStale={v.linkKeyStale} /></div>}
-                {v.gError && (
-                  <Alert
-                    tone="danger"
-                    className="no-print"
-                    onDismiss={() => { v.setGError(null); v.setGNeedsReconnect(false); }}
-                    actions={v.gNeedsReconnect ? <Button size="sm" variant="secondary" onClick={handleGoogleReconnect}>Reconnect Google Docs</Button> : undefined}
-                  >
-                    {v.gError}
-                  </Alert>
-                )}
-              </>
-            )}
+            {framed && notices}
 
             {/* The loading state wins over the gate, not the other way round. The
                 server render is anonymous, so a reader who *does* have access still
@@ -637,7 +866,6 @@ export default function DocumentView(props: DocumentViewProps) {
                       title={displayTitle}
                       props={pageProps!}
                       resolve={resolvePageAsset}
-                      top={<PageBreadcrumbs crumbs={crumbs} title={displayTitle} addressing={addressing} />}
                     />
                   )}
                   {isPage && readable && !showRaw && !tenant && (
@@ -698,6 +926,7 @@ export default function DocumentView(props: DocumentViewProps) {
                       ancestors={crumbs.map((c) => c.slug)}
                       addressing={addressing}
                       onAdd={canAddSubPage ? () => setNewSubPage(true) : null}
+                      refreshKey={kidsKey}
                     />
                   )}
                   {readable && !empty && <Colophon />}
@@ -736,6 +965,7 @@ export default function DocumentView(props: DocumentViewProps) {
             copyVariant={showPanel ? "secondary" : "primary"}
           />
         )}
+        </>}
       </main>
 
       {/* Details below 1280px: a right drawer, a bottom sheet on phones. */}
@@ -823,8 +1053,21 @@ export default function DocumentView(props: DocumentViewProps) {
         }}
       />
 
-      {newSubPage && !editing && (
+      {newSubPage && (
         <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
+      )}
+      {pageActions}
+      {isPage && (
+        <DeletePageDialog
+          open={deleting}
+          onClose={() => setDeleting(false)}
+          count={page?.children_count ?? 0}
+          onDelete={async (children) => {
+            await deletePage(slug, children, v.secretInput || null);
+            revalidate(true);
+            router.push(crumbs.length ? `/${encodeURIComponent(crumbs[crumbs.length - 1].slug)}` : "/dashboard");
+          }}
+        />
       )}
 
       <ConfirmDialog

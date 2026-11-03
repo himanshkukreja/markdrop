@@ -4,7 +4,7 @@
  * Atom blocks edited through small forms: the figure (an image with caption, alt text and an
  * optional dark-theme version), and the one-line directives ::video, ::clip, ::embed and ::api.
  */
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { Button, Icon, IconButton, Input, Spinner, Switch, useToast } from "@/components/ui";
 import { darkVariantPath, uploadUrl, useHost } from "../host";
@@ -13,6 +13,138 @@ import { cx, TextField, withAttr } from "./shared";
 import { MarkdropView } from "./markdrop";
 import { PageEmbedView } from "./pageItems";
 import { PageLeafView } from "./pageLeaves";
+import { ImageLightbox, downloadImage } from "./Lightbox";
+import { cleanAttrs } from "../core/attrs.mjs";
+
+/* ── A page's image: resize handles, alignment, full screen, download, replace ── */
+
+type Align = "left" | "center" | "right";
+
+function AlignIcon({ a }: { a: Align }) {
+  // Three lines, the short ones placed like the image would be.
+  const x = a === "left" ? 2 : a === "center" ? 5 : 8;
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <path d="M2 2.5h12" />
+      <rect x={x} y="5.5" width="6" height="5" rx="1" />
+      <path d="M2 13.5h12" />
+    </svg>
+  );
+}
+
+function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUpload, onAttrs, onReplace, onDelete, onAlt, altOpen, altId, altEditor }: {
+  src: string;
+  alt: string;
+  title: string | null;
+  battrs: Record<string, string> | null;
+  selected: boolean;
+  readOnly: boolean;
+  busy: boolean;
+  canUpload: boolean;
+  onAttrs: (a: Record<string, unknown>) => void;
+  onReplace: () => void;
+  onDelete: () => void;
+  onAlt: () => void;
+  altOpen: boolean;
+  altId: string;
+  altEditor: React.ReactNode;
+}) {
+  const [full, setFull] = useState(false);
+  const [live, setLive] = useState<number | null>(null); // width (%) while dragging
+  const box = useRef<HTMLDivElement>(null);
+  const width = live ?? (battrs?.width ? parseFloat(battrs.width) : 100);
+  const align = (battrs?.align as Align | undefined) ?? "center";
+  const set = (patch: Record<string, string | null>) => onAttrs({ battrs: cleanAttrs({ ...(battrs ?? {}), ...patch }) });
+  const commitWidth = (w: number) => set({ width: w >= 99.5 ? null : `${Math.round(w)}%` });
+
+  const startResize = (side: "l" | "r") => (e: React.PointerEvent) => {
+    if (readOnly || e.button !== 0) return;
+    const el = box.current;
+    const column = el?.parentElement;
+    if (!el || !column) return;
+    e.preventDefault();
+    e.stopPropagation();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    const total = column.getBoundingClientRect().width;
+    const start = el.getBoundingClientRect().width;
+    const x0 = e.clientX;
+    // Centred images grow on both sides, so a pixel of pointer is two of width.
+    const k = align === "center" ? 2 : 1;
+    let w = (start / total) * 100;
+    const move = (ev: PointerEvent) => {
+      const dx = (ev.clientX - x0) * (side === "r" ? 1 : -1) * k;
+      w = Math.max(15, Math.min(100, ((start + dx) / total) * 100));
+      setLive(w);
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      setLive(null);
+      commitWidth(w);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const keyResize = (side: "l" | "r") => (e: React.KeyboardEvent) => {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    e.preventDefault();
+    const grow = (e.key === "ArrowRight") === (side === "r");
+    commitWidth(Math.max(15, Math.min(100, width + (grow ? 5 : -5))));
+  };
+
+  return (
+    <NodeViewWrapper className={cx("dxe-block dxe-figure dxe-figure--sized", selected && "dxe-selected")} data-bid={battrs?.id}>
+      <div ref={box} className="dxe-figure__box" data-align={align} data-resizing={live !== null ? "" : undefined} style={{ "--pb-w": `${width}%` } as React.CSSProperties}>
+        <div className="dx-fig__frame dxe-figure__frame" data-drag-handle="">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={src || undefined} alt={alt} className="dx-fig__img" draggable={false} loading="lazy" decoding="async" onDoubleClick={() => setFull(true)} />
+        </div>
+        {live !== null && <span className="dxe-figure__size">{Math.round(live)}%</span>}
+        {!readOnly && (
+          <>
+            <button type="button" contentEditable={false} className="dxe-figure__handle dxe-figure__handle--l" aria-label="Resize the image (left edge)" onPointerDown={startResize("l")} onKeyDown={keyResize("l")} />
+            <button type="button" contentEditable={false} className="dxe-figure__handle dxe-figure__handle--r" aria-label="Resize the image (right edge)" onPointerDown={startResize("r")} onKeyDown={keyResize("r")} />
+          </>
+        )}
+        <div contentEditable={false} className="dxe-figure__over" role="toolbar" aria-label="Image">
+          {!readOnly &&
+            (["left", "center", "right"] as const).map((a) => (
+              <button key={a} type="button" className="dxe-figure__obtn" aria-label={`Align ${a}`} title={`Align ${a}`} aria-pressed={align === a} onClick={() => set({ align: a === "center" ? null : a })}>
+                <AlignIcon a={a} />
+              </button>
+            ))}
+          {!readOnly && <span className="dxe-figure__osep" aria-hidden />}
+          <button type="button" className="dxe-figure__obtn" aria-label="View full screen" title="View full screen" onClick={() => setFull(true)}>
+            <Icon name="expand" size={15} />
+          </button>
+          <button type="button" className="dxe-figure__obtn" aria-label="Download" title="Download" onClick={() => void downloadImage(src, alt || title || "image")}>
+            <Icon name="download" size={15} />
+          </button>
+          {!readOnly && canUpload && (
+            <button type="button" className="dxe-figure__obtn" aria-label="Replace image" title="Replace" onClick={onReplace} disabled={busy}>
+              {busy ? <Spinner size={12} /> : <Icon name="upload" size={15} />}
+            </button>
+          )}
+          {!readOnly && (
+            <button type="button" className="dxe-figure__obtn" aria-label={alt ? "Edit alt text" : "Add alt text (missing)"} title="Alt text" aria-expanded={altOpen} aria-controls={altId} onClick={onAlt}>
+              <Icon name="type" size={15} />
+            </button>
+          )}
+          {!readOnly && (
+            <button type="button" className="dxe-figure__obtn" aria-label="Delete image" title="Delete" onClick={onDelete}>
+              <Icon name="trash" size={15} />
+            </button>
+          )}
+        </div>
+        <figcaption contentEditable={false} className="dx-fig__cap dxe-figure__cap pb-caption">
+          <input value={title ?? ""} placeholder="Add a caption" aria-label="Caption" readOnly={readOnly} onChange={(e) => onAttrs({ title: e.target.value || null })} />
+        </figcaption>
+      </div>
+      {altEditor}
+      {full && <ImageLightbox src={src} alt={alt} caption={title} onClose={() => setFull(false)} />}
+    </NodeViewWrapper>
+  );
+}
 
 /* ── Figure ──────────────────────────────────────────────────────────────── */
 
@@ -140,6 +272,36 @@ export function FigureView({ node, updateAttributes, deleteNode, selected }: Rea
           )}
         </div>
       </NodeViewWrapper>
+    );
+  }
+
+  if (host.pages) {
+    return (
+      <PageFigure
+        src={host.resolveAsset(src)}
+        alt={alt}
+        title={title}
+        battrs={(node.attrs.battrs as Record<string, string> | null) ?? null}
+        selected={selected}
+        readOnly={!!host.readOnly}
+        busy={up.busy}
+        canUpload={up.can}
+        onAttrs={(a) => updateAttributes(a)}
+        onReplace={() => pickFile(upload)}
+        onDelete={() => deleteNode()}
+        altEditor={
+          <>
+            {showAlt && (
+              <div contentEditable={false} id={altId} className="dxe-figure__alt">
+                <TextField label="Alt text: what the image shows, for people who can't see it" wide value={alt} onChange={(v) => updateAttributes({ alt: v })} placeholder="e.g. The Share dialog with Anyone with the link selected" />
+              </div>
+            )}
+          </>
+        }
+        onAlt={() => setShowAlt(!showAlt)}
+        altOpen={showAlt}
+        altId={altId}
+      />
     );
   }
 
