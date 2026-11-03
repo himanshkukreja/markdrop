@@ -6,7 +6,8 @@
  * once published, plus the controls to change what the Markdown can express: callout kind and
  * title, tab names, card title / link / icon, the details summary.
  */
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { flushSync } from "react-dom";
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { TextSelection } from "@tiptap/pm/state";
 import { Dropdown, Icon, IconButton, Badge } from "@/components/ui";
@@ -17,6 +18,7 @@ import { cardAt } from "../core/cards.mjs";
 import { IconPicker, LabelInput, childPositions, cx, setAttrsAt, withAttr } from "./shared";
 import { focusGripAt, pressCardGrip, stepCardIn } from "./cardDrag";
 import { EmojiPicker } from "./EmojiPicker";
+import { EASE, reducedMotion } from "../menus/motion";
 
 /** Notion's block colours (a page's callout backgrounds; styles in pages.css `.pb-bg-*`). */
 export const BLOCK_COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"];
@@ -483,11 +485,38 @@ export function PrivateView({ node, updateAttributes }: ReactNodeViewProps) {
 
 export function DetailsView({ node, updateAttributes, editor, getPos }: ReactNodeViewProps) {
   const host = useHost();
+  // `open`: the body is there; `expanded`: where it's going (the chevron turns at once).
   const [open, setOpen] = useState(true);
+  const [expanded, setExpanded] = useState(true);
+  const summary = useRef<HTMLDivElement>(null);
+  const anim = useRef<Animation | null>(null);
+  // Opening and closing animate the body's height (180 ms), the one place the editor animates
+  // a size: what's under the toggle has to move either way.
+  const toggle = () => {
+    const next = !expanded;
+    const body = summary.current?.parentElement?.querySelector<HTMLElement>(":scope > .dx-details__body");
+    // Turned around halfway: from the height it has now.
+    const now = body && open ? body.getBoundingClientRect().height : 0;
+    anim.current?.cancel();
+    setExpanded(next);
+    if (!body || reducedMotion()) return setOpen(next);
+    const from = now;
+    if (next) flushSync(() => setOpen(true));
+    const to = next ? body.offsetHeight : 0;
+    body.style.overflow = "hidden";
+    const a = body.animate([{ height: `${from}px`, opacity: next ? 0 : 1 }, { height: `${to}px`, opacity: next ? 1 : 0 }], { duration: 180, easing: EASE });
+    anim.current = a;
+    a.onfinish = a.oncancel = () => {
+      if (anim.current !== a) return;
+      anim.current = null;
+      body.style.overflow = "";
+      if (!next) setOpen(false);
+    };
+  };
   return (
-    <NodeViewWrapper className="dx-details dxe-details" data-open={open ? "" : undefined} data-color={node.attrs.attributes?.color || undefined} data-bg={node.attrs.attributes?.bg || undefined}>
-      <div contentEditable={false} className="dxe-details__summary">
-        <button type="button" className="dxe-details__toggle" aria-expanded={open} aria-label={open ? "Collapse" : "Expand"} onClick={() => setOpen(!open)}>
+    <NodeViewWrapper className="dx-details dxe-details" data-open={open ? "" : undefined} data-expanded={expanded ? "" : undefined} data-color={node.attrs.attributes?.color || undefined} data-bg={node.attrs.attributes?.bg || undefined}>
+      <div ref={summary} contentEditable={false} className="dxe-details__summary">
+        <button type="button" className="dxe-details__toggle" aria-expanded={expanded} aria-label={expanded ? "Collapse" : "Expand"} onClick={toggle}>
           <Icon name="chevronRight" className="dx-details__chev" />
         </button>
         {node.attrs.label == null && typeof node.attrs.attributes?.summary === "string" ? (

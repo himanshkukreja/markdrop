@@ -31,6 +31,7 @@ import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
 import { BlockMarquee, SelectionBar, TouchBar, useEditorAnchor } from "./menus/BlockTools";
 import { insertColumns } from "./menus/columns";
+import { blockDropAt } from "./menus/dnd";
 import { services, uploadMedia } from "./menus/mediaUpload";
 import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage, MarkdropFilesHost, PagesEditorHost } from "./types";
 
@@ -66,7 +67,9 @@ export interface VisualEditorProps {
   darkImages?: boolean;
 }
 
-const EMIT_DELAY = 120;
+// The Markdown goes to the host after a pause in typing (the host re-reads it: refs, autosave, a
+// local draft), not after every key; leaving, hiding the tab and blur flush it at once.
+const EMIT_DELAY = 300;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {
@@ -177,8 +180,10 @@ export default function VisualEditor(props: VisualEditorProps) {
         const files = imageFiles((event as DragEvent).dataTransfer?.files);
         if (!files.length || !uploadRef.current) return false;
         event.preventDefault();
-        const at = view.posAtCoords({ left: (event as DragEvent).clientX, top: (event as DragEvent).clientY });
-        void insertImages(files, at?.pos ?? view.state.selection.from);
+        const { clientX: x, clientY: y } = event as DragEvent;
+        // Between the blocks the drop line showed (dnd.ts), else at the point.
+        const at = blockDropAt(view, x, y)?.pos ?? view.posAtCoords({ left: x, top: y })?.pos;
+        void insertImages(files, at ?? view.state.selection.from);
         return true;
       },
     },
@@ -254,7 +259,16 @@ export default function VisualEditor(props: VisualEditorProps) {
     const s = services(editor);
     s.pages = pages;
     s.toast = { success: (m) => toast.success(m), error: (m) => toast.error(m), info: (m) => toast.info?.(m) };
-    Object.assign(s, { insertColumns: (e: Editor, n: number, r: { from: number; to: number }) => insertColumns(e, n, r), uploadMedia });
+    Object.assign(s, {
+      insertColumns: (e: Editor, n: number, r: { from: number; to: number }) => insertColumns(e, n, r),
+      uploadMedia,
+      // "/emoji": a ":" that opens the emoji menu with its first few before anything is typed.
+      openEmoji: (e: Editor, r: { from: number; to: number }) => {
+        if (!emoji) return;
+        emoji.store.force = true;
+        e.chain().focus().deleteRange(r).insertContent(":").run();
+      },
+    });
   }, [editor, pages, toast]);
   useEditorAnchor(pages ? editor : null);
 
