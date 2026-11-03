@@ -40,7 +40,7 @@ function CrumbIcon({ icon, resolve }: { icon?: string | null; resolve?: (src: st
   const src = icon && resolve ? resolve(icon) : "";
   // eslint-disable-next-line @next/next/no-img-element
   if (src) return <img className="pb-crumb__img" src={src} alt="" aria-hidden />;
-  return <Icon name="lines" size={14} className="pb-crumb__glyph" aria-hidden />;
+  return <Icon name="lines" size={16} className="pb-crumb__glyph" aria-hidden />;
 }
 
 /** Is the window scrolled past `px`? (false on the server and the first render) */

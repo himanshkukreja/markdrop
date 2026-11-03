@@ -605,6 +605,14 @@ export default function DocumentView(props: DocumentViewProps) {
       {!pageEditable && !empty && <Colophon />}
     </>
   ) : null;
+  // In the editor, Contents entries are the editor's own headings, in order (PageEditor onHeadings).
+  const toEditorHeading = (id: string) => {
+    const n = /^pb-eh-(\d+)$/.exec(id)?.[1];
+    if (n === undefined) return;
+    const el = document.querySelectorAll<HTMLElement>(".pb-live .ProseMirror :is(h1, h2, h3, h4)")[Number(n)];
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    el?.scrollIntoView({ block: "start", behavior: reduced ? "auto" : "smooth" });
+  };
   const pageRail = isPage && (tocEntries.length > 0 || crumbs.length > 0 || (page?.children_count ?? 0) > 0);
   const pageMain = pageScreen ? (
     <div className={`pb-shell${pageRail ? " pb-shell--rail" : ""}`}>
@@ -626,7 +634,11 @@ export default function DocumentView(props: DocumentViewProps) {
                 if (s === slug || crumbs.some((c) => c.slug === s) || from === slug || to === slug) rereadPage(false);
               }}
             />
-            {!pageEditable && tocEntries.length > 0 && <Toc headings={headings} encrypted={false} footer={tocFooter} markers={tocMarkers} />}
+            {tocEntries.length > 0 && (
+              pageEditable
+                ? <Toc headings={headings} encrypted={false} activeId={null} onNavigate={toEditorHeading} />
+                : <Toc headings={headings} encrypted={false} footer={tocFooter} markers={tocMarkers} />
+            )}
           </div>
         </aside>
       )}
@@ -693,6 +705,7 @@ export default function DocumentView(props: DocumentViewProps) {
               subscribeLive={v.subscribeLive}
               onReady={() => setEditorReady(true)}
               othersEditing={othersEditing}
+              onHeadings={setHeadings}
               onSaved={(doc) => {
                 if (typeof doc.rev === "number") v.setDocRev(doc.rev);
                 if (typeof doc.content === "string") v.setDisplayContent(doc.content);

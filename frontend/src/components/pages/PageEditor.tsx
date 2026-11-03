@@ -20,6 +20,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
+import type { Heading } from "@/components/reading";
 import { Alert, Button, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { DocsEditor } from "@/components/docs-editor";
 import { PAGE_BLOCKS } from "@/components/docs-editor/blocks";
@@ -92,7 +93,13 @@ export interface PageEditorProps {
   /** "Duplicate" (after the latest edits are saved). */
   onDuplicate?: (() => void) | null;
   chrome?: PageChromeSlots;
+  /**
+   * The page's headings as they stand in the editor (for the rail's Contents), with ids
+   * `pb-eh-<n>`: the n-th heading in the editor.
+   */
+  onHeadings?: (headings: Heading[]) => void;
 }
+
 
 function words(md: string): number {
   const body = splitFrontmatter(md).body.replace(/```[\s\S]*?```/g, " ").replace(/[#>*_`~\-[\]()!|:{}=]/g, " ");
@@ -144,7 +151,7 @@ function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (
   );
 }
 
-export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {} }: PageEditorProps) {
+export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
@@ -312,6 +319,18 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
     },
     [onReady],
   );
+  // The headings as they stand (for the rail's Contents), a moment after the text settles.
+  const onHeadingsRef = useRef(onHeadings);
+  onHeadingsRef.current = onHeadings;
+  useEffect(() => {
+    if (!editor || !onHeadingsRef.current) return;
+    const t = window.setTimeout(() => {
+      const hs = Array.from(frameRef.current?.querySelectorAll<HTMLElement>(".ProseMirror :is(h1, h2, h3, h4)") ?? []);
+      onHeadingsRef.current?.(hs.map((h, i) => ({ id: `pb-eh-${i}`, text: (h.textContent ?? "").trim(), depth: Number(h.tagName.slice(1)) })).filter((h) => h.text));
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [editor, content]);
+
   // Markdown mode has no visual editor to wait for.
   useEffect(() => {
     if (mode === "markdown" && !readyOnce.current) {
