@@ -3,7 +3,7 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, list_page_templates, save_page_as_template, templates, pages, sub-pages, scopes, reference]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 39 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
@@ -63,7 +63,8 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `insert_embed` | write | Puts a Markdrop item you can open into a page, embedded or as an inline link, at the end or at the end of a section. | `document`, `item`, `as` (`embed`, `link`), `mode` (`live`, `preview`, `card`), `after_heading` |
 | `set_page_properties` | write | Sets a page's icon, cover and its focal point, full width, small text, font and lock. | `document`, `icon`, `cover`, `cover_y`, `full_width`, `small_text`, `font`, `locked` |
 | `upload_page_image` | write | Uploads a PNG, JPEG, GIF or WebP image (up to 10 MB) to a page and returns the Markdown that shows it. Anyone who can read the page sees it, nobody else. | `document`, `filename`, `content_base64` |
-| `list_page_templates` | read | The built-in templates: feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank. | none |
+| `list_page_templates` | read | Every template you can start a page from: the built-in ones (feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank), your own, and those of each workspace you're a member of. | none |
+| `save_page_as_template` | write | Saves a copy of a page, with its images and optionally the sub-pages you can open, as a template for your workspace (members and up) or for you alone. `{{date}}`, `{{author}}` and `{{title}}` in it are filled in on each new page. Templates never appear in lists or search. | `document`, `name`, `description`, `icon`, `include_subpages`, `scope` (`workspace`, `personal`), `workspace` |
 | `list_subpages` | read | The pages inside a page that you can open. | `document` |
 | `move_page` | write | Puts a page inside another page of the same workspace, or at the top level. When that changes who can read it, the tool says how and needs `confirm_access_change`. | `document`, `parent`, `confirm_access_change` |
 

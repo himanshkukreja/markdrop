@@ -5,7 +5,7 @@
  * documents, files and the Guides studio, so presence looks the same everywhere.
  *
  * Avatars: the photo or initials (for anonymous viewers, their animal as a line glyph from
- * ./animals) in the viewer's colour on a tint of it, ringed in that colour, faded with a moon badge
+ * ./animals, loaded on first use) in the viewer's colour on a tint of it, ringed in that colour, faded with a moon badge
  * when their tab is hidden. Up to 4 others
  * (2 on phones), "+N", then you. Clicking opens the list: you first with "(you)", everyone with
  * where they are, and "Show me as anonymous" when the page offers it. A popover on desktop, a bottom
@@ -22,8 +22,36 @@ import {
   sectionText, stackLabel, viewerColor, viewerInitials, viewerName,
   type PresenceViewer,
 } from "@/lib/presence";
-import { animalPath } from "./animals";
 import s from "./presence.module.css";
+
+// The animals' line glyphs (./animals, ~16 KB of paths) load only when an anonymous viewer is
+// shown, never with the page: most readers never see one.
+type AnimalPath = (animal?: string | null) => string;
+let animalPathFn: AnimalPath | null = null;
+let animalsLoading: Promise<AnimalPath> | null = null;
+function loadAnimals(): Promise<AnimalPath> {
+  animalsLoading ??= import("./animals").then((m) => (animalPathFn = m.animalPath));
+  animalsLoading.catch(() => (animalsLoading = null));
+  return animalsLoading;
+}
+
+/** An anonymous viewer's animal (a quiet dot until the glyphs arrive). */
+function AnimalGlyph({ animal }: { animal?: string | null }) {
+  const [path, setPath] = useState<AnimalPath | null>(() => animalPathFn);
+  useEffect(() => {
+    if (path) return;
+    let live = true;
+    loadAnimals().then((fn) => live && setPath(() => fn), () => {});
+    return () => {
+      live = false;
+    };
+  }, [path]);
+  return (
+    <svg viewBox="0 0 24 24" className={`md-icon ${s.animal}`} aria-hidden>
+      {path ? <path d={path(animal)} /> : <circle cx="12" cy="12" r="2.5" />}
+    </svg>
+  );
+}
 
 export interface PresenceStackProps {
   /** Everyone listed (yourself included), in the server's order. */
@@ -66,9 +94,7 @@ function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" 
         viewerInitials(v)
       ) : (
         // Anonymous: the animal in the Markdrop icon style (.md-icon: 1.8 stroke, currentColor).
-        <svg viewBox="0 0 24 24" className={`md-icon ${s.animal}`} aria-hidden>
-          <path d={animalPath(v.animal)} />
-        </svg>
+        <AnimalGlyph animal={v.animal} />
       )}
       {v.state === "away" && <span className={s.awayDot} />}
     </span>

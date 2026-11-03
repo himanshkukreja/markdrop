@@ -50,6 +50,8 @@ export interface PageFields {
   page_path?: string[];
   /** The page's properties as the API reads them, with per-viewer URLs for an uploaded icon or cover. */
   props?: { icon?: string | null; icon_url?: string | null; cover?: string | null; cover_url?: string | null } | null;
+  /** This page is a workspace or personal template ({id, …}), or part of one ({part_of}). */
+  template?: { id?: string; description?: string; icon?: string | null; scope?: "workspace" | "personal"; part_of?: boolean } | null;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -69,6 +71,7 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     folder_path: foldersOnly(d.folder_path, (d as { page_path?: unknown }).page_path),
     page_path: Array.isArray((d as { page_path?: unknown }).page_path) ? ((d as { page_path: unknown[] }).page_path.filter((s) => typeof s === "string") as string[]) : [],
     props: d.page && typeof d.page === "object" ? (d.page as PageFields["props"]) : null,
+    template: d.template && typeof d.template === "object" ? d.template : null,
   };
 }
 

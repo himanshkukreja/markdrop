@@ -39,6 +39,7 @@ import { readPageProps, type PageFont, type PageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
 import { usePageEditSession } from "./usePageEditSession";
 import { usePageAssets } from "./usePageEmbeds";
+import { clearPageDraft, dropLegacyPageDraft, readPageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
 import "./pages.css";
 import "./page-blocks.css";
 
@@ -62,6 +63,8 @@ export interface PageChromeSlots {
 
 export interface PageEditorProps {
   slug: string;
+  /** The signed-in account (null: editing with the edit secret alone). Local drafts are its own. */
+  userId?: string | null;
   title: string | null;
   content: string;
   rev: number | null;
@@ -121,18 +124,9 @@ function useOnline() {
   return on;
 }
 
-const DRAFT = (slug: string) => `md_page_draft:${slug}`;
-interface Draft { title: string; content: string; rev: number | null; at: number }
-
-function readDraft(slug: string): Draft | null {
-  try {
-    const raw = localStorage.getItem(DRAFT(slug));
-    const d = raw ? (JSON.parse(raw) as Draft) : null;
-    return d && typeof d.content === "string" ? d : null;
-  } catch {
-    return null;
-  }
-}
+// Local drafts are this account's own (lib/pageDrafts.mjs): never offered to anyone else.
+type Draft = PageDraft;
+const store = () => (typeof window === "undefined" ? null : (() => { try { return window.localStorage; } catch { return null; } })());
 
 const when = (t: string | number) => new Date(t).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
@@ -151,7 +145,7 @@ function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (
   );
 }
 
-export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings }: PageEditorProps) {
+export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
@@ -168,10 +162,14 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   // What this browser kept from an earlier visit that the server never confirmed.
   const [draft, setDraft] = useState<Draft | null>(null);
   useEffect(() => {
-    const d = readDraft(slug);
+    dropLegacyPageDraft(store(), slug);
+    const d = readPageDraft(store(), slug, userId);
     if (d && (d.content !== initialContent || d.title !== (initialTitle ?? ""))) setDraft(d);
-    else if (d) localStorage.removeItem(DRAFT(slug));
-  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+    else {
+      setDraft(null);
+      if (d) clearPageDraft(store(), slug, userId);
+    }
+  }, [slug, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const session = usePageEditSession({
     slug,
@@ -180,10 +178,8 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
     onSaved: (doc) => {
       onSaved?.(doc);
       // The server has it: the local copy can go (unless more was typed meanwhile).
-      const d = readDraft(slug);
-      if (d && d.content === doc.content && d.title === (doc.title ?? "")) {
-        try { localStorage.removeItem(DRAFT(slug)); } catch { /* ignore */ }
-      }
+      const d = readPageDraft(store(), slug, userId);
+      if (d && d.content === doc.content && d.title === (doc.title ?? "")) clearPageDraft(store(), slug, userId);
     },
     onAppend: (md) => api.current?.append(md),
     onRemote: (doc) => {
@@ -199,12 +195,10 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
 
   const keepDraft = useCallback((next: { title?: string; content?: string }) => {
-    try {
-      const prev = readDraft(slug);
-      const d: Draft = { title: next.title ?? prev?.title ?? title, content: next.content ?? prev?.content ?? content, rev, at: Date.now() };
-      localStorage.setItem(DRAFT(slug), JSON.stringify(d));
-    } catch { /* storage full or blocked: the server copy still saves */ }
-  }, [slug, title, content, rev]);
+    // Storage full or blocked: the server copy still saves.
+    const prev = readPageDraft(store(), slug, userId);
+    writePageDraft(store(), slug, userId, { title: next.title ?? prev?.title ?? title, content: next.content ?? prev?.content ?? content, rev, at: Date.now() });
+  }, [slug, userId, title, content, rev]);
 
   const assets = usePageAssets(slug, initialAssets, content);
 
@@ -299,11 +293,9 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   // AI app's append changes the page with no save of ours, so onSaved never drops that copy).
   useEffect(() => {
     if (session.save.state !== "saved") return;
-    const d = readDraft(slug);
-    if (d && d.content === content && d.title === title) {
-      try { localStorage.removeItem(DRAFT(slug)); } catch { /* ignore */ }
-    }
-  }, [session.save.state, content, title, slug]);
+    const d = readPageDraft(store(), slug, userId);
+    if (d && d.content === content && d.title === title) clearPageDraft(store(), slug, userId);
+  }, [session.save.state, content, title, slug, userId]);
 
   // The editor is on screen: tell the view once (it drops the server-rendered page).
   const readyOnce = useRef(false);
@@ -490,7 +482,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
           actions={
             <>
               <Button size="sm" variant="secondary" onClick={() => { setTitle(draft.title); session.update({ title: draft.title }); setBody(draft.content); setDraft(null); }}>Restore them</Button>
-              <Button size="sm" variant="ghost" onClick={() => { try { localStorage.removeItem(DRAFT(slug)); } catch { /* ignore */ } setDraft(null); }}>Discard</Button>
+              <Button size="sm" variant="ghost" onClick={() => { clearPageDraft(store(), slug, userId); setDraft(null); }}>Discard</Button>
             </>
           }
         >

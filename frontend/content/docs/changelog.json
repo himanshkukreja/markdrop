@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "page-templates",
+      "date": "2026-11-04",
+      "title": "Workspace templates: save any page as a template",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Save a page as a template for your workspace or just for you, with its sub-pages and images. It shows up in the New page gallery, and {{date}}, {{author}} and {{title}} are filled in on every page made from it.",
+      "body": "- **⋯ › Save as template** on any page: choose **Everyone in** your workspace or **Just me**, a name, a description and an emoji, and whether to include the sub-pages you can open. Images are copied with it.\n- The **New page** gallery shows your workspace's templates first, then yours, then the built-in ones, each with a preview.\n- **Placeholders:** `{{date}}`, `{{author}}` and `{{title}}` become the day, the person making the page and its title.\n- **Manage templates:** rename, edit (a template is a page, in the same editor), delete, and drag to reorder. Admins manage the workspace's templates; members can rename or delete the ones they saved.\n- Templates never show up in lists, search, the sidebar, folder pages or AI apps' document search. Viewers and people outside the workspace never see them.\n- AI apps: `list_page_templates` includes your workspace and personal templates, `create_page` starts a page from any of them, and the new `save_page_as_template` saves one.",
+      "docs": [
+        "/pages/templates",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

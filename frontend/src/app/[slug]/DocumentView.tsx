@@ -62,6 +62,7 @@ const PageTopBar = dynamic(() => import("@/components/pages/PageChrome").then((m
 const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.SubPages), { loading: () => null });
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
+const TemplateNotice = dynamic(() => import("@/components/pages/templates/TemplateNotice").then((m) => m.TemplateNotice), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
 
@@ -446,6 +447,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
     ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
     ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
+    ...(canAddSubPage && !page?.template ? [{ label: "Save as template", icon: "layers", description: "Start new pages from a copy of it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -502,6 +504,7 @@ export default function DocumentView(props: DocumentViewProps) {
 
   const notices = (
     <>
+      {isPage && page?.template && !tenant && <TemplateNotice template={page.template} title={displayTitle} workspaceId={page.workspace_id} />}
       {showPanel && (
         <PublishedPanel
           url={url}
@@ -701,6 +704,7 @@ export default function DocumentView(props: DocumentViewProps) {
           <div className={editorReady ? "pb-live" : "pb-preload"} aria-hidden={editorReady ? undefined : true}>
             <PageEditor
               slug={slug}
+              userId={user?.id ?? null}
               title={displayTitle}
               content={displayContent}
               rev={v.docRev}

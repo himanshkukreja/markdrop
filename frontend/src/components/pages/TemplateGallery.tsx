@@ -12,6 +12,7 @@ import { createPage, listPageTemplates, type CreatedPage, type PageTemplate } fr
 import { fillTemplate } from "@/lib/pageBlocks.mjs";
 import { track } from "@/lib/track";
 import { PageRenderer } from "./PageRenderer";
+import { YourTemplates, type ChosenTemplate } from "./templates/YourTemplates";
 import "./pages.css";
 
 const BLANK: PageTemplate = { id: "blank", name: "Blank", description: "Start from an empty page", icon: "doc", category: "Basic", content: "" };
@@ -52,6 +53,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
   const [templates, setTemplates] = useState<PageTemplate[] | null>(null);
   const [loadError, setLoadError] = useState("");
   const [chosen, setChosen] = useState<string>("blank");
+  const [custom, setCustom] = useState<ChosenTemplate | null>(null); // a workspace or personal template
   const [title, setTitle] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -73,7 +75,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
     const list = templates ?? [];
     return list.some((t) => t.id === "blank") ? [...list.filter((t) => t.id !== "blank"), list.find((t) => t.id === "blank")!] : [...list, BLANK];
   }, [templates]);
-  const current = all.find((t) => t.id === chosen) ?? BLANK;
+  const current: ChosenTemplate = (custom?.id === chosen ? custom : null) ?? all.find((t) => t.id === chosen) ?? BLANK;
   const preview = useMemo(() => fillTemplate(current.content, { title: title.trim() || current.name }), [current, title]);
 
   async function create(e?: React.FormEvent) {
@@ -135,6 +137,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           {loadError ? (
             <Alert tone="warning">{loadError} You can still start from a blank page.</Alert>
           ) : null}
+          <YourTemplates open={open} workspace={workspace} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={() => void create()} />
           <div className="pb-templates" role="group" aria-labelledby={`${titleId}-t`}>
             {!templates && !loadError
               ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={96} />)
@@ -153,7 +156,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           <div className="flex flex-col gap-2">
             <span className="text-caption-strong text-text">Preview</span>
             <div className="pb-template-preview" aria-label={`${current.name} preview`}>
-              <PageRenderer slug="" content={preview} embeds={{}} />
+              <PageRenderer slug="" content={preview} embeds={{}} assets={current.assets} />
             </div>
           </div>
         )}

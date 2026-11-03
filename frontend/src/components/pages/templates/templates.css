@@ -1,0 +1,78 @@
+/* Workspace and personal page templates: the gallery section, Save as template, Manage templates,
+   the notice on a template page. Mist tokens only (globals.css); motion per POLISH.md. */
+
+.tpl-sec { display: flex; flex-direction: column; gap: 8px; }
+.tpl-sec + .tpl-sec { margin-top: 6px; }
+.tpl-sec__head { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.tpl-sec__title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-secondary); }
+.tpl-sec__title .md-icon { font-size: 14px; }
+.tpl-sec__count { font-variant-numeric: tabular-nums; color: var(--text-tertiary, var(--text-secondary)); font-weight: 500; }
+.tpl-sec__spacer { flex: 1; }
+.tpl-sec__builtin { margin-top: 10px; }
+
+/* A card: the built-in card's shape (pages.css .pb-template), with an emoji and a footnote. */
+.tpl-card { position: relative; min-height: 96px; transition: border-color 120ms ease, background-color 120ms ease, transform 140ms cubic-bezier(.16, 1, .3, 1), box-shadow 140ms cubic-bezier(.16, 1, .3, 1); }
+.tpl-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.06)); }
+.tpl-card__emoji { display: grid; place-items: center; width: 32px; height: 32px; border-radius: var(--radius-lg); background: var(--surface-raised, var(--surface-hover)); font-size: 18px; line-height: 1; }
+.tpl-card__emoji img { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; }
+.tpl-card__desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tpl-card__foot { display: inline-flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 2px; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+.tpl-card__foot .md-icon { font-size: 13px; }
+.tpl-card__loading { position: absolute; top: 12px; right: 12px; }
+
+.tpl-empty { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px dashed var(--border-strong, var(--border)); border-radius: var(--radius-xl); color: var(--text-secondary); font-size: 13px; line-height: 18px; }
+.tpl-empty .md-icon { flex: none; font-size: 18px; color: var(--accent-text); }
+
+/* Save as template */
+.tpl-emoji { display: flex; flex-wrap: wrap; gap: 6px; }
+.tpl-emoji__btn { display: grid; place-items: center; width: 36px; height: 36px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); font-size: 18px; line-height: 1; cursor: pointer; transition: transform 120ms cubic-bezier(.16, 1, .3, 1), border-color 120ms ease, background-color 120ms ease; }
+.tpl-emoji__btn:hover { transform: translateY(-1px); background: var(--surface-hover); }
+.tpl-emoji__btn[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); background: var(--accent-soft); }
+.tpl-emoji__custom { width: 64px; text-align: center; }
+.tpl-hint { font-size: 13px; line-height: 18px; color: var(--text-secondary); }
+.tpl-hint code { font-family: var(--font-mono, ui-monospace, monospace); font-size: 12px; padding: 1px 5px; border-radius: 4px; background: var(--surface-raised, var(--surface-hover)); color: var(--text); }
+.tpl-done { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px 8px 8px; text-align: center; animation: tpl-in 180ms cubic-bezier(.16, 1, .3, 1); }
+.tpl-done__badge { display: grid; place-items: center; width: 52px; height: 52px; border-radius: 999px; background: var(--accent-soft); font-size: 26px; }
+.tpl-done__title { font-size: 16px; font-weight: 700; color: var(--text); }
+.tpl-done__body { max-width: 380px; font-size: 14px; line-height: 20px; color: var(--text-secondary); }
+
+/* Manage templates */
+.tpl-list { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tpl-row { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 8px 8px 8px 6px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); transition: background-color 120ms ease, box-shadow 150ms ease; }
+.tpl-row:hover { background: var(--surface-hover); }
+.tpl-row--drag { z-index: 2; box-shadow: var(--shadow-lg, 0 8px 24px rgb(0 0 0 / 0.14)); background: var(--surface); }
+.tpl-row__handle { display: grid; place-items: center; width: 28px; height: 36px; flex: none; border: 0; border-radius: var(--radius-md, 6px); background: none; color: var(--text-secondary); cursor: grab; touch-action: none; }
+.tpl-row__handle:hover { background: var(--surface-hover); color: var(--text); }
+.tpl-row__handle:active { cursor: grabbing; }
+.tpl-row__handle[disabled] { visibility: hidden; }
+.tpl-row__emoji { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--radius-lg); background: var(--surface-raised, var(--surface-hover)); font-size: 17px; }
+.tpl-row__emoji img { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; }
+.tpl-row__main { display: flex; flex-direction: column; min-width: 0; flex: 1; gap: 1px; }
+.tpl-row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; font-size: 14px; line-height: 20px; color: var(--text); }
+.tpl-row__meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 16px; color: var(--text-secondary); }
+.tpl-row__actions { display: flex; align-items: center; gap: 2px; flex: none; }
+.tpl-row__edit { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 0; }
+.tpl-row__edit-line { display: flex; gap: 6px; }
+
+/* The notice on a template page */
+.tpl-notice { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 16px; padding: 12px 14px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: var(--radius-xl); background: color-mix(in srgb, var(--accent-soft) 60%, var(--surface)); animation: tpl-in 160ms cubic-bezier(.16, 1, .3, 1); }
+.tpl-notice__icon { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--radius-lg); background: var(--surface); font-size: 17px; }
+.tpl-notice__body { flex: 1; min-width: 0; font-size: 13px; line-height: 19px; color: var(--text-secondary); }
+.tpl-notice__title { display: block; margin-bottom: 1px; font-size: 14px; font-weight: 650; color: var(--text); }
+.tpl-notice__actions { display: flex; flex-wrap: wrap; gap: 6px; flex: none; }
+
+@keyframes tpl-in { from { opacity: 0; transform: translateY(4px) scale(.98); } to { opacity: 1; transform: none; } }
+
+@media (max-width: 640px) {
+  .tpl-notice { flex-wrap: wrap; }
+  .tpl-notice__actions { width: 100%; padding-left: 44px; }
+  .tpl-row { min-height: 60px; }
+  .tpl-row__actions .md-btn { min-width: 40px; min-height: 40px; }
+  .tpl-emoji__btn { width: 40px; height: 40px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tpl-card, .tpl-row, .tpl-emoji__btn { transition: none; }
+  .tpl-card:hover, .tpl-emoji__btn:hover { transform: none; }
+  .tpl-done, .tpl-notice { animation: none; }
+}
