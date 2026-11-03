@@ -28,6 +28,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pydantic import BaseModel
 
 from app.config import get_settings
 from app.routers.admin import get_db, require_admin
@@ -224,7 +225,7 @@ async def overview(
         "site": site,
         "by_site": await _by_site(db, feature, feature_rows),
         "status": {
-            "enabled": docs_agent.enabled(),
+            "enabled": await ai_usage.feature_on(db, feature),
             "configured": docs_agent.configured(),
             "model": s.docs_ai_model,
             "effort": docs_agent.effort(),
@@ -237,8 +238,8 @@ async def overview(
             "month_usd": round(await ai_usage.spend_month(db, feature), 6),
             "all_features_today_usd": round(await ai_usage.spend_today(db), 6),
             "all_features_month_usd": round(await ai_usage.spend_month(db), 6),
-            "daily_cap_usd": s.docs_ai_daily_usd,
-            "monthly_cap_usd": s.docs_ai_monthly_usd,
+            "daily_cap_usd": _cap((await ai_usage.caps(db, feature))[0]),
+            "monthly_cap_usd": _cap((await ai_usage.caps(db, feature))[1]),
         },
         "kpis": {
             "questions": len(rows),
@@ -545,3 +546,599 @@ async def page_feedback(
     down = sum(p["down"] for p in out)
     return {"range": key, "votes": up + down, "up": up, "down": down, "helpful_pct": _ratio(up, up + down),
             "pages": out[:200]}
+
+
+# ══ All AI features: usage per person, and the budgets ════════════════════════
+#
+# Every feature in ai_usage.FEATURES (plus any other the ledger holds). Rows are read with an
+# explicit projection that never includes a prompt or an answer (docs Ask AI keeps its question
+# and answer on the row for the Conversations view above; nothing below returns them).
+# Signed-out usage is one "Anonymous visitors" row (user id "anonymous").
+
+ANON = "anonymous"
+_USAGE_FIELDS = {k: 1 for k in ("feature", "ts", "usage", "cost_usd", "outcome", "user_id", "visitor", "limit_reason",
+                                "action", "kind", "site", "slug", "page_path", "page_id", "workspace_id", "latency_ms",
+                                "error_code", "model", "request_id", "conversation_id", "language")}
+_USER_SORTS = ("cost", "requests", "tokens", "last_used", "email", "errors")
+_TOK = ("input", "output", "cache_read", "cache_write")
+
+
+def _label(feature: str) -> str:
+    return ai_usage.FEATURES.get(feature) or feature.replace("_", " ").capitalize()
+
+
+def _cap(v: float) -> float | None:
+    """A cap for JSON: inf (no cap) is null."""
+    return None if v is None or v == ai_usage.INF else round(float(v), 6)
+
+
+def _tokens(r: dict) -> dict[str, int]:
+    u = r.get("usage") or {}
+    return {"input": int(u.get("input") or 0), "output": int(u.get("output") or 0),
+            "cache_read": int(u.get("cache_read") or 0),
+            "cache_write": int(u.get("cache_write_5m") or 0) + int(u.get("cache_write_1h") or 0)}
+
+
+def _kind(outcome: str | None) -> str:
+    """ok | limit | error, across features' own outcome names."""
+    if outcome == "limit":
+        return "limit"
+    if outcome in ("error", None):
+        return "error"
+    return "ok"
+
+
+class _Agg:
+    """Requests, outcomes, tokens and cost of a set of ledger rows."""
+
+    __slots__ = ("requests", "ok", "errors", "limited", "cost", "tok", "last", "features", "visitors")
+
+    def __init__(self):
+        self.requests = self.ok = self.errors = self.limited = 0
+        self.cost = 0.0
+        self.tok = dict.fromkeys(_TOK, 0)
+        self.last: datetime | None = None
+        self.features: Counter = Counter()
+        self.visitors: set = set()
+
+    def add(self, r: dict) -> None:
+        self.requests += 1
+        k = _kind(r.get("outcome"))
+        self.ok += k == "ok"
+        self.errors += k == "error"
+        self.limited += k == "limit"
+        self.cost += float(r.get("cost_usd") or 0)
+        for key, v in _tokens(r).items():
+            self.tok[key] += v
+        ts = _aware(r.get("ts"))
+        if ts and (self.last is None or ts > self.last):
+            self.last = ts
+        self.features[r.get("feature") or "?"] += 1
+        if r.get("visitor"):
+            self.visitors.add(r["visitor"])
+
+    @property
+    def total_tokens(self) -> int:
+        return sum(self.tok.values())
+
+    def cache_hit_pct(self) -> float | None:
+        prompt = self.tok["input"] + self.tok["cache_read"] + self.tok["cache_write"]
+        return _ratio(self.tok["cache_read"], prompt)
+
+    def out(self) -> dict:
+        return {"requests": self.requests, "ok": self.ok, "errors": self.errors, "limited": self.limited,
+                "cost_usd": round(self.cost, 6), "tokens": dict(self.tok), "total_tokens": self.total_tokens,
+                "cache_hit_pct": self.cache_hit_pct()}
+
+
+async def _usage_rows(db, since: datetime, until: datetime, extra: dict | None = None) -> list[dict]:
+    q = {"ts": {"$gte": since, "$lt": until}, **(extra or {})}
+    return await db[ai_usage.REQUESTS].find(q, _USAGE_FIELDS).sort("ts", -1).to_list(length=ROW_CAP)
+
+
+def _feature_keys(rows: list[dict]) -> list[str]:
+    seen = {r.get("feature") for r in rows if r.get("feature")}
+    return list(ai_usage.FEATURES) + sorted(seen - set(ai_usage.FEATURES))
+
+
+def _series(rows: list[dict], since: datetime, until: datetime, zone: ZoneInfo, features: list[str]) -> list[dict]:
+    days = _days(since, until, zone)
+    per = {d: {"t": d, "requests": 0, "cost_usd": 0.0, "tokens": 0, "by_feature": dict.fromkeys(features, 0.0),
+               "requests_by_feature": dict.fromkeys(features, 0)} for d in days}
+    for r in rows:
+        ts = _aware(r.get("ts"))
+        b = per.get(ts.astimezone(zone).date().isoformat()) if ts else None
+        if b is None:
+            continue
+        f = r.get("feature") or "?"
+        c = float(r.get("cost_usd") or 0)
+        b["requests"] += 1
+        b["cost_usd"] += c
+        b["tokens"] += sum(_tokens(r).values())
+        b["by_feature"][f] = b["by_feature"].get(f, 0.0) + c
+        b["requests_by_feature"][f] = b["requests_by_feature"].get(f, 0) + 1
+    for b in per.values():
+        b["cost_usd"] = round(b["cost_usd"], 6)
+        b["by_feature"] = {k: round(v, 6) for k, v in b["by_feature"].items()}
+    return list(per.values())
+
+
+async def _users_info(db, ids: set[str]) -> dict[str, dict]:
+    oids = [ObjectId(i) for i in ids if ObjectId.is_valid(i)]
+    if not oids:
+        return {}
+    rows = await db["users"].find({"_id": {"$in": oids}}, {"email": 1, "name": 1, "created_at": 1}).to_list(length=len(oids))
+    return {str(r["_id"]): {"email": r.get("email") or "", "name": r.get("name") or "",
+                            "created_at": _iso(r.get("created_at"))} for r in rows}
+
+
+async def _user_overrides(db) -> dict[str, dict]:
+    out = {}
+    async for r in db[ai_usage.SETTINGS].find({"_id": {"$regex": "^user:"}}):
+        out[r["_id"][5:]] = {"blocked": bool(r.get("blocked")), "daily_usd": ai_usage._num(r.get("daily_usd")),
+                             "updated_at": _iso(r.get("updated_at")), "updated_by": r.get("updated_by")}
+    return out
+
+
+async def _spend_today_by_user(db) -> dict[str, float]:
+    out: dict[str, float] = defaultdict(float)
+    async for r in db[ai_usage.REQUESTS].find({"ts": {"$gte": ai_usage.utc_midnight()}, "user_id": {"$ne": None}},
+                                              {"user_id": 1, "cost_usd": 1}):
+        out[r["user_id"]] += float(r.get("cost_usd") or 0)
+    return out
+
+
+# ── Overview ──
+
+
+@router.get("/usage/overview")
+async def usage_overview(
+    range_: str = Query("30d", alias="range"),
+    tz: str = "UTC",
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Every AI feature: spend today and this month against the caps, the window's requests,
+    tokens, cache hit rate, errors and limits, and a per-day series by feature."""
+    since, until, key = _window(range_)
+    zone = _tz(tz)
+    rows = await _usage_rows(db, since, until)
+    features = _feature_keys(rows)
+    total, by_feature = _Agg(), defaultdict(_Agg)
+    users: set[str] = set()
+    anon = 0
+    limit_reasons: Counter = Counter()
+    for r in rows:
+        total.add(r)
+        by_feature[r.get("feature") or "?"].add(r)
+        if r.get("user_id"):
+            users.add(r["user_id"])
+        else:
+            anon += 1
+        if r.get("outcome") == "limit":
+            limit_reasons[(r.get("feature") or "?", r.get("limit_reason") or "unknown")] += 1
+    out_features = []
+    for f in features:
+        d, m = await ai_usage.caps(db, f)
+        a = by_feature.get(f) or _Agg()
+        out_features.append({
+            "key": f, "label": _label(f), "registered": f in ai_usage.FEATURES,
+            "enabled": await ai_usage.feature_on(db, f),
+            "config_enabled": ai_usage.default_on(f),
+            "today_usd": round(await ai_usage.spend_today(db, f), 6),
+            "month_usd": round(await ai_usage.spend_month(db, f), 6),
+            "daily_cap_usd": _cap(d), "monthly_cap_usd": _cap(m),
+            "users": len({r.get("user_id") for r in rows if r.get("feature") == f and r.get("user_id")}),
+            **a.out(),
+        })
+    gd, gm = await ai_usage.caps(db, ai_usage.ALL)
+    return {
+        "range": key,
+        "configured": docs_agent.configured(),
+        "global": {"today_usd": round(await ai_usage.spend_today(db), 6),
+                   "month_usd": round(await ai_usage.spend_month(db), 6),
+                   "daily_cap_usd": _cap(gd), "monthly_cap_usd": _cap(gm)},
+        "kpis": {**total.out(), "users": len(users), "anonymous_requests": anon},
+        "features": out_features,
+        "limit_reasons": [{"feature": f, "reason": k, "n": n} for (f, k), n in limit_reasons.most_common()],
+        "series": _series(rows, since, until, zone, features),
+        "truncated": len(rows) >= ROW_CAP,
+    }
+
+
+# ── Users ──
+
+
+async def _user_table(db, since: datetime, until: datetime, *, feature: str | None, q: str | None) -> list[dict]:
+    extra = {"feature": feature} if feature else None
+    rows = await _usage_rows(db, since, until, extra)
+    per: dict[str, _Agg] = defaultdict(_Agg)
+    for r in rows:
+        per[r.get("user_id") or ANON].add(r)
+    overrides = await _user_overrides(db)
+    if not feature:
+        for uid in overrides:  # blocked or capped people stay listed, used or not
+            per.setdefault(uid, _Agg())
+    info = await _users_info(db, {u for u in per if u != ANON})
+    today = await _spend_today_by_user(db)
+    default_cap = await ai_usage.default_user_daily(db)
+    needle = (q or "").strip().lower()
+    out = []
+    for uid, a in per.items():
+        if uid == ANON:
+            row = {"user_id": ANON, "anonymous": True, "email": "", "name": "Anonymous visitors",
+                   "visitors": len(a.visitors), "blocked": False, "daily_cap_usd": None, "effective_daily_cap_usd": None,
+                   "today_usd": None}
+        else:
+            u = info.get(uid) or {}
+            o = overrides.get(uid) or {}
+            own = o.get("daily_usd")
+            row = {"user_id": uid, "anonymous": False, "email": u.get("email") or "", "name": u.get("name") or "",
+                   "deleted": uid not in info, "blocked": bool(o.get("blocked")), "daily_cap_usd": own,
+                   "effective_daily_cap_usd": own if own is not None else default_cap,
+                   "today_usd": round(today.get(uid, 0.0), 6)}
+        if needle and needle not in f"{row['email']} {row['name']} {uid}".lower():
+            continue
+        row.update(a.out())
+        row["features"] = [f for f, _n in a.features.most_common()]
+        row["last_used"] = _iso(a.last)
+        out.append(row)
+    return out
+
+
+def _sort_users(items: list[dict], sort: str, order: str) -> list[dict]:
+    key = {"cost": lambda r: r["cost_usd"], "requests": lambda r: r["requests"],
+           "tokens": lambda r: r["total_tokens"], "last_used": lambda r: r["last_used"] or "",
+           "email": lambda r: (r["email"] or r["name"] or "~").lower(), "errors": lambda r: r["errors"]}[sort]
+    return sorted(items, key=key, reverse=order == "desc")
+
+
+@router.get("/usage/users")
+async def usage_users(
+    range_: str = Query("30d", alias="range"),
+    q: str | None = Query(None, max_length=200),
+    sort: str = Query("cost"),
+    order: str = Query("desc"),
+    feature: str | None = Query(None, max_length=40),
+    page: int = Query(1, ge=1, le=10_000),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Everyone who used AI in the window (and anyone blocked or with their own cap)."""
+    since, until, key = _window(range_)
+    sort = sort if sort in _USER_SORTS else "cost"
+    order = "asc" if order == "asc" else "desc"
+    items = _sort_users(await _user_table(db, since, until, feature=feature or None, q=q), sort, order)
+    total = len(items)
+    start = (page - 1) * limit
+    return {"range": key, "sort": sort, "order": order, "page": page, "pages": max(1, -(-total // limit)),
+            "total": total, "default_daily_cap_usd": await ai_usage.default_user_daily(db),
+            "items": items[start:start + limit]}
+
+
+def _request_row(r: dict) -> dict:
+    """One ledger row for the admin: what, where, how much. Never the prompt or the answer."""
+    return {
+        "request_id": r.get("request_id"),
+        "ts": _iso(r.get("ts")),
+        "feature": r.get("feature"),
+        "action": r.get("action") or r.get("kind"),
+        "site": r.get("site"),
+        "slug": r.get("slug"),
+        "page": r.get("page_path") or r.get("page_id"),
+        "workspace_id": r.get("workspace_id"),
+        "conversation_id": r.get("conversation_id") if r.get("feature") == docs_agent.FEATURE else None,
+        "outcome": r.get("outcome"),
+        "limit_reason": r.get("limit_reason"),
+        "error_code": r.get("error_code"),
+        "tokens": _tokens(r),
+        "cost_usd": round(float(r.get("cost_usd") or 0), 6),
+        "latency_ms": r.get("latency_ms"),
+        "model": r.get("model"),
+    }
+
+
+@router.get("/usage/users/{user_id}")
+async def usage_user(
+    user_id: str,
+    range_: str = Query("30d", alias="range"),
+    tz: str = "UTC",
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """One person (or "anonymous"): per-feature and per-day breakdowns, and recent requests."""
+    anonymous = user_id == ANON
+    if not anonymous and not ObjectId.is_valid(user_id):
+        raise HTTPException(404, "User not found")
+    since, until, key = _window(range_)
+    zone = _tz(tz)
+    rows = await _usage_rows(db, since, until, {"user_id": None if anonymous else user_id})
+    info = {} if anonymous else (await _users_info(db, {user_id})).get(user_id)
+    if not anonymous and info is None and not rows and not await db[ai_usage.SETTINGS].find_one({"_id": f"user:{user_id}"}):
+        raise HTTPException(404, "User not found")
+    total = _Agg()
+    by_feature: dict[str, _Agg] = defaultdict(_Agg)
+    by_action: dict[tuple, _Agg] = defaultdict(_Agg)
+    for r in rows:
+        total.add(r)
+        by_feature[r.get("feature") or "?"].add(r)
+        by_action[(r.get("feature") or "?", r.get("action") or r.get("kind") or "—")].add(r)
+    features = [f for f in _feature_keys(rows) if f in by_feature]
+    settings_out = None
+    if not anonymous:
+        o = await ai_usage.user_settings(db, user_id)
+        own = ai_usage._num(o.get("daily_usd"))
+        settings_out = {"blocked": bool(o.get("blocked")), "daily_cap_usd": own,
+                        "effective_daily_cap_usd": await ai_usage.user_daily_cap(db, user_id),
+                        "default_daily_cap_usd": await ai_usage.default_user_daily(db),
+                        "today_usd": round(await ai_usage.user_spend_today(db, user_id), 6),
+                        "burst": dict(zip(("per_minute", "per_day"), await ai_usage.burst_limits(db)))}
+    return {
+        "range": key,
+        "user": {"user_id": user_id, "anonymous": anonymous,
+                 "email": (info or {}).get("email") or "", "name": (info or {}).get("name") or (
+                     "Anonymous visitors" if anonymous else ""),
+                 "created_at": (info or {}).get("created_at"), "deleted": not anonymous and info is None},
+        "settings": settings_out,
+        "kpis": {**total.out(), "last_used": _iso(total.last), "visitors": len(total.visitors) if anonymous else None},
+        "by_feature": [{"key": f, "label": _label(f), **by_feature[f].out()} for f in features],
+        "by_action": sorted(({"feature": f, "label": _label(f), "action": a, **v.out()} for (f, a), v in by_action.items()),
+                            key=lambda x: -x["cost_usd"]),
+        "series": _series(rows, since, until, zone, features),
+        "recent": [_request_row(r) for r in rows[:limit]],
+        "truncated": len(rows) >= ROW_CAP,
+    }
+
+
+# ── Export ──
+
+
+def _csv_cell(v) -> str:
+    """A spreadsheet-safe cell (no formula injection)."""
+    s = "" if v is None else str(v)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s
+
+
+@router.get("/usage/export.csv")
+async def usage_export(
+    kind: str = Query("users"),
+    range_: str = Query("30d", alias="range"),
+    feature: str | None = Query(None, max_length=40),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    import csv
+    import io
+
+    from fastapi.responses import Response
+
+    if kind not in ("users", "requests"):
+        raise HTTPException(400, "kind is users or requests")
+    since, until, key = _window(range_)
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    if kind == "users":
+        w.writerow(["user_id", "email", "name", "requests", "ok", "errors", "limited", "input_tokens",
+                    "output_tokens", "cache_read_tokens", "cache_write_tokens", "cost_usd", "features", "last_used",
+                    "blocked", "daily_cap_usd"])
+        for r in _sort_users(await _user_table(db, since, until, feature=feature or None, q=None), "cost", "desc"):
+            w.writerow([_csv_cell(x) for x in (
+                r["user_id"], r["email"], r["name"], r["requests"], r["ok"], r["errors"], r["limited"],
+                r["tokens"]["input"], r["tokens"]["output"], r["tokens"]["cache_read"], r["tokens"]["cache_write"],
+                f"{r['cost_usd']:.6f}", " ".join(r["features"]), r["last_used"], r["blocked"], r["daily_cap_usd"])])
+    else:
+        rows = await _usage_rows(db, since, until, {"feature": feature} if feature else None)
+        emails = await _emails(db, {r["user_id"] for r in rows if r.get("user_id")})
+        w.writerow(["ts", "feature", "action", "user_id", "email", "site", "slug", "page", "outcome", "limit_reason",
+                    "error_code", "model", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
+                    "cost_usd", "latency_ms", "request_id"])
+        for r in rows:
+            x = _request_row(r)
+            uid = r.get("user_id")
+            w.writerow([_csv_cell(v) for v in (
+                x["ts"], x["feature"], x["action"], uid or ANON, emails.get(uid, "") if uid else "", x["site"],
+                x["slug"], x["page"], x["outcome"], x["limit_reason"], x["error_code"], x["model"],
+                x["tokens"]["input"], x["tokens"]["output"], x["tokens"]["cache_read"], x["tokens"]["cache_write"],
+                f"{x['cost_usd']:.6f}", x["latency_ms"], x["request_id"])])
+    name = f"markdrop-ai-{kind}-{key}{'-' + re.sub(r'[^a-z0-9_]', '', feature) if feature else ''}.csv"
+    return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
+
+
+# ── Budgets ──
+
+
+class CapIn(BaseModel):
+    daily_usd: float | None = None
+    monthly_usd: float | None = None
+
+
+class BurstIn(BaseModel):
+    per_minute: int | None = None
+    per_day: int | None = None
+
+
+class BudgetsIn(BaseModel):
+    """The whole override document: null (or missing) = the config default."""
+
+    caps: dict[str, CapIn] = {}
+    enabled: dict[str, bool] = {}
+    burst: BurstIn = BurstIn()
+    user_daily_usd: float | None = None
+
+
+class UserAiIn(BaseModel):
+    blocked: bool | None = None
+    daily_usd: float | None = None
+
+
+def _bad(msg: str):
+    raise HTTPException(400, msg)
+
+
+def _check_money(v: float | None, what: str) -> float | None:
+    if v is None:
+        return None
+    if not math.isfinite(v) or v < 0:
+        _bad(f"{what} must be a number of dollars, 0 or more.")
+    if v > 1_000_000:
+        _bad(f"{what} is too large.")
+    return round(float(v), 6)
+
+
+async def _budgets_view(db) -> dict:
+    o = await db[ai_usage.SETTINGS].find_one({"_id": ai_usage.BUDGETS_ID}) or {}
+    from app.config import get_settings as _gs
+
+    s = _gs()
+    caps_o = o.get("caps") or {}
+    rows = []
+    for f in [ai_usage.ALL, *ai_usage.FEATURES]:
+        dd, dm = ai_usage.default_caps(f)
+        ov = caps_o.get(f) or {}
+        d, m = await ai_usage.caps(db, f)
+        rows.append({
+            "key": f, "label": "All AI features" if f == ai_usage.ALL else _label(f),
+            "default_daily_usd": _cap(dd), "default_monthly_usd": _cap(dm),
+            "daily_usd": ai_usage._num(ov.get("daily_usd")), "monthly_usd": ai_usage._num(ov.get("monthly_usd")),
+            "effective_daily_usd": _cap(d), "effective_monthly_usd": _cap(m),
+            "today_usd": round(await ai_usage.spend_today(db, f), 6),
+            "month_usd": round(await ai_usage.spend_month(db, f), 6),
+            **({} if f == ai_usage.ALL else {
+                "config_enabled": ai_usage.default_on(f),
+                "enabled": (o.get("enabled") or {}).get(f, True) is not False,
+                "effective_enabled": await ai_usage.feature_on(db, f)}),
+        })
+    burst = o.get("burst") or {}
+    pm, pd = await ai_usage.burst_limits(db)
+    users = await _user_overrides(db)
+    return {
+        "caps": rows,
+        "burst": {"per_minute": ai_usage._num(burst.get("per_minute")), "per_day": ai_usage._num(burst.get("per_day")),
+                  "default_per_minute": s.ai_burst_per_minute, "default_per_day": s.ai_burst_per_day,
+                  "effective_per_minute": pm, "effective_per_day": pd},
+        "user_daily_usd": ai_usage._num(o.get("user_daily_usd")),
+        "default_user_daily_usd": ai_usage._num(s.ai_user_daily_usd),
+        "effective_user_daily_usd": await ai_usage.default_user_daily(db),
+        "blocked_users": sum(1 for u in users.values() if u["blocked"]),
+        "capped_users": sum(1 for u in users.values() if u["daily_usd"] is not None),
+        "configured": docs_agent.configured(),
+        "updated_at": _iso(o.get("updated_at")),
+        "updated_by": o.get("updated_by"),
+    }
+
+
+def _plain(doc: dict | None) -> dict | None:
+    if not doc:
+        return None
+    return {k: v for k, v in doc.items() if k not in ("_id", "updated_at", "updated_by")}
+
+
+async def _audit(db, admin: dict, kind: str, target: str, before: dict | None, after: dict | None) -> None:
+    await db[ai_usage.SETTINGS_AUDIT].insert_one({
+        "ts": datetime.now(timezone.utc), "admin": admin.get("sub") or "admin", "kind": kind, "target": target,
+        "before": _plain(before), "after": _plain(after)})
+
+
+@router.get("/budgets")
+async def get_budgets(db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
+    return await _budgets_view(db)
+
+
+@router.put("/budgets")
+async def put_budgets(body: BudgetsIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                      admin: dict = Depends(require_admin)):
+    """Replace the overrides (null = the config default). Takes effect at once; audited."""
+    known = {ai_usage.ALL, *ai_usage.FEATURES}
+    caps_out: dict = {}
+    for f, c in body.caps.items():
+        if f not in known:
+            _bad(f"Unknown AI feature: {f}")
+        label = "All AI features" if f == ai_usage.ALL else _label(f)
+        d = _check_money(c.daily_usd, f"{label}'s daily cap")
+        m = _check_money(c.monthly_usd, f"{label}'s monthly cap")
+        dd, dm = ai_usage.default_caps(f)
+        if (m if m is not None else dm) < (d if d is not None else dd):
+            _bad(f"{label}: the monthly cap can't be lower than the daily cap.")
+        entry = {k: v for k, v in (("daily_usd", d), ("monthly_usd", m)) if v is not None}
+        if entry:
+            caps_out[f] = entry
+    enabled: dict = {}
+    for f, on in body.enabled.items():
+        if f not in ai_usage.FEATURES:
+            _bad(f"Unknown AI feature: {f}")
+        if on is False:
+            enabled[f] = False
+    burst: dict = {}
+    for k, v in (("per_minute", body.burst.per_minute), ("per_day", body.burst.per_day)):
+        if v is None:
+            continue
+        if v < 1 or v > 1_000_000:
+            _bad("Burst limits are whole numbers of requests, 1 or more.")
+        burst[k] = int(v)
+    from app.config import get_settings as _gs
+
+    s = _gs()
+    if burst.get("per_day", s.ai_burst_per_day) < burst.get("per_minute", s.ai_burst_per_minute):
+        _bad("The per-day burst limit can't be lower than the per-minute one.")
+    doc = {"_id": ai_usage.BUDGETS_ID, "caps": caps_out, "enabled": enabled, "burst": burst}
+    ud = _check_money(body.user_daily_usd, "The per-person daily cap")
+    if ud is not None:
+        doc["user_daily_usd"] = ud
+    before = await db[ai_usage.SETTINGS].find_one({"_id": ai_usage.BUDGETS_ID})
+    doc["updated_at"] = datetime.now(timezone.utc)
+    doc["updated_by"] = admin.get("sub") or "admin"
+    await db[ai_usage.SETTINGS].replace_one({"_id": ai_usage.BUDGETS_ID}, doc, upsert=True)
+    ai_usage.invalidate_settings()
+    if _plain(before) != _plain(doc):
+        await _audit(db, admin, "budgets", "budgets", before, doc)
+    return await _budgets_view(db)
+
+
+@router.put("/users/{user_id}")
+async def put_user_ai(user_id: str, body: UserAiIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                      admin: dict = Depends(require_admin)):
+    """Block or unblock a person from every AI feature, and/or set their own daily USD cap
+    (null: back to the default). Fields left out are kept."""
+    if not ObjectId.is_valid(user_id) or not await db["users"].find_one({"_id": ObjectId(user_id)}, {"_id": 1}):
+        raise HTTPException(404, "User not found")
+    sent = body.model_fields_set
+    if not sent:
+        _bad("Nothing to change.")
+    key = f"user:{user_id}"
+    before = await db[ai_usage.SETTINGS].find_one({"_id": key})
+    doc = {"_id": key, "kind": "user", "user_id": user_id, "blocked": bool((before or {}).get("blocked")),
+           "daily_usd": ai_usage._num((before or {}).get("daily_usd"))}
+    if "blocked" in sent:
+        doc["blocked"] = bool(body.blocked)
+    if "daily_usd" in sent:
+        doc["daily_usd"] = _check_money(body.daily_usd, "The daily cap")
+    doc["updated_at"] = datetime.now(timezone.utc)
+    doc["updated_by"] = admin.get("sub") or "admin"
+    if not doc["blocked"] and doc["daily_usd"] is None:
+        await db[ai_usage.SETTINGS].delete_one({"_id": key})  # back to the defaults
+    else:
+        await db[ai_usage.SETTINGS].replace_one({"_id": key}, doc, upsert=True)
+    ai_usage.invalidate_settings()
+    after = {k: doc[k] for k in ("blocked", "daily_usd")}
+    if {k: (before or {}).get(k, False if k == "blocked" else None) for k in ("blocked", "daily_usd")} != after:
+        await _audit(db, admin, "user", user_id, {k: (before or {}).get(k) for k in ("blocked", "daily_usd")}
+                     if before else None, after)
+    return {"user_id": user_id, "blocked": doc["blocked"], "daily_cap_usd": doc["daily_usd"],
+            "effective_daily_cap_usd": await ai_usage.user_daily_cap(db, user_id)}
+
+
+@router.get("/budgets/audit")
+async def budgets_audit(
+    limit: int = Query(50, ge=1, le=500),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    rows = await db[ai_usage.SETTINGS_AUDIT].find({}).sort("ts", -1).limit(limit).to_list(length=limit)
+    emails = await _emails(db, {r["target"] for r in rows if r.get("kind") == "user"})
+    return {"items": [{"id": str(r["_id"]), "ts": _iso(r.get("ts")), "admin": r.get("admin"), "kind": r.get("kind"),
+                       "target": r.get("target"),
+                       "target_label": emails.get(r.get("target")) if r.get("kind") == "user" else "Budgets",
+                       "before": r.get("before"), "after": r.get("after")} for r in rows]}
