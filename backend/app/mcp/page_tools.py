@@ -397,6 +397,82 @@ async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
             f"replace_section or append_blocks): {markdown}"), out
 
 
+# ── Page AI (services/pages_ai.py) ────────────────────────────────────────────
+
+
+async def _ai_job(ctx: Context, raw: dict, action: str):
+    from app.services import pages_ai
+
+    content = await pages.content_for(actor_of(ctx), raw, _actx(ctx))
+    return pages_ai.Job(db=ctx.db, user=ctx.user, action=action, target=pages_ai.page_target(raw, content),
+                        via="mcp")
+
+
+def _ai_error(exc) -> ToolError:
+    return ToolError(exc.detail)
+
+
+async def translate_page(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import pages_ai
+
+    raw = await load_for(ctx, args["document"], "edit_content", "translate")
+    _editable_page(raw)
+    job = await _ai_job(ctx, raw, "translate")
+    try:
+        gen = await pages_ai.translate_page(job, lang=args["language"], actor=actor_of(ctx), ctx=_actx(ctx))
+        done = await pages_ai.collect(gen)
+    except pages_ai.AIError as exc:
+        raise _ai_error(exc)
+    new = await ctx.db["documents"].find_one({"slug": done["slug"]}, {"content": 0})
+    out = {**await url_pair(ctx, new), "slug": done["slug"], "title": done["title"],
+           "language": pages_ai.language(args["language"]), "source": raw["slug"]}
+    text = f"Created the translated page {done['title']!r}: {out['url']} (the original is unchanged)."
+    if done.get("workspace_error"):
+        text += f"\n{done['workspace_error']}"
+    return text, out
+
+
+async def summarize_page(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import pages_ai
+
+    insert = bool(args.get("insert"))
+    raw = await load_for(ctx, args["document"], "edit_content", "summarize")
+    _editable_page(raw)
+    job = await _ai_job(ctx, raw, "summary")
+    try:
+        done = await pages_ai.collect(await pages_ai.summary(job))
+    except pages_ai.AIError as exc:
+        raise _ai_error(exc)
+    block = done["markdown"]
+    out: dict[str, Any] = {"slug": raw["slug"], "markdown": block, "inserted": False, "trimmed": done["trimmed"]}
+    if not insert:
+        return (f"Summary of {raw['slug']} (not inserted; call again with insert: true to put it at the top):"
+                f"\n\n{block}"), out
+    _lock_check(raw, ctx)
+    fresh = await ctx.db["documents"].find_one({"_id": raw["_id"]})
+    after = await _save(ctx, fresh, pages_ai.with_summary(fresh.get("content") or "", block),
+                        int(fresh.get("rev") or 1))
+    out.update(await _result(ctx, after), inserted=True)
+    return f"Added the summary at the top of {out['url']} (revision {out['rev']}):\n\n{block}", out
+
+
+async def suggest_page_meta(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import pages_ai
+
+    raw = await load_for(ctx, args["document"], "edit_content", "suggest a title for")
+    _editable_page(raw)
+    job = await _ai_job(ctx, raw, "meta")
+    try:
+        out = await pages_ai.meta(job)
+    except pages_ai.AIError as exc:
+        raise _ai_error(exc)
+    out = {"slug": raw["slug"], "title": out["title"], "description": out["description"], "icon": out["icon"]}
+    return (f"Suggested for {raw['slug']}: title {out['title']!r}, icon {out['icon'] or '(none)'}, description "
+            f"{out['description']!r}. Nothing was changed: apply them with set_page_properties (icon) and "
+            "update_document (title) if the user wants them."), out
+
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 _PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"}},
@@ -626,5 +702,62 @@ PAGE_TOOLS: list[Tool] = [
                            ["id", "mime", "size", "slug", "markdown"]),
         annotations=_ann(False, False, False),
         handler=upload_page_image,
+    ),
+    Tool(
+        name="translate_page",
+        title="Translate a page",
+        description=("Translate a page into another language as a NEW page next to it, titled 'Title (Español)' "
+                     "and so on: same blocks, embeds, images and properties, in the same place (a sub-page stays "
+                     "inside the same parent and inherits its access). Only the text is translated; the "
+                     "structure is checked block by block before the page is created. The original page is not "
+                     "changed. Uses Markdrop's AI (Claude Haiku), which counts towards the user's AI limits. "
+                     "Give the user the returned url."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "language": {"type": "string", "minLength": 2, "maxLength": 40,
+                         "description": "The language to translate into, e.g. Spanish, French, Japanese."},
+        }, "required": ["document", "language"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": {"type": "string"},
+                            "language": {"type": "string"}, "source": {"type": "string"}},
+                           ["url", "markdrop_url", "slug", "title", "language", "source"]),
+        annotations=_ann(False, False, False),
+        handler=translate_page,
+    ),
+    Tool(
+        name="summarize_page",
+        title="Summarize a page",
+        description=("Write a TL;DR of a page as a callout titled Summary (':::note[Summary]' … ':::'), with "
+                     "Markdrop's AI. insert: true puts it at the top of the page (replacing an earlier Summary "
+                     "callout there); otherwise it is only returned. Counts towards the user's AI limits."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "insert": {"type": "boolean", "default": False,
+                       "description": "Add it at the top of the page (refused while someone is editing it)."},
+        }, "required": ["document"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "markdown": {"type": "string"},
+                            "inserted": {"type": "boolean"}, "trimmed": {"type": "boolean"},
+                            "rev": {"type": "integer"}},
+                           ["slug", "markdown", "inserted"]),
+        annotations=_ann(False, False, False),
+        handler=summarize_page,
+    ),
+    Tool(
+        name="suggest_page_meta",
+        title="Suggest a page's title and icon",
+        description=("Suggest a title, a one-sentence description and an emoji icon for a page from its "
+                     "content, with Markdrop's AI. Changes nothing; apply what the user accepts with "
+                     "set_page_properties (icon) or update_document (title). Counts towards the user's AI limits."),
+        scope=WRITE,
+        # It changes nothing, but it is an AI call: the stricter write rate limit applies.
+        writes=True,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        output_schema=_out({"slug": {"type": "string"}, "title": _NULLABLE_STR, "description": _NULLABLE_STR,
+                            "icon": _NULLABLE_STR}),
+        annotations=_ann(True, False, False),
+        handler=suggest_page_meta,
     ),
 ]

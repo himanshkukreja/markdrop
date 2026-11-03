@@ -265,6 +265,7 @@ def est_tokens(text: str) -> int:
 
 
 _TAG = re.compile(r"<(/?)\s*(untrusted|page_context|previous_turns)", re.I)
+_UNTAG = re.compile(r"&lt;(/?)(untrusted|page_context|previous_turns)", re.I)
 
 
 def neutral(text: str) -> str:
@@ -754,6 +755,20 @@ SUMMARY_CLOSE = "\n:::"
 def summary_body(text: str) -> str:
     lines = [ln for ln in clean(text).split("\n") if not re.match(r"^\s*:{2,}", ln) and not re.match(r"^\s*#", ln)]
     return "\n".join(lines).strip()
+
+
+_OLD_SUMMARY = re.compile(r"\A\s*:::note\[Summary\][ \t]*\n.*?\n:::[ \t]*(?:\n|\Z)", re.S)
+
+
+def with_summary(content: str, block: str) -> str:
+    """The page with the Summary callout at the top of its body (after the front matter), in place
+    of a Summary callout already there."""
+    from app.services import page_props
+
+    fm, body = page_props.split(content or "")
+    head = (content or "")[: len(content or "") - len(body)] if fm is not None else ""
+    body = _OLD_SUMMARY.sub("", body, count=1).lstrip("\n")
+    return f"{head}{block.strip()}\n\n{body}" if body.strip() else f"{head}{block.strip()}\n"
 
 
 def parse_meta(text: str) -> dict:
@@ -1464,6 +1479,9 @@ async def _translate_one(job: Job, chunk: str, lang: str, syntax: str) -> str:
         if stop == "refusal":
             raise AIError(422, "refused", "AI can't translate this page.")
         out = clean(raw, core)
+        if neutral(core) != core:
+            # The fragment went out with look-alike tags defused (wrap); put them back as written.
+            out = _UNTAG.sub(lambda m: f"<{m.group(1)}{m.group(2)}", out)
         if stop == "max_tokens":
             note = "it was cut off"
             continue
