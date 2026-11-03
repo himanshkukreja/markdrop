@@ -2,11 +2,11 @@
 title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
-updated: 2026-10-30
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, scopes, reference]
+updated: 2026-11-03
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, scopes, reference]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 26 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 28 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -80,6 +80,15 @@ Zipped websites can't be uploaded with `create_upload`; use [markdrop.in/upload]
 | `get_document_analytics` | read | How a document or file you own is doing: views, people, top sources and what the dashboard noticed. For video and audio: how many are still watching at 0:30, 25%, 50%, 75% and the end, where most leave, and playback health. For Markdown: how far readers get section by section and what they copy and click. For PDFs: how many reach each page. Returns a short summary you can quote. | `document`, `range` (`7d`, `30d` (default), `90d`, `all`) |
 
 Your own views are never counted, and views by members of the document's workspace are left out. See [What gets counted](/analytics/what-gets-counted).
+
+### Who's viewing
+
+| Tool | Permission | What it does | Main inputs |
+|---|---|---|---|
+| `get_viewers` | read | Who has a document or file open right now, as its page shows it: the owner, workspace members and people it was shared with by email by name, everyone else as "Anonymous Otter" and the like. Each with the section, page or video time they're on and whether they're active or away, plus the total. Works for any document you can open. | `document` |
+| `set_presence` | write | Turns **Show who's viewing** on or off for a document or file you own. | `document`, `show` (`true` or `false`) |
+
+`get_viewers` follows the same rules as the page: never an email address or account, only the count on an end-to-end encrypted document, and nothing when the owner has turned it off. Asking doesn't add you to the list. See [See who's viewing](/sharing/see-whos-viewing).
 
 ### Workspaces and folders
 

@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-10-30"
+    "x-markdrop-exported": "2026-11-03"
   },
   "paths": {
     "/api/v1/documents": {
@@ -3929,12 +3929,41 @@
         ],
         "summary": "Ai Status",
         "operationId": "ai_status_api_v1_docs_ai_status_get",
+        "parameters": [
+          {
+            "name": "site",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Site"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -6753,6 +6782,58 @@
         }
       }
     },
+    "/api/v1/documents/{slug}/access/presence": {
+      "put": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Set Presence",
+        "description": "Turn \"Show who's viewing\" on or off (the owner only, like re-sharing).\nOff: nobody on the page sees anyone, and pages stop saying where they are.",
+        "operationId": "set_presence_api_v1_documents__slug__access_presence_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresenceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/documents/{slug}/access/people": {
       "post": {
         "tags": [
@@ -7666,6 +7747,21 @@
             ],
             "title": "Your Email"
           },
+          "your_grant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "viewer",
+                  "editor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Your Grant"
+          },
           "can_manage": {
             "type": "boolean",
             "title": "Can Manage"
@@ -7714,6 +7810,11 @@
               }
             ],
             "title": "Expires At"
+          },
+          "show_presence": {
+            "type": "boolean",
+            "title": "Show Presence",
+            "default": true
           }
         },
         "type": "object",
@@ -7752,6 +7853,18 @@
               }
             ],
             "title": "Comment"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
           }
         },
         "type": "object",
@@ -8648,6 +8761,30 @@
               }
             ],
             "title": "Conversation Id"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
+          },
+          "access_token": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4096
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Token"
           }
         },
         "type": "object",
@@ -8909,6 +9046,28 @@
               }
             ],
             "title": "Host Field"
+          },
+          "value_field": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Field"
+          },
+          "extras": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Extras",
+            "default": []
           },
           "record_host": {
             "anyOf": [
@@ -9176,6 +9335,17 @@
             "title": "Views",
             "default": 0
           },
+          "rev": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rev"
+          },
           "is_password_protected": {
             "type": "boolean",
             "title": "Is Password Protected",
@@ -9409,6 +9579,28 @@
             "type": "integer",
             "title": "Access Epoch",
             "default": 0
+          },
+          "presence_ticket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Ticket"
+          },
+          "show_presence": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Presence"
           },
           "edit_secret": {
             "type": "string",
@@ -9524,6 +9716,17 @@
             "title": "Views",
             "default": 0
           },
+          "rev": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rev"
+          },
           "is_password_protected": {
             "type": "boolean",
             "title": "Is Password Protected",
@@ -9757,6 +9960,28 @@
             "type": "integer",
             "title": "Access Epoch",
             "default": 0
+          },
+          "presence_ticket": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presence Ticket"
+          },
+          "show_presence": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Presence"
           }
         },
         "type": "object",
@@ -9892,6 +10117,18 @@
               }
             ],
             "title": "Custom Expires At"
+          },
+          "base_rev": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Rev"
           }
         },
         "type": "object",
@@ -11888,6 +12125,18 @@
               }
             ],
             "title": "Comment"
+          },
+          "site": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site"
           }
         },
         "type": "object",
@@ -11913,6 +12162,20 @@
           "analytics_digest"
         ],
         "title": "PreferencesUpdate"
+      },
+      "PresenceUpdate": {
+        "properties": {
+          "show": {
+            "type": "boolean",
+            "title": "Show"
+          }
+        },
+        "type": "object",
+        "required": [
+          "show"
+        ],
+        "title": "PresenceUpdate",
+        "description": "The owner's \"Show who's viewing\" switch (services/viewers.py)."
       },
       "ReportRequest": {
         "properties": {
@@ -12759,6 +13022,11 @@
           "members_removed": {
             "type": "integer",
             "title": "Members Removed"
+          },
+          "docs_sites_deleted": {
+            "type": "integer",
+            "title": "Docs Sites Deleted",
+            "default": 0
           }
         },
         "type": "object",

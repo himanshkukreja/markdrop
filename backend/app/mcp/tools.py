@@ -39,7 +39,7 @@ from app.services import analytics
 from app.services import artifact as art_service
 from app.services import document as doc_service
 from app.services import file_uploads
-from app.services import live, r2
+from app.services import live, r2, viewers
 from app.services.doc_ref import heading_title
 
 settings = get_settings()
@@ -1076,6 +1076,85 @@ async def get_document_stats(ctx: Context, args: dict) -> tuple[str, dict]:
     if out["avg_read_depth"] is not None:
         summary += f", read {out['avg_read_depth']:.0f}% of the way on average"
     return summary + ".", out
+
+
+def _viewer_out(v: dict) -> dict:
+    """One entry of the page's who's-viewing list, as get_viewers returns it:
+    the name or "Anonymous <Animal>" the page shows, never an email, user id or picture."""
+    named = "name" in v
+    sec = v.get("sec") if isinstance(v.get("sec"), dict) else None
+    return {
+        "name": v["name"] if named else f"Anonymous {v.get('animal') or 'viewer'}",
+        "anonymous": not named,
+        "owner": bool(v.get("owner")),
+        "state": v.get("state") if v.get("state") in ("active", "away") else "active",
+        "section": sec.get("label") if sec else None,
+        "you": bool(v.get("you")),
+    }
+
+
+def _people_are(n: int) -> str:
+    return "1 person is" if n == 1 else f"{n} people are"
+
+
+async def get_viewers(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Who has the document open right now: the snapshot its page shows, under
+    the page's rules (services/viewers.py decides who is named). The caller is
+    only looking, so they are not added to the list."""
+    from app.services.document import _doc_from_mongo
+
+    raw = await load_for(ctx, args["document"], "read", "read")
+    snap = viewers.observe(raw["slug"], str(raw["_id"]), enabled=raw.get("show_presence") is not False,
+                           encrypted=bool(raw.get("encrypted")), user_id=ctx.user.id)
+    urls_out = await url_pair(ctx, raw)
+    name = display_title(_doc_from_mongo(raw))
+    where = f"{name} ({urls_out['url']})" if name else urls_out["url"]
+    out: dict[str, Any] = {**urls_out, "slug": raw["slug"]}
+    if not snap["on"]:
+        out.update(presence="off", total=None, viewers=[])
+        return (f"Presence is off for this document: the owner of {where} turned off "
+                "\"Show who's viewing\", so nobody on it is shown, not even a count."), out
+    total = int(snap["total"])
+    if snap.get("count_only"):
+        out.update(presence="count_only", total=total, viewers=[])
+        if not total:
+            return f"Nobody is viewing {where} right now.", out
+        return (f"{_people_are(total)} viewing {where} right now. It is end-to-end encrypted, so only "
+                "the count is shown, never names or sections."), out
+    listed = [_viewer_out(v) for v in snap["viewers"]]
+    out.update(presence="on", total=total, viewers=listed)
+    if not total:
+        return f"Nobody is viewing {where} right now.", out
+    lines = []
+    for v in listed:
+        notes = [n for n in ("owner" if v["owner"] else None, "you" if v["you"] else None,
+                             "away" if v["state"] == "away" else None) if n]
+        line = f"- {v['name']}" + (f" ({', '.join(notes)})" if notes else "")
+        if v["section"]:
+            line += f": {v['section']}"
+        lines.append(line)
+    if total > len(listed):
+        lines.append(f"- and {total - len(listed)} more")
+    return f"{_people_are(total)} viewing {where} right now:\n" + "\n".join(lines), out
+
+
+async def set_presence(ctx: Context, args: dict) -> tuple[str, dict]:
+    """The owner's "Show who's viewing" switch (PUT /documents/{slug}/access/presence)."""
+    raw = await load_for(ctx, args["document"], "set_resharing", "turn who's viewing on or off for")
+    show = bool(args["show"])
+    await ctx.db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"show_presence": show}})
+    viewers.set_enabled(raw.get("slug"), show)
+    out = {**await url_pair(ctx, raw), "slug": raw["slug"], "show_presence": show}
+    if show:
+        text = (f"Who's viewing is on for {out['url']}: people on it see each other "
+                "(names for you, workspace members and people you shared it with; everyone else "
+                "as Anonymous <Animal>).")
+        if raw.get("encrypted"):
+            text += " It is end-to-end encrypted, so only the count is shown."
+    else:
+        text = (f"Who's viewing is off for {out['url']}: nobody on it is shown, not even a count, "
+                "and pages stop reporting where readers are.")
+    return text, out
 
 
 _RANGE_WORDS = {"7d": "the last 7 days", "30d": "the last 30 days", "90d": "the last 90 days", "all": "all time"}
@@ -2143,6 +2222,69 @@ TOOLS: list[Tool] = [
         }),
         annotations=_ann(True, False, True),
         handler=get_document_analytics,
+    ),
+    Tool(
+        name="get_viewers",
+        title="Who's viewing",
+        description=(
+            "Who has a document or file open right now (live presence), as its page shows it: the "
+            "owner, workspace members and people it was shared with by email appear by name, everyone "
+            "else (and anyone who chose 'show me as anonymous') as 'Anonymous <Animal>'; each with "
+            "the section, page or video time they are on and whether they are active or away, plus "
+            "the total. Works for any document the user can open. An end-to-end encrypted document "
+            "gives only the count; if its owner turned 'Show who's viewing' off, nothing. Never "
+            "returns emails or account ids, and asking doesn't add the user to the list."
+        ),
+        scope=READ,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        output_schema=_out(
+            {
+                **_URL_PROPS, "slug": {"type": "string"},
+                "presence": {"type": "string", "enum": ["on", "off", "count_only"],
+                             "description": ("'off': the owner turned 'Show who's viewing' off (no "
+                                             "count either); 'count_only': end-to-end encrypted.")},
+                "total": {"type": ["integer", "null"],
+                          "description": "People on it now (a person's tabs count once); null when off."},
+                "viewers": {"type": "array", "description": (
+                    f"Up to {viewers.MAX_LISTED} entries: named people first, active before away."),
+                    "items": _out({
+                        "name": {"type": "string", "description": "Their name, or 'Anonymous <Animal>'."},
+                        "anonymous": {"type": "boolean"},
+                        "owner": {"type": "boolean", "description": "The document's owner."},
+                        "state": {"type": "string", "enum": ["active", "away"],
+                                  "description": "'away': their tab is in the background."},
+                        "section": {**_NULLABLE_STR, "description": (
+                            "Where they are: a heading, 'Page 3' or 'At 2:30'.")},
+                        "you": {"type": "boolean", "description": "One of the user's own open tabs."},
+                    })},
+            },
+            ["url", "markdrop_url", "slug", "presence", "total", "viewers"],
+        ),
+        annotations=_ann(True, False, True),
+        handler=get_viewers,
+    ),
+    Tool(
+        name="set_presence",
+        title="Turn who's viewing on or off",
+        description=(
+            "Turn 'Show who's viewing' on or off for one of the user's own documents or files (owner "
+            "only; on by default). Off: nobody on the page sees anyone, not even a count, and pages "
+            "stop reporting where readers are. Use get_viewers to see who is on it."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "document": _DOC_REF,
+                "show": {"type": "boolean", "description": "true to show who's viewing, false to hide it."},
+            },
+            "required": ["document", "show"],
+        },
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "show_presence": {"type": "boolean"}},
+                           ["url", "markdrop_url", "slug", "show_presence"]),
+        annotations=_ann(False, False, True),
+        handler=set_presence,
     ),
     Tool(
         name="search",

@@ -2,7 +2,7 @@
 title: Connect an AI app to Markdrop
 nav: Connect an AI app
 description: Add Markdrop's hosted MCP server to Claude, ChatGPT, Claude Code, Cursor or VS Code, approve it on Markdrop, and manage or disconnect it later.
-updated: 2026-10-30
+updated: 2026-11-03
 prerequisites: [/get-started/accounts]
 keywords: [mcp, connector, claude, chatgpt, cursor, vs code, copilot, windsurf, oauth, connected apps, remote server]
 ---
@@ -105,8 +105,8 @@ The approval link works once, for 10 minutes. If it has expired, start again fro
 
 | Permission | On the approval screen | Lets the app |
 |---|---|---|
-| `documents:read` | Read your documents | Read titles, contents, links and view counts; list and search; check files, uploads, shares and workspaces. |
-| `documents:write` | Publish and change documents | Publish, update, change access to and delete documents and files; upload and replace files; file documents in workspaces. |
+| `documents:read` | Read your documents | Read titles, contents, links and view counts; list and search; check files, uploads, shares and workspaces; see who's viewing. |
+| `documents:write` | Publish and change documents | Publish, update, change access to and delete documents and files; upload and replace files; file documents in workspaces; turn who's viewing on or off. |
 
 Each tool needs one of them; [MCP tools](/ai/tools) lists which. If an app calls a tool it wasn't given permission for, it is asked to reconnect and approve the missing permission.
 
@@ -119,6 +119,7 @@ Say it the way you would to a colleague:
 - "Make my Q3 report private."
 - "How many people read my launch notes?"
 - "Where do people stop watching the demo video?"
+- "Who's reading the launch notes right now?"
 - "Put the onboarding guide in Acme's guides/setup folder."
 - "Is this share link still working? markdrop.in/share/4f9a2c71e0"
 

@@ -312,6 +312,13 @@
       "description": "Whether editors may share the document with more people.",
       "example": { "allow": false }
     },
+    "PUT /api/v1/documents/{slug}/access/presence": {
+      "title": "Show who's viewing",
+      "description": "Turns the document's **Show who's viewing** on or off. Owner only. Off, nobody on the page sees anyone, not even a count.",
+      "mcp": "set_presence",
+      "example": { "show": false },
+      "guide": { "label": "See who's viewing", "href": "/sharing/see-whos-viewing" }
+    },
     "POST /api/v1/documents/{slug}/access/people": {
       "title": "Share with a person",
       "description": "Gives one person access by email, and optionally emails them. If the email fails, the access stays: the response says whether it was sent.",
