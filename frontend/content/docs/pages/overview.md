@@ -2,7 +2,7 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-03
-keywords: [page, pages, block editor, notion, blocks, slash menu, editor, autosave, lock, cover, icon]
+keywords: [page, pages, block editor, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -46,10 +46,22 @@ The **⋯** menu next to **Done** has:
 
 - **Full width**, **Small text**, and the font: **Default**, **Serif** or **Mono**.
 - **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
-- **Copy link**, **Add a sub-page**, **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
+- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
 - The word count.
 
 These options are saved in the page's Markdown, so they travel with it. See [Page Markdown reference](/pages/markdown-reference).
+
+## Duplicate a page
+
+Choose **Duplicate** from the page's **⋯** menu while editing, from **More actions** while reading, or from the **⋯** next to a page in the page tree. Markdrop makes a copy beside it, in the same parent, folder and workspace, called "Title (1)" (then "(2)", and so on), and opens it in the editor.
+
+The copy has the same blocks, icon, cover and page options, and its own copies of the page's images. Its sub-pages are copied too, and links to them point at the copies. A sub-page with its own access isn't copied, because its copy would follow the new page's access; the message names it.
+
+If an image can't be copied, the copy keeps the rest, shows that image as missing, and the message says which one. Upload it again in the copy.
+
+The copy starts with the access of the place it's in, like any new page. It doesn't copy the original's sharing, history, views or analytics.
+
+To move a page somewhere else, see [Move a page](/pages/sub-pages#move-a-page).
 
 ## Saving
 
