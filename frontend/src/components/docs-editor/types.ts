@@ -284,4 +284,10 @@ export interface DocsEditorProps {
   pages?: PagesEditorHost;
   /** Images may have a dark-theme version (default true; a page's images don't). */
   darkImages?: boolean;
+  /**
+   * The Visual editor is ready (its TipTap editor), or gone (null: Markdown mode, unmount). A page
+   * uses it to swap its server-rendered body for the editor without a flash, and for its phone
+   * toolbar (undo, redo, format, the block menu).
+   */
+  onEditor?: (editor: import("@tiptap/react").Editor | null) => void;
 }

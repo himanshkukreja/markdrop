@@ -1,23 +1,26 @@
 "use client";
 
 /**
- * A page open in the block editor (a document with `editor: "blocks"`): the Guides editor
- * (components/docs-editor) hosted by a document, with a Notion-style head (cover, icon, title) and
- * the page's options.
+ * A page for the people who can edit it (a document with `editor: "blocks"`): always editable, no
+ * Edit / Done. The Guides editor (components/docs-editor) in the page's frame (PageChrome
+ * PageFrame): the sticky top bar (breadcrumbs, who's viewing, Saved / Saving…, Share, ⋯), the head
+ * (cover, icon, title) and the body, laid out exactly like the reader's page.
  *
  *   upload       → POST /documents/{slug}/assets, written as ![alt](asset:<id>)
  *   resolveAsset → the page's per-viewer asset URLs (a just-uploaded image shows from memory)
  *   pages        → the embed / mention picker (your files, the page's workspace) and the preview,
  *                  resolved for the author through POST /documents/{slug}/embeds
- *   readOnly     → while someone else holds the edit lock, or the page is locked
+ *   read only    → while someone else holds the edit lock, or the page is locked
  *
- * One editor at a time: the lock is taken on open and heartbeated (usePageEditSession); autosave
- * runs 2 s after the last change with `base_rev`, and every change is kept in this browser until the
- * server has it (restored after a crash or a reload); an AI app's append_blocks arrives live and
- * goes in at the end without disturbing the caret.
+ * One editor at a time (usePageEditSession): the lock is taken on the first key, click or change
+ * and let go of after a few idle minutes; autosave runs 2 s after the last change with `base_rev`,
+ * and every change is kept in this browser until the server has it (restored after a crash or a
+ * reload); an AI app's append_blocks arrives live and goes in at the end without disturbing the
+ * caret. On phones, a bottom toolbar (PagePhoneBar) and bottom sheets.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, Dropdown, Icon, IconButton, Spinner, copyText, useToast, type MenuEntry } from "@/components/ui";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { Editor } from "@tiptap/react";
+import { Alert, Button, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { DocsEditor } from "@/components/docs-editor";
 import { PAGE_BLOCKS } from "@/components/docs-editor/blocks";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
@@ -28,14 +31,33 @@ import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
 import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, setEditor, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
-import { PageBreadcrumbs, type PageAddressing } from "./PageChrome";
+import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
+import { PagePhoneBar } from "./PagePhoneBar";
 import { readPageProps, type PageFont, type PageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
-import { usePageEditSession, type SaveState } from "./usePageEditSession";
+import { usePageEditSession } from "./usePageEditSession";
 import { usePageAssets } from "./usePageEmbeds";
 import "./pages.css";
 import "./page-blocks.css";
+
+/** What the document view puts around the page (the same for readers). */
+export interface PageChromeSlots {
+  /** Who's viewing (DocPresence). */
+  presence?: ReactNode;
+  /** Share (owners and resharers); without it, Copy link. */
+  onShare?: (() => void) | null;
+  shareUrl?: string;
+  onCopied?: () => void;
+  /** The document's own ⋯ entries (Export PDF, Details, …), after the page's. */
+  menu?: MenuEntry[];
+  /** Under the title (backlinks). */
+  below?: ReactNode;
+  /** Under the body (Pages inside, the colophon). */
+  footer?: ReactNode;
+  /** Notices at the top of the column (Save to account, …). */
+  notices?: ReactNode;
+}
 
 export interface PageEditorProps {
   slug: string;
@@ -55,10 +77,12 @@ export interface PageEditorProps {
   updatedAt?: string | null;
   /** The document's live socket (useDocumentViewer): `changed` / `appended`. */
   subscribeLive?: (fn: (msg: Record<string, unknown>) => void) => () => void;
-  /** Saved: the viewer shows this version when the editor closes. */
+  /** Saved: the viewer keeps this version (the tab title, a reader's view if editing stops). */
   onSaved?: (doc: PageDocument) => void;
-  /** Back to reading, with what's on screen. */
-  onDone: (latest: { title: string; content: string }) => void;
+  /** The editor is on screen (the server-rendered page can go). */
+  onReady?: () => void;
+  /** Someone else holds the edit lock, as who's viewing says (their name): read only at once. */
+  othersEditing?: string | null;
   /** "Add a sub-page" (signed-in editors). */
   onAddSubPage?: (() => void) | null;
   /** Delete the page (the viewer asks what happens to its sub-pages). */
@@ -67,16 +91,7 @@ export interface PageEditorProps {
   onMoveTo?: (() => void) | null;
   /** "Duplicate" (after the latest edits are saved). */
   onDuplicate?: (() => void) | null;
-  /** Sticky bars above the editor, in px (the site header). */
-  stickyTop?: () => number;
-}
-
-function SaveStatus({ save, online }: { save: SaveState; online: boolean }) {
-  if (!online) return <span className="pb-editor__status" role="status"><Icon name="wifiOff" size={14} aria-hidden /> Offline, retrying</span>;
-  if (save.state === "saving") return <span className="pb-editor__status"><Spinner size={12} /> Saving…</span>;
-  if (save.state === "dirty") return <span className="pb-editor__status">Unsaved</span>;
-  if (save.state === "error") return <span className="pb-editor__status text-danger" role="status">Not saved</span>;
-  return <span className="pb-editor__status"><Icon name="check" size={14} aria-hidden /> Saved</span>;
+  chrome?: PageChromeSlots;
 }
 
 function words(md: string): number {
@@ -112,13 +127,32 @@ function readDraft(slug: string): Draft | null {
   }
 }
 
-export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onDone, onAddSubPage, onDelete, onMoveTo, onDuplicate, stickyTop }: PageEditorProps) {
+const when = (t: string | number) => new Date(t).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+/** Default / Serif / Mono, as three "Ag" tiles (the ⋯ menu's first row). */
+function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (f: PageFont) => void; disabled?: boolean }) {
+  const fonts: Array<[PageFont, string]> = [["default", "Default"], ["serif", "Serif"], ["mono", "Mono"]];
+  return (
+    <div className="pb-fonts" role="radiogroup" aria-label="Font">
+      {fonts.map(([f, label]) => (
+        <button key={f} type="button" role="radio" aria-checked={value === f} disabled={disabled} className={`pb-fonts__tile pb-fonts__tile--${f} md-focus`} onClick={() => onChange(f)}>
+          <span className="pb-fonts__ag" aria-hidden>Ag</span>
+          <span className="pb-fonts__name">{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {} }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
+  const phone = usePhone();
   const [title, setTitle] = useState(initialTitle ?? "");
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<EditorMode>("visual");
   const api = useRef<DocsEditorApi | null>(null);
+  const [editor, setEditorInstance] = useState<Editor | null>(null);
   const local = useRef(new Map<string, string>());
   const [, setLocalTick] = useState(0);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
@@ -153,7 +187,9 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   });
   const props = useMemo(() => readPageProps(content), [content]);
   const lockedForMe = props.locked && !isOwner;
-  const readOnly = session.lock.kind !== "mine" || lockedForMe;
+  // Who's viewing already says someone else is editing: read only before anyone clicks.
+  const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
+  const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
 
   const keepDraft = useCallback((next: { title?: string; content?: string }) => {
     try {
@@ -250,10 +286,33 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   );
   const setProps = (patch: Partial<PageProps>) => setBody(writePageProps(content, patch));
 
-  async function done() {
-    await session.flush();
-    onDone({ title, content });
-  }
+  // The editor is on screen: tell the view once (it drops the server-rendered page).
+  const readyOnce = useRef(false);
+  const onEditor = useCallback(
+    (e: Editor | null) => {
+      setEditorInstance(e);
+      if (e && !readyOnce.current) {
+        readyOnce.current = true;
+        onReady?.();
+      }
+    },
+    [onReady],
+  );
+  // Markdown mode has no visual editor to wait for.
+  useEffect(() => {
+    if (mode === "markdown" && !readyOnce.current) {
+      readyOnce.current = true;
+      onReady?.();
+    }
+  }, [mode, onReady]);
+
+  // A key, a click or a focus in the head or the body takes the edit lock (not the top bar).
+  const onActivity = (e: React.SyntheticEvent) => {
+    if (readOnly) return;
+    const t = e.target as Element | null;
+    if (!t || t.closest(".pb-barwrap")) return;
+    session.activity();
+  };
 
   async function toClassic() {
     setSwitching(true);
@@ -268,44 +327,113 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
     }
   }
 
-  const fontItem = (f: PageFont, label: string): MenuEntry => ({ label: `${props.font === f ? "✓ " : ""}${label}`, onClick: () => setProps({ font: f }), disabled: readOnly });
   const menu: MenuEntry[] = [
-    { label: props.fullWidth ? "Full width: on" : "Full width: off", icon: "expand", onClick: () => setProps({ fullWidth: !props.fullWidth }), disabled: readOnly },
-    { label: props.smallText ? "Small text: on" : "Small text: off", icon: "type", onClick: () => setProps({ smallText: !props.smallText }), disabled: readOnly },
-    { header: "Font", separated: true },
-    fontItem("default", "Default"),
-    fontItem("serif", "Serif"),
-    fontItem("mono", "Mono"),
+    { custom: <FontTiles value={props.font} onChange={(f) => setProps({ font: f })} disabled={readOnly} /> },
+    {
+      custom: (
+        <div className="pb-toggles">
+          <Switch label="Small text" checked={props.smallText} disabled={readOnly} onChange={() => setProps({ smallText: !props.smallText })} />
+          <Switch label="Full width" checked={props.fullWidth} disabled={readOnly} onChange={() => setProps({ fullWidth: !props.fullWidth })} />
+        </div>
+      ),
+      separated: true,
+    },
     ...(isOwner ? [{ label: props.locked ? "Unlock page" : "Lock page", icon: "lock", description: props.locked ? "Anyone who can edit can change it again" : "Only you and workspace admins can edit", onClick: () => setProps({ locked: !props.locked }), separated: true }] : []),
     { label: "Copy link", icon: "link", separated: !isOwner, onClick: () => void copyText(url ?? window.location.href.split("?")[0]).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
     ...(onAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: onAddSubPage }] : []),
     ...(onMoveTo ? [{ label: "Move to…", icon: "arrowRight", onClick: onMoveTo }] : []),
     ...(onDuplicate ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => void session.flush().then(onDuplicate, onDuplicate) }] : []),
-    { label: mode === "visual" ? "Edit as Markdown" : "Edit with blocks", icon: "code", onClick: () => setMode(mode === "visual" ? "markdown" : "visual") },
+    { label: mode === "visual" ? "Edit as Markdown" : "Edit with blocks", icon: "code", onClick: () => setMode(mode === "visual" ? "markdown" : "visual"), separated: true },
     { label: "Open in the classic editor", icon: "lines", description: "The same Markdown, in a text editor", onClick: () => void toClassic(), disabled: switching || readOnly },
+    ...(chrome.menu ?? []),
     ...(onDelete ? [{ label: "Delete page", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
-    { header: <span className="pb-meta">{words(content).toLocaleString()} words{updatedAt ? ` · edited ${new Date(updatedAt).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : ""}</span>, separated: true },
+    { header: <span className="pb-meta">{words(content).toLocaleString()} words{updatedAt ? ` · edited ${when(updatedAt)}` : ""}</span>, separated: true },
   ];
 
-  const lock = session.lock;
   const layout = [props.smallText && "pb-small", props.font !== "default" && `pb-font-${props.font}`].filter(Boolean).join(" ");
-  return (
-    <div className={`pb-editor ${layout}`} data-full={props.fullWidth ? "" : undefined}>
-      <div className="pb-editor__bar no-print">
-        <PageBreadcrumbs crumbs={crumbs} title={title || initialTitle} addressing={addressing} className="min-w-0 flex-1" />
-        {!crumbs.length && <span className="flex-1" />}
-        {props.locked && <span className="pb-editor__status"><Icon name="lock" size={14} aria-hidden /> Locked</span>}
-        {lock.kind === "mine" && !lockedForMe ? <SaveStatus save={session.save} online={online} /> : lock.kind === "acquiring" ? <span className="pb-editor__status"><Spinner size={12} /> Opening…</span> : null}
-        <Dropdown aria-label="Page options" align="right" minWidth={280} trigger={<IconButton icon="more" label="Page options" size="sm" variant="ghost" />} items={menu} />
-        <Button variant="primary" size="sm" iconLeft="check" onClick={() => void done()}>
-          Done
-        </Button>
-      </div>
 
+  const banner =
+    lock.kind === "theirs" ? (
+      <PageBanner icon="edit">
+        <strong className="ph-mask">{lock.name ?? "Someone else"}</strong> is editing — you&apos;ll be able to edit when they&apos;re done.
+        {lock.lost ? " What you typed is still on screen and saves once it's yours again." : ""}
+      </PageBanner>
+    ) : lock.kind === "readonly" ? (
+      <PageBanner icon="lock">{lock.message}</PageBanner>
+    ) : lockedForMe ? (
+      <PageBanner icon="lock">This page is locked by its owner, so it can&apos;t be edited.</PageBanner>
+    ) : session.conflict ? (
+      <PageBanner
+        icon="alert"
+        tone="warn"
+        actions={
+          <>
+            <Button size="sm" variant="secondary" onClick={() => void session.resolveConflict("theirs")}>Load the latest</Button>
+            <Button size="sm" variant="ghost" onClick={() => void session.resolveConflict("mine")}>Keep mine</Button>
+          </>
+        }
+      >
+        Someone saved a newer version while you were editing. Load theirs (your unsaved changes are dropped) or keep yours.
+      </PageBanner>
+    ) : session.save.state === "error" && online ? (
+      <PageBanner icon="alert" tone="warn" actions={<Button size="sm" variant="secondary" onClick={session.retry}>Try again</Button>}>
+        {session.save.message} Your changes are kept in this browser until they&apos;re saved.
+      </PageBanner>
+    ) : null;
+
+  const status = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe ? null : <SaveIndicator save={session.save} online={online} />;
+
+  return (
+    <PageFrame
+      layout={layout}
+      full={props.fullWidth}
+      onKeyDownCapture={onActivity}
+      onPointerDownCapture={onActivity}
+      onFocusCapture={onActivity}
+      bar={
+        <PageTopBar
+          crumbs={crumbs}
+          title={title || initialTitle}
+          icon={props.icon}
+          resolve={resolveAsset}
+          addressing={addressing}
+          presence={chrome.presence}
+          status={status}
+          onShare={chrome.onShare}
+          shareUrl={chrome.shareUrl ?? url}
+          onCopied={chrome.onCopied}
+          menu={menu}
+          banner={banner}
+        />
+      }
+      head={
+        <PageHead
+          title={title}
+          props={props}
+          resolve={resolveAsset}
+          below={chrome.below}
+          edit={{
+            readOnly,
+            upload,
+            onProps: setProps,
+            onTitle: (t) => {
+              setTitle(t);
+              session.update({ title: t });
+              keepDraft({ title: t });
+            },
+            onEnter: () => api.current?.focusStart(),
+          }}
+        />
+      }
+      footer={chrome.footer}
+      data-editing=""
+    >
+      {chrome.notices}
       {draft && (
         <Alert
           tone="info"
           title="Unsaved changes from this browser"
+          className="pb-notice"
           actions={
             <>
               <Button size="sm" variant="secondary" onClick={() => { setTitle(draft.title); session.update({ title: draft.title }); setBody(draft.content); setDraft(null); }}>Restore them</Button>
@@ -313,61 +441,9 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
             </>
           }
         >
-          This page was being edited here on {new Date(draft.at).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} and the server never confirmed those changes.
+          This page was being edited here on {when(draft.at)} and the server never confirmed those changes.
         </Alert>
       )}
-      {lock.kind === "theirs" && (
-        <Alert tone="warning" icon="lock" title={`${lock.name ?? "Someone"} is editing — read only`} live>
-          {lock.lost ? "They took over this page; what you typed is still on screen. " : ""}
-          You see their changes as they save. You can edit again when they finish.
-        </Alert>
-      )}
-      {lock.kind === "readonly" && (
-        <Alert tone="warning" icon="lock" title="Read only">
-          {lock.message}
-        </Alert>
-      )}
-      {lockedForMe && lock.kind === "mine" && (
-        <Alert tone="info" icon="lock" title="This page is locked">
-          Its owner locked it, so it can't be edited. Ask them to unlock it.
-        </Alert>
-      )}
-      {session.conflict && (
-        <Alert
-          tone="warning"
-          title="This page changed"
-          actions={
-            <>
-              <Button size="sm" variant="secondary" onClick={() => void session.resolveConflict("theirs")}>Load the latest</Button>
-              <Button size="sm" variant="ghost" onClick={() => void session.resolveConflict("mine")}>Keep mine</Button>
-            </>
-          }
-        >
-          Someone saved a newer version while you were editing. Load theirs (your unsaved changes are dropped) or keep yours (theirs is replaced).
-        </Alert>
-      )}
-      {session.save.state === "error" && !session.conflict && lock.kind === "mine" && online && (
-        <Alert tone="danger" actions={<Button size="sm" variant="secondary" onClick={session.retry}>Try again</Button>}>
-          {session.save.message} Your changes are kept in this browser until they're saved.
-        </Alert>
-      )}
-
-      <PageHead
-        title={title}
-        props={props}
-        resolve={resolveAsset}
-        edit={{
-          readOnly,
-          upload,
-          onProps: setProps,
-          onTitle: (t) => {
-            setTitle(t);
-            session.update({ title: t });
-            keepDraft({ title: t });
-          },
-          onEnter: () => api.current?.focusStart(),
-        }}
-      />
       {empty && !readOnly && mode === "visual" && (
         <div className="pb-empty no-print" aria-label="Start this page">
           <span>Press “/” for commands, or start with</span>
@@ -379,7 +455,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
         </div>
       )}
       {/* ph-no-capture: the page being written is never recorded (the editor masks itself too). */}
-      <div className="ph-no-capture">
+      <div className="ph-no-capture pb-editor">
         <DocsEditor
           value={content}
           onChange={setBody}
@@ -395,12 +471,14 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
           pages={pages}
           darkImages={false}
           apiRef={api}
-          stickyTop={stickyTop}
+          onEditor={onEditor}
+          stickyTop={() => document.querySelector(".pb-barwrap")?.getBoundingClientRect().bottom ?? 44}
           aria-label="Page content"
           autoFocus={empty}
         />
       </div>
-    </div>
+      {phone && <PagePhoneBar editor={editor} readOnly={readOnly} />}
+    </PageFrame>
   );
 }
 

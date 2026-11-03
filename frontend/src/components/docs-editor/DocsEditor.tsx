@@ -191,6 +191,7 @@ export function DocsEditor({
   blocks,
   pages,
   darkImages,
+  onEditor,
 }: DocsEditorProps) {
   const [own, setOwn] = useState<EditorMode>("visual");
   const mode = modeProp ?? own;
@@ -218,7 +219,12 @@ export function DocsEditor({
   const visualRef = useRef(visual);
   visualRef.current = visual;
 
-  const onReady = useCallback((h: VisualHandle | null) => setVisual(h), []);
+  const onEditorRef = useRef(onEditor);
+  onEditorRef.current = onEditor;
+  const onReady = useCallback((h: VisualHandle | null) => {
+    setVisual(h);
+    onEditorRef.current?.(h?.editor ?? null);
+  }, []);
 
   const openFind = useCallback(() => {
     let text = "";
