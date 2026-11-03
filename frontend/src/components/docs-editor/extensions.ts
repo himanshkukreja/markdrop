@@ -7,6 +7,7 @@ import type { Node as PMNode } from "@tiptap/pm/model";
 import { ReactNodeViewRenderer, type ReactNodeViewProps } from "@tiptap/react";
 import type { ComponentType } from "react";
 import { Placeholder } from "@tiptap/extensions";
+import { columnResizing } from "@tiptap/pm/tables";
 import { baseExtensions, withOverrides } from "./core/schema.mjs";
 import { CalloutView, CardView, CardsView, DetailsView, PrivateView, StepsView, TabsView } from "./views/containers";
 import { FigureView, LeafView } from "./views/media";
@@ -150,7 +151,15 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
   const page = !!emoji;
   const base = withOverrides(baseExtensions(), overrides as unknown as Record<string, Record<string, unknown>>).map((e) =>
     // Pages: table columns resize by dragging their edges (widths are written as `{widths=…}`).
-    page && e.name === "table" ? (e as unknown as { configure: (o: Record<string, unknown>) => AnyExtension }).configure({ resizable: true, allowTableNodeSelection: true, cellMinWidth: 64, lastColumnResizable: false }) : e,
+    // (The resizing plugin is added always: a page opens read only until its edit lock is taken,
+    // and TipTap only adds it to an editor that is editable when created; it checks itself.)
+    page && e.name === "table"
+      ? (e as unknown as { extend: (o: Record<string, unknown>) => AnyExtension }).extend({
+          addProseMirrorPlugins(this: { parent?: () => unknown[] }) {
+            return [columnResizing({ handleWidth: 6, cellMinWidth: 64, defaultCellMinWidth: 64, lastColumnResizable: false, View: null }), ...((this.parent?.() as unknown[]) ?? []).filter((pl) => !(pl as { spec?: { key?: unknown } }).spec?.key || !String((pl as { spec: { key: { key?: string } } }).spec.key.key ?? "").startsWith("tableColumnResizing"))];
+          },
+        })
+      : e,
   );
   return [
     ...base,

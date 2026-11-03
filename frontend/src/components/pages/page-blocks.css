@@ -129,6 +129,7 @@
 /* ── Block anchors: the block a link points to flashes when the page opens ─────────────────── */
 @keyframes pb-flash { 0%, 30% { background-color: color-mix(in srgb, var(--accent) 26%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 26%, transparent); } 100% { background-color: transparent; box-shadow: 0 0 0 4px transparent; } }
 .pb-flash { animation: pb-flash 2.2s ease-out; border-radius: var(--radius-sm, 4px); }
+.dxe-flash { position: absolute; z-index: 2; pointer-events: none; }
 @media (prefers-reduced-motion: reduce) { .pb-flash { animation-duration: 0.01s; outline: 2px solid var(--accent); } }
 
 /* ── Full-screen image ───────────────────────────────────────────────────────────────────── */

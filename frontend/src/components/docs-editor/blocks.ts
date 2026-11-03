@@ -322,7 +322,8 @@ export function filterItems(query: string, items: BlockItem[] = BLOCK_ITEMS): Bl
   const scored = items.map((it) => {
     const label = it.label.toLowerCase();
     const words = `${label} ${it.keywords}`.split(/\s+/);
-    const score = label.startsWith(q) ? 0 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;
+    // The label first ("/columns" → "2 columns" before Table, whose keywords say "columns").
+    const score = label.startsWith(q) ? 0 : label.split(/\s+/).some((w) => w.startsWith(q)) ? 0.5 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;
     return { it, score };
   }).filter((x) => x.score < 3);
   return scored.sort((a, b) => a.score - b.score).map((x) => x.it);

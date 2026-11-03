@@ -103,17 +103,18 @@ export function BlockMarquee({ editor, container }: { editor: Editor; container:
     const wrap = container.current;
     if (!wrap) return;
     const view = editor.view;
-    const root = (wrap.closest(".pb-editor") as HTMLElement | null) ?? wrap;
+    const root = document;
     const startOk = (e: MouseEvent) => {
       if (e.button !== 0 || e.shiftKey || !editor.isEditable) return false;
-      const t = e.target as HTMLElement;
-      if (t.closest("button, input, textarea, select, a, [role=menu], [role=dialog], .dxe-handle, .dxe-selbar")) return false;
+      const t = e.target as HTMLElement | null;
+      if (!t || !(t instanceof HTMLElement)) return false;
+      if (t.closest("button, input, textarea, select, a, label, [role=menu], [role=dialog], [role=toolbar], header, nav, aside, .dxe-handle, .dxe-selbar, .pb-head, .pb-editor__bar")) return false;
       // Inside the text column only on the editor's own padding, not on a block.
       if (view.dom.contains(t) && t !== view.dom) return false;
-      if (!wrap.contains(t) && !(t === root || t.classList.contains("pb-editor"))) return false;
-      // Beside the content, horizontally (the margins), or below the last block.
+      // In the margins beside the blocks (the same rows as the editor), or on its padding.
       const r = view.dom.getBoundingClientRect();
-      return e.clientX < r.left || e.clientX > r.right || t === view.dom || e.clientY > r.bottom;
+      if (e.clientY < r.top - 24 || e.clientY > r.bottom + 40) return false;
+      return e.clientX < r.left || e.clientX > r.right || t === view.dom;
     };
     let start: { x: number; y: number } | null = null;
     let moved = false;
@@ -232,10 +233,24 @@ export function useEditorAnchor(editor: Editor | null) {
       const dom = editor.view.nodeDOM(pos);
       if (!(dom instanceof HTMLElement)) return;
       dom.scrollIntoView({ block: "center", behavior: "smooth" });
-      dom.classList.remove("pb-flash");
-      void dom.offsetWidth;
-      dom.classList.add("pb-flash");
-      window.setTimeout(() => dom.classList.remove("pb-flash"), 2400);
+      // An overlay, not a class on the block: ProseMirror owns the block's DOM and would undo it.
+      const host = dom.closest(".dxe-visual") as HTMLElement | null;
+      if (!host) return;
+      host.querySelector(":scope > .dxe-flash")?.remove();
+      const flash = document.createElement("div");
+      flash.className = "dxe-flash pb-flash";
+      const place = () => {
+        const r = dom.getBoundingClientRect();
+        const h = host.getBoundingClientRect();
+        Object.assign(flash.style, { top: `${r.top - h.top}px`, left: `${r.left - h.left}px`, width: `${r.width}px`, height: `${r.height}px` });
+      };
+      place();
+      host.append(flash);
+      const t2 = window.setInterval(place, 100);
+      window.setTimeout(() => {
+        window.clearInterval(t2);
+        flash.remove();
+      }, 2400);
     };
     const t = window.setTimeout(go, 300);
     window.addEventListener("hashchange", go);
