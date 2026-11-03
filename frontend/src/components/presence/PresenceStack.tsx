@@ -4,8 +4,9 @@
  * "Who's viewing": an avatar stack and the list behind it (lib/presence). One component for
  * documents, files and the Guides studio, so presence looks the same everywhere.
  *
- * Avatars: the photo or initials (an animal for anonymous viewers) on a tint of the viewer's
- * colour, ringed in that colour, faded with a moon badge when their tab is hidden. Up to 4 others
+ * Avatars: the photo or initials (for anonymous viewers, their animal as a line glyph from
+ * ./animals) in the viewer's colour on a tint of it, ringed in that colour, faded with a moon badge
+ * when their tab is hidden. Up to 4 others
  * (2 on phones), "+N", then you. Clicking opens the list: you first with "(you)", everyone with
  * where they are, and "Show me as anonymous" when the page offers it. A popover on desktop, a bottom
  * sheet on phones.
@@ -18,9 +19,10 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react"
 import { announce, Drawer, Icon, Popover, Switch, Tooltip } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import {
-  animalGlyph, sectionText, stackLabel, viewerColor, viewerInitials, viewerName,
+  sectionText, stackLabel, viewerColor, viewerInitials, viewerName,
   type PresenceViewer,
 } from "@/lib/presence";
+import { animalPath } from "./animals";
 import s from "./presence.module.css";
 
 export interface PresenceStackProps {
@@ -50,7 +52,6 @@ export interface PresenceStackProps {
 }
 
 function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" | "md"; ring?: boolean }) {
-  const glyph = v.name ? null : animalGlyph(v.animal);
   const style = { "--pc": viewerColor(v.color) } as CSSProperties;
   return (
     <span
@@ -61,10 +62,13 @@ function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" 
       {v.pic ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={v.pic} alt="" referrerPolicy="no-referrer" className="ph-mask" />
-      ) : glyph ? (
-        <span className={s.glyph}>{glyph}</span>
-      ) : (
+      ) : v.name ? (
         viewerInitials(v)
+      ) : (
+        // Anonymous: the animal in the Markdrop icon style (.md-icon: 1.8 stroke, currentColor).
+        <svg viewBox="0 0 24 24" className={`md-icon ${s.animal}`} aria-hidden>
+          <path d={animalPath(v.animal)} />
+        </svg>
       )}
       {v.state === "away" && <span className={s.awayDot} />}
     </span>
