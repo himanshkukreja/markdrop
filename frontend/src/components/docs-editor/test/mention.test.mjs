@@ -7,6 +7,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseMarkdown, serializeMarkdown, mentionSource } from "../core/markdown.mjs";
 import { schema, throughEditor, sameContent } from "./helpers.mjs";
+import { PAGE_BLOCKS, itemsFor, filterItems } from "../blocks.ts";
 
 const doc = (...content) => ({ type: "doc", content });
 const para = (...kids) => ({ type: "paragraph", content: kids });
@@ -69,4 +70,27 @@ test("mentionSource keeps balanced labels and cleans unsafe ones", () => {
   assert.equal(mentionSource({ label: "A [b] c", attributes: { src: "x" } }), ':markdrop[A [b] c]{src="x"}');
   assert.equal(mentionSource({ label: "A ] c", attributes: { src: "x" } }), ':markdrop[A  c]{src="x"}');
   assert.equal(mentionSource({ label: "Line\nbreak", attributes: { src: "x" } }), ':markdrop[Line break]{src="x"}');
+});
+
+test("a chip still waiting for its item isn't written", () => {
+  assert.equal(write(para(text("A "), { type: "mention", attrs: { label: "", attributes: {} } }, text("b"))), "A b\n");
+});
+
+test("the page's / menu: every block exists, no Guides-only block", () => {
+  const items = itemsFor(PAGE_BLOCKS);
+  assert.equal(items.length, PAGE_BLOCKS.length);
+  const ids = items.map((i) => i.id);
+  for (const guides of ["private", "steps", "tabs", "cards", "api", "video", "clip", "embed", "markdrop"]) assert.ok(!ids.includes(guides), guides);
+  assert.deepEqual(filterItems("embed", items).map((i) => i.id)[0], "page-embed");
+  assert.deepEqual(filterItems("mention", items).map((i) => i.id), ["mention"]);
+  assert.equal(itemsFor(undefined).length, itemsFor(null).length);
+});
+
+test("the page's toggle is written as :::details{summary}", () => {
+  const toggle = itemsFor(["toggle"])[0];
+  let inserted = null;
+  const fake = { chain: () => ({ focus: () => ({ deleteRange: () => ({ insertContent: (c) => ({ run: () => (inserted = c) }) }) }) }) };
+  toggle.run(fake, { from: 0, to: 0 });
+  const md = write({ ...inserted, content: [para(text("Hidden."))] });
+  assert.equal(md, ':::details{summary="More details"}\nHidden.\n:::\n');
 });

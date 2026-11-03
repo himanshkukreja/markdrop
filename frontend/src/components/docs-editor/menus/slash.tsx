@@ -11,7 +11,7 @@ import Suggestion, { exitSuggestion, type SuggestionKeyDownProps, type Suggestio
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
-import { filterItems, type BlockItem } from "../blocks";
+import { BLOCK_ITEMS, filterItems, type BlockItem } from "../blocks";
 import { cx } from "../views/shared";
 
 interface SlashState {
@@ -43,7 +43,7 @@ export class SlashStore {
 export const slashKey = new PluginKey("docsSlash");
 export const LISTBOX_ID_SUFFIX = "-slash";
 
-export function SlashCommand(store: SlashStore, listboxId: string) {
+export function SlashCommand(store: SlashStore, listboxId: string, items: BlockItem[] = BLOCK_ITEMS) {
   return Extension.create({
     name: "docsSlash",
     // Before the keymaps, so Enter / arrows reach the menu while it is open.
@@ -70,7 +70,7 @@ export function SlashCommand(store: SlashStore, listboxId: string) {
           allowSpaces: false,
           startOfLine: false,
           allowedPrefixes: [" ", " "],
-          items: ({ query }) => filterItems(query),
+          items: ({ query }) => filterItems(query, items),
           allow: ({ state, range }) => {
             const $from = state.doc.resolve(range.from);
             return !$from.parent.type.spec.code && $from.parent.type.name !== "tableCell" && $from.parent.type.name !== "tableHeader";

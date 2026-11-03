@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { ApiOperationOption, AssistFn, MarkdropFilesHost, TextAnchor, UploadImage } from "./types";
+import type { ApiOperationOption, AssistFn, MarkdropFilesHost, PagesEditorHost, TextAnchor, UploadImage } from "./types";
 
 /** What node views and menus need from the editor's host (props of DocsEditor). */
 export interface EditorHost {
@@ -20,6 +20,10 @@ export interface EditorHost {
   accessRules?: Array<{ id: string; name: string; kind: string }>;
   /** The "Markdrop file" block's picker and preview. */
   markdrop?: MarkdropFilesHost;
+  /** A page's embeds and mentions (picker + preview). */
+  pages?: PagesEditorHost;
+  /** Images may have a dark-theme version (default true). */
+  darkImages?: boolean;
 }
 
 export const EditorHostContext = createContext<EditorHost>({ resolveAsset: (s) => s, operations: [], readOnly: false });

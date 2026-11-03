@@ -122,11 +122,66 @@ export const BLOCK_ITEMS: BlockItem[] = [
   },
 ];
 
+/**
+ * Blocks only a page (a Markdrop document in the block editor) offers: a toggle written the way
+ * pages write it (`:::details{summary="…"}`), an H1, and the embed and mention of a Markdrop item.
+ * Empty, the embed and the mention open the page's picker.
+ */
+export const PAGE_ONLY_ITEMS: BlockItem[] = [
+  { id: "h1", label: "Heading 1", hint: "Big section title", icon: "heading", keywords: "h1 title heading", run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
+  {
+    id: "toggle",
+    label: "Toggle",
+    hint: "Collapsible section",
+    icon: "chevronRight",
+    keywords: "toggle details collapse accordion faq",
+    run: insert({ type: "details", attrs: { label: null, attributes: { summary: "More details" } }, content: [p()] }),
+  },
+  {
+    id: "page-embed",
+    label: "Embed",
+    hint: "A file or page from Markdrop",
+    icon: "layers",
+    keywords: "embed markdrop file pdf video image html page document artifact",
+    run: insert({ type: "directiveLeaf", attrs: { name: "markdrop", attributes: {} } }),
+  },
+  {
+    id: "mention",
+    label: "Mention",
+    hint: "Link a Markdrop item inline",
+    icon: "link",
+    keywords: "mention link markdrop page document file at",
+    run: (e, r) => {
+      e.chain().focus().deleteRange(r).insertContent({ type: "mention", attrs: { label: "", attributes: {} } }).run();
+    },
+  },
+];
+
+/**
+ * The page's "/" menu, in order: text and headings, lists, toggle, callouts, quote, code, table,
+ * divider, image, embed, mention, math. Guides-only blocks (private sections, steps, tabs, cards,
+ * API endpoints, videos and clips of a docs site, other sites' embeds) aren't offered.
+ */
+export const PAGE_BLOCKS = [
+  "text", "h1", "h2", "h3", "bullets", "numbers", "tasks", "toggle",
+  "callout-note", "callout-tip", "callout-warning", "callout-danger",
+  "quote", "code", "table", "divider", "image", "page-embed", "mention", "math",
+] as const;
+
+const ALL_ITEMS = [...BLOCK_ITEMS, ...PAGE_ONLY_ITEMS];
+
+/** The items for a block set (ids, in order); every Guides block when no set is given. */
+export function itemsFor(ids?: readonly string[] | null): BlockItem[] {
+  if (!ids) return BLOCK_ITEMS;
+  const byId = new Map(ALL_ITEMS.map((it) => [it.id, it]));
+  return ids.map((id) => byId.get(id)).filter((x): x is BlockItem => !!x);
+}
+
 /** Items matching a query: label prefix first, then any keyword or label word. */
-export function filterItems(query: string): BlockItem[] {
+export function filterItems(query: string, items: BlockItem[] = BLOCK_ITEMS): BlockItem[] {
   const q = query.trim().toLowerCase();
-  if (!q) return BLOCK_ITEMS;
-  const scored = BLOCK_ITEMS.map((it) => {
+  if (!q) return items;
+  const scored = items.map((it) => {
     const label = it.label.toLowerCase();
     const words = `${label} ${it.keywords}`.split(/\s+/);
     const score = label.startsWith(q) ? 0 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;

@@ -464,7 +464,18 @@ export function DetailsView({ node, updateAttributes }: ReactNodeViewProps) {
         <button type="button" className="dxe-details__toggle" aria-expanded={open} aria-label={open ? "Collapse" : "Expand"} onClick={() => setOpen(!open)}>
           <Icon name="chevronRight" className="dx-details__chev" />
         </button>
-        <LabelInput label={node.attrs.label} placeholder="Summary" aria-label="Details summary" readOnly={host.readOnly} onChange={(label) => updateAttributes({ label })} />
+        {node.attrs.label == null && typeof node.attrs.attributes?.summary === "string" ? (
+          // A page's toggle keeps its summary as `{summary="…"}`.
+          <LabelInput
+            label={node.attrs.attributes.summary}
+            placeholder="Summary"
+            aria-label="Toggle summary"
+            readOnly={host.readOnly}
+            onChange={(summary) => updateAttributes({ attributes: { ...node.attrs.attributes, summary: summary ?? "" } })}
+          />
+        ) : (
+          <LabelInput label={node.attrs.label} placeholder="Summary" aria-label="Details summary" readOnly={host.readOnly} onChange={(label) => updateAttributes({ label })} />
+        )}
       </div>
       <NodeViewContent className="dx-details__body" />
     </NodeViewWrapper>

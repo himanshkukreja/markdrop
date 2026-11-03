@@ -913,7 +913,8 @@ export function phrasing(nodes) {
         parent.children.push({ type: "mdRaw", value: n.attrs?.value ?? "" });
         break;
       case "mention":
-        parent.children.push({ type: "mdRaw", value: mentionSource(n.attrs) });
+        // A chip whose picker is still open (no item yet) isn't written.
+        if (n.attrs?.attributes?.src) parent.children.push({ type: "mdRaw", value: mentionSource(n.attrs) });
         break;
       default:
         break;

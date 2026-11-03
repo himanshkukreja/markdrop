@@ -11,6 +11,8 @@ import { baseExtensions, withOverrides } from "./core/schema.mjs";
 import { CalloutView, CardView, CardsView, DetailsView, PrivateView, StepsView, TabsView } from "./views/containers";
 import { FigureView, LeafView } from "./views/media";
 import { CodeBlockView, InlineMathView, MathBlockView, RawBlockView } from "./views/code";
+import { MentionView } from "./views/pageItems";
+import { itemsFor } from "./blocks";
 import { SlashCommand, type SlashStore } from "./menus/slash";
 import { MoveBlockKeys } from "./menus/BlockHandle";
 
@@ -107,7 +109,7 @@ function placeholderFor({ node, editor, pos }: { node: PMNode; editor: Editor; p
   return "Type / for blocks";
 }
 
-export function buildExtensions({ slash, listboxId, placeholder }: { slash: SlashStore; listboxId: string; placeholder?: string }): AnyExtension[] {
+export function buildExtensions({ slash, listboxId, placeholder, blocks }: { slash: SlashStore; listboxId: string; placeholder?: string; blocks?: readonly string[] }): AnyExtension[] {
   const overrides = {
     callout: view(CalloutView),
     steps: view(StepsView),
@@ -122,6 +124,7 @@ export function buildExtensions({ slash, listboxId, placeholder }: { slash: Slas
     mathBlock: view(MathBlockView),
     codeBlock: view(CodeBlockView),
     inlineMath: view(InlineMathView, { as: "span" }),
+    mention: view(MentionView, { as: "span" }),
     listItem: taskItemView(),
   };
   return [
@@ -131,7 +134,7 @@ export function buildExtensions({ slash, listboxId, placeholder }: { slash: Slas
       includeChildren: true,
       showOnlyCurrent: true,
     }),
-    SlashCommand(slash, listboxId),
+    SlashCommand(slash, listboxId, itemsFor(blocks)),
     MoveBlockKeys,
     DocsKeys,
   ];
