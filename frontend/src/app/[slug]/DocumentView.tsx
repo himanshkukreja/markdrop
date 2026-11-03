@@ -1066,7 +1066,7 @@ export default function DocumentView(props: DocumentViewProps) {
       />
 
       {newSubPage && (
-        <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
+        <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} templatesWorkspace={page?.workspace_id ?? null} />
       )}
       {pageActions}
       {isPage && (
