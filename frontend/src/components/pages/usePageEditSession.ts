@@ -10,6 +10,10 @@ const pageLocked = (e: unknown) => e instanceof PagesApiError && e.info.code ===
 export const HEARTBEAT_MS = 30_000;
 /** Autosave this long after the last change. */
 export const AUTOSAVE_MS = 2000;
+/** Let go of the lock after this long without a key, a click or a change (someone else may edit). */
+export const IDLE_MS = 3 * 60_000;
+/** While someone else edits: ask for the lock this often. */
+export const RETRY_MS = 15_000;
 
 export type SaveState =
   | { state: "saved"; at: number | null }
@@ -18,11 +22,16 @@ export type SaveState =
   | { state: "error"; message: string };
 
 export type LockState =
+  /**
+   * Nobody's lock is ours and we know of no one else's: the page is editable, and the first key,
+   * click or change takes the lock (an editor who's only reading never blocks anyone).
+   */
+  | { kind: "idle" }
   | { kind: "acquiring" }
   | { kind: "mine" }
   /** Someone else is editing: read only, following their changes live. `lost`: it was ours. */
   | { kind: "theirs"; name: string | null; lost?: boolean }
-  /** The API refused the lock for another reason (no edit rights any more). */
+  /** The API refused the lock for another reason (no edit rights any more, the page is locked). */
   | { kind: "readonly"; message: string };
 
 export interface Conflict {
@@ -31,16 +40,20 @@ export interface Conflict {
 }
 
 /**
- * One page open in the block editor (one editor at a time):
+ * One page open in the block editor (one editor at a time). A page is always editable for the
+ * people who can edit it (no Edit / Done), so the edit lock follows what they do:
  *
- * - takes the edit lock on open, heartbeats it every 30 s and releases it on leave;
+ * - the first key, click or change (`activity`, `update`) takes the lock; it's heartbeated every
+ *   30 s, let go of after 3 minutes without activity (what's pending is saved first) and on leave;
  * - autosaves 2 s after the last change through PUT /documents/{slug} with `base_rev`;
- * - 423 (someone else holds the lock): read only, "X is editing", following live changes, and
- *   takes the lock when it's free again;
- * - 409 (a newer version): when it only adds to the end of what this editor last saved (an AI app's
- *   append_blocks), the addition is merged in and the save retried; otherwise "This page changed",
- *   with Load the latest / Keep mine;
- * - a live `appended` event goes straight into the editor at the end (`onAppend`).
+ * - 423 (someone else holds the lock): read only, "X is editing", following their changes live;
+ *   asks again every 15 s, and when it's free the page is editable again (keeping the lock only
+ *   when this person was busy here);
+ * - 409 (a newer version): when it only adds to the end of what this editor last saved (an AI
+ *   app's append_blocks), the addition is merged in and the save retried; otherwise "This page
+ *   changed", with Load the latest / Keep mine;
+ * - a live `appended` event goes straight into the editor at the end (`onAppend`); while the lock
+ *   isn't ours, any change is shown as it lands (unless this editor has text on its way).
  */
 export function usePageEditSession({
   slug,
@@ -62,7 +75,7 @@ export function usePageEditSession({
   subscribeLive?: (fn: (msg: Record<string, unknown>) => void) => () => void;
 }) {
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
-  const [lock, setLockState] = useState<LockState>({ kind: "acquiring" });
+  const [lock, setLockState] = useState<LockState>({ kind: "idle" });
   const [conflict, setConflict] = useState<Conflict | null>(null);
 
   const lockRef = useRef<LockState>(lock);
@@ -77,6 +90,9 @@ export function usePageEditSession({
   const dirty = useRef(false);
   const saving = useRef(false);
   const timer = useRef<number | null>(null);
+  /** The last key, click or change here (for letting go of an idle lock). */
+  const lastActive = useRef(0);
+  const acquiring = useRef<Promise<boolean> | null>(null);
   const cbs = useRef({ onSaved, onAppend, onRemote });
   cbs.current = { onSaved, onAppend, onRemote };
 
@@ -158,24 +174,52 @@ export function usePageEditSession({
     }
   }, [slug, secret, fetchLatest, setLock]);
 
-  const acquire = useCallback(async (): Promise<boolean> => {
-    try {
-      await lockPage(slug, secret);
-      setLock({ kind: "mine" });
-      return true;
-    } catch (e) {
-      const status = pagesErrorStatus(e);
-      if (status === 423 && pageLocked(e)) setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
-      else if (status === 423) setLock({ kind: "theirs", name: lockHolder(e) });
-      else if (status === 403 || status === 401) setLock({ kind: "readonly", message: e instanceof Error ? e.message : "You can't edit this page." });
-      else setLock({ kind: "theirs", name: null });
-      return false;
-    }
-  }, [slug, secret, setLock]);
+  /** Take the lock (once at a time). True when it's ours. */
+  const acquire = useCallback((): Promise<boolean> => {
+    if (lockRef.current.kind === "mine") return Promise.resolve(true);
+    if (acquiring.current) return acquiring.current;
+    setLock({ kind: "acquiring" });
+    const p = (async () => {
+      try {
+        await lockPage(slug, secret);
+        setLock({ kind: "mine" });
+        // What was typed while the lock was on its way saves now.
+        if (dirty.current && !timer.current) timer.current = window.setTimeout(() => void doSave(), 300);
+        return true;
+      } catch (e) {
+        const status = pagesErrorStatus(e);
+        if (status === 423 && pageLocked(e)) setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
+        else if (status === 423) setLock({ kind: "theirs", name: lockHolder(e), lost: dirty.current || undefined });
+        else if (status === 403 || status === 401) setLock({ kind: "readonly", message: e instanceof Error ? e.message : "You can't edit this page." });
+        // Offline or a server error: stay editable; the next key or change asks again.
+        else setLock({ kind: "idle" });
+        return false;
+      } finally {
+        acquiring.current = null;
+      }
+    })();
+    acquiring.current = p;
+    return p;
+  }, [slug, secret, setLock, doSave]);
 
-  // Open: take the lock. Leave: save what's pending, then let go of it.
+  /** Let go of the lock (after saving what's pending): the page stays editable. */
+  const release = useCallback(async () => {
+    if (lockRef.current.kind !== "mine") return;
+    clearTimer();
+    if (dirty.current) await doSave();
+    if (dirty.current || saving.current || lockRef.current.kind !== "mine") return;
+    setLock({ kind: "idle" });
+    void unlockPage(slug, { secret }).catch(() => {});
+  }, [slug, secret, doSave, setLock]);
+
+  /** A key, a click or a focus in the page: take the lock if we haven't. */
+  const activity = useCallback(() => {
+    lastActive.current = Date.now();
+    if (lockRef.current.kind === "idle") void acquire();
+  }, [acquire]);
+
+  // Leave: save what's pending, then let go of the lock. (Opening takes nothing; activity does.)
   useEffect(() => {
-    void acquire();
     return () => {
       clearTimer();
       const held = lockRef.current.kind === "mine";
@@ -189,12 +233,17 @@ export function usePageEditSession({
         void unlockPage(slug, { keepalive: true, secret }).catch(() => {});
       }
     };
-  }, [slug, secret, acquire]);
+  }, [slug, secret]);
 
-  // Heartbeat while we hold it; someone took it over: stop editing (the text stays on screen).
+  // Heartbeat while we hold it, or let it go when nobody's been busy here; someone took it over:
+  // stop editing (the text stays on screen).
   useEffect(() => {
     if (lock.kind !== "mine") return;
     const id = window.setInterval(async () => {
+      if (Date.now() - lastActive.current > IDLE_MS && !saving.current) {
+        void release();
+        return;
+      }
       try {
         await lockPage(slug, secret);
       } catch (e) {
@@ -205,14 +254,19 @@ export function usePageEditSession({
       }
     }, HEARTBEAT_MS);
     return () => window.clearInterval(id);
-  }, [slug, secret, lock.kind, setLock]);
+  }, [slug, secret, lock.kind, setLock, release]);
 
-  // Someone else is editing: try again every 30 s; when it's free, load the newest and take it.
+  // Someone else is editing: ask again every 15 s. When it's free, load the newest; keep the lock
+  // only when this person was busy here (or has text from before it was lost).
   useEffect(() => {
     if (lock.kind !== "theirs") return;
     const id = window.setInterval(async () => {
       try {
         await lockPage(slug, secret);
+      } catch {
+        return; /* still theirs: try again next time */
+      }
+      try {
         const latest = await fetchLatest();
         const mine = dirty.current ? { ...fields.current } : null;
         adopt(latest);
@@ -224,15 +278,17 @@ export function usePageEditSession({
           dirty.current = true;
           setSave({ state: "dirty" });
           timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
+        } else if (Date.now() - lastActive.current > 60_000) {
+          void release();
         }
       } catch {
-        /* still theirs: try again next time */
+        void release();
       }
-    }, HEARTBEAT_MS);
+    }, RETRY_MS);
     return () => window.clearInterval(id);
-  }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock]);
+  }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock, release]);
 
-  // Live: appended blocks go in at the end; someone else's change is shown while read only.
+  // Live: appended blocks go in at the end; anyone else's change is shown while the lock isn't ours.
   useEffect(() => {
     if (!subscribeLive) return;
     return subscribeLive((msg) => {
@@ -245,14 +301,16 @@ export function usePageEditSession({
           base.current = { ...base.current, content: `${base.current.content.replace(/\s+$/, "")}\n\n${msg.markdown.trim()}\n` };
           if (rev !== null) baseRev.current = rev;
           cbs.current.onAppend(msg.markdown);
-        } else {
+        } else if (!dirty.current) {
           void fetchLatest().then(adopt).catch(() => {});
         }
         return;
       }
       if (msg.type === "changed") {
         if (rev !== null && baseRev.current !== null && rev <= baseRev.current) return; // our own save
-        if (lockRef.current.kind !== "mine") void fetchLatest().then(adopt).catch(() => {});
+        // Someone else's edit: show it, unless this editor has text on its way to the server (that
+        // save then meets the newer version and asks).
+        if (lockRef.current.kind !== "mine" && !dirty.current) void fetchLatest().then(adopt).catch(() => {});
       }
     });
   }, [subscribeLive, fetchLatest, adopt]);
@@ -277,7 +335,8 @@ export function usePageEditSession({
   const update = useCallback((patch: Partial<{ title: string; content: string }>) => {
     const next = { ...fields.current, ...patch };
     fields.current = next;
-    if (lockRef.current.kind !== "mine") return;
+    const kind = lockRef.current.kind;
+    if (kind === "theirs" || kind === "readonly") return;
     const same = next.title === base.current.title && next.content === base.current.content;
     dirty.current = !same;
     if (same) {
@@ -285,10 +344,16 @@ export function usePageEditSession({
       clearTimer();
       return;
     }
+    lastActive.current = Date.now();
     setSave({ state: "dirty" });
     clearTimer();
+    // Not ours yet: take it, and the save follows (acquire).
+    if (kind !== "mine") {
+      void acquire();
+      return;
+    }
     timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
-  }, [doSave]);
+  }, [doSave, acquire]);
 
   /** 409: take theirs (drop what isn't saved) or keep mine (save on top of theirs). */
   const resolveConflict = useCallback(async (choice: "theirs" | "mine") => {
@@ -306,13 +371,16 @@ export function usePageEditSession({
   }, [conflict, adopt, doSave]);
 
   const flush = useCallback(async () => {
-    if (dirty.current) await doSave();
-  }, [doSave]);
+    if (!dirty.current) return;
+    if (lockRef.current.kind !== "mine" && !(await acquire())) return;
+    await doSave();
+  }, [doSave, acquire]);
 
   const retry = useCallback(() => {
     dirty.current = true;
-    void doSave();
-  }, [doSave]);
+    if (lockRef.current.kind !== "mine") void acquire();
+    else void doSave();
+  }, [doSave, acquire]);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry };
+  return { save, lock, conflict, update, resolveConflict, flush, retry, activity };
 }

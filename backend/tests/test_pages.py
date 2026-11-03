@@ -1056,8 +1056,9 @@ class Props(PageWorld):
 
         md = "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 25\nfont: serif\nlocked: yes\n---\n# Body\n"
         p = page_props.parse(md)
+        # aurora is one of the first gallery's gradients: it shows the cover that replaced it.
         self.assertEqual((p["icon"], p["cover"], p["cover_y"], p["font"], p["locked"], p["full_width"]),
-                         ("🚀", "gallery:aurora", 25, "serif", True, False))
+                         ("🚀", "gallery:dusk", 25, "serif", True, False))
         # A fraction means the same point; an https cover is allowed.
         p = page_props.parse('---\ncover_y: 0.4\ncover: "https://img.example/c.jpg"\n---\n')
         self.assertEqual((p["cover_y"], p["cover"]), (40, "https://img.example/c.jpg"))
@@ -1080,15 +1081,60 @@ class Props(PageWorld):
         # A horizontal rule further down isn't front matter.
         self.assertEqual(page_props.parse("# T\n\n---\nlocked: true\n---\n")["locked"], False)
 
+    def test_gallery_covers(self):
+        from app.services import page_props
+
+        self.assertEqual(len(page_props.GALLERY), 12)
+        for name in page_props.GALLERY:
+            self.assertEqual(page_props.parse(f"---\ncover: gallery:{name}\n---\n")["cover"], f"gallery:{name}")
+            self.assertEqual(page_props.apply("", {"cover": f"gallery:{name}"}), f"---\ncover: gallery:{name}\n---\n")
+        # Every old gradient still shows: as the nearest new cover, read or written.
+        self.assertEqual(set(page_props.GALLERY_ALIASES),
+                         {"aurora", "sunset", "ocean", "forest", "peach", "sand", "slate", "mint"})
+        for old, new in page_props.GALLERY_ALIASES.items():
+            self.assertIn(new, page_props.GALLERY)
+            self.assertEqual(page_props.parse(f"---\ncover: gallery:{old}\n---\n")["cover"], f"gallery:{new}")
+            self.assertEqual(page_props.validate({"cover": f"gallery:{old}"}), {"cover": f"gallery:{new}"})
+        # A page that keeps an old name keeps it as written until its cover changes.
+        md = "---\ncover: gallery:sunset\n---\n# P\n"
+        self.assertEqual(page_props.apply(md, {"font": "serif"}),
+                         "---\ncover: gallery:sunset\nfont: serif\n---\n# P\n")
+        # A name the gallery doesn't have is ignored when read and refused when written.
+        self.assertIsNone(page_props.parse("---\ncover: gallery:dunes\n---\n")["cover"])
+        with self.assertRaises(ValueError) as e:
+            page_props.validate({"cover": "gallery:dunes"})
+        self.assertIn("moonlit", str(e.exception))
+        for bad in ('"gallery:dawn"', "gallery:Dawn", "gallery:"):
+            with self.assertRaises(ValueError):
+                page_props.validate({"cover": bad})
+
+    def test_gallery_matches_the_apps_covers(self):
+        # The app's covers (frontend/public/page-covers) and their manifest name the same ids.
+        import json
+        from pathlib import Path
+
+        from app.services import page_props
+
+        root = Path(__file__).resolve().parents[2] / "frontend" / "public" / "page-covers"
+        if not (root / "manifest.json").exists():
+            self.skipTest("no frontend checkout next to the backend")
+        manifest = json.loads((root / "manifest.json").read_text())
+        self.assertEqual(tuple(c["id"] for c in manifest["covers"]), page_props.GALLERY)
+        self.assertEqual(manifest["aliases"], page_props.GALLERY_ALIASES)
+        for name in page_props.GALLERY:
+            self.assertTrue((root / f"{name}.webp").is_file(), name)
+            self.assertLessEqual((root / f"{name}.webp").stat().st_size, 60_000, name)
+            self.assertTrue((root / "thumbs" / f"{name}.webp").is_file(), name)
+
     async def test_get_returns_page_properties_and_their_images(self):
         page = await self.mkdoc("UP")
         info = (await self.upload(page["slug"], self.session("owner"))).json()
         await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {
-            "content": f"---\nicon: asset:{info['id']}\ncover: gallery:dunes\ncover_y: 0.1\nsmall_text: true\n---\n# P\n"}})
+            "content": f"---\nicon: asset:{info['id']}\ncover: gallery:contour\ncover_y: 0.1\nsmall_text: true\n---\n# P\n"}})
         body = (await self.get(page["slug"], self.session("gv"))).json()
         p = body["page"]
         self.assertEqual((p["icon"], p["cover"], p["cover_y"], p["small_text"], p["locked"]),
-                         (f"asset:{info['id']}", "gallery:dunes", 10, True, False))
+                         (f"asset:{info['id']}", "gallery:contour", 10, True, False))
         self.assertIn("?t=", p["icon_url"])
         self.assertIsNone(p["cover_url"])
         self.assertIn(info["id"], body["assets"])

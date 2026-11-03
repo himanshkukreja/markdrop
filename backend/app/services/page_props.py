@@ -2,7 +2,7 @@
 
     ---
     icon: 🚀                  # an emoji, or asset:<id> (an image uploaded to the page)
-    cover: asset:<id>         # or gallery:<name> (a built-in cover the app ships), or an https URL
+    cover: asset:<id>         # or gallery:<name> (a built-in cover the app ships, GALLERY), or an https URL
     cover_y: 35               # the cover's focal point, 0 (top) .. 100 (bottom); default 50
     full_width: true
     small_text: true
@@ -24,6 +24,13 @@ from typing import Any
 
 KEYS = ("icon", "cover", "cover_y", "full_width", "small_text", "font", "locked")
 FONTS = ("default", "serif", "mono")
+# The built-in covers, gallery:<name> (the app ships them: frontend/public/page-covers, whose
+# manifest.json lists the same names).
+GALLERY = ("mist", "linen", "graphite", "fold", "halftone", "dusk",
+           "contour", "blueprint", "strata", "dawn", "sage", "moonlit")
+# The first gallery's gradients, still on existing pages: each now shows the nearest cover above.
+GALLERY_ALIASES = {"aurora": "dusk", "ocean": "dusk", "sunset": "dawn", "peach": "dawn",
+                   "sand": "linen", "slate": "graphite", "forest": "sage", "mint": "sage"}
 _ASSET = re.compile(r"^asset:([A-Za-z0-9_-]{8,64})$")
 _GALLERY = re.compile(r"^gallery:([a-z0-9][a-z0-9-]{0,39})$")
 _LINE = re.compile(r"^([A-Za-z_][\w-]*)[ \t]*:[ \t]*(.*?)[ \t]*$")
@@ -60,6 +67,13 @@ def _bool(v: str) -> bool | None:
     return None
 
 
+def gallery_cover(name: str) -> str | None:
+    """``gallery:<name>`` for a built-in cover (an old name gives the cover that replaced it);
+    None for a name the gallery doesn't have."""
+    name = GALLERY_ALIASES.get(name, name)
+    return f"gallery:{name}" if name in GALLERY else None
+
+
 def _value(key: str, raw: str) -> Any:
     v = _unquote(raw.split(" #", 1)[0].strip() if not raw.startswith(("'", '"')) else raw.strip())
     if key == "icon":
@@ -69,7 +83,10 @@ def _value(key: str, raw: str) -> Any:
             return v
         return None
     if key == "cover":
-        return v if (_ASSET.match(v) or _GALLERY.match(v) or _HTTPS.match(v)) else None
+        g = _GALLERY.match(v)
+        if g:
+            return gallery_cover(g.group(1))
+        return v if (_ASSET.match(v) or _HTTPS.match(v)) else None
     if key == "cover_y":
         try:
             f = float(v)
@@ -150,9 +167,13 @@ def validate(changes: dict) -> dict:
                 raise ValueError("icon must be an emoji (a few characters) or asset:<id> of an image "
                                  "uploaded to the page.")
         elif k == "cover":
-            if not isinstance(v, str) or _value("cover", v) != v:
+            # An old gallery name is written as the cover that replaced it.
+            val = _value("cover", v) if isinstance(v, str) else None
+            if val is None or (val != v and not _GALLERY.match(v)):
                 raise ValueError("cover must be asset:<id> (an image uploaded to the page), "
-                                 "gallery:<name> (a built-in cover) or an https:// image address.")
+                                 f"gallery:<name> (a built-in cover: {', '.join(GALLERY)}) "
+                                 "or an https:// image address.")
+            v = val
         clean[k] = v
     return clean
 

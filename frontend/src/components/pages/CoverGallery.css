@@ -1,0 +1,39 @@
+/* The cover picker (CoverGallery.tsx). Placement and the panel itself: .pb-coverpick in pages.css. */
+.pb-covergal { width: min(476px, calc(100vw - 32px)); padding: 6px 10px 10px; transform-origin: top left; animation: pb-covergal-in 140ms cubic-bezier(.16, 1, .3, 1); }
+.pb-cover-img .pb-covergal { transform-origin: bottom right; }
+@keyframes pb-covergal-in { from { opacity: 0; transform: translateY(4px) scale(.98); } }
+
+.pb-covergal__tabs { display: flex; gap: 2px; margin: 0 -4px 10px; padding: 0 0 6px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.pb-covergal__tabs::-webkit-scrollbar { display: none; }
+.pb-covergal__tab { position: relative; flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--text-muted); font: 500 13px/1 var(--font-sans); cursor: pointer; transition: background-color 120ms ease, color 120ms ease; }
+.pb-covergal__tab:hover { background: var(--surface-hover); color: var(--text); }
+.pb-covergal__tab--on { color: var(--text); }
+.pb-covergal__tab--on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -7px; height: 2px; border-radius: 2px; background: var(--accent); }
+
+/* Every tab is as tall as a row of covers (an invisible row sizes it), so the picker never jumps. */
+.pb-covergal__panel { display: grid; }
+.pb-covergal__panel > * { grid-area: 1 / 1; min-width: 0; }
+.pb-covergal__sizer { visibility: hidden; pointer-events: none; }
+.pb-covergal__grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.pb-covergal__item { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; border-radius: var(--radius-md); }
+.pb-covergal__thumb { position: relative; display: block; aspect-ratio: 12 / 5; overflow: hidden; border-radius: var(--radius-md); background: var(--surface-inset); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent); transition: box-shadow 160ms ease, transform 160ms cubic-bezier(.16, 1, .3, 1); }
+.pb-covergal__thumb img { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.001); transition: transform 320ms cubic-bezier(.16, 1, .3, 1); }
+.pb-covergal__item:hover .pb-covergal__thumb { transform: translateY(-1px); box-shadow: 0 6px 16px rgb(0 0 0 / 0.14), inset 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent); }
+.pb-covergal__item:hover .pb-covergal__thumb img, .pb-covergal__item:focus-visible .pb-covergal__thumb img { transform: scale(1.12); }
+.pb-covergal__item--on .pb-covergal__thumb, .pb-covergal__item--on:hover .pb-covergal__thumb { box-shadow: 0 0 0 2px var(--accent), 0 0 0 4px var(--accent-soft); }
+.pb-covergal__check { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / 0.25); }
+.pb-covergal__name { padding: 0 2px; overflow: hidden; color: var(--text-secondary); font-size: 12px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.pb-covergal__item:hover .pb-covergal__name, .pb-covergal__item--on .pb-covergal__name { color: var(--text); }
+
+.pb-covergal__drop { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 10px 14px; border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); color: var(--text-secondary); text-align: center; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
+.pb-covergal__drop:hover, .pb-covergal__drop--over { border-color: var(--accent); background: var(--accent-soft); color: var(--text); }
+.pb-covergal__droptitle { font-size: 13px; font-weight: 600; color: var(--text); }
+.pb-covergal__link { display: grid; grid-template-columns: 1fr auto; align-items: center; align-content: center; gap: 6px 8px; }
+.pb-covergal__hint { grid-column: 1 / -1; color: var(--text-muted); font-size: 12px; line-height: 16px; }
+.pb-covergal__hint--bad { color: var(--danger); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-covergal { animation: none; }
+  .pb-covergal__thumb, .pb-covergal__thumb img { transition: none; }
+  .pb-covergal__item:hover .pb-covergal__thumb img { transform: none; }
+}

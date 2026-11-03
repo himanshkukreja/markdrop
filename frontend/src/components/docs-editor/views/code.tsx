@@ -11,6 +11,7 @@ import { Badge, Button, Icon } from "@/components/ui";
 import { readMeta, setMetaTitle, setMetaWrap } from "../core/fence.mjs";
 import { useHost } from "../host";
 import { cx } from "./shared";
+import { cleanAttrs } from "../core/attrs.mjs";
 
 export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const host = useHost();
@@ -18,6 +19,8 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
   const meta = node.attrs.meta as string | null;
   const { title, wrap } = readMeta(meta);
   const ro = host.readOnly;
+  const battrs = node.attrs.battrs as Record<string, string> | null;
+  const caption = battrs?.caption ?? "";
   return (
     <NodeViewWrapper className={cx("md-codeblock not-prose dxe-code", title && "dx-code--titled", wrap && "dx-code--wrap")} data-lang={language || undefined}>
       <div contentEditable={false} className="md-codeblock__head dxe-code__head">
@@ -49,6 +52,18 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
           <NodeViewContent<"code"> as="code" className={language ? `language-${language}` : undefined} />
         </pre>
       </div>
+      {host.pages && (!ro || caption) && (
+        // A page's code caption (`{caption="…"}` on the line after the fence).
+        <input
+          contentEditable={false}
+          className="dxe-codecap"
+          value={caption}
+          placeholder="Add a caption"
+          aria-label="Code caption"
+          readOnly={ro}
+          onChange={(e) => updateAttributes({ battrs: cleanAttrs({ ...(battrs ?? {}), caption: e.target.value.replace(/"/g, "”").replace(/[\r\n]+/g, " ") || null }) })}
+        />
+      )}
     </NodeViewWrapper>
   );
 }

@@ -40,7 +40,7 @@ from app.mcp.tools import (
     url_pair,
 )
 from app.services import access as access_service
-from app.services import live, page_assets, page_templates, pages, revalidate
+from app.services import live, page_assets, page_props, page_templates, pages, revalidate
 
 settings = get_settings()
 
@@ -163,8 +163,6 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if content:
         _check_embeds(content)
     if args.get("properties"):
-        from app.services import page_props
-
         props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
         if any(str(v or "").startswith("asset:") for v in props.values()):
             raise ToolError("A new page has no images yet: create it, upload_page_image, then "
@@ -350,8 +348,6 @@ async def move_page(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
-    from app.services import page_props
-
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
     changes = {k: args[k] for k in page_props.KEYS if k in args}
@@ -409,22 +405,27 @@ _MARKDOWN = {"type": "string", "minLength": 1, "maxLength": settings.max_content
 # What AI apps may write in a page (the block editor round-trips all of it). Kept in one place;
 # the docs page "Page Markdown reference" (frontend/content/docs/pages/markdown-reference.md) spells
 # out every block. Exactly what the editor reads and writes: nothing it doesn't.
-# TODO(page-builder): add columns ('::::columns' / ':::column{width=…}'), text colours
-# (':span[…]{color=…}'), block anchors and image width / alignment here and on the docs page once the
-# editor writes them.
 PAGE_SYNTAX = (
     "Page Markdown: GitHub Markdown (# ## ### headings, **bold** *italic* ~~strike~~ `code`, links, > quotes, "
     "---, nested - and 1. lists, '- [ ]' / '- [x]' to-dos, tables, ``` code; ```mermaid draws a diagram; "
     "$math$ and $$ blocks) plus directives. Callout: ':::note' … ':::' (also tip, warning, danger), with an "
-    "optional '[Title]' and '{icon=\"💡\" color=\"blue\"}' (gray, brown, orange, yellow, green, blue, purple, "
-    "pink, red). Toggle: ':::details{summary=\"Title\"}' … ':::'; toggle heading: "
-    "':::details{summary=\"Title\" heading=2}' (1-3). Image: '![alt](asset:<id>)' (upload_page_image) or "
-    "'![alt](https://… \"caption\")'. Markdrop item: '::markdrop{src=\"<slug>\" mode=\"live|preview|card\"}'; "
-    "mention: ':markdrop[Title]{src=\"<slug>\"}'. Sub-page link: '::page{src=\"<slug>\"}'; '::toc'; "
-    "'::breadcrumb'. Bookmark: '::bookmark{url=\"https://…\" title=\"…\" description=\"…\"}'. Web embed "
-    "(YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): '::embed{src=\"https://…\"}'. Person: "
-    "':person[Name]{id=\"<user id>\"}'; date: ':date[YYYY-MM-DD]'; key: ':kbd[⌘ K]'. Page properties go in "
-    "front matter (icon, cover, cover_y, full_width, small_text, font, locked): use set_page_properties."
+    "optional '[Title]' and '{icon=\"💡\" color=\"blue\"}'. Toggle: ':::details{summary=\"Title\"}' … ':::'; "
+    "toggle heading: ':::details{summary=\"Title\" heading=2}' (1-3). Colours (gray, brown, orange, yellow, "
+    "green, blue, purple, pink, red): inline ':span[text]{color=\"red\"}' or '{bg=\"yellow\"}', underline "
+    "':u[text]'; a block takes options in braces at its end ('A paragraph. {color=\"green\"}', "
+    "'## Title {bg=\"blue\"}', a link name '{#b-k3x9a1}'), or on the next line after a table, code block, "
+    "divider or equation ('{caption=\"…\"}', a table's '{header-column widths=\"120,240,\"}'). Columns: "
+    "'::::columns' then ':::column{width=\"40%\"}' … ':::' per column (2-5), closed by '::::' (an outer fence "
+    "has more colons than the ones inside). Nesting: ':::indent' … ':::' after a block. A button that "
+    "inserts its blocks when clicked (readers don't see it): ':::button{label=\"Add a task\"}' … ':::'. Image: "
+    "'![alt](asset:<id>)' (upload_page_image) or '![alt](https://… \"caption\")', optionally "
+    "'{width=\"60%\" align=\"left\"}' after it. Markdrop item: '::markdrop{src=\"<slug>\" "
+    "mode=\"live|preview|card\"}'; mention: ':markdrop[Title]{src=\"<slug>\"}'. Sub-page link: "
+    "'::page{src=\"<slug>\"}'; '::toc'; '::breadcrumb'. Bookmark: '::bookmark{url=\"https://…\" "
+    "title=\"…\" description=\"…\"}'. Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): "
+    "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}'; date: ':date[YYYY-MM-DD]'; "
+    "key: ':kbd[⌘ K]'. Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
+    "font, locked): use set_page_properties."
 )
 _SYNTAX = PAGE_SYNTAX
 
@@ -448,7 +449,8 @@ PAGE_TOOLS: list[Tool] = [
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (
-                "Optional page properties: icon (an emoji), cover (gallery:<name>), cover_y, full_width, "
+                "Optional page properties: icon (an emoji), cover (gallery:<name>, one of "
+                f"{', '.join(page_props.GALLERY)}; or an https:// image), cover_y, full_width, "
                 "small_text, font (default, serif, mono), locked.")},
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
@@ -594,7 +596,8 @@ PAGE_TOOLS: list[Tool] = [
         name="set_page_properties",
         title="Set a page's properties",
         description=("Set a page's icon (an emoji, or asset:<id> of an image uploaded with upload_page_image), "
-                     "cover (asset:<id> or gallery:<name>) and its focal point cover_y (0 top .. 100 bottom), "
+                     "cover (asset:<id>, an https:// image, or gallery:<name>, a built-in cover: "
+                     f"{', '.join(page_props.GALLERY)}) and its focal point cover_y (0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one). Pass null to clear one. "
                      "They live in the page's front matter. Refused while someone is editing the page."),

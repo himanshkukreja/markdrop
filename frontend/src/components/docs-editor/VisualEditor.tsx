@@ -26,8 +26,12 @@ import { TableBar } from "./menus/TableBar";
 import { markdownSlice, sliceMarkdown } from "./menus/markdownSlice";
 import { createAnnotations, refreshAnnotations, type AnnotationSource } from "./menus/annotations";
 import { AssistPanel, AssistStore } from "./menus/assist";
+import { PasteController, PasteMenu } from "./menus/PasteMenu";
 import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
+import { BlockMarquee, SelectionBar, TouchBar, useEditorAnchor } from "./menus/BlockTools";
+import { insertColumns } from "./menus/columns";
+import { services, uploadMedia } from "./menus/mediaUpload";
 import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage, MarkdropFilesHost, PagesEditorHost } from "./types";
 
 export interface VisualEditorProps {
@@ -88,6 +92,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   const source = useMemo<AnnotationSource>(() => ({ find: null, flagImages, comments: comments ?? [], checkLink, onCommentClick }), []); // eslint-disable-line react-hooks/exhaustive-deps
   source.onCommentClick = onCommentClick;
   const assistStore = useMemo(() => new AssistStore(), []);
+  const paste = useMemo(() => new PasteController(`${listboxId.replace(/-slash$/, "")}-paste`), []); // eslint-disable-line react-hooks/exhaustive-deps
+  Object.assign(paste, { pages, upload: onUploadImage });
   // A page: Notion-style keys, Markdown shortcuts and the `:emoji` menu.
   const emoji = useMemo(() => (pages ? { store: new SlashStore(), listboxId: `${listboxId.replace(/-slash$/, "")}-emoji` } : null), []); // eslint-disable-line react-hooks/exhaustive-deps
   const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks, emoji }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -155,9 +161,13 @@ export default function VisualEditor(props: VisualEditorProps) {
       },
       clipboardTextParser: (text, _ctx, plain, view: EditorView) => markdownSlice(text, view.state.schema, plain),
       clipboardTextSerializer: (slice) => sliceMarkdown(slice),
+      transformPastedHTML: (html) => paste.html(html),
+      transformPasted: (slice) => paste.slice(slice),
+      transformPastedText: (text, plain) => paste.text(text, plain),
+      handleKeyDown: (view, event) => paste.keyDown(view, event),
       handlePaste: (view, event) => {
         const files = imageFiles(event.clipboardData?.files);
-        if (!files.length || !uploadRef.current) return false;
+        if (!files.length || !uploadRef.current) return paste.handle(view, event);
         event.preventDefault();
         void insertImages(files, view.state.selection.from);
         return true;
@@ -238,6 +248,16 @@ export default function VisualEditor(props: VisualEditorProps) {
     [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop, pages, darkImages],
   );
 
+  // What blocks need from the host (slash items, uploads), on the editor's storage.
+  useEffect(() => {
+    if (!editor) return;
+    const s = services(editor);
+    s.pages = pages;
+    s.toast = { success: (m) => toast.success(m), error: (m) => toast.error(m), info: (m) => toast.info?.(m) };
+    Object.assign(s, { insertColumns: (e: Editor, n: number, r: { from: number; to: number }) => insertColumns(e, n, r), uploadMedia });
+  }, [editor, pages, toast]);
+  useEditorAnchor(pages ? editor : null);
+
   return (
     <EditorHostContext.Provider value={host}>
       <div ref={wrap} className="dxe-visual" data-readonly={readOnly ? "" : undefined}>
@@ -248,7 +268,15 @@ export default function VisualEditor(props: VisualEditorProps) {
             <FormatToolbar editor={editor} stickyTop={stickyTop} assist={assistStore} />
             <AssistPanel editor={editor} store={assistStore} assist={assist} container={wrap} />
             <BlockHandle editor={editor} container={wrap} />
+            {pages && (
+              <>
+                <SelectionBar editor={editor} />
+                <BlockMarquee editor={editor} container={wrap} />
+                <TouchBar editor={editor} />
+              </>
+            )}
             <TableBar editor={editor} container={wrap} />
+            <PasteMenu editor={editor} paste={paste} stickyTop={stickyTop} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
             {emoji && <SlashMenu store={emoji.store} listboxId={emoji.listboxId} stickyTop={stickyTop} label="Insert an emoji" />}
           </>

@@ -13,6 +13,31 @@
  * A directive pages don't know is shown as the text it was written as, never dropped silently.
  */
 import { assetId, embedMode, embedSlug } from "@/lib/pageBlocks.mjs";
+import { ANCHOR_RE, COLORS, attrLine, spanColor, trailingAttrs } from "@/components/docs-editor/core/attrs.mjs";
+
+/** mdast blocks that take a line of attributes after them, and which attributes. */
+const ATTR_LINE: Record<string, string> = { table: "table", code: "codeBlock", math: "mathBlock", thematicBreak: "horizontalRule" };
+
+/** `data-*` properties for a block's attributes (`{#b-x color=red bg=…}` and friends). */
+function blockProps(a: Record<string, string> | null | undefined): Record<string, unknown> {
+  if (!a) return {};
+  const p: Record<string, unknown> = {};
+  if (a.id && ANCHOR_RE.test(a.id)) p.dataBid = a.id;
+  if (a.color && COLORS.includes(a.color)) p.dataColor = a.color;
+  if (a.bg && COLORS.includes(a.bg)) p.dataBg = a.bg;
+  if (a.width) p.dataWidth = a.width;
+  if (a.align) p.dataAlign = a.align;
+  if (a.widths) p.dataWidths = a.widths;
+  if (a["header-column"] !== undefined) p.dataHcol = "";
+  if (a["header-row"] === "off") p.dataHrow = "off";
+  if (a.caption) p.dataCaption = a.caption;
+  return p;
+}
+
+function addProps(node: MdNode, props: Record<string, unknown>) {
+  if (!Object.keys(props).length) return;
+  node.data = { ...(node.data ?? {}), hProperties: { ...((node.data?.hProperties as Record<string, unknown>) ?? {}), ...props } };
+}
 
 interface MdNode {
   type: string;
@@ -67,16 +92,83 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
       const a = n.position?.start?.offset, b = n.position?.end?.offset;
       return typeof a === "number" && typeof b === "number" ? source.slice(a, b) : `:${n.name ?? ""}`;
     };
+    /** Drops a trailing `{…}` attribute list from a paragraph-like node: its attributes, or null. */
+    const trail = (n: MdNode, kind: string): Record<string, string> | null => {
+      const kids = n.children ?? [];
+      const last = kids[kids.length - 1];
+      if (!last || last.type !== "text") return null;
+      const t = trailingAttrs(sourceOf(last), kind);
+      if (!t) return null;
+      const value = (last.value ?? "").replace(/[ \t]*\{[^{}\n]*\}[ \t]*$/, "");
+      if (value === last.value || (!value && kids.length === 1)) return null;
+      if (value) last.value = value;
+      else kids.pop();
+      return t.attrs;
+    };
+    const anchorOf = (n: MdNode) => {
+      const id = attr(n, "id");
+      return id && ANCHOR_RE.test(id) ? id : undefined;
+    };
     const visit = (node: MdNode, parent: MdNode | null, index: number) => {
+      // A table, code block, divider or equation followed by its line of attributes.
+      const kids = node.children;
+      if (kids) {
+        for (let i = 0; i < kids.length - 1; i++) {
+          const kind = ATTR_LINE[kids[i].type];
+          const next = kids[i + 1];
+          if (!kind || next.type !== "paragraph") continue;
+          const line = sourceOf(next);
+          const a = line.includes("\n") ? null : attrLine(line, kind);
+          if (!a) continue;
+          addProps(kids[i], blockProps(a));
+          kids.splice(i + 1, 1);
+        }
+      }
       switch (node.type) {
+        case "paragraph": {
+          const k = node.children ?? [];
+          const img = k[0]?.type === "image" && (k.length === 1 || (k.length === 2 && k[1].type === "text")) ? k[0] : null;
+          const figAttrs = img && k.length === 2 ? trail(node, "figure") : null;
+          if (img && node.children!.length === 1) {
+            // A paragraph that is one image: a figure (width, alignment, caption, full-screen view).
+            set(node, "div", { dataPb: "figure", ...blockProps(figAttrs) });
+            addProps(img, { dataBlock: "1", ...blockProps(figAttrs) });
+          } else {
+            const a = trail(node, "paragraph");
+            // A tight list item's paragraph isn't an element of its own: the item carries them.
+            if (a) addProps(parent?.type === "listItem" && index === 0 ? parent : node, blockProps(a));
+          }
+          break;
+        }
+        case "heading":
+          addProps(node, blockProps(trail(node, "heading")));
+          break;
+        case "tableCell":
+          addProps(node, blockProps(trail(node, "cell")));
+          break;
         case "containerDirective": {
           const name = node.name ?? "";
           if (CALLOUTS.has(name)) {
-            set(node, "div", { dataPb: "callout", dataKind: CALLOUT_KIND[name] ?? name, dataLabel: takeLabel(node) || attr(node, "title"), dataIcon: attr(node, "icon"), dataColor: attr(node, "color") });
+            set(node, "div", { dataPb: "callout", dataKind: CALLOUT_KIND[name] ?? name, dataLabel: takeLabel(node) || attr(node, "title"), dataIcon: attr(node, "icon"), dataColor: attr(node, "color"), dataBid: anchorOf(node) });
           } else if (name === "details") {
             const label = takeLabel(node) || attr(node, "summary") || attr(node, "title") || "Details";
             const heading = /^[123]$/.test(attr(node, "heading") ?? "") ? attr(node, "heading") : undefined;
-            set(node, "details", { dataPb: "details", dataLabel: label, dataHeading: heading });
+            const color = attr(node, "color"), bg = attr(node, "bg");
+            set(node, "details", { dataPb: "details", dataLabel: label, dataHeading: heading, dataBid: anchorOf(node), dataColor: color && COLORS.includes(color) ? color : undefined, dataBg: bg && COLORS.includes(bg) ? bg : undefined });
+          } else if (name === "columns") {
+            takeLabel(node);
+            set(node, "div", { dataPb: "columns", dataBid: anchorOf(node) });
+          } else if (name === "column" && parent?.name === "columns") {
+            takeLabel(node);
+            const w = attr(node, "width");
+            set(node, "div", { dataPb: "column", dataWidth: w && /^\d{1,3}(?:\.\d+)?%$/.test(w) ? w : undefined });
+          } else if (name === "indent") {
+            takeLabel(node);
+            set(node, "div", { dataPb: "indent", dataBid: anchorOf(node) });
+          } else if (name === "button" && parent) {
+            // A button inserts its blocks while editing; readers don't see it (as in Notion).
+            parent.children!.splice(index, 1);
+            return;
           } else {
             // Unknown container (e.g. Guides-only blocks): its content, without the fences' meaning.
             takeLabel(node);
@@ -106,6 +198,7 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
             parent.children![index] = { type: "paragraph", children: [{ type: "text", value: sourceOf(node) }] };
             return;
           }
+          if (anchorOf(node)) addProps(node, { dataBid: anchorOf(node) });
           break;
         }
         case "textDirective": {
@@ -121,6 +214,12 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
             node.children = [];
           } else if (node.name === "kbd" && node.children?.length) {
             set(node, "kbd", { className: ["md-kbd"] });
+          } else if (node.name === "span" && node.children?.length && /\]\{[^\n]*\}$/.test(sourceOf(node)) && spanColor(node.attributes as Record<string, string>)) {
+            // `:span[text]{color=red}` / `{bg=yellow}`: Notion's colours.
+            const c = spanColor(node.attributes as Record<string, string>)!;
+            set(node, "span", { dataPb: "color", dataColor: c.color, dataBg: c.bg });
+          } else if (node.name === "u" && node.children?.length && /\]$/.test(sourceOf(node))) {
+            set(node, "u", {});
           } else if (parent) {
             parent.children![index] = { type: "text", value: sourceOf(node) };
             return;
@@ -143,7 +242,14 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
         default:
           break;
       }
-      node.children?.forEach((c, i) => visit(c, node, i));
+      const list = node.children;
+      if (list) {
+        for (let i = 0; i < list.length; i++) {
+          const before = list.length;
+          visit(list[i], node, i);
+          if (list.length < before) i -= before - list.length;
+        }
+      }
     };
     visit(tree, null, 0);
   };

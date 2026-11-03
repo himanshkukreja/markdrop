@@ -1,5 +1,17 @@
 import type { Editor, Range, JSONContent } from "@tiptap/core";
 
+/**
+ * Commands the editor provides on `editor.storage.dxeServices` (VisualEditor sets them), so this
+ * module stays free of runtime imports (the tests load it in Node).
+ */
+interface BlockServices {
+  insertColumns?: (e: Editor, n: number, r: Range) => void;
+  uploadMedia?: (e: Editor, r: Range, kind: "video" | "audio" | "file") => void;
+}
+const svc = (e: Editor) => (e.storage as unknown as { dxeServices?: BlockServices }).dxeServices ?? {};
+const insertColumns = (e: Editor, n: number, r: Range) => svc(e).insertColumns?.(e, n, r);
+const uploadMedia = (e: Editor, r: Range, kind: "video" | "audio" | "file") => svc(e).uploadMedia?.(e, r, kind);
+
 /** One entry of the "/" menu. */
 export interface BlockItem {
   id: string;
@@ -207,6 +219,27 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     keywords: "embed web youtube loom figma maps codepen vimeo iframe video",
     run: insert({ type: "directiveLeaf", attrs: { name: "embed", attributes: {} } }),
   },
+  ...([2, 3, 4, 5] as const).map(
+    (n): BlockItem => ({
+      id: `columns-${n}`,
+      label: `${n} columns`,
+      hint: n === 2 ? "Blocks side by side (or drag one beside another)" : "Blocks side by side",
+      icon: "columns",
+      keywords: `columns column layout side grid split ${n}`,
+      run: (e, r) => insertColumns(e, n, r),
+    }),
+  ),
+  {
+    id: "button",
+    label: "Button",
+    hint: "Inserts a saved set of blocks",
+    icon: "plus",
+    keywords: "button template snippet repeat insert",
+    run: insert({ type: "button", attrs: { label: null, attributes: { label: "Add a task" } }, content: [{ type: "bulletList", content: [{ type: "listItem", attrs: { checked: false }, content: [p()] }] }] }),
+  },
+  { id: "page-video", label: "Video", hint: "Upload a video", icon: "film", keywords: "video upload movie recording mp4 screencast", run: (e, r) => uploadMedia(e, r, "video") },
+  { id: "page-audio", label: "Audio", hint: "Upload a recording", icon: "music", keywords: "audio sound music podcast mp3 upload voice", run: (e, r) => uploadMedia(e, r, "audio") },
+  { id: "page-file", label: "File", hint: "Upload a PDF, sheet or any file", icon: "upload", keywords: "file upload attachment pdf document sheet zip", run: (e, r) => uploadMedia(e, r, "file") },
   {
     id: "mermaid",
     label: "Diagram",
@@ -269,8 +302,8 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
 export const PAGE_BLOCKS = [
   "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
   "subpage", "callout-note", "callout-tip", "callout-warning", "callout-danger",
-  "quote", "divider", "code", "table", "image", "page-embed", "mention", "bookmark", "web-embed",
-  "math", "mermaid", "toc", "breadcrumb", "date", "person",
+  "quote", "divider", "code", "table", "image", "page-video", "page-audio", "page-file", "page-embed", "mention", "bookmark", "web-embed",
+  "columns-2", "columns-3", "columns-4", "columns-5", "math", "mermaid", "toc", "breadcrumb", "button", "date", "person",
 ] as const;
 
 const ALL_ITEMS = [...BLOCK_ITEMS, ...PAGE_ONLY_ITEMS];
@@ -289,7 +322,8 @@ export function filterItems(query: string, items: BlockItem[] = BLOCK_ITEMS): Bl
   const scored = items.map((it) => {
     const label = it.label.toLowerCase();
     const words = `${label} ${it.keywords}`.split(/\s+/);
-    const score = label.startsWith(q) ? 0 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;
+    // The label first ("/columns" → "2 columns" before Table, whose keywords say "columns").
+    const score = label.startsWith(q) ? 0 : label.split(/\s+/).some((w) => w.startsWith(q)) ? 0.5 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;
     return { it, score };
   }).filter((x) => x.score < 3);
   return scored.sort((a, b) => a.score - b.score).map((x) => x.it);
