@@ -18,9 +18,10 @@ const openEmoji = (e: Editor, r: Range) => svc(e).openEmoji?.(e, r);
 export type BlockGroup = "basic" | "media" | "markdrop" | "docs" | "advanced" | "inline";
 export const GROUPS: ReadonlyArray<readonly [BlockGroup, string]> = [
   ["basic", "Basic blocks"],
+  // Guides only (steps, tabs, cards…): right after the basics, the studio's everyday blocks.
+  ["docs", "Guide blocks"],
   ["media", "Media"],
   ["markdrop", "Markdrop"],
-  ["docs", "Guide blocks"],
   ["advanced", "Advanced"],
   ["inline", "Inline"],
 ];
