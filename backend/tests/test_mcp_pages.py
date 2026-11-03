@@ -8,7 +8,9 @@ an in-memory R2. Never backend/.env.
 from __future__ import annotations
 
 import base64
+import unittest
 from datetime import timedelta
+from pathlib import Path
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
 
@@ -367,3 +369,26 @@ class McpPages(AccessWorld):
                                                       {"document": page["slug"], "filename": "a.png",
                                                        "content_base64": b64}))
         self.assertEqual(await self.db["page_assets"].count_documents({}), 2)
+
+
+class PageSyntax(unittest.TestCase):
+    """PAGE_SYNTAX names every construct the page editor writes, and so does the docs page. (That
+    each one round-trips through the editor is frontend/src/components/docs-editor/test/
+    pageSyntax.test.mjs.)"""
+
+    CONSTRUCTS = ["- [ ]", "```mermaid", "$$", ":::note", ":::details", "heading=2", ":span[", "color=",
+                  "bg=", ":u[", "#b-", "caption=", "header-column", "widths=", "header-row", "::::columns",
+                  ":::column", ":::indent", ":::button", "asset:", "width=", "align=", "::markdrop{",
+                  ":markdrop[", "::page{", "::toc", "::breadcrumb", "::bookmark{", "::embed{", ":person[",
+                  ":date[", ":kbd[", "set_page_properties"]
+
+    def test_page_syntax_names_every_construct(self):
+        from app.mcp.page_tools import PAGE_SYNTAX
+
+        self.assertEqual([c for c in self.CONSTRUCTS if c not in PAGE_SYNTAX], [])
+        self.assertNotIn("TODO", PAGE_SYNTAX)
+
+    def test_the_reference_page_names_them_too(self):
+        ref = (Path(__file__).resolve().parents[2] / "frontend" / "content" / "docs" / "pages"
+               / "markdown-reference.md").read_text()
+        self.assertEqual([c for c in self.CONSTRUCTS if c != "set_page_properties" and c not in ref], [])
