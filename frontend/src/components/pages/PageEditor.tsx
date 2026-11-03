@@ -21,10 +21,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
 import type { Heading } from "@/components/reading";
-import { Alert, Badge, Button, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
+import { Alert, Badge, Button, Icon, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { DocsEditor } from "@/components/docs-editor";
 import { PAGE_BLOCKS } from "@/components/docs-editor/blocks";
-import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
+import { splitFrontmatter, writeFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
 import type { DocsEditorApi, EditorMode, PagesEditorHost } from "@/components/docs-editor/types";
 import { getWorkspace } from "@/lib/workspaces";
 import { uploadArtifact } from "@/lib/api";
@@ -38,6 +38,9 @@ import { PagePhoneBar } from "./PagePhoneBar";
 import { readPageProps, type PageFont, type PageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
 import { usePageEditSession } from "./usePageEditSession";
+import { pageEditorAi, suggestPageMeta, usePagesAiStatus, type PageMeta } from "@/lib/pages-ai/client";
+import { MetaChip, type MetaState } from "./ai/MetaChip";
+import "./ai/pageAi.css";
 import { usePageAssets } from "./usePageEmbeds";
 import "./pages.css";
 import "./page-blocks.css";
@@ -134,6 +137,15 @@ function readDraft(slug: string): Draft | null {
   }
 }
 
+/** The Markdown with `description:` in its front matter (AI's suggestion, accepted). */
+function writeDescription(md: string, description: string): string {
+  const { front, body } = splitFrontmatter(md);
+  return writeFrontmatter(front, { description: description.replace(/\s+/g, " ").trim().slice(0, 300) }) + body;
+}
+
+/** An untitled page gets a title suggestion once, at about this many words. */
+const META_WORDS = 80;
+
 const when = (t: string | number) => new Date(t).toLocaleString("en", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /** Default / Serif / Mono, as three "Ag" tiles (the ⋯ menu's first row). */
@@ -197,6 +209,12 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   // Who's viewing already says someone else is editing: read only before anyone clicks.
   const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
   const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
+
+  // ── AI (lib/pages-ai): the editor's AI for people who can write here; the menu says so when
+  // the workspace turned it off.
+  const aiStatus = usePagesAiStatus({ slug });
+  const ai = useMemo(() => pageEditorAi(slug, aiStatus, secret), [slug, aiStatus, secret]);
+  const aiUsable = !!ai && !ai.off;
 
   const keepDraft = useCallback((next: { title?: string; content?: string }) => {
     try {
@@ -296,6 +314,61 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   );
   const setProps = (patch: Partial<PageProps>) => setBody(writePageProps(content, patch));
 
+  // AI's commands from the ⋯ menu and the empty page (DocsEditorApi.runAi).
+  const runAi = (command: "summary" | "actions" | "write") => {
+    if (api.current?.runAi(command)) return;
+    toast.info(mode === "markdown" ? "Switch to editing with blocks to use AI." : "Finish the open AI suggestion first.");
+  };
+
+  // ── Title, icon and description: AI's suggestion as a chip under the title (never applied by
+  // itself). From the ⋯ menu, or once on its own when an untitled page reaches about 80 words.
+  const [meta, setMeta] = useState<MetaState | null>(null);
+  const metaSeq = useRef(0);
+  const askMeta = useCallback(
+    (auto: boolean) => {
+      if (!aiUsable) return;
+      const seq = ++metaSeq.current;
+      if (!auto) setMeta({ phase: "loading" });
+      suggestPageMeta(slug, secret).then(
+        (m) => seq === metaSeq.current && setMeta(m && (m.title || m.icon || m.description) ? { phase: "ready", meta: m } : auto ? null : { phase: "error", message: "No suggestion this time. Write a little more and try again." }),
+        (e: unknown) => seq === metaSeq.current && setMeta(auto ? null : { phase: "error", message: e instanceof Error && e.message ? e.message : "AI couldn't suggest a title just now." }),
+      );
+    },
+    [aiUsable, slug, secret],
+  );
+  // (A page made without a title is called "Untitled".)
+  const untitled = !title.trim() || title.trim() === "Untitled";
+  const longEnough = untitled && aiUsable && !readOnly ? words(content) >= META_WORDS : false;
+  useEffect(() => {
+    if (!longEnough || meta) return;
+    const key = `md_ai_meta:${slug}`;
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {
+      return;
+    }
+    const t = window.setTimeout(() => {
+      try {
+        localStorage.setItem(key, "1");
+      } catch { /* blocked: asked this once anyway */ }
+      askMeta(true);
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [longEnough, meta, slug, askMeta]);
+  const applyMeta = (m: PageMeta) => {
+    metaSeq.current++;
+    setMeta(null);
+    if (m.title) {
+      setTitle(m.title);
+      session.update({ title: m.title });
+      keepDraft({ title: m.title });
+    }
+    let next = content;
+    if (m.icon && !props.icon) next = writePageProps(next, { icon: m.icon });
+    if (m.description) next = writeDescription(next, m.description);
+    if (next !== content) setBody(next);
+  };
+
   // The editor is on screen: tell the view once (it drops the server-rendered page).
   const readyOnce = useRef(false);
   const onEditor = useCallback(
@@ -372,6 +445,15 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
       ),
       separated: true,
     },
+    ...(aiUsable
+      ? [
+          { label: "Summarize page", icon: "sparkle", description: "A short summary at the top, to accept or discard", separated: true, disabled: readOnly, onClick: () => runAi("summary") },
+          { label: "Find action items", icon: "checkSquare", description: "To-dos with owners and dates", disabled: readOnly, onClick: () => runAi("actions") },
+          { label: "Suggest title & icon", icon: "type", disabled: readOnly, onClick: () => askMeta(false) },
+        ]
+      : ai?.off
+        ? [{ label: "AI", icon: "sparkle", description: ai.off, disabled: true, separated: true, onClick: () => {} }]
+        : []),
     ...(isOwner ? [{ label: props.locked ? "Unlock page" : "Lock page", icon: "lock", description: props.locked ? "Anyone who can edit can change it again" : "Only you and workspace admins can edit", onClick: () => setProps({ locked: !props.locked }), separated: true }] : []),
     { label: "Copy link", icon: "link", separated: !isOwner, onClick: () => void copyText(url ?? window.location.href.split("?")[0]).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
     ...(onAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: onAddSubPage }] : []),
@@ -454,7 +536,14 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
           title={title}
           props={props}
           resolve={resolveAsset}
-          below={chrome.below}
+          below={
+            meta || chrome.below ? (
+              <>
+                {meta && !readOnly && <MetaChip state={meta} hasIcon={!!props.icon} onUse={applyMeta} onDismiss={() => { metaSeq.current++; setMeta(null); }} />}
+                {chrome.below}
+              </>
+            ) : undefined
+          }
           edit={{
             readOnly,
             upload,
@@ -491,7 +580,12 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
       {empty && !readOnly && mode === "visual" && (
         <div className="pb-empty no-print" aria-label="Start this page">
           <span>Press “/” for commands, or start with</span>
-          {templates.slice(0, 4).map((t) => (
+          {aiUsable && (
+            <button type="button" className="pb-empty__chip pb-empty__chip--ai md-focus" onClick={() => runAi("write")}>
+              <Icon name="sparkle" size={14} aria-hidden />Write with AI
+            </button>
+          )}
+          {templates.slice(0, aiUsable ? 3 : 4).map((t) => (
             <button key={t.id} type="button" className="pb-empty__chip md-focus" onClick={() => setBody(splitFrontmatter(content).front + fillTemplate(t.content, { title }))}>
               {t.name}
             </button>
@@ -514,6 +608,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
           blocks={PAGE_BLOCKS}
           pages={pages}
           darkImages={false}
+          ai={readOnly ? null : ai}
           apiRef={api}
           onEditor={onEditor}
           stickyTop={() => document.querySelector(".pb-barwrap")?.getBoundingClientRect().bottom ?? 44}
@@ -521,7 +616,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
           autoFocus={false}
         />
       </div>
-      {phone && <PagePhoneBar editor={editor} readOnly={readOnly} />}
+      {phone && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
     </PageFrame>
   );
 }
