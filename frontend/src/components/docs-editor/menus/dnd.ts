@@ -11,7 +11,8 @@
  * files included. Escape or a drop outside puts the ghost back where the block is.
  */
 import { Extension } from "@tiptap/core";
-import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { Fragment, Slice } from "@tiptap/pm/model";
 import { dropPoint } from "@tiptap/pm/transform";
 import type { EditorView } from "@tiptap/pm/view";
@@ -19,7 +20,32 @@ import { BlockSelection } from "./blockSelection";
 import { moveSlice, placeDrop, type DropCandidate, type DropPlace } from "./dropPlace";
 import { EASE, flip, reducedMotion } from "./motion";
 
-export const dndKey = new PluginKey("dxeDnd");
+/** The plugin's state: the blocks being dragged (dimmed by a decoration), or null. */
+type Dragged = { from: number; to: number } | null;
+export const dndKey = new PluginKey<Dragged>("dxeDnd");
+
+/** Says which blocks are being dragged (null: none), outside the undo history. */
+function markDragged(view: EditorView, value: Dragged) {
+  if (view.isDestroyed || dndKey.getState(view.state) === value) return;
+  view.dispatch(view.state.tr.setMeta(dndKey, value).setMeta("addToHistory", false));
+}
+
+/** A node decoration per dragged block (`dxe-dragsource`: dimmed while it's being moved). */
+function draggedDecorations(state: EditorState): DecorationSet | null {
+  const d = dndKey.getState(state);
+  if (!d) return null;
+  const { doc } = state;
+  if (d.from < 0 || d.to > doc.content.size || d.from >= d.to) return null;
+  const $f = doc.resolve(d.from);
+  const decos: Decoration[] = [];
+  let pos = d.from;
+  for (let i = $f.index(); i < $f.parent.childCount && pos < d.to; i++) {
+    const n = $f.parent.child(i);
+    decos.push(Decoration.node(pos, pos + n.nodeSize, { class: "dxe-dragsource" }));
+    pos += n.nodeSize;
+  }
+  return DecorationSet.create(doc, decos);
+}
 
 /** Table parts and list items' first lines aren't places of their own. */
 const SKIP = new Set(["tableRow", "tableCell", "tableHeader"]);
@@ -158,7 +184,7 @@ function endDrag(cancelled: boolean) {
   drag = null;
   d.off();
   cancelAnimationFrame(d.raf);
-  for (const s of d.sources) s.classList.remove("dxe-dragsource");
+  markDragged(d.view, null);
   const g = d.ghost;
   const first = d.sources[0];
   if (cancelled && first?.isConnected && !reducedMotion()) {
@@ -238,9 +264,9 @@ export function startBlockDrag(view: EditorView, e: DragEvent, from: number, to:
     },
   };
   placeGhost();
-  // The originals dim once the browser has taken its (blank) picture.
+  // The originals dim (a decoration: ProseMirror owns their DOM) once the drag has begun.
   requestAnimationFrame(() => {
-    if (drag?.sources === sources) for (const s of sources) s.classList.add("dxe-dragsource");
+    if (drag?.sources === sources) markDragged(view, { from, to });
   });
 }
 
@@ -282,8 +308,19 @@ export const BlockDnd = Extension.create({
       line?.show(c.left - 1, c.top, 2, c.bottom - c.top, true);
     };
     return [
-      new Plugin({
+      new Plugin<Dragged>({
         key: dndKey,
+        state: {
+          init: () => null,
+          apply(tr, value) {
+            const meta = tr.getMeta(dndKey) as Dragged | undefined;
+            if (meta !== undefined) return meta;
+            if (!value || !tr.docChanged) return value;
+            const from = tr.mapping.map(value.from, 1);
+            const to = tr.mapping.map(value.to, -1);
+            return from < to ? { from, to } : null;
+          },
+        },
         view() {
           line = new DropLine();
           return {
@@ -295,6 +332,7 @@ export const BlockDnd = Extension.create({
           };
         },
         props: {
+          decorations: (state) => draggedDecorations(state),
           handleDOMEvents: {
             dragover(view, e) {
               update(view, e);
@@ -332,7 +370,7 @@ export const BlockDnd = Extension.create({
                   if (last) tr.setSelection(BlockSelection.create(tr.doc, done.from, done.to - last.nodeSize));
                 } else if (first && NodeSelection.isSelectable(first)) tr.setSelection(NodeSelection.create(tr.doc, done.from));
                 view.focus();
-                view.dispatch(tr.setMeta("uiEvent", "drop"));
+                view.dispatch(tr.setMeta("uiEvent", "drop").setMeta(dndKey, null));
               },
               { from, find: () => (done ? (view.nodeDOM(done.from) as HTMLElement | null) : null) },
             );
