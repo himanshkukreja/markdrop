@@ -86,16 +86,7 @@ If someone saved a newer version anyway (from the classic editor, VS Code or an 
 
 ## On a phone
 
-While you edit on a phone, a toolbar sits above the keyboard:
-
-- **+** adds a block under this one and opens the block menu;
-- **/** opens the block menu where you are;
-- **⋮⋮** opens the menu of the block you're in (Turn into, colour, duplicate, delete);
-- **Aa** formats the selected text (bold, italic, strikethrough, code, link) or turns the line into another block;
-- **↶** and **↷** undo and redo;
-- **⌄** puts the keyboard away.
-
-The page's **⋯** menu and the format menu open as sheets from the bottom of the screen: drag one down, or tap outside it, to close it. Press and hold a block to open its menu.
+Pages work the same on a phone. While you edit, a toolbar above the keyboard adds blocks, formats text and undoes, and menus open as sheets from the bottom of the screen. See [On a phone](/pages/blocks-and-layout#on-a-phone).
 
 ## Readers
 

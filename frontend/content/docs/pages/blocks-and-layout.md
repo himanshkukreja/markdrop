@@ -93,12 +93,16 @@ Unlike images, these files keep their own access. A reader who can open the page
 
 ## On a phone
 
-While you edit, a bar above the keyboard offers:
-- **+ Block**, which opens the block menu;
-- **⋮⋮**, which opens the menu of the block you're in;
-- **☑**, which selects the block.
+While you edit, a toolbar sits above the keyboard:
+- **+** adds a block under this one and opens the block menu;
+- **/** opens the block menu where you are;
+- **⋮⋮** opens the menu of the block you're in;
+- **☑** selects the block;
+- **Aa** formats the selected text (bold, italic, strikethrough, code, link) or turns the line into another block;
+- **↶** and **↷** undo and redo;
+- **⌄** puts the keyboard away.
 
-You can also press and hold a block to open its menu.
+You can also press and hold a block to open its menu. The format menu and the page's **⋯** menu open as sheets from the bottom of the screen: drag one down, or tap outside it, to close it.
 
 ## In the Markdown
 

@@ -7,6 +7,7 @@
  *   +        a new block under this one, with the block menu ("/") open
  *   /        the block menu at the caret
  *   ⋮⋮       this block's menu (Turn into, colour, duplicate, delete, …)
+ *   ☑        select this block (then the selection bar's actions)
  *   Aa       format: bold, italic, underline, strike, code, link, and Turn into (a bottom sheet)
  *   ↶ ↷      undo, redo
  *   ⌄        done: put the keyboard away
@@ -165,6 +166,7 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
         {btn("Add a block", <Icon name="plus" size={20} aria-hidden />, addBlock)}
         {btn("Block menu (/)", <span className="pb-phonebar__glyph" aria-hidden>/</span>, slashAtCaret)}
         {btn("This block's menu", <Icon name="grip" size={20} aria-hidden />, blockMenu)}
+        {btn("Select this block", <Icon name="checkSquare" size={20} aria-hidden />, () => editor.commands.keyboardShortcut("Escape"))}
         {btn("Format", <Icon name="type" size={20} aria-hidden />, () => setSheet(true), { pressed: sheet })}
         <span className="pb-phonebar__sep" aria-hidden />
         {btn("Undo", <Icon name="undo" size={20} aria-hidden />, () => run(editor, "undo"), { disabled: !(can as unknown as Cmds).undo?.() })}
