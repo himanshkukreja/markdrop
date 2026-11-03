@@ -230,8 +230,23 @@ async def lift_children(db: AsyncIOMotorDatabase, raw: dict) -> int:
     path = list(raw.get("page_path") or [])
     for child in children:
         sets: dict = {"parent_id": new_parent, "page_path": path}
+        # It stays where it was shown: in raw's workspace and folder (a sub-page's
+        # placement is a copy of its parent's; a stale copy would file it elsewhere,
+        # or nowhere, the moment raw stops answering for it).
+        for k in _PLACEMENT:
+            want = list(raw.get(k) or []) if k == "folder_path" else raw.get(k)
+            if (child.get(k) or None) != (want or None):
+                sets[k] = want
         if access.inherits(child) and (raw_is_source or new_parent is None):
             sets["access_inherit"] = False if new_parent is not None else None
+            # Its access becomes its own: exactly what applied through raw, not a
+            # copy that may be stale (a cascade that failed leaves it dirty).
+            for k in _ACCESS:
+                want = raw.get(k) if k != "access_level" else (raw.get(k) or "link")
+                if (child.get(k) or None) != (want or None):
+                    sets[k] = want
+        if any(k in sets for k in (*_PLACEMENT, *_ACCESS)):
+            sets["access_dirty"] = True  # the reconciler re-derives bytes and caches from the row
         await db["documents"].update_one({"_id": child["_id"]}, {"$set": sets})
         # The grants on the page that went no longer reach it.
         live.access_changed(child.get("slug"))
@@ -1094,15 +1109,32 @@ async def move(db: AsyncIOMotorDatabase, raw: dict, parent_slug: str | None, act
 # ── Deleting a page that has sub-pages ───────────────────────────────────────
 
 
+def deleted_item(raw: dict) -> dict:
+    """``{slug, title, kind}`` of an item a delete removed or moved, for the
+    caller to report (kind: ``file`` | ``page`` | ``document``)."""
+    from app.services.workspace_items import display_title
+
+    if raw.get("kind") == "artifact":
+        kind = "file"
+    else:
+        kind = "page" if raw.get("editor") == "blocks" else "document"
+    return {"slug": raw.get("slug"), "title": display_title(raw), "kind": kind}
+
+
 async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx,
-                      children: str | None) -> None:
+                      children: str | None) -> dict:
     """``DELETE /documents/{slug}``: a page with sub-pages needs
     ``children=delete`` (every page below goes too; the caller must be able to
-    delete each of them) or ``children=lift`` (they move up one level)."""
+    delete each of them) or ``children=lift`` (they move up one level).
+
+    Exactly ``raw`` (by ``_id``) and, with ``children=delete``, the pages
+    below it go; nothing is ever matched by title. Returns ``{deleted: [...],
+    lifted: [...]}`` (:func:`deleted_item` each), ``raw`` last in ``deleted``."""
     from app.services import lifecycle
 
     await access.require(actor, raw, "delete", ctx)
-    kids = await children_rows(db, raw["_id"], projection={"_id": 1})
+    kids = await children_rows(db, raw["_id"], projection={"_id": 1, "slug": 1, "title": 1, "kind": 1,
+                                                           "editor": 1})
     if kids and children not in ("delete", "lift"):
         raise PageError(409, {"detail": "This page has pages inside it. Choose whether to delete them too "
                                         "(children=delete) or move them up a level (children=lift).",
@@ -1117,7 +1149,13 @@ async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
             raise HTTPException(status_code=403, detail=(
                 f"{refused} of the pages inside it belong to someone else, so you can't delete them. "
                 "Move them up a level instead (children=lift)."))
+    deleted: list[dict] = []
+    lifted = [deleted_item(k) for k in kids] if kids and children == "lift" else []
+    if kids and children == "delete":
         for d in reversed(below):  # deepest first
-            await lifecycle.destroy(db, d)
+            if await lifecycle.destroy(db, d):
+                deleted.append(deleted_item(d))
     if not await lifecycle.destroy(db, raw):
         raise HTTPException(status_code=404, detail="Document not found")
+    deleted.append(deleted_item(raw))
+    return {"deleted": deleted, "lifted": lifted}
