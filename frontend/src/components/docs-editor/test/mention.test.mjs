@@ -22,7 +22,7 @@ test("a mention is an inline chip with its label and attributes", () => {
   const { doc: d } = parseMarkdown("See :markdrop[Q3 plan]{src=q3-plan} for dates.\n");
   const kids = d.content[0].content;
   assert.equal(kids.length, 3);
-  assert.deepEqual(kids[1], { type: "mention", attrs: { label: "Q3 plan", attributes: { src: "q3-plan" } } });
+  assert.deepEqual(kids[1], { type: "mention", attrs: { name: "markdrop", label: "Q3 plan", attributes: { src: "q3-plan" } } });
 });
 
 test("mentions and embeds round-trip byte for byte", () => {
@@ -70,6 +70,30 @@ test("mentionSource keeps balanced labels and cleans unsafe ones", () => {
   assert.equal(mentionSource({ label: "A [b] c", attributes: { src: "x" } }), ':markdrop[A [b] c]{src="x"}');
   assert.equal(mentionSource({ label: "A ] c", attributes: { src: "x" } }), ':markdrop[A  c]{src="x"}');
   assert.equal(mentionSource({ label: "Line\nbreak", attributes: { src: "x" } }), ':markdrop[Line break]{src="x"}');
+});
+
+test("page blocks round-trip: bookmarks, TOC, breadcrumb, sub-page links, callout icons, toggle headings, dates, people", () => {
+  for (const md of [
+    '::bookmark{url="https://example.com/post" title="A post" description="What it says" image="https://example.com/a.png" site="Example"}\n',
+    "::toc\n",
+    "::breadcrumb\n",
+    "::page{src=launch-sync}\n",
+    ':::note{icon="🚀" color=blue}\nShip it.\n:::\n',
+    ':::details{summary="FAQ" heading=2}\nAnswer.\n:::\n',
+    "Due :date[2026-11-10], ask :person[Ada Owner]{id=u1}.\n",
+    "```mermaid\ngraph TD\n  A --> B\n```\n",
+  ]) {
+    assert.equal(throughEditor(md).out, md);
+  }
+  const kids = parseMarkdown("Due :date[2026-11-10], ask :person[Ada Owner]{id=u1}.\n").doc.content[0].content;
+  assert.deepEqual(kids.filter((k) => k.type === "mention").map((k) => [k.attrs.name, k.attrs.label]), [["date", "2026-11-10"], ["person", "Ada Owner"]]);
+  for (const name of ["bookmark", "toc", "breadcrumb", "page"]) assert.equal(parseMarkdown(`::${name}\n`).doc.content[0].type, "directiveLeaf", name);
+});
+
+test("new dates and people are written as chips", () => {
+  assert.equal(write(para(text("On "), { type: "mention", attrs: { name: "date", label: "2026-12-01", attributes: {} } })), "On :date[2026-12-01]\n");
+  assert.equal(write(para({ type: "mention", attrs: { name: "person", label: "Ben", attributes: { id: "u2" } } })), ':person[Ben]{id="u2"}\n');
+  assert.equal(write(para(text("x"), { type: "mention", attrs: { name: "person", label: "", attributes: {} } })), "x\n");
 });
 
 test("a page image is written as ![alt](asset:<id>), unescaped", () => {

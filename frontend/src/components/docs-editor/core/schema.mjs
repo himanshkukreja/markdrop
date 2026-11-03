@@ -227,7 +227,7 @@ export const Mention = Node.create({
   atom: true,
   selectable: true,
   addAttributes() {
-    return { label: str("label", ""), attributes: json("attributes", {}) };
+    return { name: str("name", "markdrop"), label: str("label", ""), attributes: json("attributes", {}) };
   },
   parseHTML() {
     return [{ tag: "span[data-docs=mention]" }];
