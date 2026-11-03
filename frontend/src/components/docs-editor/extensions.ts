@@ -65,6 +65,12 @@ function taskItemView() {
         };
         li.append(content);
         render();
+        // A page opens read only until its edit lock is taken: setEditable emits "update", and
+        // the box follows (node views aren't redrawn for it).
+        const sync = () => {
+          if (box && box.disabled === editor.isEditable) box.disabled = !editor.isEditable;
+        };
+        editor.on("update", sync);
         return {
           dom: li,
           contentDOM: content,
@@ -74,6 +80,7 @@ function taskItemView() {
             render();
             return true;
           },
+          destroy: () => editor.off("update", sync),
           stopEvent: (e: Event) => e.target === box,
           ignoreMutation: (m: { target: Node; type: string }) => !!box && (m.target === box || (m.type === "childList" && m.target === li)),
         };
