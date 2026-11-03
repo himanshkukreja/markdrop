@@ -51,6 +51,8 @@ function Btn({ label, active, onClick, children, keys, className, expanded }: {
 const mod = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform) ? "⌘" : "Ctrl+";
 const alt = typeof navigator !== "undefined" && /Mac|iP(hone|ad)/.test(navigator.platform) ? "⌥" : "Alt+";
 
+const IDLE = { bold: false, italic: false, strike: false, code: false, underline: false, span: null as Record<string, string> | null, kbd: false, link: false, href: "", h1: false, h2: false, h3: false, h4: false, bullet: false, ordered: false, quote: false, from: -1, to: -1 };
+
 type Menu = null | "heading" | "list" | "more" | "ai" | "color";
 type View = "buttons" | "link" | "lang";
 
@@ -127,7 +129,8 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
   const langInput = useRef<HTMLInputElement>(null);
   const st = useEditorState({
     editor,
-    selector: ({ editor: e }) => ({
+    // No selection, no toolbar: one constant state, so typing doesn't redraw it on every key.
+    selector: ({ editor: e }) => (e.state.selection.empty ? IDLE : {
       bold: e.isActive("bold"),
       italic: e.isActive("italic"),
       strike: e.isActive("strike"),

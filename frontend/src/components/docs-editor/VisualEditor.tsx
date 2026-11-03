@@ -67,7 +67,9 @@ export interface VisualEditorProps {
   darkImages?: boolean;
 }
 
-const EMIT_DELAY = 120;
+// The Markdown goes to the host after a pause in typing (the host re-reads it: refs, autosave, a
+// local draft), not after every key; leaving, hiding the tab and blur flush it at once.
+const EMIT_DELAY = 300;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {

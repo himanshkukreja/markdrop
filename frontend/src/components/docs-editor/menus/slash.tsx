@@ -12,7 +12,7 @@
 import { Extension, type Editor, type Range } from "@tiptap/core";
 import { PluginKey } from "@tiptap/pm/state";
 import Suggestion, { exitSuggestion, type SuggestionKeyDownProps, type SuggestionProps } from "@tiptap/suggestion";
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
 import { BLOCK_ITEMS, GROUP_LABEL, filterItems, type BlockItem } from "../blocks";
@@ -175,6 +175,20 @@ export function openSlashAt(editor: Editor, pos: number) {
 const MAX_H = 360; // .dxe-slash__scroll max-height
 const PREVIEW_W = 248;
 
+/** One row: tile, label, description, shortcut. Moving the pointer picks it (a row scrolled under a still pointer doesn't). */
+const Row = memo(function Row({ it, i, on, id, onHover, onPick }: { it: BlockItem; i: number; on: boolean; id?: string; onHover: (i: number, id: string) => void; onPick: (it: BlockItem) => void }) {
+  return (
+    <div id={id} role="option" aria-selected={on} className={cx("dxe-slash__opt", on && "dxe-slash__opt--on")} onMouseMove={() => onHover(i, it.id)} onClick={() => onPick(it)}>
+      <Tile it={it} />
+      <span className="dxe-slash__text">
+        <span className="dxe-slash__label">{it.label}</span>
+        <span className="dxe-slash__hint">{it.hint}</span>
+      </span>
+      {it.shortcut && <kbd className="dxe-slash__kbd">{it.shortcut}</kbd>}
+    </div>
+  );
+});
+
 function Tile({ it }: { it: BlockItem }) {
   return (
     <span className={cx("dxe-slash__icon", it.tile && "dxe-slash__icon--text")} aria-hidden>
@@ -263,6 +277,21 @@ export function SlashMenu({ store, listboxId, stickyTop, label = "Insert a block
     if (to !== null) sc.scrollTo({ top: to, behavior: far || reducedMotion() ? "auto" : "smooth" });
   }, [s.index, listboxId, live.open, sections]);
 
+  // Stable handlers for the rows (memo: moving the highlight redraws two rows, not forty).
+  const act = useRef({ hover: (_i: number, _id: string) => {}, pick: (_it: BlockItem) => {} });
+  act.current = {
+    hover: (i, id) => {
+      if (store.get().index !== i) {
+        byPointer.current = true;
+        store.set({ index: i });
+      }
+      setHovered((h) => (h === id ? h : id));
+    },
+    pick: (it) => s.pick?.(it),
+  };
+  const onHover = useCallback((i: number, id: string) => act.current.hover(i, id), []);
+  const onPick = useCallback((it: BlockItem) => act.current.pick(it), []);
+
   if (!mounted || typeof document === "undefined") return null;
   const active = s.items[s.index];
   const preview = hovered && active && block && typeof window !== "undefined" && window.innerWidth >= 1280 ? active : null;
@@ -292,28 +321,7 @@ export function SlashMenu({ store, listboxId, stickyTop, label = "Insert a block
                       {header}
                     </div>
                   )}
-                  <div
-                    id={live.open ? `${listboxId}-${i}` : undefined}
-                    role="option"
-                    aria-selected={i === s.index}
-                    className={cx("dxe-slash__opt", i === s.index && "dxe-slash__opt--on")}
-                    // Moving the pointer picks a row; a row scrolled under a still pointer doesn't.
-                    onMouseMove={() => {
-                      if (store.get().index !== i) {
-                        byPointer.current = true;
-                        store.set({ index: i });
-                      }
-                      if (hovered !== it.id) setHovered(it.id);
-                    }}
-                    onClick={() => s.pick?.(it)}
-                  >
-                    <Tile it={it} />
-                    <span className="dxe-slash__text">
-                      <span className="dxe-slash__label">{it.label}</span>
-                      <span className="dxe-slash__hint">{it.hint}</span>
-                    </span>
-                    {it.shortcut && <kbd className="dxe-slash__kbd">{it.shortcut}</kbd>}
-                  </div>
+                  <Row it={it} i={i} on={i === s.index} id={live.open ? `${listboxId}-${i}` : undefined} onHover={onHover} onPick={onPick} />
                 </Fragment>
               );
             })}
