@@ -3,7 +3,7 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, export_page, pages, sub-pages, scopes, reference]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 39 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
@@ -61,11 +61,12 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `append_blocks` | write | Adds Markdown at the end of a page. Works even while someone is editing it: their editor shows the new blocks at once. | `document`, `markdown` |
 | `replace_section` | write | Replaces one section: from the heading you name to the next heading of the same or a higher level. | `document`, `heading`, `markdown` |
 | `insert_embed` | write | Puts a Markdrop item you can open into a page, embedded or as an inline link, at the end or at the end of a section. | `document`, `item`, `as` (`embed`, `link`), `mode` (`live`, `preview`, `card`), `after_heading` |
-| `set_page_properties` | write | Sets a page's icon, cover and its focal point, full width, small text, font and lock. | `document`, `icon`, `cover`, `cover_y`, `full_width`, `small_text`, `font`, `locked` |
+| `set_page_properties` | write | Sets a page's icon, cover and its focal point, full width, small text, font, lock and whether readers can export it. | `document`, `icon`, `cover`, `cover_y`, `full_width`, `small_text`, `font`, `locked`, `allow_export` |
 | `upload_page_image` | write | Uploads a PNG, JPEG, GIF or WebP image (up to 10 MB) to a page and returns the Markdown that shows it. Anyone who can read the page sees it, nobody else. | `document`, `filename`, `content_base64` |
 | `list_page_templates` | read | The built-in templates: feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank. | none |
 | `list_subpages` | read | The pages inside a page that you can open. | `document` |
 | `move_page` | write | Puts a page inside another page of the same workspace, or at the top level. When that changes who can read it, the tool says how and needs `confirm_access_change`. | `document`, `parent`, `confirm_access_change` |
+| `export_page` | read | Exports a page as portable Markdown or one HTML file, returned as text; with sub-pages (or `zip` for Markdown with images), a link to a `.zip` that works for 10 minutes. Items you can't open are written as "Locked item", and readers can export only when the page allows it. See [Export a page](/pages/export). | `document`, `format` (`markdown`, `html`), `include_subpages`, `zip` |
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 

@@ -63,6 +63,7 @@ const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) 
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
+const ExportDialog = dynamic(() => import("@/components/pages/export/ExportDialog").then((m) => m.ExportDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
 
 /**
@@ -209,6 +210,7 @@ export default function DocumentView(props: DocumentViewProps) {
     };
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
   const [treeKey, setTreeKey] = useState(0);
@@ -245,6 +247,9 @@ export default function DocumentView(props: DocumentViewProps) {
       onClose={() => setPageAction(null)}
       onMoved={() => rereadPage()}
     />
+  ) : null;
+  const pageExport = isPage && exporting ? (
+    <ExportDialog open onClose={() => setExporting(false)} slug={slug} title={displayTitle} content={displayContent} assets={page?.assets ?? null} crumbs={crumbs} childrenCount={page?.children_count ?? 0} canEdit={secretUnlocked} secret={v.secretInput || null} viewer={user?.id ?? null} />
   ) : null;
   const pageHref = (s: string, ancestors: string[]) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors });
   // The tab shows the page's icon.
@@ -407,7 +412,11 @@ export default function DocumentView(props: DocumentViewProps) {
   const myGrant = !isOwner && !!user && !!v.access?.your_grant;
   const menu: MenuEntry[] = gated ? [] : [
     ...(readable && !empty ? [{ label: showRaw ? "View rendered" : "View raw", icon: "code", onClick: () => setShowRaw(!showRaw) }] : []),
-    ...(readable ? [{ label: "Export PDF", icon: "printer", onClick: exportPdf }] : []),
+    ...(readable && !isPage ? [{ label: "Export PDF", icon: "printer", onClick: exportPdf }] : []),
+    // A page: Markdown, HTML or PDF (components/pages/export); readers only when the page allows it.
+    ...(readable && isPage && !empty && (secretUnlocked || pageProps?.allowExport !== false) ? [{ label: "Export…", icon: "download", description: "Markdown, HTML or PDF", onClick: () => setExporting(true) }] : []),
+    // An encrypted document's Markdown is saved by this browser (the server can't read it).
+    ...(encrypted && readable && !empty ? [{ label: "Download Markdown", icon: "download", onClick: () => void import("@/components/pages/export/exportApi").then((m) => m.downloadMarkdown(displayTitle, displayContent)) }] : []),
     // An encrypted document is copied by this browser (decrypted text, new key); the server
     // can't copy what it can't read.
     ...(!isOwner && !encrypted ? [{ label: "Save a copy", icon: "copy", onClick: requestCopy }] : []),
@@ -1065,6 +1074,7 @@ export default function DocumentView(props: DocumentViewProps) {
         <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
       )}
       {pageActions}
+      {pageExport}
       {isPage && (
         <DeletePageDialog
           open={deleting}

@@ -118,6 +118,8 @@ _TENANT_ALLOWED = (
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/assets/urls$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/children$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/backlinks$")),
+    # Export a page (routers/page_export.py): can(read), then the page's allow_export.
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/export$")),
 )
 
 

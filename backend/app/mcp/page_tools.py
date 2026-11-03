@@ -397,6 +397,51 @@ async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
             f"replace_section or append_blocks): {markdown}"), out
 
 
+async def export_page(ctx: Context, args: dict) -> tuple[str, dict]:
+    """The page as portable Markdown or one HTML file; a .zip (images, sub-pages) as a link."""
+    from app.services import page_export
+
+    raw = await load_for(ctx, args["document"], "read", "export")
+    if raw.get("encrypted"):
+        raise ToolError(ENCRYPTED_READ + " It can't be exported here either.")
+    actor = actor_of(ctx)
+    actx = _actx(ctx)
+    try:
+        await page_export.check_allowed(actor, raw, actx)
+    except page_export.ExportError as exc:
+        raise ToolError(exc.message)
+    fmt = "html" if args.get("format") == "html" else "md"
+    sub = bool(args.get("include_subpages"))
+    as_zip = sub or (bool(args.get("zip")) and fmt == "md")
+    token_fmt = "zip" if as_zip and fmt == "md" else fmt
+    try:
+        p = await page_export.plan(ctx.db, raw, actor, actor, actx, fmt=token_fmt, subpages=sub)
+    except page_export.ExportError as exc:
+        raise ToolError(exc.message)
+    token, exp = page_export.sign(raw["slug"], ctx.user.id, token_fmt, sub)
+    url = page_export.download_url(raw["slug"], token)
+    from datetime import datetime, timezone
+
+    expires = datetime.fromtimestamp(exp, timezone.utc).isoformat().replace("+00:00", "Z")
+    out: dict[str, Any] = {"slug": raw["slug"], "format": "markdown" if fmt == "md" else "html",
+                           "filename": page_export.filename(p), "download_url": url, "expires_at": expires,
+                           "pages": len(p.pages), "notes": list(p.notes)}
+    if p.zip:
+        what = f"{len(p.pages)} page{'s' if len(p.pages) != 1 else ''}"
+        return (f"Exported {raw['slug']} as {out['filename']} ({what}, images included). Download it within "
+                f"10 minutes (it needs no sign-in, so don't share the link): {url}"), out
+    content = page_export.render(p.pages[0], fmt)
+    if len(content) > MAX_RETURNED_CHARS:
+        out["note"] = f"The export is longer than {MAX_RETURNED_CHARS:,} characters: download it instead."
+        return f"{out['note']} {url}", out
+    out["content"] = content
+    if p.pages[0].images:
+        out["note"] = ("The page's images aren't in this text (a public page's are linked); download_url gives "
+                       + ("the HTML with them inlined." if fmt == "html" else "the same Markdown; zip: true "
+                          "gives a .zip with the images."))
+    return content, out
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 _PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"}},
@@ -428,7 +473,7 @@ PAGE_SYNTAX = (
     "title=\"…\" description=\"…\"}'. Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): "
     "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}'; date: ':date[YYYY-MM-DD]'; "
     "key: ':kbd[⌘ K]'. Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
-    "font, locked): use set_page_properties."
+    "font, locked, allow_export): use set_page_properties."
 )
 _SYNTAX = PAGE_SYNTAX
 
@@ -602,7 +647,8 @@ PAGE_TOOLS: list[Tool] = [
                      "cover (asset:<id>, an https:// image, or gallery:<name>, a built-in cover: "
                      f"{', '.join(page_props.GALLERY)}) and its focal point cover_y (0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
-                     "workspace admin may edit a locked page, or lock / unlock one). Pass null to clear one. "
+                     "workspace admin may edit a locked page, or lock / unlock one) and allow_export (false: "
+                     "readers can't export it; editors always can). Pass null to clear one. "
                      "They live in the page's front matter. Refused while someone is editing the page."),
         scope=WRITE,
         writes=True,
@@ -615,6 +661,7 @@ PAGE_TOOLS: list[Tool] = [
             "small_text": {"type": ["boolean", "null"]},
             "font": {"type": ["string", "null"], "enum": ["default", "serif", "mono", None]},
             "locked": {"type": ["boolean", "null"]},
+            "allow_export": {"type": ["boolean", "null"]},
         }, "required": ["document"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
                             "properties": {"type": "object"}}, ["url", "markdrop_url", "slug", "rev", "properties"]),
@@ -640,5 +687,31 @@ PAGE_TOOLS: list[Tool] = [
                            ["id", "mime", "size", "slug", "markdown"]),
         annotations=_ann(False, False, False),
         handler=upload_page_image,
+    ),
+    Tool(
+        name="export_page",
+        title="Export a page",
+        description=("Export a page (or any Markdown document) for use outside Markdrop: format markdown gives "
+                     "portable Markdown (callouts become labelled quotes, columns follow one another, people and "
+                     "dates become text, embedded Markdrop items become links, and items the user can't open "
+                     "become 'Locked item'); format html gives one self-contained HTML file in the page's look. "
+                     "The text comes back in the result. include_subpages (or zip: true for Markdown with its "
+                     "images) returns a .zip as a download link valid for 10 minutes instead, with a folder per "
+                     "sub-page the user can open. Readers can export only when the page allows it."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "format": {"type": "string", "enum": ["markdown", "html"], "default": "markdown"},
+            "include_subpages": {"type": "boolean", "default": False},
+            "zip": {"type": "boolean", "default": False,
+                    "description": "Markdown only: a .zip with page.md and its images/ folder."},
+        }, "required": ["document"]},
+        output_schema=_out({
+            "slug": {"type": "string"}, "format": {"type": "string"}, "filename": {"type": "string"},
+            "download_url": {"type": "string"}, "expires_at": {"type": "string"}, "pages": {"type": "integer"},
+            "notes": {"type": "array"}, "content": {"type": "string"}, "note": {"type": "string"},
+        }, ["slug", "format", "filename", "download_url", "expires_at", "pages", "notes"]),
+        annotations=_ann(True, False, True),
+        handler=export_page,
     ),
 ]

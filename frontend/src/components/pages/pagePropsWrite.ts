@@ -13,9 +13,10 @@ export function writePageProps(markdown: string, patch: Partial<PageProps>): str
   if ("smallText" in patch) p.small_text = patch.smallText ? "true" : null;
   if ("font" in patch) p.font = patch.font && patch.font !== "default" ? patch.font : null;
   if ("locked" in patch) p.locked = patch.locked ? "true" : null;
+  if ("allowExport" in patch) p.allow_export = patch.allowExport === false ? "false" : null;
   let next = writeFrontmatter(front, p);
   // Booleans and numbers as YAML values, not strings.
-  next = next.replace(/^(full_width|small_text|locked): "true"$/gm, "$1: true").replace(/^cover_y: "(\d+)"$/gm, "cover_y: $1");
+  next = next.replace(/^(full_width|small_text|locked): "true"$/gm, "$1: true").replace(/^allow_export: "false"$/gm, "allow_export: false").replace(/^cover_y: "(\d+)"$/gm, "cover_y: $1");
   // Nothing left in it: no front matter at all.
   if (/^---[ \t]*\r?\n---[ \t]*(\r?\n)?$/.test(next)) next = "";
   return next + body;

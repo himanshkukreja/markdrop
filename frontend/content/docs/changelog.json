@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "page-export",
+      "date": "2026-11-04",
+      "title": "Export pages as Markdown, HTML or PDF",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Download a page as portable Markdown, one self-contained HTML file or a PDF, with its images and the sub-pages you can open. Items a reader can't open are exported as \"Locked item\", never by name.",
+      "body": "- **⋯ › Export…** on any page: pick **Markdown**, **HTML** or **PDF**.\n- **Markdown** any app reads: callouts become labelled quotes, columns follow one another, people and dates become text, embedded files become links. With images, a `.zip` with an `images` folder.\n- **HTML:** one file in the page's look, images inside, that opens anywhere, even offline.\n- **PDF:** your browser's print dialog with the page laid out for paper: light, no menus, the cover on top, no blocks split across sheets.\n- **Include sub-pages:** a folder for each one you can open, linked to each other; the PDF prints them after the page.\n- **Readers can export** unless the page's editors switch that off in its ⋯ menu.\n- An end-to-end encrypted document's browser saves its Markdown with **Download Markdown**.\n- AI apps export with the new `export_page` MCP tool.",
+      "docs": [
+        "/pages/export",
+        "/pages/markdown-reference",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

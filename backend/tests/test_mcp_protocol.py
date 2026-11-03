@@ -166,7 +166,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 39)
+        self.assertEqual(len(r.json()["result"]["tools"]), 40)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")
