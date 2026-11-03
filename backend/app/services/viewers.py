@@ -29,10 +29,12 @@ end-to-end encrypted document only ``{"count_only": true, "total": N}``: names
 and sections never, since its headings are content the server must not hold.
 With the owner's "Show who's viewing" off: ``{"on": false}`` and nothing else.
 
-The anonymous animal and the colour come from a hash of the tab's own random
-nonce (kept in its sessionStorage) and the slug, with the server's secret: the
-same tab keeps its animal across reconnects, different documents give it
-different animals, and nothing about the account goes into it.
+The anonymous animal comes from a hash of the tab's own random nonce (kept in
+its sessionStorage) and the slug, with the server's secret: the same tab keeps
+its animal across reconnects, different documents give it different animals,
+and nothing about the account goes into it. Two tabs on one document never share
+an animal. Colours are handed out first-free, so the people on a document differ
+while there are colours to go round; a person's tabs share theirs.
 
 State is in memory only, in this process (the single uvicorn worker, like
 services/live.py). Nothing here is logged, stored or sent to analytics. If the
@@ -184,8 +186,9 @@ def _animal_for(room: Room, conn: Conn) -> str:
 
 
 def _color_for(room: Room, conn: Conn, seed: int) -> int:
-    """The seeded colour, or the next one nobody else on the document has (while any is free).
-    A named person keeps the colour their other tabs already have."""
+    """The first colour nobody else on the document has (the client orders its palette so the
+    first few are the most distinct), else the seeded one. A named person keeps the colour their
+    other tabs already have."""
     if conn.named and conn.user_id:
         for c in room.conns.values():
             if c is not conn and c.joined and c.named and c.user_id == conn.user_id:
@@ -193,8 +196,8 @@ def _color_for(room: Room, conn: Conn, seed: int) -> int:
     taken = {c.color for c in room.conns.values()
              if c is not conn and c.joined and not (conn.named and c.named and c.user_id == conn.user_id)}
     for i in range(COLORS):
-        if (seed + i) % COLORS not in taken:
-            return (seed + i) % COLORS
+        if i not in taken:
+            return i
     return seed % COLORS
 
 

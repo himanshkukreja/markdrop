@@ -78,8 +78,11 @@ export function viewerInitials(v: Pick<PresenceViewer, "name" | "animal">): stri
   return src.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("");
 }
 
-/** Six hues the design system tunes for both themes (chart-4's amber sits too close to chart-2's orange). */
-const PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-5)", "var(--chart-6)", "var(--cat-sync)"];
+/**
+ * Six hues the design system tunes for both themes, most distinct first: the server gives each
+ * viewer the first one nobody else has (chart-4's amber sits too close to chart-2's orange).
+ */
+const PALETTE = ["var(--chart-1)", "var(--chart-2)", "var(--chart-6)", "var(--chart-3)", "var(--chart-5)", "var(--cat-sync)"];
 
 export function viewerColor(i: number): string {
   return PALETTE[(((i | 0) % 6) + 6) % 6]!;
