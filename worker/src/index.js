@@ -387,13 +387,22 @@ async function verifyToken(token, key, expectedBlobKey, objectEpoch) {
   }
 }
 
+/**
+ * Images pasted into a Markdrop page (the API's services/page_assets.py): pa/<doc id>/<token>.<ext>.
+ * Same rules as an artifact's bytes (public flag, or a signed token bound to the key and the page's
+ * access epoch), and only ever a raster image: anything else under pa/ is not served.
+ */
+const PAGE_ASSET_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
+
 async function serveRaw(blobKey, url, env, request) {
-  if (!blobKey.startsWith("art/")) return notFound(request, url);
+  const pageAsset = blobKey.startsWith("pa/");
+  if (!blobKey.startsWith("art/") && !(pageAsset && !blobKey.includes(".."))) return notFound(request, url);
 
   // HEAD first: the size is needed to resolve a Range, and fetching the body to
   // find out how big it is would defeat the point of ranging in the first place.
   const head = await env.ARTIFACTS.head(blobKey);
   if (!head) return notFound(request, url);
+  if (pageAsset && !PAGE_ASSET_TYPES.has(head.httpMetadata?.contentType || "")) return notFound(request, url);
 
   // FAIL CLOSED. Serve without a token only when the object is explicitly
   // marked public; anything unmarked — a partial write, a metadata update that

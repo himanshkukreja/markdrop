@@ -68,6 +68,11 @@ const env = {
     "art/u3/app.html": { type: "text/html", body: APP, meta: { public: "1" }, chunk: 7 },
     "art/u3/plain.html": { type: "text/html", body: "<!doctype html><p>No script here</p>", meta: { public: "1" } },
     "art/u3/pic.svg": { type: "image/svg+xml", body: "<svg xmlns='http://www.w3.org/2000/svg'/>", meta: { public: "1" } },
+    // Page images (the API's services/page_assets.py): pa/<doc id>/<token>.<ext>.
+    "pa/d1/open.png": { type: "image/png", body: "\x89PNG-open", meta: { public: "1" } },
+    "pa/d2/guarded.png": { type: "image/png", body: "\x89PNG-guarded", meta: { ae: "3" } },
+    "pa/d3/page.html": { type: "text/html", body: "<script>1</script>", meta: { public: "1" } },
+    "other/x.png": { type: "image/png", body: "\x89PNG", meta: { public: "1" } },
   }),
 };
 
@@ -266,4 +271,27 @@ test("the sheet and Word viewers sanitise what their parsers build", async () =>
   assert.equal(out.A2.l, undefined);
   assert.equal(out.B2.l.Target, "https://example.com/?a=1&amp;b=2");
   assert.match(docx, /out\.replaceChildren\(safeFragment\(value\)\)/);
+});
+
+test("page images (pa/): public ones by URL, guarded ones only with a token for that key and epoch", async () => {
+  const open = await get("/r/pa/d1/open.png");
+  assert.equal(open.status, 200);
+  assert.equal(open.headers.get("content-type"), "image/png");
+  assert.equal(open.headers.get("cache-control"), "public, max-age=300");
+
+  assert.equal((await get("/r/pa/d2/guarded.png")).status, 403);
+  const exp = Math.floor(Date.now() / 1000) + 60;
+  const good = await sign({ k: "pa/d2/guarded.png", e: 3, exp });
+  const ok = await get(`/r/pa/d2/guarded.png?t=${good}`);
+  assert.equal(ok.status, 200);
+  assert.equal(ok.headers.get("cache-control"), "private, no-store");
+  // Minted before the page narrowed (an older epoch): refused.
+  assert.equal((await get(`/r/pa/d2/guarded.png?t=${await sign({ k: "pa/d2/guarded.png", e: 2, exp })}`)).status, 403);
+  // A token for another page's image is refused.
+  assert.equal((await get(`/r/pa/d2/guarded.png?t=${await sign({ k: "pa/d1/open.png", e: 3, exp })}`)).status, 403);
+
+  // Only raster images are ever served from pa/, and nothing outside art/ and pa/.
+  assert.equal((await get("/r/pa/d3/page.html")).status, 404);
+  assert.equal((await get("/r/other/x.png")).status, 404);
+  assert.equal((await get("/r/pa/d1/..%2F..%2Fart/u1/page.html")).status, 404);
 });
