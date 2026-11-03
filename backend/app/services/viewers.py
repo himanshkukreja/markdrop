@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import hmac
+import json
 import re
 import secrets
 import time
@@ -413,8 +414,6 @@ async def handle(db, slug: str, raw: dict | None, conn: Conn, text: str) -> str 
         return "close"
     if not _take_token(conn, now):
         return "close" if conn.dropped > DROP_LIMIT else None
-    import json
-
     try:
         msg = json.loads(text)
     except ValueError:
