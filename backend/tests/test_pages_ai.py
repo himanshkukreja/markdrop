@@ -790,6 +790,10 @@ class Translate(PagesAIWorld):
         self.assertEqual((r.status_code, r.json()["code"]), (400, "bad_language"))
         r = await self.post(f"/api/v1/ai/pages/{src['slug']}/translate", self.session("wv"), json={"lang": "Spanish"})
         self.assertEqual(r.status_code, 403)
+        # An editor by grant who isn't a member of the workspace can't create the copy there: refused
+        # before anything is sent.
+        r = await self.post(f"{self.url}/translate", self.session("ge"), json={"lang": "Spanish"})
+        self.assertEqual((r.status_code, r.json()["code"]), (403, "cant_create"))
         self.assertEqual(self.fake.calls, [])
 
 

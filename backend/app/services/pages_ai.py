@@ -1566,7 +1566,7 @@ async def translate_page(job: Job, *, lang: str, actor, ctx) -> AsyncIterator[tu
     folder), same blocks, embeds and properties, access as a new page there gets (a sub-page inherits).
     The original is untouched. Checks the request (raising :class:`AIError`), then returns the
     stream: progress…, then done {slug, url, title} (or limit / error)."""
-    from app.services import page_props
+    from app.services import access, page_props
 
     lang = language(lang)
     raw = job.target.raw
@@ -1580,7 +1580,18 @@ async def translate_page(job: Job, *, lang: str, actor, ctx) -> AsyncIterator[tu
         parent = await db_find(job.db, raw.get("parent_id"))
         if parent is None:
             raise AIError(409, "no_parent", "This page's parent is gone.")
+        if not (await access.can(actor, parent, "edit_content", ctx)).allowed:
+            raise AIError(403, "cant_create", "The translation goes next to this page, inside its parent page, "
+                                              "and you can't add pages there.")
         parent_slug = parent["slug"]
+    if raw.get("workspace_id"):
+        # Checked before anything is sent: only members create pages in a workspace (pages.create_page).
+        from app.models.workspace import role_allows
+        from app.services import workspace as ws_service
+
+        if not role_allows(await ws_service.role_for(job.db, raw["workspace_id"], job.user.id), "member"):
+            raise AIError(403, "cant_create", "Only members of this page's workspace can create the translated "
+                                              "page next to it.")
     job.meta.update(language=lang, chars_in=len(content))
     pricing = ai_usage.pricing_for(MODEL)[0].base
     job.reserve = max(0.02, est_tokens(content) * 3 * (pricing.input + pricing.output) / 1_000_000)
