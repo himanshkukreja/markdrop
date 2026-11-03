@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "whos-viewing",
+      "date": "2026-11-03",
+      "title": "See who's viewing a document or file, live",
+      "kind": "new",
+      "area": "Sharing",
+      "products": [
+        "web"
+      ],
+      "summary": "Documents and files now show who's reading them right now, with the section each person is on. People with access appear by name; everyone else appears as an anonymous animal. Your AI app can ask too.",
+      "body": "- **Who's viewing** in the header of every document and file: avatars, and a list of everyone here with the section, page or video moment they're on.\n- **Names only for people with access:** the owner, workspace members and people you invited. Everyone else, signed in or not, is \"Anonymous Otter\" and friends.\n- **Show me as anonymous**, for viewers who'd rather not be named. **Show who's viewing** in Share turns it off for a document.\n- **Encrypted documents** show only how many people are reading.\n- **AI apps:** the MCP server's new `get_viewers` and `set_presence` tools (28 tools now).\n- Shown live and never stored. See [See who's viewing](/sharing/see-whos-viewing)."
+    },
+    {
       "id": "guides-mcp-connect",
       "date": "2026-11-02",
       "title": "Connect AI tools to any guide's MCP server in one click",
