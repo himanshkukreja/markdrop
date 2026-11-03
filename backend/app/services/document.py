@@ -441,10 +441,12 @@ async def update_document(
     data: DocumentUpdate,
     actor,
     ctx,
+    history: dict | None = None,
 ) -> dict:
     """Content via can(edit_content); password/expiry via can(edit_settings).
     A request carrying any settings field from someone who may only edit the
-    text is refused whole (403) — nothing is written."""
+    text is refused whole (403) — nothing is written. ``history``: how version
+    history labels this write (services/page_history.py; a restore)."""
     from app.services import access, transitions
 
     from app.services import pages
@@ -504,6 +506,10 @@ async def update_document(
                 raise StaleRevision(fresh.get("rev", 1))
         raise
     ctx.forget(raw)
+    # Version history (services/page_history.py): one version per editing session per 10 minutes.
+    from app.services import page_history
+
+    await page_history.on_save(db, raw, after, actor, **(history or {}))
     return after
 
 

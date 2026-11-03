@@ -42,6 +42,24 @@
       ]
     },
     {
+      "id": "page-history",
+      "date": "2026-11-04",
+      "title": "Pages: version history, with changes highlighted and one-click restore",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Every page keeps its earlier versions. Open Version history from the page's ⋯ menu to see each one as the page looked then, what changed against the page now, and restore any of them. A restore is itself a version, so it can be undone.",
+      "body": "- **Saved for you:** one version per 10 minutes of editing and one when you leave the page, plus a version before and after every change an AI app makes, labelled with the app's name.\n- **Version history** opens over the page: versions grouped by day, who saved each one, and the one that matches the page now. **↑** and **↓** step through them; on a phone, tap one to open it.\n- **Show changes** highlights what's only in that version (green) and what's only in the page now (red, struck through).\n- **Restore this version** asks first, then saves the restore as a new version, keeping the page as it was. It waits if someone else is editing the page.\n- Every version is kept for 30 days, then the last one of each day for a year. Only people who can edit a page see its history. End-to-end encrypted documents have none.\n- Images nothing in a page or its history shows any more are deleted after 30 days.\n- New MCP tools: `list_page_versions`, `get_page_version` and `restore_page_version`.",
+      "docs": [
+        "/pages/history",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

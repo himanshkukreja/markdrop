@@ -3,7 +3,7 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 42 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
@@ -69,6 +69,9 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `translate_page` | write | Translates a page into another language as a new page next to it, titled "Title (Español)", with the same blocks, embeds, images and properties. Only the text is translated, and the original isn't changed. Uses Markdrop's AI. | `document`, `language` |
 | `summarize_page` | write | Writes a short summary of a page as a Summary callout, with Markdrop's AI. With `insert`, it's added at the top of the page; otherwise it's only returned. | `document`, `insert` |
 | `suggest_page_meta` | write | Suggests a title, a one-sentence description and an emoji icon for a page, with Markdrop's AI. Changes nothing. | `document` |
+| `list_page_versions` | read | A page's saved versions, newest first: when, who (a person, an AI app, or a restore) and which one matches the page now. Only people who can edit the page see them. | `document`, `cursor` |
+| `get_page_version` | read | One saved version of a page: its Markdown, when and who. | `document`, `version` |
+| `restore_page_version` | write | Makes an earlier version the page again, as a new version; the page as it was is kept, so a restore can be undone. Refused while someone has the page open in the editor. | `document`, `version` |
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 

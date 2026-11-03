@@ -117,7 +117,9 @@ class Transport(McpTestCase):
             "create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
             "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
             # Page AI (services/pages_ai.py).
-            "translate_page", "summarize_page", "suggest_page_meta"})
+            "translate_page", "summarize_page", "suggest_page_meta",
+            # A page's version history.
+            "list_page_versions", "get_page_version", "restore_page_version"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")

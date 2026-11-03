@@ -330,6 +330,10 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
             )
         ctx = tools.Context(db=get_database(), user=principal.user,
                             client_id=principal.client_id, scopes=principal.scopes)
+        # Version history labels an AI app's writes with its name (services/page_history.py).
+        from app.services import page_history
+
+        page_history.MCP_CLIENT.set(principal.client_id)
         text, structured = await tool.handler(ctx, args)
         ok = True
         result = _tool_result(text, structured, False, modern)

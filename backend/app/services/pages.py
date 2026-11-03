@@ -92,6 +92,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await page_assets.ensure_indexes(db)
     await bookmarks.ensure_indexes(db)
     await page_links.ensure_indexes(db)
+    from app.services import page_history
+
+    await page_history.ensure_indexes(db)
 
 
 # ── The tree ──────────────────────────────────────────────────────────────────
@@ -396,6 +399,9 @@ async def release_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
                                            {"$set": {"edit_lock": None}})
     if res.modified_count:
         viewers.set_editor(raw.get("slug"), None, 0)
+        from app.services import page_history
+
+        await page_history.on_release(db, raw, actor)
 
 
 # ── Markdown: embeds, mentions, page images, sections ─────────────────────────

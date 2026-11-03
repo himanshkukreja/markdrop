@@ -184,6 +184,9 @@ class Settings(BaseSettings):
     # the expiry sweeper and the access reconciler. Each takes a Mongo lease so
     # only one API worker runs it. Off in tests (they call the loops' bodies).
     background_workers_enabled: bool = True
+    # Page images nothing references (services/page_history.py): the daily pass only counts
+    # (logs the counts) when on; off, it marks and, 30 days later, deletes them.
+    page_image_cleanup_dry_run: bool = False
 
     # ── Custom domains ───────────────────────────────────────────────────────
     # Attaching a verified host to the hosting project so TLS is issued. Left

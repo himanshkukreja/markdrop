@@ -130,6 +130,9 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
             q, {"$set": {"content": content, "updated_at": datetime.now(timezone.utc)}, "$inc": {"rev": 1}},
             return_document=True)
         if after is not None:
+            from app.services import page_history
+
+            await page_history.on_save(ctx.db, cur, after, actor_of(ctx))
             new_rev = int(after.get("rev") or 1)
             live.notify(after["slug"], {"type": "appended", "rev": new_rev, "markdown": block.strip("\n")})
             live.publish(after["slug"], new_rev)
