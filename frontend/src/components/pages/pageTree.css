@@ -1,0 +1,77 @@
+/* Moving and copying pages: the page tree's drag and drop, "Move to", the access confirmation,
+   "Duplicate". Tokens only (light and dark follow the theme). */
+
+/* ── The page tree ─────────────────────────────────────────────────────── */
+.pt-tree { position: relative; }
+/* Rows carry their own indent (so the drop line can be placed by level). */
+.pt-tree .pb-tree ul { padding-left: 0; }
+.pt-tree .pb-tree__row { position: relative; min-height: 28px; transition: background-color var(--duration-fast, 120ms) ease, box-shadow var(--duration-fast, 120ms) ease, opacity var(--duration-fast, 120ms) ease; }
+.pt-tree .pb-tree__row[data-drag-on] { cursor: grab; touch-action: pan-y; }
+.pt-tree[data-dragging] .pb-tree__row { cursor: grabbing; }
+.pt-tree[data-dragging] .pb-tree__row:hover { background: none; }
+.pt-tree .pb-tree__row--source { opacity: 0.4; }
+/* "Inside": the row lights up */
+.pt-tree .pb-tree__row--into, .pt-tree[data-dragging] .pb-tree__row--into:hover { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pt-tree .pb-tree__row--into .pb-tree__link { color: var(--accent-text); }
+.pt-tree .pb-tree__row--busy { opacity: 0.6; }
+.pt-tree .pb-tree__link { -webkit-user-drag: none; user-select: none; }
+
+/* The row's menu (⋯): on hover or keyboard focus; always on touch screens */
+.pt-row-menu { flex: none; display: flex; opacity: 0; transition: opacity var(--duration-fast, 120ms) ease; }
+.pb-tree__row:hover .pt-row-menu, .pb-tree__row:focus-within .pt-row-menu, .pt-row-menu:has([aria-expanded="true"]) { opacity: 1; }
+@media (hover: none) { .pt-row-menu { opacity: 1; } }
+.pt-tree[data-dragging] .pt-row-menu { opacity: 0; }
+.pt-row-menu .md-btn { width: 22px; height: 22px; min-height: 22px; padding: 0; }
+
+/* "Between": a line with a dot, at the level it would land */
+.pt-line { position: absolute; right: 2px; z-index: 5; height: 2px; margin-top: -1px; border-radius: 2px; background: var(--accent); pointer-events: none; transition: top 70ms var(--ease-out, ease-out), left 70ms var(--ease-out, ease-out); }
+.pt-line::before { content: ""; position: absolute; left: -5px; top: -3px; width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--accent); background: var(--bg); box-sizing: border-box; }
+@media (prefers-reduced-motion: reduce) { .pt-line { transition: none; } }
+
+/* What follows the pointer */
+.pt-ghost { display: inline-flex; align-items: center; gap: 8px; max-width: 240px; padding: 5px 10px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface-raised); box-shadow: var(--shadow-md); color: var(--text); font: 500 13px/20px var(--font-sans); cursor: grabbing; opacity: 0.95; }
+.pt-ghost > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-ghost .md-icon { color: var(--text-muted); flex: none; }
+.pt-ghost--no { border-color: var(--danger); }
+.pt-ghost__why { flex: none; color: var(--danger); font-size: 12px; }
+
+/* Dropping on the "Pages" heading: the top level */
+.pt-top { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; padding: 2px 4px; border-radius: var(--radius-md); }
+.pt-top--into { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pt-top--into h2 { color: var(--accent-text); }
+.pt-top__hint { font-size: 11px; color: var(--accent-text); }
+
+/* ── "Move to" ─────────────────────────────────────────────────────────── */
+.pt-move { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+.pt-move__search { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface); color: var(--text-muted); }
+.pt-move__search:focus-within { border-color: var(--border-focus); box-shadow: 0 0 0 3px var(--accent-ring); }
+.pt-move__search input { min-width: 0; flex: 1; height: 100%; border: 0; background: none; color: var(--text); font: 400 15px/22px var(--font-sans); outline: none; }
+.pt-move__search input::placeholder { color: var(--text-muted); }
+.pt-move__search input::-webkit-search-cancel-button { display: none; }
+.pt-move__scroll { height: min(360px, 50vh); overflow-y: auto; margin: 0 -8px; padding: 0 8px; overscroll-behavior: contain; }
+.pt-move__list { margin: 0; padding: 0 0 4px; list-style: none; }
+.pt-move__group { padding: 10px 10px 4px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
+.pt-move__opt { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px; border-radius: var(--radius-md); color: var(--text); font-size: 14px; line-height: 20px; cursor: pointer; }
+.pt-move__opt--on { background: var(--surface-hover); box-shadow: inset 2px 0 0 var(--accent); }
+.pt-move__opt--off { cursor: default; color: var(--text-muted); }
+.pt-move__icon { flex: none; color: var(--text-muted); }
+.pt-move__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pt-move__hint { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-muted); }
+.pt-move__label + .pt-move__note, .pt-move__label + .md-spinner { margin-left: auto; }
+.pt-move__note { flex: none; font-size: 12px; color: var(--text-muted); }
+.pt-move__empty { padding: 24px 10px; color: var(--text-muted); font-size: 14px; text-align: center; }
+.pt-move__foot { display: flex; gap: 16px; margin: 0; padding-top: 8px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+.pt-move__foot span { display: inline-flex; align-items: center; gap: 4px; }
+@media (hover: none) { .pt-move__foot { display: none; } }
+
+/* ── The access confirmation ───────────────────────────────────────────── */
+.pt-access { display: grid; gap: 6px; margin: 0; }
+.pt-access__row { display: grid; grid-template-columns: 112px 1fr; gap: 12px; align-items: baseline; padding: 8px 12px; border-radius: var(--radius-md); background: var(--surface-inset); }
+.pt-access__row dt { font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.pt-access__row dd { margin: 0; color: var(--text); font-size: 14px; line-height: 20px; }
+.pt-access__row--after { background: var(--warning-soft); }
+.pt-access__note { margin: 10px 0 0; font-size: 13px; color: var(--text-muted); }
+
+/* ── Duplicate ─────────────────────────────────────────────────────────── */
+.pt-dup { display: flex; flex-direction: column; gap: 10px; }
+.pt-dup__step { margin: 0; font-size: 14px; color: var(--text-secondary); }

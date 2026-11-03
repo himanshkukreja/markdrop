@@ -63,6 +63,10 @@ export interface PageEditorProps {
   onAddSubPage?: (() => void) | null;
   /** Delete the page (the viewer asks what happens to its sub-pages). */
   onDelete?: (() => void) | null;
+  /** "Move to…" (under another page, to the top level, or another folder). */
+  onMoveTo?: (() => void) | null;
+  /** "Duplicate" (after the latest edits are saved). */
+  onDuplicate?: (() => void) | null;
   /** Sticky bars above the editor, in px (the site header). */
   stickyTop?: () => number;
 }
@@ -108,7 +112,7 @@ function readDraft(slug: string): Draft | null {
   }
 }
 
-export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onDone, onAddSubPage, onDelete, stickyTop }: PageEditorProps) {
+export function PageEditor({ slug, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onDone, onAddSubPage, onDelete, onMoveTo, onDuplicate, stickyTop }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const [title, setTitle] = useState(initialTitle ?? "");
@@ -275,6 +279,8 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
     ...(isOwner ? [{ label: props.locked ? "Unlock page" : "Lock page", icon: "lock", description: props.locked ? "Anyone who can edit can change it again" : "Only you and workspace admins can edit", onClick: () => setProps({ locked: !props.locked }), separated: true }] : []),
     { label: "Copy link", icon: "link", separated: !isOwner, onClick: () => void copyText(url ?? window.location.href.split("?")[0]).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
     ...(onAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: onAddSubPage }] : []),
+    ...(onMoveTo ? [{ label: "Move to…", icon: "arrowRight", onClick: onMoveTo }] : []),
+    ...(onDuplicate ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => void session.flush().then(onDuplicate, onDuplicate) }] : []),
     { label: mode === "visual" ? "Edit as Markdown" : "Edit with blocks", icon: "code", onClick: () => setMode(mode === "visual" ? "markdown" : "visual") },
     { label: "Open in the classic editor", icon: "lines", description: "The same Markdown, in a text editor", onClick: () => void toClassic(), disabled: switching || readOnly },
     ...(onDelete ? [{ label: "Delete page", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
