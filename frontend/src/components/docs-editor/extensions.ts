@@ -98,15 +98,23 @@ const DocsKeys = Extension.create({
   },
 });
 
+/** The parent at `pos`, or null. The placeholder plugin can ask about a document that isn't
+ *  `editor.state.doc` yet (an undo or redo that shortens it): a position past its end throws. */
+function parentAt(editor: Editor, node: PMNode, pos: number): PMNode | null {
+  const doc = editor.state.doc;
+  if (pos < 0 || pos > doc.content.size || doc.nodeAt(pos) !== node) return null;
+  return doc.resolve(pos).parent;
+}
+
 function placeholderFor({ node, editor, pos }: { node: PMNode; editor: Editor; pos: number }, empty: string) {
   if (editor.isEmpty) return empty;
   if (node.type.name === "heading") {
-    const $p = editor.state.doc.resolve(pos);
-    if ($p.parent.type.name === "steps") return "Step title";
+    if (parentAt(editor, node, pos)?.type.name === "steps") return "Step title";
     return `Heading ${node.attrs.level}`;
   }
   if (node.type.name === "paragraph") {
-    const parent = editor.state.doc.resolve(pos).parent;
+    const parent = parentAt(editor, node, pos);
+    if (!parent) return "Type / for blocks";
     if (parent.type.name === "listItem") return typeof parent.attrs.checked === "boolean" ? "To-do" : "List";
     if (parent.type.name === "blockquote") return "Empty quote";
     if (parent.type.name === "details") return "Empty toggle. Click or drop blocks inside.";

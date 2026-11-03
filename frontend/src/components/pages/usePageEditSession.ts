@@ -129,7 +129,9 @@ export function usePageEditSession({
           const latest = await fetchLatest();
           const was = base.current.content.replace(/\s+$/, "");
           const now = (latest.content ?? "").replace(/\s+$/, "");
-          if (now.startsWith(was) && (latest.title ?? "") === base.current.title) {
+          // Whole new blocks only: text added to the end of our last line (another tab, another
+          // editor) is not an append, and taking it as one would split that line in two.
+          if (now.startsWith(was) && (!was || /^[ \t]*\n/.test(now.slice(was.length))) && (latest.title ?? "") === base.current.title) {
             const extra = now.slice(was.length);
             base.current = { title: latest.title ?? "", content: latest.content ?? "" };
             baseRev.current = typeof latest.rev === "number" ? latest.rev : baseRev.current;
