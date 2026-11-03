@@ -68,6 +68,27 @@ test("pageRefs finds embeds, mentions and page images, not code", () => {
   assert.deepEqual(r.assets, ["img1", "img2"]);
 });
 
+test("pageRefs: a page with nothing to find isn't parsed, and the same text isn't read twice", () => {
+  // A long page with no reference: answered without the Markdown parser (well under the time a parse
+  // of 300 blocks takes), every time.
+  const plain = Array.from({ length: 300 }, (_, i) => (i % 10 ? `Paragraph ${i} with some words in it.` : `## Section ${i}`)).join("\n\n");
+  const t0 = performance.now();
+  for (let i = 0; i < 50; i++) assert.deepEqual(pageRefs(plain + " ".repeat(i)), { slugs: [], embeds: [], mentions: [], assets: [] });
+  assert.ok(performance.now() - t0 < 200, "50 reads of a 300-block page without references");
+  // The same text twice: the same answer object (the renderer and the image links share it).
+  const md = `${plain}\n\n::page{src=kid}\n\n![a](asset:a1)`;
+  const a = pageRefs(md);
+  assert.equal(pageRefs(md), a);
+  assert.deepEqual(a.embeds, ["kid"]);
+  assert.deepEqual(a.assets, ["a1"]);
+  // Each kind of reference still gets through the quick check.
+  assert.deepEqual(pageRefs("::page{src=p1}").embeds, ["p1"]);
+  assert.deepEqual(pageRefs(":markdrop[x]{src=m1}").mentions, ["m1"]);
+  assert.deepEqual(pageRefs("::markdrop{src=https://markdrop.in/e1}").embeds, ["e1"]);
+  assert.deepEqual(pageRefs("![x](asset:i1)").assets, ["i1"]);
+  assert.deepEqual(pageRefs("").slugs, []);
+});
+
 test("locked placeholders never name the item", () => {
   for (const s of ["signin", "denied", "password", "encrypted", "missing"]) {
     const l = lockedOf(s);

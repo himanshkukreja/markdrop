@@ -77,7 +77,15 @@ export function usePageAssets(pageSlug: string | null, initial: Record<string, A
   useEffect(() => {
     if (initial) setAssets((a) => ({ ...a, ...initial }));
   }, [initial]);
-  const ids = useMemo(() => pageRefs(content).assets, [content]);
+  // Read the page's images once typing pauses (300 ms): finding them parses the whole page, which
+  // on a long page is a long task on every change otherwise.
+  const [settled, setSettled] = useState(content);
+  useEffect(() => {
+    if (settled === content) return;
+    const t = window.setTimeout(() => setSettled(content), 300);
+    return () => window.clearTimeout(t);
+  }, [content, settled]);
+  const ids = useMemo(() => pageRefs(settled).assets, [settled]);
   const missing = ids.filter((id) => !assets[id]).join(",");
   const [tick, setTick] = useState(0);
 

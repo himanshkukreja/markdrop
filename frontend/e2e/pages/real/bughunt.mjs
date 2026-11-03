@@ -178,6 +178,64 @@ await step("long-page", async () => {
   await c.close();
 });
 
+/* Typing on a 300-block page with images and embeds, CPU throttled 4× (Chromium): no long task over
+   100 ms, and nothing from the Markdown parser (pageRefs) while keys are going in. */
+await step("perf-typing", async () => {
+  if (BROWSER !== "chromium") return log("perf-typing: Chromium only (CPU throttling and the profiler)");
+  const body = Array.from({ length: 300 }, (_, i) =>
+    i % 50 === 25 ? `![Figure ${i}](asset:fake${i})` : i % 50 === 40 ? '::markdrop{src="launch-plan"}' : i % 10 === 0 ? `## Section ${i / 10}` : `Paragraph ${i} with some text to make it a realistic length for a page.`,
+  ).join("\n\n") + "\n";
+  const slug = await newPage("Perf typing", body);
+  const { c, p } = await ctx(browser, { token: T.owner });
+  await openEditor(p, slug);
+  await clickText(p, "Paragraph 151");
+  await p.keyboard.press(`${mod}+ArrowRight`);
+  const cdp = await c.newCDPSession(p);
+  await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU || 4) });
+  await cdp.send("Profiler.enable");
+  await cdp.send("Profiler.setSamplingInterval", { interval: 200 });
+  await p.evaluate(() => {
+    window.__lt = [];
+    new PerformanceObserver((l) => l.getEntries().forEach((e) => window.__lt.push(Math.round(e.duration)))).observe({ type: "longtask" });
+  });
+  await cdp.send("Profiler.start");
+  for (let i = 0; i < 3; i++) {
+    await p.keyboard.type(" quick brown fox jumps over", { delay: 30 });
+    await p.keyboard.press("Enter");
+    await p.keyboard.type("a new line here", { delay: 30 });
+  }
+  const typing = await p.evaluate(() => window.__lt.slice());
+  await p.waitForTimeout(1200); // the settled work after the last key
+  const { profile: prof } = await cdp.send("Profiler.stop");
+  const all = await p.evaluate(() => window.__lt.slice());
+  // Self time per function, and the total under the Markdown parser.
+  const byId = new Map(prof.nodes.map((n) => [n.id, n]));
+  const parent = new Map();
+  for (const n of prof.nodes) for (const ch of n.children ?? []) parent.set(ch, n.id);
+  // The production build has no function names: the parser is whatever runs in the chunk that holds
+  // mdast-util-from-markdown (its "Cannot close document" message) or micromark's tokenizer.
+  const urls = [...new Set(prof.nodes.map((n) => n.callFrame.url).filter((u) => u.startsWith(APP)))];
+  const parserFiles = new Set();
+  for (const u of urls) if (/Cannot close document|micromark/.test(await (await fetch(u)).text())) parserFiles.add(u);
+  const self = new Map();
+  let parser = 0;
+  prof.samples.forEach((id, i) => {
+    const us = prof.timeDeltas[i] ?? 0;
+    const f = byId.get(id).callFrame;
+    const key = `${f.functionName || "(anon)"} ${(f.url || "").split("/").pop().slice(0, 40)}:${f.lineNumber}`;
+    self.set(key, (self.get(key) ?? 0) + us);
+    if (parserFiles.has(f.url)) parser += us;
+  });
+  log("parser chunks:", [...parserFiles].map((u) => u.split("/").pop()).join(", "));
+  const top = [...self].filter(([k]) => !/^\((idle|program|garbage collector)\)/.test(k)).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  log("long tasks while typing", JSON.stringify(typing), "| after", JSON.stringify(all.slice(typing.length)));
+  log("Markdown parser (pageRefs) time:", Math.round(parser / 1000), "ms");
+  for (const [k, us] of top) log("   ", (us / 1000).toFixed(1).padStart(7), "ms", k);
+  await c.close();
+  if (typing.some((d) => d > 100)) fail(`a long task over 100 ms while typing: ${JSON.stringify(typing)}`);
+  if (parser > 50000) fail(`the Markdown parser ran ${Math.round(parser / 1000)} ms while typing`);
+});
+
 /* Offline then online; offline then closed (the local draft comes back). */
 await step("offline", async () => {
   const slug = await newPage("Offline", "Start\n");

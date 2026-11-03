@@ -22,12 +22,25 @@ const PARSE = {
  * images' asset ids. Code and math are not read.
  */
 export function pageRefs(markdown) {
+  const md = String(markdown ?? "");
+  // The same text again (the renderer and the image links both ask): the answer we have.
+  if (md === last.md) return last.refs;
+  const refs = md && REFS_HINT.test(md) ? readRefs(md) : { slugs: [], embeds: [], mentions: [], assets: [] };
+  last = { md, refs };
+  return refs;
+}
+
+// Every reference has one of these in its text; a page without any needs no parse.
+const REFS_HINT = /asset:|markdrop|::page/;
+let last = { md: null, refs: null };
+
+function readRefs(md) {
   const embeds = [];
   const mentions = [];
   const assets = [];
   let tree;
   try {
-    tree = fromMarkdown(String(markdown ?? ""), PARSE);
+    tree = fromMarkdown(md, PARSE);
   } catch {
     return { slugs: [], embeds, mentions, assets };
   }
