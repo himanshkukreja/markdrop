@@ -361,7 +361,9 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
                   onClose={() => setMenu(null)}
                   options={[
                     { label: "Strikethrough", glyph: "S", hint: `${mod}⇧S`, on: st.strike, run: () => chain().toggleStrike().run() },
-                    { label: "Keyboard key", glyph: "⌘", hint: `${mod}⇧K`, on: st.kbd, run: () => chain().toggleMark("kbd").run() },
+                    ...(!host.blocks || host.blocks.includes("kbd")
+                      ? [{ label: "Keyboard key", glyph: "⌘", hint: `${mod}⇧K`, on: st.kbd, run: () => chain().toggleMark("kbd").run() }]
+                      : []),
                   ]}
                 />
               )}

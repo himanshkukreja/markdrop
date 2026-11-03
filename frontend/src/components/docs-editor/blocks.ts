@@ -122,11 +122,12 @@ export const BLOCK_ITEMS: BlockItem[] = [
   },
 ];
 
-/** Items matching a query: label prefix first, then any keyword or label word. */
-export function filterItems(query: string): BlockItem[] {
+/** Items matching a query: label prefix first, then any keyword or label word. `only` limits them to these ids. */
+export function filterItems(query: string, only?: string[]): BlockItem[] {
+  const items = only ? BLOCK_ITEMS.filter((it) => only.includes(it.id)) : BLOCK_ITEMS;
   const q = query.trim().toLowerCase();
-  if (!q) return BLOCK_ITEMS;
-  const scored = BLOCK_ITEMS.map((it) => {
+  if (!q) return items;
+  const scored = items.map((it) => {
     const label = it.label.toLowerCase();
     const words = `${label} ${it.keywords}`.split(/\s+/);
     const score = label.startsWith(q) ? 0 : words.some((w) => w.startsWith(q)) ? 1 : `${label} ${it.keywords}`.includes(q) ? 2 : 3;

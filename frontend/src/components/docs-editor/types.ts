@@ -138,6 +138,8 @@ export interface DocsEditorApi {
    */
   suggest(s: { heading: string | null; level?: number; markdown: string; title: string; note?: string; onAccept?: () => void }): boolean;
   focus(): void;
+  /** Sends a change still waiting to `onChange` now (typing is debounced), e.g. before a save. */
+  flush(): void;
   /** Adds an empty "Markdrop file" block at the caret (its picker opens); Markdown mode adds the line. */
   insertMarkdropFile(): void;
 }
@@ -208,4 +210,9 @@ export interface DocsEditorProps {
   onFindOpen?: () => void;
   /** Enables the "Markdrop file" block's picker, sharing check, version pins and live preview. */
   markdrop?: MarkdropFilesHost;
+  /**
+   * The blocks the "/" menu offers, by id (see BLOCK_ITEMS), for a host whose pages don't render
+   * the docs engine's own blocks. "kbd" also keeps Keyboard key in the format toolbar. Default: all.
+   */
+  blocks?: string[];
 }

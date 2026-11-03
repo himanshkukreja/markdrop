@@ -43,7 +43,7 @@ export class SlashStore {
 export const slashKey = new PluginKey("docsSlash");
 export const LISTBOX_ID_SUFFIX = "-slash";
 
-export function SlashCommand(store: SlashStore, listboxId: string) {
+export function SlashCommand(store: SlashStore, listboxId: string, blocks?: string[]) {
   return Extension.create({
     name: "docsSlash",
     // Before the keymaps, so Enter / arrows reach the menu while it is open.
@@ -70,7 +70,7 @@ export function SlashCommand(store: SlashStore, listboxId: string) {
           allowSpaces: false,
           startOfLine: false,
           allowedPrefixes: [" ", " "],
-          items: ({ query }) => filterItems(query),
+          items: ({ query }) => filterItems(query, blocks),
           allow: ({ state, range }) => {
             const $from = state.doc.resolve(range.from);
             return !$from.parent.type.spec.code && $from.parent.type.name !== "tableCell" && $from.parent.type.name !== "tableHeader";

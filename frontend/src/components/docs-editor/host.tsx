@@ -20,6 +20,8 @@ export interface EditorHost {
   accessRules?: Array<{ id: string; name: string; kind: string }>;
   /** The "Markdrop file" block's picker and preview. */
   markdrop?: MarkdropFilesHost;
+  /** The blocks the "/" menu offers (DocsEditorProps.blocks); all when left out. */
+  blocks?: string[];
 }
 
 export const EditorHostContext = createContext<EditorHost>({ resolveAsset: (s) => s, operations: [], readOnly: false });

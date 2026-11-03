@@ -107,7 +107,7 @@ function placeholderFor({ node, editor, pos }: { node: PMNode; editor: Editor; p
   return "Type / for blocks";
 }
 
-export function buildExtensions({ slash, listboxId, placeholder }: { slash: SlashStore; listboxId: string; placeholder?: string }): AnyExtension[] {
+export function buildExtensions({ slash, listboxId, placeholder, blocks }: { slash: SlashStore; listboxId: string; placeholder?: string; blocks?: string[] }): AnyExtension[] {
   const overrides = {
     callout: view(CalloutView),
     steps: view(StepsView),
@@ -131,7 +131,7 @@ export function buildExtensions({ slash, listboxId, placeholder }: { slash: Slas
       includeChildren: true,
       showOnlyCurrent: true,
     }),
-    SlashCommand(slash, listboxId),
+    SlashCommand(slash, listboxId, blocks),
     MoveBlockKeys,
     DocsKeys,
   ];

@@ -57,13 +57,15 @@ export interface VisualEditorProps {
   checkLink?: (href: string) => { message: string } | null;
   flagImages?: boolean;
   markdrop?: MarkdropFilesHost;
+  /** See DocsEditorProps.blocks. */
+  blocks?: string[];
 }
 
 const EMIT_DELAY = 120;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop, blocks } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
@@ -85,7 +87,7 @@ export default function VisualEditor(props: VisualEditorProps) {
   const source = useMemo<AnnotationSource>(() => ({ find: null, flagImages, comments: comments ?? [], checkLink, onCommentClick }), []); // eslint-disable-line react-hooks/exhaustive-deps
   source.onCommentClick = onCommentClick;
   const assistStore = useMemo(() => new AssistStore(), []);
-  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
+  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const emit = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -170,7 +172,7 @@ export default function VisualEditor(props: VisualEditorProps) {
     onCreate: ({ editor: e }) => {
       editorRef.current = e;
       onReady?.(e);
-      onHandleRef.current?.({ editor: e, source, assist: assistStore });
+      onHandleRef.current?.({ editor: e, source, assist: assistStore, flush: emit });
     },
     onUpdate: () => {
       if (timer.current) clearTimeout(timer.current);
@@ -214,8 +216,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   }, [editor, value]);
 
   const host: EditorHost = useMemo(
-    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop }),
-    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop],
+    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop, blocks }),
+    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop, blocks],
   );
 
   return (

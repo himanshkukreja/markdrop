@@ -188,6 +188,7 @@ export function DocsEditor({
   flagImages,
   onFindOpen,
   markdrop,
+  blocks,
 }: DocsEditorProps) {
   const [own, setOwn] = useState<EditorMode>("visual");
   const mode = modeProp ?? own;
@@ -247,6 +248,9 @@ export function DocsEditor({
       }
       const md = valueRef.current;
       onChangeRef.current(`${md.replace(/\s*$/, "")}\n\n::markdrop{src="https://markdrop.in/"}\n`);
+    },
+    flush() {
+      if (modeRef.current === "visual") visualRef.current?.flush?.();
     },
     focus() {
       const v = visualRef.current;
@@ -470,6 +474,7 @@ export function DocsEditor({
             checkLink={checkLink}
             flagImages={flagImages}
             markdrop={markdrop}
+            blocks={blocks}
           />
         </>
       ) : (
