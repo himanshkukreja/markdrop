@@ -263,21 +263,29 @@ function Panel({ slug, title, onClose, onRestored, signInHref, crumbs, href, vie
   const sel = selected != null ? byN.get(selected) ?? null : null;
   const detail = selected != null ? details[selected] ?? null : null;
 
-  // ── restore ──
+  // ── restore ── (errors and "busy" are kept here, not in ConfirmDialog's own async handling)
+  const [restoring, setRestoring] = useState(false);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
   const restore = async () => {
-    if (selected == null) return;
+    if (selected == null || restoring) return;
+    setRestoring(true);
+    setRestoreError(null);
     try {
       await restoreVersion(slug, selected);
     } catch (e) {
+      setRestoring(false);
       if (e instanceof PagesApiError && e.status === 423) {
         const holder = (e.info.holder as { name?: string } | undefined)?.name;
-        throw new Error(e.info.code === "page_locked"
+        setRestoreError(e.info.code === "page_locked"
           ? "This page is locked. Its owner or a workspace admin can restore it."
           : `${holder || "Someone"} is editing this page. You can restore it when they're done.`);
+      } else {
+        setRestoreError(e instanceof Error ? e.message : "Couldn't restore this version. Try again.");
       }
-      throw e;
+      return;
     }
     window.dispatchEvent(new CustomEvent(RESTORED_EVENT, { detail: { slug } }));
+    setRestoring(false);
     setConfirming(false);
     toast.success("Version restored. The page as it was is kept in the history.");
     onRestored?.();
@@ -428,8 +436,16 @@ function Panel({ slug, title, onClose, onRestored, signInHref, crumbs, href, vie
 
       <ConfirmDialog
         open={confirming}
-        onClose={() => setConfirming(false)}
-        onConfirm={restore}
+        onClose={() => {
+          if (restoring) return;
+          setConfirming(false);
+          setRestoreError(null);
+        }}
+        onConfirm={() => {
+          void restore();
+        }}
+        busy={restoring}
+        error={restoreError}
         tone="default"
         title="Restore this version?"
         confirmLabel="Restore"
