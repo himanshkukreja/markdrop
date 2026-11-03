@@ -134,6 +134,10 @@ async def usage_bytes(db: AsyncIOMotorDatabase, user_id: str) -> int:
     for r in rows:
         if r["_id"] and r["_id"] not in current:
             total += int(r.get("size") or 0)
+    # Images pasted into the user's pages (services/page_assets.py).
+    from app.services import page_assets
+
+    total += await page_assets.usage_bytes(db, user_id)
     return total
 
 

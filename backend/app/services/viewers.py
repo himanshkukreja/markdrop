@@ -140,6 +140,8 @@ class Room:
 
 _rooms: dict[str, Room] = {}
 _sweeper: asyncio.Task | None = None
+# slug → (user id holding the page's edit lock, monotonic expiry)
+_editors: dict[str, tuple[str, float]] = {}
 
 
 # ── Identity ──────────────────────────────────────────────────────────────────
@@ -317,6 +319,7 @@ def _entries(r: Room) -> list[dict]:
     each with the ids of the connections it stands for."""
     named: dict[str, dict] = {}
     out: list[dict] = []
+    editor = editor_of(r.slug)
     for c in sorted(r.conns.values(), key=lambda c: c.at):
         if not c.present:
             continue
@@ -327,6 +330,9 @@ def _entries(r: Room) -> list[dict]:
                      "state": c.state, "sec": c.sec, "_sec_at": c.sec_at, "_conns": {c.id}, "_at": c.at}
                 if c.picture:
                     e["pic"] = c.picture
+                if editor and c.user_id == editor:
+                    # Holds the page's edit lock (services/pages.py).
+                    e["editing"] = True
                 named[c.user_id] = e
                 out.append(e)
             else:
@@ -559,6 +565,32 @@ def content_changed(slug: str | None) -> None:
         r.titles = None
 
 
+def set_editor(slug: str | None, user_id: str | None, seconds: float) -> None:
+    """Who holds the page's edit lock (services/pages.py), for ``seconds``: that
+    person's entry carries ``editing: true``. None releases it."""
+    if not slug:
+        return
+    before = editor_of(slug)
+    if user_id:
+        _editors[slug] = (user_id, _now() + max(0.0, float(seconds)))
+    else:
+        _editors.pop(slug, None)
+    if len(_editors) > 10_000:
+        now = _now()
+        for k in [k for k, (_u, until) in _editors.items() if until <= now]:
+            _editors.pop(k, None)
+    r = _rooms.get(slug)
+    if r is not None and editor_of(slug) != before:
+        _schedule(r)
+
+
+def editor_of(slug: str | None) -> str | None:
+    hit = _editors.get(slug or "")
+    if hit is None or hit[1] <= _now():
+        return None
+    return hit[0]
+
+
 # ── Expiry and re-checks ──────────────────────────────────────────────────────
 
 
@@ -636,6 +668,7 @@ def clear() -> None:
         if r.flush_handle is not None:
             r.flush_handle.cancel()
     _rooms.clear()
+    _editors.clear()
     if _sweeper is not None:
         _sweeper.cancel()
         _sweeper = None

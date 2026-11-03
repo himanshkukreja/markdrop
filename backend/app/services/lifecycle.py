@@ -114,9 +114,15 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     # while the row exists, the tombstone from the moment it doesn't — never a
     # gap in which someone else's create could take it.
     await tombstone(db, [slug, *(raw.get("old_slugs") or [])], raw.get("owner_id"))
+    # Sub-pages still under it (an expiry, or a delete that chose "lift") move
+    # up a level, keeping exactly the access they had (services/pages.py).
+    from app.services import page_assets, pages
+
+    await pages.lift_children(db, raw)
     res = await db["documents"].delete_one({"_id": raw["_id"]})
     if res.deleted_count == 0:
         return False
+    await page_assets.forget_document(db, doc_id)
     await revalidate.purge_doc(db, raw, extra_slugs=raw.get("old_slugs") or [], inline=True)  # B2
     live.gone(slug)
     await db["document_grants"].delete_many({"document_id": doc_id})
@@ -210,6 +216,10 @@ async def release_db_first(db: AsyncIOMotorDatabase, raw: dict, workspace_id: st
     except Exception:  # pragma: no cover - the outbox write itself failed
         log.warning("purge after releasing %s failed", raw.get("slug"), exc_info=True)
     live.access_changed(raw.get("slug"))
+    from app.services import page_assets
+
+    if not await page_assets.apply(db, after, publicity.is_public(after, require_auth=False)):
+        log.warning("re-deriving the images of %s after leaving %s failed", raw.get("slug"), workspace_id)
     if publicity._has_bytes(after):
         public = publicity.is_public(after, require_auth=False)
         if await publicity.apply(after, public, epoch=publicity.epoch_of(after)):
@@ -257,6 +267,10 @@ async def require_auth_toggled(db: AsyncIOMotorDatabase, workspace_id: str, on: 
                 if not await publicity.apply(raw, True, epoch=publicity.epoch_of(raw)):
                     await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"access_dirty": True}})
                 changed += 1
+            from app.services import page_assets
+
+            if not await page_assets.sync(db, raw):
+                await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"access_dirty": True}})
             live.publish(raw.get("slug"), int(raw.get("rev") or 1))
     keys = await revalidate.enqueue(db, slugs=slugs, tags=[f"wsl:{workspace_id}", *await _host_tags(db, workspace_id)],
                                     attempt_now=not on)
@@ -489,6 +503,10 @@ async def reconcile_document(db: AsyncIOMotorDatabase, raw: dict) -> bool:
     if publicity.is_expired(raw):
         await destroy(db, raw, reason="expiry")
         return True
+    from app.services import page_assets
+
+    if not await page_assets.sync(db, raw):
+        return False
     if not publicity._has_bytes(raw):
         await db["documents"].update_one(
             {"_id": raw["_id"], "access_epoch": raw.get("access_epoch")}, {"$set": {"access_dirty": False}})

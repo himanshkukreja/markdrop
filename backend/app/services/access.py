@@ -166,6 +166,7 @@ class Ctx:
     _roles: dict = field(default_factory=dict, repr=False)
     _grants: dict = field(default_factory=dict, repr=False)
     _facts: dict = field(default_factory=dict, repr=False)
+    _inherit: dict = field(default_factory=dict, repr=False)
 
     async def workspace(self, workspace_id: str | None):
         if not workspace_id:
@@ -212,9 +213,15 @@ class Ctx:
             self._roles.clear()
             self._grants.clear()
             self._ws.clear()
+            self._inherit.clear()
         else:
+            # A change to a page can change what its sub-pages inherit, so the
+            # inheritance cache goes whole (per request, cheap to refill).
             for k in [k for k in self._facts if k[1] == str(doc.get("_id"))]:
                 self._facts.pop(k, None)
+            if self._inherit:
+                self._inherit.clear()
+                self._facts.clear()
 
 
 @dataclass
@@ -258,6 +265,80 @@ def _forbid(detail: str) -> Decision:
 # ── Facts ─────────────────────────────────────────────────────────────────────
 
 
+# ── Sub-pages: effective access (services/pages.py) ──────────────────────────
+
+# A page with a parent and ``access_inherit`` not False takes its access fields
+# (level, password, workspace, and the grants on the pages above it) from its
+# parent, walked up to the first ancestor with access of its own. Never deeper
+# than this; a broken chain (missing parent, cycle, too deep) fails closed:
+# private and unfiled, so only the page's own owner, grantees and edit secret.
+MAX_PAGE_DEPTH = 8
+DANGLING_SOURCE = {"access_level": "private", "read_password_hash": None, "workspace_id": None}
+_CHAIN_PROJECTION = {"content": 0}
+
+
+def inherits(doc: dict | None) -> bool:
+    return bool(doc) and doc.get("parent_id") is not None and doc.get("access_inherit") is not False
+
+
+def as_oid(value) -> ObjectId | None:
+    if isinstance(value, ObjectId):
+        return value
+    try:
+        return ObjectId(str(value))
+    except Exception:
+        return None
+
+
+@dataclass
+class Inherited:
+    source: dict              # the ancestor whose access applies (or DANGLING_SOURCE)
+    chain: list[dict]         # the ancestors walked, nearest first (rows without content)
+    dangling: bool = False
+
+
+async def inherited(ctx: "Ctx", doc: dict) -> Inherited | None:
+    """Where an inheriting page's access comes from, or None for a document
+    with access of its own (every document without a parent)."""
+    if not inherits(doc):
+        return None
+    key = str(doc.get("_id"))
+    hit = ctx._inherit.get(key)
+    if hit is not None:
+        return hit
+    chain: list[dict] = []
+    seen = {key}
+    cur = doc
+    out: Inherited | None = None
+    for _ in range(MAX_PAGE_DEPTH):
+        oid = as_oid(cur.get("parent_id"))
+        parent = await ctx.db["documents"].find_one({"_id": oid}, _CHAIN_PROJECTION) if oid else None
+        if parent is None or str(parent["_id"]) in seen:
+            break
+        seen.add(str(parent["_id"]))
+        chain.append(parent)
+        if not inherits(parent):
+            out = Inherited(parent, chain)
+            break
+        cur = parent
+    if out is None:
+        out = Inherited(dict(DANGLING_SOURCE), chain, dangling=True)
+    ctx._inherit[key] = out
+    return out
+
+
+async def effective_doc(db: AsyncIOMotorDatabase, doc: dict, ctx: "Ctx | None" = None) -> dict:
+    """``doc`` with the access fields that apply to it (its inherited source's,
+    for an inheriting page). For publicity decisions."""
+    inh = await inherited(ctx or Ctx(db), doc)
+    if inh is None:
+        return doc
+    src = inh.source
+    return {**doc, "access_level": src.get("access_level") or "link",
+            "read_password_hash": src.get("read_password_hash"),
+            "workspace_id": src.get("workspace_id")}
+
+
 @dataclass
 class Facts:
     level: str
@@ -272,6 +353,9 @@ class Facts:
     member_doc_role: str | None
     role: str | None           # without the edit secret
     doc_role: str | None       # with it
+    # The row whose password applies (the inherited source, for a sub-page).
+    pw_doc: dict | None = None
+    inherited: bool = False
 
 
 def _max_role(a: str | None, b: str | None) -> str | None:
@@ -292,8 +376,10 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
     cached = ctx._facts.get(key)
     if cached is not None:
         return cached
-    level = doc.get("access_level") or "link"
-    ws_id = doc.get("workspace_id") or None
+    inh = await inherited(ctx, doc)
+    src = doc if inh is None else inh.source
+    level = src.get("access_level") or "link"
+    ws_id = src.get("workspace_id") or None
     ws = await ctx.workspace(ws_id) if ws_id else None
     if ws is None:
         if ws_id and level == "link":
@@ -312,14 +398,23 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
         member_doc_role = "viewer" if ws_role == "viewer" else "editor"
     grant_role = None
     if uid and doc.get("_id") is not None:
-        grant_role = (await ctx.grants_for(actor.email)).get(str(doc["_id"]))
+        mine = await ctx.grants_for(actor.email)
+        grant_role = mine.get(str(doc["_id"]))
+        if inh is not None:
+            # An inheriting sub-page is open to everyone the pages above it are
+            # shared with, and to the people who own those pages (as editors).
+            for p in inh.chain:
+                grant_role = _max_role(grant_role, mine.get(str(p["_id"])))
+                if p.get("owner_id") and p.get("owner_id") == uid:
+                    grant_role = _max_role(grant_role, "editor")
     role = "owner" if is_owner else _max_role(grant_role, member_doc_role)
     f = Facts(
-        level=level, has_password=bool(doc.get("read_password_hash")), ws_id=ws_id, ws=ws,
+        level=level, has_password=bool(src.get("read_password_hash")), ws_id=ws_id, ws=ws,
         require_auth=bool(ws is not None and ws.settings.require_auth_to_view),
         is_owner=is_owner, secret_ok=secret_ok, grant_role=grant_role, ws_role=ws_role,
         member_doc_role=member_doc_role, role=role,
         doc_role="owner" if (is_owner or secret_ok) else role,
+        pw_doc=src, inherited=inh is not None,
     )
     ctx._facts[key] = f
     return f
@@ -454,20 +549,23 @@ async def _read(actor: Actor, doc: dict, f: Facts, ctx: Ctx) -> Decision:
     pw = actor.read_password
     if not pw:
         return _no_read(actor, password_gate=True)
+    # A sub-page asks for the password of the page its access comes from, and
+    # wrong guesses count against that page (one budget for the whole family).
+    pw_doc = f.pw_doc or doc
     cache_key = ("pw", id(actor), str(doc.get("_id")))
     if cache_key in ctx._facts:
         return ctx._facts[cache_key]
-    if await password_attempts.blocked(doc.get("slug") or "", ctx.ip):
+    if await password_attempts.blocked(pw_doc.get("slug") or "", ctx.ip):
         return Decision(False, 429, "Too many wrong passwords. Try again in a few minutes.",
                         code="rate_limited")
     try:
-        ok = bcrypt.checkpw(pw.encode(), doc["read_password_hash"].encode())
-    except ValueError:
+        ok = bcrypt.checkpw(pw.encode(), pw_doc["read_password_hash"].encode())
+    except (ValueError, KeyError, AttributeError):
         ok = False
     if ok:
         d = _allow(None)
     else:
-        await password_attempts.fail(doc.get("slug") or "", ctx.ip)
+        await password_attempts.fail(pw_doc.get("slug") or "", ctx.ip)
         d = Decision(False, 403, "Incorrect password", code="wrong_password")
     ctx._facts[cache_key] = d
     return d
@@ -1092,9 +1190,11 @@ async def remove_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, acto
     res = await db["document_grants"].delete_one({"document_id": document_id, "email": email})
     if res.deleted_count:
         await settle_document_grants(db, document_id)
-        from app.services import live
+        from app.services import live, pages
 
         live.access_changed(raw_doc.get("slug"))
+        # The grant reached the sub-pages that inherit from this one too.
+        await pages.notify_access_tree(db, raw_doc)
     ctx.forget()
 
 
@@ -1131,9 +1231,13 @@ async def set_level(db: AsyncIOMotorDatabase, raw_doc: dict, level: str, actor: 
                 detail="You need to be a member of its workspace to make it workspace-only.",
             )
     current = raw_doc.get("access_level") or "link"
-    if current == level:
+    if current == level and not inherits(raw_doc):
         return raw_doc
     sets: dict = {"access_level": level, "updated_at": ctx.now}
+    if raw_doc.get("parent_id") is not None:
+        # Access set on a sub-page itself: from now on it has its own (keeping
+        # the password it inherited, if any, until that is changed too).
+        sets["access_inherit"] = False
     if level == "workspace":
         sets["allow_resharing"] = False
     after = await transitions.change(

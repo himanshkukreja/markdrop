@@ -95,7 +95,10 @@ async def workspace_url(db: AsyncIOMotorDatabase, doc: Any, hosts: HostCache | N
     if not ws_id:
         return None
     host = await (hosts or HostCache(db)).primary(ws_id)
-    return build_workspace_url(host, _get(doc, "folder_path") or [], _get(doc, "slug"))
+    # A sub-page's address carries its ancestors' slugs after the folders
+    # (services/pages.py): /<folders…>/<parent-slug>/<slug>.
+    path = [*(_get(doc, "folder_path") or []), *(_get(doc, "page_path") or [])]
+    return build_workspace_url(host, path, _get(doc, "slug"))
 
 
 async def canonical_url(db: AsyncIOMotorDatabase, doc: Any, hosts: HostCache | None = None) -> str:

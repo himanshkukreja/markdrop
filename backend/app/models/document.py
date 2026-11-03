@@ -88,5 +88,19 @@ class Document:
     # Every slug this document answered at before a rename (Q4): reserved for
     # it permanently, and readers holding one are redirected to the current.
     old_slugs: list[str] = field(default_factory=list)
+    # ── Pages (services/pages.py) ────────────────────────────────────────────
+    # "blocks" opens the document in the block editor; absent means the classic
+    # textarea. The stored Markdown is the same either way.
+    editor: str | None = None
+    # Sub-pages: the parent document's _id (str here). A sub-page lives in its
+    # parent's workspace and folder; ``page_path`` is the ancestors' slugs from
+    # the root down (its address on a custom domain is folders + page_path + slug).
+    parent_id: str | None = None
+    page_path: list[str] = field(default_factory=list)
+    # Meaningful only with a parent: None or True = access comes from the parent
+    # (services/access.py walks up); False = the page has access of its own.
+    access_inherit: bool | None = None
+    # Which built-in template the page started from (provenance only).
+    template_id: str | None = None
     id: str | None = None  # str(_id); populated when the query includes _id
 

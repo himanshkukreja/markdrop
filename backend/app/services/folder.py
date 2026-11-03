@@ -777,6 +777,9 @@ async def file_document(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str,
     new `folder_path`, purge. The caller has checked can(move_in_workspace)."""
     from app.services import revalidate
 
+    if raw.get("parent_id") is not None:
+        raise HTTPException(status_code=409, detail="This page is inside another page, so it lives in that "
+                                                    "page's folder. Move the top page, or move this one out first.")
     if folder_id:
         await _get_owned(db, workspace_id, folder_id)
     if (folder_id or None) != (raw.get("folder_id") or None):
@@ -797,6 +800,10 @@ async def file_document(db: AsyncIOMotorDatabase, raw: dict, workspace_id: str,
     # The old address closes (it 307s to the new one): answer once the cached
     # render at the old path is gone (B2).
     await revalidate.purge_doc(db, after, inline=True)
+    # Its sub-pages live in its folder (services/pages.py).
+    from app.services import pages
+
+    await pages.cascade(db, raw, after)
     return after
 
 

@@ -24,7 +24,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.models.document import Document
 from app.models.user import User
-from app.services import access, publicity
+from app.services import access, live, publicity
 from app.services.document import _doc_from_mongo, search_clause
 
 
@@ -113,6 +113,9 @@ async def add_document(
     ctx = access.Ctx(db, target_workspace=workspace_id)
     raw = await _load(db, document_id)
     await access.require(actor, raw, "file_into_workspace", ctx)
+    if raw.get("parent_id") is not None and raw.get("workspace_id") != workspace_id:
+        raise HTTPException(status_code=409, detail="This page is inside another page, so it lives where that "
+                                                    "page does. Move it out of its parent page first.")
     f = await access.facts(actor, raw, ctx)
     existing = f.ws_id  # dangling refs count as unfiled
     if existing and existing != workspace_id:
@@ -180,6 +183,16 @@ async def remove_raw(db: AsyncIOMotorDatabase, workspace_id: str, raw: dict | No
         if d.status in (401, 404):
             raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
         raise d.exception()
+    if raw.get("parent_id") is not None:
+        # A sub-page leaves its parent page first (keeping the access it has),
+        # then the workspace like any document; its own sub-pages follow it.
+        from app.services import pages
+
+        sets = {"parent_id": None, "page_path": [], "access_inherit": None}
+        await db["documents"].update_one({"_id": raw["_id"]}, {"$set": sets})
+        raw = {**raw, **sets}
+        live.access_changed(raw.get("slug"))
+        await pages.refresh_page_paths(db, raw)
     after = await lifecycle.release_from_workspace(db, raw, workspace_id)
     return {"slug": after["slug"], "access_after": after.get("access_level") or "link"}
 
@@ -202,6 +215,9 @@ async def set_folder(
         if d.status in (401, 404):
             raise HTTPException(status_code=404, detail="That document isn't in this workspace.")
         raise d.exception()
+    if raw.get("parent_id") is not None:
+        raise HTTPException(status_code=409, detail="This page is inside another page, so it lives in that "
+                                                    "page's folder. Move the top page, or move this one out first.")
     await folder_service.file_document(db, raw, workspace_id, folder_id)
 
 

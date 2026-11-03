@@ -111,6 +111,11 @@ def _doc_from_mongo(raw: dict) -> Document:
         poster_key=raw.get("poster_key"),
         access_epoch=int(raw.get("access_epoch") or 0),
         old_slugs=list(raw.get("old_slugs") or []),
+        editor=raw.get("editor"),
+        parent_id=str(raw["parent_id"]) if raw.get("parent_id") is not None else None,
+        page_path=list(raw.get("page_path") or []),
+        access_inherit=raw.get("access_inherit"),
+        template_id=raw.get("template_id"),
     )
 
 
@@ -416,6 +421,8 @@ async def update_settings(
     if not sets:
         raise HTTPException(status_code=422, detail="Nothing to change: set a password or an expiry.")
     sets["updated_at"] = now
+    if "read_password_hash" in sets and raw.get("parent_id") is not None:
+        sets["access_inherit"] = False  # access set on the sub-page itself (services/pages.py)
     after = await transitions.change(db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
                                      cas={"slug": slug})
     ctx.forget(raw)
@@ -434,11 +441,16 @@ async def update_document(
     text is refused whole (403) — nothing is written."""
     from app.services import access, transitions
 
+    from app.services import pages
+
     raw = await db["documents"].find_one({"slug": slug})
     await access.require(actor, raw, "edit_content", ctx)
     settings_change = _settings_requested(data)
     if settings_change:
         await access.require(actor, raw, "edit_settings", ctx)
+    # One editor at a time (services/pages.py): someone else holding the page's
+    # edit lock makes this a 423; the holder's own autosaves pass.
+    pages.check_write_lock(raw, actor)
 
     if raw.get("kind") != "artifact":
         check_envelope_shape(encrypted=bool(raw.get("encrypted")), title=data.title, content=data.content)
@@ -466,6 +478,8 @@ async def update_document(
         read_password=data.read_password, remove_password=data.remove_password,
         expires_in=data.expires_in, custom_expires_at=data.custom_expires_at, now=now)
     sets.update(extra)
+    if "read_password_hash" in extra and raw.get("parent_id") is not None:
+        sets["access_inherit"] = False  # access set on the sub-page itself
 
     try:
         after = await transitions.change(
@@ -482,16 +496,16 @@ async def update_document(
     return after
 
 
-async def delete_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> None:
+async def delete_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx,
+                          children: str | None = None) -> None:
     """Owner or edit secret (D4). Everything goes with it: bytes, old versions,
     posters, grants; caches are purged and the slug is reserved for the same
-    owner for 30 days (A8)."""
-    from app.services import access, lifecycle
+    owner for 30 days (A8). A page with sub-pages needs ``children``
+    (``delete`` | ``lift``; services/pages.py), else a 409 ``has_children``."""
+    from app.services import pages
 
     raw = await db["documents"].find_one({"slug": slug})
-    await access.require(actor, raw, "delete", ctx)
-    if not await lifecycle.destroy(db, raw):
-        raise HTTPException(status_code=404, detail="Document not found")
+    await pages.delete_page(db, raw, actor, ctx, children)
 
 
 async def claim_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> Document:
@@ -598,6 +612,10 @@ async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor,
     await revalidate.purge_doc(db, after, extra_slugs=[slug])
     live.gone(slug)
     ctx.forget(raw)
+    # Sub-pages' addresses on a custom domain carry their ancestors' slugs.
+    from app.services import pages
+
+    await pages.refresh_page_paths(db, after)
     return after
 
 

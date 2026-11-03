@@ -24,7 +24,7 @@ from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import ReturnDocument
 
-from app.services import live, publicity, revalidate
+from app.services import live, page_assets, pages, publicity, revalidate
 
 log = logging.getLogger(__name__)
 
@@ -84,6 +84,9 @@ async def change(
             raise HTTPException(status_code=409, detail=CONFLICT)
         if has_bytes:
             await publicity.close({**raw, "access_epoch": epoch}, epoch)
+        # A page's images (services/page_assets.py) follow the page: closed
+        # under the new epoch before the narrower row is written.
+        await page_assets.close(db, raw, epoch)
         keys: list[str] = []
         if purge:
             # Durable first (the jobs exist before anything narrows), sent
@@ -114,6 +117,11 @@ async def change(
             live.access_changed(after.get("slug"))
         if sets.get("expires_at") is not None:
             await revalidate.schedule_expiry(db, after)  # B3
+        if pub_after:
+            # Narrower but still public (only the epoch moved on): reopen the
+            # page's images under the new epoch.
+            await page_assets.apply(db, after, True)
+        await pages.cascade(db, raw, after)
         return after
 
     opens = has_bytes and pub_after and not pub_before
@@ -129,6 +137,10 @@ async def change(
             after["access_dirty"] = False
         else:
             log.warning("opening %s failed; left for the reconciler", after.get("slug"))
+    if pub_after != pub_before:
+        # A page's images follow the page (opened only after the row is).
+        if not await page_assets.apply(db, after, pub_after):
+            await db["documents"].update_one({"_id": after["_id"]}, {"$set": {"access_dirty": True}})
     if purge:
         # ``inline_purge``: not narrower by level, but closing somewhere — e.g.
         # leaving a workspace takes the document off that workspace's domain —
@@ -147,6 +159,9 @@ async def change(
         live.access_changed(after.get("slug"))
     else:
         live.publish(after.get("slug"), int(after.get("rev") or 1))
+    # Sub-pages live in their parent's workspace and folder, and inheriting
+    # ones take its access: re-evaluate them (each through this same function).
+    await pages.cascade(db, raw, after)
     return after
 
 
