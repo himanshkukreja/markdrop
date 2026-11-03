@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   Badge, Button, CopyButton, Dropdown, IconButton, Kbd, Tooltip, type MenuEntry,
 } from "@/components/ui";
@@ -33,6 +34,8 @@ export interface DocumentBarProps {
   headings?: Heading[];
   /** "secondary" while another primary (the publish panel's Copy link) is on screen. */
   copyVariant?: "primary" | "secondary";
+  /** Who's viewing (components/presence), first among the actions. */
+  presence?: ReactNode;
 }
 
 /**
@@ -99,6 +102,7 @@ export function DocumentBar(p: DocumentBarProps) {
 
         {!p.gated && (
           <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+            {p.presence}
             {entries.length > 0 && (
               <div className="hidden sm:block xl:hidden">
                 <Dropdown

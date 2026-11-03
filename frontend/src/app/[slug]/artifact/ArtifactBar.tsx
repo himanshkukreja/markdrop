@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Button, CopyButton, Dropdown, FileIcon, IconButton, Tooltip, cx, type MenuEntry, type FileRenderer } from "@/components/ui";
 import ArtifactBadge, { formatBytes } from "@/components/ArtifactBadge";
 import { useIsClient } from "@/components/kit/publish-utils";
@@ -24,6 +25,8 @@ export interface ArtifactBarProps {
   onDownload: () => void;
   onExpand: () => void;
   menu: MenuEntry[];
+  /** Who's viewing (components/presence), before the actions. */
+  presence?: ReactNode;
 }
 
 /**
@@ -82,6 +85,7 @@ export function ArtifactBar(p: ArtifactBarProps) {
           <span className="truncate text-caption tabular-nums text-text-muted">{caption}</span>
         </div>
 
+        {p.presence && <div className="flex shrink-0 items-center">{p.presence}</div>}
         <div className="hidden shrink-0 items-center gap-2 sm:flex">
           <CopyButton text={p.url} label="Copy link" variant="primary" size="md" />
           {p.canOpen && (

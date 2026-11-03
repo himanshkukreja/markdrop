@@ -20,6 +20,8 @@ export interface TocProps {
   footer?: ReactNode;
   /** Called after a jump (close the sheet, etc.). */
   onNavigate?: (id: string) => void;
+  /** Who else is in each section (heading id → their colours and names): small dots beside it. */
+  markers?: Record<string, { color: string; name: string; away?: boolean }[]>;
   className?: string;
 }
 
@@ -27,7 +29,7 @@ export interface TocProps {
  * The Contents list (REVAMP_PLAN 7.6; Viewer board rail, MobileReading contents sheet). Entries
  * are buttons: a jump never navigates, it scrolls (navigateToHeading), so `#k=` survives.
  */
-export function Toc({ headings, activeId, encrypted, title = "Contents", variant = "rail", footer, onNavigate, className }: TocProps) {
+export function Toc({ headings, activeId, encrypted, title = "Contents", variant = "rail", footer, onNavigate, markers, className }: TocProps) {
   const entries = tocHeadings(headings);
   const spy = useActiveHeading(activeId === undefined ? entries.map((h) => h.id) : []);
   const active = activeId === undefined ? spy : activeId;
@@ -54,6 +56,14 @@ export function Toc({ headings, activeId, encrypted, title = "Contents", variant
                 }}
               >
                 <span className="md-toc__text">{h.text}</span>
+                {markers?.[h.id]?.length ? (
+                  <span className="md-toc__presence">
+                    {markers[h.id]!.slice(0, 3).map((m, i) => (
+                      <span key={i} className={`md-toc__dot${m.away ? " md-toc__dot--away" : ""}`} style={{ background: m.color }} aria-hidden />
+                    ))}
+                    <span className="ph-mask md-visually-hidden">, {markers[h.id]!.map((m) => m.name).join(", ")} here</span>
+                  </span>
+                ) : null}
                 {variant === "sheet" && current && <span className="md-toc__here">Reading</span>}
               </button>
             </li>

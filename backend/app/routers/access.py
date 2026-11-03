@@ -17,10 +17,11 @@ from app.schemas.access import (
     GrantResponse,
     BatchLevelUpdate,
     LevelUpdate,
+    PresenceUpdate,
     ResharingUpdate,
 )
 from app.services import access as access_service
-from app.services import mailer, urls
+from app.services import mailer, urls, viewers
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/documents", tags=["access"])
@@ -138,6 +139,7 @@ async def get_access(
         url=urls.markdrop_url(raw["slug"]),
         workspace_url=await urls.workspace_url(db, raw) if f.ws_id else None,
         expires_at=raw.get("expires_at"),
+        show_presence=raw.get("show_presence") is not False,
     )
 
 
@@ -167,6 +169,24 @@ async def set_resharing(
     actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
     await access_service.set_resharing(db, raw, data.allow, actor, ctx)
+
+
+@router.put("/{slug}/access/presence", status_code=204)
+@limiter.limit("60/minute")
+async def set_presence(
+    request: Request,
+    slug: str,
+    data: PresenceUpdate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Turn "Show who's viewing" on or off (the owner only, like re-sharing).
+    Off: nobody on the page sees anyone, and pages stop saying where they are."""
+    actor, ctx = _actor_ctx(request, db, user)
+    raw = await _load(db, slug)
+    await access_service.require(actor, raw, "set_resharing", ctx)
+    await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"show_presence": bool(data.show)}})
+    viewers.set_enabled(raw.get("slug"), bool(data.show))
 
 
 @router.post("/{slug}/access/people", response_model=GrantResponse, status_code=201)

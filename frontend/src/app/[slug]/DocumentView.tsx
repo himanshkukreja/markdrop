@@ -10,7 +10,10 @@ import { Alert, Button, ConfirmDialog, CopyButton, Drawer, EmptyState, Skeleton,
 import { SiteHeader } from "@/components/shell/SiteHeader";
 import { TenantHeader, useTenant } from "@/components/tenant";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
-import { ReadingProgress, Toc, TocTicks, tocHeadings, useReadingProgress, type Heading } from "@/components/reading";
+import { ReadingProgress, Toc, TocTicks, tocHeadings, useActiveHeading, useReadingProgress, type Heading } from "@/components/reading";
+import { DocPresence } from "@/components/presence/DocPresence";
+import { PresenceMargin } from "@/components/presence/PresenceMargin";
+import { sectionMarkers, viewerColor } from "@/lib/presence";
 import { removePerson } from "@/lib/access";
 import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
@@ -162,6 +165,18 @@ export default function DocumentView(props: DocumentViewProps) {
   );
   const pct = useReadingProgress();
 
+  // Who's viewing (lib/presence): say which heading this reader is in (throttled by the channel;
+  // never for an encrypted document, whose headings the server must not see), and mark where
+  // everyone else is: dots in the Contents rail when it's on screen, else in the margin.
+  const presence = v.presence;
+  const reportSections = v.readable && !encrypted && !v.showRaw && !v.editing;
+  const activeSection = useActiveHeading(reportSections ? headings.map((h) => h.id) : []);
+  useEffect(() => {
+    presence.channel.setSection(reportSections && activeSection ? { h: activeSection } : null);
+  }, [presence.channel, reportSections, activeSection]);
+  const wideRail = useMediaQuery("(min-width: 1280px)");
+  const markers = sectionMarkers(presence.snapshot);
+
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
     return (
@@ -222,6 +237,21 @@ export default function DocumentView(props: DocumentViewProps) {
   const empty = readable && !displayContent.trim();
   const protection: "private" | "password" | null = isPasswordProtected ? (gate === "signin" ? "private" : "password") : null;
   const tocEntries = readable && !showRaw ? tocHeadings(headings) : [];
+  // Markers on the Contents entry a heading falls under (an h4 isn't listed: its parent is).
+  const railShown = framed && wideRail && tocEntries.length > 0;
+  const tocMarkers: Record<string, { color: string; name: string; away?: boolean }[]> = {};
+  if (Object.keys(markers).length && tocEntries.length) {
+    const listed = new Set(tocEntries.map((h) => h.id));
+    let under: string | null = null;
+    for (const h of headings) {
+      if (listed.has(h.id)) under = h.id;
+      const here = markers[h.id];
+      if (here && (under ?? tocEntries[0]?.id)) {
+        const key = (under ?? tocEntries[0]!.id);
+        (tocMarkers[key] ??= []).push(...here.map((m) => ({ color: viewerColor(m.color), name: m.name, away: m.away })));
+      }
+    }
+  }
   // The stored title, else the document's own leading H1 (most documents carry their title there).
   const shownTitle = displayTitle || (headings[0]?.depth === 1 ? headings[0].text : null);
 
@@ -361,6 +391,7 @@ export default function DocumentView(props: DocumentViewProps) {
             menu={menu}
             headings={tocEntries.length ? headings : []}
             copyVariant={showPanel ? "secondary" : "primary"}
+            presence={readable ? <DocPresence presence={presence} signedIn={!!user} /> : null}
           />
         )}
 
@@ -380,7 +411,7 @@ export default function DocumentView(props: DocumentViewProps) {
             <aside className="no-print hidden xl:block" aria-label="Contents">
               {tocEntries.length > 0 && (
                 <div className="sticky top-32 max-h-[calc(100dvh-9rem)] overflow-y-auto pb-6">
-                  <Toc headings={headings} encrypted={encrypted} footer={tocFooter} />
+                  <Toc headings={headings} encrypted={encrypted} footer={tocFooter} markers={tocMarkers} />
                 </div>
               )}
             </aside>
@@ -504,7 +535,7 @@ export default function DocumentView(props: DocumentViewProps) {
                   ref={readRef}
                   // ph-no-capture: the document (title, body, raw view) is never recorded, and clicks
                   // inside it are never autocaptured with their text.
-                  className={`ph-no-capture ${vs.column} mx-auto w-full max-w-reading ${
+                  className={`ph-no-capture relative ${vs.column} mx-auto w-full max-w-reading ${
                     showImmersive ? "px-5 pb-32 pt-12 sm:px-8 sm:pt-24 print:p-0" : ""
                   }`}
                 >
@@ -549,10 +580,16 @@ export default function DocumentView(props: DocumentViewProps) {
                     />
                   )}
                   {readable && !empty && <Colophon />}
+                  {readable && !showRaw && !railShown && (
+                    <PresenceMargin root={readRef} markers={markers} left={showImmersive ? 2 : -14} />
+                  )}
                 </div>
                 {showImmersive && readable && !empty && <ReadingProgress key="layer" scroller={layerRef} />}
                 {showImmersive && readable && !showRaw && <TocTicks headings={headings} encrypted={encrypted} />}
                 {showImmersive && <LiveUpdatePill show={livePill} />}
+                {showImmersive && readable && (
+                  <DocPresence presence={presence} signedIn={!!user} variant="float" hideWhenAlone />
+                )}
                 {showImmersive && !(viewerChrome === "none" && !user) && (
                   <ImmersiveExit onExit={() => v.toggleImmersive(false)} />
                 )}
@@ -597,7 +634,7 @@ export default function DocumentView(props: DocumentViewProps) {
         description={tocFooter}
         side="bottom"
       >
-        <Toc headings={headings} encrypted={encrypted} variant="sheet" onNavigate={() => setContentsOpen(false)} />
+        <Toc headings={headings} encrypted={encrypted} variant="sheet" onNavigate={() => setContentsOpen(false)} markers={tocMarkers} />
       </Drawer>
 
       <SaveCopyDialog

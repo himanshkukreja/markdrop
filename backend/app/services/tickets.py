@@ -45,3 +45,41 @@ def valid_for(ticket: str | None, doc: dict) -> bool:
         and claims.get("d") == str(doc["_id"])
         and int(claims.get("e", -1)) == int(doc.get("access_epoch") or 0)
     )
+
+
+# ── Presence tickets ("who's viewing", services/viewers.py) ────────────────────
+#
+# The live socket can't carry the reader's session (a browser sends no
+# Authorization header on a WebSocket, and the session isn't a cookie), so a
+# signed-in read also returns ``presence_ticket``: the document and the account
+# that read it, signed. The page sends it inside the socket's first message, not
+# in the URL (which proxies log). It only says *who* is connecting; whether that
+# person appears by name is decided on the server from the document's access
+# data each time it's used (services/viewers.py).
+
+_PRESENCE_TYP = "pt"
+
+
+def mint_presence(doc_id: str, user_id: str, *, ttl: timedelta = TTL) -> str:
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {"typ": _PRESENCE_TYP, "d": doc_id, "u": user_id, "iat": now, "exp": now + ttl},
+        settings.auth_secret,
+        algorithm="HS256",
+    )
+
+
+def presence_user(ticket: str | None, doc: dict | None) -> str | None:
+    """The account a presence ticket names for ``doc``, or None."""
+    if not isinstance(ticket, str) or not ticket or len(ticket) > 2048:
+        return None
+    if not doc or doc.get("_id") is None:
+        return None
+    try:
+        claims = jwt.decode(ticket, settings.auth_secret, algorithms=["HS256"])
+    except jwt.InvalidTokenError:
+        return None
+    if claims.get("typ") != _PRESENCE_TYP or claims.get("d") != str(doc["_id"]):
+        return None
+    uid = claims.get("u")
+    return uid if isinstance(uid, str) and uid else None

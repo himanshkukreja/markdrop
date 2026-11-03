@@ -386,6 +386,10 @@
 .md-toc--sheet .md-toc__item[data-level="1"] { padding-left: 32px; color: var(--text-secondary); }
 .md-toc--sheet .md-toc__item:hover { background: var(--surface-hover); }
 .md-toc--sheet .md-toc__item[aria-current] { background: var(--accent-soft); color: var(--accent-text); }
+/* Who else is in this section (lib/presence): their colours, beside the heading. */
+.md-toc__presence { display: inline-flex; flex: none; align-items: center; gap: 3px; margin-left: auto; }
+.md-toc__dot { width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 0 2px var(--bg); transition: opacity var(--duration-fast); }
+.md-toc__dot--away { opacity: 0.45; }
 .md-toc__here { flex: none; font-size: 11px; line-height: 16px; font-weight: 600; color: var(--accent-text); }
 
 /* ── TocTicks (immersive) ───────────────────────────────────────────────────── */

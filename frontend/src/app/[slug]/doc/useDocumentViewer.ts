@@ -23,6 +23,7 @@ import { useReadDepth } from "@/lib/readDepth";
 import { engagementOptedOut, useAuthSettled, useDocEngagement } from "@/lib/engage";
 import { getAccess, type AccessState } from "@/lib/access";
 import { shortcutsEnabled } from "@/lib/shortcuts";
+import { usePresenceChannel } from "@/lib/presence";
 import type { DocumentViewProps } from "./types";
 
 export type ViewMode = "write" | "split" | "preview";
@@ -93,6 +94,10 @@ export function useDocumentViewer({
   // The document's read ticket (§2.7): every beacon and the live socket carry it, or the API
   // ignores them for anything an anonymous visitor couldn't read. Each read replaces it.
   const [readTicket, setReadTicket] = useState<string | null>(initialReadTicket);
+  // Who's viewing (lib/presence): the signed-in reader's presence ticket, from any read made here
+  // with their session. Dropped when they sign out, so the socket says hello as anonymous again.
+  const [presenceTicket, setPresenceTicket] = useState<string | null>(null);
+  const presence = usePresenceChannel(user ? presenceTicket : null);
 
   // Google Docs sync state — populated once we confirm the viewer owns this doc
   const [isOwner, setIsOwner] = useState(false);
@@ -318,6 +323,7 @@ export function useDocumentViewer({
    */
   function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
     if (doc.read_ticket) setReadTicket(doc.read_ticket);
+    if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
     if (doc.is_owned || doc.is_owner) setDocOwned(true);
     // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
     // one, keeping the query and the #k= key. The server render redirects the anonymous case.
@@ -838,6 +844,7 @@ export function useDocumentViewer({
       setDocId(null);
       setGoogleDocUrl(null);
       setGoogleDocStale(false);
+      setPresenceTicket(null);
       return;
     }
     let cancelled = false;
@@ -845,6 +852,7 @@ export function useDocumentViewer({
     getDocument(slug)
       .then((doc) => {
         if (cancelled) return;
+        if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
         if (doc.is_owned || doc.is_owner) setDocOwned(true);
         setOwnerCheckedFor(uid);
         if (!doc.is_owner) return;
@@ -885,6 +893,8 @@ export function useDocumentViewer({
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (isPasswordProtected && pwdLocked) return; // wait until unlocked
+    // A file found behind the password has its own socket (ArtifactView): one tab, one viewer.
+    if (artifactDoc) return;
     let ws: WebSocket | null = null;
     let retry: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
@@ -896,10 +906,13 @@ export function useDocumentViewer({
       } catch {
         return;
       }
-      ws.onopen = () => { setLive(true); backoff = 3000; };
+      const sock = ws;
+      ws.onopen = () => { setLive(true); backoff = 3000; presence.channel.attach(sock); };
       ws.onmessage = (ev) => {
         let msg: { type?: string } | null = null;
         try { msg = JSON.parse(ev.data); } catch { return; }
+        // Who's viewing: the presence channel takes its own messages.
+        if (msg && presence.channel.handle(msg)) return;
         // Deleted, expired or renamed away: the page itself has to answer now (404 or a redirect).
         if (msg?.type === "gone") { if (!editingRef.current) window.location.reload(); return; }
         // Who may read it narrowed: the server closes this socket and the old ticket stops
@@ -921,6 +934,7 @@ export function useDocumentViewer({
       };
       ws.onclose = () => {
         setLive(false);
+        presence.channel.detach();
         // Reconnect while the page is open, backing off 3s → 30s.
         if (!closed) {
           retry = setTimeout(connect, backoff);
@@ -933,9 +947,10 @@ export function useDocumentViewer({
       closed = true;
       if (retry) clearTimeout(retry);
       ws?.close();
+      presence.channel.detach();
       setLive(false);
     };
-  }, [slug, isPasswordProtected, pwdLocked, claimSecret, readTicket]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [slug, isPasswordProtected, pwdLocked, claimSecret, readTicket, !!artifactDoc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Open the editor directly when arriving via ?edit=1 (owner/secret ready).
   // An encrypted document waits for its decryption to finish (or to fail for good): opening on the
@@ -1402,6 +1417,7 @@ export function useDocumentViewer({
   }, [showImmersive, editing, pwdLocked, pwdFetching, artifactDoc, readable, displayContent, toggleImmersive]);
 
   return {
+    presence,
     access,
     encrypted,
     applyPastedLink,

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import {
-  Alert, Avatar, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, Icon, IconButton, Input, Kbd, SegmentedControl, Select, Spinner,
+  Alert, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, Icon, IconButton, Input, Kbd, SegmentedControl, Select, Spinner,
   copyText, cx, useToast,
 } from "@/components/ui";
 import {
@@ -19,6 +19,8 @@ import {
   type NavGroup, type Page, type PageSummary, type PagesResponse, type SaveConflict,
 } from "@/lib/docsSites";
 import { commentsSummary, editorAiEdit, editorAiStatus, type EditorAiStatus, type PresencePerson } from "@/lib/guideEditor";
+import { colorFor, type PresenceViewer } from "@/lib/presence";
+import { PresenceStack } from "@/components/presence/PresenceStack";
 import { guideEvents } from "@/lib/guidesEvents";
 import { getPrivate, previewAs, ruleLabel, type PreviewRow, type PrivateState } from "@/lib/guidePrivate";
 import { settingsHref } from "../settings/sections";
@@ -112,33 +114,51 @@ function useWide(px: number): boolean {
   return wide;
 }
 
-/** "Asha is here" with their avatars, in the studio header (each opens the page they're on). */
-function PresenceBar({ people, onOpen }: { people: PresencePerson[]; onOpen: (pageId: string) => void }) {
+/**
+ * Who else is in this guide's editor, in the studio header: the same avatar stack and list as
+ * "who's viewing" on documents and files (components/presence). People on the page you're on come
+ * first ("Editing this page" when they hold its lock); choosing anyone else opens their page.
+ */
+function PresenceBar({ people, onOpen, pageId, me }: {
+  people: PresencePerson[];
+  onOpen: (pageId: string) => void;
+  pageId: string | null;
+  me: { id: string; name: string; picture?: string | null } | null;
+}) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
   useEffect(() => setSlot(document.getElementById(HEADER_SLOT_ID)), []);
+  const viewers = useMemo<PresenceViewer[]>(() => {
+    const here = (p: PresencePerson) => !!pageId && p.page_id === pageId;
+    const sorted = [...people].sort((a, b) => Number(here(b)) - Number(here(a)) || Number(b.editing) - Number(a.editing));
+    return sorted.map((p) => ({
+      id: p.user_id,
+      name: p.name,
+      color: colorFor(p.user_id),
+      state: "active" as const,
+      sec: here(p)
+        ? { label: p.editing ? "Editing this page" : "On this page" }
+        : p.page_title ? { label: `${p.editing ? "Editing" : "On"} “${p.page_title}”` } : { label: "On this guide" },
+    }));
+  }, [people, pageId]);
   if (!slot || !people.length) return null;
+  const self: PresenceViewer | null = me
+    ? { id: `me:${me.id}`, name: me.name, pic: me.picture?.startsWith("https://") ? me.picture : undefined, color: colorFor(me.id), state: "active", sec: null }
+    : null;
   const names = people.map((p) => firstName(p.name));
   const text = names.length === 1 ? `${names[0]} is here` : names.length === 2 ? `${names[0]} and ${names[1]} are here` : `${names[0]} and ${names.length - 1} others are here`;
   return createPortal(
-    <div className="mr-1 flex items-center gap-2" aria-label="Also on this guide">
-      <span className="flex -space-x-1.5">
-        {people.slice(0, 3).map((p) => {
-          const where = p.page_title ? `${p.editing ? "editing" : "on"} “${p.page_title}”` : "on this guide";
-          return (
-            <button
-              key={p.user_id}
-              type="button"
-              disabled={!p.page_id}
-              onClick={() => p.page_id && onOpen(p.page_id)}
-              title={`${p.name} · ${where}`}
-              className="md-focus rounded-full ring-2 ring-surface disabled:cursor-default"
-            >
-              <Avatar name={p.name} size="sm" status={p.editing ? "online" : "away"} />
-              <span className="md-visually-hidden">{p.name}, {where}</span>
-            </button>
-          );
-        })}
-      </span>
+    <div className="mr-1 flex items-center gap-2">
+      <PresenceStack
+        viewers={self ? [self, ...viewers] : viewers}
+        me={self}
+        total={viewers.length + (self ? 1 : 0)}
+        title="On this guide"
+        note="Team members with the editor open, live."
+        onSelect={(v) => {
+          const p = people.find((x) => x.user_id === v.id);
+          if (p?.page_id && p.page_id !== pageId) onOpen(p.page_id);
+        }}
+      />
       <span className="ph-sensitive ph-mask hidden text-[12px] text-text-muted xl:inline">{text}</span>
     </div>,
     slot,
@@ -860,7 +880,12 @@ export default function EditorPage() {
           </>
         }
       />
-      <PresenceBar people={people} onOpen={open} />
+      <PresenceBar
+        people={people}
+        onOpen={open}
+        pageId={pageId}
+        me={user ? { id: user.id, name: user.name || user.email.split("@")[0] || "You", picture: user.picture } : null}
+      />
 
       <div className="flex min-h-0 min-w-0 flex-1 bg-surface">
         <aside

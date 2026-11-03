@@ -33,6 +33,11 @@ class ResharingUpdate(BaseModel):
     allow: bool
 
 
+class PresenceUpdate(BaseModel):
+    """The owner's "Show who's viewing" switch (services/viewers.py)."""
+    show: bool
+
+
 class BatchLevelUpdate(BaseModel):
     slugs: list[str] = Field(..., min_length=1, max_length=200)
     level: Literal["private", "link", "workspace"]
@@ -78,6 +83,8 @@ class AccessResponse(BaseModel):
     workspace_url: str | None = None
     # So "More options" can say when it expires.
     expires_at: datetime | None = None
+    # "Show who's viewing" (live presence on the page); absent means on.
+    show_presence: bool = True
 
 
 # ── Share-dialog suggestions ──────────────────────────────────────────────────
