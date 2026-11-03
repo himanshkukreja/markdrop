@@ -120,7 +120,11 @@ class McpPages(AccessWorld):
         child = await self.ok("owner", "create_page", {"title": "Kid", "parent": page["slug"]})
         out = await self.ok("stranger", "get_page", {"document": page["slug"]})
         self.assertEqual(out["rev"], 3)
-        self.assertEqual(out["markdown"], content)
+        # The mention of an item the stranger can't open has no label (BUGS.md #1).
+        self.assertEqual(out["markdown"], content.replace(":markdrop[Secret plan]", ":markdrop[]"))
+        self.assertNotIn("Secret plan", str(out))
+        # The item's own owner can open it: the label stays. (The page's owner can't, so theirs is empty.)
+        self.assertEqual((await self.ok("wm", "get_page", {"document": page["slug"]}))["markdown"], content)
         self.assertEqual(out["editor"], "classic")
         self.assertEqual(out["children"], [{"slug": child["slug"], "title": "Kid"}])
         self.assertEqual(out["embeds"][0], {"slug": visible["slug"], "as": "embed", "state": "ok",
