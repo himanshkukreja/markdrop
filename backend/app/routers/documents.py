@@ -470,6 +470,8 @@ async def upload_page_asset(
     ctx = _ctx(db, request)
     raw = await db["documents"].find_one({"slug": slug})
     await access.require(actor, raw, "edit_content", ctx)
+    if pages.is_page_capable(raw):
+        await pages.check_page_lock(raw, actor, ctx)
     data = await file.read(page_assets.MAX_BYTES + 1)
     return await page_assets.upload(db, raw, data, user_id=actor.user_id or raw.get("owner_id"))
 

@@ -1046,6 +1046,82 @@ class Embeds(PageWorld):
         self.assertEqual(pages.asset_ids(md), ["0123456789abcdef01234567"])
 
 
+# ── Page properties (front matter) and the locked page ───────────────────────
+
+
+class Props(PageWorld):
+    def test_parse_and_apply_round_trip(self):
+        from app.services import page_props
+
+        md = "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 0.25\nfont: serif\nlocked: yes\n---\n# Body\n"
+        p = page_props.parse(md)
+        self.assertEqual((p["icon"], p["cover"], p["cover_y"], p["font"], p["locked"], p["full_width"]),
+                         ("🚀", "gallery:aurora", 0.25, "serif", True, False))
+        # Bad values are ignored, not fatal.
+        bad = page_props.parse("---\nicon: https://evil/x.png\ncover: http://x\ncover_y: lots\nfont: comic\n---\n")
+        self.assertEqual((bad["icon"], bad["cover"], bad["cover_y"], bad["font"]), (None, None, 0.5, "default"))
+        # Writing keeps unknown keys and the body; defaults and None remove keys; the block goes when empty.
+        out = page_props.apply(md, {"full_width": True, "locked": None, "font": "default"})
+        self.assertEqual(out, "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 0.25\n"
+                              "full_width: true\n---\n# Body\n")
+        self.assertEqual(page_props.apply("# Body\n", {"icon": "📘"}), "---\nicon: 📘\n---\n# Body\n")
+        self.assertEqual(page_props.apply("---\nicon: 📘\n---\n# Body\n", {"icon": None}), "# Body\n")
+        self.assertEqual(page_props.apply("# Body\n", {}), "# Body\n")
+        for bad_change in ({"font": "comic"}, {"cover_y": 2}, {"icon": "x" * 40}, {"cover": "https://x"},
+                           {"locked": "yes"}, {"nope": 1}):
+            with self.assertRaises(ValueError):
+                page_props.apply("", bad_change)
+        # A horizontal rule further down isn't front matter.
+        self.assertEqual(page_props.parse("# T\n\n---\nlocked: true\n---\n")["locked"], False)
+
+    async def test_get_returns_page_properties_and_their_images(self):
+        page = await self.mkdoc("UP")
+        info = (await self.upload(page["slug"], self.session("owner"))).json()
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {
+            "content": f"---\nicon: asset:{info['id']}\ncover: gallery:dunes\ncover_y: 0.1\nsmall_text: true\n---\n# P\n"}})
+        body = (await self.get(page["slug"], self.session("gv"))).json()
+        p = body["page"]
+        self.assertEqual((p["icon"], p["cover"], p["cover_y"], p["small_text"], p["locked"]),
+                         (f"asset:{info['id']}", "gallery:dunes", 0.1, True, False))
+        self.assertIn("?t=", p["icon_url"])
+        self.assertIsNone(p["cover_url"])
+        self.assertIn(info["id"], body["assets"])
+        r = await self.http.get(f"/api/v1/documents/{page['slug']}/assets/urls", headers=self.session("gv"))
+        self.assertIn(info["id"], r.json()["assets"])
+        self.assertNotIn(info["id"], (await self.get(page["slug"], self.session("stranger"))).text)
+
+    async def test_locked_page(self):
+        page = await self.mkdoc("W", grants=True)
+        locked = "---\nlocked: true\n---\n# Locked\n"
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}", json={"title": "t", "content": locked},
+                                headers=self.session("wm"))
+        self.assertEqual(r.status_code, 403)  # an editor can't lock it
+        self.assertEqual(r.json()["code"], "page_locked")
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}", json={"title": "t", "content": locked},
+                                headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["page"]["locked"])
+        for who in ("wm", "ge"):
+            r = await self.http.put(f"/api/v1/documents/{page['slug']}",
+                                    json={"title": "t", "content": "---\nlocked: true\n---\n# changed\n"},
+                                    headers=self.session(who))
+            self.assertEqual((r.status_code, r.json()["code"]), (423, "page_locked"), who)
+            r = await self.http.post(f"/api/v1/documents/{page['slug']}/lock", headers=self.session(who))
+            self.assertEqual(r.status_code, 423, who)
+            self.assertEqual((await self.upload(page["slug"], self.session(who))).status_code, 423, who)
+        # A workspace admin may edit and unlock; so may the owner and the edit secret.
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}",
+                                json={"title": "t", "content": "---\nlocked: true\n---\n# by admin\n"},
+                                headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.put(f"/api/v1/documents/{page['slug']}", json={"title": "t", "content": "# open\n"},
+                                headers={"X-Edit-Secret": ES_SECRET})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual((await self.http.put(f"/api/v1/documents/{page['slug']}",
+                                              json={"title": "t", "content": "# by wm"},
+                                              headers=self.session("wm"))).status_code, 200)
+
+
 # ── The edit lock ─────────────────────────────────────────────────────────────
 
 

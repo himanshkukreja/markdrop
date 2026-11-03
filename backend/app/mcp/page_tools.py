@@ -103,6 +103,10 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
         cur = await ctx.db["documents"].find_one({"_id": raw["_id"]})
         if cur is None:
             raise ToolError("That page was deleted meanwhile.")
+        try:
+            await pages.check_page_lock(cur, actor_of(ctx), _actx(ctx), pages.appended(cur.get("content") or "", block))
+        except HTTPException as exc:
+            raise ToolError(http_message(exc))
         content = pages.appended(cur.get("content") or "", block)
         if len(content) > settings.max_content_chars:
             raise ToolError(f"Pages are limited to {settings.max_content_chars:,} characters.")
@@ -139,11 +143,26 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if parent:
         parent_raw = await load_for(ctx, parent, "edit_content", "add pages to")
         parent_slug = parent_raw["slug"]
+    content = args.get("content")
+    if args.get("properties"):
+        from app.services import page_props
+
+        props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
+        if any(str(v or "").startswith("asset:") for v in props.values()):
+            raise ToolError("A new page has no images yet: create it, upload_page_image, then "
+                            "set_page_properties with icon or cover asset:<id>.")
+        if content is None and args.get("template"):
+            tpl = page_templates.get(args["template"])
+            content = page_templates.fill(tpl["content"], title=args["title"]) if tpl else None
+        try:
+            content = page_props.apply(content or "", props)
+        except ValueError as exc:
+            raise ToolError(str(exc))
     try:
         raw, _secret, error = await pages.create_page(
             ctx.db, ctx.user, actor_of(ctx), _actx(ctx), title=args["title"], workspace=ws_id,
             folder=args.get("folder") if ws_id else None, parent=parent_slug,
-            template=args.get("template"), content=args.get("content"))
+            template=args.get("template"), content=content)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
@@ -187,6 +206,7 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         "rev": int(raw.get("rev") or 1),
         "editor": raw.get("editor") or "classic",
         "parent": fields["parent"],
+        "properties": {k: v for k, v in fields["page"].items() if k not in ("icon_url", "cover_url")},
         "children": [{"slug": k["slug"], "title": k["title"]} for k in kids],
         "embeds": embeds,
         "assets": [{"id": i, "url": a["url"]} for i, a in fields["assets"].items()],
@@ -311,9 +331,37 @@ async def move_page(ctx: Context, args: dict) -> tuple[str, dict]:
             + f": {out['url']}"), out
 
 
+async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import page_props
+
+    raw = await load_for(ctx, args["document"], "edit_content", "update")
+    _editable_page(raw)
+    changes = {k: args[k] for k in page_props.KEYS if k in args}
+    if not changes:
+        raise ToolError(f"Nothing to change: pass one of {', '.join(page_props.KEYS)} (null clears it).")
+    for k in ("icon", "cover"):
+        v = changes.get(k)
+        if isinstance(v, str) and v.startswith("asset:"):
+            if not await ctx.db["page_assets"].find_one({"_id": v[6:], "doc_id": str(raw["_id"])}, {"_id": 1}):
+                raise ToolError(f"{v} isn't an image of this page: upload it with upload_page_image first.")
+    try:
+        content = page_props.apply(raw.get("content") or "", changes)
+    except ValueError as exc:
+        raise ToolError(str(exc))
+    after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
+    props = page_props.parse(after.get("content"))
+    out = {**await _result(ctx, after), "properties": props}
+    return f"Updated the page properties of {out['url']}: " + ", ".join(
+        f"{k}={props[k]}" for k in changes), out
+
+
 async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "add images to")
     _editable_page(raw)
+    try:
+        await pages.check_page_lock(raw, actor_of(ctx), _actx(ctx))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
     text = (args.get("content_base64") or "").strip()
     if text.startswith("data:") and "," in text:
         text = text.split(",", 1)[1]
@@ -340,10 +388,21 @@ async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
 _PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"}},
                     ["url", "markdrop_url", "slug", "rev"])
 _MARKDOWN = {"type": "string", "minLength": 1, "maxLength": settings.max_content_chars}
-_SYNTAX = ("Block syntax: callouts ':::note' / ':::tip' / ':::warning' / ':::danger' … ':::', toggles "
-           "':::details{summary=\"…\"}' … ':::', checklists '- [ ]', GFM tables, code fences; an embedded "
-           "Markdrop item '::markdrop{src=\"<slug>\" mode=\"live\"}', a mention ':markdrop[Title]{src=\"<slug>\"}', "
-           "a page image '![alt](asset:<id>)'.")
+# What AI apps may write in a page (the block editor round-trips all of it). Kept in one place;
+# the docs page "Page Markdown reference" spells out every block.
+PAGE_SYNTAX = (
+    "Page Markdown: GitHub Markdown (headings, lists, '- [ ]' to-dos, tables, ``` code, > quotes, ---) plus "
+    "directives. Callout: ':::note{icon=\"💡\" color=\"blue\"}' … ':::' (also tip, warning, danger). Toggle: "
+    "':::details{summary=\"Title\"}' … ':::'; toggle heading: ':::details{heading=2 summary=\"Title\"}'. "
+    "Columns: '::::columns' then ':::column{width=50}' … ':::' per column, closed by '::::'. Colour: inline "
+    "':span[text]{color=\"red\"}' (or bg=\"yellow\"); a block gets '{color=\"blue\"}' on its own line after it. "
+    "Math: $inline$ and $$ blocks; ```mermaid diagrams. Bookmark: '::bookmark{url=\"https://…\"}'. Web embed "
+    "(YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): '::embed{src=\"https://…\"}'. Markdrop item: "
+    "'::markdrop{src=\"<slug>\" mode=\"live|preview|card\"}'; mention: ':markdrop[Title]{src=\"<slug>\"}'; person: "
+    "':person[Name]{id=\"<user id>\"}'. Image: '![alt](asset:<id>)' (upload_page_image). Page properties go "
+    "in front matter (icon, cover, cover_y, full_width, small_text, font, locked): use set_page_properties."
+)
+_SYNTAX = PAGE_SYNTAX
 
 PAGE_TOOLS: list[Tool] = [
     Tool(
@@ -364,6 +423,9 @@ PAGE_TOOLS: list[Tool] = [
             "template": {"type": "string", "enum": [t["id"] for t in page_templates.TEMPLATES]},
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
+            "properties": {"type": "object", "description": (
+                "Optional page properties: icon (an emoji), cover (gallery:<name>), cover_y, full_width, "
+                "small_text, font (default, serif, mono), locked.")},
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
                             "editor": {"type": "string"}, "parent": _NULLABLE_STR,
@@ -384,7 +446,7 @@ PAGE_TOOLS: list[Tool] = [
             **_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR, "markdown": {"type": "string"},
             "rev": {"type": "integer"}, "editor": {"type": "string"}, "parent": {"type": ["object", "null"]},
             "children": {"type": "array"}, "embeds": {"type": "array"}, "assets": {"type": "array"},
-            "editing": {"type": "string"}, "note": {"type": "string"},
+            "editing": {"type": "string"}, "note": {"type": "string"}, "properties": {"type": "object"},
         }, ["url", "markdrop_url", "slug", "title", "markdown", "rev", "editor", "parent", "children",
             "embeds", "assets"]),
         annotations=_ann(True, False, True),
@@ -395,7 +457,8 @@ PAGE_TOOLS: list[Tool] = [
         title="Replace a page",
         description=("Replace a page's whole Markdown. base_rev is the rev get_page returned: if the page "
                      "changed since, nothing is saved. Refused while someone has the page open in the editor "
-                     "(try again in a minute, or use append_blocks)."),
+                     "(try again in a minute, or use append_blocks). Keep the front matter get_page "
+                     "returned at the top. " + PAGE_SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -410,7 +473,7 @@ PAGE_TOOLS: list[Tool] = [
         name="append_blocks",
         title="Add to the end of a page",
         description=("Add Markdown blocks at the end of a page. Works even while someone is editing it: "
-                     "their editor shows the new blocks at once."),
+                     "their editor shows the new blocks at once. " + PAGE_SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {"document": _DOC_REF, "markdown": _MARKDOWN},
@@ -424,7 +487,8 @@ PAGE_TOOLS: list[Tool] = [
         title="Replace a section of a page",
         description=("Replace one section of a page: from the heading named (matched ignoring case) to the "
                      "next heading of the same or a higher level. The heading is kept unless the new Markdown "
-                     "starts with a heading of its own. Refused while someone is editing the page."),
+                     "starts with a heading of its own. Refused while someone is editing the page. "
+                     + PAGE_SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -501,6 +565,31 @@ PAGE_TOOLS: list[Tool] = [
                            ["url", "markdrop_url", "slug", "parent"]),
         annotations=_ann(False, False, True),
         handler=move_page,
+    ),
+    Tool(
+        name="set_page_properties",
+        title="Set a page's properties",
+        description=("Set a page's icon (an emoji, or asset:<id> of an image uploaded with upload_page_image), "
+                     "cover (asset:<id> or gallery:<name>) and its focal point cover_y (0 top .. 1 bottom), "
+                     "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
+                     "workspace admin may edit a locked page, or lock / unlock one). Pass null to clear one. "
+                     "They live in the page's front matter. Refused while someone is editing the page."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "icon": {"type": ["string", "null"], "maxLength": 80},
+            "cover": {"type": ["string", "null"], "maxLength": 80},
+            "cover_y": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "full_width": {"type": ["boolean", "null"]},
+            "small_text": {"type": ["boolean", "null"]},
+            "font": {"type": ["string", "null"], "enum": ["default", "serif", "mono", None]},
+            "locked": {"type": ["boolean", "null"]},
+        }, "required": ["document"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
+                            "properties": {"type": "object"}}, ["url", "markdrop_url", "slug", "rev", "properties"]),
+        annotations=_ann(False, False, True),
+        handler=set_page_properties,
     ),
     Tool(
         name="upload_page_image",

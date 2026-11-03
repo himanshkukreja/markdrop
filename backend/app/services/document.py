@@ -451,6 +451,9 @@ async def update_document(
     # One editor at a time (services/pages.py): someone else holding the page's
     # edit lock makes this a 423; the holder's own autosaves pass.
     pages.check_write_lock(raw, actor)
+    # A page locked by its ``locked`` property: its owner and workspace admins only.
+    if raw.get("kind") != "artifact" and not raw.get("encrypted"):
+        await pages.check_page_lock(raw, actor, ctx, data.content)
 
     if raw.get("kind") != "artifact":
         check_envelope_shape(encrypted=bool(raw.get("encrypted")), title=data.title, content=data.content)

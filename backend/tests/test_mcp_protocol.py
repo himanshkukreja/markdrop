@@ -115,7 +115,7 @@ class Transport(McpTestCase):
             "remove_from_workspace", "create_folder", "move_to_folder",
             # Pages (block editor, sub-pages, embeds, page images).
             "create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
-            "list_page_templates", "list_subpages", "move_page", "upload_page_image"})
+            "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
@@ -166,7 +166,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 38)
+        self.assertEqual(len(r.json()["result"]["tools"]), 39)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

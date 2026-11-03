@@ -295,6 +295,38 @@ def locked_error(lock: dict) -> PageError:
                            "code": "locked", "holder": {"name": name}, "retryable": True})
 
 
+async def may_edit_locked(actor: access.Actor, raw: dict, ctx: access.Ctx) -> bool:
+    """A page locked by its ``locked`` property (services/page_props.py) can
+    still be edited by its owner (or the edit secret) and its workspace's admins."""
+    from app.models.workspace import role_allows
+
+    f = await access.facts(actor, raw, ctx)
+    return bool(f.is_owner or f.secret_ok or role_allows(f.ws_role, "admin"))
+
+
+def page_locked_error() -> PageError:
+    return PageError(423, {"detail": "This page is locked. Its owner or a workspace admin can unlock it "
+                                     "from the page's ⋯ menu.", "code": "page_locked", "retryable": False})
+
+
+async def check_page_lock(raw: dict, actor: access.Actor, ctx: access.Ctx,
+                          new_content: str | None = None) -> None:
+    """423 ``page_locked`` for an edit to a locked page by anyone but its owner
+    or a workspace admin; 403 for locking or unlocking it by anyone else."""
+    from app.services import page_props
+
+    was = page_props.is_locked(raw.get("content"))
+    now = page_props.is_locked(new_content) if new_content is not None else was
+    if not was and not now:
+        return
+    if await may_edit_locked(actor, raw, ctx):
+        return
+    if was:
+        raise page_locked_error()
+    raise PageError(403, {"detail": "Only the page's owner or a workspace admin can lock it.",
+                          "code": "page_locked"})
+
+
 def check_write_lock(raw: dict, actor: access.Actor) -> None:
     """423 when someone holds the page and this write isn't theirs. An MCP
     write is refused whenever anyone holds it (its own user's open editor
@@ -316,6 +348,7 @@ async def acquire_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
         raise HTTPException(status_code=401, detail="Sign in to edit this page.")
     if not is_page_capable(raw):
         raise HTTPException(status_code=422, detail="Only Markdown documents open in the block editor.")
+    await check_page_lock(raw, actor, ctx)
     now = now_utc()
     name = viewers.display_name(actor.user)
     lock = {"user_id": actor.user_id, "name": name, "expires_at": now + LOCK_TTL, "at": now}
@@ -397,7 +430,13 @@ def embed_refs(markdown: str | None) -> list[dict]:
 
 
 def asset_ids(markdown: str | None) -> list[str]:
-    return list(dict.fromkeys(m.group(1) for m in _ASSET.finditer(markdown or "")))
+    """Page images the Markdown references: ``![…](asset:<id>)`` and the
+    front matter's icon / cover."""
+    from app.services import page_props
+
+    ids = [m.group(1) for m in _ASSET.finditer(markdown or "")]
+    ids += page_props.asset_ids(page_props.parse(markdown))
+    return list(dict.fromkeys(ids))
 
 
 def _norm_heading(text: str) -> str:
@@ -584,9 +623,11 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
     ancestors, root first), ``children_count`` (readable), ``access_inherit``,
     ``page_path`` and ``assets`` (the page images its content references, as
     links for this reader). The reader is already past ``can(read)``."""
-    from app.services import page_assets
+    from app.services import page_assets, page_props
 
+    props = page_props.parse(raw.get("content")) if not raw.get("encrypted") else dict(page_props.DEFAULTS)
     out: dict[str, Any] = {
+        "page": props,
         "editor": raw.get("editor"),
         "parent": None,
         "breadcrumbs": [],
@@ -623,6 +664,13 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
     out["children_count"] = n
     if not raw.get("encrypted"):
         out["assets"] = await page_assets.urls_for(db, raw, asset_ids(raw.get("content")))
+        # The icon's and cover's own links, when they are page images.
+        for key in ("icon", "cover"):
+            v = props.get(key) or ""
+            hit = out["assets"].get(v[6:]) if v.startswith("asset:") else None
+            props[f"{key}_url"] = hit["url"] if hit else None
+    else:
+        props["icon_url"] = props["cover_url"] = None
     return out
 
 
@@ -772,6 +820,7 @@ async def set_editor(db: AsyncIOMotorDatabase, raw: dict, editor: str, actor: ac
     value = "blocks" if editor == "blocks" else None
     if (raw.get("editor") or None) == value:
         return raw
+    await check_page_lock(raw, actor, ctx)
     after = await db["documents"].find_one_and_update(
         {"_id": raw["_id"]}, {"$set": {"editor": value}}, return_document=True)
     if after is None:

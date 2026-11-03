@@ -17,7 +17,7 @@ from app.services import live, viewers
 from tests.test_pages import png
 
 PAGE_TOOLS = {"create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
-              "list_page_templates", "list_subpages", "move_page", "upload_page_image"}
+              "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties"}
 
 
 class McpPages(AccessWorld):
@@ -52,7 +52,7 @@ class McpPages(AccessWorld):
 
     def test_catalogue(self):
         names = {t.name for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 38)
+        self.assertEqual(len(mcp_tools.TOOLS), 39)
         self.assertTrue(PAGE_TOOLS <= names)
         for t in mcp_tools.TOOLS:
             if t.name in PAGE_TOOLS:
@@ -289,6 +289,54 @@ class McpPages(AccessWorld):
         self.assertIn("children=delete", await self.err("owner", "delete_document", {"document": page["slug"]}))
         await self.ok("owner", "delete_document", {"document": page["slug"], "children": "lift"})
         self.assertIsNone((await self.doc(kid["slug"]))["parent_id"])
+
+    # ── page properties ──
+
+    async def test_set_page_properties_and_get(self):
+        page = await self.mkdoc("W")
+        img = await self.ok("owner", "upload_page_image", {"document": page["slug"], "filename": "c.png",
+                                                           "content_base64": base64.b64encode(png()).decode()})
+        out = await self.ok("wm", "set_page_properties", {"document": page["slug"], "icon": "🚀",
+                                                          "cover": f"asset:{img['id']}", "cover_y": 0.3,
+                                                          "full_width": True, "font": "mono"})
+        self.assertEqual(out["properties"]["font"], "mono")
+        raw = await self.doc(page["slug"])
+        self.assertTrue(raw["content"].startswith(f"---\nicon: 🚀\ncover: asset:{img['id']}\ncover_y: 0.3\n"))
+        got = await self.ok("wv", "get_page", {"document": page["slug"]})
+        self.assertEqual(got["properties"]["icon"], "🚀")
+        self.assertTrue(got["properties"]["full_width"])
+        self.assertIn(img["id"], [a["id"] for a in got["assets"]])
+        await self.ok("wm", "set_page_properties", {"document": page["slug"], "icon": None, "full_width": None})
+        self.assertNotIn("icon:", (await self.doc(page["slug"]))["content"])
+        self.assertIn("isn't an image of this page", await self.err("wm", "set_page_properties", {
+            "document": page["slug"], "cover": "asset:0123456789abcdef01234567"}))
+        self.assertIn("font", await self.err("wm", "set_page_properties", {"document": page["slug"], "font": "comic"}))
+        self.assertIn("Nothing to change", await self.err("wm", "set_page_properties", {"document": page["slug"]}))
+        self.assertIn("can edit", await self.err("wv", "set_page_properties", {"document": page["slug"], "icon": "x"}))
+
+    async def test_locked_page_via_mcp(self):
+        page = await self.mkdoc("W")
+        self.assertIn("owner or a workspace admin", await self.err("wm", "set_page_properties",
+                                                                   {"document": page["slug"], "locked": True}))
+        await self.ok("owner", "set_page_properties", {"document": page["slug"], "locked": True})
+        for name, args in (("append_blocks", {"markdown": "x"}),
+                           ("update_page", {"markdown": "x", "base_rev": 2}),
+                           ("set_page_properties", {"icon": "x"}),
+                           ("upload_page_image", {"filename": "a.png",
+                                                  "content_base64": base64.b64encode(png()).decode()})):
+            self.assertIn("locked", await self.err("wm", name, {"document": page["slug"], **args}), name)
+        await self.ok("wa", "append_blocks", {"document": page["slug"], "markdown": "admin note"})
+        await self.ok("owner", "set_page_properties", {"document": page["slug"], "locked": False})
+        await self.ok("wm", "append_blocks", {"document": page["slug"], "markdown": "member note"})
+
+    async def test_create_page_with_properties(self):
+        out = await self.ok("owner", "create_page", {"title": "P", "template": "prd",
+                                                     "properties": {"icon": "📘", "full_width": True}})
+        raw = await self.doc(out["slug"])
+        self.assertTrue(raw["content"].startswith("---\nicon: 📘\nfull_width: true\n---\n:::note"))
+        self.assertEqual(raw["template_id"], "prd")
+        self.assertIn("upload_page_image", await self.err("owner", "create_page", {
+            "title": "Q", "properties": {"cover": "asset:0123456789abcdef01234567"}}))
 
     # ── upload_page_image ──
 

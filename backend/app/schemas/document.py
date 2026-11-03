@@ -163,6 +163,9 @@ class DocumentResponse(BaseModel):
     # them (it is the address prefix: folders, then ancestor pages).
     page_path: list[str] = []
     template_id: str | None = None
+    # Page properties from the content's front matter (services/page_props.py):
+    # {icon, icon_url, cover, cover_url, cover_y, full_width, small_text, font, locked}.
+    page: dict | None = None
     # The page images its content references (``asset:<id>``), as links for
     # this reader: {id: {url, expires_at}} (expires_at null when public).
     assets: dict = {}
