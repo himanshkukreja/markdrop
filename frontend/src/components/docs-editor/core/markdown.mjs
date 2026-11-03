@@ -251,7 +251,8 @@ const ATTR_LINE_KIND = { table: "table", code: "codeBlock", math: "mathBlock", t
 
 /** The attributes `next` holds when it is a paragraph that is one line of attributes for `kind`. */
 function lineAttrs(next, kind, ctx, strip) {
-  if (!next || next.type !== "paragraph" || next.children.length !== 1 || next.children[0].type !== "text") return null;
+  // The line as written (a caption may hold `*` or `_`, which Markdown reads as emphasis).
+  if (!next || next.type !== "paragraph") return null;
   const text = dedent(ctx.src.slice(start(next), end(next)), strip);
   if (text.includes("\n")) return null;
   return attrLine(text, kind);
@@ -635,8 +636,13 @@ function fpImpl(node) {
  */
 function effectiveSpread(node) {
   const kids = (node.content ?? []).filter((k) => !isEmptyParagraph(k));
-  if (node.type === "listItem")
-    return (!!node.attrs?.spread && kids.length > 1) || kids.some((k, i) => i > 0 && k.type === "paragraph" && kids[i - 1].type === "paragraph");
+  if (node.type === "listItem") {
+    const adjacent = kids.some((k, i) => i > 0 && k.type === "paragraph" && kids[i - 1].type === "paragraph");
+    // An item holding a container (a nested `:::indent`, a callout…): mdast calls it loose when the
+    // container has a blank line inside, whatever the item's own spacing, so only adjacency counts.
+    if (kids.some((k, i) => i > 0 && CONTAINER_TYPES.has(k.type))) return adjacent;
+    return (!!node.attrs?.spread && kids.length > 1) || adjacent;
+  }
   return !!node.attrs?.spread && kids.length > 1;
 }
 
@@ -666,7 +672,10 @@ const isInline = (n) => INLINE.has(n.type);
  */
 function serializeMarkdownImpl(state, { preserve = true } = {}) {
   const { doc, front = "", lead = "", tail = "", eol = "\n", bom = "", empty = false } = state;
-  const body = serializeFlow(doc.content ?? [], { preserve });
+  let body = serializeFlow(doc.content ?? [], { preserve });
+  // A page that starts with a divider and has another one later would read back as front matter:
+  // the first divider is written `***` (the same divider).
+  if (!front && !lead.trim() && /^---[ \t]*(?:\n|$)/.test(body) && /\n---[ \t]*(?:\n|$)/.test(body)) body = `***${body.slice(body.indexOf("\n") < 0 ? body.length : body.indexOf("\n"))}`;
   // A page that had no blocks yet: its whitespace was all `lead`; new content ends with a newline.
   let out = !body ? front + lead + tail : empty ? front + (front ? "\n" : "") + body + "\n" : front + lead + body + tail;
   if (eol !== "\n") out = out.replace(/\n/g, eol);
@@ -919,6 +928,18 @@ const TO_MD = {
     mdRaw(node) {
       return node.value;
     },
+    // mdast-util-gfm's task item, which drops the checkbox after a `1)` marker (its pattern only
+    // knows `1.`): a list written with `)` to keep it apart from the list before it lost its to-dos.
+    listItem(node, parent, state, info) {
+      const head = node.children[0];
+      const checkable = typeof node.checked === "boolean" && head && head.type === "paragraph";
+      const checkbox = `[${node.checked ? "x" : " "}] `;
+      const tracker = state.createTracker(info);
+      if (checkable) tracker.move(checkbox);
+      let value = defaultHandlers.listItem(node, parent, state, { ...info, ...tracker.current() });
+      if (checkable) value = value.replace(/^(?:[*+-]|\d+[.)])([\r\n]| {1,3})/, (m) => m + checkbox);
+      return value;
+    },
     image(node, parent, state, info) {
       // A page image's address is `asset:<id>`: the colon needs no escape there (it reads back the
       // same), and the API and AI apps look for `](asset:` as written.
@@ -954,7 +975,24 @@ function toMdast(node, preserve) {
     case "figure":
       return { type: "paragraph", children: [{ type: "image", url: node.attrs.src ?? "", alt: node.attrs.alt ?? "", title: node.attrs.title || null }, ...trailingFor("figure", node.attrs?.battrs, [])] };
     case "blockquote":
-      return { type: "blockquote", children: (node.content ?? []).filter((k) => !isEmptyParagraph(k)).map((k) => child(k, preserve)) };
+    {
+      // Two lists in a row inside a quote must not merge: the second is written knowing the first.
+      const kids = (node.content ?? []).filter((k) => !isEmptyParagraph(k));
+      let prevText = null;
+      return {
+        type: "blockquote",
+        children: kids.map((k, i) => {
+          if (isList(k) && i > 0) {
+            const value = serializeBlock(k, { preserve, prev: kids[i - 1], prevText, next: kids[i + 1] ?? null });
+            prevText = value;
+            return { type: "mdRaw", value };
+          }
+          const out = child(k, preserve);
+          prevText = out.type === "mdRaw" ? out.value : out.data?.raw ?? null;
+          return out;
+        }),
+      };
+    }
     case "bulletList":
     case "orderedList":
       return {
@@ -1072,7 +1110,32 @@ export function phrasing(nodes) {
         break;
     }
   }
-  return literalLinks(root.children);
+  return colonGuard(literalLinks(root.children));
+}
+
+/**
+ * Text ending in ":" right before a `:span[…]` / `:u[…]` / `:kbd[…]` would make "::span", which
+ * isn't a directive: that colon is written escaped.
+ */
+function colonGuard(children) {
+  const out = [];
+  for (const c of children) {
+    if (c.children) c.children = colonGuard(c.children);
+    const prev = out[out.length - 1];
+    if (c.type === "textDirective" && prev?.type === "text" && prev.value.endsWith(":")) {
+      prev.value = prev.value.slice(0, -1);
+      if (!prev.value) out.pop();
+      out.push({ type: "mdRaw", value: "\\:" });
+    }
+    // …and text starting with "{" right after one would be read as its attributes.
+    if (c.type === "text" && prev?.type === "textDirective" && c.value.startsWith("{")) {
+      out.push({ type: "mdRaw", value: "\\{" });
+      if (c.value.length > 1) out.push({ ...c, value: c.value.slice(1) });
+      continue;
+    }
+    out.push(c);
+  }
+  return out;
 }
 
 /**

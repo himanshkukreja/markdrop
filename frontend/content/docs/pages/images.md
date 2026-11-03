@@ -8,7 +8,7 @@ keywords: [image, images, screenshot, paste, upload, drop, alt text, caption, co
 
 ## Add an image
 
-- **Paste** a screenshot or a copied image while editing.
+- **Paste** a screenshot or a copied image while editing. Images in text you paste from Google Docs, Notion or a web page are copied into the page too. See [Paste into a page](/pages/paste).
 - **Drop** an image file onto the page.
 - Type `/image` and choose **Upload an image**, or paste an image link.
 
