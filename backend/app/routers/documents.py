@@ -104,6 +104,11 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     body["can"] = await access.can_flags(actor, raw, ctx)
     body["read_ticket"] = tickets.mint(str(raw["_id"]), publicity.epoch_of(raw))
     body["access_epoch"] = publicity.epoch_of(raw)
+    # Who's viewing (services/viewers.py): the signed-in reader's ticket for the
+    # live socket's hello, and the owner's "Show who's viewing" switch.
+    body["presence_ticket"] = (tickets.mint_presence(str(raw["_id"]), actor.user_id)
+                               if actor.user_id else None)
+    body["show_presence"] = (raw.get("show_presence") is not False) if body.get("is_owner") else None
     return body
 
 

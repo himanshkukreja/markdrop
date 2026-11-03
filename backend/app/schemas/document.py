@@ -144,6 +144,11 @@ class DocumentResponse(BaseModel):
     # Bumped on every narrowing (services/publicity.py). Pages put it on the OG
     # image URL (`e=`) so a narrowed document's card is re-fetched (§5.1 #4).
     access_epoch: int = 0
+    # Who's viewing: a signed-in reader's ticket for the live socket's hello
+    # (services/tickets.py), and — for the owner only — whether the document
+    # shows who's viewing (default on).
+    presence_ticket: str | None = None
+    show_presence: bool | None = None
 
     model_config = {"from_attributes": True}
 

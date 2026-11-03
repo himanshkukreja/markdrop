@@ -47,6 +47,15 @@ def notify(slug: str | None, event: dict) -> None:
     """Send one event to every socket watching ``slug`` (non-blocking)."""
     if not slug:
         return
+    # Who's viewing (services/viewers.py): a narrowing or a removal closes every
+    # socket on the document, so nobody stays listed; new content means new
+    # heading names.
+    from app.services import viewers
+
+    if event.get("type") in ("access", "gone"):
+        viewers.drop(slug)
+    elif event.get("type") == "changed":
+        viewers.content_changed(slug)
     for q in list(_subscribers.get(slug, ())):
         try:
             q.put_nowait(dict(event))
