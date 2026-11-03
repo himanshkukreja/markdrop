@@ -43,6 +43,8 @@ class SettingsPayload(BaseModel):
     require_auth_to_view: bool = False
     members_can_share_folders: bool = True
     default_access: Literal["link", "workspace", "private"] = "workspace"
+    # Page AI on this workspace's pages (default on; admins change it).
+    ai_enabled: bool = True
 
 
 class DomainSummary(BaseModel):

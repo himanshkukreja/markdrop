@@ -525,6 +525,11 @@ class Settings(BaseSettings):
     # One page's Markdown. A publish snapshot is one MongoDB document (16 MB).
     docs_page_max_chars: int = 300_000
 
+    # AI in pages (Page AI, ledger feature "pages_ai"): kill switch and spend caps.
+    pages_ai_enabled: bool = True
+    pages_ai_daily_usd: float = 5.0
+    pages_ai_monthly_usd: float = 50.0
+
     @property
     def docs_r2_configured(self) -> bool:
         return bool(self.docs_r2_bucket and self.docs_r2_account_id

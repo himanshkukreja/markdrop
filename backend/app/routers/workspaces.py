@@ -77,6 +77,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
             require_auth_to_view=s.require_auth_to_view,
             members_can_share_folders=s.members_can_share_folders,
             default_access=s.default_access,
+            ai_enabled=s.ai_enabled,
         ),
         role=role,  # type: ignore[arg-type]
         default_access=s.default_access,
