@@ -23,7 +23,7 @@ log = logging.getLogger(__name__)
 COLL = "page_links"
 MAX_PER_PAGE = 500
 MAX_RESULTS = 200
-_LINK = re.compile(r"\]\(\s*<?https?://(?:www\.)?markdrop\.in/([A-Za-z0-9_-]{1,64})/?(?:[?#][^)\s>]*)?>?"
+_LINK = re.compile(r"\]\(\s*<?(?:https?://(?:www\.)?markdrop\.in)?/([A-Za-z0-9_-]{1,64})/?(?:[?#][^)\s>]*)?>?"
                    r"(?:\s+\"[^\"\n]*\")?\s*\)")
 
 
@@ -49,7 +49,15 @@ async def reindex(db: AsyncIOMotorDatabase, raw: dict | None) -> None:
         return
     doc_id = str(raw["_id"])
     try:
-        found = [] if (raw.get("encrypted") or raw.get("kind") == "artifact") else targets(raw.get("content"))
+        # The page's icon, copied out of its front matter so lists (sub-pages,
+        # breadcrumbs, workspace rows, backlinks) can show it without the content.
+        from app.services import page_props
+
+        plain = not (raw.get("encrypted") or raw.get("kind") == "artifact")
+        icon = page_props.parse(raw.get("content"))["icon"] if plain else None
+        if icon != raw.get("page_icon"):
+            await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"page_icon": icon}})
+        found = [] if not plain else targets(raw.get("content"))
         found = [(s, k) for s, k in found if s != raw.get("slug")]
         existing = await db[COLL].find({"from_doc": doc_id}, {"to_slug": 1, "kind": 1}).to_list(length=MAX_PER_PAGE * 2)
         if {(r["to_slug"], r["kind"]) for r in existing} == set(found):
@@ -89,7 +97,8 @@ async def backlinks(db: AsyncIOMotorDatabase, raw: dict, actor, ctx) -> list[dic
             continue
         out.append({"slug": d["slug"], "title": d.get("title") or d["slug"], "editor": d.get("editor"),
                     "updated_at": pages.iso(d.get("updated_at")),
-                    "kinds": sorted(kinds.get(str(d["_id"]), set()))})
+                    "kinds": sorted(kinds.get(str(d["_id"]), set())),
+                    **await pages.icon_fields(db, d)})
         if len(out) >= MAX_RESULTS:
             break
     return out

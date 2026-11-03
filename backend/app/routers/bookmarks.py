@@ -45,9 +45,31 @@ async def preview(
     bookmark block. Signed in only. 422 for an address that may not be fetched
     (private networks, other schemes or ports, credentials in the URL)."""
     try:
-        return await bookmarks.preview(db, data.url)
+        out = await bookmarks.preview(db, data.url)
     except bookmarks.BookmarkError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
+    # The same values under the names the page editor reads too.
+    return {**out, "favicon_url": out.get("favicon"), "image_url": out.get("image")}
+
+
+alias_router = APIRouter(prefix="/api/v1", tags=["pages"])
+
+
+@alias_router.post("/link-preview")
+@limiter.limit("30/minute", key_func=_per_user)
+@limiter.limit("300/day", key_func=_per_user)
+async def link_preview(
+    request: Request,
+    data: PreviewRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """The same as ``POST /api/v1/bookmarks/preview`` (one limit budget each)."""
+    try:
+        out = await bookmarks.preview(db, data.url)
+    except bookmarks.BookmarkError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {**out, "favicon_url": out.get("favicon"), "image_url": out.get("image")}
 
 
 # ── Web embeds (services/web_embeds.py) ──────────────────────────────────────

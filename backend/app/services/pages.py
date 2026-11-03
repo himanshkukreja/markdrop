@@ -678,6 +678,19 @@ async def resolve_embeds(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
 # ── What a page's GET carries ─────────────────────────────────────────────────
 
 
+async def icon_fields(db: AsyncIOMotorDatabase, row: dict) -> dict:
+    """``{icon, icon_url}`` for a page in a list (its denormalised ``page_icon``;
+    an image icon gets a link for a reader already past can(read) on that page)."""
+    from app.services import page_assets
+
+    icon = row.get("page_icon")
+    url = None
+    if isinstance(icon, str) and icon.startswith("asset:"):
+        hit = (await page_assets.urls_for(db, row, [icon[6:]])).get(icon[6:])
+        url = hit["url"] if hit else None
+    return {"icon": icon, "icon_url": url}
+
+
 async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> dict:
     """``editor``, ``parent`` (readable only), ``breadcrumbs`` (readable
     ancestors, root first), ``children_count`` (readable), ``access_inherit``,
@@ -711,9 +724,10 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
             seen.add(str(parent["_id"]))
             readable = (await access.can(actor, parent, "read", ctx)).allowed
             if readable:
-                crumbs.append({"slug": parent["slug"], "title": parent.get("title") or parent["slug"]})
+                crumbs.append({"slug": parent["slug"], "title": parent.get("title") or parent["slug"],
+                               **await icon_fields(db, parent)})
             if cur is raw and readable:
-                out["parent"] = {"slug": parent["slug"], "title": parent.get("title") or parent["slug"]}
+                out["parent"] = dict(crumbs[-1])
             cur = parent
         out["breadcrumbs"] = list(reversed(crumbs))
     kids = await children_rows(db, raw["_id"], projection=_NO_CONTENT)
@@ -728,7 +742,7 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
         for key in ("icon", "cover"):
             v = props.get(key) or ""
             hit = out["assets"].get(v[6:]) if v.startswith("asset:") else None
-            props[f"{key}_url"] = hit["url"] if hit else None
+            props[f"{key}_url"] = hit["url"] if hit else (v if v.startswith("https://") else None)
     else:
         props["icon_url"] = props["cover_url"] = None
     return out
@@ -747,6 +761,7 @@ async def children_listing(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
             "updated_at": iso(k.get("updated_at")),
             "has_children": has,
             "access_inherit": k.get("access_inherit") is not False,
+            **await icon_fields(db, k),
         })
     return out
 

@@ -316,7 +316,8 @@ async def _kept_after_insert(db: AsyncIOMotorDatabase, doc_dict: dict, owner_id:
 async def _schedule_expiry(db: AsyncIOMotorDatabase, doc_dict: dict) -> None:
     """B3: a document born with an expiry gets its purge booked for that moment.
     (Also where a new document's links are indexed for backlinks.)"""
-    if doc_dict.get("_id") is not None and "markdrop" in (doc_dict.get("content") or ""):
+    content = doc_dict.get("content") or ""
+    if doc_dict.get("_id") is not None and ("markdrop" in content or content.startswith("---")):
         from app.services import page_links
 
         await page_links.reindex(db, doc_dict)

@@ -129,7 +129,7 @@ class McpPages(AccessWorld):
         self.assertEqual(out["embeds"][1], {"slug": hidden["slug"], "as": "link", "state": "missing"})
         self.assertEqual([a["id"] for a in out["assets"]], [info["id"]])
         kid = await self.ok("stranger", "get_page", {"document": child["slug"]})
-        self.assertEqual(kid["parent"], {"slug": page["slug"], "title": page["title"]})
+        self.assertEqual(kid["parent"], {"slug": page["slug"], "title": page["title"], "icon": None, "icon_url": None})
 
     async def test_get_page_refusals(self):
         private = await self.mkdoc("UP")
@@ -297,11 +297,11 @@ class McpPages(AccessWorld):
         img = await self.ok("owner", "upload_page_image", {"document": page["slug"], "filename": "c.png",
                                                            "content_base64": base64.b64encode(png()).decode()})
         out = await self.ok("wm", "set_page_properties", {"document": page["slug"], "icon": "🚀",
-                                                          "cover": f"asset:{img['id']}", "cover_y": 0.3,
+                                                          "cover": f"asset:{img['id']}", "cover_y": 30,
                                                           "full_width": True, "font": "mono"})
         self.assertEqual(out["properties"]["font"], "mono")
         raw = await self.doc(page["slug"])
-        self.assertTrue(raw["content"].startswith(f"---\nicon: 🚀\ncover: asset:{img['id']}\ncover_y: 0.3\n"))
+        self.assertTrue(raw["content"].startswith(f"---\nicon: 🚀\ncover: asset:{img['id']}\ncover_y: 30\n"))
         got = await self.ok("wv", "get_page", {"document": page["slug"]})
         self.assertEqual(got["properties"]["icon"], "🚀")
         self.assertTrue(got["properties"]["full_width"])

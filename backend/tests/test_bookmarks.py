@@ -72,7 +72,8 @@ class Bookmarks(AccessWorld):
         self.assertEqual(r.json(), {
             "url": "https://example.com/post", "title": "The Title", "description": "What it is <b>about</b>.",
             "site_name": "Example", "favicon": "https://example.com/big.png",
-            "image": "https://example.com/img/card.png", "fetched": True})
+            "image": "https://example.com/img/card.png", "fetched": True,
+            "favicon_url": "https://example.com/big.png", "image_url": "https://example.com/img/card.png"})
 
     async def test_cached_for_a_day(self):
         self.pages["https://example.com/post"] = (200, "text/html", PAGE)
@@ -136,7 +137,8 @@ class Bookmarks(AccessWorld):
         r = await self.post("https://example.com/missing")  # 404
         self.assertEqual(r.json(), {"url": "https://example.com/missing", "title": "missing", "description": None,
                                     "site_name": "example.com", "favicon": "https://example.com/favicon.ico",
-                                    "image": None, "fetched": False})
+                                    "image": None, "fetched": False,
+                                    "favicon_url": "https://example.com/favicon.ico", "image_url": None})
         r = await self.post("https://nowhere.test/")  # doesn't resolve
         self.assertFalse(r.json()["fetched"])
         self.pages["https://example.com/big"] = (200, "text/html", b"x" * (bookmarks.MAX_BYTES + 1))
@@ -157,9 +159,20 @@ class Bookmarks(AccessWorld):
         self.assertIsNone(r["image"])
         self.assertEqual(r["favicon"], "https://example.com/favicon.ico")
 
+    async def test_link_preview_alias(self):
+        self.pages["https://example.com/post"] = (200, "text/html", PAGE)
+        r = await self.http.post("/api/v1/link-preview", json={"url": "https://example.com/post"},
+                                 headers=self.session("owner"))
+        self.assertEqual((r.status_code, r.json()["image_url"]), (200, "https://example.com/img/card.png"))
+        r = await self.http.post("/api/v1/link-preview", json={"url": "http://127.0.0.1/"}, headers=self.session("owner"))
+        self.assertEqual(r.status_code, 422)
+        self.assertEqual((await self.http.post("/api/v1/link-preview", json={"url": "https://example.com/"})).status_code, 401)
+
     async def test_rate_limited_per_user(self):
         self.pages["https://example.com/"] = (200, "text/html", b"<title>x</title>")
-        codes = [(await self.post("https://example.com/")).status_code for _ in range(31)]
+        # 30 a minute in fixed windows: 61 quick calls can't all fit, even across a boundary.
+        codes = [(await self.post("https://example.com/")).status_code for _ in range(61)]
         self.assertEqual(codes[:30], [200] * 30)
-        self.assertEqual(codes[30], 429)
+        self.assertIn(429, codes)
+        self.assertEqual(set(codes), {200, 429})
         self.assertEqual((await self.post("https://example.com/", "wm")).status_code, 200)

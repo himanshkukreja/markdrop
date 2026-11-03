@@ -588,7 +588,7 @@ PAGE_TOOLS: list[Tool] = [
         name="set_page_properties",
         title="Set a page's properties",
         description=("Set a page's icon (an emoji, or asset:<id> of an image uploaded with upload_page_image), "
-                     "cover (asset:<id> or gallery:<name>) and its focal point cover_y (0 top .. 1 bottom), "
+                     "cover (asset:<id> or gallery:<name>) and its focal point cover_y (0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one). Pass null to clear one. "
                      "They live in the page's front matter. Refused while someone is editing the page."),
@@ -598,7 +598,7 @@ PAGE_TOOLS: list[Tool] = [
             "document": _DOC_REF,
             "icon": {"type": ["string", "null"], "maxLength": 80},
             "cover": {"type": ["string", "null"], "maxLength": 80},
-            "cover_y": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+            "cover_y": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
             "full_width": {"type": ["boolean", "null"]},
             "small_text": {"type": ["boolean", "null"]},
             "font": {"type": ["string", "null"], "enum": ["default", "serif", "mono", None]},

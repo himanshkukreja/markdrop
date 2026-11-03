@@ -62,6 +62,7 @@ from app.routers.sync import router as sync_router
 from app.routers.pages import router as pages_router
 from app.routers.bookmarks import router as bookmarks_router
 from app.routers.bookmarks import web_router as web_embeds_router
+from app.routers.bookmarks import alias_router as link_preview_router
 from app.services.pages import PageError
 
 settings = get_settings()
@@ -205,6 +206,7 @@ app.include_router(documents_router)
 app.include_router(pages_router)
 app.include_router(bookmarks_router)
 app.include_router(web_embeds_router)
+app.include_router(link_preview_router)
 app.include_router(artifacts_router)
 app.include_router(files_router)
 app.include_router(share_router)

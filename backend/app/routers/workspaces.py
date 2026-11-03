@@ -284,9 +284,10 @@ async def search_members(
     for i in ids:
         u = users.get(i) or {}
         pic = u.get("picture")
+        avatar = pic if isinstance(pic, str) and re.match(r"^https://", pic) else None
         out.append({"id": i,
                     "name": viewers.display_name(type("U", (), {"name": u.get("name"), "email": u.get("email")})),
-                    "avatar": pic if isinstance(pic, str) and re.match(r"^https://", pic) else None})
+                    "avatar": avatar, "avatar_url": avatar})
     return out
 
 

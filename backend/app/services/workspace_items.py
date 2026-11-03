@@ -139,6 +139,12 @@ async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx
         "redacted": False,
         "can": {"edit": flags["edit"], "move": flags["move"], "unshare": flags["unshare"],
                 "delete": flags["delete"], "share": flags["share"]},
+        # Pages (services/pages.py): the block editor, its icon, and where it sits
+        # in the page tree (a sub-page is listed under its parent, not on its own).
+        "editor": raw.get("editor"),
+        "is_subpage": raw.get("parent_id") is not None,
+        "has_children": await db["documents"].find_one({"parent_id": raw["_id"]}, {"_id": 1}) is not None,
+        "icon": raw.get("page_icon"),
     }
     if mine:
         out["id"] = str(raw["_id"])

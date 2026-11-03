@@ -2,8 +2,8 @@
 
     ---
     icon: 🚀                  # an emoji, or asset:<id> (an image uploaded to the page)
-    cover: asset:<id>         # or gallery:<name> (a built-in cover the app ships)
-    cover_y: 0.35             # the cover's focal point, 0 (top) .. 1 (bottom)
+    cover: asset:<id>         # or gallery:<name> (a built-in cover the app ships), or an https URL
+    cover_y: 35               # the cover's focal point, 0 (top) .. 100 (bottom); default 50
     full_width: true
     small_text: true
     font: serif               # default | serif | mono
@@ -28,7 +28,8 @@ _ASSET = re.compile(r"^asset:([A-Za-z0-9_-]{8,64})$")
 _GALLERY = re.compile(r"^gallery:([a-z0-9][a-z0-9-]{0,39})$")
 _LINE = re.compile(r"^([A-Za-z_][\w-]*)[ \t]*:[ \t]*(.*?)[ \t]*$")
 MAX_BLOCK_LINES = 60
-DEFAULTS: dict[str, Any] = {"icon": None, "cover": None, "cover_y": 0.5, "full_width": False,
+_HTTPS = re.compile(r"^https://[^\s\"'<>()]{1,2000}$")
+DEFAULTS: dict[str, Any] = {"icon": None, "cover": None, "cover_y": 50, "full_width": False,
                             "small_text": False, "font": "default", "locked": False}
 
 
@@ -68,13 +69,18 @@ def _value(key: str, raw: str) -> Any:
             return v
         return None
     if key == "cover":
-        return v if (_ASSET.match(v) or _GALLERY.match(v)) else None
+        return v if (_ASSET.match(v) or _GALLERY.match(v) or _HTTPS.match(v)) else None
     if key == "cover_y":
         try:
             f = float(v)
         except ValueError:
             return None
-        return min(1.0, max(0.0, f)) if f == f else None
+        if f != f:
+            return None
+        if "." in v and 0 <= f <= 1:
+            f *= 100  # written as a fraction (0.35): the same point as 35
+        f = min(100.0, max(0.0, f))
+        return int(f) if f == int(f) else round(f, 2)
     if key == "font":
         return v.lower() if v.lower() in FONTS else None
     return _bool(v)
@@ -111,7 +117,7 @@ def _format(key: str, value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if key == "cover_y":
-        return f"{float(value):.3f}".rstrip("0").rstrip(".") or "0"
+        return f"{float(value):.2f}".rstrip("0").rstrip(".") or "0"
     text = str(value)
     if text != text.strip() or ":" in text and not _ASSET.match(text) and not _GALLERY.match(text) \
             or text.startswith(("#", "'", '"', "-", "[", "{")):
@@ -133,9 +139,9 @@ def validate(changes: dict) -> dict:
             if not isinstance(v, bool):
                 raise ValueError(f"{k} must be true or false.")
         elif k == "cover_y":
-            if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 1:
-                raise ValueError("cover_y must be a number from 0 (top) to 1 (bottom).")
-            v = float(v)
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or not 0 <= v <= 100:
+                raise ValueError("cover_y must be a number from 0 (top) to 100 (bottom).")
+            v = int(round(float(v)))
         elif k == "font":
             if v not in FONTS:
                 raise ValueError(f"font must be one of {', '.join(FONTS)}.")
@@ -145,8 +151,8 @@ def validate(changes: dict) -> dict:
                                  "uploaded to the page.")
         elif k == "cover":
             if not isinstance(v, str) or _value("cover", v) != v:
-                raise ValueError("cover must be asset:<id> (an image uploaded to the page) or "
-                                 "gallery:<name> (a built-in cover).")
+                raise ValueError("cover must be asset:<id> (an image uploaded to the page), "
+                                 "gallery:<name> (a built-in cover) or an https:// image address.")
         clean[k] = v
     return clean
 

@@ -158,8 +158,8 @@ class Create(PageWorld):
         self.assertEqual(raw["workspace_id"], self.ws["W1"])
         self.assertEqual(raw["folder_id"], fid)
         self.assertEqual(raw["access_level"], (await self.doc(parent["slug"]))["access_level"])
-        self.assertEqual(child["parent"], {"slug": parent["slug"], "title": parent["title"]})
-        self.assertEqual(child["breadcrumbs"], [{"slug": parent["slug"], "title": parent["title"]}])
+        self.assertEqual(child["parent"], {"slug": parent["slug"], "title": parent["title"], "icon": None, "icon_url": None})
+        self.assertEqual(child["breadcrumbs"], [child["parent"]])
         self.assertTrue(child["access_inherit"])
         # Its address on the custom domain: folders, then the parent's slug.
         self.assertEqual(child["folder_path"], ["guides", parent["slug"]])
@@ -540,7 +540,7 @@ class Tree(PageWorld):
         self.assertEqual([c["slug"] for c in r.json()], [a["slug"]])
         self.assertEqual(r.json()[0], {"slug": a["slug"], "title": "A", "editor": "blocks",
                                        "updated_at": r.json()[0]["updated_at"], "has_children": True,
-                                       "access_inherit": True})
+                                       "access_inherit": True, "icon": None, "icon_url": None})
         r = await self.http.get(f"/api/v1/documents/{parent['slug']}/children", headers=self.session("owner"))
         self.assertEqual([c["slug"] for c in r.json()], [a["slug"], b["slug"]])
         self.assertFalse(r.json()[1]["access_inherit"])
@@ -570,8 +570,8 @@ class Tree(PageWorld):
         await self.set_level(mid["slug"], "link")  # mid has its own (link) access now
         leaf = await self.sub(mid["slug"], title="Leaf")
         body = (await self.get(leaf["slug"])).json()
-        self.assertEqual(body["breadcrumbs"], [{"slug": mid["slug"], "title": "Mid"}])
-        self.assertEqual(body["parent"], {"slug": mid["slug"], "title": "Mid"})
+        self.assertEqual(body["breadcrumbs"], [{"slug": mid["slug"], "title": "Mid", "icon": None, "icon_url": None}])
+        self.assertEqual(body["parent"], {"slug": mid["slug"], "title": "Mid", "icon": None, "icon_url": None})
         body = (await self.get(mid["slug"])).json()
         self.assertIsNone(body["parent"])  # the private top isn't named to a stranger
         self.assertEqual(body["breadcrumbs"], [])
@@ -1053,21 +1053,26 @@ class Props(PageWorld):
     def test_parse_and_apply_round_trip(self):
         from app.services import page_props
 
-        md = "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 0.25\nfont: serif\nlocked: yes\n---\n# Body\n"
+        md = "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 25\nfont: serif\nlocked: yes\n---\n# Body\n"
         p = page_props.parse(md)
         self.assertEqual((p["icon"], p["cover"], p["cover_y"], p["font"], p["locked"], p["full_width"]),
-                         ("🚀", "gallery:aurora", 0.25, "serif", True, False))
+                         ("🚀", "gallery:aurora", 25, "serif", True, False))
+        # A fraction means the same point; an https cover is allowed.
+        p = page_props.parse('---\ncover_y: 0.4\ncover: "https://img.example/c.jpg"\n---\n')
+        self.assertEqual((p["cover_y"], p["cover"]), (40, "https://img.example/c.jpg"))
         # Bad values are ignored, not fatal.
         bad = page_props.parse("---\nicon: https://evil/x.png\ncover: http://x\ncover_y: lots\nfont: comic\n---\n")
-        self.assertEqual((bad["icon"], bad["cover"], bad["cover_y"], bad["font"]), (None, None, 0.5, "default"))
+        self.assertEqual((bad["icon"], bad["cover"], bad["cover_y"], bad["font"]), (None, None, 50, "default"))
         # Writing keeps unknown keys and the body; defaults and None remove keys; the block goes when empty.
         out = page_props.apply(md, {"full_width": True, "locked": None, "font": "default"})
-        self.assertEqual(out, "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 0.25\n"
+        self.assertEqual(out, "---\ntitle: kept\nicon: 🚀\ncover: gallery:aurora\ncover_y: 25\n"
                               "full_width: true\n---\n# Body\n")
+        self.assertEqual(page_props.parse(page_props.apply("", {"cover": "https://img.example/a:b.png"}))["cover"],
+                         "https://img.example/a:b.png")
         self.assertEqual(page_props.apply("# Body\n", {"icon": "📘"}), "---\nicon: 📘\n---\n# Body\n")
         self.assertEqual(page_props.apply("---\nicon: 📘\n---\n# Body\n", {"icon": None}), "# Body\n")
         self.assertEqual(page_props.apply("# Body\n", {}), "# Body\n")
-        for bad_change in ({"font": "comic"}, {"cover_y": 2}, {"icon": "x" * 40}, {"cover": "https://x"},
+        for bad_change in ({"font": "comic"}, {"cover_y": 101}, {"icon": "x" * 40}, {"cover": "http://x"},
                            {"locked": "yes"}, {"nope": 1}):
             with self.assertRaises(ValueError):
                 page_props.apply("", bad_change)
@@ -1082,13 +1087,40 @@ class Props(PageWorld):
         body = (await self.get(page["slug"], self.session("gv"))).json()
         p = body["page"]
         self.assertEqual((p["icon"], p["cover"], p["cover_y"], p["small_text"], p["locked"]),
-                         (f"asset:{info['id']}", "gallery:dunes", 0.1, True, False))
+                         (f"asset:{info['id']}", "gallery:dunes", 10, True, False))
         self.assertIn("?t=", p["icon_url"])
         self.assertIsNone(p["cover_url"])
         self.assertIn(info["id"], body["assets"])
         r = await self.http.get(f"/api/v1/documents/{page['slug']}/assets/urls", headers=self.session("gv"))
         self.assertIn(info["id"], r.json()["assets"])
         self.assertNotIn(info["id"], (await self.get(page["slug"], self.session("stranger"))).text)
+
+    async def test_icons_in_lists(self):
+        parent = await self.create("wm", workspace=self.ws["W1"], title="Parent",
+                                   content="---\nicon: 📘\n---\n# Parent\n")
+        child = await self.sub(parent["slug"], "wm", title="Child")
+        info = (await self.upload(child["slug"], self.session("wm"))).json()
+        r = await self.http.put(f"/api/v1/documents/{child['slug']}",
+                                json={"title": "Child", "content": f"---\nicon: asset:{info['id']}\n---\nx\n"},
+                                headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["breadcrumbs"][0]["icon"], "📘")
+        kids = (await self.http.get(f"/api/v1/documents/{parent['slug']}/children", headers=self.session("wv"))).json()
+        self.assertEqual(kids[0]["icon"], f"asset:{info['id']}")
+        self.assertIn(f"/r/pa/", kids[0]["icon_url"])
+        items = (await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/items", headers=self.session("wv"))).json()["items"]
+        rows = {i["slug"]: i for i in items}
+        self.assertEqual((rows[parent["slug"]]["icon"], rows[parent["slug"]]["editor"],
+                          rows[parent["slug"]]["is_subpage"], rows[parent["slug"]]["has_children"]),
+                         ("📘", "blocks", False, True))
+        self.assertTrue(rows[child["slug"]]["is_subpage"])
+        self.assertNotIn("parent_id", rows[child["slug"]])
+
+    async def test_https_cover(self):
+        page = await self.create(content='---\ncover: "https://img.example/c.jpg"\ncover_y: 30\n---\n# P\n')
+        p = (await self.get(page["slug"])).json()["page"]
+        self.assertEqual((p["cover"], p["cover_url"], p["cover_y"]), ("https://img.example/c.jpg",
+                                                                      "https://img.example/c.jpg", 30))
 
     async def test_locked_page(self):
         page = await self.mkdoc("W", grants=True)
@@ -1132,7 +1164,7 @@ class People(PageWorld):
         r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search?q=priya",
                                 headers=self.session("wv"))
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json(), [{"id": self.uid["wm"], "name": "Priya Member", "avatar": "https://img/p.png"}])
+        self.assertEqual(r.json(), [{"id": self.uid["wm"], "name": "Priya Member", "avatar": "https://img/p.png", "avatar_url": "https://img/p.png"}])
         r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/members/search?q=wa@example",
                                 headers=self.session("wv"))
         self.assertEqual([m["id"] for m in r.json()], [self.uid["wa"]])
