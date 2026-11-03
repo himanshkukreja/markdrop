@@ -32,6 +32,7 @@ import { math } from "micromark-extension-math";
 import { mathFromMarkdown, mathToMarkdown } from "mdast-util-math";
 import { directive } from "micromark-extension-directive";
 import { directiveFromMarkdown, directiveToMarkdown } from "mdast-util-directive";
+import { ANCHOR_RE, attrText, attrLine, cleanAttrs, spanColor, trailingAttrs } from "./attrs.mjs";
 
 /* ── vocabulary ──────────────────────────────────────────────────────────── */
 
@@ -61,18 +62,27 @@ function mentionOf(c, s) {
   return { type: "mention", attrs: { name: c.name, label, attributes: { ...(c.attributes ?? {}) } } };
 }
 /** Container node types that serialize as `:::name` directives. */
-const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private"]);
+const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private", "columns", "column", "indent", "button"]);
+/** Containers holding one kind of child: `::::tabs` → `:::tab`, `::::cards` → `:::card`, `::::columns` → `:::column`. */
+const PARENT_OF = { tabs: "tab", cards: "card", columns: "column" };
+const CHILD_TYPES = new Set(Object.values(PARENT_OF));
+/** Containers holding any blocks. */
+const FLOW_CONTAINERS = new Set(["steps", "details", "private", "indent", "button"]);
 
 /** Attributes that carry meaning, per node / mark type (everything else, `md` included, is UI state). */
 const SEM = {
-  heading: ["level"],
-  codeBlock: ["language", "meta"],
-  mathBlock: ["meta"],
+  paragraph: ["battrs"],
+  heading: ["level", "battrs"],
+  codeBlock: ["language", "meta", "battrs"],
+  mathBlock: ["meta", "battrs"],
+  horizontalRule: ["battrs"],
+  tableCell: ["battrs"],
+  tableHeader: ["battrs"],
   bulletList: ["spread"],
   orderedList: ["start", "spread"],
   listItem: ["checked", "spread"],
-  table: ["align"],
-  figure: ["src", "alt", "title"],
+  table: ["align", "battrs"],
+  figure: ["src", "alt", "title", "battrs"],
   image: ["src", "alt", "title"],
   callout: ["kind", "label", "attributes"],
   steps: ["label", "attributes"],
@@ -82,15 +92,19 @@ const SEM = {
   card: ["label", "attributes"],
   details: ["label", "attributes"],
   private: ["label", "attributes"],
+  columns: ["label", "attributes"],
+  column: ["label", "attributes"],
+  indent: ["label", "attributes"],
+  button: ["label", "attributes"],
   directiveLeaf: ["name", "label", "attributes"],
   rawBlock: ["value"],
   rawInline: ["value"],
   inlineMath: ["value"],
   mention: ["name", "label", "attributes"],
 };
-const MARK_SEM = { link: ["href", "title", "kind"] };
+const MARK_SEM = { link: ["href", "title", "kind"], span: ["attributes"] };
 /** Nesting order when marks become mdast wrappers (outermost first); `code` is always the leaf. */
-const MARK_ORDER = ["link", "kbd", "bold", "italic", "strike", "code"];
+const MARK_ORDER = ["link", "span", "underline", "kbd", "bold", "italic", "strike", "code"];
 
 /* ── parsing ─────────────────────────────────────────────────────────────── */
 
@@ -205,12 +219,19 @@ function flow(children, ctx, strip, convert = block) {
   const out = [];
   let prevEnd = null;
   let prevFp = null;
-  for (const child of children) {
-    const s = start(child), e = end(child);
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+    const s = start(child);
+    let e = end(child);
+    // A table, code block, divider or equation followed by a line of attributes (`{caption="…"}`).
+    const kind = convert === block ? ATTR_LINE_KIND[child.type] : null;
+    const attrs = kind ? lineAttrs(children[i + 1], kind, ctx, strip) : null;
+    if (attrs) e = end(children[++i]);
     const src = dedent(ctx.src.slice(s, e), strip);
-    let node = convert(child, ctx, strip, src);
+    let node = convert(child, ctx, strip, attrs ? dedent(ctx.src.slice(s, end(child)), strip) : src);
+    if (attrs) node = node.type === "rawBlock" ? raw(src) : withBlockAttrs(node, attrs);
     // A tab or card only reads back inside its tabs/cards parent, which is verified as a whole.
-    const nested = node.type === "tab" || node.type === "card";
+    const nested = CHILD_TYPES.has(node.type);
     if (ctx.verify && node.type !== "rawBlock" && !nested && !readsAs(serializeBlock(node, { preserve: false }), fp(node), ctx)) node = raw(src);
     const fpv = fp(node);
     // Inside a list item / quote the dedent is a heuristic: keep `src` only if it reads back the same.
@@ -225,16 +246,65 @@ function flow(children, ctx, strip, convert = block) {
 }
 
 
+/** mdast block types that can carry a following attribute line, and the attribute set they read. */
+const ATTR_LINE_KIND = { table: "table", code: "codeBlock", math: "mathBlock", thematicBreak: "horizontalRule" };
+
+/** The attributes `next` holds when it is a paragraph that is one line of attributes for `kind`. */
+function lineAttrs(next, kind, ctx, strip) {
+  if (!next || next.type !== "paragraph" || next.children.length !== 1 || next.children[0].type !== "text") return null;
+  const text = dedent(ctx.src.slice(start(next), end(next)), strip);
+  if (text.includes("\n")) return null;
+  return attrLine(text, kind);
+}
+
+/** Sets a node's block attributes (a table's `widths` go on its cells, where resizing keeps them). */
+function withBlockAttrs(node, attrs) {
+  const a = { ...attrs };
+  if (node.type === "table" && a.widths !== undefined) {
+    const w = a.widths.split(",").map((x) => (x ? Number(x) : 0));
+    delete a.widths;
+    for (const row of node.content ?? []) {
+      (row.content ?? []).forEach((cell, i) => {
+        cell.attrs = { ...cell.attrs, colwidth: w[i] ? [w[i]] : null };
+      });
+    }
+  }
+  node.attrs = { ...node.attrs, battrs: cleanAttrs(a) };
+  return node;
+}
+
+/**
+ * A paragraph's (heading's, cell's) inline children without a trailing `{…}` attribute list, and
+ * the attributes: `{ kids, attrs }` (`attrs` null when there is none).
+ */
+function trailing(children, ctx, kind) {
+  const last = children[children.length - 1];
+  if (!last || last.type !== "text") return { kids: children, attrs: null };
+  const t = trailingAttrs(ctx.src.slice(start(last), end(last)), kind);
+  if (!t) return { kids: children, attrs: null };
+  const value = last.value.replace(/[ \t]*\{[^{}\n]*\}[ \t]*$/, "");
+  if (value === last.value) return { kids: children, attrs: null };
+  const kids = value ? [...children.slice(0, -1), { ...last, value }] : children.slice(0, -1);
+  if (!kids.length) return { kids: children, attrs: null };
+  return { kids, attrs: t.attrs };
+}
+
 function block(n, ctx, strip, src) {
   switch (n.type) {
     case "paragraph": {
-      const only = n.children.length === 1 ? n.children[0] : null;
+      const fig = trailing(n.children, ctx, "figure");
+      const only = fig.kids.length === 1 ? fig.kids[0] : null;
       if (only && only.type === "image")
-        return { type: "figure", attrs: { src: only.url ?? "", alt: altText(only, ctx), title: only.title ?? null, md: null } };
-      return paragraph(inline(n.children, ctx));
+        return { type: "figure", attrs: { src: only.url ?? "", alt: altText(only, ctx), title: only.title ?? null, battrs: cleanAttrs(fig.attrs), md: null } };
+      const { kids, attrs } = trailing(n.children, ctx, "paragraph");
+      const p = paragraph(inline(kids, ctx));
+      if (attrs) p.attrs.battrs = cleanAttrs(attrs);
+      return p;
     }
-    case "heading":
-      return { type: "heading", attrs: { level: n.depth, md: null }, content: inline(n.children, ctx) };
+    case "heading": {
+      const { kids, attrs } = trailing(n.children, ctx, "heading");
+      return { type: "heading", attrs: { level: n.depth, battrs: cleanAttrs(attrs), md: null }, content: inline(kids, ctx) };
+    }
     case "thematicBreak":
       return { type: "horizontalRule", attrs: { md: null } };
     case "blockquote":
@@ -290,7 +360,10 @@ function list(n, ctx, strip, src) {
 function table(n, ctx, strip, src) {
   const lines = src.split("\n");
   const rows = n.children.map((row, i) => {
-    const cells = row.children.map((c) => ({ type: i === 0 ? "tableHeader" : "tableCell", attrs: { colspan: 1, rowspan: 1, colwidth: null }, content: inline(c.children, ctx) }));
+    const cells = row.children.map((c) => {
+      const { kids, attrs } = trailing(c.children, ctx, "cell");
+      return { type: i === 0 ? "tableHeader" : "tableCell", attrs: { colspan: 1, rowspan: 1, colwidth: null, battrs: cleanAttrs(attrs) }, content: inline(kids, ctx) };
+    });
     const node = { type: "tableRow", attrs: { md: null }, content: cells };
     const rsrc = dedent(ctx.src.slice(start(row), end(row)), strip);
     node.attrs.md = { src: rsrc.includes("\n") ? null : rsrc, fp: fp(node) };
@@ -353,9 +426,9 @@ function container(n, ctx, strip, src) {
   let node;
   const blocks = () => (body.length ? flow(body, ctx, strip) : [paragraph([])]);
   if (CALLOUT_KINDS.includes(n.name)) node = { type: "callout", attrs: { kind: n.name, ...base }, content: blocks() };
-  else if (n.name === "steps" || n.name === "details" || n.name === "private") node = { type: n.name, attrs: base, content: blocks() };
-  else if (n.name === "tabs" || n.name === "cards") {
-    const child = n.name === "tabs" ? "tab" : "card";
+  else if (FLOW_CONTAINERS.has(n.name)) node = { type: n.name, attrs: base, content: blocks() };
+  else if (PARENT_OF[n.name]) {
+    const child = PARENT_OF[n.name];
     if (!body.length || body.some((k) => k.type !== "containerDirective" || k.name !== child)) return raw(src);
     const content = flow(body, ctx, strip, (k, c, s, ksrc) => {
       const kf = fences(ksrc);
@@ -434,6 +507,11 @@ function inline(children, ctx, marks = []) {
         const s = ctx.src.slice(start(c), end(c));
         if (c.name === "kbd" && /^:kbd\[[\s\S]*\]$/.test(s) && c.children.length) {
           out.push(...inline(c.children, ctx, [...marks, { type: "kbd" }]));
+        } else if (c.name === "span" && /^:span\[[\s\S]*\]\{[^\n]*\}$/.test(s) && c.children.length && spanColor(c.attributes)) {
+          // `:span[text]{color=red}` / `{bg=yellow}`: Notion's text and background colours (pages).
+          out.push(...inline(c.children, ctx, [...marks.filter((m) => m.type !== "span"), { type: "span", attrs: { attributes: spanColor(c.attributes) } }]));
+        } else if (c.name === "u" && /^:u\[[\s\S]*\]$/.test(s) && c.children.length) {
+          out.push(...inline(c.children, ctx, [...marks.filter((m) => m.type !== "underline"), { type: "underline" }]));
         } else if (mentionOf(c, s)) {
           // `:markdrop[Title]{src}`, `:person[Name]{id}`, `:date[…]`: an inline chip (pages).
           push(mentionOf(c, s));
@@ -565,6 +643,7 @@ function effectiveSpread(node) {
 function signature(node) {
   const keys = SEM[node.type] ?? [];
   const attrs = keys.map((k) => (k === "spread" ? effectiveSpread(node) : sortObj(node.attrs?.[k] ?? null)));
+  if (node.type === "table") attrs.push(tableWidths(node));
   const kids = node.content ?? [];
   let body;
   if (kids.length && kids.every(isInline)) {
@@ -627,7 +706,7 @@ function gapFor(child, prev, preserve) {
  * Two cards (or two tab panes) in a row: the first ends on its closing `:::` fence, so the next can
  * follow without a blank line whatever the first holds (cards and tabs reordered keep a tight grid).
  */
-const fencedSiblings = (prev, child) => prev.type === child.type && (child.type === "card" || child.type === "tab");
+const fencedSiblings = (prev, child) => prev.type === child.type && CHILD_TYPES.has(child.type);
 
 const isList = (n) => n && (n.type === "bulletList" || n.type === "orderedList");
 /** A written list's marker: "." or ")" for an ordered list, "-", "*" or "+" for a bulleted one. */
@@ -662,7 +741,32 @@ function serializeBlockImpl(node, opts = {}) {
     }
     return mdString(toMdast(node, preserve), listOptions(node, marker));
   }
-  return mdString(toMdast(node, preserve));
+  const out = mdString(toMdast(node, preserve));
+  // A code block, divider or equation: its attributes on the line after it.
+  const line = ATTR_LINE_TYPES.has(node.type) ? attrText(node.attrs?.battrs) : "";
+  return line ? `${out}\n${line}` : out;
+}
+
+const ATTR_LINE_TYPES = new Set(["codeBlock", "horizontalRule", "mathBlock"]);
+
+/** A table's column widths (px, from its first row's cells; 0 = automatic), "" when none is set. */
+function tableWidths(node) {
+  const cells = node.content?.[0]?.content ?? [];
+  const w = cells.map((c) => (Array.isArray(c.attrs?.colwidth) && c.attrs.colwidth[0] > 0 ? Math.round(c.attrs.colwidth[0]) : 0));
+  return w.some((x) => x > 0) ? w.map((x) => (x ? String(x) : "")).join(",") : "";
+}
+
+/** The `{…}` after a paragraph-like line: its attributes, or an escape when its text ends like one. */
+function trailingFor(kind, attrs, kids) {
+  if (attrs) return [{ type: "mdRaw", value: `${kind === "figure" ? "" : " "}${attrText(attrs)}` }];
+  const last = kids[kids.length - 1];
+  if (kind !== "figure" && last?.type === "text" && (trailingAttrs(last.value, kind) || (kind === "paragraph" && trailingAttrs(last.value, "figure")))) {
+    // Typed text that would read back as attributes: escape its brace.
+    const at = last.value.lastIndexOf("{");
+    const before = last.value.slice(0, at);
+    kids.splice(kids.length - 1, 1, ...(before ? [{ type: "text", value: before }] : []), { type: "mdRaw", value: `\\${last.value.slice(at)}` });
+  }
+  return [];
 }
 
 function listOptions(node, marker) {
@@ -700,6 +804,11 @@ export function directiveAttrs(attributes) {
   for (const [k, v] of Object.entries(attributes ?? {})) {
     if (v === undefined || v === null) continue;
     const s = String(v);
+    // A block anchor: `{#b-k3x9}` (the shorthand reads back as `id`).
+    if (k === "id" && ANCHOR_RE.test(s)) {
+      parts.unshift(`#${s}`);
+      continue;
+    }
     parts.push(s === "" ? k : `${k}="${s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/\n/g, "&#xA;")}"`);
   }
   return parts.length ? `{${parts.join(" ")}}` : "";
@@ -735,7 +844,9 @@ function serializeLeaf(node) {
 /** A cell's inline content on one line, pipes escaped (a line break can't exist in a GFM cell). */
 function cellText(cell) {
   const inline = (cell.content ?? []).map((k) => (k.type === "hardBreak" ? { type: "text", text: " ", marks: k.marks } : k));
-  const md = mdString({ type: "paragraph", children: phrasing(inline) });
+  const kids = phrasing(inline);
+  kids.push(...trailingFor("cell", cell.attrs?.battrs, kids));
+  const md = mdString({ type: "paragraph", children: kids });
   return md.replace(/\n/g, " ").replace(/(^|[^\\])((?:\\\\)*)\|/g, "$1$2\\|").replace(/(^|[^\\])((?:\\\\)*)\|/g, "$1$2\\|");
 }
 
@@ -767,7 +878,12 @@ function serializeTable(node, preserve) {
   });
   const sameShape = md && Array.isArray(md.align) && JSON.stringify(md.align) === JSON.stringify(align) && md.cols === cols;
   const delim = preserve && sameShape && typeof md.delim === "string" ? md.delim : delimiter(align, cols);
-  return [lines[0] ?? `| ${Array(cols).fill("").join(" | ")} |`, delim, ...lines.slice(1)].join("\n");
+  const text = [lines[0] ?? `| ${Array(cols).fill("").join(" | ")} |`, delim, ...lines.slice(1)].join("\n");
+  // Widths, header column, anchor: a line of attributes after a blank line (a line right after
+  // the table would be read as one more row).
+  const widths = tableWidths(node);
+  const line = attrText({ ...(node.attrs.battrs ?? {}), ...(widths ? { widths } : {}) });
+  return line ? `${text}\n\n${line}` : text;
 }
 
 /* mdast-util-to-markdown bridge -------------------------------------------------------- */
@@ -819,10 +935,16 @@ function mdString(tree, extra) {
 /** Editor block → mdast. Children that keep their source become raw nodes. */
 function toMdast(node, preserve) {
   switch (node.type) {
-    case "paragraph":
-      return { type: "paragraph", children: phrasing(node.content ?? []) };
-    case "heading":
-      return { type: "heading", depth: node.attrs.level ?? 2, children: phrasing(node.content ?? []) };
+    case "paragraph": {
+      const kids = phrasing(node.content ?? []);
+      kids.push(...trailingFor("paragraph", node.attrs?.battrs, kids));
+      return { type: "paragraph", children: kids };
+    }
+    case "heading": {
+      const kids = phrasing(node.content ?? []);
+      kids.push(...trailingFor("heading", node.attrs?.battrs, kids));
+      return { type: "heading", depth: node.attrs.level ?? 2, children: kids };
+    }
     case "horizontalRule":
       return { type: "thematicBreak" };
     case "codeBlock":
@@ -830,7 +952,7 @@ function toMdast(node, preserve) {
     case "mathBlock":
       return { type: "math", meta: node.attrs.meta || null, value: textContent(node) };
     case "figure":
-      return { type: "paragraph", children: [{ type: "image", url: node.attrs.src ?? "", alt: node.attrs.alt ?? "", title: node.attrs.title || null }] };
+      return { type: "paragraph", children: [{ type: "image", url: node.attrs.src ?? "", alt: node.attrs.alt ?? "", title: node.attrs.title || null }, ...trailingFor("figure", node.attrs?.battrs, [])] };
     case "blockquote":
       return { type: "blockquote", children: (node.content ?? []).filter((k) => !isEmptyParagraph(k)).map((k) => child(k, preserve)) };
     case "bulletList":
@@ -893,6 +1015,10 @@ function wrapperFor(m) {
       return { type: "delete", children: [] };
     case "kbd":
       return { type: "textDirective", name: "kbd", attributes: {}, children: [] };
+    case "span":
+      return { type: "textDirective", name: "span", attributes: { ...(m.attrs?.attributes ?? {}) }, children: [] };
+    case "underline":
+      return { type: "textDirective", name: "u", attributes: {}, children: [] };
     case "link":
       return { type: "link", url: m.attrs?.href ?? "", title: m.attrs?.title || null, data: { kind: m.attrs?.kind ?? "inline" }, children: [] };
     default:

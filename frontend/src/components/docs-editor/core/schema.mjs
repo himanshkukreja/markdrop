@@ -55,6 +55,35 @@ function json(name, def) {
 
 const directiveAttrs = () => ({ label: str("label"), attributes: json("attributes", {}), md: MD });
 
+/**
+ * A block's attributes on pages (`{#b-x color="red"}`, see attrs.mjs): an object or null. Written to
+ * the DOM as JSON (copy and paste inside the editor keeps them) and as `data-bid` / `data-color` /
+ * `data-bg` for styling and for scrolling to an anchor. Never copied to the second half of a split.
+ */
+const BATTRS = {
+  default: null,
+  keepOnSplit: false,
+  parseHTML: (el) => {
+    const v = el.getAttribute("data-battrs");
+    if (!v) return null;
+    try {
+      const o = JSON.parse(v);
+      return o && typeof o === "object" && Object.keys(o).length ? o : null;
+    } catch {
+      return null;
+    }
+  },
+  renderHTML: (a) => {
+    const b = a.battrs;
+    if (!b || typeof b !== "object") return {};
+    const out = { "data-battrs": JSON.stringify(b) };
+    if (b.id) out["data-bid"] = b.id;
+    if (b.color) out["data-color"] = b.color;
+    if (b.bg) out["data-bg"] = b.bg;
+    return out;
+  },
+};
+
 function container(name, content, extra = {}, attrs = {}) {
   return Node.create({
     name,
@@ -91,6 +120,13 @@ export const Tab = container("tab", "block+", { group: undefined, isolating: tru
 /** `::::cards` holding `:::card[title]{href icon}`. */
 export const Cards = container("cards", "card+");
 export const Card = container("card", "block+", { group: undefined, isolating: true, draggable: true });
+/** `::::columns` holding 2–5 `:::column{width="40%"}` (pages). One column left is unwrapped (editor). */
+export const Columns = container("columns", "column+", { isolating: false });
+export const Column = container("column", "block+", { group: undefined, isolating: true, draggable: false });
+/** `:::indent`: blocks nested under the block before it (Tab on a page). */
+export const Indent = container("indent", "block+");
+/** `:::button{label="…"}`: a button that inserts a copy of the blocks it holds (pages). */
+export const ButtonBlock = container("button", "block+");
 
 /** `::video{…}`, `::clip{…}`, `::embed{…}`, `::api{…}`: one line, edited through a form. */
 export const DirectiveLeaf = Node.create({
@@ -118,7 +154,7 @@ export const Figure = Node.create({
   selectable: true,
   draggable: true,
   addAttributes() {
-    return { src: str("src", ""), alt: str("alt", ""), title: str("title"), md: MD };
+    return { src: str("src", ""), alt: str("alt", ""), title: str("title"), battrs: BATTRS, md: MD };
   },
   parseHTML() {
     return [{ tag: "figure[data-docs=figure]" }];
@@ -155,7 +191,7 @@ export const MathBlock = Node.create({
   code: true,
   defining: true,
   addAttributes() {
-    return { meta: str("meta"), md: MD };
+    return { meta: str("meta"), battrs: BATTRS, md: MD };
   },
   parseHTML() {
     return [{ tag: "pre[data-docs=mathBlock]", preserveWhitespace: "full" }];
@@ -248,6 +284,35 @@ export const Kbd = Mark.create({
   },
 });
 
+/**
+ * `:span[text]{color=red}` / `{bg=yellow}`: Notion's text or background colour (pages). One colour
+ * per run of text, so a new colour replaces the old one.
+ */
+export const Span = Mark.create({
+  name: "span",
+  addAttributes() {
+    return { attributes: json("attributes", {}) };
+  },
+  parseHTML() {
+    return [{ tag: "span[data-docs=span]" }];
+  },
+  renderHTML({ mark, HTMLAttributes }) {
+    const a = mark.attrs.attributes ?? {};
+    return ["span", mergeAttributes(HTMLAttributes, { "data-docs": "span", ...(a.color ? { "data-color": a.color } : {}), ...(a.bg ? { "data-bg": a.bg } : {}) }), 0];
+  },
+});
+
+/** `:u[text]`: underline (pages; ⌘U). */
+export const Underline = Mark.create({
+  name: "underline",
+  parseHTML() {
+    return [{ tag: "u" }, { style: "text-decoration", consuming: false, getAttrs: (v) => (String(v).includes("underline") ? {} : false) }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ["u", HTMLAttributes, 0];
+  },
+});
+
 /** Markdown allows a link or bold around inline code, so `code` excludes nothing. */
 export const InlineCode = Code.extend({ excludes: "" });
 
@@ -258,6 +323,7 @@ export const MarkdownAttrs = Extension.create({
     return [
       { types: ["paragraph", "heading", "blockquote", "bulletList", "orderedList", "codeBlock", "horizontalRule", "table", "tableRow"], attributes: { md: MD } },
       { types: ["codeBlock"], attributes: { meta: str("meta") } },
+      { types: ["paragraph", "heading", "codeBlock", "horizontalRule", "table", "tableCell", "tableHeader"], attributes: { battrs: BATTRS } },
       { types: ["bulletList"], attributes: { spread: bool("spread"), marker: str("marker", "-") } },
       { types: ["orderedList"], attributes: { spread: bool("spread"), marker: str("marker", "."), incr: bool("incr", true) } },
       {
@@ -322,6 +388,12 @@ export function baseExtensions() {
     Tab,
     Cards,
     Card,
+    Columns,
+    Column,
+    Indent,
+    ButtonBlock,
+    Span,
+    Underline,
     DirectiveLeaf,
     Figure,
     RawBlock,
