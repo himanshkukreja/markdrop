@@ -201,26 +201,37 @@ def _limit_message(reason: str, n: int = 0) -> str:
         "guide_budget": (f"This guide's AI budget for the month is used up ({n:,} uses, shared by AI help and "
                          "Ask AI). It resets on the 1st (UTC)."),
         "busy": "AI help is busy right now. Try again in a moment.",
+        "blocked": "AI help isn't available for your account.",
+        "user_spend": "You've reached today's AI limit. It resets at midnight UTC.",
+        "burst": "You're using AI very quickly. Wait a little and try again.",
     }[reason]
 
 
-def _switched_off() -> str | None:
-    if not get_settings().docs_editor_ai_enabled or not docs_agent.enabled():
+async def _switched_off(db: AsyncIOMotorDatabase) -> str | None:
+    # The config switches (this one and Ask AI's) and the admin's (Admin → AI → Budgets).
+    if not await ai_usage.feature_on(db, FEATURE):
         return "disabled"
     if not docs_agent.configured():
         return "not_configured"
     return None
 
 
-async def _blocker(db: AsyncIOMotorDatabase, site_id: str, use: Usage) -> tuple[str, int] | None:
+# ai_usage.user_check reasons → this feature's (its "user_daily" is the per-person request count).
+_USER_CHECK = {"blocked": "blocked", "user_daily": "user_spend", "burst": "burst"}
+
+
+async def _blocker(db: AsyncIOMotorDatabase, site_id: str, use: Usage, user_id: str | None = None,
+                   *, peek: bool = False) -> tuple[str, int] | None:
     """(limit reason, the number its message names) when one more request isn't allowed."""
     s = get_settings()
     if use.guide_used_month >= use.guide_limit_month:
         return "guide_budget", use.guide_limit_month
     if use.used_today >= use.limit_today:
         return "user_daily", use.limit_today
-    state = await ai_usage.budget(db, FEATURE, daily_cap=s.docs_editor_ai_daily_usd,
-                                  monthly_cap=s.docs_editor_ai_monthly_usd, reserve=RESERVE_USD)
+    why = await ai_usage.user_check(db, user_id, FEATURE, peek=peek)
+    if why:
+        return _USER_CHECK[why], 0
+    state = await ai_usage.check_budget(db, FEATURE, reserve=RESERVE_USD)
     if not state.ok:
         return f"budget_{state.reason}", 0
     if _inflight >= max(1, s.docs_editor_ai_max_concurrent):
@@ -229,7 +240,10 @@ async def _blocker(db: AsyncIOMotorDatabase, site_id: str, use: Usage) -> tuple[
 
 
 _LIMIT_STATUS = {"user_daily": (429, "user_daily"), "guide_budget": (429, "guide_budget"),
-                 "budget_daily": (503, "budget"), "budget_monthly": (503, "budget"), "busy": (503, "busy")}
+                 "budget_daily": (503, "budget"), "budget_monthly": (503, "budget"),
+                 "budget_global_daily": (503, "budget"), "budget_global_monthly": (503, "budget"),
+                 "busy": (503, "busy"), "blocked": (403, "blocked"), "user_spend": (429, "user_spend"),
+                 "burst": (429, "burst")}
 
 
 def _message_for(reason: str, n: int) -> str:
@@ -243,10 +257,10 @@ async def status(db: AsyncIOMotorDatabase, site: dict, user: User) -> dict:
     """Whether the editor should offer AI help, and the numbers it shows."""
     site_id = str(site["_id"])
     use = await usage(db, site_id, user)
-    reason = _switched_off()
+    reason = await _switched_off(db)
     n = 0
     if reason is None:
-        blocked = await _blocker(db, site_id, use)
+        blocked = await _blocker(db, site_id, use, user.id, peek=True)
         if blocked:
             reason, n = blocked
     code = None
@@ -279,7 +293,7 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
     global _inflight
     s = get_settings()
     action, text, language = validate(action, text, language)
-    off = _switched_off()
+    off = await _switched_off(db)
     if off:
         raise _error(503, off, _limit_message(off))
 
@@ -300,7 +314,7 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
             log.warning("docs editor ai: recording request %s failed: %s", request_id, type(exc).__name__)
 
     use = await usage(db, site_id, user)
-    blocked = await _blocker(db, site_id, use)
+    blocked = await _blocker(db, site_id, use, user.id)
     if blocked:
         reason, n = blocked
         await record("limit", limit_reason=reason)
@@ -310,7 +324,7 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
     _inflight += 1
     _inflight_by_user[user.id] = _inflight_by_user.get(user.id, 0) + 1
     _inflight_by_site[site_id] = _inflight_by_site.get(site_id, 0) + 1
-    ai_usage.hold(FEATURE, RESERVE_USD)
+    ai_usage.hold_request(FEATURE, RESERVE_USD)
     try:
         try:
             message = await docs_agent.get_client().messages.create(
@@ -360,4 +374,4 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
                 counter.pop(key, None)
             else:
                 counter[key] = n
-        ai_usage.release(FEATURE, RESERVE_USD)
+        ai_usage.release_request(FEATURE, RESERVE_USD)

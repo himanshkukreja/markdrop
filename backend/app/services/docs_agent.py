@@ -1070,6 +1070,9 @@ LIMIT_MESSAGES = {
     "rate_limited": "You've asked a lot of questions this hour. Try again later, or open this page in your own assistant.",
     "budget": "Ask AI has reached its limit for now. You can still search the docs, or open this page in your own assistant.",
     "busy": "Ask AI is busy right now. Try again in a moment.",
+    "blocked": "Ask AI isn't available for your account. You can still search the docs, or open this page in your own assistant.",
+    "user_daily": "You've reached today's AI limit. It resets at midnight UTC. You can still search the docs, or open this page in your own assistant.",
+    "burst": "You're asking very quickly. Wait a little and try again, or open this page in your own assistant.",
 }
 
 
@@ -1149,7 +1152,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     model = s.docs_ai_model
     meter = ai_usage.Meter(model)
     watch = ai_usage.Stopwatch()
-    base_meta = {"conversation_id": conversation_id, "turn": turn, "page_path": page_path,
+    base_meta = {"action": "ask", "conversation_id": conversation_id, "turn": turn, "page_path": page_path,
                  "question": question[:MAX_QUESTION], "signed_in": req.user is not None,
                  "effort": effort(), "history_turns": turn - 1}
     # A Markdrop Guides site with Insights on: its team may see this question (services/guide_insights.py).
@@ -1177,7 +1180,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
         yield "error", {"message": f"Questions can be up to {MAX_QUESTION:,} characters. Shorten it and ask again.",
                         "code": "too_long"}
         return
-    if not enabled() or not cfg.ai_enabled:
+    if not await ai_usage.feature_on(db, FEATURE) or not cfg.ai_enabled:
         yield limit_event("disabled")
         return
     if not configured():
@@ -1191,8 +1194,14 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
         await record_limit("rate_limited")
         yield limit_event("rate_limited")
         return
-    state = await ai_usage.budget(db, FEATURE, daily_cap=s.docs_ai_daily_usd, monthly_cap=s.docs_ai_monthly_usd,
-                                  reserve=RESERVE_USD)
+    # A signed-in reader: blocked by an admin, their own daily spend cap, the burst limit.
+    why = await ai_usage.user_check(db, getattr(req.user, "id", None), FEATURE)
+    if why:
+        await record_limit(why)
+        yield limit_event(why)
+        return
+    # This feature's caps, then all AI features' together (both admin-configurable).
+    state = await ai_usage.check_budget(db, FEATURE, reserve=RESERVE_USD)
     if not state.ok:
         await record_limit(f"budget_{state.reason}")
         yield limit_event("budget")
@@ -1227,7 +1236,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
     _inflight += 1
     _inflight_by_visitor[visitor] = _inflight_by_visitor.get(visitor, 0) + 1
     _inflight_by_site[site_id] = _inflight_by_site.get(site_id, 0) + 1
-    ai_usage.hold(FEATURE, RESERVE_USD)
+    ai_usage.hold_request(FEATURE, RESERVE_USD)
     ai_usage.hold(site_scope, RESERVE_USD)
     sources = Sources(index)
     ctx = ToolContext(db=db, index=index, sources=sources, user=req.user)
@@ -1418,7 +1427,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
             _inflight_by_site.pop(site_id, None)
         else:
             _inflight_by_site[site_id] = n
-        ai_usage.release(FEATURE, RESERVE_USD)
+        ai_usage.release_request(FEATURE, RESERVE_USD)
         ai_usage.release(site_scope, RESERVE_USD)
         if not recorded:
             # The reader went away mid-answer (the stream was closed). What was

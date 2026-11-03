@@ -322,7 +322,7 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
         d = link_draft(it, page)
         return await _store(db, it, d, user)
 
-    off = editor_ai._switched_off()
+    off = await editor_ai._switched_off(db)
     if off:
         raise _error(503, off, editor_ai._limit_message(off).replace("AI help", "AI drafts"))
     page = p.get("page")
@@ -355,7 +355,7 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
             log.warning("fix draft: recording request %s failed: %s", request_id, type(exc).__name__)
 
     use = await editor_ai.usage(db, site, user)
-    blocked = await editor_ai._blocker(db, site, use)
+    blocked = await editor_ai._blocker(db, site, use, user.id)
     if blocked:
         reason, n = blocked
         await record("limit", limit_reason=reason)
@@ -365,7 +365,7 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
     editor_ai._inflight += 1
     editor_ai._inflight_by_user[user.id] = editor_ai._inflight_by_user.get(user.id, 0) + 1
     editor_ai._inflight_by_site[site] = editor_ai._inflight_by_site.get(site, 0) + 1
-    ai_usage.hold(editor_ai.FEATURE, editor_ai.RESERVE_USD)
+    ai_usage.hold_request(editor_ai.FEATURE, editor_ai.RESERVE_USD)
     try:
         try:
             message = await docs_agent.get_client().messages.create(
@@ -400,7 +400,7 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
                 counter.pop(key, None)
             else:
                 counter[key] = n
-        ai_usage.release(editor_ai.FEATURE, editor_ai.RESERVE_USD)
+        ai_usage.release_request(editor_ai.FEATURE, editor_ai.RESERVE_USD)
 
     if kind == "new_page":
         title = out["title"] or (it.get("evidence") or {}).get("samples", [{}])[0].get("text") or "New page"

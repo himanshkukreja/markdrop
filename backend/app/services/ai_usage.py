@@ -552,12 +552,12 @@ def _recent_count(user_id: str, seconds: float) -> int:
 
 
 async def user_check(db: AsyncIOMotorDatabase, user_id: str | None, feature: str,
-                     now: datetime | None = None) -> str | None:
+                     now: datetime | None = None, *, peek: bool = False) -> str | None:
     """Can this signed-in person make one more AI request? None = yes; else why not:
     "blocked" (an admin blocked them from AI), "user_daily" (their daily USD cap is reached),
     "burst" (more than the per-minute or per-day request limit, all AI features together).
     Signed-out callers (no user_id) are not checked here. A passing check counts towards the
-    burst limit."""
+    burst limit, unless `peek` (a status read that won't call the model)."""
     if not user_id:
         return None
     if (await user_settings(db, user_id)).get("blocked"):
@@ -574,7 +574,8 @@ async def user_check(db: AsyncIOMotorDatabase, user_id: str | None, feature: str
     today = await db[REQUESTS].count_documents({**q, "ts": {"$gte": utc_midnight(n)}})
     if max(today, _recent_count(user_id, (n - utc_midnight(n)).total_seconds())) >= per_day:
         return "burst"
-    _recent.setdefault(user_id, []).append(time.monotonic())
+    if not peek:
+        _recent.setdefault(user_id, []).append(time.monotonic())
     return None
 
 
