@@ -34,6 +34,7 @@ import { writePageProps } from "./pagePropsWrite";
 import { usePageEditSession, type SaveState } from "./usePageEditSession";
 import { usePageAssets } from "./usePageEmbeds";
 import "./pages.css";
+import "./page-blocks.css";
 
 export interface PageEditorProps {
   slug: string;

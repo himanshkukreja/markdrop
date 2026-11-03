@@ -34,22 +34,30 @@ import { remarkPageBlocks } from "./remarkPageBlocks";
 import { LockedEmbed, PageEmbed, PageMention } from "./PageEmbed";
 import { BookmarkCard } from "@/components/docs-editor/views/pageLeaves";
 import { usePageEmbeds } from "./usePageEmbeds";
+import { useBlockAnchor } from "./anchors";
+import { ImageLightbox } from "@/components/docs-editor/views/Lightbox";
 import "./pages.css";
+import "./page-blocks.css";
 
 
 const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite"];
 const PB_PROPS = ["data-pb", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site"];
 
+/** Block attributes (attrs.mjs) any element may carry: anchor, colours, image and table layout. */
+const BLOCK_ATTRS = ["dataBid", "dataColor", "dataBg", "dataWidth", "dataAlign", "dataWidths", "dataHcol", "dataHrow", "dataCaption", "dataBlock"];
+const withBlock = (list?: NonNullable<Schema["attributes"]>[string]) => [...(list ?? []), ...BLOCK_ATTRS];
+
 const schema: Schema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary", "kbd"],
+  tagNames: [...(defaultSchema.tagNames ?? []), "details", "summary", "kbd", "u"],
   attributes: {
     ...defaultSchema.attributes,
-    div: [...(defaultSchema.attributes?.div ?? []), ...PB_ATTRS],
-    span: [["className", /^hljs-/], ...PB_ATTRS],
-    details: [...PB_ATTRS],
+    div: [...(defaultSchema.attributes?.div ?? []), ...PB_ATTRS, ...BLOCK_ATTRS],
+    span: [["className", /^hljs-/], ...PB_ATTRS, ...BLOCK_ATTRS],
+    details: [...PB_ATTRS, ...BLOCK_ATTRS],
     kbd: [["className", "md-kbd"]],
-    code: [["className", /^language-/, "hljs", /^hljs-/, "math-inline", "math-display"]],
+    code: [["className", /^language-/, "hljs", /^hljs-/, "math-inline", "math-display"], ...BLOCK_ATTRS],
+    ...Object.fromEntries(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "table", "td", "th", "pre", "hr", "img"].map((t) => [t, withBlock(defaultSchema.attributes?.[t])])),
   },
 };
 
@@ -86,8 +94,25 @@ function plainProps(rest: Record<string, unknown>) {
   return out;
 }
 
-function Div({ node: _n, children, ...rest }: P<"div">) {
+function Div(props: P<"div">) {
+  const bid = str(props["data-bid"]);
+  const out = DivInner(props);
+  // A block anchor on a callout, embed, bookmark…: the wrapper carries it (scrolled to on open).
+  return bid && props["data-pb"] && !["figure", "columns", "indent"].includes(String(props["data-pb"])) ? <div data-bid={bid}>{out}</div> : out;
+}
+
+function DivInner({ node: _n, children, ...rest }: P<"div">) {
   const pb = rest["data-pb"];
+  if (pb === "figure") {
+    return (
+      <div className="pb-figure not-prose" data-align={str(rest["data-align"]) ?? "center"} data-bid={str(rest["data-bid"])} style={rest["data-width"] ? ({ "--pb-w": String(rest["data-width"]) } as React.CSSProperties) : undefined}>
+        {children}
+      </div>
+    );
+  }
+  if (pb === "columns") return <div className="pb-columns" data-bid={str(rest["data-bid"])}>{children}</div>;
+  if (pb === "column") return <div className="pb-column" style={rest["data-width"] ? { flexBasis: String(rest["data-width"]), flexGrow: 0 } : undefined}>{children}</div>;
+  if (pb === "indent") return <div className="pb-indent" data-bid={str(rest["data-bid"])}>{children}</div>;
   if (pb === "callout") {
     const k = (String(rest["data-kind"] ?? "note") in TONE ? String(rest["data-kind"]) : "note") as keyof typeof TONE;
     const label = str(rest["data-label"]);
@@ -188,6 +213,7 @@ function Span({ node: _n, children, ...rest }: P<"span">) {
       </time>
     );
   }
+  if (pb === "color") return <span data-color={str(rest["data-color"])} data-bg={str(rest["data-bg"])}>{children}</span>;
   if (pb === "person") {
     return (
       <span className="pb-mention pb-mention--person">
@@ -218,7 +244,7 @@ function Details({ node: _n, children, ...rest }: P<"details">) {
   const heading = /^[123]$/.test(String(rest["data-heading"] ?? "")) ? Number(rest["data-heading"]) : null;
   const H = heading ? (`h${heading}` as "h1" | "h2" | "h3") : "span";
   return (
-    <details className={`dx-details pb-details${heading ? ` pb-details--h pb-details--h${heading}` : ""}`}>
+    <details className={`dx-details pb-details${heading ? ` pb-details--h pb-details--h${heading}` : ""}`} data-bid={str(rest["data-bid"])} data-color={str(rest["data-color"])} data-bg={str(rest["data-bg"])}>
       <summary>
         <Icon name="chevronRight" className="dx-details__chev" />
         <H className={heading ? "pb-details__h" : undefined}>{label}</H>
@@ -228,34 +254,75 @@ function Details({ node: _n, children, ...rest }: P<"details">) {
   );
 }
 
-function Pre({ children }: P<"pre">) {
+function Pre({ children, ...rest }: P<"pre">) {
   const child = Children.toArray(children)[0];
-  const className = isValidElement<{ className?: string }>(child) ? child.props.className ?? "" : "";
+  const cp = isValidElement<Record<string, unknown>>(child) ? child.props : {};
+  const className = typeof cp.className === "string" ? cp.className : "";
   const language = /(?:^|\s)language-([^\s]+)/.exec(className)?.[1];
   const text = textOf(children).replace(/\n$/, "");
-  if (language === "mermaid") return <DiagramFrame code={text} />;
-  return (
+  const caption = str(cp["data-caption"]);
+  const bid = str(cp["data-bid"]) ?? str(rest["data-bid"]);
+  const block = language === "mermaid" ? <DiagramFrame code={text} /> : (
     <CodeBlock code={text} language={language}>
       {children}
     </CodeBlock>
   );
+  if (!caption && !bid) return block;
+  return (
+    <div className="pb-code" data-bid={bid}>
+      {block}
+      {caption && <p className="pb-caption">{caption}</p>}
+    </div>
+  );
 }
 
 function Table({ node: _n, children, ...props }: P<"table">) {
+  const widths = str(props["data-widths"])?.split(",").map((w) => Number(w) || 0) ?? null;
+  const own = plainBlockProps(props);
   return (
     <ScrollBox className="md-table-box" scrollClassName="md-table-wrap" label="Table">
-      <table className="md-table" {...(props as object)}>
+      <table className={`md-table${widths ? " pb-table--sized" : ""}`} {...own}>
+        {widths && (
+          <colgroup>
+            {widths.map((w, i) => (
+              <col key={i} style={w ? { width: w } : undefined} />
+            ))}
+          </colgroup>
+        )}
         {children}
       </table>
     </ScrollBox>
   );
 }
 
-function Img({ node: _n, alt, src, title }: P<"img">) {
+/** The table's own props, without the attributes the component turned into markup. */
+function plainBlockProps(props: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(props)) if (k !== "data-widths") out[k] = v;
+  return out;
+}
+
+function Img({ node: _n, alt, src, title, ...rest }: P<"img">) {
   if (!src) return null;
+  if (rest["data-block"]) return <FigureImage src={String(src)} alt={alt ?? ""} caption={typeof title === "string" ? title : undefined} />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={String(src)} alt={alt ?? ""} title={typeof title === "string" ? title : undefined} loading="lazy" decoding="async" className="pb-img" />
+  );
+}
+
+/** An image block: click for the full-screen view (with download), caption below. */
+function FigureImage({ src, alt, caption }: { src: string; alt: string; caption?: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" className="pb-figure__open md-focus" onClick={() => setOpen(true)} aria-label={alt ? `View ${alt} full screen` : "View image full screen"}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt={alt} loading="lazy" decoding="async" className="pb-img pb-figure__img" />
+      </button>
+      {caption && <span className="pb-caption pb-figure__cap">{caption}</span>}
+      {open && <ImageLightbox src={src} alt={alt} caption={caption} onClose={() => setOpen(false)} />}
+    </>
   );
 }
 
@@ -331,12 +398,16 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
   }, [content]);
 
   const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref }), [embeds, signInHref, headings, crumbs, title, href]);
+  const root = useRef<HTMLDivElement>(null);
+  useBlockAnchor(root);
   return (
     <PageCtx.Provider value={ctx}>
       {/* ph-no-capture: the page body (and what it embeds) is never recorded. */}
-      <Prose size="reading" className={["ph-no-capture pb-page", className].filter(Boolean).join(" ")}>
-        {tree}
-      </Prose>
+      <div ref={root} className="pb-root">
+        <Prose size="reading" className={["ph-no-capture pb-page", className].filter(Boolean).join(" ")}>
+          {tree}
+        </Prose>
+      </div>
     </PageCtx.Provider>
   );
 }
