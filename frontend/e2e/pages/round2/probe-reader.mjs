@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { API, APP, context, launch, newPage } from "./lib.mjs";
+import { API, APP, SHOTS, context, launch, newPage } from "./lib.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const content = fs.readFileSync(path.resolve(here, "../../../src/components/docs-editor/test/fixtures/pages.md"), "utf8");
@@ -23,7 +23,7 @@ for (let run = 0; run < Number(process.env.RUNS ?? 4); run++) {
       console.log(log.join("\n"));
       console.log("body:", (await p.locator("body").innerText()).slice(0, 300).replace(/\n+/g, " | "));
       console.log("hydrated:", await p.evaluate(() => !!document.querySelector("[data-reactroot], #__next") || typeof window.next));
-    } else if (width === 1280) await p.screenshot({ path: path.join(here, ".probe.png"), fullPage: true });
+    } else if (width === 1280) await p.screenshot({ path: path.join(SHOTS, "probe-reader.png"), fullPage: true });
     await c.close();
   }
 }
