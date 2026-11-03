@@ -33,7 +33,7 @@ from pydantic import BaseModel, Field
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.services import api_token, docs_agent, docs_page_access, docs_sites
+from app.services import ai_usage, api_token, docs_agent, docs_page_access, docs_sites
 from app.services import user as user_service
 from app.utils.auth import decode_access_token
 from app.utils.net import get_client_ip
@@ -206,7 +206,7 @@ async def ai_status(request: Request, site: str | None = Query(None, max_length=
                     db: AsyncIOMotorDatabase = Depends(get_db)):
     cfg = await docs_sites.aconfig(db, await resolve_site(request, site, db))
     extra = cfg.status_extra()
-    if not docs_agent.enabled() or not cfg.ai_enabled:
+    if not await ai_usage.feature_on(db, docs_agent.FEATURE) or not cfg.ai_enabled:
         return {"available": False, **extra, "reason": "disabled"}
     if not docs_agent.configured():
         return {"available": False, **extra, "reason": "not_configured"}

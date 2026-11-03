@@ -188,7 +188,7 @@ def configured() -> bool:
 
 async def switched_off(db: AsyncIOMotorDatabase) -> str | None:
     """"off" / "not_configured" / None for Page AI as a whole."""
-    if not get_settings().pages_ai_enabled or not await ai_usage.feature_on(db, FEATURE):
+    if not await ai_usage.feature_on(db, FEATURE):   # pages_ai_enabled AND the admin switch
         return "off"
     if not configured():
         return "not_configured"
@@ -213,19 +213,16 @@ async def page_limit(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str |
                      reserve: float, count: bool = True) -> Limit | None:
     """The first Page AI limit in the way of one more request, or None.
 
-    ``count=False`` (the status endpoint) skips ``user_check``, which counts a
-    passing check towards the burst limit; it reports only an admin block."""
+    ``count=False`` (the status endpoint) peeks: a passing check isn't counted towards the
+    burst limit."""
     off = await switched_off(db)
     if off:
         return Limit(off)
     if not await workspace_on(db, workspace_id):
         return Limit("workspace_off")
-    if count:
-        why = await ai_usage.user_check(db, user_id, FEATURE)
-        if why:
-            return Limit(why)
-    elif (await ai_usage.user_settings(db, user_id)).get("blocked"):
-        return Limit("blocked")
+    why = await ai_usage.user_check(db, user_id, FEATURE, peek=not count)
+    if why:
+        return Limit(why)
     state = await ai_usage.check_budget(db, FEATURE, reserve=reserve)
     if not state.ok:
         return Limit(_budget_reason(state.reason))
@@ -233,26 +230,27 @@ async def page_limit(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str |
 
 
 async def guide_limit(db: AsyncIOMotorDatabase, site: dict, user) -> Limit | None:
-    """The Guides editor's limits (services/docs_editor_ai.py): its switches, the burst limit,
-    the guide's monthly AI allowance, the per-person day, its spend caps, its concurrency."""
+    """The Guides editor's limits (services/docs_editor_ai.py): its switches, the guide's monthly
+    AI allowance, the per-person day, the admin's per-person limits (ai_usage.user_check), its
+    spend caps and its concurrency."""
     from app.services import docs_editor_ai as editor_ai
 
-    off = editor_ai._switched_off()
-    if off == "disabled" or not await ai_usage.feature_on(db, GUIDE_FEATURE):
-        return Limit("off")
+    off = await editor_ai._switched_off(db)
     if off:
-        return Limit(off)
-    why = await ai_usage.user_check(db, user.id, GUIDE_FEATURE)
-    if why:
-        return Limit(why)
+        return Limit("off" if off == "disabled" else off)
     use = await editor_ai.usage(db, str(site["_id"]), user)
-    blocked = await editor_ai._blocker(db, str(site["_id"]), use)
+    blocked = await editor_ai._blocker(db, str(site["_id"]), use, user.id)
     if blocked:
         reason = blocked[0]
         if reason.startswith("budget_"):
             return Limit(_budget_reason(reason))
-        return Limit(reason)
+        return Limit(_GUIDE_REASON.get(reason, reason))
     return None
+
+
+# docs_editor_ai's reasons → ours: its "user_daily" is its per-person request count, "user_spend" the
+# admin's per-person daily USD cap; both read as "your AI limit for today".
+_GUIDE_REASON = {"user_spend": "user_daily"}
 
 
 # ── Context ───────────────────────────────────────────────────────────────────
@@ -861,7 +859,7 @@ class Job:
             editor_ai._inflight_by_user[self.user.id] = editor_ai._inflight_by_user.get(self.user.id, 0) + 1
             sid = str(self.site["_id"])
             editor_ai._inflight_by_site[sid] = editor_ai._inflight_by_site.get(sid, 0) + 1
-            ai_usage.hold(GUIDE_FEATURE, self.reserve)
+            ai_usage.hold_request(GUIDE_FEATURE, self.reserve)
         else:
             ai_usage.hold_request(FEATURE, self.reserve)
 
@@ -880,7 +878,7 @@ class Job:
                     counter.pop(key, None)
                 else:
                     counter[key] = n
-            ai_usage.release(GUIDE_FEATURE, self.reserve)
+            ai_usage.release_request(GUIDE_FEATURE, self.reserve)
         else:
             ai_usage.release_request(FEATURE, self.reserve)
 

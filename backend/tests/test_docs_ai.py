@@ -417,6 +417,31 @@ class BudgetTests(DocsAIBase):
         self.assertEqual(row["limit_reason"], "budget_daily")
 
 
+    async def test_admin_settings_apply(self):
+        """Admin → AI → Budgets: the switch, the feature and global caps, and a blocked reader."""
+        async def admin_set(**fields):
+            await self.db[ai_usage.SETTINGS].update_one({"_id": ai_usage.BUDGETS_ID}, {"$set": fields}, upsert=True)
+            ai_usage.invalidate_settings()
+
+        await admin_set(enabled={"docs_ask": False})
+        events, fake = await self.run_ask([])
+        self.assertEqual((events[0][0], events[0][1]["reason"]), ("limit", "disabled"))
+        await admin_set(enabled={}, caps={"*": {"daily_usd": 0.0}})
+        events, fake = await self.run_ask([])
+        self.assertEqual((events[0][0], events[0][1]["reason"]), ("limit", "budget"))
+        self.assertEqual(fake.messages.calls, [])
+        row = await self.db["ai_requests"].find_one({"outcome": "limit"})
+        self.assertEqual(row["limit_reason"], "budget_global_daily")
+        await admin_set(caps={})
+        me = await self.make_user()
+        await self.db[ai_usage.SETTINGS].insert_one({"_id": f"user:{me.id}", "blocked": True})
+        ai_usage.invalidate_settings()
+        events, fake = await self.run_ask([], user=me)
+        self.assertEqual((events[0][0], events[0][1]["reason"]), ("limit", "blocked"))
+        self.assertEqual(fake.messages.calls, [])
+        self.assertEqual(ai_usage._reserved, {})
+
+
 # ── Output filter and history ─────────────────────────────────────────────────
 
 

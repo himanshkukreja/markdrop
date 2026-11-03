@@ -525,6 +525,19 @@ class Settings(BaseSettings):
     # One page's Markdown. A publish snapshot is one MongoDB document (16 MB).
     docs_page_max_chars: int = 300_000
 
+    # ── Every AI feature (services/ai_usage.py) ──────────────────────────────
+    # Defaults only: the admin panel (Admin → AI → Budgets, collection `ai_settings`) overrides
+    # each of these and takes effect within ~10 s, no deploy. Days and months are UTC.
+    # Spend caps across all AI features together ("*"). None: no global cap (each feature's
+    # own caps still apply).
+    ai_daily_usd: float | None = None
+    ai_monthly_usd: float | None = None
+    # Anti-abuse burst limit per signed-in person, across all AI features (refused requests
+    # don't count). Not an allowance.
+    ai_burst_per_minute: int = 30
+    ai_burst_per_day: int = 300
+    # A per-person daily spend cap in USD across all AI features. None: no per-person cap.
+    ai_user_daily_usd: float | None = None
     # AI in pages (Page AI, ledger feature "pages_ai"): kill switch and spend caps.
     pages_ai_enabled: bool = True
     pages_ai_daily_usd: float = 5.0
