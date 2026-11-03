@@ -274,6 +274,49 @@ class EditorAI(DocsSitesCase):
         self.assertEqual((await self.edit(expect=503))["code"], "not_configured")
         self.assertEqual(self.fake.calls, [])
 
+    # ── admin settings (services/ai_usage: Admin → AI → Budgets) ──
+
+    async def admin_set(self, **fields):
+        await self.db[ai_usage.SETTINGS].update_one({"_id": ai_usage.BUDGETS_ID}, {"$set": fields}, upsert=True)
+        ai_usage.invalidate_settings()
+
+    async def test_admin_caps_switch_and_global_cap(self):
+        await ai_usage._bump(self.db, "docs_editor", now(), 1.0)
+        await self.edit()  # inside the config cap ($2)
+        await self.admin_set(caps={"docs_editor": {"daily_usd": 1.0}})
+        self.assertEqual((await self.edit(expect=503))["code"], "budget")
+        await self.admin_set(caps={"docs_editor": {"daily_usd": 10.0}, "*": {"daily_usd": 1.0}})
+        self.assertEqual((await self.edit(expect=503))["code"], "budget")
+        self.assertIsNotNone(await self.db[ai_usage.REQUESTS].find_one({"limit_reason": "budget_global_daily"}))
+        await self.admin_set(caps={}, enabled={"docs_editor": False})
+        self.assertEqual((await self.edit(expect=503))["code"], "disabled")
+        st = await self.get(f"/{self.sid}/ai/edit/status")
+        self.assertEqual((st["available"], st["reason"]), (False, "disabled"))
+        await self.admin_set(enabled={"docs_editor": True})
+        await self.edit()
+        self.assertEqual(ai_usage._reserved, {})
+
+    async def test_admin_blocks_a_person(self):
+        await self.db[ai_usage.SETTINGS].insert_one({"_id": f"user:{self.uid['editor']}", "blocked": True})
+        ai_usage.invalidate_settings()
+        r = await self.edit(expect=403)
+        self.assertEqual((r["code"], r["detail"]), ("blocked", "AI help isn't available for your account."))
+        st = await self.get(f"/{self.sid}/ai/edit/status", "editor")
+        self.assertEqual((st["available"], st["reason"]), (False, "blocked"))
+        await self.edit("admin")
+        self.assertIsNotNone(await self.db[ai_usage.REQUESTS].find_one({"limit_reason": "blocked"}))
+
+    async def test_per_person_spend_cap_and_burst(self):
+        await self.seed(2, cost_usd=0.5)
+        await self.admin_set(user_daily_usd=1.0)
+        self.assertEqual((await self.edit(expect=429))["code"], "user_spend")
+        await self.admin_set(user_daily_usd=None, burst={"per_minute": 2})
+        await self.seed(1, ts=now())
+        st = await self.get(f"/{self.sid}/ai/edit/status", "editor")
+        self.assertTrue(st["available"])  # a status read doesn't use up the burst
+        await self.edit()
+        self.assertEqual((await self.edit(expect=429))["code"], "burst")
+
     # ── model outcomes ──
 
     async def test_refusal_and_cut_off(self):
