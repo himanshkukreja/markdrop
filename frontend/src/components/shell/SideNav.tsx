@@ -153,18 +153,26 @@ export function WorkspaceTile({ ws, active, size = 18 }: { ws: Pick<Workspace, "
 
 /** The workspace's tree as rail nodes: the workspace (its root folder view), then its folders by
  *  depth with total counts. Drop targets for rows and folders (dnd-kit) and for files (uploads). */
+/** Where a page sits in the rail: its folder (null: the workspace's top level), its parent page
+ *  and every page above it. Members drag pages (onto a page: inside it; onto a folder: there). */
+interface PagePlace { folderId: string | null; parent: string | null; ancestors: string[]; member: boolean }
+
 /** A page in the rail, with its sub-pages (lazy) a level down. */
-function pageNode(wsId: string, p: RailPage, pagesOf: (key: string) => RailPage[] | undefined): TreeNode {
+function pageNode(wsId: string, p: RailPage, pagesOf: (key: string) => RailPage[] | undefined, at: PagePlace = { folderId: null, parent: null, ancestors: [], member: false }): TreeNode {
   const key = railPageKey(wsId, p.slug);
   const kids = p.has_children ? pagesOf(key) : [];
+  const label = p.title || "Untitled";
+  const below: PagePlace = { ...at, parent: p.slug, ancestors: [...at.ancestors, p.slug] };
   return {
     key,
-    label: p.title || "Untitled",
+    label,
     icon: <Icon name="layers" size={16} />,
     href: `/${encodeURIComponent(p.slug)}`,
-    children: kids?.length ? kids.map((k) => pageNode(wsId, k, pagesOf)) : undefined,
+    children: kids?.length ? kids.map((k) => pageNode(wsId, k, pagesOf, below)) : undefined,
     lazy: p.has_children && kids === undefined,
     leaf: !p.has_children,
+    drag: at.member ? { type: "page", workspaceId: wsId, slug: p.slug, label, parent: at.parent, folderId: at.folderId } : null,
+    drop: at.member ? { workspaceId: wsId, folderId: at.folderId, label: `“${label}”`, acceptsFolders: false, page: { slug: p.slug, ancestors: at.ancestors } } : null,
   };
 }
 
@@ -188,7 +196,7 @@ function workspaceNode(
       const sub = kids.get(f.id) ?? [];
       // Its pages, once the folder is open (it may have pages only when it has items).
       const pages = f.item_count > 0 ? pagesOf(wsFolderKey(ws.id, f.id)) : [];
-      const children = [...sub.map(build), ...(pages ?? []).map((p) => pageNode(ws.id, p, pagesOf))];
+      const children = [...sub.map(build), ...(pages ?? []).map((p) => pageNode(ws.id, p, pagesOf, { folderId: f.id, parent: null, ancestors: [], member }))];
       return {
         key: wsFolderKey(ws.id, f.id),
         label: f.name,
@@ -215,7 +223,7 @@ function workspaceNode(
     children = [
       ...(kids.get(null) ?? []).map(build),
       // Pages filed at the top of the workspace.
-      ...(tree.unfiled_count > 0 ? pagesOf(wsRootKey(ws.id)) ?? [] : []).map((p) => pageNode(ws.id, p, pagesOf)),
+      ...(tree.unfiled_count > 0 ? pagesOf(wsRootKey(ws.id)) ?? [] : []).map((p) => pageNode(ws.id, p, pagesOf, { folderId: null, parent: null, ancestors: [], member })),
       { key: wsDocsKey(ws.id), label: "Guides", icon: <Icon name="layers" size={16} />, href: studioUrl(`/?ws=${encodeURIComponent(ws.id)}`), leaf: true },
     ];
     total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
