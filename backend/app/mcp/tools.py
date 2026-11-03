@@ -277,7 +277,8 @@ def deny(d: access_service.Decision, action: str) -> ToolError:
     return ToolError(NOT_OWNER.format(action=action))
 
 
-_EDITOR_ACTIONS = {"update", "replace", "see the versions of", "restore versions of", "move"}
+_EDITOR_ACTIONS = {"update", "replace", "see the versions of", "restore versions of", "move",
+                   "add pages to", "add images to"}
 
 
 async def load_for(ctx: Context, value: str, perm: str, action: str) -> dict:
@@ -1044,7 +1045,8 @@ async def delete_document(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "delete", "delete")
     slug = raw["slug"]
     try:
-        await doc_service.delete_document(ctx.db, slug, actor_of(ctx), access_service.Ctx(ctx.db))
+        await doc_service.delete_document(ctx.db, slug, actor_of(ctx), access_service.Ctx(ctx.db),
+                                          children=args.get("children"))
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     return f"Deleted {slug}.", {"deleted": True, "slug": slug}
@@ -1090,6 +1092,8 @@ def _viewer_out(v: dict) -> dict:
         "state": v.get("state") if v.get("state") in ("active", "away") else "active",
         "section": sec.get("label") if sec else None,
         "you": bool(v.get("you")),
+        # Holds the page's edit lock (services/pages.py).
+        "editing": bool(v.get("editing")),
     }
 
 
@@ -2132,10 +2136,16 @@ TOOLS: list[Tool] = [
     Tool(
         name="delete_document",
         title="Delete a document",
-        description="Permanently delete one of the user's documents or files. The link stops working and this can't be undone.",
+        description=("Permanently delete one of the user's documents or files. The link stops working and this "
+                     "can't be undone. A page with pages inside it needs children: 'delete' (they go too) or "
+                     "'lift' (they move up a level)."),
         scope=WRITE,
         writes=True,
-        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "children": {"type": "string", "enum": ["delete", "lift"],
+                         "description": "Only for a page with sub-pages: delete them too, or move them up a level."},
+        }, "required": ["document"]},
         output_schema=_out({"deleted": {"type": "boolean"}, "slug": {"type": "string"}}),
         annotations=_ann(False, True, True),
         handler=delete_document,
@@ -2256,6 +2266,8 @@ TOOLS: list[Tool] = [
                         "section": {**_NULLABLE_STR, "description": (
                             "Where they are: a heading, 'Page 3' or 'At 2:30'.")},
                         "you": {"type": "boolean", "description": "One of the user's own open tabs."},
+                        "editing": {"type": "boolean",
+                                    "description": "Editing the page right now (holds its edit lock)."},
                     })},
             },
             ["url", "markdrop_url", "slug", "presence", "total", "viewers"],
@@ -2677,5 +2689,10 @@ TOOLS += [
         handler=move_to_folder,
     ),
 ]
+
+# Pages (block editor, sub-pages, embeds, page images): app/mcp/page_tools.py.
+from app.mcp.page_tools import PAGE_TOOLS  # noqa: E402  (it imports helpers from here)
+
+TOOLS += PAGE_TOOLS
 
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

@@ -106,7 +106,7 @@ class McpViewers(AccessWorld):
         self.assertEqual({v["name"] for v in out["viewers"] if not v["anonymous"]}, {"OWNER", "WM", "GV"})
         self.assertEqual(sum(v["anonymous"] for v in out["viewers"]), 3)
         for v in out["viewers"]:
-            self.assertEqual(set(v), {"name", "anonymous", "owner", "state", "section", "you"})
+            self.assertEqual(set(v), {"name", "anonymous", "owner", "state", "section", "you", "editing"})
             if v["anonymous"]:
                 self.assertIn(v["name"].removeprefix("Anonymous "), viewers.ANIMALS)
                 self.assertFalse(v["owner"])
