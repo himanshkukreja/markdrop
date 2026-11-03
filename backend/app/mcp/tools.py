@@ -2705,5 +2705,9 @@ TOOLS += [
 from app.mcp.page_tools import PAGE_TOOLS  # noqa: E402  (it imports helpers from here)
 
 TOOLS += PAGE_TOOLS
+# A page's version history: app/mcp/history_tools.py.
+from app.mcp.history_tools import HISTORY_TOOLS  # noqa: E402
+
+TOOLS += HISTORY_TOOLS
 
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}
