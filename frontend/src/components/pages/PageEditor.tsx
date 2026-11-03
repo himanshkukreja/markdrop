@@ -322,7 +322,8 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
 
   // A key, a click or a focus in the head or the body takes the edit lock (not the top bar).
   const onActivity = (e: React.SyntheticEvent) => {
-    if (readOnly) return;
+    // Read only because who's viewing says someone else is editing: a click still asks (it may be free).
+    if (readOnly && !(session.lock.kind === "idle" && othersEditing)) return;
     const t = e.target as Element | null;
     if (!t || t.closest(".pb-barwrap")) return;
     session.activity();

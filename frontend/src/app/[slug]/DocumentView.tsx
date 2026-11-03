@@ -588,7 +588,8 @@ export default function DocumentView(props: DocumentViewProps) {
   ];
   // Someone else holds the page's edit lock, as who's viewing says: their editor opens read only.
   const snap = presence.snapshot;
-  const otherEditor = snap?.viewers.find((x) => x.editing && x.id !== snap.you && x.id !== snap.me?.id) ?? null;
+  // (`you` is this person's own entry, all their tabs; without it, their name stands in.)
+  const otherEditor = snap?.viewers.find((x) => x.editing && x.id !== snap.you && x.id !== snap.me?.id && !(snap.you == null && !!user?.name && x.name === user.name)) ?? null;
   const othersEditing = otherEditor ? otherEditor.name || (otherEditor.animal ? `Anonymous ${otherEditor.animal}` : "Someone") : null;
   const pageBacklinks = !tenant ? <Backlinks slug={slug} addressing={addressing} /> : null;
   const pageFooter = isPage ? (

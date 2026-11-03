@@ -289,6 +289,7 @@ button.pb-mention--date { cursor: pointer; }
 .pb-head--edit:hover .pb-head__add, .pb-head__add:focus-within, .pb-head__add--on { opacity: 1; transform: none; }
 .pb-head__iconwrap { position: relative; }
 .pb-title { display: block; width: 100%; margin: 0 0 6px; padding: 2px 0; border: 0; border-radius: 0; background: none; color: var(--text); font: 800 40px/1.2 var(--font-sans); letter-spacing: -0.025em; resize: none; outline: none; overflow: hidden; overflow-wrap: anywhere; }
+textarea.pb-title { field-sizing: content; min-height: 0; }
 .pb-title::placeholder { color: var(--text-subtle); opacity: 0.7; }
 .pb-pop, .pb-emojipick, .pb-coverpick { animation: pb-pop 140ms var(--ease-out); transform-origin: top left; }
 
@@ -299,7 +300,9 @@ button.pb-mention--date { cursor: pointer; }
 .pb-editor .dxe-root { margin-top: 0; }
 .pb-frame .dxe-content { min-height: 160px; padding-bottom: 48px; }
 .pb-frame .pb-root { min-height: 160px; padding-bottom: 48px; }
-.pb-frame .md-prose--reading { font-size: 16px; line-height: 1.65; }
+.pb-frame .md-prose.md-prose--reading { font-size: 16px; line-height: 1.65; }
+/* The editor's to-dos line up with the reader's (their checkbox in the list's indent). */
+.pb-frame .dxe-content li[data-task] { margin-left: calc(-1.4em - 4px); }
 .pb-frame .md-prose--reading :where(h1):not(:where(.not-prose, .not-prose *)) { margin: 1.4em 0 0.3em; font-size: 30px; line-height: 1.3; font-weight: 700; letter-spacing: -0.01em; }
 .pb-frame .md-prose--reading :where(h2):not(:where(.not-prose, .not-prose *)) { margin: 1.4em 0 0.3em; font-size: 24px; line-height: 1.33; font-weight: 700; letter-spacing: -0.01em; }
 .pb-frame .md-prose--reading :where(h3):not(:where(.not-prose, .not-prose *)) { margin: 1.4em 0 0.3em; font-size: 20px; line-height: 1.4; font-weight: 700; letter-spacing: -0.01em; }
@@ -307,14 +310,15 @@ button.pb-mention--date { cursor: pointer; }
 .pb-frame .md-prose--reading :where(p):not(:where(.not-prose, .not-prose *)) { margin: 4px 0; padding: 2px 0; }
 .pb-frame .md-prose--reading :where(ul, ol, dl):not(:where(.not-prose, .not-prose *)) { margin: 4px 0; }
 .pb-frame .md-prose--reading :where(li):not(:where(.not-prose, .not-prose *)) { margin: 2px 0; }
-.pb-frame .md-prose--reading :where(li > p, li > ul, li > ol):not(:where(.not-prose, .not-prose *)) { margin: 0; }
+.pb-frame .md-prose--reading :where(li > p, li > ul, li > ol, li p):not(:where(.not-prose, .not-prose *)) { margin: 0; }
+.pb-frame .md-prose--reading :where(li p):not(:where(.not-prose, .not-prose *)) { padding: 0; }
 .pb-frame .md-prose--reading :where(blockquote):not(:where(.not-prose, .not-prose *)) { margin: 6px 0; padding: 2px 0 2px 16px; }
 .pb-frame .md-prose--reading :where(hr):not(:where(.not-prose, .not-prose *)) { margin: 14px 0; }
 .pb-frame .md-prose--reading :where(.md-codeblock, .md-diagram-wrap, .md-diagram-error, .md-scrollbox) { margin: 10px 0; }
 .pb-frame .pb-page :is(.pb-callout, .pb-details, .pb-figure, .pb-code, .md-table-box, .pb-embed, .pb-card, .pb-bookmark, .pb-webembed, .pb-cover, .pb-locked, .pb-toc, .pb-columns),
 .pb-frame .dxe-content :is(.dxe-callout, .dxe-details, .dxe-figure, .dxe-code, .tableWrapper, .dxe-leaf, .dxe-pembed) { margin-top: 10px; margin-bottom: 10px; }
 .pb-frame .md-prose--reading > :first-child, .pb-frame .md-prose--reading > .md-heading-wrap:first-child > :first-child { margin-top: 0; }
-.pb-frame.pb-small .md-prose--reading { font-size: 14px; line-height: 1.6; }
+.pb-frame.pb-small .md-prose.md-prose--reading { font-size: 14px; line-height: 1.6; }
 .pb-frame.pb-font-serif :is(.md-prose, .pb-title) { font-family: ui-serif, Georgia, "Times New Roman", serif; }
 .pb-frame.pb-font-mono :is(.md-prose, .pb-title) { font-family: var(--font-mono); }
 .pb-emptyread { margin: 4px 0; color: var(--text-muted); font-size: 15px; }
@@ -427,3 +431,7 @@ button.pb-mention--date { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .pb-frame *, .pb-frame *::before, .pb-frame *::after, .pb-barwrap, .pb-sheet-layer *, .pb-phonebar, .pb-phonebar * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
+
+/* Callout text on one size for the reader and the editor. */
+.pb-frame :is(.pb-callout, .dxe-callout) :is(p, li) { font-size: 15px; line-height: 24px; }
+.pb-save__l--solo { animation: pb-fade 180ms var(--ease-out); }

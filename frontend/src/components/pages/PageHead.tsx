@@ -279,7 +279,9 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
               }
             }}
             ref={(el) => {
-              if (el) {
+              // Grows with its text: CSS field-sizing where the browser has it (exactly the
+              // reader's h1 height), else measured.
+              if (el && !(typeof CSS !== "undefined" && CSS.supports?.("field-sizing", "content"))) {
                 el.style.height = "auto";
                 el.style.height = `${el.scrollHeight}px`;
               }

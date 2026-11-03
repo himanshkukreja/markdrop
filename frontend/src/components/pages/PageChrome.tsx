@@ -147,13 +147,22 @@ export function SaveIndicator({ save, online, opening }: { save: SaveState; onli
     error: "Not saved",
   };
   const shown = state === "opening" ? "saved" : state;
+  // Saved and Saving… share one slot and cross-fade (they alternate all the time); the rare
+  // Offline / Not saved fade in in their place.
+  const rare = shown === "offline" || shown === "error";
   return (
     <span className="pb-save" data-state={shown}>
-      {(["saved", "saving", "offline", "error"] as const).map((k) => (
-        <span key={k} className="pb-save__l" data-on={k === shown ? "" : undefined} aria-hidden={k !== shown}>
-          {label[k]}
+      {rare ? (
+        <span key={shown} className="pb-save__l pb-save__l--solo" data-on="">
+          {label[shown]}
         </span>
-      ))}
+      ) : (
+        (["saved", "saving"] as const).map((k) => (
+          <span key={k} className="pb-save__l" data-on={k === shown ? "" : undefined} aria-hidden={k !== shown}>
+            {label[k]}
+          </span>
+        ))
+      )}
       <span className="md-visually-hidden" role="status">{shown === "saved" ? "" : shown === "saving" ? "Saving" : shown === "offline" ? "Offline, retrying" : "Not saved"}</span>
     </span>
   );
