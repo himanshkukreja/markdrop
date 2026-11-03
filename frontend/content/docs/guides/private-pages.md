@@ -88,7 +88,7 @@ A reader who opens a private page they can't read gets the guide's lock page, in
 
 ![The lock page for a password page: This page is password protected, a Password box and Continue.](/docs-assets/guides/private-pages/lock-page-password.webp)
 
-Readers stay signed in on that browser for 7 days. **Sign out every reader** (Settings › Private pages) signs everyone out at once, for when a link or a password was shared too widely. A new password locks out everyone who used the old one.
+Readers stay signed in on that browser for 7 days. **Sign out every reader** (Settings › Private pages) signs everyone out at once, for when a link or a password was shared too widely. A new password locks out everyone who used the old one. Removing someone from the team (or taking away their Guides role) signs every team member out of private pages; the others sign in again with one click.
 
 ## Access requests
 
