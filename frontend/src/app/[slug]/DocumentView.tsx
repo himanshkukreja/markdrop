@@ -30,6 +30,7 @@ import vs from "./doc/viewer.module.css";
 import type { PageActionRequest } from "@/components/pages/PageActions";
 import { readPageProps } from "@/components/pages/pageProps";
 import { assetId, pagePath } from "@/lib/pageAddress.mjs";
+import type { PageAiStatus } from "@/lib/pages-ai/ask";
 
 // Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
 // load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
@@ -64,6 +65,9 @@ const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m)
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
+// Page AI (reader side): the Ask pill for signed-in readers, and Translate… for editors. Both load on demand.
+const AskLauncher = dynamic(() => import("@/components/pages/ai/AskLauncher").then((m) => m.AskLauncher), { ssr: false, loading: () => null });
+const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
 
 /**
  * Does the document already open with its own title?
@@ -211,6 +215,8 @@ export default function DocumentView(props: DocumentViewProps) {
   const [deleting, setDeleting] = useState(false);
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
+  const [aiStatus, setAiStatus] = useState<PageAiStatus | null>(null);
+  const [translating, setTranslating] = useState(false);
   const [treeKey, setTreeKey] = useState(0);
   const [kidsKey, setKidsKey] = useState(0);
   const pagePathSlugs = page?.page_path ?? [];
@@ -590,6 +596,7 @@ export default function DocumentView(props: DocumentViewProps) {
   const EDITOR_HAS = new Set(["View raw", "View rendered", "Add a sub-page", "Move to…", "Duplicate", "Edit", "Report", "Save a copy"]);
   const editorDocMenu: MenuEntry[] = [
     ...menu.filter((m) => !("label" in m) || typeof m.label !== "string" || !EDITOR_HAS.has(m.label)).map((m, i) => (i === 0 ? { ...m, separated: true } : m)),
+    ...(canAddSubPage && (aiStatus?.can_write || aiStatus?.reason === "workspace_off") ? [{ label: "Translate…", icon: "globe", description: aiStatus.can_write && aiStatus.enabled ? "A translated copy next to this page" : "AI is off for this workspace", disabled: !(aiStatus.can_write && aiStatus.enabled), onClick: () => setTranslating(true) }] : []),
     detailsItem,
   ];
   // Someone else holds the page's edit lock, as who's viewing says: their editor opens read only.
@@ -742,6 +749,7 @@ export default function DocumentView(props: DocumentViewProps) {
         )}
       </div>
       {!pageEditable && <LiveUpdatePill show={livePill} />}
+      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} />}
     </div>
   ) : null;
   return (
@@ -1065,6 +1073,7 @@ export default function DocumentView(props: DocumentViewProps) {
         <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
       )}
       {pageActions}
+      {translating && <TranslateDialog open onClose={() => setTranslating(false)} slug={slug} title={displayTitle} onCreated={() => setTreeKey((k) => k + 1)} />}
       {isPage && (
         <DeletePageDialog
           open={deleting}

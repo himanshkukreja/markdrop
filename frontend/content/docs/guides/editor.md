@@ -2,7 +2,7 @@
 title: Write in the editor
 nav: The editor
 description: "The page editor: blocks and the slash menu, drag and drop, Markdrop files and private sections, AI help, find and replace, checks, comments and locks."
-updated: 2026-11-02
+updated: 2026-11-04
 prerequisites: [/guides/create-a-site]
 keywords: [editor, visual editor, markdown, slash menu, blocks, drag and drop, reorder cards, markdrop file, embed, private section, video, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
 ---
@@ -65,6 +65,8 @@ The answer appears under the text as a suggestion, and the passage it would repl
 ![Make it shorter on the Before you start paragraph: the paragraph stays highlighted, and under it the suggestion "You need an Acme account and the address of a database Acme can reach." with Accept, Try again and Discard, and "Check it before you accept. AI can make mistakes."](/docs-assets/guides/editor/editor-ai-suggestion.webp)
 
 AI help keeps links, code, Markdown and blocks like callouts as they are, and it never follows instructions written in your text. Still, read a suggestion before you accept it.
+
+The editor has the rest of the writing tools from Markdrop pages too: **⌘ J** opens **Ask AI** on the selection, or drafts at the caret when nothing is selected, and the **AI** menu in the status bar has **Ask AI to write…**, **Summarize page**, **Find action items** and **Suggest title & description**. Images you add get suggested alt text. They all work as described in [AI in pages](/pages/ai), and every use counts toward the guide's AI budget below.
 
 Limits:
 
@@ -161,6 +163,7 @@ Press `?` (when you're not typing) or **Shortcuts** in the status bar for the li
 | :kbd[⌘ B], :kbd[⌘ I], :kbd[⌘ E] | Bold, italic, inline code |
 | :kbd[⌘ ⇧ S], :kbd[⌘ ⇧ K] | Strikethrough, keyboard key |
 | :kbd[⌘ K] | Link (with text selected) |
+| :kbd[⌘ J] | Ask AI on the selection, or write at the caret |
 | :kbd[⌘ ⌥ 2], :kbd[⌘ ⌥ 3] | Heading, subheading |
 | :kbd[⌘ ⇧ 8], :kbd[⌘ ⇧ 7], :kbd[⌘ ⇧ B] | Bulleted list, numbered list, quote |
 | :kbd[⌘ ⌥ C] | Code block |
@@ -203,3 +206,4 @@ If the page was saved by someone else since you opened it, Markdrop Guides stops
 - [Embed files that render](/guides/embed-files): the Markdrop file block.
 - [Private pages and sections](/guides/private-pages): the Private section block.
 - [History and versions](/guides/history): every save.
+- [AI in pages](/pages/ai): the same AI tools in Markdrop pages.

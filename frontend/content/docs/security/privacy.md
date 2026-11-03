@@ -1,7 +1,7 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-11-02
+updated: 2026-11-04
 keywords: [privacy, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 
@@ -66,6 +66,7 @@ Files go straight from your device to the other person's and are never stored on
 - MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the peer-to-peer relay).
 - Resend (sign-in and notification email).
 - PostHog and Google (analytics, as above).
+- Anthropic (the AI in pages and in Markdrop Guides): only the text a request needs, when someone uses AI. Markdrop keeps usage counts, never the text. See [AI in pages](/pages/ai#whats-sent-to-anthropic).
 
 Markdrop doesn't sell personal data, and doesn't use it for advertising.
 

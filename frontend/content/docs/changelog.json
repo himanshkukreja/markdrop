@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "page-ai",
+      "date": "2026-11-04",
+      "title": "AI in pages: rewrite, draft, summarize, translate, and ask a page questions",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Pages have AI built in. Editors rewrite a selection, draft with /ai, turn notes into a page, find action items, summarize, translate a whole page and get alt text. Signed-in readers can ask a page questions.",
+      "body": "- **Ask AI** on a selection (or **⌘ J**): improve, shorten, fix spelling and grammar, change tone, translate, turn into a checklist or a table, explain. Every result is a suggestion you accept or discard.\n- **/ai** on an empty line drafts in the page's own blocks, with the page in mind. **New page › Start from notes** turns pasted notes into a structured page.\n- In the page's **⋯** menu: **Summarize page** (a Summary note at the top), **Find action items** (to-dos with person and date chips), **Suggest title & icon** and **Translate…**, which makes a translated copy next to the page and leaves the original as it is.\n- Images you upload get suggested alt text.\n- **✦ Ask** for signed-in readers: questions about the page, answered from it and from the embedded items you can open, with links to the sections they use. It works on a workspace's own domain too.\n- No AI for visitors who aren't signed in or for encrypted documents. Admins can turn **AI features** off for a workspace.\n- Only the text a request needs goes to Anthropic, and Markdrop keeps usage counts, never the text. Fair use during the beta: 30 requests a minute and 300 a day per person.\n- The same writing tools in the Markdrop Guides editor, and three new MCP tools: `translate_page`, `summarize_page` and `suggest_page_meta`. See [AI in pages](/pages/ai).",
+      "docs": [
+        "/pages/ai",
+        "/pages/keyboard-shortcuts",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",
