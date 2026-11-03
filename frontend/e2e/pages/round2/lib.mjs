@@ -71,6 +71,14 @@ export async function md(slug) {
   return (await call("GET", `/api/v1/documents/${slug}`, w.token)).content;
 }
 
+export const pendingOf = new WeakMap();
+/** The requests a page still has open, oldest first. */
+export function pending(p) {
+  const open = pendingOf.get(p);
+  if (!open) return [];
+  return [...open].sort((a, b) => a[1] - b[1]).map(([r, at]) => `${r.method()} ${r.url().slice(0, 140)} (${Date.now() - at} ms)`);
+}
+
 export async function context(browser, { width = 1280, height = 900, touch = false } = {}) {
   const w = await seed();
   const c = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: width < 500 ? 2 : 1, colorScheme: THEME, hasTouch: touch, isMobile: touch && BROWSER === "chromium" });
@@ -85,6 +93,16 @@ export async function context(browser, { width = 1280, height = 900, touch = fal
   }, [THEME, w.token]);
   const p = await c.newPage();
   p.on("pageerror", (e) => console.log("  [pageerror]", e.message.slice(0, 300)));
+  // Requests still open (printed when a step fails, to tell a hang from a bug).
+  const open = new Map();
+  p.on("request", (r) => open.set(r, Date.now()));
+  p.on("requestfinished", (r) => open.delete(r));
+  p.on("requestfailed", (r) => open.delete(r));
+  p.on("response", (r) => {
+    if (r.status() >= 400 && !/example\.com/.test(r.url())) console.log(`  [${r.status()}]`, r.request().method(), r.url().slice(0, 160));
+  });
+  p.on("console", (m) => m.type() === "error" && !/ERR_BLOCKED_BY_ORB|Failed to load resource/.test(m.text()) && console.log("  [console]", m.text().slice(0, 300)));
+  pendingOf.set(p, open);
   return { c, p };
 }
 
