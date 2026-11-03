@@ -32,6 +32,8 @@ Type `/` on any line to open the block menu. Keep typing to filter it, use the a
 
 You can also type Markdown as you go: `#` and a space makes a heading, `-` a bulleted list, `1.` a numbered one, `[]` a to-do, `>` or `"` a quote, ` ``` ` a code block, `---` a divider and `$$` an equation. `**bold**`, `*italic*`, `` `code` `` and `~~strike~~` format as you type, and `:` followed by a name inserts an emoji (`:rocket` gives 🚀). [Keyboard shortcuts](/pages/keyboard-shortcuts) lists the rest.
 
+Paste from Google Docs, Notion, GitHub, Word or a web page and you get blocks, not plain text. Paste a link on its own to make it a mention, a bookmark or an embed. See [Paste into a page](/pages/paste).
+
 Select text to format it, add a link, or turn a line into another kind of block. Hover a block to see its handle: drag it to move the block, or click it for **Move up**, **Move down**, **Duplicate** and **Delete**. Press **Esc** to select the block you're in.
 
 ## Title, icon and cover
@@ -70,4 +72,5 @@ People who can open the page see it as you laid it out, with the same blocks. Em
 - [Templates](/pages/templates)
 - [Sub-pages and access inheritance](/pages/sub-pages)
 - [Images in pages](/pages/images)
+- [Paste into a page](/pages/paste)
 - [Page Markdown reference](/pages/markdown-reference)

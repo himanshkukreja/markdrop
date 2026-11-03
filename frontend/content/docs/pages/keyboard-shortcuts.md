@@ -59,3 +59,12 @@ Inside a line: `**bold**`, `*italic*`, `` `code` `` and `~~strike~~`.
 ## In menus
 
 The block menu, the emoji menu and pickers work from the keyboard: **↑** / **↓** to move, **Enter** to choose, **Esc** to close.
+
+## Paste
+
+| Shortcut | What it does |
+| --- | --- |
+| **⌘ V** | Paste. Content from other apps and Markdown become blocks. See [Paste into a page](/pages/paste). |
+| **⌘ ⇧ V** | Paste as plain text |
+| **↑** / **↓**, **Enter** | After pasting a link on its own: choose **Link**, **Mention**, **Bookmark** or **Embed** |
+| **Esc** | After pasting a link on its own: keep it as a link |
