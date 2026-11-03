@@ -23,8 +23,8 @@ export interface YourTemplatesProps {
   workspaceName?: string | null;
   chosen: string;
   onChoose: (t: ChosenTemplate | null) => void;
-  /** Double-click: choose and create at once. */
-  onCreate?: () => void;
+  /** Double-click: choose and create at once (with that template). */
+  onCreate?: (t: ChosenTemplate) => void;
 }
 
 export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose, onCreate }: YourTemplatesProps) {
@@ -55,8 +55,9 @@ export function YourTemplates({ open, workspace, workspaceName, chosen, onChoose
     onChoose({ id: t.id, name: t.name, description: t.description, icon: "layers", category: "", content: "" });
     try {
       const full = await getTemplate(t.id);
-      onChoose({ id: t.id, name: t.name, description: t.description, icon: "layers", category: "", content: fillAuthor(full.content, author), assets: full.assets });
-      if (thenCreate) onCreate?.();
+      const picked: ChosenTemplate = { id: t.id, name: t.name, description: t.description, icon: "layers", category: "", content: fillAuthor(full.content, author), assets: full.assets };
+      onChoose(picked);
+      if (thenCreate) onCreate?.(picked);
     } catch {
       /* the preview stays empty; creating still works */
     } finally {

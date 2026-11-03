@@ -76,17 +76,19 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
     return list.some((t) => t.id === "blank") ? [...list.filter((t) => t.id !== "blank"), list.find((t) => t.id === "blank")!] : [...list, BLANK];
   }, [templates]);
   const current: ChosenTemplate = (custom?.id === chosen ? custom : null) ?? all.find((t) => t.id === chosen) ?? BLANK;
+  const currentNow = current;
   const preview = useMemo(() => fillTemplate(current.content, { title: title.trim() || current.name }), [current, title]);
 
-  async function create(e?: React.FormEvent) {
+  async function create(e?: React.FormEvent, picked?: ChosenTemplate) {
     e?.preventDefault();
+    const current = picked ?? currentNow;
     const name = title.trim() || (current.id === "blank" ? "Untitled" : current.name);
     setBusy(true);
     setError("");
     try {
       const created = await createPage({ title: name, workspace, folder, parent, template: current.id === "blank" ? null : current.id });
       rememberSecret(created);
-      track("page_create", { template: current.id, sub_page: !!parent, workspace: !!workspace });
+      track("page_create", { template: /^[0-9a-f]{24}$/.test(current.id) ? "custom" : current.id, sub_page: !!parent, workspace: !!workspace });
       if (onCreated) onCreated(created);
       else router.push(`/${encodeURIComponent(created.document.slug)}?edit=1`);
     } catch (err) {
@@ -137,7 +139,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           {loadError ? (
             <Alert tone="warning">{loadError} You can still start from a blank page.</Alert>
           ) : null}
-          <YourTemplates open={open} workspace={workspace} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={() => void create()} />
+          <YourTemplates open={open} workspace={workspace} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={(t) => void create(undefined, t)} />
           <div className="pb-templates" role="group" aria-labelledby={`${titleId}-t`}>
             {!templates && !loadError
               ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={96} />)
