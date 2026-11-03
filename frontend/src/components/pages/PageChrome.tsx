@@ -419,6 +419,7 @@ export function PageFrame({
   layout,
   full,
   innerRef,
+  frameRef,
   ...rest
 }: {
   bar: ReactNode;
@@ -429,9 +430,10 @@ export function PageFrame({
   layout?: string;
   full?: boolean;
   innerRef?: React.Ref<HTMLDivElement>;
+  frameRef?: React.Ref<HTMLDivElement>;
 } & Omit<React.HTMLAttributes<HTMLDivElement>, "children">) {
   return (
-    <div {...rest} className={cx("pb-frame", layout, rest.className)} data-full={full ? "" : undefined}>
+    <div {...rest} ref={frameRef} className={cx("pb-frame", layout, rest.className)} data-full={full ? "" : undefined}>
       {bar}
       {head}
       <div ref={innerRef} className="pb-col pb-body">
@@ -471,6 +473,7 @@ export function SubPages({
 }) {
   const [kids, setKids] = useState<ChildPage[] | null>(null);
   const [error, setError] = useState(false);
+  const headId = useId();
   useEffect(() => {
     if (!count) {
       setKids([]);
@@ -488,9 +491,9 @@ export function SubPages({
 
   if (!count && !onAdd) return null;
   return (
-    <section className="pb-children no-print" aria-labelledby="pb-children-h">
+    <section className="pb-children no-print" aria-labelledby={headId}>
       <div className="pb-children__head">
-        <h2 id="pb-children-h" className="pb-children__h">
+        <h2 id={headId} className="pb-children__h">
           Pages inside
         </h2>
         {onAdd && (

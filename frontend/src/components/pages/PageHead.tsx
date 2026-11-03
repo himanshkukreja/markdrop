@@ -242,9 +242,9 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
             {iconPicker("icon")}
           </div>
         )}
-        {!ro && (
-          <div className={cx("pb-head__add", (iconOpen === "add" || coverOpen === "add") && "pb-head__add--on")}>
-            {!props.icon && (
+        {/* Always there (empty for readers), so the title sits at the same height for everyone. */}
+        <div className={cx("pb-head__add", (iconOpen === "add" || coverOpen === "add") && "pb-head__add--on")} aria-hidden={ro || undefined}>
+          {!ro && !props.icon && (
               <span className="pb-head__iconwrap">
                 <button type="button" className="pb-headbtn pb-headbtn--quiet md-focus" onClick={() => setIconOpen("add")}>
                   <Icon name="sparkle" size={16} aria-hidden /> Add icon
@@ -252,7 +252,7 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
                 {iconPicker("add")}
               </span>
             )}
-            {!style && (
+            {!ro && !style && (
               <span className="pb-head__iconwrap">
                 <button type="button" className="pb-headbtn pb-headbtn--quiet md-focus" onClick={() => setCoverOpen("add")}>
                   <Icon name="image" size={16} aria-hidden /> Add cover
@@ -260,8 +260,7 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
                 {coverOpen === "add" && <CoverPicker onPick={pickCover} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(null)} />}
               </span>
             )}
-          </div>
-        )}
+        </div>
         {edit ? (
           <textarea
             className="pb-title ph-mask"

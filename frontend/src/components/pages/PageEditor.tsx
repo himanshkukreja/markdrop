@@ -213,6 +213,9 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
   }, [workspaceId]);
 
   const empty = !splitFrontmatter(content).body.trim();
+  const emptyRef = useRef(empty);
+  emptyRef.current = empty;
+  const frameRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!empty || templates.length) return;
     listPageTemplates().then((t) => setTemplates(t.filter((x) => x.id !== "blank" && x.content.trim()))).catch(() => {});
@@ -294,6 +297,17 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
       if (e && !readyOnce.current) {
         readyOnce.current = true;
         onReady?.();
+        // A new, empty page: the caret goes to the title (or the body when it has one), once the
+        // editor is on screen.
+        if (emptyRef.current) {
+          requestAnimationFrame(() =>
+            requestAnimationFrame(() => {
+              const t = frameRef.current?.querySelector<HTMLTextAreaElement>("textarea.pb-title");
+              if (t && !t.value) t.focus();
+              else api.current?.focus();
+            }),
+          );
+        }
       }
     },
     [onReady],
@@ -426,6 +440,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
         />
       }
       footer={chrome.footer}
+      frameRef={frameRef}
       data-editing=""
     >
       {chrome.notices}
@@ -474,7 +489,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
           onEditor={onEditor}
           stickyTop={() => document.querySelector(".pb-barwrap")?.getBoundingClientRect().bottom ?? 44}
           aria-label="Page content"
-          autoFocus={empty}
+          autoFocus={false}
         />
       </div>
       {phone && <PagePhoneBar editor={editor} readOnly={readOnly} />}
