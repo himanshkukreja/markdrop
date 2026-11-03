@@ -479,6 +479,8 @@ export function AssistPanel({ editor, store, container }: { editor: Editor; stor
       stopBtn.current?.focus({ preventScroll: true });
     }
     if (s.phase === "ready" || s.phase === "error") primary.current?.focus({ preventScroll: true });
+    // Done: the answer is read from its start.
+    if (s.phase === "ready" && body.current && body.current.scrollTop > 0) body.current.scrollTo({ top: 0, behavior: reducedMotion() ? "auto" : "smooth" });
     if (open) card.current?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
     setCopied(false);
   }, [s.phase, s.phase !== "idle" ? s.seq : 0]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -128,6 +128,8 @@
   .dxe-ai__kbd { display: none; }
   .dxe-ai__input { font-size: 16px; }
   .dxe-ai__idea { height: 44px; font-size: 15px; }
+  /* The toolbar is tight on a phone: the AI button is its sparkle. */
+  .dxe-tb__btn--ai > span { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

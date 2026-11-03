@@ -43,6 +43,20 @@ export function AiSheet({ editor, store }: { editor: Editor; store: AssistStore 
     return () => window.clearTimeout(t);
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Open: the focus moves into the sheet, and Esc closes it from anywhere.
+  useEffect(() => {
+    if (!open || !mounted) return;
+    requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>(".dxe-aim__item, input")?.focus({ preventScroll: true }) ?? panel.current?.focus({ preventScroll: true }));
+    const key = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopPropagation();
+      store.openSheet(false);
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [open, mounted, store]);
+
   if (!mounted || typeof document === "undefined") return null;
   const close = () => store.openSheet(false);
   const pick = (p: AiPick) => {
@@ -55,13 +69,14 @@ export function AiSheet({ editor, store }: { editor: Editor; store: AssistStore 
   };
 
   return createPortal(
-    <div className={cx("dxe-aisheet", closing && "dxe-aisheet--closing")} onKeyDown={(e) => e.key === "Escape" && close()}>
+    <div className={cx("dxe-aisheet", closing && "dxe-aisheet--closing")}>
       <div className="dxe-aisheet__scrim" onClick={close} aria-hidden />
       <div
         ref={panel}
         className="dxe-aisheet__panel"
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-label="Ask AI"
         onPointerDown={(e) => {
           if (!(e.target as HTMLElement).closest(".dxe-aisheet__grab")) return;
