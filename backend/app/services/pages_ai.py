@@ -1569,8 +1569,11 @@ async def translate_page(job: Job, *, lang: str, actor, ctx) -> AsyncIterator[tu
     from app.services import access, page_props
 
     lang = language(lang)
+    from app.services import pages
+
     raw = job.target.raw
-    content = raw.get("content") or ""
+    # As this person may see it: names of people stay hidden from someone outside the page's circle.
+    content = await pages.content_for(actor, raw, ctx) or ""
     if len(content) > TRANSLATE_MAX_CHARS:
         raise AIError(413, "too_long", f"Pages up to {TRANSLATE_MAX_CHARS:,} characters can be translated.")
     if not page_props.split(content)[1].strip():
@@ -1636,17 +1639,21 @@ async def _translate_stream(job: Job, *, lang: str, content: str, parent_slug: s
                 workspace=raw.get("workspace_id") if parent_slug is None else None,
                 folder=raw.get("folder_id") if parent_slug is None and raw.get("workspace_id") else None,
                 parent=parent_slug, content=translated)
+        except HTTPException as exc:
+            await job.record("error", error_code=f"create_{exc.status_code}")
+            detail = exc.detail if isinstance(exc.detail, str) else "The translated page couldn't be created."
+            yield ev("error", detail=detail, code="create_failed")
+            return
+        try:
             remapped = await copy_images(job.db, raw, new, translated, job.user.id)
             if remapped != translated:
                 from app.schemas.document import DocumentUpdate
 
                 await doc_service.update_document(job.db, new["slug"], DocumentUpdate(title=title, content=remapped),
                                                   actor, ctx)
-        except HTTPException as exc:
-            await job.record("error", error_code=f"create_{exc.status_code}")
-            detail = exc.detail if isinstance(exc.detail, str) else "The translated page couldn't be created."
-            yield ev("error", detail=detail, code="create_failed")
-            return
+        except Exception as exc:
+            # The copy exists either way; its images just keep pointing at the original's.
+            log.warning("pages ai: images for a translated copy weren't remapped: %s", type(exc).__name__)
         url = await urls.workspace_url(job.db, new) or urls.markdrop_url(new["slug"])
         await job.record("ok", chars_out=len(translated), new_slug=new["slug"])
         yield ev("done", slug=new["slug"], url=url, title=title, request_id=job.request_id, usage=job.usage(),
