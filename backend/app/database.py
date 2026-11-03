@@ -136,6 +136,11 @@ async def connect() -> None:
 
     await _traffic.ensure_indexes(db)
 
+    # Pages: sub-pages by parent, and their images (services/pages.py).
+    from app.services import pages as _pages
+
+    await _pages.ensure_indexes(db)
+
     # Email campaigns + opt-out lookups for building an audience
     await db["campaigns"].create_index([("created_at", -1)])
     await db["users"].create_index("unsubscribed_at", sparse=True)

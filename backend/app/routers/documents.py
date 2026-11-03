@@ -1,7 +1,8 @@
 import json
 import re
+from typing import Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.responses import JSONResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -17,13 +18,16 @@ from app.schemas.document import (
     DocumentResponse,
     DocumentSettingsRequest,
     DocumentUpdate,
+    EditorSwitchRequest,
+    EmbedsRequest,
     EventRequest,
+    ParentMoveRequest,
     ReportRequest,
     SlugChangeRequest,
 )
 from app.services import access, analytics, artifact as art_service, document as doc_service
 from app.services import folder as folder_service
-from app.services import publicity, tickets, urls
+from app.services import page_assets, pages, publicity, tickets, urls
 from app.services.doc_ref import doc_ref
 from app.utils.net import get_client_ip
 
@@ -53,7 +57,13 @@ def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = Non
     return dict(
         slug=doc.slug,
         url=_build_url(doc.slug),
-        folder_path=doc.folder_path,
+        # The address prefix on a workspace's domain: folders, then (for a
+        # sub-page) its ancestor pages' slugs.
+        folder_path=[*doc.folder_path, *doc.page_path],
+        page_path=doc.page_path,
+        editor=doc.editor,
+        access_inherit=(doc.access_inherit is not False) if doc.parent_id else None,
+        template_id=doc.template_id,
         title=doc.title,
         content=doc.content,
         created_at=doc.created_at,
@@ -109,6 +119,8 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     body["presence_ticket"] = (tickets.mint_presence(str(raw["_id"]), actor.user_id)
                                if actor.user_id else None)
     body["show_presence"] = (raw.get("show_presence") is not False) if body.get("is_owner") else None
+    # Pages (services/pages.py): parent, breadcrumbs, sub-page count, images.
+    body.update(await pages.page_fields(db, raw, actor, ctx))
     return body
 
 
@@ -223,7 +235,7 @@ async def get_document(
         return JSONResponse(
             {"moved": True, "slug": current, "url": _build_url(current),
              "workspace_url": await urls.workspace_url(db, raw),
-             "folder_path": raw.get("folder_path") or []},
+             "folder_path": [*(raw.get("folder_path") or []), *(raw.get("page_path") or [])]},
             headers={"X-Markdrop-Moved": current},
         )
     body = await _full_response(db, raw, actor, ctx)
@@ -237,7 +249,7 @@ async def get_document(
 
 
 @router.put("/{slug}", response_model=DocumentResponse)
-@limiter.limit(settings.rate_limit_create)
+@limiter.limit(settings.rate_limit_edit)
 async def update_document(
     request: Request,
     slug: str,
@@ -260,9 +272,13 @@ async def delete_document(
     db: AsyncIOMotorDatabase = Depends(get_db),
     x_edit_secret: str | None = Header(None),
     user: User | None = Depends(optional_user),
+    children: Literal["delete", "lift"] | None = Query(None),
 ):
+    """A page with sub-pages needs ``?children=delete`` (they go too) or
+    ``?children=lift`` (they move up a level); without it, 409
+    ``{code: "has_children", count}``."""
     actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
-    await doc_service.delete_document(db, slug, actor, _ctx(db, request))
+    await doc_service.delete_document(db, slug, actor, _ctx(db, request), children=children)
 
 
 @router.post("/{slug}/edit-secret/rotate")
@@ -365,6 +381,170 @@ async def update_settings(
         custom_expires_at=data.custom_expires_at,
     )
     return DocumentResponse(**await _full_response(db, after, actor, ctx))
+
+
+# ── Pages (services/pages.py, services/page_assets.py) ────────────────────────
+
+
+async def _readable_page(db, request: Request, slug: str, user, *, read_password: str | None = None,
+                         edit_secret: str | None = None, scope: str | None = None):
+    """(row, actor, ctx) for a caller past can(read) on the document at exactly ``slug``."""
+    actor = access.actor_from_request(request, user, edit_secret=edit_secret, read_password=read_password)
+    ctx = _ctx(db, request, scope)
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "read", ctx)
+    return raw, actor, ctx
+
+
+@router.put("/{slug}/editor", response_model=DocumentResponse)
+@limiter.limit(settings.rate_limit_create)
+async def switch_editor(
+    request: Request,
+    slug: str,
+    data: EditorSwitchRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """Open a document in the block editor (``blocks``) or the classic one.
+    The Markdown is unchanged. can(edit_content); refused for encrypted
+    documents and files."""
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    ctx = _ctx(db, request)
+    raw = await db["documents"].find_one({"slug": slug})
+    after = await pages.set_editor(db, raw, data.editor, actor, ctx)
+    return DocumentResponse(**await _full_response(db, after, actor, ctx))
+
+
+@router.get("/{slug}/children")
+@limiter.limit(settings.rate_limit_read)
+async def list_children(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_read_password: str | None = Header(None),
+    x_edit_secret: str | None = Header(None),
+    x_markdrop_workspace: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """The page's sub-pages this caller can read: ``[{slug, title, editor,
+    updated_at, has_children, access_inherit}]``, oldest first."""
+    raw, actor, ctx = await _readable_page(db, request, slug, user, read_password=x_read_password,
+                                           edit_secret=x_edit_secret, scope=x_markdrop_workspace)
+    return await pages.children_listing(db, raw, actor, ctx)
+
+
+@router.put("/{slug}/parent", response_model=DocumentResponse)
+@limiter.limit(settings.rate_limit_create)
+async def move_page(
+    request: Request,
+    slug: str,
+    data: ParentMoveRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Put the page under another page (``parent``: its slug) or at the top
+    (null). 409 ``{code: "access_change", readers_before, readers_after}`` when
+    that changes who can read it, unless ``confirm_access_change``."""
+    actor = access.actor_from_request(request, user)
+    ctx = _ctx(db, request)
+    raw = await db["documents"].find_one({"slug": slug})
+    after = await pages.move(db, raw, data.parent, actor, ctx, confirm=data.confirm_access_change)
+    return DocumentResponse(**await _full_response(db, after, actor, access.Ctx(db, surface="rest")))
+
+
+@router.post("/{slug}/assets", status_code=201)
+@limiter.limit("60/minute")
+async def upload_page_asset(
+    request: Request,
+    slug: str,
+    file: UploadFile = File(...),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """An image for the page (PNG, JPEG, GIF or WebP, up to 10 MB):
+    ``{id, mime, size, width, height}``; write it as ``![alt](asset:<id>)``.
+    can(edit_content)."""
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    ctx = _ctx(db, request)
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "edit_content", ctx)
+    data = await file.read(page_assets.MAX_BYTES + 1)
+    return await page_assets.upload(db, raw, data, user_id=actor.user_id or raw.get("owner_id"))
+
+
+@router.get("/{slug}/assets/urls")
+@limiter.limit(settings.rate_limit_read)
+async def page_asset_urls(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_read_password: str | None = Header(None),
+    x_edit_secret: str | None = Header(None),
+    x_markdrop_workspace: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """Fresh links for the page images its content references (signed ones
+    expire with an artifact link's lifetime): ``{assets: {id: {url, expires_at}}}``."""
+    raw, _actor, _ctx_ = await _readable_page(db, request, slug, user, read_password=x_read_password,
+                                              edit_secret=x_edit_secret, scope=x_markdrop_workspace)
+    if raw.get("encrypted"):
+        return {"assets": {}}
+    return {"assets": await page_assets.urls_for(db, raw, pages.asset_ids(raw.get("content")))}
+
+
+@router.post("/{slug}/embeds")
+@limiter.limit(settings.rate_limit_read)
+async def resolve_page_embeds(
+    request: Request,
+    slug: str,
+    data: EmbedsRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_read_password: str | None = Header(None),
+    x_edit_secret: str | None = Header(None),
+    x_markdrop_workspace: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """What this viewer may see of each embedded item (``{embeds: {slug:
+    Resolved}}``). The caller must be able to read the page; each item is then
+    resolved with the item's own access, for this caller. Anything not "ok"
+    carries no title, excerpt or link."""
+    _raw, _page_actor, _ = await _readable_page(db, request, slug, user, read_password=x_read_password,
+                                                edit_secret=x_edit_secret, scope=x_markdrop_workspace)
+    # Items are resolved for the person (no password or edit secret of the page).
+    actor = access.actor_from_request(request, user)
+    ctx = _ctx(db, request, x_markdrop_workspace)
+    return {"embeds": await pages.resolve_embeds(db, actor, ctx, data.slugs)}
+
+
+@router.post("/{slug}/lock")
+@limiter.limit(settings.rate_limit_edit)
+async def take_page_lock(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Take (or renew) the page's edit lock: ``{holder: {name}, expires_at}``,
+    two minutes past the last call (the editor sends one every 30 s). 423
+    ``{code: "locked", holder: {name}}`` while someone else holds it."""
+    actor = access.actor_from_request(request, user)
+    raw = await db["documents"].find_one({"slug": slug})
+    return await pages.acquire_lock(db, raw, actor, _ctx(db, request))
+
+
+@router.delete("/{slug}/lock", status_code=204)
+@limiter.limit(settings.rate_limit_edit)
+async def release_page_lock(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    actor = access.actor_from_request(request, user)
+    raw = await db["documents"].find_one({"slug": slug})
+    await pages.release_lock(db, raw, actor, _ctx(db, request))
 
 
 async def _beacon_target(db: AsyncIOMotorDatabase, slug: str, ticket: str | None) -> dict | None:

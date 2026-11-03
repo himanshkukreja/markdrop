@@ -59,6 +59,8 @@ from app.routers.personal import router as personal_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
+from app.routers.pages import router as pages_router
+from app.services.pages import PageError
 
 settings = get_settings()
 
@@ -165,6 +167,16 @@ def _rate_limited(request: Request, exc: RateLimitExceeded) -> JSONResponse:
 app.add_exception_handler(RateLimitExceeded, _rate_limited)
 
 
+def _page_error(request: Request, exc: PageError) -> JSONResponse:
+    """Pages (services/pages.py): errors that carry more than a message — the
+    lock holder (423), the readers before and after a move or the number of
+    sub-pages (409). The body is ``{detail, code, …}``."""
+    return JSONResponse(jsonable_encoder(exc.body), status_code=exc.status_code, headers=exc.headers)
+
+
+app.add_exception_handler(PageError, _page_error)
+
+
 def _small(value):
     """A validation error's `input`, unless it is big: FastAPI echoes it back, so an oversized
     field (a 12 MB HTML file) would otherwise come straight back down the wire."""
@@ -188,6 +200,7 @@ app.add_middleware(InternalRequestMiddleware)
 
 # Routers
 app.include_router(documents_router)
+app.include_router(pages_router)
 app.include_router(artifacts_router)
 app.include_router(files_router)
 app.include_router(share_router)

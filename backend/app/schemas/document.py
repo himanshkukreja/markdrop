@@ -149,6 +149,23 @@ class DocumentResponse(BaseModel):
     # shows who's viewing (default on).
     presence_ticket: str | None = None
     show_presence: bool | None = None
+    # ── Pages (services/pages.py) ────────────────────────────────────────────
+    # "blocks" when it opens in the block editor; null for the classic one.
+    editor: str | None = None
+    # Sub-pages: the parent (only when this reader can read it), the readable
+    # ancestors root first, how many readable sub-pages it has, and whether its
+    # access comes from its parent (null for a top-level document).
+    parent: dict | None = None
+    breadcrumbs: list[dict] = []
+    children_count: int = 0
+    access_inherit: bool | None = None
+    # The ancestors' slugs, root first. ``folder_path`` above already includes
+    # them (it is the address prefix: folders, then ancestor pages).
+    page_path: list[str] = []
+    template_id: str | None = None
+    # The page images its content references (``asset:<id>``), as links for
+    # this reader: {id: {url, expires_at}} (expires_at null when public).
+    assets: dict = {}
 
     model_config = {"from_attributes": True}
 
@@ -312,3 +329,37 @@ class LibraryAddRequest(BaseModel):
 
 class LibraryFolderRequest(BaseModel):
     folder_id: str | None = None
+
+
+# ── Pages (services/pages.py) ──────────────────────────────────────────────────
+
+
+class PageCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    # Workspace id (member+) and optionally a folder of it (id or slug path);
+    # or ``parent``: the slug of a page the caller can edit (the new page lives
+    # in its workspace and folder and inherits its access).
+    workspace: str | None = Field(None, min_length=1, max_length=64)
+    folder: str | None = Field(None, min_length=1, max_length=400)
+    parent: str | None = Field(None, min_length=1, max_length=64)
+    template: str | None = Field(None, min_length=1, max_length=64)
+    content: str | None = Field(None, max_length=MAX_CONTENT)
+
+
+class PageCreateResponse(BaseModel):
+    document: DocumentResponse
+    edit_secret: str | None = None
+    workspace_error: str | None = None
+
+
+class EditorSwitchRequest(BaseModel):
+    editor: Literal["blocks", "classic"]
+
+
+class ParentMoveRequest(BaseModel):
+    parent: str | None = Field(None, min_length=1, max_length=64)
+    confirm_access_change: bool = False
+
+
+class EmbedsRequest(BaseModel):
+    slugs: list[str] = Field(..., max_length=100)

@@ -18,6 +18,10 @@ class Settings(BaseSettings):
 
     rate_limit_create: str = "10/minute"
     rate_limit_read: str = "60/minute"
+    # Saving a document's text (PUT /documents/{slug}) and holding a page's edit
+    # lock: the block editor autosaves 2 s after typing stops and heartbeats
+    # every 30 s, which the create limit above would refuse within a minute.
+    rate_limit_edit: str = "60/minute"
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

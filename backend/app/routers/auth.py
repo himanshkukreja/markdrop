@@ -111,6 +111,12 @@ _TENANT_ALLOWED = (
     # filtered to what this reader may open. Read-only, workspace-scoped.
     ("GET", re.compile(r"^/api/v1/host/folder$")),
     ("GET", re.compile(r"^/api/v1/folders/shared/[^/]+$")),
+    # Pages on the workspace's own domain (services/pages.py): embedded items
+    # resolved for this reader, fresh links for the page's images, and the
+    # sub-pages this reader may open. Read-only; each checks can(read).
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/embeds$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/assets/urls$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/children$")),
 )
 
 
