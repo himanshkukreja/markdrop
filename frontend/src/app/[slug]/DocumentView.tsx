@@ -28,7 +28,11 @@ import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
 import { PageBreadcrumbs, PageTree, SubPages } from "@/components/pages/PageChrome";
-import { setEditor } from "@/lib/pages";
+import { PageHead } from "@/components/pages/PageHead";
+import { readPageProps } from "@/components/pages/pageProps";
+import { deletePage, setEditor } from "@/lib/pages";
+import { assetId } from "@/lib/pageBlocks.mjs";
+import { DeletePageDialog } from "@/components/pages/DeletePageDialog";
 
 // Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
 // load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
@@ -148,6 +152,22 @@ export default function DocumentView(props: DocumentViewProps) {
   const crumbs = isPage ? page?.breadcrumbs ?? [] : [];
   // Sub-pages are made by signed-in editors on markdrop.in (a workspace's domain is read-only).
   const canAddSubPage = isPage && !!user && v.secretUnlocked && !tenant;
+  // The page's properties (front matter): icon, cover, width, text size, font.
+  const pageProps = isPage ? readPageProps(displayContent) : null;
+  const pageLayout = pageProps
+    ? [pageProps.fullWidth && "pb-wide", pageProps.smallText && "pb-small", pageProps.font !== "default" && `pb-font-${pageProps.font}`].filter(Boolean).join(" ")
+    : "";
+  const resolvePageAsset = (src: string) => {
+    const id = assetId(src);
+    return id ? page?.assets?.[id]?.url ?? "" : src;
+  };
+  const [deleting, setDeleting] = useState(false);
+  // The tab shows the page's icon.
+  useEffect(() => {
+    if (!isPage || !displayTitle) return;
+    const icon = pageProps?.icon && !/^(asset:|https?:)/.test(pageProps.icon) ? `${pageProps.icon} ` : "";
+    document.title = `${icon}${displayTitle} — Markdrop`;
+  }, [isPage, displayTitle, pageProps?.icon]);
 
   // /new leaves this flag when publishing worked but adding the document to a
   // workspace didn't (REVAMP_PLAN 7.6 "Workspace share failure").
@@ -233,7 +253,7 @@ export default function DocumentView(props: DocumentViewProps) {
         {header}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
           {secretUnlocked && isPage ? (
-            <div className="mx-auto w-full max-w-reading px-4 pb-24 pt-2 sm:px-6">
+            <div className={`mx-auto w-full max-w-reading px-4 pb-24 pt-2 sm:px-6 ${pageProps?.fullWidth ? "pb-wide" : ""}`}>
               <PageEditor
                 slug={slug}
                 title={displayTitle}
@@ -256,7 +276,21 @@ export default function DocumentView(props: DocumentViewProps) {
                   fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
                 }}
                 onAddSubPage={canAddSubPage ? () => setNewSubPage(true) : null}
+                onDelete={isOwner || v.canEditSettings ? () => setDeleting(true) : null}
+                isOwner={isOwner || v.canEditSettings}
+                url={url}
+                updatedAt={null}
                 stickyTop={() => 64}
+              />
+              <DeletePageDialog
+                open={deleting}
+                onClose={() => setDeleting(false)}
+                count={page?.children_count ?? 0}
+                onDelete={async (children) => {
+                  await deletePage(slug, children, v.secretInput || null);
+                  fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
+                  router.push(crumbs.length ? `/${encodeURIComponent(crumbs[crumbs.length - 1].slug)}` : "/dashboard");
+                }}
               />
               {newSubPage && (
                 <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={displayTitle} />
@@ -592,13 +626,20 @@ export default function DocumentView(props: DocumentViewProps) {
                   // inside it are never autocaptured with their text.
                   className={`ph-no-capture relative ${vs.column} mx-auto w-full max-w-reading ${
                     showImmersive ? "px-5 pb-32 pt-12 sm:px-8 sm:pt-24 print:p-0" : ""
-                  }`}
+                  } ${pageLayout}`}
                 >
                   <div className="hidden print-only">
                     {displayTitle && <h1 className="mb-4 text-h1">{displayTitle}</h1>}
                   </div>
-                  {isPage && readable && !showRaw && <PageBreadcrumbs crumbs={crumbs} title={displayTitle} addressing={addressing} />}
-                  {readable && displayTitle && !showRaw && !empty && !opensWithOwnTitle(displayContent, displayTitle) && (
+                  {isPage && readable && !showRaw && (
+                    <PageHead
+                      title={displayTitle}
+                      props={pageProps!}
+                      resolve={resolvePageAsset}
+                      top={<PageBreadcrumbs crumbs={crumbs} title={displayTitle} addressing={addressing} />}
+                    />
+                  )}
+                  {!isPage && readable && displayTitle && !showRaw && !empty && !opensWithOwnTitle(displayContent, displayTitle) && (
                     <h1 dir="auto" className="no-print mb-8 break-words text-h1 text-text">
                       {displayTitle}
                     </h1>

@@ -67,12 +67,12 @@ export function moveBlock(editor: Editor, t: BlockTarget, dir: -1 | 1): boolean 
   return true;
 }
 
-function duplicate(editor: Editor, t: BlockTarget) {
+export function duplicate(editor: Editor, t: BlockTarget) {
   const at = t.pos + t.node.nodeSize;
   editor.view.dispatch(editor.state.tr.insert(at, t.node.copy(t.node.content)).scrollIntoView());
 }
 
-function remove(editor: Editor, t: BlockTarget) {
+export function remove(editor: Editor, t: BlockTarget) {
   editor.view.dispatch(editor.state.tr.delete(t.pos, t.pos + t.node.nodeSize));
   editor.view.focus();
 }

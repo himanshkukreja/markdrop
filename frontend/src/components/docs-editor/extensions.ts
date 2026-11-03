@@ -13,6 +13,7 @@ import { FigureView, LeafView } from "./views/media";
 import { CodeBlockView, InlineMathView, MathBlockView, RawBlockView } from "./views/code";
 import { MentionView } from "./views/pageItems";
 import { itemsFor } from "./blocks";
+import { EmojiCommand, PageKeys } from "./pageKeys";
 import { SlashCommand, type SlashStore } from "./menus/slash";
 import { MoveBlockKeys } from "./menus/BlockHandle";
 
@@ -104,12 +105,25 @@ function placeholderFor({ node, editor, pos }: { node: PMNode; editor: Editor; p
     if ($p.parent.type.name === "steps") return "Step title";
     return `Heading ${node.attrs.level}`;
   }
+  if (node.type.name === "paragraph") {
+    const parent = editor.state.doc.resolve(pos).parent;
+    if (parent.type.name === "listItem") return typeof parent.attrs.checked === "boolean" ? "To-do" : "List";
+    if (parent.type.name === "blockquote") return "Empty quote";
+    if (parent.type.name === "details") return "Empty toggle. Click or drop blocks inside.";
+  }
   if (node.type.name === "codeBlock") return "Code";
   if (node.type.name === "mathBlock") return "LaTeX, e.g. E = mc^2";
   return "Type / for blocks";
 }
 
-export function buildExtensions({ slash, listboxId, placeholder, blocks }: { slash: SlashStore; listboxId: string; placeholder?: string; blocks?: readonly string[] }): AnyExtension[] {
+export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }: {
+  slash: SlashStore;
+  listboxId: string;
+  placeholder?: string;
+  blocks?: readonly string[];
+  /** A page: Notion-style keys and Markdown shortcuts, and the `:emoji` menu in this store. */
+  emoji?: { store: SlashStore; listboxId: string } | null;
+}): AnyExtension[] {
   const overrides = {
     callout: view(CalloutView),
     steps: view(StepsView),
@@ -135,6 +149,7 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks }: { sla
       showOnlyCurrent: true,
     }),
     SlashCommand(slash, listboxId, itemsFor(blocks)),
+    ...(emoji ? [PageKeys, EmojiCommand(emoji.store, emoji.listboxId)] : []),
     MoveBlockKeys,
     DocsKeys,
   ];

@@ -6,6 +6,8 @@ export interface BlockItem {
   label: string;
   hint: string;
   icon: string;
+  /** Shown instead of the icon (an emoji). */
+  glyph?: string;
   keywords: string;
   /** Inserts the block in place of the typed "/query" range. */
   run: (editor: Editor, range: Range) => void;

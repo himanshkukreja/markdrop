@@ -88,7 +88,9 @@ export default function VisualEditor(props: VisualEditorProps) {
   const source = useMemo<AnnotationSource>(() => ({ find: null, flagImages, comments: comments ?? [], checkLink, onCommentClick }), []); // eslint-disable-line react-hooks/exhaustive-deps
   source.onCommentClick = onCommentClick;
   const assistStore = useMemo(() => new AssistStore(), []);
-  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
+  // A page: Notion-style keys, Markdown shortcuts and the `:emoji` menu.
+  const emoji = useMemo(() => (pages ? { store: new SlashStore(), listboxId: `${listboxId.replace(/-slash$/, "")}-emoji` } : null), []); // eslint-disable-line react-hooks/exhaustive-deps
+  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks, emoji }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const emit = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -233,6 +235,7 @@ export default function VisualEditor(props: VisualEditorProps) {
             <BlockHandle editor={editor} container={wrap} />
             <TableBar editor={editor} container={wrap} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
+            {emoji && <SlashMenu store={emoji.store} listboxId={emoji.listboxId} stickyTop={stickyTop} label="Insert an emoji" />}
           </>
         )}
         <datalist id="dxe-code-langs">
