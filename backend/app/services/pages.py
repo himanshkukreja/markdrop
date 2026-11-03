@@ -902,20 +902,35 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
     title = " ".join((title or "").split())[:200]
     if not title:
         raise HTTPException(status_code=422, detail="Give the page a title.")
+    from app.services import page_user_templates
+
     tpl = None
+    if not template and content is None and workspace and folder and not parent:
+        # New page in a folder with a default template starts from it ("blank" opts out).
+        from app.models.workspace import role_allows
+        from app.services import folder as folder_service
+        from app.services import workspace as ws_service
+
+        if role_allows(await ws_service.role_for(db, workspace, user.id), "member"):
+            try:
+                fid = await folder_service.resolve_ref(db, workspace, folder)
+            except HTTPException:
+                fid = None  # the filing below answers for a folder that isn't there
+            template = await page_user_templates.folder_default(db, workspace, fid, user)
     if template:
         tpl = page_templates.get(template)
         if tpl is None:
-            from app.services import page_user_templates
-
-            if page_user_templates.is_template_id(template):
-                # A workspace or personal template (services/page_user_templates.py).
+            if page_user_templates.is_template_id(template) or await page_user_templates.find(db, template):
+                # A workspace or personal template (services/page_user_templates.py), by id or slug.
                 return await page_user_templates.create_from(
                     db, user, actor, ctx, template, title=title, workspace=workspace, folder=folder,
                     parent=parent, content=content)
             raise HTTPException(status_code=422, detail="Unknown template. See GET /api/v1/page-templates.")
     if content is None:
-        content = page_templates.fill(tpl["content"], title=title) if tpl else ""
+        from app.services import viewers
+
+        content = page_templates.fill(tpl["content"], title=title).replace(
+            "{{author}}", viewers.display_name(user)) if tpl else ""
     if len(content) > get_settings().max_content_chars:
         raise HTTPException(status_code=413, detail="That page is too long.")
     if not content.strip():

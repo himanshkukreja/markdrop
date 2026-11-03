@@ -81,11 +81,42 @@ def _icon(value: str | None) -> str | None:
 # ── Placeholders ──────────────────────────────────────────────────────────────
 
 
-def fill(text: str | None, *, title: str, author: str, now: datetime | None = None) -> str:
-    """``{{date}}`` (e.g. "November 4, 2026"), ``{{author}}`` and ``{{title}}``."""
+PLACEHOLDERS = ("{{title}}", "{{date}}", "{{author}}", "{{folder}}")
+
+
+def fill(text: str | None, *, title: str, author: str, now: datetime | None = None,
+         folder: str | None = None) -> str:
+    """``{{date}}`` (e.g. "November 4, 2026"), ``{{author}}`` (the creator's
+    display name), ``{{title}}`` and — when ``folder`` is given — ``{{folder}}``
+    (the name of the folder the new page lands in; empty when it has none)."""
     d = now or now_utc()
     when = f"{d:%B} {d.day}, {d:%Y}"
-    return (text or "").replace("{{date}}", when).replace("{{author}}", author).replace("{{title}}", title)
+    out = (text or "").replace("{{date}}", when).replace("{{author}}", author).replace("{{title}}", title)
+    return out.replace("{{folder}}", folder) if folder is not None else out
+
+
+async def folder_name(db: AsyncIOMotorDatabase, row: dict | None) -> str:
+    """The name of the folder ``row`` is filed in ("" when none)."""
+    fid = (row or {}).get("folder_id")
+    if not fid or not ObjectId.is_valid(str(fid)):
+        return ""
+    f = await db["folders"].find_one({"_id": ObjectId(str(fid))}, {"name": 1})
+    return (f or {}).get("name") or ""
+
+
+async def fill_folder(db: AsyncIOMotorDatabase, raw: dict) -> dict:
+    """After a page from a template is filed: its ``{{folder}}``, then the row."""
+    content = raw.get("content") or ""
+    if "{{folder}}" not in content:
+        return raw
+    from app.services import page_links
+
+    name = await folder_name(db, raw)
+    after = await db["documents"].find_one_and_update(
+        {"_id": raw["_id"]}, {"$set": {"content": content.replace("{{folder}}", name)}}, return_document=True)
+    if after is not None:
+        await page_links.reindex(db, after)
+    return after or raw
 
 
 def _unlocked(markdown: str) -> str:
@@ -131,13 +162,28 @@ async def can_manage(db: AsyncIOMotorDatabase, raw: dict, user) -> bool:
     return True
 
 
+async def find(db: AsyncIOMotorDatabase, ref: str | None) -> dict | None:
+    """A template's row by its id or its page's slug (current or former)."""
+    ref = (ref or "").strip()
+    if not ref:
+        return None
+    if is_template_id(ref):
+        hit = await db["documents"].find_one({"_id": ObjectId(ref), "template": True, "parent_id": None})
+        if hit is not None:
+            return hit
+    from app.services.pages import SLUG_RE
+
+    if not SLUG_RE.match(ref):
+        return None
+    return await db["documents"].find_one({"$or": [{"slug": ref}, {"old_slugs": ref}], "template": True,
+                                           "parent_id": None})
+
+
 async def load(db: AsyncIOMotorDatabase, template_id: str, user, *, manage: bool = False) -> dict:
-    """The template's row, or 404 (never confirming that it exists to someone
-    who can't use it); 403 when they can use it but not manage it."""
-    raw = None
-    if is_template_id(template_id):
-        raw = await db["documents"].find_one({"_id": ObjectId(template_id), "template": True,
-                                              "parent_id": None})
+    """The template's row (by id or slug), or 404 (never confirming that it
+    exists to someone who can't use it); 403 when they can use it but not
+    manage it."""
+    raw = await find(db, template_id)
     if raw is None or not await can_use(db, raw, user):
         raise HTTPException(status_code=404, detail="Template not found")
     if manage and not await can_manage(db, raw, user):
@@ -219,7 +265,7 @@ async def _rows(db: AsyncIOMotorDatabase, ws_id: str | None, user) -> list[dict]
         [("template_order", 1), ("created_at", 1), ("_id", 1)]).to_list(length=MAX_PER_SCOPE)
 
 
-async def listing(db: AsyncIOMotorDatabase, user, workspace_id: str | None) -> dict:
+async def listing(db: AsyncIOMotorDatabase, user, workspace_id: str | None, folder: str | None = None) -> dict:
     """``{builtin, workspace, personal, workspace_role, can_save_workspace,
     can_reorder_workspace}`` for the New page gallery. ``workspace`` is empty
     unless the caller is a member+ of ``workspace_id``."""
@@ -227,9 +273,11 @@ async def listing(db: AsyncIOMotorDatabase, user, workspace_id: str | None) -> d
 
     out: dict = {"builtin": page_templates.all_templates(), "workspace": [], "personal": [],
                  "workspace_id": None, "workspace_role": None, "can_save_workspace": False,
-                 "can_reorder_workspace": False}
+                 "can_reorder_workspace": False, "folder": None}
     if user is None:
         return out
+    if workspace_id and folder:
+        out["folder"] = await folder_info(db, user, workspace_id, folder)
     role = await _role(db, workspace_id, user) if workspace_id else None
     if workspace_id and role is not None:
         out["workspace_id"] = workspace_id
@@ -490,19 +538,22 @@ async def create_from(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
                                                  folder=folder, parent=parent, content=md)
     raw = await db["documents"].find_one_and_update(
         {"_id": raw["_id"]}, {"$set": {"template_id": str(tpl["_id"])}}, return_document=True) or raw
+    raw = await fill_folder(db, raw)
     await copy_assets(db, raw, plan, user_id=user.id)
     made = {str(tpl["_id"]): raw}
     for d, smd, splan in sub_plans:
         p = made.get(str(d.get("parent_id")))
         if p is None:
             continue
-        sub_title = fill(d.get("title") or "Untitled", title=clean_title, author=author, now=when)
+        sub_title = fill(d.get("title") or "Untitled", title=clean_title, author=author, now=when,
+                         folder=await folder_name(db, raw))
         try:
             child, _s, _e = await pages.create_page(db, user, actor, ctx, title=sub_title, parent=p["slug"],
                                                     content=smd)
         except HTTPException:
             log.warning("a sub-page of template %s couldn't be made", tpl.get("slug"), exc_info=True)
             continue
+        child = await fill_folder(db, child)
         await copy_assets(db, child, splan, user_id=user.id)
         made[str(d["_id"])] = child
     fresh = await db["documents"].find_one({"_id": raw["_id"]})
@@ -569,3 +620,136 @@ async def delete(db: AsyncIOMotorDatabase, user, template_id: str) -> None:
     for d in reversed(await pages.descendants(db, raw)):
         await lifecycle.destroy(db, d, reason="template delete")
     await lifecycle.destroy(db, raw, reason="template delete")
+
+
+# ── A page in place: set_page_properties(template=…) / PUT …/template ─────────
+
+
+async def set_template(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: access.Ctx, raw: dict,
+                       on: bool) -> dict:
+    """Turn the page itself into a template (it leaves every listing; its
+    sub-pages become part of it) or back into an ordinary page. On: the
+    caller can edit it and is a member+ of its workspace (a personal page: its
+    owner). Off: whoever may manage the template. Pages already made from it
+    never change."""
+    from app.services import pages
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in to manage templates.")
+    await access.require(actor, raw, "edit_content", ctx)
+    if not pages.is_page_capable(raw):
+        raise HTTPException(status_code=422, detail="Only pages (Markdown documents, not encrypted) can be "
+                                                    "templates.")
+    if bool(raw.get("template")) == on:
+        return raw
+    if on:
+        if raw.get("parent_id") is not None:
+            raise HTTPException(status_code=422, detail="Only a top-level page can become a template. Move it "
+                                                        "to the top level, or save a copy as a template.")
+        ws_id = raw.get("workspace_id")
+        if ws_id:
+            role = await _role(db, ws_id, user)
+            if not role_allows(role, "member"):
+                raise HTTPException(status_code=403, detail="Only the workspace's members can make its "
+                                                            "templates.")
+        elif raw.get("owner_id") != user.id:
+            raise HTTPException(status_code=403, detail="Only the page's owner can make it a template.")
+        if await db["documents"].count_documents(_scope_query(ws_id, user)) >= MAX_PER_SCOPE:
+            raise HTTPException(status_code=429, detail=f"There can be at most {MAX_PER_SCOPE} templates here.")
+        last = await db["documents"].find(_scope_query(ws_id, user), {"template_order": 1}).sort(
+            "template_order", -1).limit(1).to_list(length=1)
+        sets = {"template": True, "template_order": (int(last[0].get("template_order") or 0) + 1) if last else 0,
+                "template_saved_at": now_utc()}
+    else:
+        if raw.get("parent_id") is not None:
+            raise HTTPException(status_code=422, detail="This page is part of a template: turn the template "
+                                                        "itself back into a page.")
+        if not await can_manage(db, raw, user):
+            raise HTTPException(status_code=403, detail="Only the workspace's admins (or whoever made it a "
+                                                        "template) can turn it back into a page.")
+        sets = {"template": False}
+    after = await db["documents"].find_one_and_update({"_id": raw["_id"]}, {"$set": sets},
+                                                      return_document=True)
+    below = [d["_id"] for d in await pages.descendants(db, raw, projection={"_id": 1})]
+    if below:
+        await db["documents"].update_many({"_id": {"$in": below}}, {"$set": {"template": on}})
+    ctx.forget(raw)
+    return after or raw
+
+
+# ── A folder's default template ───────────────────────────────────────────────
+
+
+async def _folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_ref: str) -> dict:
+    from app.services import folder as folder_service
+
+    fid = await folder_service.resolve_ref(db, workspace_id, folder_ref)
+    return await db["folders"].find_one({"_id": ObjectId(fid), "workspace_id": workspace_id})
+
+
+async def resolve_ref(db: AsyncIOMotorDatabase, user, ref: str | None, *, workspace_id: str | None = None) -> str | None:
+    """A template reference as stored or passed: a built-in id, or a workspace
+    or personal template's id or slug (returned as its id). None if unknown or
+    not usable by ``user``; an id/slug of ``workspace_id``'s templates only, when given."""
+    from app.services import page_templates
+
+    if not ref:
+        return None
+    if page_templates.get(ref):
+        return ref
+    raw = await find(db, ref)
+    if raw is None or not await can_use(db, raw, user):
+        return None
+    if workspace_id is not None and raw.get("workspace_id") not in (workspace_id, None):
+        return None
+    return str(raw["_id"])
+
+
+async def folder_default(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str | None, user) -> str | None:
+    """The folder's default template, as a ref ``create_page`` takes, when this
+    user can use it (a deleted template, or one they can't use: none)."""
+    if not folder_id or not ObjectId.is_valid(str(folder_id)):
+        return None
+    f = await db["folders"].find_one({"_id": ObjectId(str(folder_id)), "workspace_id": workspace_id},
+                                     {"default_template": 1})
+    ref = (f or {}).get("default_template")
+    return await resolve_ref(db, user, ref) if ref else None
+
+
+async def set_folder_default(db: AsyncIOMotorDatabase, user, workspace_id: str, folder_ref: str,
+                             template: str | None) -> dict:
+    """Admins: what New page in this folder starts from (None: blank)."""
+    if user is None:
+        raise HTTPException(status_code=401, detail="Sign in to change folders.")
+    role = await _role(db, workspace_id, user)
+    if role is None:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    if not role_allows(role, "admin"):
+        raise HTTPException(status_code=403, detail="Only the workspace's admins can set a folder's default "
+                                                    "template.")
+    f = await _folder(db, workspace_id, folder_ref)
+    ref = None
+    if template:
+        ref = await resolve_ref(db, user, template)
+        raw = await find(db, ref) if ref and is_template_id(ref) else None
+        if ref is None or (raw is not None and raw.get("workspace_id") != workspace_id):
+            raise HTTPException(status_code=422, detail="That isn't a built-in template or one of this "
+                                                        "workspace's templates.")
+    await db["folders"].update_one({"_id": f["_id"]}, {"$set": {"default_template": ref}})
+    return {"folder_id": str(f["_id"]), "folder": f.get("name"), "default_template": ref}
+
+
+async def folder_info(db: AsyncIOMotorDatabase, user, workspace_id: str, folder_ref: str) -> dict | None:
+    """For the gallery: ``{id, name, default_template, can_set_default}`` (members only)."""
+    role = await _role(db, workspace_id, user)
+    if not role_allows(role, "member"):
+        return None
+    try:
+        f = await _folder(db, workspace_id, folder_ref)
+    except HTTPException:
+        return None
+    if f is None:
+        return None
+    return {"id": str(f["_id"]), "name": f.get("name"),
+            "default_template": await folder_default(db, workspace_id, str(f["_id"]), user),
+            "can_set_default": role_allows(role, "admin")}

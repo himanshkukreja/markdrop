@@ -111,13 +111,16 @@ async def save_as_template(
 async def list_all_templates(
     request: Request,
     workspace: str | None = None,
+    folder: str | None = None,
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
     """The New page gallery: ``{builtin, workspace, personal, workspace_role,
-    can_save_workspace, can_reorder_workspace}``. ``workspace`` lists that
-    workspace's templates when you're a member (not a viewer) of it."""
-    return await page_user_templates.listing(db, user, workspace)
+    can_save_workspace, can_reorder_workspace, folder}``. ``workspace`` lists
+    that workspace's templates when you're a member (not a viewer) of it;
+    ``folder`` (an id or path of it) adds ``folder: {id, name,
+    default_template, can_set_default}``."""
+    return await page_user_templates.listing(db, user, workspace, folder)
 
 
 @router.get("/page-templates/{template_id}")
@@ -172,3 +175,51 @@ async def delete_template(
     """Delete a template and its sub-pages. Pages made from it stay as they are."""
     await page_user_templates.delete(db, user, template_id)
     return Response(status_code=204)
+
+
+class TemplateToggle(BaseModel):
+    template: bool
+
+
+@router.put("/documents/{slug}/template")
+@limiter.limit(settings.rate_limit_create)
+async def set_page_template(
+    request: Request,
+    slug: str,
+    data: TemplateToggle,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Turn this page itself into a template (``true``: it leaves every list
+    and search and shows in the New page gallery; its sub-pages come with it)
+    or back into a page (``false``). Pages made from it never change."""
+    from app.routers.documents import _ctx
+
+    actor = access.actor_from_request(request, user)
+    ctx = _ctx(db, request)
+    raw = await db["documents"].find_one({"slug": slug})
+    if raw is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    after = await page_user_templates.set_template(db, user, actor, ctx, raw, data.template)
+    return {"slug": after["slug"], "template": bool(after.get("template")),
+            "id": str(after["_id"]) if after.get("template") else None}
+
+
+class FolderDefaultTemplate(BaseModel):
+    # A built-in id, or a workspace template's id or slug; null: new pages start blank.
+    template: str | None = Field(None, max_length=64)
+
+
+@router.put("/workspaces/{workspace_id}/folders/{folder_id}/default-template")
+@limiter.limit(settings.rate_limit_create)
+async def set_folder_default_template(
+    request: Request,
+    workspace_id: str,
+    folder_id: str,
+    data: FolderDefaultTemplate,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """What New page in this folder starts from (admins). The person making a
+    page can still choose blank or another template."""
+    return await page_user_templates.set_folder_default(db, user, workspace_id, folder_id, data.template)

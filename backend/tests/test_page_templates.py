@@ -480,3 +480,222 @@ class Mcp(TemplateWorld):
         self.assertEqual(mine["scope"], "personal")
         ids = [t["id"] for t in (await self.ok("wa", "list_page_templates", {}, write=False))["templates"]]
         self.assertNotIn(mine["id"], ids)
+
+
+# ── Senseloaf deltas: slugs, {{folder}}, folder defaults, in place, no propagation ──
+
+
+class Deltas(TemplateWorld):
+    async def folder(self, name: str, parent: str | None = None, who: str = "wa") -> str:
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/folders",
+                                 json={"name": name, "parent_id": parent}, headers=self.session(who))
+        self.assertEqual(r.status_code, 201, r.text)
+        return r.json()["id"]
+
+    async def mcp_ok(self, who: str, name: str, args: dict) -> dict:
+        status, res = await self.mcp_call(await self.mcp_token(who, write=True), name, args)
+        self.assertEqual(status, 200)
+        self.assertFalse(res["isError"], res["content"][0]["text"])
+        return res["structuredContent"]
+
+    async def mcp_err(self, who: str, name: str, args: dict) -> str:
+        status, res = await self.mcp_call(await self.mcp_token(who, write=True), name, args)
+        self.assertEqual(status, 200)
+        self.assertTrue(res["isError"], res)
+        return res["content"][0]["text"]
+
+    async def test_done_when_prd_in_product_hub(self):
+        """The customer's check: New page in product-hub/02-prds → "PRD" → a filled page in that
+        folder with today's date and the author's name; the same through create_page."""
+        hub = await self.folder("product-hub")
+        prds = await self.folder("02-prds", hub)
+        src = await self.create("wm", workspace=self.ws["W1"], title="PRD",
+                                content="**{{title}}** · {{author}} · {{date}} · filed in {{folder}}\n\n## Problem\n")
+        prd = await self.save(src["slug"], "wm", name="PRD", icon="📄")
+        today = datetime.now(timezone.utc)
+        day = f"{today:%B} {today.day}, {today:%Y}"
+
+        def check(doc: dict, title: str, author: str):
+            self.assertEqual(doc["content"].strip().splitlines()[0],
+                             f"**{title}** · {author} · {day} · filed in 02-prds")
+            self.assertEqual(doc["template_id"], prd["id"])
+            self.assertEqual(doc["editor"], "blocks")
+
+        # Picking it in New page (the gallery sends its id).
+        picked = await self.use(prd["id"], "wm", title="Search v2", workspace=self.ws["W1"],
+                                folder="product-hub/02-prds")
+        check(picked, "Search v2", "WM")
+        self.assertEqual((await self.doc(picked["slug"]))["folder_id"], prds)
+        # The folder's default: no template named at all.
+        r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/folders/{prds}/default-template",
+                                json={"template": prd["slug"]}, headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["default_template"], prd["id"])
+        r = await self.http.post("/api/v1/pages", json={"title": "Billing", "workspace": self.ws["W1"],
+                                                         "folder": "product-hub/02-prds"}, headers=self.session("owner"))
+        self.assertEqual(r.status_code, 201, r.text)
+        check(r.json()["document"], "Billing", "OWNER")
+        # "blank" opts out.
+        r = await self.http.post("/api/v1/pages", json={"title": "Scratch", "workspace": self.ws["W1"],
+                                                         "folder": "product-hub/02-prds", "template": "blank"},
+                                 headers=self.session("wm"))
+        self.assertEqual(r.json()["document"]["content"].strip(), "")
+        # Elsewhere, no default.
+        r = await self.http.post("/api/v1/pages", json={"title": "Other", "workspace": self.ws["W1"],
+                                                         "folder": "product-hub"}, headers=self.session("wm"))
+        self.assertEqual(r.json()["document"]["content"].strip(), "")
+        # The same through MCP: by slug, and by the folder's default.
+        out = await self.mcp_ok("wm", "create_page", {"title": "Exports", "workspace": self.ws["W1"],
+                                                      "folder": "product-hub/02-prds", "template": prd["slug"]})
+        check(await self.doc(out["slug"]), "Exports", "WM")
+        self.assertEqual((await self.doc(out["slug"]))["folder_id"], prds)
+        out = await self.mcp_ok("wa", "create_page", {"title": "Alerts", "workspace": self.ws["W1"],
+                                                      "folder": "product-hub/02-prds",
+                                                      "properties": {"full_width": True}})
+        raw = await self.doc(out["slug"])
+        self.assertIn("**Alerts** · WA · ", raw["content"])
+        self.assertIn("full_width: true", raw["content"])
+        self.assertEqual(out["template_id"], prd["id"])
+        # The gallery's listing names the folder's default.
+        r = await self.http.get("/api/v1/page-templates/all", params={"workspace": self.ws["W1"], "folder": prds},
+                                headers=self.session("wm"))
+        self.assertEqual(r.json()["folder"], {"id": prds, "name": "02-prds", "default_template": prd["id"],
+                                              "can_set_default": False})
+
+    async def test_folder_default_rules(self):
+        f = await self.folder("Specs")
+        path = f"/api/v1/workspaces/{self.ws['W1']}/folders/{f}/default-template"
+        for who, code in (("wm", 403), ("wv", 403), ("wm2", 404), ("stranger", 404)):
+            r = await self.http.put(path, json={"template": "prd"}, headers=self.session(who))
+            self.assertEqual(r.status_code, code, who)
+        r = await self.http.put(path, json={"template": "prd"}, headers=self.session("wo"))
+        self.assertEqual(r.json()["default_template"], "prd")  # a built-in works too
+        made = await self.create("wm", workspace=self.ws["W1"], folder=f, title="Spec")
+        self.assertEqual(made["template_id"], "prd")
+        # Not another workspace's template, nor someone's personal one.
+        other = await self.create("wm2", workspace=self.ws["W2"], title="W2 page")
+        t2 = await self.save(other["slug"], "wm2")
+        mine = await self.save((await self.create("wa", title="Mine"))["slug"], "wa")
+        for ref in (t2["id"], mine["id"], "nope"):
+            r = await self.http.put(path, json={"template": ref}, headers=self.session("wa"))
+            self.assertEqual(r.status_code, 422, ref)
+        r = await self.http.put(path, json={"template": None}, headers=self.session("wa"))
+        self.assertIsNone(r.json()["default_template"])
+        # MCP: admins only.
+        self.assertIn("admins", await self.mcp_err("wm", "set_folder_default_template",
+                                                   {"workspace": self.ws["W1"], "folder": "Specs", "template": "prd"}))
+        out = await self.mcp_ok("wa", "set_folder_default_template",
+                                {"workspace": self.ws["W1"], "folder": "Specs", "template": "runbook"})
+        self.assertEqual(out["default_template"], "runbook")
+        # A deleted default falls back to blank.
+        page = await self.create("wm", workspace=self.ws["W1"], title="T")
+        t = await self.save(page["slug"], "wm")
+        await self.http.put(path, json={"template": t["id"]}, headers=self.session("wa"))
+        await self.http.delete(f"/api/v1/page-templates/{t['id']}", headers=self.session("wa"))
+        made = await self.create("wm", workspace=self.ws["W1"], folder=f, title="After")
+        self.assertIsNone(made["template_id"])
+
+    async def test_slug_refs(self):
+        page = await self.create("wm", workspace=self.ws["W1"], title="Retro", content="Hi {{author}}\n")
+        t = await self.save(page["slug"], "wm")
+        made = await self.use(t["slug"], "owner")
+        self.assertEqual(made["template_id"], t["id"])
+        self.assertIn("Hi OWNER", made["content"])
+        await self.use(t["slug"], "wm2", expect=404)
+        await self.use("no-such-template-slug", "wm", expect=422)
+        # A page's slug that isn't a template is no template.
+        await self.use(page["slug"], "wm", expect=422)
+
+    async def test_in_place(self):
+        page = await self.create("wm", workspace=self.ws["W1"], title="Onboarding", content="Welcome {{title}}\n")
+        kid = await self.sub(page["slug"], "wm", title="Week 1")
+        path = f"/api/v1/documents/{page['slug']}/template"
+        # Viewers and outsiders can't; a sub-page can't on its own.
+        for who, code in (("wv", 403), ("wm2", 404), ("stranger", 404)):
+            r = await self.http.put(path, json={"template": True}, headers=self.session(who))
+            self.assertEqual(r.status_code, code, who)
+        r = await self.http.put(f"/api/v1/documents/{kid['slug']}/template", json={"template": True},
+                                headers=self.session("wm"))
+        self.assertEqual(r.status_code, 422)
+        r = await self.http.put(path, json={"template": True}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        tid = r.json()["id"]
+        self.assertTrue((await self.doc(kid["slug"]))["template"])
+        self.assertEqual([x["id"] for x in (await self.listing("owner"))["workspace"]], [tid])
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/items", params={"limit": 100},
+                                headers=self.session("wm"))
+        self.assertFalse({page["slug"], kid["slug"]} & set(_slugs_in(r.json())))
+        made = await self.use(tid, "owner", title="Ana")
+        self.assertIn("Welcome Ana", made["content"])
+        self.assertEqual(made["children_count"], 1)
+        # Back to a page: only who may manage it.
+        r = await self.http.put(path, json={"template": False}, headers=self.session("owner"))
+        self.assertEqual(r.status_code, 403)
+        r = await self.http.put(path, json={"template": False}, headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse((await self.doc(kid["slug"]))["template"])
+        self.assertEqual((await self.listing("owner"))["workspace"], [])
+        r = await self.http.get(f"/api/v1/workspaces/{self.ws['W1']}/items", params={"limit": 100},
+                                headers=self.session("wm"))
+        self.assertTrue({page["slug"], kid["slug"]} <= set(_slugs_in(r.json())))
+        # MCP: set_page_properties(template=…).
+        out = await self.mcp_ok("wm", "set_page_properties", {"document": page["slug"], "template": True})
+        self.assertTrue(out["template"])
+        self.assertEqual(out["template_id"], tid)
+        listed = await self.mcp_ok("owner", "list_page_templates", {"workspace": self.ws["W1"]})
+        self.assertIn(tid, [x["id"] for x in listed["templates"]])
+        self.assertIn(page["slug"], [x.get("slug") for x in listed["templates"]])
+        out = await self.mcp_ok("wa", "set_page_properties", {"document": page["slug"], "template": False,
+                                                              "full_width": True})
+        self.assertFalse(out["template"])
+        self.assertTrue(out["properties"]["full_width"])
+        # A personal page: only its owner.
+        solo = await self.create("stranger", title="Solo")
+        await self.http.post(f"/api/v1/documents/{solo['slug']}/access/grants", json={"email": self.email["wm"],
+                                                                                      "role": "editor"},
+                             headers=self.session("stranger"))
+        r = await self.http.put(f"/api/v1/documents/{solo['slug']}/template", json={"template": True},
+                                headers=self.session("wm"))
+        self.assertIn(r.status_code, (403, 404))
+        r = await self.http.put(f"/api/v1/documents/{solo['slug']}/template", json={"template": True},
+                                headers=self.session("stranger"))
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([x["id"] for x in (await self.listing("stranger", None))["personal"]], [r.json()["id"]])
+
+    async def test_list_by_workspace(self):
+        a = await self.save((await self.create("wm", workspace=self.ws["W1"], title="A"))["slug"], "wm")
+        await self.add_member("W2", "wm", "member")
+        b = await self.save((await self.create("wm", workspace=self.ws["W2"], title="B"))["slug"], "wm")
+        mine = await self.save((await self.create("wm", title="Mine"))["slug"], "wm")
+        out = await self.mcp_ok("wm", "list_page_templates", {"workspace": self.ws["W1"]})
+        ids = [x["id"] for x in out["templates"]]
+        self.assertIn(a["id"], ids)
+        self.assertNotIn(b["id"], ids)
+        self.assertNotIn(mine["id"], ids)
+        self.assertIn("prd", ids)
+        everything = [x["id"] for x in (await self.mcp_ok("wm", "list_page_templates", {}))["templates"]]
+        self.assertTrue({a["id"], b["id"], mine["id"]} <= set(everything))
+
+    async def test_no_propagation(self):
+        """Editing (or deleting) a template never changes pages already made from it."""
+        page = await self.create("wm", workspace=self.ws["W1"], title="Sync", content="Agenda v1 for {{title}}\n")
+        t = await self.save(page["slug"], "wm", include_subpages=False)
+        made = await self.use(t["id"], "owner", title="Monday")
+        before = await self.doc(made["slug"])
+        traw = await self.db["documents"].find_one({"slug": t["slug"]})
+        r = await self.http.put(f"/api/v1/documents/{t['slug']}", json={"title": "Sync v2", "content": "Agenda v2\n",
+                                                                          "base_rev": traw["rev"]},
+                                headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        await self.mcp_ok("wa", "append_blocks", {"document": t["slug"], "markdown": "- one more"})
+        after = await self.doc(made["slug"])
+        self.assertEqual(after["content"], before["content"])
+        self.assertEqual(after["rev"], before["rev"])
+        self.assertIn("Agenda v1 for Monday", after["content"])
+        # New pages get the new version.
+        self.assertIn("Agenda v2", (await self.use(t["id"], "owner", title="Tuesday"))["content"])
+        # Renaming or deleting it leaves the made page alone too.
+        await self.http.patch(f"/api/v1/page-templates/{t['id']}", json={"name": "Renamed"}, headers=self.session("wa"))
+        await self.http.delete(f"/api/v1/page-templates/{t['id']}", headers=self.session("wa"))
+        final = await self.doc(made["slug"])
+        self.assertEqual((final["content"], final["title"]), (before["content"], "Monday"))

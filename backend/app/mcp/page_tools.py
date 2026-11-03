@@ -37,6 +37,7 @@ from app.mcp.tools import (
     load_for,
     precheck_workspace,
     resolve_doc,
+    resolve_workspace,
     url_pair,
 )
 from app.services import access as access_service
@@ -167,19 +168,15 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         if any(str(v or "").startswith("asset:") for v in props.values()):
             raise ToolError("A new page has no images yet: create it, upload_page_image, then "
                             "set_page_properties with icon or cover asset:<id>.")
-        if content is None and args.get("template"):
-            tpl = page_templates.get(args["template"])
-            if tpl is None:
-                from app.services import page_user_templates
-
-                if page_user_templates.is_template_id(args["template"]):
-                    raise ToolError("properties can't be combined with a workspace or personal template: "
-                                    "create the page, then set_page_properties.")
-            content = page_templates.fill(tpl["content"], title=args["title"]) if tpl else None
         try:
-            content = page_props.apply(content or "", props)
+            page_props.validate(props)
         except ValueError as exc:
             raise ToolError(str(exc))
+        if content is not None:
+            content = page_props.apply(content, props)
+            props = {}
+    else:
+        props = {}
     try:
         raw, _secret, error = await pages.create_page(
             ctx.db, ctx.user, actor_of(ctx), _actx(ctx), title=args["title"], workspace=ws_id,
@@ -187,8 +184,13 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
             template=args.get("template"), content=content)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
+    if props:
+        # Properties on a page made from a template (or a folder's default): written into what it got.
+        after = await _save(ctx, raw, page_props.apply(raw.get("content") or "", props), None)
+        raw = after or raw
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
-           "editor": "blocks", "parent": parent_slug, "workspace_error": error}
+           "editor": "blocks", "parent": parent_slug, "workspace_error": error,
+           "template_id": raw.get("template_id")}
     where = f" inside {parent_slug}" if parent_slug else ""
     text = f"Created the page {out['title']!r}{where}: {out['url']}"
     if error:
@@ -314,7 +316,11 @@ async def list_page_templates(ctx: Context, args: dict) -> tuple[str, dict]:
 
     items = [{**{k: t[k] for k in ("id", "name", "description", "category")}, "scope": "builtin"}
              for t in page_templates.all_templates()]
-    for t in await page_user_templates.all_usable(ctx.db, ctx.user):
+    usable = await page_user_templates.all_usable(ctx.db, ctx.user)
+    if args.get("workspace"):
+        ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
+        usable = [t for t in usable if t["workspace_id"] == ws_id]
+    for t in usable:
         items.append({"id": t["id"], "name": t["name"], "description": t["description"],
                       "category": t.get("workspace_name") or "Personal", "scope": t["scope"],
                       "workspace_id": t["workspace_id"], "subpages": t["subpages"], "slug": t["slug"]})
@@ -348,6 +354,20 @@ async def save_page_as_template(ctx: Context, args: dict) -> tuple[str, dict]:
     subs = f" with {t['subpages']} sub-page{'s' if t['subpages'] != 1 else ''}" if t["subpages"] else ""
     return (f"Saved {t['name']!r}{subs} to {where} (id {t['id']}). Make a page from it with "
             f"create_page(template={t['id']!r})."), out
+
+
+async def set_folder_default_template(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import page_user_templates
+
+    ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
+    try:
+        out = await page_user_templates.set_folder_default(ctx.db, ctx.user, ws_id, args["folder"],
+                                                           args.get("template"))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    if out["default_template"]:
+        return f"New pages in {out['folder']} now start from template {out['default_template']}.", out
+    return f"New pages in {out['folder']} now start blank.", out
 
 
 async def list_subpages(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -392,8 +412,27 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
     changes = {k: args[k] for k in page_props.KEYS if k in args}
-    if not changes:
-        raise ToolError(f"Nothing to change: pass one of {', '.join(page_props.KEYS)} (null clears it).")
+    as_template = args.get("template")
+    if not changes and as_template is None:
+        raise ToolError(f"Nothing to change: pass one of {', '.join(page_props.KEYS)} (null clears it), "
+                        "or template.")
+    note = ""
+    if as_template is not None:
+        from app.services import page_user_templates
+
+        try:
+            raw = await page_user_templates.set_template(ctx.db, ctx.user, actor_of(ctx), _actx(ctx), raw,
+                                                         bool(as_template))
+        except HTTPException as exc:
+            raise ToolError(http_message(exc))
+        note = (f" It is now a template (id {raw['_id']}): it shows in the New page gallery and "
+                f"create_page(template={str(raw['_id'])!r}) starts a page from it; it no longer appears in "
+                "lists or search." if as_template else " It is an ordinary page again.")
+        if not changes:
+            props = page_props.parse(raw.get("content"))
+            out = {**await _result(ctx, raw), "properties": props, "template": bool(raw.get("template")),
+                   "template_id": str(raw["_id"]) if raw.get("template") else None}
+            return f"Updated {out['url']}.{note}", out
     for k in ("icon", "cover"):
         v = changes.get(k)
         if isinstance(v, str) and v.startswith("asset:"):
@@ -405,9 +444,10 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError(str(exc))
     after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
     props = page_props.parse(after.get("content"))
-    out = {**await _result(ctx, after), "properties": props}
+    out = {**await _result(ctx, after), "properties": props, "template": bool(after.get("template")),
+           "template_id": str(after["_id"]) if after.get("template") else None}
     return f"Updated the page properties of {out['url']}: " + ", ".join(
-        f"{k}={props[k]}" for k in changes), out
+        f"{k}={props[k]}" for k in changes) + note, out
 
 
 async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -478,7 +518,9 @@ PAGE_TOOLS: list[Tool] = [
         name="create_page",
         title="Create a page",
         description=("Create a Markdrop page (a document that opens in the block editor), optionally from a "
-                     "template (see list_page_templates), in a workspace folder, or inside another page "
+                     "template (see list_page_templates: a built-in id, or a workspace or personal template's "
+                     "id or slug), in a workspace folder (a folder's default template applies when neither "
+                     "template nor content is given), or inside another page "
                      "(parent: it then lives in that page's workspace and folder and has the same access). "
                      "Always give the user the returned url. " + _SYNTAX),
         scope=WRITE,
@@ -490,10 +532,12 @@ PAGE_TOOLS: list[Tool] = [
             "parent": {**_DOC_REF, "description": "Optional: the page to put it inside (slug or link). The user "
                                                   "must be able to edit it."},
             "template": {"type": "string", "minLength": 1, "maxLength": 64, "description": (
-                "Optional: a template id from list_page_templates — a built-in one ("
+                "Optional: a template from list_page_templates — a built-in id ("
                 + ", ".join(t["id"] for t in page_templates.TEMPLATES)
-                + ") or one of the user's workspace or personal templates. {{date}}, {{author}} and "
-                "{{title}} are filled in; a template's images and sub-pages are copied.")},
+                + ") or a workspace or personal template's id or slug. {{title}}, {{date}}, {{author}} (the "
+                "user's name) and {{folder}} are filled in; its images and sub-pages are copied. Without "
+                "template or content, a page in a folder with a default template starts from that; pass "
+                "'blank' for an empty page.")},
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (
@@ -503,7 +547,7 @@ PAGE_TOOLS: list[Tool] = [
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
                             "editor": {"type": "string"}, "parent": _NULLABLE_STR,
-                            "workspace_error": _NULLABLE_STR},
+                            "workspace_error": _NULLABLE_STR, "template_id": _NULLABLE_STR},
                            ["url", "markdrop_url", "slug", "title", "editor"]),
         annotations=_ann(False, False, False),
         handler=create_page,
@@ -603,11 +647,15 @@ PAGE_TOOLS: list[Tool] = [
     Tool(
         name="list_page_templates",
         title="List page templates",
-        description="The page templates create_page accepts: the built-in ones (feature guide, how-to, QA plan, "
-                    "spec, meeting notes, runbook, blank), then the user's personal templates and the templates "
-                    "of each workspace they're a member of.",
+        description="The page templates create_page accepts, each with its id: the built-in ones (feature "
+                    "guide, how-to, QA plan, spec, meeting notes, runbook, blank), then the user's personal "
+                    "templates and the templates of each workspace they're a member of (with their slug). "
+                    "workspace: only the built-ins and that workspace's templates. Placeholders {{title}}, "
+                    "{{date}}, {{author}} and {{folder}} are filled in on each new page.",
         scope=READ,
-        input_schema={"type": "object", "properties": {}},
+        input_schema={"type": "object", "properties": {
+            "workspace": {**_WORKSPACE_ARG, "description": "Optional: list this workspace's templates (id, name "
+                                                           "or domain) with the built-ins."}}},
         output_schema=_out({"templates": {"type": "array"}}),
         annotations=_ann(True, False, True),
         handler=list_page_templates,
@@ -619,7 +667,8 @@ PAGE_TOOLS: list[Tool] = [
                      "(scope workspace: the page's own workspace unless another is named; members and up) can "
                      "make new pages from. Its images are copied; include_subpages copies the sub-pages the "
                      "user can open too. Templates never appear in listings or search. Placeholders "
-                     "{{date}}, {{author}} and {{title}} in it are filled in on each new page."),
+                     "{{title}}, {{date}}, {{author}} and {{folder}} in it are filled in on each new page. "
+                     "To make the page itself a template instead, use set_page_properties(template=true)."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -638,6 +687,25 @@ PAGE_TOOLS: list[Tool] = [
                            ["id", "slug", "name", "scope"]),
         annotations=_ann(False, False, False),
         handler=save_page_as_template,
+    ),
+    Tool(
+        name="set_folder_default_template",
+        title="Set a folder's default template",
+        description=("Choose the template New page starts from in a workspace folder (workspace admins): a "
+                     "built-in id or one of that workspace's templates (id or slug); null for blank. People "
+                     "making a page there can still choose blank or another template, and create_page in that "
+                     "folder without template or content uses it."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "workspace": _WORKSPACE_ARG,
+            "folder": {**_FOLDER_ARG, "description": "The folder (id or path, e.g. 'product-hub/02-prds')."},
+            "template": {"type": ["string", "null"], "maxLength": 64},
+        }, "required": ["workspace", "folder", "template"]},
+        output_schema=_out({"folder_id": {"type": "string"}, "folder": _NULLABLE_STR,
+                            "default_template": _NULLABLE_STR}, ["folder_id", "default_template"]),
+        annotations=_ann(False, False, True),
+        handler=set_folder_default_template,
     ),
     Tool(
         name="list_subpages",
@@ -676,7 +744,8 @@ PAGE_TOOLS: list[Tool] = [
                      f"{', '.join(page_props.GALLERY)}) and its focal point cover_y (0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one). Pass null to clear one. "
-                     "They live in the page's front matter. Refused while someone is editing the page."),
+                     "They live in the page's front matter. Refused while someone is editing the page. "
+                     "template: true turns the page into a workspace (or personal) template, false back."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -688,9 +757,15 @@ PAGE_TOOLS: list[Tool] = [
             "small_text": {"type": ["boolean", "null"]},
             "font": {"type": ["string", "null"], "enum": ["default", "serif", "mono", None]},
             "locked": {"type": ["boolean", "null"]},
+            "template": {"type": "boolean", "description": (
+                "true: the page itself becomes a template of its workspace (or the user's own, for a "
+                "personal page): it leaves every list and search, and create_page(template=<its id or "
+                "slug>) starts new pages from a copy of it. Top-level pages only; its sub-pages come with "
+                "it. false: back to an ordinary page. Pages already made from it never change.")},
         }, "required": ["document"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
-                            "properties": {"type": "object"}}, ["url", "markdrop_url", "slug", "rev", "properties"]),
+                            "properties": {"type": "object"}, "template": {"type": "boolean"},
+                            "template_id": _NULLABLE_STR}, ["url", "markdrop_url", "slug", "rev", "properties"]),
         annotations=_ann(False, False, True),
         handler=set_page_properties,
     ),
