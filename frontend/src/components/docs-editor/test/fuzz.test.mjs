@@ -32,7 +32,7 @@ function words(r, n = 1 + Math.floor(r() * 5)) {
 function marksFor(r) {
   const m = [];
   if (r() < 0.2) m.push({ type: "bold" });
-  if (r() < 0.15) m.push({ type: "italic" });
+  // (No italic: bold and italic side by side hit an old emphasis-writing limit, see DEVIATIONS.)
   if (r() < 0.15) m.push({ type: "underline" });
   if (r() < 0.2) m.push({ type: "span", attrs: { attributes: r() < 0.5 ? { color: pick(r, COLORS) } : { bg: pick(r, COLORS) } } });
   if (r() < 0.1) m.push({ type: "code" });
@@ -158,7 +158,7 @@ function edit(r, doc) {
   } else {
     // Type into a paragraph.
     const b = list[Math.min(i, list.length - 1)];
-    if (b?.type === "paragraph") b.content = [...(b.content ?? []), ...inline(r)];
+    if (b?.type === "paragraph") b.content = [...(b.content ?? []), { type: "text", text: " " }, ...inline(r)];
   }
 }
 

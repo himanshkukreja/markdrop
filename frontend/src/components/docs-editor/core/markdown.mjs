@@ -672,7 +672,10 @@ const isInline = (n) => INLINE.has(n.type);
  */
 function serializeMarkdownImpl(state, { preserve = true } = {}) {
   const { doc, front = "", lead = "", tail = "", eol = "\n", bom = "", empty = false } = state;
-  const body = serializeFlow(doc.content ?? [], { preserve });
+  let body = serializeFlow(doc.content ?? [], { preserve });
+  // A page that starts with a divider and has another one later would read back as front matter:
+  // the first divider is written `***` (the same divider).
+  if (!front && !lead.trim() && /^---[ \t]*(?:\n|$)/.test(body) && /\n---[ \t]*(?:\n|$)/.test(body)) body = `***${body.slice(body.indexOf("\n") < 0 ? body.length : body.indexOf("\n"))}`;
   // A page that had no blocks yet: its whitespace was all `lead`; new content ends with a newline.
   let out = !body ? front + lead + tail : empty ? front + (front ? "\n" : "") + body + "\n" : front + lead + body + tail;
   if (eol !== "\n") out = out.replace(/\n/g, eol);
@@ -972,7 +975,24 @@ function toMdast(node, preserve) {
     case "figure":
       return { type: "paragraph", children: [{ type: "image", url: node.attrs.src ?? "", alt: node.attrs.alt ?? "", title: node.attrs.title || null }, ...trailingFor("figure", node.attrs?.battrs, [])] };
     case "blockquote":
-      return { type: "blockquote", children: (node.content ?? []).filter((k) => !isEmptyParagraph(k)).map((k) => child(k, preserve)) };
+    {
+      // Two lists in a row inside a quote must not merge: the second is written knowing the first.
+      const kids = (node.content ?? []).filter((k) => !isEmptyParagraph(k));
+      let prevText = null;
+      return {
+        type: "blockquote",
+        children: kids.map((k, i) => {
+          if (isList(k) && i > 0) {
+            const value = serializeBlock(k, { preserve, prev: kids[i - 1], prevText, next: kids[i + 1] ?? null });
+            prevText = value;
+            return { type: "mdRaw", value };
+          }
+          const out = child(k, preserve);
+          prevText = out.type === "mdRaw" ? out.value : out.data?.raw ?? null;
+          return out;
+        }),
+      };
+    }
     case "bulletList":
     case "orderedList":
       return {
@@ -1090,7 +1110,32 @@ export function phrasing(nodes) {
         break;
     }
   }
-  return literalLinks(root.children);
+  return colonGuard(literalLinks(root.children));
+}
+
+/**
+ * Text ending in ":" right before a `:span[…]` / `:u[…]` / `:kbd[…]` would make "::span", which
+ * isn't a directive: that colon is written escaped.
+ */
+function colonGuard(children) {
+  const out = [];
+  for (const c of children) {
+    if (c.children) c.children = colonGuard(c.children);
+    const prev = out[out.length - 1];
+    if (c.type === "textDirective" && prev?.type === "text" && prev.value.endsWith(":")) {
+      prev.value = prev.value.slice(0, -1);
+      if (!prev.value) out.pop();
+      out.push({ type: "mdRaw", value: "\\:" });
+    }
+    // …and text starting with "{" right after one would be read as its attributes.
+    if (c.type === "text" && prev?.type === "textDirective" && c.value.startsWith("{")) {
+      out.push({ type: "mdRaw", value: "\\{" });
+      if (c.value.length > 1) out.push({ ...c, value: c.value.slice(1) });
+      continue;
+    }
+    out.push(c);
+  }
+  return out;
 }
 
 /**
