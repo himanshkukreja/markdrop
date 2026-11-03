@@ -17,6 +17,7 @@ export const MathBlock: Node;
 export const InlineImage: Node;
 export const InlineMath: Node;
 export const RawInline: Node;
+export const Mention: Node;
 export const Kbd: Mark;
 export const InlineCode: Mark;
 export const MarkdownAttrs: Extension;

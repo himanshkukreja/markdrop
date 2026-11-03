@@ -38,6 +38,8 @@ import { directiveFromMarkdown, directiveToMarkdown } from "mdast-util-directive
 export const CALLOUT_KINDS = ["note", "tip", "warning", "danger"];
 /** Leaf directives the editor renders as blocks (`api` is the OpenAPI operation placeholder). */
 export const LEAF_NAMES = ["video", "clip", "embed", "markdrop", "api"];
+/** A mention chip's whole source: `:markdrop[label]{attributes}` on one line (anything else stays raw). */
+const MENTION_SRC = /^:markdrop\[[^\n]*\]\{[^\n]*\}$/;
 /** Container node types that serialize as `:::name` directives. */
 const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private"]);
 
@@ -64,6 +66,7 @@ const SEM = {
   rawBlock: ["value"],
   rawInline: ["value"],
   inlineMath: ["value"],
+  mention: ["label", "attributes"],
 };
 const MARK_SEM = { link: ["href", "title", "kind"] };
 /** Nesting order when marks become mdast wrappers (outermost first); `code` is always the leaf. */
@@ -411,6 +414,9 @@ function inline(children, ctx, marks = []) {
         const s = ctx.src.slice(start(c), end(c));
         if (c.name === "kbd" && /^:kbd\[[\s\S]*\]$/.test(s) && c.children.length) {
           out.push(...inline(c.children, ctx, [...marks, { type: "kbd" }]));
+        } else if (c.name === "markdrop" && MENTION_SRC.test(s) && typeof c.attributes?.src === "string" && c.attributes.src.trim() && bracket(s, 9) !== null) {
+          // `:markdrop[Title]{src=<slug>}`: a mention chip (a page's link to a Markdrop item).
+          push({ type: "mention", attrs: { label: bracket(s, 9), attributes: { ...c.attributes } } });
         } else if (s === `:${c.name}`) {
           // "0:30", "Note:this": a colon before a word is just text (the renderer prints it as such).
           push({ type: "text", text: s });
@@ -550,7 +556,7 @@ function signature(node) {
   return JSON.stringify([node.type, attrs, body]);
 }
 
-const INLINE = new Set(["text", "hardBreak", "image", "inlineMath", "rawInline"]);
+const INLINE = new Set(["text", "hardBreak", "image", "inlineMath", "rawInline", "mention"]);
 const isInline = (n) => INLINE.has(n.type);
 
 /* ── serializing ─────────────────────────────────────────────────────────── */
@@ -906,11 +912,24 @@ export function phrasing(nodes) {
       case "rawInline":
         parent.children.push({ type: "mdRaw", value: n.attrs?.value ?? "" });
         break;
+      case "mention":
+        parent.children.push({ type: "mdRaw", value: mentionSource(n.attrs) });
+        break;
       default:
         break;
     }
   }
   return literalLinks(root.children);
+}
+
+/**
+ * `:markdrop[label]{src=… …}`. A label read from the page is written as it was; a new one (the
+ * picker's title) loses brackets, backslashes and line breaks, which would end the label early.
+ */
+export function mentionSource(attrs) {
+  const raw = String(attrs?.label ?? "");
+  const label = bracket(`[${raw}]`, 0) === raw ? raw : raw.replace(/[[\]\\]/g, "");
+  return `:markdrop[${label.replace(/[\n\r]+/g, " ")}]${directiveAttrs(attrs?.attributes ?? {})}`;
 }
 
 /** A bare-URL link (`https://…` typed as text) goes back as the text it was. */
