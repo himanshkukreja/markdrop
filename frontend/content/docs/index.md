@@ -1,14 +1,14 @@
 ---
 title: Markdrop Docs
 description: Publish documents and files, share them safely, run workspaces on your own domain, and use Markdrop from your editor, terminal and AI assistant.
-updated: 2026-11-02
+updated: 2026-11-03
 ---
 
 Markdrop turns what you drop into a link that renders in any browser: Markdown documents, and files like PDFs, videos, spreadsheets, Word documents, HTML and zipped websites. These docs cover every part of it.
 
 ## Start here
 
-- [What is Markdrop](/get-started/what-is-markdrop): what it does, and the two kinds of things you can publish.
+- [What is Markdrop](/get-started/what-is-markdrop): what it does, and the two kinds of things you can publish, with a two-and-a-half-minute overview video.
 - [Publish your first document](/get-started/first-document): paste Markdown and get a link. No account needed.
 - [Share your first file](/get-started/first-file): upload a file that opens in the browser.
 - [Connect an AI assistant](/ai/overview): let Claude, ChatGPT or Cursor publish and update links for you.

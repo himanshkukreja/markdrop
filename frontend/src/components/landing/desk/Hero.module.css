@@ -107,6 +107,50 @@
   line-height: 18px;
   color: var(--text-muted);
 }
+/* "Watch the overview": quiet, under the CTAs; the player loads on click (TrailerButton). */
+.watch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.watch svg {
+  box-sizing: content-box;
+  width: 10px;
+  height: 10px;
+  padding: 5px 4px 5px 6px;
+  border-radius: 9999px;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  transition: background-color 0.15s, color 0.15s;
+}
+.watch:hover {
+  color: var(--text);
+}
+.watch:hover svg {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.watch:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+.watchTime {
+  font-weight: 500;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 @media (min-width: 1024px) {
   .h1 {
     margin-top: 18px;
@@ -121,6 +165,9 @@
   }
   .cap {
     display: block;
+  }
+  .watch {
+    margin-top: 10px;
   }
 }
 
