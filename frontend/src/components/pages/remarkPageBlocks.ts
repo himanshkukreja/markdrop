@@ -116,7 +116,7 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
         for (let i = 0; i < kids.length - 1; i++) {
           const kind = ATTR_LINE[kids[i].type];
           const next = kids[i + 1];
-          if (!kind || next.type !== "paragraph" || next.children?.length !== 1 || next.children[0].type !== "text") continue;
+          if (!kind || next.type !== "paragraph") continue;
           const line = sourceOf(next);
           const a = line.includes("\n") ? null : attrLine(line, kind);
           if (!a) continue;

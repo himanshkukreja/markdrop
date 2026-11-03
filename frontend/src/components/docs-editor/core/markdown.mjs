@@ -251,7 +251,8 @@ const ATTR_LINE_KIND = { table: "table", code: "codeBlock", math: "mathBlock", t
 
 /** The attributes `next` holds when it is a paragraph that is one line of attributes for `kind`. */
 function lineAttrs(next, kind, ctx, strip) {
-  if (!next || next.type !== "paragraph" || next.children.length !== 1 || next.children[0].type !== "text") return null;
+  // The line as written (a caption may hold `*` or `_`, which Markdown reads as emphasis).
+  if (!next || next.type !== "paragraph") return null;
   const text = dedent(ctx.src.slice(start(next), end(next)), strip);
   if (text.includes("\n")) return null;
   return attrLine(text, kind);
@@ -635,8 +636,13 @@ function fpImpl(node) {
  */
 function effectiveSpread(node) {
   const kids = (node.content ?? []).filter((k) => !isEmptyParagraph(k));
-  if (node.type === "listItem")
-    return (!!node.attrs?.spread && kids.length > 1) || kids.some((k, i) => i > 0 && k.type === "paragraph" && kids[i - 1].type === "paragraph");
+  if (node.type === "listItem") {
+    const adjacent = kids.some((k, i) => i > 0 && k.type === "paragraph" && kids[i - 1].type === "paragraph");
+    // An item holding a container (a nested `:::indent`, a callout…): mdast calls it loose when the
+    // container has a blank line inside, whatever the item's own spacing, so only adjacency counts.
+    if (kids.some((k, i) => i > 0 && CONTAINER_TYPES.has(k.type))) return adjacent;
+    return (!!node.attrs?.spread && kids.length > 1) || adjacent;
+  }
   return !!node.attrs?.spread && kids.length > 1;
 }
 
@@ -918,6 +924,18 @@ const TO_MD = {
     },
     mdRaw(node) {
       return node.value;
+    },
+    // mdast-util-gfm's task item, which drops the checkbox after a `1)` marker (its pattern only
+    // knows `1.`): a list written with `)` to keep it apart from the list before it lost its to-dos.
+    listItem(node, parent, state, info) {
+      const head = node.children[0];
+      const checkable = typeof node.checked === "boolean" && head && head.type === "paragraph";
+      const checkbox = `[${node.checked ? "x" : " "}] `;
+      const tracker = state.createTracker(info);
+      if (checkable) tracker.move(checkbox);
+      let value = defaultHandlers.listItem(node, parent, state, { ...info, ...tracker.current() });
+      if (checkable) value = value.replace(/^(?:[*+-]|\d+[.)])([\r\n]| {1,3})/, (m) => m + checkbox);
+      return value;
     },
     image(node, parent, state, info) {
       // A page image's address is `asset:<id>`: the colon needs no escape there (it reads back the

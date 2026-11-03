@@ -231,7 +231,7 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
       shouldShow={({ editor: e, state, from, to }) => {
         if (!e.isEditable || from === to) return false;
         if (assist?.busy) return false;
-        if (state.selection instanceof NodeSelection) return false;
+        if (state.selection instanceof NodeSelection || "anchorBlock" in state.selection) return false;
         const $from = state.doc.resolve(from);
         if (CODE_PARENTS.has($from.parent.type.name)) return false;
         return state.doc.textBetween(from, to, " ").trim().length > 0 || view !== "buttons";
