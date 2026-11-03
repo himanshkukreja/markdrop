@@ -130,6 +130,7 @@ Read :markdrop[the launch plan]{src=launch-plan} first.
 - `src` is the item's link name (the part after `markdrop.in/`); a full `https://markdrop.in/<name>` link works too.
 - `mode` is `live` (the default), `preview` or `card`.
 - In a mention, the text in brackets is a label for people reading the Markdown; readers see the item's own title, or **Restricted item**.
+- Someone who can't open the item never gets its label or `title`: in the Markdown they read (the raw view, an AI app's `get_page`, a copy) the mention is `:markdrop[]{src=…}` and the embed has no `title`. When they save, the labels come back from the page.
 
 See [Embed and mention Markdrop items](/pages/embed-and-mention).
 
@@ -161,6 +162,14 @@ Due :date[2026-11-10], owner :person[Ada Lovelace]{id=6650f0c2a1}.
 ```
 
 Dates are `YYYY-MM-DD`. A person is a member of the page's workspace, by their account id.
+
+## Keys
+
+```markdown
+Press :kbd[⌘ K] to search.
+```
+
+`:kbd[…]` shows a keyboard key.
 
 ## Anything else
 

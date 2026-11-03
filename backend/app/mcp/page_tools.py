@@ -407,18 +407,24 @@ _PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "
                     ["url", "markdrop_url", "slug", "rev"])
 _MARKDOWN = {"type": "string", "minLength": 1, "maxLength": settings.max_content_chars}
 # What AI apps may write in a page (the block editor round-trips all of it). Kept in one place;
-# the docs page "Page Markdown reference" spells out every block.
+# the docs page "Page Markdown reference" (frontend/content/docs/pages/markdown-reference.md) spells
+# out every block. Exactly what the editor reads and writes: nothing it doesn't.
+# TODO(page-builder): add columns ('::::columns' / ':::column{width=…}'), text colours
+# (':span[…]{color=…}'), block anchors and image width / alignment here and on the docs page once the
+# editor writes them.
 PAGE_SYNTAX = (
-    "Page Markdown: GitHub Markdown (headings, lists, '- [ ]' to-dos, tables, ``` code, > quotes, ---) plus "
-    "directives. Callout: ':::note{icon=\"💡\" color=\"blue\"}' … ':::' (also tip, warning, danger). Toggle: "
-    "':::details{summary=\"Title\"}' … ':::'; toggle heading: ':::details{heading=2 summary=\"Title\"}'. "
-    "Columns: '::::columns' then ':::column{width=50}' … ':::' per column, closed by '::::'. Colour: inline "
-    "':span[text]{color=\"red\"}' (or bg=\"yellow\"); a block gets '{color=\"blue\"}' on its own line after it. "
-    "Math: $inline$ and $$ blocks; ```mermaid diagrams. Bookmark: '::bookmark{url=\"https://…\"}'. Web embed "
-    "(YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): '::embed{src=\"https://…\"}'. Markdrop item: "
-    "'::markdrop{src=\"<slug>\" mode=\"live|preview|card\"}'; mention: ':markdrop[Title]{src=\"<slug>\"}'; person: "
-    "':person[Name]{id=\"<user id>\"}'. Image: '![alt](asset:<id>)' (upload_page_image). Page properties go "
-    "in front matter (icon, cover, cover_y, full_width, small_text, font, locked): use set_page_properties."
+    "Page Markdown: GitHub Markdown (# ## ### headings, **bold** *italic* ~~strike~~ `code`, links, > quotes, "
+    "---, nested - and 1. lists, '- [ ]' / '- [x]' to-dos, tables, ``` code; ```mermaid draws a diagram; "
+    "$math$ and $$ blocks) plus directives. Callout: ':::note' … ':::' (also tip, warning, danger), with an "
+    "optional '[Title]' and '{icon=\"💡\" color=\"blue\"}' (gray, brown, orange, yellow, green, blue, purple, "
+    "pink, red). Toggle: ':::details{summary=\"Title\"}' … ':::'; toggle heading: "
+    "':::details{summary=\"Title\" heading=2}' (1-3). Image: '![alt](asset:<id>)' (upload_page_image) or "
+    "'![alt](https://… \"caption\")'. Markdrop item: '::markdrop{src=\"<slug>\" mode=\"live|preview|card\"}'; "
+    "mention: ':markdrop[Title]{src=\"<slug>\"}'. Sub-page link: '::page{src=\"<slug>\"}'; '::toc'; "
+    "'::breadcrumb'. Bookmark: '::bookmark{url=\"https://…\" title=\"…\" description=\"…\"}'. Web embed "
+    "(YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): '::embed{src=\"https://…\"}'. Person: "
+    "':person[Name]{id=\"<user id>\"}'; date: ':date[YYYY-MM-DD]'; key: ':kbd[⌘ K]'. Page properties go in "
+    "front matter (icon, cover, cover_y, full_width, small_text, font, locked): use set_page_properties."
 )
 _SYNTAX = PAGE_SYNTAX
 
