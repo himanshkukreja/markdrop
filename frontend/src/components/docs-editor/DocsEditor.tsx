@@ -271,8 +271,30 @@ export function DocsEditor({
     },
     focus() {
       const v = visualRef.current;
-      if (modeRef.current === "visual" && v) v.editor.commands.focus();
-      else textarea.current?.focus();
+      if (modeRef.current === "visual" && v) {
+        // Now, not on the next frame: keys typed right after must land in the page.
+        v.editor.view.focus();
+        v.editor.commands.focus();
+      } else textarea.current?.focus();
+    },
+    focusStart() {
+      const v = visualRef.current;
+      if (modeRef.current !== "visual" || !v || v.editor.isDestroyed) {
+        const ta = textarea.current;
+        if (ta) {
+          ta.focus();
+          ta.setSelectionRange(0, 0);
+        }
+        return;
+      }
+      const ed = v.editor;
+      const first = ed.state.doc.firstChild;
+      let tr = ed.state.tr;
+      // A new empty line at the top, unless the page already starts with one.
+      if (!(first && first.type.name === "paragraph" && first.content.size === 0)) tr = tr.insert(0, ed.schema.nodes.paragraph.create());
+      tr = tr.setSelection(TextSelection.create(tr.doc, 1)).scrollIntoView();
+      ed.view.dispatch(tr);
+      ed.view.focus();
     },
     reveal(t) {
       const v = visualRef.current;

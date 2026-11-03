@@ -336,7 +336,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
             session.update({ title: t });
             keepDraft({ title: t });
           },
-          onEnter: () => api.current?.focus(),
+          onEnter: () => api.current?.focusStart(),
         }}
       />
       {empty && !readOnly && mode === "visual" && (

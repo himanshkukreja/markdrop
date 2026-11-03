@@ -12,7 +12,8 @@
  *   :name                   emoji (`:rocket` → 🚀)
  */
 import { Extension, InputRule, type Editor, type Range } from "@tiptap/core";
-import { NodeSelection, TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, TextSelection } from "@tiptap/pm/state";
+import { ReplaceStep } from "@tiptap/pm/transform";
 import { blockAtCursor, duplicate, moveBlock } from "./menus/BlockHandle";
 import { SuggestMenu, emojiKey, type SlashStore } from "./menus/slash";
 import { searchEmoji } from "./emoji";
@@ -116,8 +117,28 @@ export const PageKeys = Extension.create({
     });
     return keys;
   },
+  addProseMirrorPlugins() {
+    return [
+      // Enter at the end of a done to-do starts an open one (the split copies "checked").
+      new Plugin({
+        appendTransaction: (trs, _old, state) => {
+          if (!trs.some((t) => t.steps.some((s) => s instanceof ReplaceStep))) return null;
+          const { $from, empty } = state.selection;
+          if (!empty) return null;
+          for (let d = $from.depth; d > 0; d--) {
+            const n = $from.node(d);
+            if (n.type.name !== "listItem") continue;
+            if (n.attrs.checked !== true || n.textContent.length) return null;
+            const idx = $from.index(d - 1);
+            if (idx === 0) return null;
+            return state.tr.setNodeMarkup($from.before(d), undefined, { ...n.attrs, checked: false });
+          }
+          return null;
+        },
+      }),
+    ];
+  },
   addInputRules() {
-    const editor = this.editor;
     const atLineStart = (state: Editor["state"], range: Range) => state.doc.resolve(range.from).parent.type.name === "paragraph";
     return [
       // [] or [ ] or [x] then a space: a to-do.
@@ -126,8 +147,20 @@ export const PageKeys = Extension.create({
         handler: ({ state, range, match, chain }) => {
           if (!atLineStart(state, range)) return null;
           const checked = /x/i.test(match[1] ?? "");
-          chain().deleteRange(range).toggleBulletList().run();
-          setChecked(editor, checked);
+          chain()
+            .deleteRange(range)
+            .toggleBulletList()
+            .command(({ tr }) => {
+              const $f = tr.selection.$from;
+              for (let d = $f.depth; d > 0; d--) {
+                if ($f.node(d).type.name === "listItem") {
+                  tr.setNodeMarkup($f.before(d), undefined, { ...$f.node(d).attrs, checked });
+                  return true;
+                }
+              }
+              return false;
+            })
+            .run();
         },
       }),
       // $$ then a space: an equation block.

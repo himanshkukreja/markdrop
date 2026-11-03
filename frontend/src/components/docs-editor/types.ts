@@ -185,6 +185,8 @@ export interface DocsEditorApi {
    */
   suggest(s: { heading: string | null; level?: number; markdown: string; title: string; note?: string; onAccept?: () => void }): boolean;
   focus(): void;
+  /** The caret at the very start of the page, on an empty line (Enter in a page's title). */
+  focusStart(): void;
   /** Adds an empty "Markdrop file" block at the caret (its picker opens); Markdown mode adds the line. */
   insertMarkdropFile(): void;
   /**

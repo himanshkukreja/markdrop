@@ -184,8 +184,23 @@ export default function VisualEditor(props: VisualEditorProps) {
     onBlur: () => emit(),
   });
 
-  // Flush on unmount (mode switch, navigation) so nothing typed is lost.
+  // Flush on unmount (mode switch, navigation) so nothing typed is lost, and when the tab goes
+  // away or is hidden (a reload, a closed tab: the host keeps a local copy of what it's told).
   useEffect(() => () => emit(), [emit]);
+  useEffect(() => {
+    const flush = () => emit();
+    const hidden = () => {
+      if (document.visibilityState === "hidden") emit();
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    document.addEventListener("visibilitychange", hidden);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+      document.removeEventListener("visibilitychange", hidden);
+    };
+  }, [emit]);
   useEffect(() => () => onHandleRef.current?.(null), []);
 
   // The host's problems and comments changed: repaint.
