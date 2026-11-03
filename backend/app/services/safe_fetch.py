@@ -80,8 +80,12 @@ def blocked_address(address: str) -> bool:
     return False
 
 
-def check_url(url: str) -> tuple[str, str]:
-    """(url without fragment, hostname) when the URL may be fetched, else :class:`FetchError`."""
+_DEFAULT_PORTS = {"https": 443, "http": 80}
+
+
+def check_url(url: str, schemes: tuple[str, ...] = ("https",)) -> tuple[str, str]:
+    """(url without fragment, hostname) when the URL may be fetched, else :class:`FetchError`.
+    ``schemes`` may add ``http`` (link previews); each only on its standard port."""
     if not isinstance(url, str) or not url.strip():
         raise FetchError("Enter an https:// address.")
     url = url.strip()
@@ -92,12 +96,14 @@ def check_url(url: str) -> tuple[str, str]:
         port = parts.port
     except ValueError:
         raise FetchError("That isn't a valid address.") from None
-    if parts.scheme.lower() != "https":
-        raise FetchError("Only https:// addresses can be fetched.")
+    scheme = parts.scheme.lower()
+    if scheme not in schemes or scheme not in _DEFAULT_PORTS:
+        raise FetchError("Only https:// addresses can be fetched." if schemes == ("https",)
+                         else "Only http:// and https:// addresses can be fetched.")
     if parts.username is not None or parts.password is not None:
         raise FetchError("Addresses with a username or password in them can't be fetched.")
-    if port is not None and port != 443:
-        raise FetchError("Only the standard https port can be fetched.")
+    if port is not None and port != _DEFAULT_PORTS[scheme]:
+        raise FetchError(f"Only the standard {scheme} port can be fetched.")
     host = (parts.hostname or "").rstrip(".").lower()
     if not host:
         raise FetchError("That isn't a valid address.")
@@ -150,10 +156,12 @@ async def _get_pinned(url: str, host: str, ip: str, *, max_bytes: int, timeout: 
     """One GET to ``url`` at the checked address ``ip``: (status, redirect location, type, body)."""
     parts = urlsplit(url)
     ip_host = f"[{ip}]" if ":" in ip else ip
-    target = f"https://{ip_host}{parts.path or '/'}" + (f"?{parts.query}" if parts.query else "")
+    scheme = "http" if parts.scheme.lower() == "http" else "https"
+    target = f"{scheme}://{ip_host}{parts.path or '/'}" + (f"?{parts.query}" if parts.query else "")
     headers = {"Host": host, "Accept": accept, "User-Agent": USER_AGENT, "Accept-Encoding": "gzip, deflate"}
     async with httpx.AsyncClient(timeout=timeout, follow_redirects=False, trust_env=False) as client:
-        request = client.build_request("GET", target, headers=headers, extensions={"sni_hostname": host})
+        request = client.build_request("GET", target, headers=headers,
+                                       extensions={"sni_hostname": host} if scheme == "https" else {})
         response = await client.send(request, stream=True)
         try:
             if response.is_redirect:
@@ -176,11 +184,11 @@ Transport = Callable[..., Awaitable[tuple[int, str | None, str, bytes]]]
 
 async def safe_get(url: str, *, max_bytes: int, timeout: float = 15.0, max_redirects: int = MAX_REDIRECTS,
                    accept: str = "*/*", resolve: Resolver | None = None,
-                   transport: Transport | None = None) -> Response:
+                   transport: Transport | None = None, schemes: tuple[str, ...] = ("https",)) -> Response:
     """GET ``url`` the safe way (see the top of this module). ``resolve`` and ``transport`` stand in
-    for DNS and the connection in tests."""
+    for DNS and the connection in tests. ``schemes`` may allow ``http`` too (every hop is checked)."""
     send = transport or _get_pinned
-    current, host = check_url(url)
+    current, host = check_url(url, schemes)
     try:
         async with asyncio.timeout(timeout):
             for hop in range(max_redirects + 1):
@@ -192,7 +200,7 @@ async def safe_get(url: str, *, max_bytes: int, timeout: float = 15.0, max_redir
                         raise FetchError("The address redirects too many times.")
                     if not location:
                         raise FetchError("The address redirects nowhere.")
-                    current, host = check_url(urljoin(current, location))
+                    current, host = check_url(urljoin(current, location), schemes)
                     continue
                 return Response(status=status, url=current, content_type=ctype, body=body)
             raise FetchError("The address redirects too many times.")

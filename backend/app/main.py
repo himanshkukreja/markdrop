@@ -60,6 +60,7 @@ from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
 from app.routers.pages import router as pages_router
+from app.routers.bookmarks import router as bookmarks_router
 from app.services.pages import PageError
 
 settings = get_settings()
@@ -201,6 +202,7 @@ app.add_middleware(InternalRequestMiddleware)
 # Routers
 app.include_router(documents_router)
 app.include_router(pages_router)
+app.include_router(bookmarks_router)
 app.include_router(artifacts_router)
 app.include_router(files_router)
 app.include_router(share_router)

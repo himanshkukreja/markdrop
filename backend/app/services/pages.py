@@ -87,9 +87,10 @@ def is_page_capable(raw: dict | None) -> bool:
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["documents"].create_index("parent_id", sparse=True)
-    from app.services import page_assets
+    from app.services import bookmarks, page_assets
 
     await page_assets.ensure_indexes(db)
+    await bookmarks.ensure_indexes(db)
 
 
 # ── The tree ──────────────────────────────────────────────────────────────────
