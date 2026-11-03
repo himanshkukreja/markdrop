@@ -89,6 +89,9 @@
 .dxe-ai .dxe-ai__preview .dxe-content { min-height: 0; padding-bottom: 0; }
 .dxe-ai .dxe-ai__preview .dxe-content > :first-child { margin-top: 0; }
 .dxe-ai .dxe-ai__preview .dxe-content > :last-child { margin-bottom: 0; }
+/* The editor's trailing empty line (a schema rule) isn't part of the answer. */
+.dxe-ai .dxe-ai__preview .dxe-content > p:last-child:has(> br:only-child) { display: none; }
+.dxe-ai .dxe-ai__preview .dxe-content > :nth-last-child(2):has(+ p > br:only-child) { margin-bottom: 0; }
 .dxe-ai__preview .ProseMirror { cursor: default; }
 .dxe-ai__skeleton { display: flex; flex-direction: column; gap: 10px; padding: 6px 0 4px; }
 .dxe-ai__skeleton span { position: relative; display: block; height: 10px; overflow: hidden; border-radius: 5px; background: var(--surface-inset); }
