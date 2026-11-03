@@ -38,7 +38,7 @@ Select text to format it, add a link, or turn a line into another kind of block.
 
 A page's title sits above its content. Press **Enter** in the title to start writing.
 
-Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search by name) or an image you upload, and it shows in the browser tab. The cover is one of the built-in gradients, an image you upload, or an image link. Hover the cover for **Change cover**, **Reposition** (drag the image up or down) and **Remove**.
+Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search by name) or an image you upload, and it shows in the browser tab. The cover is one of Markdrop's built-in covers (paper, duotone, lines and calm), an image you upload, or an image link. A new page has no cover until you add one. Hover the cover for **Change cover**, **Reposition** (drag the image up or down) and **Remove**.
 
 ## Page options
 

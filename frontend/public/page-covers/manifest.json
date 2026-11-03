@@ -1,0 +1,33 @@
+{
+  "size": [1500, 480],
+  "categories": [
+    "Paper",
+    "Duotone",
+    "Lines",
+    "Calm"
+  ],
+  "covers": [
+    { "id": "mist", "name": "Mist paper", "category": "Paper" },
+    { "id": "linen", "name": "Linen", "category": "Paper" },
+    { "id": "graphite", "name": "Graphite", "category": "Paper" },
+    { "id": "fold", "name": "Fold", "category": "Duotone" },
+    { "id": "halftone", "name": "Halftone", "category": "Duotone" },
+    { "id": "dusk", "name": "Dusk", "category": "Duotone" },
+    { "id": "contour", "name": "Contour", "category": "Lines" },
+    { "id": "blueprint", "name": "Blueprint", "category": "Lines" },
+    { "id": "strata", "name": "Strata", "category": "Lines" },
+    { "id": "dawn", "name": "Dawn", "category": "Calm" },
+    { "id": "sage", "name": "Sage", "category": "Calm" },
+    { "id": "moonlit", "name": "Moonlit", "category": "Calm" }
+  ],
+  "aliases": {
+    "aurora": "dusk",
+    "ocean": "dusk",
+    "sunset": "dawn",
+    "peach": "dawn",
+    "sand": "linen",
+    "slate": "graphite",
+    "forest": "sage",
+    "mint": "sage"
+  }
+}

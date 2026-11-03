@@ -1,17 +1,19 @@
 "use client";
 
 /**
- * A page's head: the cover (a gallery gradient or an image, with its focal point), the icon (an
+ * A page's head: the cover (a gallery cover or an image, with its focal point), the icon (an
  * emoji or an uploaded image) and the title. Read only on the page; in the editor, "Add icon",
  * "Add cover", the emoji picker, "Change cover", "Reposition" (drag up or down) and "Remove".
  */
-import { useEffect, useRef, useState } from "react";
-import { Button, Icon, Input, cx } from "@/components/ui";
+import { useRef, useState } from "react";
+import { Icon, cx } from "@/components/ui";
 import dynamic from "next/dynamic";
 
 // The picker (and its emoji list) loads when someone edits a page's icon, never for readers.
 const EmojiPicker = dynamic(() => import("@/components/docs-editor/views/EmojiPicker").then((m) => m.EmojiPicker), { ssr: false, loading: () => null });
-import { COVER_GALLERY, coverStyle, type PageProps } from "./pageProps";
+// So does the cover gallery.
+const CoverPicker = dynamic(() => import("./CoverGallery").then((m) => m.CoverGallery), { ssr: false, loading: () => null });
+import { coverStyle, type PageProps } from "./pageProps";
 import "./pages.css";
 
 export function PageIconGlyph({ icon, resolve, size = 20, className }: { icon: string | null; resolve: (src: string) => string; size?: number; className?: string }) {
@@ -29,37 +31,6 @@ export function PageIconGlyph({ icon, resolve, size = 20, className }: { icon: s
   );
 }
 
-function CoverPicker({ onPick, onUpload, onClose }: { onPick: (v: string) => void; onUpload?: (f: File) => void; onClose: () => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [url, setUrl] = useState("");
-  useEffect(() => {
-    const down = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("mousedown", down);
-    return () => document.removeEventListener("mousedown", down);
-  }, [onClose]);
-  return (
-    <div ref={ref} className="pb-coverpick" role="dialog" aria-label="Choose a cover">
-      <div className="pb-coverpick__grid">
-        {COVER_GALLERY.map((c) => (
-          <button key={c.id} type="button" className="pb-coverpick__swatch md-focus" style={{ background: c.css }} aria-label={c.name} title={c.name} onClick={() => onPick(`gallery:${c.id}`)} />
-        ))}
-      </div>
-      <div className="pb-coverpick__row">
-        {onUpload && (
-          <label className="pb-emojipick__upload md-focus">
-            <Icon name="upload" size={14} /> Upload an image
-            <input type="file" accept="image/*" className="md-visually-hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onUpload(f); }} />
-          </label>
-        )}
-        <form className="pb-coverpick__url" onSubmit={(e) => { e.preventDefault(); if (/^https:\/\//.test(url.trim())) onPick(url.trim()); }}>
-          <Input size="sm" placeholder="…or an image link (https://…)" value={url} onChange={(e) => setUrl(e.target.value)} aria-label="Image link" />
-        </form>
-      </div>
-    </div>
-  );
-}
 
 export interface PageHeadProps {
   title: string | null;
@@ -136,7 +107,7 @@ export function PageHead({ title, props, resolve, edit, top }: PageHeadProps) {
               <button type="button" className="pb-headbtn" onClick={() => edit!.onProps({ cover: null, coverY: 50 })}>Remove</button>
             </div>
           )}
-          {coverOpen && edit && <CoverPicker onPick={(v) => { edit.onProps({ cover: v, coverY: 50 }); setCoverOpen(false); }} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(false)} />}
+          {coverOpen && edit && <CoverPicker current={props.cover} onPick={(v) => { edit.onProps({ cover: v, coverY: 50 }); setCoverOpen(false); }} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(false)} />}
         </div>
       )}
       <div className="pb-head__body">
@@ -166,7 +137,7 @@ export function PageHead({ title, props, resolve, edit, top }: PageHeadProps) {
                 <button type="button" className="pb-headbtn pb-headbtn--quiet" onClick={() => setCoverOpen(true)}>
                   <Icon name="image" size={14} /> Add cover
                 </button>
-                {coverOpen && edit && <CoverPicker onPick={(v) => { edit.onProps({ cover: v, coverY: 50 }); setCoverOpen(false); }} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(false)} />}
+                {coverOpen && edit && <CoverPicker current={props.cover} onPick={(v) => { edit.onProps({ cover: v, coverY: 50 }); setCoverOpen(false); }} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(false)} />}
               </span>
             )}
           </div>
