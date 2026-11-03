@@ -313,7 +313,8 @@ class Tools(McpTestCase):
     async def test_delete_document(self):
         pub = self.ok(await self.tool("publish_document", markdown="bye"))
         out = self.ok(await self.tool("delete_document", document=pub["slug"]))
-        self.assertEqual(out, {"deleted": True, "slug": pub["slug"]})
+        self.assertEqual(out, {"deleted": True, "slug": pub["slug"], "lifted_items": [],
+                               "deleted_items": [{"slug": pub["slug"], "title": pub["title"], "kind": "document"}]})
         self.assertIsNone(await self.db["documents"].find_one({"slug": pub["slug"]}))
         await self.seed("theirs-4", owner=self.other_id)
         self.assertIn("only delete documents you own", self.err(await self.tool("delete_document", document="theirs-4")))

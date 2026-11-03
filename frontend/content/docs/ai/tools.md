@@ -21,7 +21,7 @@ Wherever a tool takes `document`, it accepts a slug (`q3-report`), a markdrop.in
 | `publish_document` | write | Publishes Markdown as a document that renders headings, tables, code, Mermaid diagrams and math. Returns the link. | `markdown`, and the publish options below |
 | `publish_page` | write | Publishes a complete HTML page, or a `.txt`, `.csv`, `.json` or `.svg` file, as a link that opens rendered. Up to 25 MB. | `filename` (with its extension), `content`, and the publish options |
 | `update_document` | write | Replaces the full content of a document or text file, keeping its link. Works on documents you own or can edit. | `document`, `content`, `title` |
-| `delete_document` | write | Deletes a document or file you own, permanently. Marked as destructive, so apps that honour that ask you first. A page with pages inside it needs `children`: `delete` deletes them too, `lift` moves them up a level. | `document`, `children` |
+| `delete_document` | write | Deletes a document, page or file you own, permanently: exactly the one at the slug or link you give, never another item with the same title. Marked as destructive, so apps that honour that ask you first. A page with pages inside it needs `children`: `delete` deletes them too, `lift` moves them up a level. The result lists every item deleted in `deleted_items` (`slug`, `title`, `kind`: `file`, `page` or `document`) and any sub-pages moved up in `lifted_items`. | `document`, `children` |
 
 The **publish options** are all optional:
 
