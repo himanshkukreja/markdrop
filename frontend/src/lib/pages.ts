@@ -148,10 +148,15 @@ export interface LockInfo {
 /* ── pages ──────────────────────────────────────────────────────────────── */
 
 /** `POST /pages`: a new page (signed in). `parent` is a page's slug; the new page inherits its access. */
-export function createPage(input: { title: string; workspace?: string | null; folder?: string | null; parent?: string | null; template?: string | null; content?: string | null }) {
+export function createPage(input: { title: string; workspace?: string | null; folder?: string | null; parent?: string | null; template?: string | null; content?: string | null; after?: string | null }) {
   const body: Record<string, unknown> = { title: input.title };
-  for (const k of ["workspace", "folder", "parent", "template", "content"] as const) if (input[k]) body[k] = input[k];
+  for (const k of ["workspace", "folder", "parent", "template", "content", "after"] as const) if (input[k]) body[k] = input[k];
   return call<CreatedPage>("/api/v1/pages", { method: "POST", body: JSON.stringify(body) });
+}
+
+/** A page as this person reads it (GET /documents/{slug}, with their session). */
+export function getPage(slug: string) {
+  return call<PageDocument & { page_path?: string[] | null; page?: Record<string, unknown> | null }>(`/api/v1/documents/${enc(slug)}`);
 }
 
 let templatesCache: Promise<PageTemplate[]> | null = null;
@@ -179,11 +184,38 @@ export interface AccessChange {
   readers_after: unknown;
 }
 
-export function movePage(slug: string, parent: string | null, confirmAccessChange = false) {
+/**
+ * `PUT /documents/{slug}/parent`: under another page (`parent`, a slug) or at the top (null).
+ * `after` places it among its new siblings (null: first; omitted: last). The API orders siblings
+ * by `after` once it supports it (DEVIATIONS "Frontend → backend requests"); until then it ignores
+ * the field and lists sub-pages oldest first.
+ */
+export function movePage(slug: string, parent: string | null, confirmAccessChange = false, after?: string | null) {
   return call<PageDocument>(`/api/v1/documents/${enc(slug)}/parent`, {
     method: "PUT",
-    body: JSON.stringify({ parent, ...(confirmAccessChange ? { confirm_access_change: true } : {}) }),
+    body: JSON.stringify({ parent, ...(after !== undefined ? { after } : {}), ...(confirmAccessChange ? { confirm_access_change: true } : {}) }),
   });
+}
+
+/** The 409 a move gets when it would change who can read the page (confirm and send again). */
+export function accessChangeOf(e: unknown): AccessChange | null {
+  if (!(e instanceof PagesApiError) || e.status !== 409 || e.info.code !== "access_change") return null;
+  return { readers_before: e.info.readers_before, readers_after: e.info.readers_after };
+}
+
+/** Your own documents outside any workspace that pages can go inside (Markdown, not encrypted). */
+export async function searchMyPages(q: string): Promise<Array<{ slug: string; title: string | null; editor: "blocks" | null; updated_at: string | null }>> {
+  const p = new URLSearchParams({ page: "1", limit: "50" });
+  if (q) p.set("q", q);
+  const r = await call<{ documents: Array<Record<string, unknown>> }>(`/api/v1/me/documents?${p}`);
+  return (r.documents ?? [])
+    .filter((d) => d.kind !== "artifact" && !d.encrypted && !d.workspace_id && typeof d.slug === "string")
+    .map((d) => ({
+      slug: String(d.slug),
+      title: (d.title as string | null) ?? null,
+      editor: d.editor === "blocks" ? "blocks" : null,
+      updated_at: (d.updated_at as string | null) ?? null,
+    }));
 }
 
 /** Delete a page; with sub-pages, `children` says whether they go too or move up a level. */
