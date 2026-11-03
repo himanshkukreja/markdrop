@@ -219,6 +219,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[REQUESTS].create_index([("site", 1), ("feature", 1), ("ts", -1)])
     # Admin → AI → Users and the per-person checks (user_check).
     await db[REQUESTS].create_index([("user_id", 1), ("ts", -1)])
+    await db[SETTINGS_AUDIT].create_index([("ts", -1)])
     # Day rows are only read for today; month rows for this month. A year is plenty.
     await db[SPEND].create_index("expires_at", expireAfterSeconds=0)
 
