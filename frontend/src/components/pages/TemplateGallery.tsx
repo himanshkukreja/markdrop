@@ -7,7 +7,7 @@
  */
 import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Button, Dialog, Icon, Input, Skeleton } from "@/components/ui";
+import { Alert, Badge, Button, Dialog, Icon, Input, Skeleton } from "@/components/ui";
 import { createPage, listPageTemplates, type CreatedPage, type PageTemplate } from "@/lib/pages";
 import { fillTemplate } from "@/lib/pageBlocks.mjs";
 import { track } from "@/lib/track";
@@ -99,7 +99,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
       onClose={() => !busy && onClose()}
       dismissible={!busy}
       size="xl"
-      title={parent ? "New sub-page" : "New page"}
+      title={parent ? "New sub-page" : <span className="inline-flex items-center gap-2">New page <Badge tone="info" size="sm" upper>Beta</Badge></span>}
       description={
         parent ? (
           <>

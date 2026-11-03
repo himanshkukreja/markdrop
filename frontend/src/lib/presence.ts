@@ -54,25 +54,10 @@ const ANON_KEY = "md_presence_anon";
 const NONCE_KEY = "md_presence_tab";
 
 // ── Names and colours ─────────────────────────────────────────────────────────
-
-const EMOJI: Record<string, string> = {
-  Otter: "🦦", Fox: "🦊", Owl: "🦉", Panda: "🐼", Koala: "🐨", Tiger: "🐯", Lion: "🦁", Rabbit: "🐰",
-  Hedgehog: "🦔", Penguin: "🐧", Dolphin: "🐬", Whale: "🐳", Octopus: "🐙", Turtle: "🐢", Frog: "🐸",
-  Badger: "🦡", Raccoon: "🦝", Llama: "🦙", Sloth: "🦥", Flamingo: "🦩", Parrot: "🦜", Swan: "🦢",
-  Eagle: "🦅", Duck: "🦆", Bee: "🐝", Butterfly: "🦋", Ladybug: "🐞", Crab: "🦀", Seal: "🦭",
-  Squirrel: "🐿️", Zebra: "🦓", Giraffe: "🦒", Kangaroo: "🦘", Hippo: "🦛", Camel: "🐫", Elephant: "🐘",
-  Bear: "🐻", Wolf: "🐺", Monkey: "🐵", Deer: "🦌", Bison: "🦬", Beaver: "🦫", Shark: "🦈",
-  Lobster: "🦞", Snail: "🐌", Peacock: "🦚", Hamster: "🐹", Unicorn: "🦄", Dodo: "🦤", Mammoth: "🦣",
-  Chick: "🐤", Bat: "🦇", Boar: "🐗", Gorilla: "🦍", Orangutan: "🦧", Skunk: "🦨", Moose: "🫎",
-  Rhino: "🦏", Lizard: "🦎", Shrimp: "🦐",
-};
+// An anonymous viewer's animal is drawn as a line glyph (components/presence/animals.ts).
 
 export function viewerName(v: Pick<PresenceViewer, "name" | "animal">): string {
   return v.name ?? `Anonymous ${v.animal ?? "viewer"}`;
-}
-
-export function animalGlyph(animal?: string): string | null {
-  return (animal && EMOJI[animal]) || null;
 }
 
 export function viewerInitials(v: Pick<PresenceViewer, "name" | "animal">): string {
