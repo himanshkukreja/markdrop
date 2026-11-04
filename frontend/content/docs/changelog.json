@@ -278,6 +278,23 @@
       ]
     },
     {
+      "id": "workspace-listing",
+      "date": "2026-11-04",
+      "title": "See who owns what in a workspace, choose List, Grid or Cards, and open folders instantly",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "A workspace's list now shows each item's owner with their photo or initial, and the people whose items are in each folder. Choose List, Grid or Cards; Markdrop remembers it. Folders open at once, even on slow connections.",
+      "body": "- **Owners on every row.** Members see who owns each document, page and file, and **You** on their own. Folders show the people whose items are inside, and when something in them last changed.\n- **List, Grid or Cards.** List is the default: name, kind, owner, updated, who can open it and **⋯**. Grid and Cards are tidier tiles with less text. Your choice is remembered on this device, everywhere in the workspace.\n- **Folders open instantly.** Clicking a folder in the list, the sidebar or the breadcrumb switches right away, and items you pointed at are often already loaded. Pages no longer preload every link in the sidebar, so slow connections stay free for what you click.\n- **Folder actions on the row.** Admins can rename, move, set what new items start as, or delete a folder from its row's **⋯** menu.\n- **AI apps.** `list_workspace_items` says who owns each item, and `list_folders` says when each folder last changed and whose items are in it.",
+      "docs": [
+        "/workspaces/folders",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

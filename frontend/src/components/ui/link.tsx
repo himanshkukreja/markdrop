@@ -7,11 +7,15 @@
  */
 import React, { createContext, useContext } from "react";
 
-export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string };
+export type LinkProps = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  href: string;
+  /** Client routing only (next/link): false = never prefetch this link. A plain anchor drops it. */
+  prefetch?: boolean;
+};
 export type LinkComponent = React.ComponentType<LinkProps & React.RefAttributes<HTMLAnchorElement>>;
 
 /** The default: a plain anchor. */
-export const PlainLink = React.forwardRef<HTMLAnchorElement, LinkProps>(function PlainLink(props, ref) {
+export const PlainLink = React.forwardRef<HTMLAnchorElement, LinkProps>(function PlainLink({ prefetch: _prefetch, ...props }, ref) {
   return <a ref={ref} {...props} />;
 });
 

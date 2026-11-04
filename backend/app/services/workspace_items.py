@@ -36,6 +36,8 @@ MAX_ITEMS_PAGE = 100
 # The rail's outline (``nav``): at most this many items per folder (and at the top level); the
 # rest are counted in ``more`` and the rail links to the folder view for them.
 NAV_PER_PLACE = 50
+# Listing rows never need a document's body.
+LIST_PROJECTION = {"content": 0}
 
 
 # ── Opaque handles for redacted rows ──────────────────────────────────────────
@@ -89,7 +91,15 @@ def decode_cursor(cursor: str | None) -> dict | None:
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 
-async def owner_names(db: AsyncIOMotorDatabase, owner_ids) -> dict[str, str | None]:
+def safe_picture(value) -> str | None:
+    """A profile photo we may hand to a browser: https only (as presence does)."""
+    return value if isinstance(value, str) and value.startswith("https://") and len(value) <= 2048 else None
+
+
+async def owner_cards(db: AsyncIOMotorDatabase, owner_ids) -> dict[str, dict]:
+    """``{user id: {"name", "picture"}}`` for a whole listing in ONE query (no N+1). Callers decide
+    who may see them: every listing that uses this is for people with a relationship to the rows
+    (workspace members; personal lists check the caller's role per row)."""
     oids = []
     for oid in {o for o in owner_ids if o}:
         try:
@@ -98,8 +108,21 @@ async def owner_names(db: AsyncIOMotorDatabase, owner_ids) -> dict[str, str | No
             continue
     if not oids:
         return {}
-    rows = await db["users"].find({"_id": {"$in": oids}}, {"name": 1, "email": 1}).to_list(length=len(oids))
-    return {str(r["_id"]): (r.get("name") or (r.get("email") or "").split("@")[0] or None) for r in rows}
+    rows = await db["users"].find({"_id": {"$in": oids}}, {"name": 1, "email": 1, "picture": 1}).to_list(length=len(oids))
+    return {str(r["_id"]): {"name": (r.get("name") or "").strip() or (r.get("email") or "").split("@")[0] or None,
+                            "picture": safe_picture(r.get("picture"))} for r in rows}
+
+
+async def owner_names(db: AsyncIOMotorDatabase, owner_ids) -> dict[str, str | None]:
+    return {k: v["name"] for k, v in (await owner_cards(db, owner_ids)).items()}
+
+
+def owner_of(raw: dict, people: dict, *, mine: bool) -> dict:
+    """A row's ``owner``: name and picture (https) when known, and whether it's the caller."""
+    card = people.get(raw.get("owner_id") or "") or {}
+    if isinstance(card, str):  # an older caller's names map
+        card = {"name": card}
+    return {"name": card.get("name"), "picture": card.get("picture"), "is_you": mine}
 
 
 def folder_index(folders: list[Folder]) -> dict[str, dict]:
@@ -143,7 +166,7 @@ async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx
         "has_password": bool(raw.get("read_password_hash")),
         "encrypted": bool(raw.get("encrypted")),
         "folder": folder,
-        "owner": {"name": names.get(raw.get("owner_id") or ""), "is_you": mine},
+        "owner": owner_of(raw, names, mine=mine),
         "size_bytes": raw.get("size_bytes") if raw.get("kind") == "artifact" else None,
         "updated_at": raw.get("updated_at"),
         "created_at": raw.get("created_at"),
@@ -174,7 +197,7 @@ def redacted_item(raw: dict, workspace_id: str, *, names: dict, folders: dict) -
         "kind": raw.get("kind") or "markdown", "mime": None,
         "access": "private", "has_password": False, "encrypted": False,
         "folder": folder,
-        "owner": {"name": names.get(raw.get("owner_id") or ""), "is_you": False},
+        "owner": owner_of(raw, names, mine=False),
         "size_bytes": None, "views": None,
         "updated_at": raw.get("updated_at"), "created_at": raw.get("created_at"),
         "can": {"edit": False, "move": False, "unshare": True, "delete": False, "share": False},
@@ -228,15 +251,64 @@ def exposure(rows: list[dict]) -> tuple[dict[str, dict[str, int]], dict[str, int
     return per, root
 
 
+FOLDER_PEOPLE = 3
+
+
+def folder_activity(rows: list[dict], folders: list[Folder]) -> dict[str, dict]:
+    """Per folder, over its whole subtree and only the caller's readable ``rows``: when anything
+    in it last changed, and whose items are in it (owner ids, most recently active first)."""
+    direct: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("folder_id"):
+            direct.setdefault(r["folder_id"], []).append(r)
+    epoch = datetime.min
+    out: dict[str, dict] = {}
+    for f in folders:
+        latest: datetime | None = None
+        seen: dict[str, datetime] = {}
+        for fid in folder_service.subtree_ids(folders, f.id):
+            for r in direct.get(fid, ()):
+                u = r.get("updated_at")
+                if isinstance(u, datetime):
+                    u = u.replace(tzinfo=None) if u.tzinfo else u
+                    latest = u if latest is None or u > latest else latest
+                o = r.get("owner_id")
+                if o:
+                    t = u if isinstance(u, datetime) else epoch
+                    if o not in seen or t > seen[o]:
+                        seen[o] = t
+        out[f.id] = {"updated_at": latest, "owners": sorted(seen, key=lambda o: seen[o], reverse=True)}
+    return out
+
+
 async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                workspace_id: str, role: str) -> dict:
+    """The workspace's folders with readable counts, plus, per folder, when its readable contents
+    last changed (``updated_at``) and the people whose items are in it (``people``: up to
+    :data:`FOLDER_PEOPLE`, most recent first, and ``people_count``). The caller is a workspace
+    member (the router requires a role), so names are theirs to see; nothing here counts or names
+    an item the caller can't read."""
     ws = await ctx.workspace(workspace_id)
     folders = await folder_service.list_folders(db, workspace_id)
     paths = folder_service.paths_by_id(folders)
     rows = await readable_rows(db, actor, ctx, workspace_id,
-                               projection={"folder_id": 1, "access_level": 1, "read_password_hash": 1})
+                               projection={"folder_id": 1, "access_level": 1, "read_password_hash": 1,
+                                           "owner_id": 1, "updated_at": 1})
     direct, total, root = counts(rows, folders)
     per, root_exposure = exposure(rows)
+    activity = folder_activity(rows, folders)
+    shown = {o for a in activity.values() for o in a["owners"][:FOLDER_PEOPLE]}
+    cards = await owner_cards(db, shown)
+
+    def people(fid: str) -> list[dict]:
+        out = []
+        for o in activity[fid]["owners"][:FOLDER_PEOPLE]:
+            card = cards.get(o)
+            if card:
+                out.append({"name": card["name"], "picture": card["picture"],
+                            "is_you": bool(actor.user_id) and o == actor.user_id})
+        return out
+
     ordered = sorted(folders, key=lambda f: [s.lower() for s in (paths.get(f.id) or [])])
     ws_default = ws.settings.default_access if ws else "link"
     return {
@@ -253,6 +325,9 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 "default_access": f.default_access,
                 "effective_default_access": f.default_access or ws_default,
                 "exposure": per.get(f.id) or _empty_exposure(),
+                "updated_at": activity[f.id]["updated_at"] or f.updated_at,
+                "people": people(f.id),
+                "people_count": len(activity[f.id]["owners"]),
             }
             for f in ordered
         ],
@@ -346,11 +421,14 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     redacted_q = rf.redacted if (rf.redacted is not None and not q) else None
     who = {"$or": [rf.readable, redacted_q]} if redacted_q is not None else rf.readable
     query = {"$and": [*rf.base, who, *clauses]}
-    rows = await db["documents"].find(query).sort([("updated_at", -1), ("_id", -1)]).limit(limit + 1).to_list(length=limit + 1)
+    # Without the body (a document's content can be large and nothing here reads it). The sort is
+    # served by the (workspace_id, folder_id, updated_at, _id) index (database.py).
+    rows = await db["documents"].find(query, LIST_PROJECTION).sort(
+        [("updated_at", -1), ("_id", -1)]).limit(limit + 1).to_list(length=limit + 1)
     more = len(rows) > limit
     rows = rows[:limit]
     folders = folder_index(await folder_service.list_folders(db, workspace_id))
-    names = await owner_names(db, [r.get("owner_id") for r in rows])
+    names = await owner_cards(db, [r.get("owner_id") for r in rows])
     hosts = urls.HostCache(db)
     kids = await with_children(db, [r["_id"] for r in rows])
     out = []
@@ -365,9 +443,10 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
 
 async def items_by_slug(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                         workspace_id: str, slugs: list[str]) -> list[dict]:
-    rows = await db["documents"].find({"slug": {"$in": slugs}, "workspace_id": workspace_id}).to_list(length=len(slugs))
+    rows = await db["documents"].find({"slug": {"$in": slugs}, "workspace_id": workspace_id},
+                                      LIST_PROJECTION).to_list(length=len(slugs))
     folders = folder_index(await folder_service.list_folders(db, workspace_id))
-    names = await owner_names(db, [r.get("owner_id") for r in rows])
+    names = await owner_cards(db, [r.get("owner_id") for r in rows])
     hosts = urls.HostCache(db)
     ctx.forget()
     by_slug = {r["slug"]: r for r in rows}

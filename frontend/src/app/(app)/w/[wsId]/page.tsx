@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import FolderView from "@/components/workspace/folder/FolderView";
 import { fetchSpacePreview, spaceMetadata } from "@/lib/og";
 
 type Props = { params: Promise<{ wsId: string }> };
@@ -10,8 +9,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return spaceMetadata(wsId, null, await fetchSpacePreview(wsId, null));
 }
 
-/** A workspace's top level: its folders, then what's filed at the top (P2). */
-export default async function WorkspacePage({ params }: Props) {
-  const { wsId } = await params;
-  return <FolderView key={wsId} workspaceId={decodeURIComponent(wsId)} folderId={null} />;
+/** A workspace's top level: its folders, then what's filed at the top (P2). The listing itself is the layout's (layout.tsx): it stays mounted from folder to folder. */
+export default function Page() {
+  return null;
 }

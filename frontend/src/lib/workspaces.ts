@@ -517,6 +517,19 @@ export interface TreeFolder {
   effective_default_access?: ItemAccess;
   /** Items filed directly here that the caller can open, by who can open them. */
   exposure?: Exposure;
+  /** When something the caller can open in this folder (or below) last changed; the folder's own
+   *  time when it holds nothing (absent on older backends). */
+  updated_at?: string | null;
+  /** Whose items are in it (up to three, most recently active first), and how many people in all. */
+  people?: ItemOwner[];
+  people_count?: number;
+}
+
+/** A person shown on a row: a name (null when unknown), an https photo or null, and whether it's you. */
+export interface ItemOwner {
+  name: string | null;
+  picture?: string | null;
+  is_you: boolean;
 }
 
 /** Who can open the caller-readable items in a folder: `link` includes password-protected links,
@@ -584,7 +597,9 @@ export interface WorkspaceItem {
   access: ItemAccess;
   has_password: boolean;
   folder: { id: string; name: string; path: string } | null;
-  owner: { name: string | null; is_you: boolean };
+  /** Who owns it: their name and profile photo (https, when they have one). Workspace members see
+   *  this for every row (the listing is members-only). */
+  owner: ItemOwner;
   size_bytes?: number | null;
   updated_at: string;
   created_at?: string | null;
@@ -592,6 +607,8 @@ export interface WorkspaceItem {
   can: { edit: boolean; move: boolean; unshare: boolean; delete: boolean; share: boolean };
   /** "blocks" on a page (the block editor); null on a markdown document. */
   editor?: "blocks" | null;
+  /** A page's icon: an emoji, or "asset:<id>" for an uploaded image (not shown in listings). */
+  icon?: string | null;
   /** A file's type in words ("HTML file", "PDF"); null on a document. */
   type_label?: string | null;
   /** Optional extras some backends send; used for nicer tiles when present. */
@@ -607,7 +624,7 @@ export interface WorkspaceItem {
 export interface RedactedItem {
   redacted: true;
   id_token: string;
-  owner: { name: string | null; is_you?: boolean };
+  owner: { name: string | null; picture?: string | null; is_you?: boolean };
   folder?: { id: string; name: string; path: string } | null;
   updated_at?: string | null;
   can: Partial<WorkspaceItem["can"]>;

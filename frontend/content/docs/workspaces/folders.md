@@ -3,12 +3,28 @@ title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
 updated: 2026-11-04
 prerequisites: [/workspaces/create]
-keywords: [folder, subfolder, move, rename, organize, path, address]
+keywords: [folder, subfolder, move, rename, organize, path, address, list view, grid view, cards, owner]
 ---
 
 Folders keep a workspace tidy, and on your own domain they shape the address. A document filed under **Guides › Setup** is served at `docs.acme.com/guides/setup/<document>`.
 
 Folders decide where something appears and what its address is. They never decide who can open it: that stays with each item's own setting and the workspace's [privacy](/workspaces/privacy).
+
+## Browse a workspace
+
+Open a workspace from the sidebar to see its folders first, then the items filed at the top. Open a folder to see what's inside it. Folders open straight away, even on a slow connection: the folder's name and subfolders show at once, and its items follow.
+
+Choose how the list looks with the switch above it. Markdrop remembers your choice on this device, for every workspace and folder.
+
+| View | What you see |
+| --- | --- |
+| **List** (the default) | One row each: the name, its kind, its owner, when it last changed, who can open it, and a **⋯** menu. Folders show how many items you can open in them. |
+| **Grid** | Tiles with the name, and the owner and date (or, for a folder, how many items). |
+| **Cards** | Larger cards with the item's icon, its name, its owner, when it changed and who can open it. |
+
+**Who owns what.** Every item shows its owner's photo (or first initial) and name, and **You** for your own. A folder shows the people whose items are inside it. The item's menu on a phone shows its owner too. Only members of the workspace see the workspace's list, so only they see who owns what. Someone who opens an item from a public link never sees names.
+
+On a phone, the list shows the name with the owner and date under it. Tap **⋯** for the item's actions.
 
 ## Make a folder
 
@@ -32,7 +48,7 @@ Two folders in the same place can't share a name that gives the same address. A 
 
 ## Rename, move or delete a folder
 
-Admins and the owner manage folders. Open the folder and choose **More folder actions**:
+Admins and the owner manage folders. Open the folder and choose **More folder actions**, or open the **⋯** menu on the folder's row in the list:
 
 - **Rename folder…** shows the new address as you type. Links to documents inside it that use the old name redirect to the new address. The folder's own page moves, and its old address stops working.
 - **Move folder to…** moves it with everything inside. The move is refused if it would nest anything deeper than 8 levels.
