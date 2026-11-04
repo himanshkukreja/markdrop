@@ -110,7 +110,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
             suggestions={ASK_SUGGESTIONS}
             emptyTitle="Ask across meetings"
             emptySub=""
-            placeholder="What did we decide about pricing?"
+            placeholder="Ask about any meeting…"
           />
         </section>
       )}
