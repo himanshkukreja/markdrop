@@ -63,6 +63,24 @@ func (s *Server) addPageLocked(slug, owner, title, content string) *Doc {
 	return d
 }
 
+// SetParent puts a page inside another.
+func (s *Server) SetParent(child, parent string) { s.set(child, func(d *Doc) { d.Parent = parent }) }
+
+// SetEditing makes token hold the page's editor lock ("" releases it).
+func (s *Server) SetEditing(slug, token string) { s.set(slug, func(d *Doc) { d.EditingBy = token }) }
+
+// SetEncrypted marks a document end-to-end encrypted.
+func (s *Server) SetEncrypted(slug string) { s.set(slug, func(d *Doc) { d.Encrypted = true }) }
+
+// SetAccess sets a document's access level (link, private, workspace).
+func (s *Server) SetAccess(slug, access string) { s.set(slug, func(d *Doc) { d.Access = access }) }
+
+func (s *Server) set(slug string, fn func(d *Doc)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	fn(s.docs[slug])
+}
+
 // Page returns a copy of a document (nil if missing).
 func (s *Server) Page(slug string) *Doc { return s.Doc(slug) }
 
