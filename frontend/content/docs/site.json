@@ -277,6 +277,8 @@
         "/cli/login-and-tokens",
         "/cli/upload-and-replace",
         "/cli/workspaces",
+        "/cli/pages",
+        "/cli/search-trash-access",
         "/cli/send-and-receive",
         "/cli/reference"
       ]
