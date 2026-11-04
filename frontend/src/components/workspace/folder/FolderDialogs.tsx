@@ -112,10 +112,12 @@ export function RenameFolderDialog({
 /* ── Delete ───────────────────────────────────────────────────────────── */
 
 export function DeleteFolderDialog({
-  workspaceId, folder, tree, onClose, onDeleted, onRestored,
+  workspaceId, folder, tree, host, onClose, onDeleted, onRestored,
 }: {
   workspaceId: string;
   folder: TreeFolder | null;
+  /** The workspace's domain: the dialog names the folder's address on it, like an item's link. */
+  host?: string | null;
   tree: WorkspaceTree | null;
   onClose: () => void;
   onDeleted: (f: TreeFolder, result: FolderDeleteResult | undefined) => void;
@@ -140,6 +142,15 @@ export function DeleteFolderDialog({
       body={
         f ? (
           <div className="flex flex-col gap-3">
+            <p className="m-0 flex min-w-0 flex-wrap items-center gap-x-1.5 text-body text-text-secondary">
+              <span className="shrink-0">Folder</span>
+              {host && f.path && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="ph-sensitive ph-mask min-w-0 font-mono text-text [overflow-wrap:anywhere]">{host}/{f.path}</span>
+                </>
+              )}
+            </p>
             <p className="text-body text-text-secondary">
               {inside
                 ? <>It goes to Trash with everything in it ({inside}) for 30 days; restoring it brings it all back.</>

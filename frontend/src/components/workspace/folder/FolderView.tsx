@@ -841,6 +841,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         workspaceId={workspaceId}
         folder={deleteFor}
         tree={tree}
+        host={host}
         onClose={() => setDeleteFor(null)}
         onDeleted={(f) => {
           // The dialog toasts "Moved to Trash" with Undo.

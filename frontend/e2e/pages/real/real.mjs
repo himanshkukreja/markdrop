@@ -472,9 +472,10 @@ await step("trash", async () => {
   const inner = (await api("POST", "/api/v1/pages", T.owner, { title: "Handbook intro", workspace: WS, folder: sub })).body.document.slug;
   await p.goto(`${APP}/w/${WS}/f/${sub}`, { waitUntil: "networkidle" });
   await p.getByText("Handbook intro").first().waitFor({ timeout: 20000 });
-  await p.getByRole("button", { name: "More actions" }).first().click();
+  await p.getByRole("button", { name: "More folder actions" }).click();
   await p.getByRole("menuitem", { name: /Delete folder/ }).click();
   await dlg.getByText(/1 item/).first().waitFor({ timeout: 10000 });
+  await dlg.getByText(/\/guides\/old-handbook/).first().waitFor();
   await tshot(p, "t10-delete-folder-dialog");
   await dlg.getByRole("button", { name: /Move to Trash/ }).click();
   await p.locator(".md-toast", { hasText: /to Trash/ }).first().waitFor({ timeout: 10000 });
@@ -486,7 +487,7 @@ await step("trash", async () => {
   await frow.getByRole("button", { name: /^Restore/ }).click();
   await waitStatus(inner, 200);
   const fb = await docOf(inner, T.owner);
-  if (fb.folder_id !== sub && fb.folder?.id !== sub) log("restored folder item placement", JSON.stringify({ f: fb.folder_id, folder: fb.folder }));
+  if (!(fb.folder_path || []).join("/").endsWith("old-handbook")) fail(`restored folder item placement: ${JSON.stringify(fb.folder_path)}`);
   await c.close();
 });
 
