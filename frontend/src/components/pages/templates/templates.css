@@ -65,7 +65,7 @@
 
 @media (max-width: 640px) {
   .tpl-notice { flex-wrap: wrap; }
-  .tpl-notice__actions { width: 100%; padding-left: 44px; }
+  .tpl-notice__actions { width: 100%; padding-left: 0; }
   .tpl-row { min-height: 60px; }
   .tpl-row__actions .md-btn { min-width: 40px; min-height: 40px; }
   .tpl-emoji__btn { width: 40px; height: 40px; }
