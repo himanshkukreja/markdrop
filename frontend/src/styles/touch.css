@@ -6,7 +6,7 @@
  *  - Every control is at least 44 × 44 px to the finger: buttons, segments, tabs, menu items and
  *    fields grow for real (as on iOS and Android, a toolbar row is 44 px). A link or chip that has
  *    to keep its look opts in to .md-touch-hit: an invisible 44 px hit area centred on it (::after).
- *  - Text fields are 16 px: iOS zooms the page into any field under 16 px when it takes focus.
+ *  - Text fields are 16 px (the editor's page title and description, already larger, keep theirs): iOS zooms the page into any field under 16 px when it takes focus.
  *  - Nothing reads under 12 px.
  *
  * Unlayered, so it wins over the kit's component layer and the utilities alike, only here.
@@ -37,8 +37,8 @@
     }
 
     /* 2. Text fields at 16 px. */
-    & :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea, select) {
-      font-size: max(16px, 1em);
+    & :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea, select):not(.dxe-header__title, .dxe-header__desc, .dx-palette__input, .dx-ask__input) {
+      font-size: 16px;
     }
 
     /* 3. Nothing under 12 px. */
