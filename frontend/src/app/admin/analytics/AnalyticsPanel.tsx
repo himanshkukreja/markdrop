@@ -232,7 +232,7 @@ export default function AnalyticsPanel({ token, range, onRange, filters, onFilte
     </Tag>
   ));
   const exclude = (
-    <span className="inline-flex items-center gap-1.5 pointer-coarse:gap-4">
+    <span className="inline-flex items-center gap-1.5 pointer-coarse:gap-4 pointer-coarse:pe-3">
       <Switch label="Exclude my visits" checked={excluded} onChange={() => { setTrackingDisabled(!excluded); setExcluded(!excluded); }} />
       <Tooltip side="left" content="Stops this browser from being counted. Your own visits skew a small site's numbers." focusable>
         <span className="inline-flex text-text-muted"><Icon name="info" size={16} /><span className="md-visually-hidden">About excluding your visits</span></span>

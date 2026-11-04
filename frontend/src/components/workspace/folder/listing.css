@@ -272,6 +272,9 @@
   .wl-list .wl-copy { display: none; }
   .wl-row { min-height: 52px; }
   .wl-access { min-height: 44px; min-width: 44px; justify-content: center; }
+  /* A card's footer (owner, people, when, who can open it) only has hover tooltips: on a touch
+     screen a tap there opens the card like the rest of it. */
+  .wl-card__foot { pointer-events: none; }
 }
 @media (pointer: coarse) {
   @container (max-width: 700px) {
