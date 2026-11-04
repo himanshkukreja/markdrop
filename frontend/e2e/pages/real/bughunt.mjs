@@ -12,7 +12,8 @@ const browser = await launch();
 const { step, results } = stepper(browser);
 const mod = BROWSER === "webkit" || process.platform === "darwin" ? "Meta" : "Control";
 const content = async (slug) => (await docOf(slug, T.owner)).content;
-const newPage = async (title, body = "\n") => (await api("POST", "/api/v1/pages", T.owner, { title, workspace: S.ws, folder: S.folder, content: body })).body.document.slug;
+// auto_cover: false — these checks compare the saved Markdown exactly (a new page otherwise gets an automatic cover).
+const newPage = async (title, body = "\n") => (await api("POST", "/api/v1/pages", T.owner, { title, workspace: S.ws, folder: S.folder, content: body, auto_cover: false })).body.document.slug;
 
 /** Wait until the editor says Saved and the server has a version that satisfies `pred`. */
 async function settle(p, slug, pred = () => true, timeout = 20000) {
