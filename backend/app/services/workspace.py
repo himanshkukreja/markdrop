@@ -272,7 +272,16 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     # The docs sites with team-member readers they can read, while they still can (their sessions
     # there end).
     could_read = await docs_studio_roles.readable(db, await docs_studio_roles.reader_sites(db, workspace_id), user_id)
-    res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
+    # Never the owner's membership, even when ownership moved to them since the check above (a
+    # transfer racing this removal left a workspace with no owner at all: c248). The transfer
+    # promotes the membership before it moves `owner_id`, so the role is the thing to condition on.
+    res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id, "role": {"$ne": "owner"}})
+    if not res.deleted_count and await db["memberships"].find_one(
+        {"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}, {"_id": 1}):
+        raise HTTPException(
+            status_code=422,
+            detail="The owner can't be removed. Transfer ownership or delete the workspace.",
+        )
     if res.deleted_count:
         await lifecycle.member_left(db, workspace_id, user_id)
         # Their Guides roles there go too (read time already ignores them).
