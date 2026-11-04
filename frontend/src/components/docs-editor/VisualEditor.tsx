@@ -171,14 +171,25 @@ export default function VisualEditor(props: VisualEditorProps) {
       },
       // Keep the caret clear of the host's sticky bars: ProseMirror only knows the window's edges, so a
       // caret moved up to just under them counted as visible and stayed hidden behind them.
+      // Touch screens: the same at the bottom, where the toolbar riding the keyboard (a page's, or the
+      // touch "Blocks" bar) would cover a caret ProseMirror thinks is on screen.
       handleScrollToSelection: (view) => {
         const covered = stickyTopRef.current?.() ?? 0;
+        let rect: { top: number; bottom: number };
+        try { rect = view.coordsAtPos(view.state.selection.head); } catch { return false; }
+        const bar = document.querySelector<HTMLElement>(".pb-phonebar[data-on], .dxe-touchbar");
+        if (bar) {
+          const vv = window.visualViewport;
+          const floor = Math.min(bar.getBoundingClientRect().top, vv ? vv.offsetTop + vv.height : window.innerHeight) - 16;
+          if (rect.bottom > floor && rect.top > covered + 16) {
+            window.scrollBy(0, rect.bottom - floor);
+            return true;
+          }
+        }
         if (!covered) return false;
-        let top: number;
-        try { top = view.coordsAtPos(view.state.selection.head).top; } catch { return false; }
         const min = covered + 16;
-        if (top >= min) return false; // in view, or below it: ProseMirror's own scrolling
-        window.scrollBy(0, top - min);
+        if (rect.top >= min) return false; // in view, or below it: ProseMirror's own scrolling
+        window.scrollBy(0, rect.top - min);
         return true;
       },
       clipboardTextParser: (text, _ctx, plain, view: EditorView) => markdownSlice(text, view.state.schema, plain),
