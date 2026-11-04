@@ -79,11 +79,15 @@ function Tip({ x, width, children }: { x: number; width: number; children: React
 
 function HiddenTable({ caption, head, rows }: { caption: string; head: string[]; rows: (string | number)[][] }) {
   return (
-    <table className="md-visually-hidden">
-      <caption>{caption}</caption>
-      <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => (j === 0 ? <th key={j} scope="row">{c}</th> : <td key={j}>{c}</td>))}</tr>)}</tbody>
-    </table>
+    // The wrapper, not the table, is visually hidden: a table can't be narrower than its content, so
+    // on a 360 px phone it pushed the page sideways.
+    <div className="md-visually-hidden">
+      <table>
+        <caption>{caption}</caption>
+        <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => (j === 0 ? <th key={j} scope="row">{c}</th> : <td key={j}>{c}</td>))}</tr>)}</tbody>
+      </table>
+    </div>
   );
 }
 

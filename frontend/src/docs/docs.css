@@ -900,3 +900,12 @@ html.dx-modal-open { overflow: hidden; }
   .dx-area__title, .dx-area__links a,
   .dx-footer a, .dx-footer__choices, .dx-crumbs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
 }
+/* Touch, narrow: the header's 44 px buttons fit a 360 px phone (the brand gives way first). */
+@media (pointer: coarse) and (max-width: 899px) {
+  .dx-root { --dx-header-h: 61px; }
+  .dx-header__tools { gap: 0; }
+  .dx-brand { min-width: 0; overflow: hidden; }
+}
+@media (pointer: coarse) and (max-width: 389px) {
+  .dx-brand__docs { display: none; }
+}

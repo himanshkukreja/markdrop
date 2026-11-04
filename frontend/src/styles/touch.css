@@ -1,7 +1,9 @@
 /*
  * Touch screens (phones and tablets: pointer: coarse) in Markdrop Guides (html[data-studio]: the
  * studio, and the dialogs, drawers and menus it portals to <body>), in Analytics and on published
- * guides (html:has(.md-touch): their roots carry the class). Mouse and trackpad layouts are untouched.
+ * guides (html:has(.md-touch): their roots carry the class). Analytics lives in the app's shell, whose
+ * header isn't ours: there only <main> and what it opens (menus, dialogs, drawers, popovers) are touched
+ * (html:has(.md-touch-main)). Mouse and trackpad layouts are untouched.
  *
  *  - Every control is at least 44 × 44 px to the finger: buttons, segments, tabs, menu items and
  *    fields grow for real (as on iOS and Android, a toolbar row is 44 px). A link or chip that has
@@ -12,7 +14,7 @@
  * Unlayered, so it wins over the kit's component layer and the utilities alike, only here.
  */
 @media (pointer: coarse) {
-  :is(html[data-studio], html:has(.md-touch)) {
+  :is(html[data-studio], html:has(.md-touch), html:has(.md-touch-main) :is(main, .md-menu, .md-dialog, .md-drawer, .md-popover)) {
     /* 1. Real sizes. */
     & .md-btn { min-height: 44px; }
     & .md-iconbtn { min-width: 44px; }
