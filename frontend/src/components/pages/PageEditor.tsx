@@ -30,7 +30,8 @@ import { getWorkspace } from "@/lib/workspaces";
 import { uploadArtifact } from "@/lib/api";
 import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
-import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
+import { filterPeople } from "@/components/docs-editor/menus/peopleMatch";
+import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, pageMentionable, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
@@ -336,6 +337,18 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     return local.current.get(id) ?? assetsRef.current[id]?.url ?? "";
   }, []);
 
+  // Who can be mentioned: one fetch per page (and edit secret), shared by "@" and the sign-off picker.
+  const mentionable = useMemo(() => {
+    let once: ReturnType<typeof pageMentionable> | null = null;
+    return () => {
+      once ??= pageMentionable(slug, secret).catch((e) => {
+        once = null; // a failure is tried again next time
+        throw e;
+      });
+      return once;
+    };
+  }, [slug, secret]);
+
   const pages = useMemo<PagesEditorHost>(
     () => ({
       workspaceName: workspaceId ? workspaceName ?? "Workspace" : null,
@@ -349,7 +362,15 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       renderEmbed: (p) => <PageEmbed slug={p.slug} mode={p.mode} label={p.label} resolved={p.resolved as never} />,
       renderMention: (p) => <PageMention slug={p.slug} resolved={p.resolved as never} />,
       linkPreview: (u) => linkPreview(u),
-      people: workspaceId ? (q) => searchPeople(workspaceId, q) : undefined,
+      // Everyone the editor can @-mention: fetched once per editor (docs-editor/menus/people.tsx).
+      mentionable,
+      // The sign-off block's person picker: the same list, filtered here.
+      people: workspaceId
+        ? async (q) => {
+            const r = await mentionable();
+            return filterPeople(r.people, q, 20);
+          }
+        : undefined,
       signoffs,
       // Video, audio and other files: a Markdrop item beside the page (its workspace and folder),
       // embedded with ::markdrop (page assets are images only; DEVIATIONS "Frontend → backend").
@@ -369,7 +390,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       pageTitle: title,
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
     }),
-    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs],
+    [slug, mentionable, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs],
   );
 
   const setBody = useCallback(
