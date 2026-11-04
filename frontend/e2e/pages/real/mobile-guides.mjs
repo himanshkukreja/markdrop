@@ -490,6 +490,8 @@ const STATES = [
     await p.waitForTimeout(1500);
     const chart = p.locator('main svg[role="img"][tabindex="0"]').first();
     if (!(await chart.isVisible().catch(() => false))) return "skip";
+    await chart.scrollIntoViewIfNeeded();
+    await p.waitForTimeout(300);
     const b = await chart.boundingBox();
     await p.touchscreen.tap(b.x + b.width * 0.6, b.y + b.height * 0.5);
     await p.waitForTimeout(500);
