@@ -16,7 +16,7 @@
  */
 import { useState, useSyncExternalStore } from "react";
 import {
-  Anchor, Badge, Checkbox, CopyButton, Icon, IconButton, SegmentedControl, Skeleton, cx, FILE_KINDS, fileKind,
+  Anchor, Badge, Checkbox, CopyButton, Icon, IconButton, SegmentedControl, Skeleton, Tooltip, cx, FILE_KINDS, fileKind,
   type FileRenderer, type MenuEntry,
 } from "@/components/ui";
 import RowMenu from "@/components/dashboard/RowMenu";
@@ -120,11 +120,14 @@ export function PersonAvatar({ person, size = "md" }: { person: ItemOwner; size?
 /** Avatar and name ("You" for the caller). `data-owner` marks it for tests. */
 export function Person({ person, size, hideName, className }: { person: ItemOwner; size?: "sm" | "md" | "lg"; hideName?: boolean; className?: string }) {
   const label = ownerLabel(person);
+  // The name on hover (instant, the design system's tooltip; never the slow native title).
   return (
-    <span className={cx("wl-person", className)} data-owner title={person.is_you ? "You own this" : `Owned by ${label}`}>
-      <PersonAvatar person={person} size={size} />
-      <span className={cx("wl-person__name ph-sensitive ph-mask", hideName && "md-visually-hidden")}>{label}</span>
-    </span>
+    <Tooltip content={<span className="ph-sensitive ph-mask">{person.is_you ? "You own this" : `Owned by ${label}`}</span>}>
+      <span className={cx("wl-person", className)} data-owner>
+        <PersonAvatar person={person} size={size} />
+        <span className={cx("wl-person__name ph-sensitive ph-mask", hideName && "md-visually-hidden")}>{label}</span>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -135,9 +138,18 @@ export function People({ people, count, size = "md" }: { people: ItemOwner[]; co
   const rest = Math.max(0, count - people.length);
   const words = `Items by ${names.join(", ")}${rest ? ` and ${rest} more` : ""}`;
   return (
-    <span className="wl-people" data-owner title={words}>
-      {people.map((p, i) => <PersonAvatar key={`${p.name}-${i}`} person={p} size={size} />)}
-      {rest > 0 && <span className="wl-more" aria-hidden>+{rest}</span>}
+    <span className="wl-people" data-owner>
+      {/* Each face names its person on hover; "+n" lists the rest. */}
+      {people.map((p, i) => (
+        <Tooltip key={`${p.name}-${i}`} content={<span className="ph-sensitive ph-mask">{ownerLabel(p)}</span>}>
+          <PersonAvatar person={p} size={size} />
+        </Tooltip>
+      ))}
+      {rest > 0 && (
+        <Tooltip content={<span className="ph-sensitive ph-mask">{words}</span>}>
+          <span className="wl-more" aria-hidden>+{rest}</span>
+        </Tooltip>
+      )}
       <span className="md-visually-hidden ph-sensitive ph-mask">{words}</span>
     </span>
   );
