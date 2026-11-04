@@ -478,6 +478,42 @@ async def list_backlinks(
     return await page_links.backlinks(db, raw, access.actor_from_request(request, user), ctx)
 
 
+@router.get("/{slug}/mentionable")
+@limiter.limit(settings.rate_limit_read)
+async def mentionable_people(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """Who the page's editor can @-mention (``@`` and ``/person`` in the page
+    editor): ``{state, people: [{id, name, email, avatar_url, you}]}``, the
+    members of the page's workspace, sorted by name. can(edit_content).
+
+    ``state`` is ``ok``; ``signin`` for an edit-link editor with no account;
+    ``personal`` for a page in no workspace; ``not_member`` for someone who
+    edits it (a grant, the edit link) but isn't a member of its workspace.
+    Only ``ok`` lists anyone. ``email`` is filled in for a signed-in member on
+    markdrop.in only, never on the workspace's own domain (as ``/auth/me``)."""
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    ctx = _ctx(db, request)
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "edit_content", ctx)
+    if user is None:
+        return {"state": "signin", "people": []}
+    f = await access.facts(actor, raw, ctx)
+    if f.ws_id is None:
+        return {"state": "personal", "people": []}
+    if f.ws_role is None:
+        return {"state": "not_member", "people": []}
+    from app.services import workspace as ws_service
+
+    people = await ws_service.mention_people(db, f.ws_id, viewer_id=user.id,
+                                             emails=actor.cred != "tenant")
+    return {"state": "ok", "people": people}
+
+
 @router.put("/{slug}/parent", response_model=DocumentResponse)
 @limiter.limit(settings.rate_limit_create)
 async def move_page(

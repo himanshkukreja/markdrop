@@ -636,10 +636,15 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, descripti
 }
 
 /* ── Anchored positioning (Dropdown, Popover) ─────────────────────────── */
-function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>, panel: React.RefObject<HTMLElement | null>, opts: { placement: "auto" | "top" | "bottom"; align: "left" | "right"; portal?: boolean; gap?: number; fit?: boolean }) {
+/**
+ * Places a panel by its anchor: below it, flipped above when there's more room there; `portal`
+ * (fixed position) keeps it inside the viewport's edges; `fit` caps its height to the room on its
+ * side (the rest scrolls). `watch`: anything whose change should place it again (its contents).
+ */
+export function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>, panel: React.RefObject<HTMLElement | null>, opts: { placement: "auto" | "top" | "bottom"; align: "left" | "right"; portal?: boolean; gap?: number; fit?: boolean; watch?: unknown }) {
   const [up, setUp] = useState(false);
   const [style, setStyle] = useState<React.CSSProperties | undefined>(undefined);
-  const { placement, align, portal, gap = 6, fit = false } = opts;
+  const { placement, align, portal, gap = 6, fit = false, watch } = opts;
   useIsoLayoutEffect(() => {
     if (!open) return;
     const place = () => {
@@ -656,7 +661,9 @@ function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>,
       if (portal) {
         const s: React.CSSProperties = { position: "fixed", ...fitStyle };
         if (flip) s.bottom = vh - a.top + gap; else s.top = a.bottom + gap;
-        if (align === "right") s.right = Math.max(8, vw - a.right); else s.left = Math.max(8, a.left);
+        // Never past the other edge either (a narrow screen, an anchor near the edge).
+        if (align === "right") s.right = Math.max(8, Math.min(vw - a.right, vw - p.offsetWidth - 8));
+        else s.left = Math.max(8, Math.min(a.left, vw - p.offsetWidth - 8));
         setStyle(s);
       } else {
         setStyle(fit ? fitStyle : undefined);
@@ -667,7 +674,7 @@ function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>,
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
-  }, [open, placement, align, portal, gap, fit]);
+  }, [open, placement, align, portal, gap, fit, watch]);
   return { up, style };
 }
 

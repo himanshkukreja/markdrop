@@ -21,6 +21,7 @@ import { splitFrontmatter } from "./core/frontmatter.mjs";
 import { buildExtensions } from "./extensions";
 import { EditorHostContext, uploadUrl, type EditorHost } from "./host";
 import { SlashMenu, SlashStore } from "./menus/slash";
+import { PeopleMenu, PeopleStore, closePeople, openPeopleAt } from "./menus/people";
 import { FormatToolbar } from "./menus/FormatToolbar";
 import { BlockHandle } from "./menus/BlockHandle";
 import { TableBar } from "./menus/TableBar";
@@ -114,7 +115,10 @@ export default function VisualEditor(props: VisualEditorProps) {
   Object.assign(paste, { pages, upload: uploadWithAlt });
   // A page: Notion-style keys, Markdown shortcuts and the `:emoji` menu.
   const emoji = useMemo(() => (pages ? { store: new SlashStore(), listboxId: `${listboxId.replace(/-slash$/, "")}-emoji` } : null), []); // eslint-disable-line react-hooks/exhaustive-deps
-  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks, emoji }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
+  // A page: the `@` people picker; its members are fetched once for this editor and kept.
+  const people = useMemo(() => (pages ? { store: new PeopleStore(), listboxId: `${listboxId.replace(/-slash$/, "")}-people` } : null), []); // eslint-disable-line react-hooks/exhaustive-deps
+  if (people) people.store.fetcher = pages?.mentionable ? () => pages.mentionable!() : null;
+  const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks, emoji, people }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const emit = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -211,7 +215,11 @@ export default function VisualEditor(props: VisualEditorProps) {
       if (timer.current) clearTimeout(timer.current);
       timer.current = setTimeout(emit, EMIT_DELAY);
     },
-    onBlur: () => emit(),
+    onBlur: ({ editor: e }) => {
+      // The `@` picker closes when the page loses focus (its rows keep focus in the page).
+      if (people) closePeople(e);
+      emit();
+    },
   });
 
   // Flush on unmount (mode switch, navigation) so nothing typed is lost, and when the tab goes
@@ -283,6 +291,8 @@ export default function VisualEditor(props: VisualEditorProps) {
         emoji.store.force = true;
         e.chain().focus().deleteRange(r).insertContent(":").run();
       },
+      // "/person": an `@` that opens the people picker.
+      openPeople: people ? (e: Editor, r: { from: number; to: number }) => openPeopleAt(e, people.store, r) : undefined,
     });
   }, [editor, pages, toast]);
   useEditorAnchor(pages ? editor : null);
@@ -346,6 +356,7 @@ export default function VisualEditor(props: VisualEditorProps) {
             <PasteMenu editor={editor} paste={paste} stickyTop={stickyTop} />
             <SlashMenu store={slash} listboxId={listboxId} stickyTop={stickyTop} />
             {emoji && <SlashMenu store={emoji.store} listboxId={emoji.listboxId} stickyTop={stickyTop} label="Insert an emoji" />}
+            {people && <PeopleMenu store={people.store} listboxId={people.listboxId} />}
           </>
         )}
         <datalist id="dxe-code-langs">

@@ -8,6 +8,8 @@ interface BlockServices {
   insertColumns?: (e: Editor, n: number, r: Range) => void;
   uploadMedia?: (e: Editor, r: Range, kind: "video" | "audio" | "file") => void;
   openEmoji?: (e: Editor, r: Range) => void;
+  /** "/person": an `@` that opens the people picker (menus/people.tsx). */
+  openPeople?: (e: Editor, r: Range) => void;
   /** AI's commands (VisualEditor, when the host gives `ai`). */
   ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
 }
@@ -15,6 +17,7 @@ const svc = (e: Editor) => (e.storage as unknown as { dxeServices?: BlockService
 const insertColumns = (e: Editor, n: number, r: Range) => svc(e).insertColumns?.(e, n, r);
 const uploadMedia = (e: Editor, r: Range, kind: "video" | "audio" | "file") => svc(e).uploadMedia?.(e, r, kind);
 const openEmoji = (e: Editor, r: Range) => svc(e).openEmoji?.(e, r);
+const peoplePicker = (e: Editor) => svc(e).openPeople;
 const runAi = (command: "write" | "actions" | "summary") => (e: Editor, r: Range) => svc(e).ai?.(e, r, command);
 
 /** The "/" menu's sections, in order. */
@@ -51,6 +54,8 @@ export interface BlockItem {
   shortcut?: string;
   /** Only offered when searching: a variant of a block the list shows once. */
   searchOnly?: boolean;
+  /** Offered in a table cell too (an inline item: a cell holds one line of text). */
+  cell?: boolean;
   /** Inserts the block in place of the typed "/query" range. */
   run: (editor: Editor, range: Range) => void;
 }
@@ -211,6 +216,7 @@ export const BLOCK_ITEMS: BlockItem[] = [
     icon: "laptop",
     keywords: "kbd key shortcut keyboard",
     group: "inline",
+    cell: true,
     run: (e, r) => {
       e.chain().focus().deleteRange(r).insertContent({ type: "text", text: "Ctrl K", marks: [{ type: "kbd" }] }).run();
       const to = e.state.selection.from;
@@ -328,6 +334,7 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     icon: "calendar",
     keywords: "date today tomorrow day calendar when due",
     group: "inline",
+    cell: true,
     run: (e, r) => {
       const d = new Date();
       const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -339,9 +346,14 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     label: "Mention a person",
     hint: "Someone in the workspace",
     icon: "user",
-    keywords: "person people mention member user at",
+    keywords: "person people mention member user at @",
     group: "inline",
+    cell: true,
+    shortcut: "@",
     run: (e, r) => {
+      // The `@` picker (the same one typing @ opens); an empty chip where the editor has none.
+      const open = peoplePicker(e);
+      if (open) return open(e, r);
       e.chain().focus().deleteRange(r).insertContent({ type: "mention", attrs: { name: "person", label: "", attributes: {} } }).run();
     },
   },
@@ -353,6 +365,7 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     glyph: "😀",
     keywords: "emoji smiley icon face",
     group: "inline",
+    cell: true,
     shortcut: ":",
     run: (e, r) => openEmoji(e, r),
   },
@@ -372,6 +385,7 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     icon: "link",
     keywords: "mention link markdrop page document file at",
     group: "markdrop",
+    cell: true,
     run: (e, r) => {
       e.chain().focus().deleteRange(r).insertContent({ type: "mention", attrs: { label: "", attributes: {} } }).run();
     },
@@ -406,6 +420,11 @@ export function itemsFor(ids?: readonly string[] | null): BlockItem[] {
     .map((id) => byId.get(id))
     .filter((x): x is BlockItem => !!x)
     .map((it) => (PAGE_SHORTCUTS[it.id] && !it.shortcut ? { ...it, shortcut: PAGE_SHORTCUTS[it.id] } : it));
+}
+
+/** What the "/" menu offers in a table cell: the inline items (a cell holds one line). */
+export function cellItems(items: BlockItem[]): BlockItem[] {
+  return items.filter((it) => it.cell);
 }
 
 /** The menu before any typing: section by section (GROUPS), without the search-only variants. */

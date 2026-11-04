@@ -16,6 +16,7 @@ import { MentionView } from "./views/pageItems";
 import { itemsFor } from "./blocks";
 import { EmojiCommand, PageKeys } from "./pageKeys";
 import { SlashCommand, type SlashStore } from "./menus/slash";
+import { PeopleMention, type PeopleStore } from "./menus/people";
 import { MoveBlockKeys } from "./menus/BlockHandle";
 import { BlockDnd } from "./menus/dnd";
 import { BlockSelectionExt } from "./menus/blockSelection";
@@ -196,13 +197,15 @@ const MermaidKeys = Extension.create({
   },
 });
 
-export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }: {
+export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji, people }: {
   slash: SlashStore;
   listboxId: string;
   placeholder?: string;
   blocks?: readonly string[];
   /** A page: Notion-style keys and Markdown shortcuts, and the `:emoji` menu in this store. */
   emoji?: { store: SlashStore; listboxId: string } | null;
+  /** A page: the `@` people picker (menus/people.tsx), in this store. */
+  people?: { store: PeopleStore; listboxId: string } | null;
 }): AnyExtension[] {
   const overrides = viewOverrides();
   const page = !!emoji;
@@ -228,6 +231,7 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
     }),
     SlashCommand(slash, listboxId, itemsFor(blocks)),
     ...(emoji ? [PageKeys, EmojiCommand(emoji.store, emoji.listboxId)] : []),
+    ...(people ? [PeopleMention(people.store, people.listboxId)] : []),
     MermaidKeys,
     MoveBlockKeys,
     BlockDnd,

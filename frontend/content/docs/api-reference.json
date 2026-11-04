@@ -315,6 +315,13 @@
       "group": "pages",
       "description": "Pages that mention, embed or link to this one, among those you can open."
     },
+    "GET /api/v1/documents/{slug}/mentionable": {
+      "title": "List people to mention",
+      "group": "pages",
+      "description": "Who you can @-mention on a page you can edit: the members of its workspace, sorted by name, with their email address when you're a signed-in member on markdrop.in (never on a workspace's own domain). `state` is `ok`, or says why no one is listed: `personal` (the page is in no workspace), `signin` (an edit link with no account) or `not_member` (you edit it but aren't in its workspace). Write a mention as `:person[Name]{id=\"<id>\"}`.",
+      "mcp": "list_workspace_members",
+      "guide": { "label": "Mentions and notifications", "href": "/pages/mentions-and-notifications" }
+    },
     "PUT /api/v1/documents/{slug}/editor": {
       "title": "Switch the editor",
       "group": "pages",

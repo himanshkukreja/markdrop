@@ -370,8 +370,15 @@ export function linkPreview(url: string) {
 }
 
 /** Members of a workspace whose name matches `q` (for `@person`). */
-export function searchPeople(workspaceId: string, q: string) {
-  return call<Array<{ id: string; name: string; avatar_url?: string | null }>>(`/api/v1/workspaces/${enc(workspaceId)}/members/search?q=${enc(q)}`);
+/**
+ * Who can be @-mentioned on a page (the page editor's `@` and "/person" picker): the members of its
+ * workspace, for someone who can edit it. Works on the workspace's own domain too (names only there).
+ */
+export function pageMentionable(slug: string, secret?: string | null) {
+  return call<{ state: "ok" | "personal" | "signin" | "not_member"; people: Array<{ id: string; name: string; email?: string | null; avatar_url?: string | null; you?: boolean }> }>(
+    `/api/v1/documents/${enc(slug)}/mentionable`,
+    { secret },
+  );
 }
 
 /** Pages that mention or embed this one, that the caller can read. */
