@@ -3172,4 +3172,9 @@ from app.mcp.access_request_tools import ACCESS_REQUEST_TOOLS  # noqa: E402
 
 TOOLS += ACCESS_REQUEST_TOOLS
 
+# Analytics AI on the analytics home (analytics_story, ask_analytics, content_gaps): app/mcp/analytics_ai_tools.py.
+from app.mcp.analytics_ai_tools import ANALYTICS_AI_TOOLS  # noqa: E402
+
+TOOLS += ANALYTICS_AI_TOOLS
+
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}
