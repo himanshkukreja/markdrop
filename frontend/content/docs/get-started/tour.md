@@ -64,7 +64,7 @@ A [page](/pages/overview) has the same bar, with breadcrumbs for the pages above
 
 ## On a file
 
-A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see its bar, which has **Copy link**, **Download**, **Read full screen**, and **More artifact actions**. The owner's menu has **Share**, **Settings** and **Delete artifact**. Someone allowed to edit sees **Replace file**, and readers see **Report**.
+A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see it with the same one bar at the top as a document: the logo, the title with the file's type, then [who's viewing](/sharing/see-whos-viewing), **Download**, **Read full screen**, **Share** (or **Copy link** if you can't share it), **More artifact actions** (**⋯**), **Create** and your account menu (or **Sign in**). The menu starts with the file's size, views and date, then has **Copy link** (when **Share** is in the bar), and for the owner **Settings** (the title, link, password, expiry, the file and its versions) and **Delete artifact**. Someone allowed to edit sees **Replace file**, and readers see **Report**. On a phone, **Share** is first in the menu, and **Copy link** and **Download** are in a bar at the bottom of the screen.
 
 ## Search and shortcuts
 

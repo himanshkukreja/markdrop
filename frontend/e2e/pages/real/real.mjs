@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars } from "./lib.mjs";
+import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars, uploadFile, fileLayout } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -939,6 +939,157 @@ await step("classic-onebar", async () => {
   await one(g.p, "password gate");
   if (!(await g.p.locator("header.md-docbar").getByText("Password", { exact: true }).isVisible())) fail("no Password badge in the gate's bar");
   await shot(g.p, "47-classic-gate");
+  await g.c.close();
+});
+
+/* ── 9c. a file (artifact) has one top bar too: in its framed view ("Show details"), on markdrop.in
+   and on the workspace's domain, wide and on a phone, as the owner and anonymously; the file stays in
+   its sandboxed frame on the artifact origin; the bar keeps Share or Copy link, Download, full screen,
+   presence and ⋯ (Copy link, Settings, Report, General access on markdrop.in on the domain) ── */
+await step("artifact-onebar", async () => {
+  // Pricing calculator (HTML) and the Q3 report (PDF), opened up to anyone with the link.
+  for (const s of ["pricing-calc", "q3-report"]) {
+    const r = await api("PUT", `/api/v1/documents/${s}/access/level`, T.owner, { level: "link" });
+    if (r.status !== 204) fail(`access level ${s} → ${r.status}`);
+  }
+  const SANDBOX = "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox allow-modals allow-downloads";
+  const bar = (p) => p.locator("header.md-artbar");
+  const details = async (p) => {
+    await p.getByRole("button", { name: "Show details" }).click({ timeout: 25000 });
+    await bar(p).waitFor({ timeout: 20000 });
+    await p.locator("main iframe").first().waitFor({ timeout: 25000 });
+    await p.waitForTimeout(800);
+  };
+  const one = async (p, where) => {
+    const l = await fileLayout(p);
+    if (l.bars.length !== 1) fail(`${where}: ${l.bars.length} top bars (${l.bars.join(" | ")}), want exactly one`);
+    if (l.headers.length !== 1 || !(await bar(p).isVisible())) fail(`${where}: headers on screen: ${l.headers.join(", ")} (want the file's bar alone)`);
+    if (l.gap == null || l.gap > 32) fail(`${where}: the file starts ${l.gap}px under the bar (a second bar between them?)`);
+    // The file is still in its isolated, sandboxed frame on the artifact origin.
+    const f = await p.locator("main iframe").first().evaluate((el) => ({ src: el.src, sandbox: el.getAttribute("sandbox"), ref: el.referrerPolicy }));
+    if (new URL(f.src).origin !== new URL(WORKER).origin) fail(`${where}: the frame isn't on the artifact origin: ${f.src}`);
+    if (f.sandbox !== SANDBOX || f.ref !== "no-referrer") fail(`${where}: the frame's sandbox changed: ${f.sandbox} / ${f.ref}`);
+  };
+  const menuItems = async (p) => {
+    await bar(p).getByRole("button", { name: "More artifact actions" }).click();
+    await p.getByRole("menuitem").first().waitFor({ timeout: 10000 });
+    const items = await p.getByRole("menuitem").allInnerTexts();
+    const head = await p.locator(".md-menu__header, .pb-sheetmenu__header").first().innerText().catch(() => "");
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(250);
+    return `${head} | ${items.join(" · ")}`;
+  };
+
+  // The owner on markdrop.in.
+  for (const width of [1440, 390]) {
+    const { c, p } = await ctx(browser, { token: T.owner, width, height: width < 500 ? 844 : 900, mobile: width < 500 });
+    await p.goto(`${APP}/pricing-calc`, { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: "Show details" }).waitFor({ timeout: 25000 });
+    if ((await topBars(p)).length !== 0) fail(`full screen (${width}) has a top bar`);
+    await details(p);
+    await one(p, `owner file ${width}`);
+    await shot(p, `48-file-owner-${width}`);
+    if (width > 500) {
+      for (const name of ["Share", "Download", "Read full screen", "More artifact actions"]) {
+        if (!(await bar(p).getByRole("button", { name, exact: true }).isVisible())) fail(`the file's bar has no ${name}`);
+      }
+      const items = await menuItems(p);
+      for (const want of ["Copy link", "Settings", "Delete artifact", "views"]) if (!items.includes(want)) fail(`⋯ lacks ${want}: ${items}`);
+      // Settings still holds the versions.
+      await bar(p).getByRole("button", { name: "More artifact actions" }).click();
+      await p.getByRole("menuitem", { name: /Settings/ }).click();
+      await p.getByRole("dialog", { name: "Artifact settings" }).getByText(/Versions/).first().waitFor({ timeout: 15000 });
+      await p.keyboard.press("Escape");
+      await p.waitForTimeout(400);
+      // Full screen and back.
+      await bar(p).getByRole("button", { name: "Read full screen" }).click();
+      await p.waitForTimeout(600);
+      if ((await topBars(p)).length !== 0) fail("full screen from the bar still shows a bar");
+      await p.keyboard.press("Escape");
+      await bar(p).waitFor({ timeout: 10000 });
+      await one(p, "owner after full screen");
+    } else {
+      // Phones: ⋯ is a sheet with Share first; Copy link and Download are on the bottom dock.
+      await bar(p).getByRole("button", { name: "More artifact actions" }).click();
+      await p.getByRole("dialog").getByRole("menuitem", { name: "Share" }).waitFor({ timeout: 10000 });
+      await p.keyboard.press("Escape");
+      const dock = p.getByRole("toolbar", { name: "Artifact actions" });
+      for (const name of ["Copy link", "Download"]) if (!(await dock.getByRole("button", { name }).isVisible())) fail(`no ${name} on the phone's dock`);
+      const sw = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (sw > 0) fail(`the phone scrolls sideways by ${sw}px`);
+    }
+    await c.close();
+  }
+
+  // Anonymous on markdrop.in: Copy link in the bar, Report in ⋯, Sign in.
+  for (const width of [1440, 390]) {
+    const { c, p } = await ctx(browser, { width, height: width < 500 ? 844 : 900, mobile: width < 500 });
+    await p.goto(`${APP}/q3-report`, { waitUntil: "networkidle" });
+    await details(p);
+    await one(p, `anonymous file ${width}`);
+    await shot(p, `49-file-anon-${width}`);
+    if (width > 500) {
+      if (!(await bar(p).getByRole("button", { name: "Copy link" }).isVisible())) fail("no Copy link in an anonymous reader's bar");
+      if (!(await bar(p).getByRole("button", { name: "Download", exact: true }).isVisible())) fail("no Download in an anonymous reader's bar");
+      if (!(await bar(p).getByRole("link", { name: /Sign in/ }).or(bar(p).getByRole("button", { name: /Sign in/ })).first().isVisible())) fail("no Sign in in the bar");
+      const items = await menuItems(p);
+      if (!items.includes("Report")) fail(`an anonymous reader's ⋯ lacks Report: ${items}`);
+    }
+    await c.close();
+  }
+
+  // Who's viewing: the owner has it open; a reader sees them in the bar.
+  const o = await ctx(browser, { token: T.owner });
+  await o.p.goto(`${APP}/pricing-calc`, { waitUntil: "networkidle" });
+  const r = await ctx(browser, { token: T.reader });
+  await r.p.goto(`${APP}/pricing-calc`, { waitUntil: "networkidle" });
+  await details(r.p);
+  await one(r.p, "reader file");
+  await r.p.locator("header.md-artbar .pb-bar__presence").waitFor({ timeout: 15000 });
+  await r.c.close();
+  await o.c.close();
+
+  // The workspace's domain: anonymous at both widths (its logo, never Markdrop's), then the owner.
+  const d = await docOf("pricing-calc", T.owner);
+  const addr = `${TENANT}/${[...(d.folder_path || []), "pricing-calc"].join("/")}`;
+  await fetch(`${APP}/api/revalidate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag: "host:acme.localhost" }) });
+  for (const width of [1440, 390]) {
+    const a = await ctx(browser, { width, height: width < 500 ? 844 : 900, mobile: width < 500 });
+    await a.p.goto(addr, { waitUntil: "networkidle" });
+    await details(a.p);
+    await one(a.p, `tenant anonymous file ${width}`);
+    if (await bar(a.p).locator(".md-logo").count()) fail("Markdrop's logo on the workspace's domain");
+    await shot(a.p, `50-file-tenant-${width}`);
+    await a.c.close();
+  }
+  const to = await ctx(browser, { token: T.owner });
+  await to.p.goto(`${APP}/robots.txt`);
+  await to.p.goto(addr, { waitUntil: "networkidle" });
+  await details(to.p);
+  // Sign in from the bar: a hop to markdrop.in's handoff and back with a token for the domain.
+  await Promise.all([
+    to.p.waitForURL((u) => u.hostname !== "acme.localhost", { timeout: 20000 }).catch(() => {}),
+    bar(to.p).getByRole("link", { name: /Sign in/ }).or(bar(to.p).getByRole("button", { name: /Sign in/ })).first().click(),
+  ]);
+  await to.p.waitForURL((u) => u.hostname === "acme.localhost", { timeout: 30000 });
+  await to.p.waitForLoadState("networkidle");
+  await details(to.p);
+  await bar(to.p).getByRole("button", { name: "Share", exact: true }).waitFor({ timeout: 20000 });
+  await one(to.p, "tenant owner file");
+  await bar(to.p).getByRole("button", { name: "More artifact actions" }).click();
+  await to.p.getByRole("menuitem", { name: /General access on markdrop\.in/ }).or(to.p.getByRole("link", { name: /General access on markdrop\.in/ })).waitFor({ timeout: 10000 });
+  await shot(to.p, "51-file-tenant-owner-menu");
+  await to.c.close();
+
+  // Behind a password: the gate, then the file under one bar.
+  const html = Buffer.from("<!doctype html><meta charset=utf-8><title>Locked page</title><h1>Locked page</h1>");
+  const locked = await uploadFile(T.owner, { bytes: html, filename: "locked.html", mime: "text/html", title: "Locked page", read_password: "open sesame" });
+  const g = await ctx(browser);
+  await g.p.goto(`${APP}/${locked.slug}`, { waitUntil: "networkidle" });
+  await g.p.getByLabel(/Password/).first().fill("open sesame");
+  await g.p.keyboard.press("Enter");
+  await details(g.p);
+  await one(g.p, "file behind a password");
   await g.c.close();
 });
 

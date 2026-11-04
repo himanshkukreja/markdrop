@@ -2,19 +2,18 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ConfirmDialog, ImmersiveExit, MarkdropLoader, Progress, Spinner, cx, type MenuEntry } from "@/components/ui";
-import { SiteHeader } from "@/components/shell/SiteHeader";
-import { TenantFooter, TenantHeader, useTenant } from "@/components/tenant";
+import { ConfirmDialog, ImmersiveExit, MarkdropLoader, Progress, Spinner, cx, useToast, type MenuEntry } from "@/components/ui";
+import { TenantFooter, TenantHandoff, useTenant } from "@/components/tenant";
 import { PublishedPanel, type PublishedAccess } from "@/components/kit/PublishedPanel";
 import AccessGate from "@/components/access/AccessGate";
 import ShareDialog from "@/components/access/ShareDialog";
-import { artifactFileRenderer } from "@/components/ArtifactBadge";
+import { artifactFileRenderer, formatBytes } from "@/components/ArtifactBadge";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/contexts/AuthContext";
 import { getAccess, removePerson } from "@/lib/access";
 import { purgeDocument } from "@/lib/workspaces";
-import { signInUrlFor } from "@/lib/hosts";
+import { PRIMARY_HOST, signInUrlFor } from "@/lib/hosts";
 
 /** The path part of this page's URL, for the tenant sign-in return trip (/login 404s there). */
 function tenantPathOf(url: string): string {
@@ -34,13 +33,14 @@ import {
   type ArtifactRenderer,
   liveSocketUrl,
 } from "@/lib/api";
-import { ArtifactBar } from "./artifact/ArtifactBar";
+import { ArtifactDock } from "./artifact/ArtifactBar";
+import { ArtifactTopBar } from "./artifact/ArtifactTopBar";
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
 import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import { ArtifactVersions } from "./artifact/ArtifactVersions";
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
-import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
+import { basePathOf, isPaper, linkPrefixOf, shortDate, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
 import { fromFrameOrigin, type BridgeMessage } from "@/lib/engageCore";
@@ -100,6 +100,9 @@ interface Props {
   readTicket?: string | null;
   /** The live file version (API `file_version`), sent as `ver` with the analytics beacons. */
   fileVersion?: number | null;
+  /** The workspace it's filed in and its folders: they lead the bar's title for members. */
+  workspaceId?: string | null;
+  folderPath?: string[];
 }
 
 const EMPTY_SETTINGS: ArtifactSettingsState = {
@@ -131,6 +134,8 @@ export default function ArtifactView({
   viewerChrome = "full",
   readTicket: initialReadTicket = null,
   fileVersion: initialFileVersion = null,
+  workspaceId: initialWorkspaceId = null,
+  folderPath: initialFolderPath = [],
 }: Props) {
   useAnalyticsDoc({ ref: docRef, kind: "artifact", access: isPasswordProtected ? "protected" : "public" });
   const router = useRouter();
@@ -170,6 +175,9 @@ export default function ArtifactView({
   // Bumped after a replace, so the Versions list shows the new version.
   const [versionsKey, setVersionsKey] = useState(0);
   const [docId, setDocId] = useState<string | null>(null);
+  // Where it's filed (the bar's workspace › folders for members); a signed-in read refreshes it.
+  const [place, setPlace] = useState({ workspaceId: initialWorkspaceId, folderPath: initialFolderPath });
+  const toast = useToast();
   // Immersive mode: the artifact fills the viewport with all app chrome hidden,
   // so a published page reads as the content itself rather than something in a
   // box. Escape exits, and body scroll is locked while it's open.
@@ -429,6 +437,7 @@ export default function ArtifactView({
         setCanEditTitle(!!doc.can?.edit);
         setCanShare(!!doc.is_owner || !!doc.can?.share);
         setDocId(doc.id ?? null);
+        setPlace({ workspaceId: doc.workspace_id ?? null, folderPath: doc.folder_path ?? [] });
         if (doc.is_owner && doc.artifact_url) applyDoc(doc, { remount: false });
         // Added to someone else's file? Then they may take themselves off it ("Remove me"). Not on
         // a workspace's own domain, whose session can only read.
@@ -704,58 +713,88 @@ export default function ArtifactView({
     />
   );
 
+  // The ⋯ menu ("More artifact actions"): the size, views and date at its head, then what isn't in
+  // the bar. On a workspace's own domain the session can only read and share with people, so the
+  // owner's settings, access level and delete open on markdrop.in.
+  const onMarkdrop = `https://${PRIMARY_HOST}/${encodeURIComponent(slug)}`;
+  const shareInBar = canShare && !locked;
+  const caption = [
+    formatBytes(sizeBytes),
+    typeof views === "number" ? `${views.toLocaleString()} view${views === 1 ? "" : "s"}` : null,
+    shortDate(createdAt),
+  ].filter(Boolean).join(" · ");
   const menu: MenuEntry[] = [];
-  if (canShare && !locked) {
-    menu.push({ label: "Share", icon: "share", onClick: () => setShowShare(true) });
+  if (!locked) menu.push({ header: <span className="tabular-nums">{caption}</span> });
+  if (shareInBar) {
+    menu.push({
+      label: "Copy link",
+      icon: "link",
+      onClick: () => void navigator.clipboard?.writeText(url).then(() => toast.success("Link copied"), () => toast.error("Couldn't copy")),
+    });
   }
-  if (isOwner) {
-    menu.push({ label: "Settings", icon: "settings", onClick: openEdit });
+  if (isOwner && !tenant) {
+    menu.push({ label: "Settings", icon: "settings", description: "Title, link, password, expiry, the file and its versions", onClick: openEdit });
   }
-  if (!isOwner && canReplace && !locked) {
+  if (!isOwner && canReplace && !locked && !tenant) {
     menu.push({ label: "Replace file", icon: "upload", onClick: openEdit });
   }
-  if (!isOwner && !locked) {
-    menu.push({ label: "Report", icon: "flag", onClick: () => setShowReport(true) });
+  if (isOwner && tenant) {
+    // (External links: the menu draws the ↗ itself.)
+    menu.push(
+      { label: "General access on markdrop.in", icon: "globe", href: onMarkdrop, external: true, separated: true },
+      { label: "Settings on markdrop.in", icon: "settings", href: onMarkdrop, external: true },
+      { label: "Delete on markdrop.in", icon: "trash", href: onMarkdrop, external: true },
+    );
   }
-  if (isOwner) {
+  if (!isOwner && !locked) {
+    menu.push({ label: "Report", icon: "flag", separated: true, onClick: () => setShowReport(true) });
+  }
+  if (isOwner && !tenant) {
     menu.push({ label: "Delete artifact", icon: "trash", danger: true, separated: true, onClick: () => setShowDelete(true) });
   }
   if (!isOwner && ownGrantEmail) {
-    menu.push({ label: "Remove me", icon: "x", danger: true, separated: true, onClick: () => setShowLeave(true) });
+    menu.push({ label: "Remove me", icon: "x", danger: true, onClick: () => setShowLeave(true) });
   }
 
   const showPanel = isNew && panelOpen && immersive && !!artifactUrl && !locked && access !== null;
 
   return (
     <>
-      {/* The framed view. Inert under the immersive layer so Tab can't wander behind it. */}
-      <div className="flex min-h-dvh w-full min-w-0 flex-col" inert={immersive || undefined}>
-        {tenant ? <TenantHeader /> : <SiteHeader />}
+      {/* Back from signing in on a workspace's domain (#mdt=): nothing else on a file's page takes
+          the session (DocumentView does for documents, and has already when it shows this view). */}
+      {tenant && <TenantHandoff />}
+      {/* The framed view: one top bar (ArtifactTopBar, a page's bar; no app header above it) and
+          the file under it. Hidden and inert under the immersive layer, so Tab can't wander
+          behind it and its bar isn't on the screen twice. */}
+      <div className={cx("flex min-h-dvh w-full min-w-0 flex-col", immersive && "hidden")} inert={immersive || undefined}>
+        <ArtifactTopBar
+          slug={slug}
+          title={title}
+          originalFilename={originalFilename}
+          mime={mime}
+          renderer={renderer}
+          fileRenderer={fileRenderer}
+          typeLabel={typeLabel}
+          url={url}
+          addressing={{ tenant: !!tenant, folderPath: place.folderPath, workspaceId: place.workspaceId }}
+          gated={locked}
+          canOpen={canOpen}
+          downloading={downloading}
+          onDownload={handleDownload}
+          onFullScreen={() => setImmersive(true)}
+          onShare={shareInBar ? () => setShowShare(true) : null}
+          menu={menu}
+          presence={!locked ? <DocPresence presence={presence} signedIn={!!user} /> : null}
+        />
         <main
           id="main"
           ref={mainRef}
           tabIndex={-1}
-          className="mx-auto flex w-full min-w-0 max-w-tool flex-1 flex-col gap-3 px-4 pt-4 pb-24 outline-none sm:px-6 sm:pb-6"
+          className="mx-auto flex w-full min-w-0 max-w-tool flex-1 flex-col gap-3 px-4 pt-4 pb-20 outline-none sm:px-6 sm:pb-6"
         >
-          <ArtifactBar
-            slug={slug}
-            title={title}
-            originalFilename={originalFilename}
-            mime={mime}
-            renderer={renderer}
-            fileRenderer={fileRenderer}
-            typeLabel={typeLabel}
-            sizeBytes={sizeBytes}
-            views={views}
-            createdAt={createdAt}
-            url={url}
-            canOpen={canOpen}
-            downloading={downloading}
-            onDownload={handleDownload}
-            onExpand={() => setImmersive(true)}
-            menu={menu}
-            presence={!locked ? <DocPresence presence={presence} signedIn={!!user} /> : null}
-          />
+          {/* The bar's title is a breadcrumb; the page keeps its heading for screen readers. */}
+          <h1 dir="auto" className="ph-sensitive ph-mask sr-only">{(title || "").trim() || originalFilename || slug}</h1>
+          <ArtifactDock url={url} canOpen={canOpen} downloading={downloading} onDownload={handleDownload} />
 
           {locked ? (
             <AccessGate
@@ -776,7 +815,7 @@ export default function ArtifactView({
                cover over the immersive one that is still blank. */
             <div
               className={cx(
-                "relative isolate h-[calc(100dvh-14rem)] min-h-90 overflow-hidden rounded-xl border border-border sm:h-[calc(100dvh-9.5rem)]",
+                "md-artframe relative isolate h-[calc(100dvh-9rem)] min-h-90 overflow-hidden rounded-xl border border-border sm:h-[calc(100dvh-5.5rem)]",
                 paper ? "bg-(--qr-ground)" : "bg-surface-inset",
               )}
             >
@@ -904,6 +943,8 @@ export default function ArtifactView({
           documentId={docId}
           onClose={() => setShowShare(false)}
           onChanged={() => purgeDocument(slug)}
+          // On a workspace's own domain: people only; the access level is on markdrop.in.
+          peopleOnly={tenant ? onMarkdrop : undefined}
         />
       )}
     </>
