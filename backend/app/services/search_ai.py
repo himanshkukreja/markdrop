@@ -260,7 +260,7 @@ def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms) -> str:
     if not row:
         return ""
     x = row.get("x") or ""
-    sn = search.snippet(x, terms.expand, terms.prefixes, width=EXCERPT_CHARS)
+    sn = search.snippet(x, terms.marks, terms.prefixes, width=EXCERPT_CHARS)
     text = sn["text"] if sn else x[:EXCERPT_CHARS]
     heads = [h.get("t") for h in (row.get("hd") or [])[:8] if h.get("t")]
     if heads:

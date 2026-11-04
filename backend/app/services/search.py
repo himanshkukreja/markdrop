@@ -185,6 +185,15 @@ class Terms:
             return (self.tokens[-1],)
         return ()
 
+    @property
+    def marks(self) -> set:
+        """Words worth highlighting: the query's words and their typo variants, without the small
+        words of a sentence ("how", "we", "the") unless that's all there is."""
+        content = {t for t in self.tokens if t not in st.STOPWORDS}
+        if not content:
+            return set(self.expand)
+        return {w for w, pairs in self.expand.items() if any(self.tokens[i] in content for i, _q in pairs)}
+
     def hits(self, word: str) -> bool:
         return word in self.expand or (bool(self.prefixes) and word.startswith(self.prefixes))
 
@@ -912,12 +921,16 @@ class Shaper:
         if c.where == "heading" and c.head_hits:
             for h in row.get("hd") or []:
                 if any(terms.hits(w) for w in st.words(h.get("t"))):
-                    return {"text": h["t"], "marks": marks_for(h["t"], terms.expand, terms.prefixes)}, h.get("id")
+                    return {"text": h["t"], "marks": marks_for(h["t"], terms.marks, terms.prefixes)}, h.get("id")
+        x = row.get("x") or ""
+        # The text usually opens with the title as its first heading: the row shows it already.
+        if c.title and fold(x[:len(c.title) + 2]).strip().startswith(fold(c.title).strip()):
+            x = x[len(c.title):].lstrip()
         if c.body_hits or c.head_hits:
-            sn = snippet(row.get("x") or "", terms.expand, terms.prefixes)
+            sn = snippet(x, terms.marks, terms.prefixes)
             if sn:
                 return sn, None
-        x = (row.get("x") or "").strip()
+        x = x.strip()
         if x:
             first = x.split("\n", 1)[0][:SNIPPET_CHARS]
             return {"text": first + ("…" if len(first) < len(x) else ""), "marks": []}, None

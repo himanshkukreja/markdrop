@@ -131,8 +131,9 @@ await step("scope", async () => {
   }, null, { timeout: 10000 });
   // The results page: the workspace filter.
   await p.goto(`${APP}/search?q=onboarding&scope=${globex.id}`, { waitUntil: "networkidle" });
-  await p.getByText("Onboarding at Globex").first().waitFor({ timeout: 10000 });
-  if (await p.getByText("Onboarding Playbook").count()) fail("the Globex filter showed an Acme document");
+  const list = p.locator('ul[aria-label="Results"]');
+  await list.getByText("Onboarding at Globex").first().waitFor({ timeout: 10000 });
+  if (await list.getByText("Onboarding Playbook").count()) fail("the Globex filter showed an Acme document");
 });
 
 await step("ai", async () => {
@@ -189,7 +190,7 @@ await step("keyboard", async () => {
   if (!p.url().startsWith(APP)) await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
   // Esc closes; ⌘K reopens with recent searches.
   await p.keyboard.press("Control+k");
-  await p.getByText("Recent searches").waitFor({ timeout: 10000 });
+  await p.locator('[role="dialog"] [role="group"][aria-label="Recent searches"]').waitFor({ timeout: 10000 });
   await p.keyboard.press("Escape");
   await p.getByTestId("search-input").waitFor({ state: "detached", timeout: 5000 });
 });
@@ -229,7 +230,7 @@ await step("shots", async () => {
       if (!(theme === "light" && width === 1440)) await snap(p, `ai-${theme}-${width}`);
       await p.keyboard.press("Escape");
       await p.goto(`${APP}/search?q=onboarding`, { waitUntil: "networkidle" });
-      await p.getByText("Onboarding Playbook").first().waitFor({ timeout: 10000 });
+      await p.locator('ul[aria-label="Results"]').getByText("Onboarding Playbook").first().waitFor({ timeout: 10000 });
       await snap(p, `results-${theme}-${width}`);
       await p.goto(`${APP}/search?q=what%20is%20our%20expense%20policy%3F`, { waitUntil: "networkidle" });
       await p.locator('[aria-label="AI answer"]').getByText(/From your documents/).waitFor({ timeout: 20000 });

@@ -183,7 +183,10 @@ a.row:hover {
     align-items: stretch;
   }
   .selects > * {
-    flex: 1;
+    flex: 1 1 40%;
+  }
+  .selects > *:first-child {
+    flex-basis: 100%;
   }
   .hint {
     display: none;

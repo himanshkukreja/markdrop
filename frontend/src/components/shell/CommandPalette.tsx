@@ -216,8 +216,8 @@ export default function CommandPalette({
             run: (nt?: boolean) => {
               onClose();
               const href = openHref(f.slug, f.url, f.encrypted);
-              if (nt) window.open(href, "_blank", "noopener,noreferrer");
-              else window.location.assign(href);
+              if (nt || !href.startsWith("/")) window.open(href, "_blank", "noopener,noreferrer");
+              else router.push(href);
             },
           })),
         });
@@ -291,7 +291,9 @@ export default function CommandPalette({
         >
           <Icon name="sparkle" size={14} /> <span className={s.askLabel}>Ask AI</span>
         </button>
-        <button type="button" className={s.closeBtn} onClick={onClose} aria-label="Close search"><Kbd>Esc</Kbd></button>
+        <button type="button" className={s.closeBtn} onClick={onClose} aria-label="Close search">
+          <Kbd className={s.escKey}>Esc</Kbd><span className={s.closeIcon} aria-hidden><Icon name="x" size={18} /></span>
+        </button>
       </div>
       <div className={s.filters} role="toolbar" aria-label="Filters">
         {KIND_CHIPS.map((c) => (

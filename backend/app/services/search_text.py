@@ -29,6 +29,7 @@ STOPWORDS = frozenset("""
 a an and are as at be but by for from has have he her his i if in into is it its me my no not of on or our
 she so than that the their them then there these they this to was we were what when which who will with
 you your yours do does did can could should would may might must shall been being am also just about over
+how why where whose whom us
 """.split())
 
 _SPLIT = re.compile(r"[\W_]+")
