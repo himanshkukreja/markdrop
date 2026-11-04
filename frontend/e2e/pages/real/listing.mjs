@@ -1,9 +1,11 @@
 /**
  * The in-app workspace listing on the REAL stack (fix/ws-listing): folder-click timing under
  * throttling, the owner on every row (and the privacy matrix), the List / Grid / Cards switch, renames
- * made in another tab or by someone else showing without a reload, and screenshots. Seeds the busy "Senseloaf" workspace (seed_listing.py) on top of seed.py.
+ * made in another tab or by someone else showing without a reload, screenshots, and opening every kind
+ * of item without a flash of other UI (open; seed_open.py). Seeds the busy "Senseloaf" workspace
+ * (seed_listing.py) on top of seed.py.
  *
- *   PB_STACK_ID=12 [ONLY=timing,owner,views,privacy,nav,renames,shots] [PROFILES=4g,3g] [RUNS=3] node listing.mjs
+ *   PB_STACK_ID=12 [ONLY=timing,owner,views,privacy,nav,renames,shots,open] [PROFILES=4g,3g] [RUNS=3] node listing.mjs
  *
  * `timing` is selector-agnostic (it clicks folder links by href and watches the page), so it also
  * measures an older build: LABEL=before writes timing-before.json, LABEL=after timing-after.json.
@@ -11,7 +13,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import { APP, API, SHOTS, STACK, STACK_ID, log, fail, reseed, seedNow, api, launch, ctx, shot, stepper } from "./lib.mjs";
+import { APP, API, WORKER, BROWSER, SHOTS, STACK, STACK_ID, log, fail, reseed, seedNow, api, launch, ctx, shot, stepper } from "./lib.mjs";
+import { armOpenProbe, settledTimeline, foreign, fmt, slow3g, TARGET } from "./openProbe.mjs";
 
 const OUT = process.env.LISTING_OUT || SHOTS;
 fs.mkdirSync(OUT, { recursive: true });
@@ -113,6 +116,8 @@ async function timedClick(p, cdp, selector, { want, text }) {
 }
 
 await step("timing", async () => {
+  // Network and CPU throttling and request timings come from the DevTools protocol: Chromium only.
+  if (BROWSER !== "chromium") return log("timing: Chromium only (CDP), skipped");
   const profiles = (process.env.PROFILES || "4g,3g").split(",");
   const runs = Number(process.env.RUNS || 3);
   const product = L.folders["Product"], archive = L.folders["Archive"], specs = L.nested["Specs"];
@@ -381,6 +386,57 @@ await step("shots", async () => {
     }
   }
   log("shots in", dir);
+});
+
+/* ── Opening an item (fix/open-flash) ─────────────────────────────────
+   Click each kind from the listing (a page, a document, an HTML / PDF / CSV / MP4 file) as the owner
+   and as a member: the new tab goes straight to the item. Nothing in between may wear other chrome
+   (the app header, a document's bar over a page or a file, the framed reader before full screen)
+   or another theme; a loading state is fine in the item's own chrome. Some on slow 3G. And the
+   cover is no way in: a signed-in stranger and a signed-out visitor still get the gate. */
+
+await step("open", async () => {
+  execFileSync(PY, [path.join(path.dirname(new URL(import.meta.url).pathname), "seed_open.py")], {
+    stdio: "pipe", env: { ...process.env, STACK_ID: String(STACK_ID), PB_STACK: STACK },
+  });
+  const O = JSON.parse(fs.readFileSync(path.join(STACK, "seed-open.json"), "utf8"));
+  const runs = [];
+  for (const who of ["owner", "member"]) for (const kind of Object.keys(TARGET)) runs.push({ who, kind, prof: "fast" });
+  for (const kind of ["page", "doc", "pdf"]) runs.push({ who: "member", kind, prof: "slow3g" });
+  const bad = [];
+  for (const { who, kind, prof } of runs) {
+    const slug = O.items[kind];
+    const { c, p } = await ctx(browser, { token: O.users[who].token });
+    await armOpenProbe(c);
+    await p.goto(`${APP}/w/${O.ws}`, { waitUntil: "load" });
+    const link = p.locator(`#main a[href="/${slug}"]`).first();
+    await link.waitFor({ timeout: 30000 });
+    if (prof === "slow3g") await slow3g(c, { app: APP, api: API, worker: WORKER });
+    const [tab] = await Promise.all([c.waitForEvent("page"), link.click()]);
+    const tl = await settledTimeline(tab, { timeout: prof === "slow3g" ? 120000 : 30000 });
+    await c.close();
+    const end = tl[tl.length - 1];
+    const f = foreign(tl);
+    const off = !end || end.chrome !== TARGET[kind].chrome || end.body !== TARGET[kind].body;
+    log(`${f.length || off ? "✗" : "✓"} open ${who} ${kind} ${prof}: ${fmt(tl)}`);
+    if (f.length || off) bad.push(`${who} ${kind} ${prof}: ${fmt(tl)}`);
+  }
+  // No session, or a session without access: the gate, never the item, and (signed out) no cover.
+  for (const who of ["stranger", null]) {
+    const token = who ? S0.users[who].token : null;
+    const { c, p } = await ctx(browser, { token });
+    await armOpenProbe(c);
+    await p.goto(`${APP}/${O.items.page}`, { waitUntil: "load" });
+    await p.locator("section[aria-labelledby='md-gate-title']").first().waitFor({ timeout: 30000 });
+    await p.waitForTimeout(500);
+    const tl = await p.evaluate(() => window.__open || []);
+    await c.close();
+    log(`  open as ${who ?? "signed out"}: ${fmt(tl)}`);
+    if (tl.some((e) => e.body === "content" || e.body === "frame")) bad.push(`${who ?? "signed out"} saw the item: ${fmt(tl)}`);
+    if (tl[tl.length - 1]?.body !== "gate") bad.push(`${who ?? "signed out"} didn't end on the gate: ${fmt(tl)}`);
+    if (!who && tl.some((e) => e.body === "loader" || e.body === "ground")) bad.push(`signed out saw the opening cover: ${fmt(tl)}`);
+  }
+  if (bad.length) fail(`${bad.length} open(s) flashed:\n  ${bad.join("\n  ")}`);
 });
 
 await browser.close();

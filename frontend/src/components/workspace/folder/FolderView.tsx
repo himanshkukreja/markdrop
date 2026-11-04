@@ -60,6 +60,7 @@ import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
 import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
 import { docHref } from "@/components/analytics/format";
+import { openingKindOf, rememberOpening } from "@/lib/opening";
 
 type Kind = "" | "markdown" | "artifact";
 
@@ -620,8 +621,20 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   const contentsLabel = listedFolders.length && (items.length || state === "loading") ? "Folders and items" : listedFolders.length ? "Folders" : "Items";
   const parentName = folder ? (trail.length > 1 ? trail[trail.length - 2]!.name : wsName) : "My files";
 
+  // An item opens in a new tab: tell it what it is opening, so its first paint is that item's own
+  // look (a page's bar, or the loader a document or file opens on), never the locked view a
+  // stranger gets (lib/opening). Only the kind; access is still the API's to decide.
+  const noteOpening = (e: React.MouseEvent) => {
+    if (e.button > 1) return;
+    const a = (e.target as Element | null)?.closest?.("a[href]");
+    const href = a?.getAttribute("href");
+    if (!href || !href.startsWith("/")) return;
+    const it = items.find((i) => openHref(i.slug, i.url, i.encrypted) === href);
+    if (it) rememberOpening(href, openingKindOf(it));
+  };
+
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-5" onClickCapture={noteOpening} onAuxClickCapture={noteOpening}>
       {/* ── Header ── */}
       {phone ? (
         <header className="-mx-4 -mt-6 flex items-center gap-1 border-b border-border bg-surface px-2 py-1.5">

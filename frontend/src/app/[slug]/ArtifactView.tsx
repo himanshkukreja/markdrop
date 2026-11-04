@@ -319,8 +319,11 @@ export default function ArtifactView({
     // A URL arriving late (password unlock, the owner's authorised re-read) goes immersive in the
     // same render, so the framed iframe never mounts just to be thrown away (one fetch, not two).
     if (doc.artifact_url && !artifactUrlRef.current) setImmersive(true);
-    artifactUrlRef.current = doc.artifact_url ?? null;
-    setArtifactUrl(doc.artifact_url ?? null);
+    // A re-read of the same bytes (the owner check) keeps the frame's address: a freshly signed
+    // one is a new src, and the frame would reload under its cover for nothing (fix/open-flash).
+    const nextUrl = !remount && artifactUrlRef.current ? artifactUrlRef.current : doc.artifact_url ?? null;
+    artifactUrlRef.current = nextUrl;
+    setArtifactUrl(nextUrl);
     // Only force a remount when the bytes may actually have changed. The owner
     // check runs on every mount and would otherwise throw away a frame that is
     // already loading, restarting the fetch and the loader with it.

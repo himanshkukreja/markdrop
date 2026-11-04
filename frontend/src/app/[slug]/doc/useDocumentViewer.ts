@@ -7,7 +7,7 @@
  * in the S1 report — each effect below carries the comment that explains it.
  */
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState, useRef } from "react";
 import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryFlags } from "@/lib/useQueryFlags";
@@ -33,6 +33,11 @@ import { usePresenceChannel } from "@/lib/presence";
 import { announce } from "@/lib/navBus";
 import { readPageProps } from "@/components/pages/pageProps";
 import { pageFieldsOf, type DocumentViewProps, type PageFields } from "./types";
+import { preloadView, viewKindOf } from "./preload";
+import { OPENING_ATTR, type OpeningKind } from "@/lib/opening";
+
+// Before paint on the client (the server has no layout; React 19 doesn't warn about it there).
+const useBeforePaint = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export type ViewMode = "write" | "split" | "preview";
 /**
@@ -736,6 +741,8 @@ export function useDocumentViewer({
     // usableSessionToken also drops a tenant token that has expired, before anything reads it.
     if (peekHandoffToken() || usableSessionToken()) {
       setPwdFetching(true);
+      // The listing said what it is opening: fetch that view's code alongside the read.
+      void preloadView(document.documentElement.getAttribute(OPENING_ATTR) as OpeningKind | null);
     }
     setGateDecided(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -802,7 +809,9 @@ export function useDocumentViewer({
   // Publishing is the one flow that must *not* be full-bleed: the edit secret is
   // shown once and lives in the chrome, so covering it would lose it for good.
   // Same for the flags that open a chrome-level panel.
-  useEffect(() => {
+  // Before paint: a gated document opening for a signed-in reader goes from the opening cover straight
+  // to full screen, never one frame of the framed reader in between (fix/open-flash).
+  useBeforePaint(() => {
     if (decided.current || !flagsReady) return;
     // Not resolved yet — wait rather than deciding on a transient state. An
     // encrypted document waits for its key too: if the key is missing or wrong,
@@ -1132,7 +1141,9 @@ export function useDocumentViewer({
     let leaving = false;
     setPwdFetching(true);
     getDocument(slug)
-      .then((doc) => {
+      .then(async (doc) => {
+        // The view's own code first, so the opening cover hands straight over to it.
+        await preloadView(viewKindOf(doc));
         if (cancelled()) return;
         adoptDoc(doc);
         setPwdLocked(false);

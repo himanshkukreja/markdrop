@@ -556,6 +556,21 @@
       ]
     },
     {
+      "id": "open-items-without-a-flash",
+      "date": "2026-11-04",
+      "title": "Items open straight to themselves",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "Opening a page, document or file from a workspace no longer shows a locked document screen for a moment first. A page opens in its own screen, and documents and files open full screen.",
+      "body": "- **No locked screen first.** When you're signed in, an item from your workspace no longer shows the app header, a **Private** bar and a placeholder before it appears.\n- **A page opens as a page.** While it loads, you see the page's own screen with its single top bar.\n- **Documents and files open full screen**, with the Markdrop loader on a slow connection, and never show the framed view first.\n- **Access hasn't changed.** Nothing appears until Markdrop has checked that you can open the item. People who can't open it still get the sign-in or access screen.",
+      "docs": [
+        "/workspaces/folders"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",
