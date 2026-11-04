@@ -36,6 +36,8 @@ const CASES = [
   ["::::columns", '::::columns\n:::column{width="40%"}\nLeft.\n:::\n\n:::column{width="60%"}\nRight.\n:::\n::::\n'],
   [":::indent", "A parent line.\n\n:::indent\nNested under it.\n:::\n"],
   [':::button{label="Add a task"}', ':::button{label="Add a task"}\n- [ ] New task\n:::\n'],
+  [":::signoff{#b-k3x9a1", ':::signoff{#b-k3x9a1 person="6650f0c2a1" label="Release approval" options="Approved for production|Not approved" lock=above}\nQA passed on staging.\n:::\n'],
+  ['label="Release approval"', ':::signoff{#b-k3x9a2 person="6650f0c2a1" label="Release approval"}\n:::\n'],
   ["![alt](asset:<id>)", "![A chart](asset:a1b2c3d4)\n"],
   ['{width="60%" align="left"}', '![A chart](asset:a1b2c3d4 "Its caption"){width="60%" align="left"}\n'],
   ["::markdrop{src=", '::markdrop{src="q3-report" mode="card"}\n'],

@@ -53,6 +53,8 @@ const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m)
 // Pages (documents in the block editor): the renderer ships with a page; the editor and the
 // template gallery load when used.
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
+// Sign-offs under a page's title (the reader's page fills the store: components/pages/signoff).
+const SignoffSummary = dynamic(() => import("@/components/pages/signoff/SignoffSummary").then((m) => m.SignoffSummary), { loading: () => null });
 const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
 // Drag and drop, Move to and Duplicate load only for pages.
 const PageTree = dynamic(() => import("@/components/pages/PageTree").then((m) => m.PageTree), { loading: () => null });
@@ -713,7 +715,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 menu={readerPageMenu}
               />
             }
-            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={pageBacklinks} />}
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{pageBacklinks}</>} />}
             footer={pageFooter}
           >
             {notices}
@@ -736,6 +738,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 title={displayTitle}
                 href={pageHref}
                 viewer={user?.id ?? null}
+                subscribeLive={v.subscribeLive}
               />
             )}
             {!showRaw && !(wideRail && pageRail && tocEntries.length > 0) && <PresenceMargin root={readRef} markers={markers} left={-14} />}

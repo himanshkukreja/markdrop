@@ -18,6 +18,9 @@ export const InlineImage: Node;
 export const InlineMath: Node;
 export const RawInline: Node;
 export const Mention: Node;
+export const SignoffBlock: Node;
+/** Gives sign-off blocks without an id (or with a taken one) their own, after an edit. */
+export function signoffIds(): import("@tiptap/pm/state").Plugin;
 export const Kbd: Mark;
 export const InlineCode: Mark;
 export const MarkdownAttrs: Extension;

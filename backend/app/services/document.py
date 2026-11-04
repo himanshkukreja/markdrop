@@ -480,6 +480,7 @@ async def update_document(
 
     now = datetime.now(timezone.utc)
     sets: dict = {"title": data.title or None, "updated_at": now}
+    signoffs_removed: list = []
     # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
     # never let a markdown-shaped edit overwrite it.
     if raw.get("kind") != "artifact":
@@ -492,6 +493,12 @@ async def update_document(
             from app.services import page_people
 
             sets["content"], _left = await page_people.resolve(db, sets["content"], raw, actor.user_id)
+            # Sign-off blocks (services/signoffs.py): ids given, signed blocks and the sections
+            # they lock left as they are (423), a workspace admin's removal noted.
+            from app.services import signoffs
+
+            sets["content"], signoffs_removed = await signoffs.guard(db, raw, sets["content"], actor, ctx)
+            cas.update(signoffs.cas(raw))
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,
@@ -510,12 +517,22 @@ async def update_document(
             fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"rev": 1})
             if fresh is not None and fresh.get("rev", 1) != cas["rev"]:
                 raise StaleRevision(fresh.get("rev", 1))
+        if exc.status_code == 409 and "signoff_rev" in cas:
+            fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"signoff_rev": 1})
+            if fresh is not None and fresh.get("signoff_rev") != cas["signoff_rev"]:
+                from app.services import signoffs
+
+                raise signoffs.race_error()
         raise
     ctx.forget(raw)
     # Version history (services/page_history.py): one version per editing session per 10 minutes.
     from app.services import page_history
 
     await page_history.on_save(db, raw, after, actor, **(history or {}))
+    if signoffs_removed:
+        from app.services import signoffs
+
+        await signoffs.after_write(db, raw, after, actor, signoffs_removed)
     # People newly mentioned (or named on a sign-off) hear about it (services/notifications.py).
     from app.services import notifications
 
@@ -948,10 +965,14 @@ async def sync_push(
     if base_rev != cur_rev:
         return ("conflict", _doc_from_mongo(raw))
 
+    # Signed-off blocks and the sections they lock (services/signoffs.py) hold here too.
+    from app.services import signoffs
+
+    content, _removed = await signoffs.guard(db, raw, content, None, None)
     now = datetime.now(timezone.utc)
     # Compare-and-swap on rev so a concurrent writer can't be clobbered.
     updated = await db["documents"].find_one_and_update(
-        {"_id": ObjectId(doc_id), "rev": cur_rev},
+        {"_id": ObjectId(doc_id), "rev": cur_rev, **signoffs.cas(raw)},
         {
             "$set": {
                 "content": content,

@@ -74,6 +74,7 @@ function Who({ v }: { v: VersionSummary }) {
     <span className="ph-who">
       <Avatar name={a.name || a.label || "Someone"} src={a.picture ?? undefined} size="sm" />
       {a.kind === "restore" && <span className="ph-who__badge" aria-hidden><Icon name="rotate" size={10} /></span>}
+      {a.kind === "signoff" && <span className="ph-who__badge" aria-hidden><Icon name={v.event?.action === "removed" || v.event?.action === "cleared" ? "x" : "check"} size={10} /></span>}
     </span>
   );
 }

@@ -206,6 +206,25 @@
       ]
     },
     {
+      "id": "page-signoff",
+      "date": "2026-11-04",
+      "title": "Pages: sign-off blocks, approved by one named person and locked once signed",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Add a Sign-off block to a page, name who signs it and give it options such as Approved for production or Not approved. Only that person can choose; Markdrop records the decision with their name and the time, and nobody can change the block, or the section above it, until they clear it.",
+      "body": "- **/ › Sign-off** in any page in a workspace: choose who signs, the label and up to six options, and whether signing locks the section above.\n- **Only the person named can sign**, not the owner, not an admin, not an AI app acting for someone else. The decision is stored by Markdrop, never in the page's Markdown, so it can't be faked by editing.\n- **Once signed**, the block (and with *lock above*, everything from the previous heading down to it) can't be changed or deleted, in the editor, in Markdown, from VS Code or through MCP. The signer can change or clear their decision; a workspace admin can remove a signed block, and that's recorded.\n- Sign-offs show on the block, as pills under the page's title and in **Version history** (\"Signed off by Riya: Approved for production\").\n- Two new MCP tools: `list_signoffs` and `sign_off`. See [Sign-off](/pages/sign-off).",
+      "docs": [
+        "/pages/sign-off",
+        "/pages/markdown-reference",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

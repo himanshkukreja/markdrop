@@ -127,7 +127,9 @@ class Transport(McpTestCase):
             "set_slug",
             "duplicate_page",
             # Notifications, and sharing with named people.
-            "list_notifications", "mark_notifications_read", "share_with_people"})
+            "list_notifications", "mark_notifications_read", "share_with_people",
+            # Sign-off blocks in pages.
+            "list_signoffs", "sign_off"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")

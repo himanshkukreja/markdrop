@@ -92,9 +92,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await page_assets.ensure_indexes(db)
     await bookmarks.ensure_indexes(db)
     await page_links.ensure_indexes(db)
-    from app.services import page_history
+    from app.services import page_history, signoffs
 
     await page_history.ensure_indexes(db)
+    await signoffs.ensure_indexes(db)
 
 
 # ── The tree ──────────────────────────────────────────────────────────────────
