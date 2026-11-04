@@ -55,7 +55,7 @@ class CoverWorld(PagesAIWorld):
 
 class Choice(CoverWorld):
     async def test_new_page_gets_the_cover_haiku_picks(self):
-        d = await self.create(content=ROADMAP + LONG_TAIL * 40, workspace=self.ws["W1"])
+        d = await self.create(content=ROADMAP + "More planning. " * 110 + LONG_TAIL, workspace=self.ws["W1"])
         self.assertTrue(d["cover_pending"])  # the response comes before the pick
         row = await self.doc(d["slug"])
         self.assertEqual(self.cover_of(row), "gallery:route")
@@ -106,7 +106,8 @@ class Choice(CoverWorld):
     def test_fallback_is_keywords_then_a_hash(self):
         fb = page_covers.fallback
         self.assertEqual(fb("Q3 roadmap", ""), "route")
-        self.assertEqual(fb("Weekly design review", "Figma mockups for the new brand"), "swatches")
+        self.assertEqual(fb("Brand style guide", "Figma mockups and colors"), "swatches")
+        self.assertEqual(fb("Daily standup", "Agenda: blockers"), "circles")
         self.assertEqual(fb("Security audit", "SOC 2 access review"), "lattice")
         self.assertEqual(fb("On-call runbook", "When the pager fires"), "pulse")
         self.assertEqual(fb("Welcome to the team", "Your first day: getting started"), "doorway")
@@ -118,7 +119,8 @@ class Choice(CoverWorld):
         # Tints swap within a theme, and only within one.
         self.assertEqual(page_covers.with_tint("facets", "dark"), "prism")
         self.assertEqual(page_covers.with_tint("prism", "light"), "facets")
-        self.assertEqual(page_covers.with_tint("tide", "dark"), "tide")
+        self.assertEqual(page_covers.with_tint("tide", "dark"), "moonlit")
+        self.assertEqual(page_covers.with_tint("doorway", "dark"), "doorway")  # no dark onboarding cover
         self.assertEqual(page_covers.parse_reply('{"cover": "gallery:sunset"}'), "dawn")  # an old alias
 
     def test_catalog(self):
@@ -404,7 +406,7 @@ class Backfill(CoverWorld):
         p["off"] = await self.mkdoc("W", editor="blocks", content="# O", cover_auto_off=True, created_at=old)
         p["classic"] = await self.mkdoc("W", content="# classic doc", created_at=old)       # not a page
         p["file"] = await self.mkdoc("W", kind="artifact", editor="blocks", created_at=old)
-        p["ws_off"] = await self.mkdoc("W2", owner="wm2", ws="W2", editor="blocks", content="# W2 page", created_at=old)
+        p["ws_off"] = await self.mkdoc("W", owner="wm2", ws="W2", editor="blocks", content="# W2 page", created_at=old)
         await self.db["workspaces"].update_one({"_id": ObjectId(self.ws["W2"])}, {"$set": {"settings.auto_covers": False}})
         # The world's own page (launch-page) is one more page without a cover.
         await self.db["documents"].update_one({"slug": "launch-page"}, {"$set": {"created_at": old}})

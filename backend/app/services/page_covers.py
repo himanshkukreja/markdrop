@@ -175,11 +175,12 @@ def with_tint(cover_id: str, tint: str | None) -> str:
     c = BY_ID.get(cover_id)
     if c is None or tint not in ("light", "dark") or c["tint"] == tint:
         return cover_id
-    theme = c["tags"][0]
-    for o in CATALOG:
-        if o["tint"] == tint and o["tags"] and o["tags"][0] == theme:
-            return o["id"]
-    return cover_id
+    theme, mine = c["tags"][0], set(c["tags"])
+    twins = [o for o in CATALOG if o["tint"] == tint and o["tags"] and o["tags"][0] == theme]
+    if not twins:
+        return cover_id
+    # The closest twin: the most tags in common (catalog order breaks a tie).
+    return max(twins, key=lambda o: len(mine & set(o["tags"])))["id"]
 
 
 def system_prompt() -> str:
