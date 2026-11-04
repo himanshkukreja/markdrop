@@ -262,9 +262,13 @@ class Permissions(PagesAIWorld):
             # a stranger learns nothing
             r = await self.post(f"{self.url}/{action}", self.session("stranger"), json=body)
             self.assertEqual(r.status_code, 404, (action, r.text))
-            # a workspace domain's tenant token is for reading only
-            r = await self.post(f"{self.url}/{action}", self.tenant("wm", "W1"), json=body)
-            self.assertEqual(r.status_code, 401, (action, r.text))
+            # another workspace's domain learns nothing; translate (a new document) and notes
+            # aren't offered on any workspace domain (tests/test_tenant_edit.py: its own domain)
+            r = await self.post(f"{self.url}/{action}", self.tenant("wm2", "W2"), json=body)
+            self.assertEqual(r.status_code, 401 if action == "translate" else 404, (action, r.text))
+            if action == "translate":
+                r = await self.post(f"{self.url}/{action}", self.tenant("wm", "W1"), json=body)
+                self.assertEqual(r.status_code, 401, (action, r.text))
         self.assertEqual(self.fake.calls, [])
 
     async def test_editor_can_use_every_writing_feature(self):
@@ -355,9 +359,11 @@ class Permissions(PagesAIWorld):
         self.assertEqual(st["tones"], ["professional", "friendly", "concise"])
         r = await self.http.get("/api/v1/ai/pages/status?slug=launch-page", headers=self.session("stranger"))
         self.assertEqual(r.status_code, 404)
-        # On the workspace's domain (tenant token): ask yes, write no.
+        # On the workspace's domain (tenant token): a member edits there too (domain editing).
         r = await self.http.get("/api/v1/ai/pages/status?slug=launch-page", headers=self.tenant("wm", "W1"))
         self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual((r.json()["can_ask"], r.json()["can_write"]), (True, True))
+        r = await self.http.get("/api/v1/ai/pages/status?slug=launch-page", headers=self.tenant("wv", "W1"))
         self.assertEqual((r.json()["can_ask"], r.json()["can_write"]), (True, False))
         # No page: for "Start from notes".
         st = (await self.http.get("/api/v1/ai/pages/status", headers=self.session("wm"))).json()

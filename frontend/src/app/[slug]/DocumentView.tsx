@@ -6,6 +6,8 @@ import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
 import ImmersiveExit from "@/components/ImmersiveExit";
 import AccessGate from "@/components/access/AccessGate";
+import { RequestEditDialog, useEditRequest } from "@/components/access/RequestEditAccess";
+import { PRIMARY_HOST } from "@/lib/hosts";
 import { Alert, Button, ConfirmDialog, CopyButton, Drawer, EmptyState, Skeleton, useToast, type MenuEntry } from "@/components/ui";
 import { SiteHeader } from "@/components/shell/SiteHeader";
 import { TenantHeader, useTenant } from "@/components/tenant";
@@ -168,8 +170,16 @@ export default function DocumentView(props: DocumentViewProps) {
   const isPage = !encrypted && page?.editor === "blocks";
   const addressing = { tenant: !!tenant, folderPath: page?.folder_path ?? [], workspaceId: page?.workspace_id ?? null };
   const crumbs = isPage ? page?.breadcrumbs ?? [] : [];
-  // Sub-pages are made by signed-in editors on markdrop.in (a workspace's domain is read-only).
-  const canAddSubPage = isPage && !!user && v.secretUnlocked && !tenant;
+  // Sub-pages, history: signed-in editors, here or on a workspace's own domain. Moving, duplicating,
+  // templates and translating stay on markdrop.in (the domain edits pages, it doesn't rearrange them).
+  const canAddSubPage = isPage && !!user && v.secretUnlocked;
+  const canManagePage = canAddSubPage && !tenant;
+  // On a workspace's domain: what stays on markdrop.in opens the same page there.
+  const onMarkdrop = `https://${PRIMARY_HOST}/${encodeURIComponent(slug)}`;
+  const domainOwner = !!tenant && !!user && isOwner;
+  // "Request edit access": a signed-in reader of this page who may not edit it.
+  const [requestingEdit, setRequestingEdit] = useState(false);
+  const [editReq, setEditReq] = useEditRequest(slug, !!user && v.readable && !v.secretUnlocked && !encrypted && v.ownerKnown && !isOwner);
   // The page's properties (front matter): icon, cover, width, text size, font.
   const pageProps = isPage ? readPageProps(displayContent) : null;
   const pageLayout = pageProps
@@ -252,7 +262,7 @@ export default function DocumentView(props: DocumentViewProps) {
       .catch(() => {});
     fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
   };
-  const pageActions = isPage && canAddSubPage ? (
+  const pageActions = isPage && canManagePage ? (
     <PageActions
       request={pageAction}
       page={movable}
@@ -465,12 +475,19 @@ export default function DocumentView(props: DocumentViewProps) {
       ? [{ label: "Open in block editor", icon: "layers", description: "Write it with blocks. The Markdown is unchanged.", onClick: () => setToBlocks(true) }]
       : []),
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
-    ...(canAddSubPage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
-    ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
+    ...(canManagePage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
+    ...(canManagePage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
     ...(canAddSubPage ? [{ label: "Version history", icon: "history", description: "See and restore earlier versions", onClick: () => setHistoryOpen(true) }] : []),
     ...(encrypted && secretUnlocked && readable ? [{ label: "Version history", icon: "history", description: "Not kept for end-to-end encrypted documents", disabled: true, onClick: () => {} }] : []),
-    ...(canAddSubPage && !page?.template ? [{ label: "Use as template", icon: "layers", description: "Everyone in the workspace can start pages from it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
+    ...(canManagePage && !page?.template ? [{ label: "Use as template", icon: "layers", description: "Everyone in the workspace can start pages from it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
     ...(isPage && !tenant && (isOwner || v.canEditSettings) ? [{ label: "Change link…", icon: "link", description: "The old link keeps working", onClick: () => setChangingLink(true) }] : []),
+    ...(editReq?.canRequest ? [{ label: editReq.pending ? "Edit access requested" : "Request edit access", icon: "edit", description: editReq.pending ? "You'll get an email when they decide" : "Ask the owner to let you edit", disabled: editReq.pending, onClick: () => setRequestingEdit(true) }] : []),
+    ...(domainOwner ? [
+      // (An external link: the menu draws the ↗ itself.)
+      { label: "Manage access on markdrop.in", icon: "users", href: onMarkdrop, external: true, separated: true },
+      ...(isPage ? [{ label: "Change link on markdrop.in", icon: "link", href: onMarkdrop, external: true }] : []),
+      { label: "Delete on markdrop.in", icon: "trash", href: onMarkdrop, external: true },
+    ] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -504,7 +521,7 @@ export default function DocumentView(props: DocumentViewProps) {
       vscodeSynced={vscodeSynced}
       live={v.live}
       access={v.access}
-      canShare={v.canShare && !pwdLocked}
+      canShare={v.canShare && !pwdLocked && !tenant}
       onShare={() => { setDetailsOpen(false); setShowShare(true); }}
       google={google}
       onReport={!secretUnlocked && !pwdLocked ? () => { setDetailsOpen(false); openReport(); } : undefined}
@@ -605,7 +622,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ? [pageProps.smallText && "pb-small", pageProps.font !== "default" && `pb-font-${pageProps.font}`].filter(Boolean).join(" ")
     : "";
   const pagePresence = readable ? <DocPresence presence={presence} signedIn={!!user} /> : null;
-  const pageShare = v.canShare && !pwdLocked ? () => setShowShare(true) : null;
+  const pageShare = v.canShare && !pwdLocked && !tenant ? () => setShowShare(true) : null;
   const detailsItem: MenuEntry = { label: "Details", icon: "info", description: "Published, views, who can open it", onClick: () => setDetailsOpen(true) };
   const copyItem: MenuEntry = { label: "Copy link", icon: "link", onClick: () => void navigator.clipboard?.writeText(shareUrl).then(() => { copyLinkEvent(); toast.success("Link copied"); }, () => toast.error("Couldn't copy")) };
   // A reader's ⋯: the document's menu, with Details (and Copy link when Share takes the bar).
@@ -614,7 +631,7 @@ export default function DocumentView(props: DocumentViewProps) {
   const EDITOR_HAS = new Set(["View raw", "View rendered", "Add a sub-page", "Move to…", "Duplicate", "Edit", "Report", "Save a copy"]);
   const editorDocMenu: MenuEntry[] = [
     ...menu.filter((m) => !("label" in m) || typeof m.label !== "string" || !EDITOR_HAS.has(m.label)).map((m, i) => (i === 0 ? { ...m, separated: true } : m)),
-    ...(canAddSubPage && (aiStatus?.can_write || aiStatus?.reason === "workspace_off") ? [{ label: "Translate…", icon: "globe", description: aiStatus.can_write && aiStatus.enabled ? "A translated copy next to this page" : "AI is off for this workspace", disabled: !(aiStatus.can_write && aiStatus.enabled), onClick: () => setTranslating(true) }] : []),
+    ...(canManagePage && (aiStatus?.can_write || aiStatus?.reason === "workspace_off") ? [{ label: "Translate…", icon: "globe", description: aiStatus.can_write && aiStatus.enabled ? "A translated copy next to this page" : "AI is off for this workspace", disabled: !(aiStatus.can_write && aiStatus.enabled), onClick: () => setTranslating(true) }] : []),
     detailsItem,
   ];
   // Someone else holds the page's edit lock, as who's viewing says: their editor opens read only.
@@ -658,7 +675,7 @@ export default function DocumentView(props: DocumentViewProps) {
               crumbs={crumbs}
               childrenCount={page?.children_count ?? 0}
               addressing={addressing}
-              canEdit={canAddSubPage}
+              canEdit={canManagePage}
               workspaceId={page?.workspace_id ?? null}
               // The tree's top page is at the top level when every ancestor is readable.
               rootParent={pagePathSlugs.length === crumbs.length ? null : undefined}
@@ -748,9 +765,9 @@ export default function DocumentView(props: DocumentViewProps) {
                 revalidate();
               }}
               onAddSubPage={canAddSubPage ? () => setNewSubPage(true) : null}
-              onMoveTo={canAddSubPage ? () => setPageAction({ kind: "move" }) : null}
-              onDuplicate={canAddSubPage ? () => setPageAction({ kind: "duplicate", open: true }) : null}
-              onDelete={isOwner || v.canEditSettings ? () => setDeleting(true) : null}
+              onMoveTo={canManagePage ? () => setPageAction({ kind: "move" }) : null}
+              onDuplicate={canManagePage ? () => setPageAction({ kind: "duplicate", open: true }) : null}
+              onDelete={!tenant && (isOwner || v.canEditSettings) ? () => setDeleting(true) : null}
               isOwner={isOwner || v.canEditSettings}
               url={url}
               updatedAt={null}
@@ -791,7 +808,7 @@ export default function DocumentView(props: DocumentViewProps) {
             onProtection={encrypted && readable ? () => v.setShowProtection(true) : null}
             onCopyLink={copyLinkEvent}
             onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
-            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
+            onShare={v.canShare && !pwdLocked && !tenant ? () => setShowShare(true) : null}
             onFullScreen={canFullScreen ? () => v.toggleImmersive(true) : null}
             onDetails={() => setDetailsOpen(true)}
             menu={menu}
@@ -825,7 +842,7 @@ export default function DocumentView(props: DocumentViewProps) {
                       crumbs={crumbs}
                       childrenCount={page?.children_count ?? 0}
                       addressing={addressing}
-                      canEdit={canAddSubPage}
+                      canEdit={canManagePage}
                       workspaceId={page?.workspace_id ?? null}
                       // The tree's top page is at the top level when every ancestor is readable.
                       rootParent={pagePathSlugs.length === crumbs.length ? null : undefined}
@@ -995,7 +1012,7 @@ export default function DocumentView(props: DocumentViewProps) {
             shareUrl={shareUrl}
             onCopyLink={copyLinkEvent}
             onContents={tocEntries.length ? () => setContentsOpen(true) : null}
-            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
+            onShare={v.canShare && !pwdLocked && !tenant ? () => setShowShare(true) : null}
             onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
             menu={menu}
             copyVariant={showPanel ? "secondary" : "primary"}
@@ -1090,7 +1107,23 @@ export default function DocumentView(props: DocumentViewProps) {
       />
 
       {newSubPage && (
-        <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} templatesWorkspace={page?.workspace_id ?? null} />
+        <TemplateGallery
+          open
+          onClose={() => setNewSubPage(false)}
+          parent={slug}
+          parentTitle={shownTitle}
+          templatesWorkspace={tenant ? null : page?.workspace_id ?? null}
+          // On a workspace's domain a page lives under its folders and ancestors.
+          onCreated={tenant ? (c) => router.push(`${pagePath(c.document.slug, { tenant: true, folderPath: c.document.folder_path ?? [] })}?edit=1`) : undefined}
+        />
+      )}
+      {requestingEdit && (
+        <RequestEditDialog
+          slug={slug}
+          open
+          onClose={() => setRequestingEdit(false)}
+          onSent={() => { setRequestingEdit(false); setEditReq({ canRequest: true, pending: true }); toast.success("Request sent. You'll get an email when they decide."); }}
+        />
       )}
       {pageActions}
       {translating && <TranslateDialog open onClose={() => setTranslating(false)} slug={slug} title={displayTitle} onCreated={() => setTreeKey((k) => k + 1)} />}

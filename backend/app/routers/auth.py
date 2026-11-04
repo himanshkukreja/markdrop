@@ -120,11 +120,48 @@ _TENANT_ALLOWED = (
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/backlinks$")),
     # Page AI for signed-in readers on the workspace's own domain (routers/pages_ai.py): what
     # the page offers, and Ask (answers from the page and the embeds this reader can open).
-    # Both check can(read); the writing features stay off this list (a tenant token can't edit).
+    # Both check can(read).
     ("GET", re.compile(r"^/api/v1/ai/pages/status$")),
     ("POST", re.compile(r"^/api/v1/ai/pages/[^/]+/ask$")),
     # Export a page (routers/page_export.py): can(read), then the page's allow_export.
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/export$")),
+    # ── Editing on the workspace's own domain (2026-11-04) ──
+    #
+    # Someone the page's permissions let edit (workspace role, a grant, the edit secret) edits it
+    # right there, as on markdrop.in. Every route below decides with `access.can(...)` on an actor
+    # built by `access.actor_from_request`, which carries this token's workspace (`tenant_ws`), and
+    # `can` answers 404 for any document whose effective workspace isn't that one *before* it looks
+    # at the action. So a valid route and a valid slug of another workspace (or of no workspace)
+    # still get nothing. `access.TENANT_ACTIONS` is the second fence: edit_content, list_versions and
+    # restore_version only — never settings, access, slug, delete. tests/test_tenant_edit.py walks
+    # every route here with a token of another workspace, a wrong Origin, a dead host.
+    #
+    # Content and title (services/document.update_document: can(edit_content); a password or
+    # expiry field in the same body needs edit_settings, which a tenant token never has).
+    ("PUT", re.compile(r"^/api/v1/documents/[^/]+$")),
+    # Block editor ↔ classic editor (pages.set_editor: can(edit_content)).
+    ("PUT", re.compile(r"^/api/v1/documents/[^/]+/editor$")),
+    # The one-editor-at-a-time lock (pages.acquire_lock: can(edit_content); release: can(read)).
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/lock$")),
+    ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/lock$")),
+    # A page's images (upload_page_asset: can(edit_content) on that page).
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/assets$")),
+    # Sub-pages only: routers/pages.create_page refuses a tenant token without `parent`, or with
+    # `workspace`, `folder` or a workspace template; the parent needs can(edit_content).
+    ("POST", re.compile(r"^/api/v1/pages$")),
+    # Version history (routers/page_history.py: can(edit_content) for all three).
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/versions$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/versions/\d+$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/versions/\d+/restore$")),
+    # The AI writing tools on one page (pages_ai.load_page(..., "edit_content")). Not translate
+    # (it creates a new document) and not notes (a page from nothing, with no parent).
+    ("POST", re.compile(r"^/api/v1/ai/pages/[^/]+/(transform|write|action-items|summary|meta|alt-text)$")),
+    # A bookmark block's preview: a fetch of a public address, no document involved.
+    ("POST", re.compile(r"^/api/v1/link-preview$")),
+    # "Request edit access" for a reader of this page (services/access_requests.py): a tenant token
+    # may only ask to *edit* a page it can already read (pinned like every read).
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/access-requests$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/access-requests/mine$")),
 )
 
 

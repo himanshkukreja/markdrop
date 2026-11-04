@@ -733,10 +733,86 @@ async def send_access_request_email(
     })
 
 
+def _edit_request_html(*, requester_name: str, requester_email: str, document_title: str,
+                       message: str | None, request_id: str, as_admin: bool,
+                       workspace_name: str | None) -> str:
+    # Every value below is chosen by someone else: escaped (see _access_request_html).
+    name = html.escape(requester_name)
+    address = html.escape(requester_email)
+    title = html.escape(document_title)
+    base = f"{_base()}/requests/{html.escape(request_id, quote=True)}"
+    why = (f"Its owner can't be reached, so this came to the admins of "
+           f"{html.escape(workspace_name or 'the workspace')}. "
+           if as_admin else "")
+    content = (
+        _eyebrow("Edit access request")
+        + _heading(f"{name} asked to edit &ldquo;{title}&rdquo;")
+        + _p(f'<span style="font-family:{_MONO};font-size:13px">{address}</span> can read it now.',
+             size=13, color=_MUTED, margin="0 0 16px")
+        + _quote(message)
+        + _button(f"{base}?action=edit", "Approve: let them edit", margin="8px 0 10px")
+        + _ghost_button(f"{base}?action=decline", "Decline")
+        + _rule()
+        + _p(
+            why + "Approving lets them edit this page only, not the pages inside it. "
+            "You'll be asked to sign in before anything changes.",
+            size=13, color=_MUTED, margin="0 0 20px",
+        )
+    )
+    footer = (
+        ("You're getting this as an admin of the page's workspace. " if as_admin
+         else "You're getting this because you own the page. ")
+        + f"Ignore it and nothing changes. Sent by {_footer_link(_base(), 'markdrop.in')}."
+    )
+    return _shell(
+        title=f"{name} asked to edit {title}",
+        preheader=f"{name} ({address}) asked to edit &ldquo;{title}&rdquo;.",
+        content=content,
+        footer=footer,
+    )
+
+
+async def send_edit_request_email(
+    *, to_email: str, requester_name: str, requester_email: str, document_title: str,
+    message: str | None, request_id: str, as_admin: bool = False, workspace_name: str | None = None,
+) -> None:
+    """Tell a page's owner (or, with no reachable owner, its workspace's admins) that a reader
+    asked to edit it. Raises on failure (the request is recorded in-app either way)."""
+    await _post({
+        "from": _sender("share"),
+        "to": [to_email],
+        "subject": f"{_one_line(requester_name, 60)} asked to edit “{_one_line(document_title)}”",
+        "reply_to": settings.email_reply_to,
+        "html": _edit_request_html(
+            requester_name=requester_name, requester_email=requester_email,
+            document_title=document_title, message=message, request_id=request_id,
+            as_admin=as_admin, workspace_name=workspace_name),
+    })
+
+
 def _access_decision_html(*, owner_name: str, document_title: str, url: str,
-                          approved: bool, role: str | None) -> str:
+                          approved: bool, role: str | None, edit_request: bool = False) -> str:
     owner = html.escape(owner_name)
     title = html.escape(document_title)
+    if edit_request:
+        if approved:
+            content = (
+                _eyebrow("Edit access request")
+                + _heading(f"You can edit &ldquo;{title}&rdquo;")
+                + _p(f"{owner} said yes. You can {_strong('edit this page')} now (not the pages "
+                     "inside it).")
+                + _button(html.escape(url, quote=True), "Open it", margin="0 0 24px")
+            )
+            subject_line = f"You can edit {title}"
+        else:
+            content = (
+                _eyebrow("Edit access request")
+                + _heading(f"Your request to edit &ldquo;{title}&rdquo;")
+                + _p(f"{owner} isn't giving you edit access right now. You can still read it.")
+            )
+            subject_line = f"About your request to edit {title}"
+        footer = f"Sent by {_footer_link(_base(), 'markdrop.in')} because you asked for edit access."
+        return _shell(title=subject_line, preheader=subject_line, content=content, footer=footer)
     if approved:
         can = _SHARE_ROLE.get(role or "viewer", "read it")
         content = (
@@ -763,20 +839,22 @@ def _access_decision_html(*, owner_name: str, document_title: str, url: str,
 
 async def send_access_decision_email(
     *, to_email: str, owner_name: str, document_title: str, slug: str,
-    approved: bool, role: str | None = None,
+    approved: bool, role: str | None = None, edit_request: bool = False,
 ) -> None:
     """Tell a requester what the owner decided. Raises on failure."""
     url = f"{_base()}/{slug}"
     title = _one_line(document_title)
-    subject = (f"You can open “{title}”" if approved
-               else f"About your request to open “{title}”")
+    verb = "edit" if edit_request else "open"
+    subject = (f"You can {verb} “{title}”" if approved
+               else f"About your request to {verb} “{title}”")
     await _post({
         "from": _sender("share"),
         "to": [to_email],
         "subject": subject,
         "reply_to": settings.email_reply_to,
         "html": _access_decision_html(owner_name=owner_name, document_title=document_title,
-                                      url=url, approved=approved, role=role),
+                                      url=url, approved=approved, role=role,
+                                      edit_request=edit_request),
     })
 
 
