@@ -553,6 +553,12 @@ class Settings(BaseSettings):
     search_ai_enabled: bool = True
     search_ai_daily_usd: float = 2.0
     search_ai_monthly_usd: float = 20.0
+    # Analytics AI (services/analytics_ai_doc.py and the analytics home's AI, ledger feature
+    # "analytics_ai"): kill switch and spend caps (owner decision 2026-11-05: $2 a day, $20 a
+    # month; the admin AI tab overrides them).
+    analytics_ai_enabled: bool = True
+    analytics_ai_daily_usd: float = 2.0
+    analytics_ai_monthly_usd: float = 20.0
 
     @property
     def docs_r2_configured(self) -> bool:

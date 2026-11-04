@@ -128,7 +128,7 @@ export function ago(iso: string | null | undefined) {
 
 /** Categorical colours in a fixed order (the backend's FEATURES order), never by rank. A feature
  *  the registry doesn't know yet is "other". */
-const FEATURE_ORDER = ["docs_ask", "docs_editor", "pages_ai", "search_ai"];
+const FEATURE_ORDER = ["docs_ask", "docs_editor", "pages_ai", "search_ai", "analytics_ai"];
 const SLOTS = ["var(--chart-1)", "var(--chart-2)", "var(--chart-3)", "var(--chart-4)", "var(--chart-5)", "var(--chart-6)"];
 export function featureColor(key: string) {
   const i = FEATURE_ORDER.indexOf(key);
