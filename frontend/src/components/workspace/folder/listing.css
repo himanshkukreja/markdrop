@@ -116,7 +116,7 @@
 .wl-cards .wl-tile { padding: 0; gap: 0; min-height: 0; }
 .wl-card__band {
   --tint: var(--accent);
-  display: grid; place-items: center; height: 104px;
+  display: grid; place-items: center; height: 148px; overflow: hidden;
   border-bottom: 1px solid var(--border); border-radius: calc(var(--radius-xl) - 1px) calc(var(--radius-xl) - 1px) 0 0;
   background:
     radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--tint) 14%, transparent), transparent 70%),
@@ -135,8 +135,102 @@
 .wl-card__foot .wl-person { font-size: 12px; }
 .wl-card__act { position: absolute; top: 8px; right: 8px; }
 
+/* ── Card previews (CardPreview.tsx) ─────────────────────────────────────
+   Inside the band, under the card's link overlay (no z-index here: DOM order keeps the link on
+   top, so the whole card still opens the item). A sheet of "paper" sits inset from the top and
+   runs off the bottom edge, fading out; pictures fill the band. Light paper (HTML, PDF, Word) is
+   white in both themes, like the item's own page; documents and pages follow the theme. */
+.wl-pv { position: absolute; inset: 0; display: block; overflow: hidden; animation: wl-pv-in var(--duration-dialog) ease-out both; }
+@keyframes wl-pv-in { from { opacity: 0; } to { opacity: 1; } }
+.wl-pv img { display: block; }
+.wl-pv--image img, .wl-pv--video img { width: 100%; height: 100%; object-fit: cover; }
+.wl-pv--image { background: var(--surface-inset); }
+.wl-pv__paper {
+  position: absolute; left: 16px; right: 16px; top: 14px; bottom: -1px;
+  display: flex; flex-direction: column; gap: 3px; overflow: hidden; padding: 12px 14px 0;
+  border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0;
+  background: var(--surface); color: var(--text-secondary); box-shadow: var(--shadow-sm);
+  font-size: 8.5px; line-height: 1.45; text-align: start;
+  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
+          mask-image: linear-gradient(to bottom, #000 72%, transparent);
+}
+.wl-pv__paper--light { background: #fff; color: #3d4148; border-color: rgba(15, 23, 42, .1); --pv-strong: #15171a; --pv-line: rgba(15, 23, 42, .1); --pv-soft: #f3f4f6; }
+:root:not([data-theme="light"]) .wl-pv__paper--light { box-shadow: 0 1px 2px rgba(0, 0, 0, .4); filter: brightness(.94); }
+.wl-pv__paper--page { padding: 0; }
+.wl-pv__paper--page img { width: 100%; height: auto; }
+.wl-pv__paper--word { font-family: Georgia, "Times New Roman", serif; }
+.wl-pv__paper--cover { padding-top: 0; }
+.wl-pv__cover { flex: none; display: block; height: 40px; margin: 0 -14px 0; width: calc(100% + 28px); object-fit: cover; background: var(--surface-inset); }
+.wl-pv__cover--empty { background: color-mix(in srgb, var(--tint) 18%, var(--surface-inset)); }
+.wl-pv__icon { font-size: 17px; line-height: 1; margin-top: 2px; }
+.wl-pv__paper--cover .wl-pv__icon { margin-top: -10px; text-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
+.wl-pv__h1, .wl-pv__h2, .wl-pv__h3, .wl-pv__p, .wl-pv__quote, .wl-pv__li {
+  display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow-wrap: anywhere;
+}
+.wl-pv__h1 { font-size: 12px; line-height: 1.3; font-weight: 700; color: var(--pv-strong, var(--text)); -webkit-line-clamp: 2; margin: 1px 0 1px; }
+.wl-pv__h2 { font-size: 10.5px; line-height: 1.3; font-weight: 650; color: var(--pv-strong, var(--text)); margin-top: 3px; -webkit-line-clamp: 2; }
+.wl-pv__h3 { font-size: 9.5px; font-weight: 650; color: var(--pv-strong, var(--text)); margin-top: 2px; -webkit-line-clamp: 2; }
+.wl-pv__title + .wl-pv__h1 { display: none; } /* a page's first heading usually repeats its title */
+.wl-pv__quote { padding-left: 6px; border-left: 2px solid var(--pv-line, var(--border-strong)); }
+.wl-pv__li { display: flex; gap: 4px; -webkit-line-clamp: unset; white-space: nowrap; }
+.wl-pv__li > .min-w-0 { overflow: hidden; text-overflow: ellipsis; }
+.wl-pv__bullet { flex: none; min-width: 6px; color: var(--text-muted); }
+.wl-pv__box { flex: none; display: inline-grid; place-items: center; width: 8px; height: 8px; margin-top: 2px; border: 1px solid var(--border-strong); border-radius: 2px; color: #fff; }
+.wl-pv__box--on { background: var(--accent); border-color: var(--accent); }
+.wl-pv__done > .min-w-0 { text-decoration: line-through; color: var(--text-muted); }
+.wl-pv__code {
+  display: block; white-space: pre; overflow: hidden; padding: 4px 6px; border-radius: 4px;
+  font-family: var(--font-mono); font-size: 7.5px; line-height: 1.5;
+  background: var(--pv-soft, var(--surface-inset)); color: var(--pv-strong, var(--text-secondary));
+}
+.wl-pv__hr { display: block; flex: none; height: 1px; margin: 3px 0; background: var(--pv-line, var(--border)); }
+.wl-pv__media { display: grid; flex: none; place-items: center; height: 30px; border-radius: 4px; background: var(--pv-soft, var(--surface-inset)); color: var(--text-muted); }
+.wl-pv__table { display: grid; flex: none; border: 1px solid var(--pv-line, var(--border)); border-radius: 3px; overflow: hidden; }
+.wl-pv__table > span { padding: 1px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 1px solid var(--pv-line, var(--border)); }
+.wl-pv__table > .wl-pv__th { border-top: 0; font-weight: 650; color: var(--pv-strong, var(--text)); background: var(--pv-soft, var(--surface-inset)); }
+/* Sheets: a little grid with column letters and row numbers. */
+.wl-pv__paper--sheet { padding: 0; gap: 0; }
+.wl-pv__sheet { display: grid; font-size: 8px; line-height: 15px; font-variant-numeric: tabular-nums; }
+.wl-pv__sheet > span { padding: 0 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.wl-pv__sh { background: var(--surface-inset); color: var(--text-muted); text-align: center; font-size: 7px; }
+.wl-pv__cell.wl-pv__th { font-weight: 650; color: var(--text); }
+.wl-pv__num { text-align: end; }
+/* Text files: numbered lines. */
+.wl-pv__paper--text { gap: 0; padding: 8px 10px 0 6px; font-family: var(--font-mono); font-size: 7.5px; line-height: 1.6; }
+.wl-pv__line { display: flex; gap: 8px; white-space: pre; overflow: hidden; color: var(--text-secondary); }
+.wl-pv__ln { flex: none; width: 12px; text-align: end; color: var(--text-subtle); }
+/* Videos: the poster with a play disc; chips for duration and page counts. */
+.wl-pv__play {
+  position: absolute; left: 50%; top: 50%; display: grid; place-items: center; width: 36px; height: 36px; margin: -18px 0 0 -18px;
+  border-radius: 999px; color: #fff; background: rgba(15, 17, 20, .55); box-shadow: 0 0 0 1px rgba(255, 255, 255, .25);
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+}
+.wl-pv__play svg { margin-left: 2px; }
+.wl-pv__chip {
+  position: absolute; right: 8px; bottom: 8px; padding: 1px 6px; border-radius: var(--radius-sm);
+  font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: #fff; background: rgba(15, 17, 20, .62);
+}
+/* Locks: encrypted, or nothing the caller may see. */
+.wl-pv--lock { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
+.wl-pv__lockdisc { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text-secondary); }
+/* The live render of an HTML file (hover, a few at a time). */
+.wl-pv__live { position: absolute; inset: 0; overflow: hidden; background: #fff; opacity: 0; transition: opacity var(--duration-dialog); pointer-events: none; }
+.wl-card__band[data-live="true"] .wl-pv__live { opacity: 1; }
+.wl-pv__live iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; color-scheme: light; }
+.wl-pv__livechip {
+  position: absolute; left: 10px; top: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px 1px 6px;
+  border-radius: 999px; font-size: 11px; font-weight: 600; color: #fff; background: rgba(15, 17, 20, .62);
+}
+.wl-pv__dot { width: 6px; height: 6px; border-radius: 999px; background: #34d399; box-shadow: 0 0 0 2px rgba(52, 211, 153, .3); }
+/* Over a picture the kind label and the ⋯ need their own backing. */
+.wl-card__band:not([data-pv="icon"]) .wl-card__kind { background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent); }
+.wl-tile:has(.wl-card__band:not([data-pv="icon"])) .wl-card__act { border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow-sm); }
+
 @media (prefers-reduced-motion: reduce) {
   .wl-row, .wl-tile, .wl-hover { transition: none; }
+  .wl-pv { animation: none; }
+  .wl-pv__live { transition: none; }
 }
 
 /* Phones: two compact tiles a row. */
