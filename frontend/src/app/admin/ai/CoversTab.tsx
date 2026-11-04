@@ -10,8 +10,8 @@ import { n0, usd, useAiFetch, useAiPost, useLoad } from "./common";
 /**
  * Admin → AI → Covers: the one-time auto-cover backfill (backend services/page_covers.py). It starts
  * on its own after deploy (no approval) and gives the pages that existed then a cover, picked the way
- * new pages get theirs: batches of 20 pages every 15 s, AI while the Pages AI budget allows, keyword
- * matching after. Encrypted pages, templates, pages whose cover someone removed and workspaces with
+ * new pages get theirs: batches of 20 pages every 15 s, AI while Pages AI has spent under half its caps
+ * (people's Page AI keeps the rest), keyword matching after. Encrypted pages, templates, pages whose cover someone removed and workspaces with
  * Auto covers off are skipped. This tab shows its progress and counts, and pauses or resumes it.
  */
 
@@ -128,14 +128,14 @@ export function CoversTab({ token }: { token: string }) {
             <section aria-label="Progress" className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
               <StatTile size="md" icon="image" label="Covers added" value={n0(state.done)} caption={`of ${plural(planned, "page")} without one`} />
               <StatTile size="md" icon="sparkle" label="Picked by AI" value={n0(state.ai)}
-                caption={scan?.ai_enabled === false ? "Pages AI is off" : "Within the Pages AI budget"} />
+                caption={scan?.ai_enabled === false ? "Pages AI is off" : "Up to half the Pages AI budget"} />
               <StatTile size="md" icon="hash" label="By keywords" value={n0(state.fallback)}
                 caption={state.budget_short ? "The budget ran short" : "When AI can't answer"} />
               <StatTile size="md" icon="clock" label="Started" value={state.started_at ? fmtDateTime(state.started_at) : "—"}
                 caption={`${plural(state.batches ?? 0, "batch", "batches")} of ${scan?.batch ?? 20}${(state.failed ?? 0) > 0 ? ` · ${n0(state.failed)} failed` : ""}`} />
             </section>
             {state.budget_short && (
-              <Alert tone="info" title="The Pages AI budget ran short">The rest are matched by keywords. Each page still gets a cover that fits its title.</Alert>
+              <Alert tone="info" title="Half the Pages AI budget is used">The backfill leaves the rest to people's Page AI, so the remaining pages are matched by keywords. Each still gets a cover that fits its title.</Alert>
             )}
             {scan && (
               <details className="text-caption text-text-secondary">

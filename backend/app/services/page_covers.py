@@ -73,6 +73,7 @@ BACKFILL = "cover_backfill"
 BACKFILL_ID = "auto-covers-v1"     # the job's one row: its _id is what makes it run once
 BACKFILL_BATCH = 20        # pages per tick of the background loop (every 15 s): at most ~80 a minute
 BACKFILL_PAUSE = 0.25      # seconds between two pages of a batch
+BACKFILL_SHARE = 0.5       # the backfill asks AI only while Pages AI is under half its caps (else keywords)
 
 _TASKS: set[asyncio.Task] = set()
 
@@ -261,7 +262,20 @@ async def _ai_blocker(db: AsyncIOMotorDatabase, *, user_id: str | None, workspac
     state = await ai_usage.check_budget(db, FEATURE, reserve=RESERVE)
     if not state.ok:
         return "budget"
+    if system and not await _backfill_room(db):
+        return "budget"
     return None
+
+
+async def _backfill_room(db: AsyncIOMotorDatabase) -> bool:
+    """The backfill only asks the model while Pages AI has spent under :data:`BACKFILL_SHARE` of
+    its daily and monthly caps, so it never uses up what people's Page AI needs that day."""
+    d, m = await ai_usage.caps(db, FEATURE)
+    if d != ai_usage.INF and await ai_usage.spend_today(db, FEATURE) + RESERVE > d * BACKFILL_SHARE:
+        return False
+    if m != ai_usage.INF and await ai_usage.spend_month(db, FEATURE) + RESERVE > m * BACKFILL_SHARE:
+        return False
+    return True
 
 
 async def choose(db: AsyncIOMotorDatabase, *, title: str | None, markdown: str | None,
@@ -533,7 +547,8 @@ async def finish_stale(db: AsyncIOMotorDatabase, limit: int = 20) -> int:
 # the first tick of the "page_covers" background loop (services/background.py, a Mongo lease: one
 # process at a time), so it never runs twice; it keeps a cursor (the last page id done), so a
 # restart resumes where it was. It covers the pages that existed when it started (created_at
-# before started_at), in batches, AI while the pages_ai budget allows and the keyword match after.
+# before started_at), in batches, AI while the pages_ai budget allows (only up to half its caps:
+# BACKFILL_SHARE, so people's Page AI keeps the rest) and the keyword match after.
 # Admins see its progress in Admin → AI → Covers and can pause and resume it. The log says counts,
 # never titles or text.
 
@@ -592,7 +607,8 @@ async def backfill_scan(db: AsyncIOMotorDatabase, *, before=None) -> dict:
     eligible_n = await db["documents"].count_documents(_eligible_query(off, before=before))
     other = max(0, total - encrypted - template - removed - creator_off - has - ws_off - eligible_n)
     d, m = await ai_usage.caps(db, FEATURE)
-    room = min(d - await ai_usage.spend_today(db, FEATURE), m - await ai_usage.spend_month(db, FEATURE))
+    room = min(d * BACKFILL_SHARE - await ai_usage.spend_today(db, FEATURE),
+               m * BACKFILL_SHARE - await ai_usage.spend_month(db, FEATURE))
     from app.services import pages_ai
 
     ai_on = await pages_ai.switched_off(db) is None

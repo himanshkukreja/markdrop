@@ -510,11 +510,17 @@ class Backfill(CoverWorld):
 
     async def test_a_short_budget_falls_back_to_keywords(self):
         await self.make_pages()
-        settings.pages_ai_daily_usd = 0.0021   # room for one pick held at $0.002
+        # The backfill uses at most half the cap ($0.00225 of $0.0045): two picks held at $0.002 and
+        # costing ~$0.0002 each, then keywords. People's Page AI keeps the other half.
+        settings.pages_ai_daily_usd = 0.0045
         st = await page_covers.backfill_tick(self.db, batch=10, pause=0)
-        self.assertEqual((st["done"], st["ai"], st["fallback"], st["budget_short"]), (4, 1, 3, True))
-        self.assertEqual(len(self.fake.calls), 1)
+        self.assertEqual((st["done"], st["ai"], st["fallback"], st["budget_short"]), (4, 2, 2, True))
+        self.assertEqual(len(self.fake.calls), 2)
         self.assertEqual(st["scan"]["ai_estimate"] + st["scan"]["fallback_estimate"], 5)
+        self.assertTrue((await ai_usage.check_budget(self.db, "pages_ai", reserve=0.002)).ok)
+        # A new page someone makes now still gets an AI pick (the person's own budget, not the backfill's).
+        d = await self.create(title="Brand guide", content="Colours and type.")
+        self.assertEqual((await self.doc(d["slug"]))["cover_auto_how"], "ai")
 
     async def test_admin_status_pause_resume(self):
         await self.make_pages()
