@@ -177,7 +177,7 @@ export default function VisualEditor(props: VisualEditorProps) {
         const covered = stickyTopRef.current?.() ?? 0;
         let rect: { top: number; bottom: number };
         try { rect = view.coordsAtPos(view.state.selection.head); } catch { return false; }
-        const bar = document.querySelector<HTMLElement>(".pb-phonebar[data-on], .dxe-touchbar");
+        const bar = Array.from(document.querySelectorAll<HTMLElement>(".pb-phonebar[data-on], .dxe-touchbar")).find((b) => b.getBoundingClientRect().height > 0);
         if (bar) {
           const vv = window.visualViewport;
           const floor = Math.min(bar.getBoundingClientRect().top, vv ? vv.offsetTop + vv.height : window.innerHeight) - 16;
