@@ -4,6 +4,7 @@ import { Anchor, Badge, Button, Dropdown, Icon, IconButton, Skeleton, copyText, 
 import { preloadDocsEditor } from "@/components/docs-editor";
 import { canEditRole, isAdminRole, type HomeSiteInsights, type SiteSummary } from "@/lib/docsSites";
 import { num, plural } from "../format";
+import { PeopleStack } from "../people/PeopleStack";
 import { RoleBadge } from "../people/roles";
 import { siteBase, studioMembers } from "../routes";
 import { GuideMark, GuidePreview, usePreviewDark } from "./GuidePreview";
@@ -61,7 +62,11 @@ function ViewButton({ site, className }: { site: SiteSummary; className?: string
   );
 }
 
-/** The guide's other screens and actions: Design, Publish, Insights, Settings, copy its address, Members, Delete. */
+/** Settings › People: who works on the guide (its admins change roles there). */
+export const peopleHref = (siteId: string) => `${siteBase(siteId)}/settings/people`;
+
+/** The guide's other screens and actions: Design, Publish, Fix list, Insights, Settings; People and
+ * the workspace's Guides members; copy its address; Delete. The same menu on cards and rows. */
 function MoreMenu({ site, canManagePeople, onDelete }: Pick<GuideItemProps, "site" | "canManagePeople" | "onDelete">) {
   const toast = useToast();
   const base = siteBase(site.id);
@@ -73,6 +78,16 @@ function MoreMenu({ site, canManagePeople, onDelete }: Pick<GuideItemProps, "sit
     { label: "Insights", href: `${base}/insights`, icon: "chart" },
     { label: "Settings", href: `${base}/settings`, icon: "settings" },
   ];
+  if (site.workspace_id) {
+    items.push({
+      label: "People",
+      description: admin ? "Who works on it, and their roles" : "Who works on this guide",
+      href: peopleHref(site.id),
+      icon: "users",
+      separated: true,
+    });
+    if (canManagePeople) items.push({ label: "Workspace members", description: "Guides roles across the workspace", href: studioMembers(site.workspace_id), icon: "folder" });
+  }
   if (isLive(site)) {
     items.push({
       label: "Copy address", icon: "copy", separated: true,
@@ -83,18 +98,23 @@ function MoreMenu({ site, canManagePeople, onDelete }: Pick<GuideItemProps, "sit
       },
     });
   }
-  if (canManagePeople && site.workspace_id) items.push({ label: "Members", description: "Guides roles in this workspace", href: studioMembers(site.workspace_id), icon: "users", separated: !isLive(site) });
   if (admin) items.push({ label: "Delete guide…", icon: "trash", danger: true, separated: true, onClick: () => onDelete(site) });
   return (
     <Dropdown
       align="right"
       portal
-      minWidth={220}
+      minWidth={240}
       aria-label={`More for ${site.name}`}
-      trigger={<IconButton icon="more" label={`More for ${site.name}`} size="sm" />}
+      trigger={<IconButton icon="more" label={`More for ${site.name}`} size="sm" className="max-sm:size-11" />}
       items={items}
     />
   );
+}
+
+/** The guide's people (workspace guides): the avatar stack, a link to its Settings › People. */
+function GuidePeople({ site, className, size, tipSide }: { site: SiteSummary; className?: string; size?: number; tipSide?: "top" | "bottom" }) {
+  if (!site.workspace_id || !site.people?.length) return null;
+  return <PeopleStack people={site.people} count={site.people_count ?? site.people.length} href={peopleHref(site.id)} guide={site.name} size={size} className={className} tipSide={tipSide} />;
 }
 
 function StatusBadge({ site }: { site: SiteSummary }) {
@@ -226,7 +246,8 @@ export function GuideCard({ site, where, insights, canManagePeople, onDelete }: 
         <ViewButton site={site} />
         {showNumbers && <FixChip ins={insights} site={site} />}
         <span className="flex-1 max-sm:hidden" />
-        {!isAdminRole(site.your_role) && <RoleBadge role={site.your_role} className="max-sm:hidden" title={site.your_role_source === "site" ? "Your role on this guide (different from your workspace role)" : "Your Guides role"} />}
+        {!isAdminRole(site.your_role) && <RoleBadge role={site.your_role} className="max-lg:hidden" title={site.your_role_source === "site" ? "Your role on this guide (different from your workspace role)" : "Your Guides role"} />}
+        <GuidePeople site={site} />
         <MoreMenu site={site} canManagePeople={canManagePeople} onDelete={onDelete} />
       </div>
     </article>
@@ -254,6 +275,7 @@ export function GuideRow({ site, where, insights, canManagePeople, onDelete }: G
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
         {showNumbers && <FixChip ins={insights} site={site} className="max-sm:hidden" />}
+        <GuidePeople site={site} className="mr-1" />
         <OpenButton site={site} />
         <ViewButton site={site} />
         <MoreMenu site={site} canManagePeople={canManagePeople} onDelete={onDelete} />

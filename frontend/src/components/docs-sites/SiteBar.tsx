@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Anchor, Badge, Button, Icon, Spinner, cx } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
 import { getFixCount } from "@/lib/guideFixes";
@@ -11,6 +12,8 @@ import { opensDark } from "./guideTheme";
 import { previewTokens } from "./presets";
 import { liveUrl, usePublishState } from "./PublishState";
 import { useSite } from "./SiteContext";
+import { PeopleStack } from "./people/PeopleStack";
+import { useStudio } from "./studio/StudioContext";
 
 export type SiteSection = "pages" | "fixes" | "changelog" | "design" | "publish" | "insights" | "settings";
 
@@ -83,6 +86,28 @@ function useFixCount(siteId: string, on: boolean): number {
     return () => { live = false; };
   }, [siteId, on]);
   return n;
+}
+
+/**
+ * Who works on the guide (a workspace guide): its first faces and "+n", from the studio's listing,
+ * one click to Settings › People (roles for its admins, the list for everyone else).
+ */
+function BarPeople({ on }: { on: boolean }) {
+  const { site, base } = useSite();
+  const { all } = useStudio();
+  const listed = all?.sites.find((s) => s.id === site.id);
+  if (!site.workspace_id || !listed?.people?.length) return null;
+  return (
+    <PeopleStack
+      people={listed.people}
+      count={listed.people_count ?? listed.people.length}
+      href={`${base}/settings/people`}
+      guide={site.name}
+      size={24}
+      tipSide="bottom"
+      className={on ? "bg-surface-active" : undefined}
+    />
+  );
 }
 
 /** Insights was opened on this device (the Publish screen's "Check what readers look for"). */
@@ -183,6 +208,8 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
 }) {
   const { site, base, role } = useSite();
   const { count } = usePublishState();
+  const path = usePathname() ?? "";
+  const people = section === "settings" && path.endsWith("/settings/people");
   const fixes = useFixCount(site.id, site.settings.insights?.enabled !== false && (site.status === "live" || !!site.last_published_at));
 
   useEffect(() => {
@@ -229,6 +256,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
       {role === "viewer" && <Badge size="sm" icon="eye">View only</Badge>}
       <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
         {actions}
+        <BarPeople on={people} />
         {section !== null && <PublishControls preview={preview} />}
       </div>
     </div>
