@@ -26,9 +26,11 @@ export interface AskLauncherProps {
   title: string | null;
   /** The status, once known (DocumentView uses it for Translate… in an editor's ⋯ menu). */
   onStatus?: (status: PageAiStatus | null) => void;
+  /** Status only, no pill: a meeting page has its own (components/meetings/MeetingPanel). */
+  hidden?: boolean;
 }
 
-export function AskLauncher({ slug, title, onStatus }: AskLauncherProps) {
+export function AskLauncher({ slug, title, onStatus, hidden }: AskLauncherProps) {
   const [status, setStatus] = useState<PageAiStatus | null>(null);
   const [Panel, setPanel] = useState<ComponentType<AskPanelProps> | null>(null);
   const [open, setOpen] = useState(false);
@@ -69,7 +71,7 @@ export function AskLauncher({ slug, title, onStatus }: AskLauncherProps) {
     window.setTimeout(() => pill.current?.focus({ preventScroll: true }), 0);
   }, []);
 
-  if (!status?.enabled || !status.can_ask) return null;
+  if (hidden || !status?.enabled || !status.can_ask) return null;
   return (
     <>
       <button

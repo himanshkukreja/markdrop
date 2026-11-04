@@ -61,6 +61,8 @@ import { shouldShowSetup } from "./setupRule";
 import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
 import { docHref } from "@/components/analytics/format";
 import { openingKindOf, rememberOpening } from "@/lib/opening";
+import { meetingsHref } from "@/lib/meetings";
+import "@/components/meetings/meetings.css";
 
 type Kind = "" | "markdown" | "artifact";
 
@@ -441,6 +443,8 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
       description: depthFull ? `Folders nest at most ${MAX_FOLDER_DEPTH} deep` : folder ? <>Inside <Masked>“{folder.name}”</Masked></> : undefined,
     },
     { label: "Add existing…", icon: "plus", separated: true, onClick: () => setAddOpen(true), description: "File something you already published" },
+    // Meetings (components/meetings): import a call into the workspace's Meetings folder.
+    { label: "Import a meeting", icon: "mic", href: `${meetingsHref(workspaceId)}?import=1`, description: "A transcript or Google Meet notes, summarized" },
   ];
 
   const moreMenu: MenuEntry[] = [];
@@ -702,6 +706,19 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
             {tree && toolbar}
           </div>
         </header>
+      )}
+
+      {/* ── The Meetings folder: import a call, ask across them ── */}
+      {folder?.meetings && !filtered && (
+        <div className="mt-folderbar" data-testid="meetings-folderbar">
+          <Icon name="mic" className="mt-folderbar__glyph" />
+          <span className="mt-folderbar__text">
+            <b>Your team's meetings</b>
+            Each call is a page with its summary, decisions, action items and transcript. Ask across all of them.
+          </span>
+          <Button size="sm" variant="secondary" iconLeft="sparkle" href={meetingsHref(workspaceId)}>Ask meetings</Button>
+          {isMember && <Button size="sm" iconLeft="plus" href={`${meetingsHref(workspaceId)}?import=1`}>Import meeting</Button>}
+        </div>
       )}
 
       {/* ── Who can open what's in here ── */}

@@ -43,7 +43,7 @@ interface UserDetail {
 }
 
 type Sort = "cost" | "requests" | "tokens" | "last_used" | "email" | "errors";
-const FEATURE_LABEL: Record<string, string> = { docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI", search_ai: "AI search" };
+const FEATURE_LABEL: Record<string, string> = { docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI", search_ai: "AI search", meetings_ai: "Meetings AI" };
 const fLabel = (k: string) => FEATURE_LABEL[k] ?? k;
 const ORDER = Object.keys(FEATURE_LABEL);
 /** Features in the registry's fixed order (colour follows the feature, never its rank). */

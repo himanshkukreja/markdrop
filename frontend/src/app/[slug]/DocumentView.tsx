@@ -85,6 +85,8 @@ const ChangeLinkDialog = dynamic(() => import("@/components/pages/slug/ChangeLin
 const pagesApi = () => import("@/lib/pages");
 // Page AI (reader side): the Ask pill for signed-in readers, and Translate… for editors. Both load on demand.
 const AskLauncher = dynamic(() => import("@/components/pages/ai/AskLauncher").then((m) => m.AskLauncher), { ssr: false, loading: () => null });
+// Meetings (components/meetings): a meeting page's own pill and panel (Ask this meeting, details).
+const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
 
 /**
@@ -905,7 +907,8 @@ export default function DocumentView(props: DocumentViewProps) {
         )}
       </div>
       {!pageEditable && <LiveUpdatePill show={livePill} />}
-      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} />}
+      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} hidden={!!page?.meeting} />}
+      {readable && !!user && isPage && page?.meeting && !tenant && <MeetingLauncher meetingId={page.meeting.id} role={page.meeting.role} />}
     </div>
   ) : null;
   return (
