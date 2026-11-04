@@ -912,6 +912,10 @@ class Shaper:
                               "score": c.score, "match": c.where}
             elif c.kind == "guide":
                 out[c.key] = self._guide(c, texts, terms)
+        for row in out.values():
+            # `url` is what the app opens (app paths stay relative); `web_url` is always a full link.
+            u = row.get("url") or ""
+            row["web_url"] = u if u.startswith("http") else urls.markdrop_url(u.lstrip("/"))
         return out
 
     def _snippet(self, c: Cand, texts: dict, terms: Terms) -> tuple[dict | None, str | None]:

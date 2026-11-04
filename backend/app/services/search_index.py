@@ -216,10 +216,16 @@ def _queue(db: AsyncIOMotorDatabase, src: str, ident: Any) -> None:
     try:
         if ident is None:
             return
+        loop = asyncio.get_running_loop()
+        if _task is not None and _task.get_loop() is not loop:
+            # A new event loop (tests run one per case; the app has one): what an old loop queued
+            # holds that loop's clients, which can't be used from this one.
+            _pending.clear()
+            _task = None
         # Keyed by database name: get_database() hands out a new handle per request.
         _pending[(getattr(db, "name", ""), src, str(ident))] = (db, src, ident)
         if _task is None or _task.done():
-            _task = asyncio.get_running_loop().create_task(_drain_loop())
+            _task = loop.create_task(_drain_loop())
     except Exception:
         log.debug("search index: could not queue %s %s", src, ident, exc_info=True)
 
@@ -242,7 +248,8 @@ async def _drain_loop() -> None:
 
 async def drain() -> None:
     """Wait until queued re-indexes are written (tests; the backfill)."""
-    while _task is not None and not _task.done():
+    loop = asyncio.get_running_loop()
+    while _task is not None and _task.get_loop() is loop and not _task.done():
         await asyncio.shield(_task)
 
 

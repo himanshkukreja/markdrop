@@ -324,6 +324,8 @@ class Access(SearchWorld):
         folders = [i for i in res["items"] if i["kind"] == "folder"]
         self.assertEqual(folders[0]["title"], "Engineering handbook")
         self.assertEqual(folders[0]["url"], f"/w/{self.ws['W1']}/f/{f.inserted_id}")
+        self.assertTrue(folders[0]["web_url"].startswith("http"), folders[0]["web_url"])
+        self.assertTrue(folders[0]["web_url"].endswith(folders[0]["url"]), folders[0]["web_url"])
         self.assertEqual((await self.find("stranger", "engineering"))["items"], [])
         ws = [i for i in (await self.find("wm", "acme"))["items"] if i["kind"] == "workspace"]
         self.assertEqual({w["title"] for w in ws}, {"Acme", "Acme Private"})
@@ -343,6 +345,7 @@ class Access(SearchWorld):
         g = [i for i in res["items"] if i["kind"] == "guide"]
         self.assertEqual(g[0]["title"], "Install the agent")
         self.assertEqual(g[0]["url"], f"/guides/{site.inserted_id}?page={page.inserted_id}")
+        self.assertTrue(g[0]["web_url"].endswith(g[0]["url"]) and g[0]["web_url"].startswith("http"))
         self.assertEqual([i["kind"] for i in (await self.find("wa", "kangaroo"))["items"]], ["guide"])
         # A member without a Guides role sees nothing of it; with one, they do.
         self.assertEqual((await self.find("wm", "install agent"))["items"], [])

@@ -1561,7 +1561,7 @@ async def search(ctx: Context, args: dict) -> tuple[str, dict]:
         results.append({
             "id": it["slug"] if fetchable else it["url"],
             "title": it.get("title") or it.get("slug") or "Untitled",
-            "url": _absolute(it["url"]),
+            "url": it.get("web_url") or _absolute(it["url"]),
             "kind": it["kind"],
             "snippet": sn.get("text") or "",
             "workspace": (it.get("workspace") or {}).get("name"),
