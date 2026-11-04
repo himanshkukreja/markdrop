@@ -275,7 +275,7 @@ export function ArtifactSettingsDrawer({
                 Delete this artifact
               </h3>
               <p className="m-0 text-caption text-text-secondary">
-                The file and its link are removed for good, and the space comes back to your storage.
+                It goes to Trash for 30 days, where you can restore it; its link stops working right away.
               </p>
               <Button variant="danger" iconLeft="trash" className="self-start" onClick={onDelete} disabled={busy}>
                 Delete artifact

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Alert, Badge, Button, Card, Checkbox, ConfirmDialog, CopyButton, Drawer, EmptyState, Field, Icon,
   Input, Kbd, Select, Switch, Tabs,
@@ -14,6 +15,7 @@ import MarkdownPreview from "@/components/MarkdownPreview";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { MAX_CHARS } from "@/lib/limits";
 import { rotateEditSecret, type ExpiresIn } from "@/lib/api";
+import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import type { useDocumentViewer, ViewMode } from "./useDocumentViewer";
 
 type Viewer = ReturnType<typeof useDocumentViewer>;
@@ -81,6 +83,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   displayContent: string;
 }) {
   const phone = useMediaQuery(PHONE_QUERY);
+  const router = useRouter();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const [confirmRotate, setConfirmRotate] = useState(false);
@@ -384,7 +387,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
           <section className="flex flex-col gap-3 rounded-xl border border-danger p-4">
             <h3 className="text-eyebrow text-danger">Danger zone</h3>
             <p className="text-caption text-text-secondary">
-              Deleting removes the document and its link for everyone.
+              Deleting moves it to Trash for 30 days; its link stops working for everyone right away.
             </p>
             <Button variant="danger" iconLeft="trash" onClick={() => v.setShowDeleteConfirm(true)} className="self-start">
               Delete document
@@ -393,14 +396,12 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
         </div>
       </Drawer>
 
-      <ConfirmDialog
-        open={v.showDeleteConfirm}
-        onClose={() => { if (!v.deleting) v.setShowDeleteConfirm(false); }}
-        onConfirm={v.handleDelete}
-        busy={v.deleting}
-        title="Delete this document?"
-        body="The link stops working for everyone, immediately. This can't be undone."
-        confirmLabel="Delete document"
+      <DeleteItemDialog
+        item={v.showDeleteConfirm ? { slug, title: encrypted ? null : displayTitle, kind: "document", encrypted } : null}
+        onClose={() => v.setShowDeleteConfirm(false)}
+        secret={v.secretInput || null}
+        onDeleted={v.handleDelete}
+        onRestored={() => router.push(`/${encodeURIComponent(slug)}`)}
       />
 
       <ConfirmDialog

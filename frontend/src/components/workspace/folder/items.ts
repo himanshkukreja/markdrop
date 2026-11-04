@@ -22,6 +22,8 @@ export function toDocRow(it: WorkspaceItem, workspaceId: string): MyDocListItem 
     is_password_protected: !!it.has_password,
     encrypted: !!it.encrypted,
     kind: it.kind,
+    editor: it.editor ?? null,
+    type_label: it.type_label ?? null,
     mime: it.mime ?? null,
     renderer: (it.renderer as MyDocListItem["renderer"]) ?? null,
     size_bytes: it.size_bytes ?? null,

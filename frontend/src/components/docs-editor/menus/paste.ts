@@ -51,7 +51,7 @@ export function bareUrl(text: string | null | undefined, html?: string | null): 
 
 /** App routes on markdrop.in (and this app's origin) that aren't items. */
 const APP_ROUTES = new Set([
-  "dashboard", "pages", "recent", "requests", "settings", "shared", "w", "auth", "d", "extension", "invite", "login", "oauth",
+  "dashboard", "pages", "recent", "requests", "settings", "shared", "trash", "w", "auth", "d", "extension", "invite", "login", "oauth",
   "guides", "enterprise", "mcp", "privacy", "builder", "new", "share", "upload", "admin", "api", "docs-site", "f", "h", "fonts",
   "docs", "pricing", "about", "terms", "blog", "changelog", "signup", "logout", "p2p", "r", "v",
 ]);

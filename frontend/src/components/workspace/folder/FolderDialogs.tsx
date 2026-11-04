@@ -18,8 +18,10 @@ import { RowTile } from "@/components/dashboard/DocRow";
 import { displayTitle, plural } from "@/components/dashboard/format";
 import { listMyDocuments, type MyDocListItem } from "@/lib/api";
 import {
-  addItems, deleteFolder, moveItems, updateFolder, type TreeFolder, type Workspace, type WorkspaceTree,
+  addItems, deleteFolder, moveItems, updateFolder, type FolderDeleteResult, type TreeFolder, type Workspace, type WorkspaceTree,
 } from "@/lib/workspaces";
+import type { RestoreResult } from "@/lib/trash";
+import { useTrashUndo } from "@/components/trash/useTrashUndo";
 import { childrenMap, descendants, subtreeHeight } from "@/lib/workspaceStore";
 import { folderNameProblem, folderSlug } from "@/lib/folderSlug";
 
@@ -110,66 +112,63 @@ export function RenameFolderDialog({
 /* ── Delete ───────────────────────────────────────────────────────────── */
 
 export function DeleteFolderDialog({
-  workspaceId, folder, tree, onClose, onDeleted,
+  workspaceId, folder, tree, onClose, onDeleted, onRestored,
 }: {
   workspaceId: string;
   folder: TreeFolder | null;
   tree: WorkspaceTree | null;
   onClose: () => void;
-  onDeleted: (f: TreeFolder) => void;
+  onDeleted: (f: TreeFolder, result: FolderDeleteResult | undefined) => void;
+  /** After Undo brought the folder back. */
+  onRestored?: (r: RestoreResult) => void;
 }) {
   const last = useRef<TreeFolder | null>(folder);
   if (folder) last.current = folder;
   const f = folder ?? last.current;
-  const [mode, setMode] = useState<"move_up" | "unfile">("move_up");
-  useEffect(() => { if (folder) setMode("move_up"); }, [folder]);
+  const moved = useTrashUndo();
 
-  const parent = f?.parent_id ? tree?.folders.find((x) => x.id === f.parent_id) ?? null : null;
-  const subs = f && tree ? tree.folders.filter((x) => x.parent_id === f.id).length : 0;
-  const wsName = tree?.workspace.name ?? "the workspace";
-  const upLabel = parent ? `“${parent.name}”` : `the top of ${wsName}`;
+  const subs = f && tree ? descendants(tree.folders, f.id).size : 0;
+  const items = f ? Math.max(f.total_count ?? 0, f.item_count ?? 0) : 0;
+  const inside = [items ? plural(items, "item") : null, subs ? plural(subs, "subfolder") : null].filter(Boolean).join(", ");
 
   return (
     <ConfirmDialog
       open={!!folder}
       onClose={onClose}
-      title={f ? <>Delete <span className="ph-sensitive ph-mask">“{f.name}”</span>?</> : "Delete folder?"}
+      title={f ? <>Delete the folder <span className="ph-sensitive ph-mask">“{f.name}”</span>?</> : "Delete folder?"}
       size="md"
       body={
         f ? (
-          <div className="flex flex-col gap-4">
-            <p className="ph-sensitive ph-mask text-body text-text-secondary">
-              Only the folder goes. {f.item_count > 0 || subs > 0
-                ? `Its ${[f.item_count ? plural(f.item_count, "item") : null, subs ? plural(subs, "subfolder") : null].filter(Boolean).join(" and ")} stay in ${wsName}${parent ? "" : ", at the top level"}, and nobody loses access.`
-                : "It's empty."}
+          <div className="flex flex-col gap-3">
+            <p className="text-body text-text-secondary">
+              {inside
+                ? <>It goes to Trash with everything in it ({inside}) for 30 days; restoring it brings it all back.</>
+                : <>It&apos;s empty. It goes to Trash for 30 days; you can restore it from there.</>}
             </p>
-            {parent && (f.item_count > 0 || subs > 0) && (
-              <RadioGroup
-                name="md-delete-folder-mode"
-                aria-label="What happens to what's inside"
-                value={mode}
-                onChange={(v) => setMode(v as "move_up" | "unfile")}
-                options={[
-                  { value: "move_up", label: <>Move everything into <span className="ph-sensitive ph-mask">{upLabel}</span></>, description: "Items and subfolders keep their place one level up." },
-                  { value: "unfile", label: <>Move items to the top of <span className="ph-sensitive ph-mask">{wsName}</span></>, description: subs ? "Subfolders move up one level, with what's in them." : "They stay in the workspace, in no folder." },
-                ]}
-              />
+            {inside && (
+              <p className="text-caption text-text-muted">
+                Links to what&apos;s inside stop working right away, and come back if you restore the folder.
+              </p>
             )}
-            <p className="text-caption text-text-muted">
-              markdrop.in links never change. Links on the workspace's domain that include this folder redirect to the new address.
-            </p>
           </div>
         ) : null
       }
-      confirmLabel="Delete folder"
+      confirmLabel="Move to Trash"
       onConfirm={async () => {
         if (!folder) return;
+        let result: FolderDeleteResult | undefined;
         try {
-          await deleteFolder(workspaceId, folder.id, mode);
+          result = await deleteFolder(workspaceId, folder.id);
         } catch (e) {
           throw new Error(errText(e, "Couldn't delete the folder. Try again."));
         }
-        onDeleted(folder);
+        moved({
+          key: folder.id,
+          label: <>the folder “{folder.name}”{result?.trashed_documents ? <> and {plural(result.trashed_documents, "item")} in it</> : null}</>,
+          workspaceId,
+          onRestored,
+        });
+        onDeleted(folder, result);
       }}
     />
   );

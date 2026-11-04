@@ -170,7 +170,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
               return (
                 <ItemRow
                   key={it.slug}
-                  file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename }}
+                  file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename, editor: it.editor, type_label: it.type_label }}
                   title={title}
                   href={openHref(it.slug, it.url, it.encrypted)}
                   address={it.encrypted ? "Encrypted" : displayAddress(it.url)}

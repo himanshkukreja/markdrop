@@ -27,7 +27,7 @@ export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
 export const wsDocsKey = (id: string) => `ws:${id}:docs`;
 
 /**
- * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "analytics" | "ws:<id>:root" |
+ * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "analytics" | "trash" | "ws:<id>:root" |
  * "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
@@ -47,6 +47,7 @@ export function railKeyFor(pathname: string, search: string): string | null {
   }
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
+  if (pathname === "/trash") return "trash";
   if (pathname === "/dashboard/analytics" || pathname.startsWith("/dashboard/analytics/") || pathname === "/dashboard/live") return "analytics";
   const m = pathname.match(/^\/settings\/workspaces\/([^/]+)/);
   if (m) return wsSettingsKey(decodeURIComponent(m[1]!));
@@ -322,6 +323,10 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         </RailLink>
         <RailLink k="analytics" href="/dashboard/analytics" active={active} onNavigate={onNavigate}>
           <Icon name="chart" size={18} /> <span className="truncate">Analytics</span>
+        </RailLink>
+        {/* Trash: deleted items wait here for 30 days (components/trash). */}
+        <RailLink k="trash" href="/trash" active={active} onNavigate={onNavigate}>
+          <Icon name="trash" size={18} /> <span className="truncate">Trash</span>
         </RailLink>
       </div>
 

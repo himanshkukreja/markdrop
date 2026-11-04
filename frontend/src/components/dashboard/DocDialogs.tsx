@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Button, ConfirmDialog, Dialog, Field, Input, Select } from "@/components/ui";
+import { Alert, Button, Dialog, Field, Input, Select } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
-import { changeSlug, deleteDocument, type MyDocListItem } from "@/lib/api";
+import { changeSlug, type MyDocListItem } from "@/lib/api";
+import type { RestoreResult } from "@/lib/trash";
+import { DeleteItemDialog, deleteTargetOf } from "@/components/trash/DeleteItemDialog";
 import { createFolder, fileDocument, listFolders, purgeDocument, type Folder } from "@/lib/workspaces";
 import { SLUG_RE } from "./format";
 import { folderNameProblem } from "@/lib/folderSlug";
@@ -106,42 +108,25 @@ export function ChangeUrlDialog({
 
 /* ── Delete ───────────────────────────────────────────────────────────── */
 
-/** "Delete this document?" with the consequence named; errors stay inline in the dialog. */
+/**
+ * Delete a row's document, page or file: the shared trash dialog (components/trash), which names
+ * the kind, the title and the link, says it goes to Trash for 30 days, and toasts Undo.
+ */
 export function DeleteDocDialog({
-  doc, onClose, onDeleted,
+  doc, onClose, onDeleted, onRestored,
 }: {
   doc: MyDocListItem | null;
   onClose: () => void;
   onDeleted: (slug: string) => void;
+  /** After Undo put it back (the list reloads on its own through documentsChanged). */
+  onRestored?: (r: RestoreResult) => void;
 }) {
-  // Keep the last document while the dialog animates out, so the copy doesn't flash empty.
-  const last = useRef<MyDocListItem | null>(doc);
-  if (doc) last.current = doc;
-  const shown = doc ?? last.current;
-  const isArtifact = shown?.kind === "artifact";
   return (
-    <ConfirmDialog
-      open={!!doc}
+    <DeleteItemDialog
+      item={doc ? deleteTargetOf(doc) : null}
       onClose={onClose}
-      title={isArtifact ? "Delete this artifact?" : "Delete this document?"}
-      body={
-        shown ? (
-          <p className="text-body text-text-secondary">
-            <span className="ph-sensitive ph-mask font-mono text-text">markdrop.in/{shown.slug}</span> will stop working for everyone. This cannot be undone.
-          </p>
-        ) : null
-      }
-      confirmLabel="Delete"
-      onConfirm={async () => {
-        if (!doc) return;
-        try {
-          await deleteDocument(doc.slug);
-        } catch (e) {
-          throw new Error(errText(e, "Couldn't delete it. Check your connection and try again."));
-        }
-        purgeDocument(doc.slug);
-        onDeleted(doc.slug);
-      }}
+      onDeleted={(info) => onDeleted(info.slug)}
+      onRestored={onRestored}
     />
   );
 }

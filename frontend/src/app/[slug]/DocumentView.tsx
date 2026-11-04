@@ -1103,12 +1103,18 @@ export default function DocumentView(props: DocumentViewProps) {
         <DeletePageDialog
           open={deleting}
           onClose={() => setDeleting(false)}
-          count={page?.children_count ?? 0}
-          onDelete={async (children) => {
-            await (await pagesApi()).deletePage(slug, children, v.secretInput || null);
+          slug={slug}
+          title={shownTitle || null}
+          count={page?.children_count ?? null}
+          secret={v.secretInput || null}
+          workspaceId={page?.workspace_id ?? null}
+          onDeleted={() => {
+            // The dialog moved it to Trash and toasts Undo (the toast outlives this page).
+            setDeleting(false);
             revalidate(true);
             router.push(crumbs.length ? `/${encodeURIComponent(crumbs[crumbs.length - 1].slug)}` : "/dashboard");
           }}
+          onRestored={() => router.push(`/${encodeURIComponent(slug)}`)}
         />
       )}
 

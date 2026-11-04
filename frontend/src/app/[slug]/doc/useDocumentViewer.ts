@@ -12,7 +12,7 @@ import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useQueryFlags } from "@/lib/useQueryFlags";
 import * as e2e from "@/lib/e2e";
-import { ApiError, createDocument, updateDocument, updateDocumentSettings, deleteDocument, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
+import { ApiError, createDocument, updateDocument, updateDocumentSettings, getDocument, claimDocument, recordEvent, reportDocument, getGoogleDocsStatus, connectGoogleDocs, exportToGoogleDocs, copyDocument, liveSocketUrl, type DeniedInfo } from "@/lib/api";
 import { MAX_CHARS } from "@/lib/limits";
 import { HANDOFF_FRAGMENT, HANDOFF_NONE_FRAGMENT } from "@/lib/hosts";
 import { isPrimaryHost } from "@/components/tenant/hosts";
@@ -1419,24 +1419,18 @@ export function useDocumentViewer({
   }
 
 
-  async function handleDelete() {
-    setDeleting(true);
-    setSaveError("");
-    try {
-      await deleteDocument(slug, secretInput);
-      // The cached anonymous render would keep serving the deleted document for
-      // up to a minute (REVAMP_BUILD §5.0 "Purges": add delete).
-      fetch("/api/revalidate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ slug }),
-      }).catch(() => {});
-      router.push("/new");
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Failed to delete");
-      setDeleting(false);
-      setShowDeleteConfirm(false);
-    }
+  /** The delete dialog (components/trash) moved it to Trash and toasts Undo; leave the page. */
+  function handleDelete() {
+    setDeleting(false);
+    setShowDeleteConfirm(false);
+    // The cached anonymous render would keep serving the deleted document for
+    // up to a minute (REVAMP_BUILD §5.0 "Purges": add delete).
+    fetch("/api/revalidate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slug }),
+    }).catch(() => {});
+    router.push("/new");
   }
 
   const remaining = MAX_CHARS - editContent.length;

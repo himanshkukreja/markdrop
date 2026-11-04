@@ -385,8 +385,19 @@ export const renameFolder = (id: string, folderId: string, name: string) =>
 /** Delete a folder. Nothing in it is deleted. `unfile` (the original behaviour): documents directly
  *  inside go to the workspace root, subfolders move up one level. `move_up`: everything moves up
  *  into the parent folder. Omitted = the server's default (unfile). */
-export const deleteFolder = (id: string, folderId: string, mode?: "unfile" | "move_up") =>
-  request<{ unfiled_documents: number }>(
+/** What a folder delete did. The default (`trash`) moves the folder, its subfolders and every
+ *  item in them to Trash for 30 days; restoring the folder brings it all back. */
+export interface FolderDeleteResult {
+  unfiled_documents: number;
+  trashed?: boolean;
+  trashed_documents?: number;
+  trashed_folders?: number;
+}
+
+/** Delete a folder (admins). No `mode`: to Trash with everything in it. `unfile` / `move_up` keep
+ *  what's inside (no longer offered in the UI). */
+export const deleteFolder = (id: string, folderId: string, mode?: "trash" | "unfile" | "move_up") =>
+  request<FolderDeleteResult>(
     `/api/v1/workspaces/${id}/folders/${folderId}${mode ? `?mode=${mode}` : ""}`,
     { method: "DELETE" }
   );
@@ -540,6 +551,10 @@ export interface WorkspaceItem {
   created_at?: string | null;
   views?: number | null;
   can: { edit: boolean; move: boolean; unshare: boolean; delete: boolean; share: boolean };
+  /** "blocks" on a page (the block editor); null on a markdown document. */
+  editor?: "blocks" | null;
+  /** A file's type in words ("HTML file", "PDF"); null on a document. */
+  type_label?: string | null;
   /** Optional extras some backends send; used for nicer tiles when present. */
   renderer?: string | null;
   original_filename?: string | null;

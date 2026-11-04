@@ -566,9 +566,11 @@ export default function DashboardPage() {
         doc={deleteFor}
         onClose={() => setDeleteFor(null)}
         onDeleted={(slug) => {
+          // The dialog toasts "Moved to Trash" with Undo; Undo reloads this list (documentsChanged).
+          const ws = deleteFor?.workspace_id;
           setDeleteFor(null);
           setDocs((ds) => ds.filter((x) => x.slug !== slug));
-          toast.success(`Deleted /${slug}`);
+          if (ws) workspaceChanged(ws);
           void load();
         }}
       />
