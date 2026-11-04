@@ -116,6 +116,22 @@ await step("board", async () => {
   await shot(p, "p2-03-board");
 });
 
+/* ── 3b. with no Select yet, the Board still shows the folder's pages (one "All pages" column) ── */
+await step("board-no-select", async () => {
+  const f = await api("POST", `/api/v1/workspaces/${WS}/folders`, T.owner, { name: `Notes ${run}` });
+  if (f.status >= 300) fail(`folder → ${f.status} ${JSON.stringify(f.body).slice(0, 200)}`);
+  const folder = f.body.id ?? f.body.folder?.id;
+  const r = await api("POST", "/api/v1/pages", T.owner, { title: `Kickoff notes ${run}`, workspace: WS, folder, auto_cover: false });
+  if (r.status >= 300) fail(`page → ${r.status}`);
+  const { p } = await ctx(browser, { token: T.owner });
+  await p.goto(`${APP}/w/${WS}/f/${folder}?view=board`, { waitUntil: "networkidle" });
+  const col = p.getByRole("list", { name: "Pages" }).getByRole("listitem", { name: "All pages: 1 page" });
+  await col.waitFor({ timeout: 30000 });
+  if (!(await col.getByText(`Kickoff notes ${run}`).count())) fail("the page isn't on the board");
+  await p.getByRole("button", { name: "Add a Select property" }).waitFor({ timeout: 10000 });
+  await shot(p, "p2-03b-board-no-select");
+});
+
 /* ── 4. a new page gets an automatic cover ── */
 await step("cover", async () => {
   const slug = await newPage(`Security incident runbook ${run}`, "## On call\n\nRotate the keys, page the security lead, and write the incident report.\n");

@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "board-without-select",
+      "date": "2026-11-04",
+      "title": "A folder's Board shows its pages before it has a Select",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "Until a folder has a Select property, its Board view shows every page in one All pages column, with a button to add one, instead of an empty box.",
+      "body": "- **Board** groups a folder's pages into columns by a Select property, like Status. Before the folder has one, the board now shows all its pages as cards in a single **All pages** column, so it never looks empty.\n- A short note above the cards explains where columns come from, with **Add a Select property** for people who can change the folder's properties.\n- See [Properties and views](/pages/properties-and-views)."
+    },
+    {
       "id": "cli-0-6-0",
       "date": "2026-11-04",
       "title": "CLI 0.6.0: pages, exports, trash, access requests and search from the terminal",

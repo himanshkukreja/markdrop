@@ -49,7 +49,7 @@ In your workspace, open the folder. Above its items, choose a view:
 
 - **List** shows everything in the folder, files included.
 - **Table** shows one row per page and one column per property. The header and the title column stay in place as you scroll. Drag the edge of a column header to make the column wider. Select a cell to change its value.
-- **Board** shows one column per option of a Select, such as Status. Drag a card to another column to change its value. Pages without a value are in **No Status** at the end.
+- **Board** shows one column per option of a Select, such as Status. Drag a card to another column to change its value. Pages without a value are in **No Status** at the end. Until the folder has a Select property, the board shows every page in one **All pages** column, with a button to add one.
 
 Use **Filter**, **Sort** and **Group** above the view. Select a column's name for quick actions: sort, filter, group by it, hide it, or change the property. **Properties** chooses which columns show. **New page** at the end of a table, or **New** at the bottom of a board column, makes a page in the folder. The new page starts with that group's value.
 
