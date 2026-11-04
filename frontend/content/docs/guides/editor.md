@@ -7,7 +7,7 @@ prerequisites: [/guides/create-a-site]
 keywords: [editor, mermaid, diagram, visual editor, markdown, slash menu, blocks, drag and drop, reorder cards, markdrop file, embed, private section, video, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
 ---
 
-Open a guide and its **Pages** tab is the editor: the page tree on the left, the page in the middle, and the page panel on the right (**Checks**, **Page**, **Comments** and **History**). On a phone, **Pages** and **Page** in the bar open the tree and the panel.
+Open a guide and its **Pages** tab is the editor: the page tree on the left, the page in the middle, and the page panel on the right (**Checks**, **Page**, **Comments** and **History**). On a phone or a tablet held upright, **Pages** and **Page** in the bar open the tree and the panel. On a phone the guide's bar scrolls away with the page, so the page gets the whole screen; scroll up for it. On any touch screen the controls are sized for a finger, and the tree's drag handles (the dots before each page) move pages.
 
 ![The Markdrop Guides editor on Acme's Quickstart page: the guide's bar (Pages, Fix list 14, Changelog, Design, Publish 4, Insights, Settings, Saved, Visual and Markdown, Preview, Live and Publish 4 changes), the page tree with groups Getting started, Guides, Reference and Help and the Hidden pages, the page with its place in the guide, title, description, a note callout and tabs, and on the right the page panel on Checks (Headings and links look good, then On this page). Under the page, the word count, Embed a Markdrop file, Find and replace and Shortcuts.](/docs-assets/guides/editor/editor-overview.webp)
 
@@ -78,7 +78,7 @@ Only the selection and the action are sent to the model, and nothing of either i
 
 ## Find and replace
 
-⌘ F (Ctrl F on Windows and Linux) opens **Find and replace** on the page, in Visual and Markdown mode, with the selected text as the search. **Aa** matches case, **ab** matches whole words only. Enter goes to the next match and Shift + Enter to the previous one. The arrow beside the search shows **Replace with**: **Replace** changes the current match, **Replace all** every match (⌘ Enter in that box). Esc closes it. The status bar under the page has the same button, beside the word count and reading time.
+⌘ F (Ctrl F on Windows and Linux) opens **Find and replace** on the page, in Visual and Markdown mode, with the selected text as the search. **Aa** matches case, **ab** matches whole words only. Enter goes to the next match and Shift + Enter to the previous one. The arrow beside the search shows **Replace with**: **Replace** changes the current match, **Replace all** every match (⌘ Enter in that box). Esc closes it. The status bar under the page has the same button, beside the word count and reading time (on a phone or tablet: **Find**).
 
 ![Find and replace over Quickstart: "workspace" in Find with 1 of 2, Aa and ab, the arrows and close; Replace with "team", Replace and Replace all; the first match marked in the note callout.](/docs-assets/guides/editor/editor-find-replace.webp)
 
