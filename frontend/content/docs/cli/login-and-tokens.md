@@ -2,18 +2,19 @@
 title: Sign in with an API token
 nav: Sign in and tokens
 description: Create a Markdrop API token, save it with markdrop login or pass it as MARKDROP_TOKEN, and revoke it when a device is gone.
-updated: 2026-10-30
+updated: 2026-11-04
 prerequisites: [/cli/install]
 since: CLI 0.4.0
 keywords: [login, logout, token, api token, mdk, MARKDROP_TOKEN, ci, authentication]
 ---
 
-The CLI acts as you through an API token, a long string that starts with `mdk_`. Commands that publish or look up your files need one. Peer-to-peer `send` and `get` work without it; with one, `send` and the shares `markdrop mcp` starts are listed under your account.
+The CLI acts as you through an API token, a long string that starts with `mdk_`. Commands that publish or look up your files and pages need one. Peer-to-peer `send` and `get` work without it; with one, `send` and the shares `markdrop mcp` starts are listed under your account.
 
 | Needs a token | Works without one |
 |---|---|
 | `upload`, `replace`, `versions`, `restore`, `info`, `workspaces` | `send`, `get` |
-| The file and workspace tools of `markdrop mcp` | The peer-to-peer tools of `markdrop mcp` |
+| `page`, `link`, `export`, `search`, `trash`, `access` | |
+| The file, workspace and page tools of `markdrop mcp` | The peer-to-peer tools of `markdrop mcp` |
 
 ## Create a token
 
