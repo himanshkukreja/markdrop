@@ -80,6 +80,11 @@ export function hasPageProps(markdown: string): boolean {
   return PAGE_KEYS.some((k) => k in d);
 }
 
+/** The Markdown without its front matter (a classic reader of a page that went classic shows its body). */
+export function withoutFrontMatter(markdown: string): string {
+  return String(markdown ?? "").replace(FRONT_RE, "");
+}
+
 export type CoverCategory = "Paper" | "Duotone" | "Lines" | "Calm";
 export interface GalleryCover {
   id: string;

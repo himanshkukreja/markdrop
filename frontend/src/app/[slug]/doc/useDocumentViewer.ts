@@ -773,7 +773,10 @@ export function useDocumentViewer({
    * and motion is allowed; everywhere else the switch is instant. Neither path
    * touches the URL, so `#k=` is never at risk.
    */
+  // Full screen the reader asked for (the button, F), as opposed to the automatic one on opening.
+  const askedFullScreen = useRef(false);
   const toggleImmersive = useCallback((next: boolean) => {
+    if (next) askedFullScreen.current = true;
     const doc = typeof document !== "undefined"
       ? (document as Document & { startViewTransition?: (cb: () => void) => unknown })
       : null;
@@ -1607,6 +1610,7 @@ export function useDocumentViewer({
     handleSave,
     handleUnlock,
     immersive,
+    askedFullScreen,
     isNew,
     isOwner,
     keyFragment,

@@ -30,7 +30,7 @@ import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
 import type { PageActionRequest } from "@/components/pages/PageActions";
-import { hasPageProps, readPageProps } from "@/components/pages/pageProps";
+import { hasPageProps, readPageProps, withoutFrontMatter } from "@/components/pages/pageProps";
 import { assetId, pagePath } from "@/lib/pageAddress.mjs";
 import type { PageAiStatus } from "@/lib/pages-ai/ask";
 
@@ -212,6 +212,12 @@ export default function DocumentView(props: DocumentViewProps) {
   useEffect(() => {
     if (isPage && showImmersive) toggleImmersive(false);
   }, [isPage, showImmersive, toggleImmersive]);
+  // A classic document that was a page opens framed for its editors (the way back is in the chrome:
+  // the banner and ⋯), unless they asked for full screen themselves.
+  const askedFullScreen = v.askedFullScreen;
+  useEffect(() => {
+    if (wasPage && secretUnlocked && showImmersive && !askedFullScreen.current) toggleImmersive(false);
+  }, [wasPage, secretUnlocked, showImmersive, toggleImmersive, askedFullScreen]);
   // The cached anonymous render follows the saves (at most every 20 s, and on leaving).
   const revalidated = useRef(0);
   const revalidate = (force = false) => {
@@ -1014,7 +1020,7 @@ export default function DocumentView(props: DocumentViewProps) {
                     />
                   ) : (
                     <MarkdownPreview
-                      content={displayContent}
+                      content={wasPage ? withoutFrontMatter(displayContent) : displayContent}
                       size="reading"
                       anchors={!encrypted}
                       encrypted={encrypted}

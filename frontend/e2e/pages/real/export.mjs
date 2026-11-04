@@ -99,6 +99,15 @@ async function world() {
   log("world", W);
 }
 
+/** A classic or encrypted document opens full screen (no bar): back to the framed reader. */
+async function leaveFullScreen(p) {
+  await p.waitForTimeout(600);
+  if (await p.locator(".md-viewer-immersive").count()) {
+    await p.keyboard.press("Escape");
+    await p.locator(".md-viewer-immersive").waitFor({ state: "detached", timeout: 5000 });
+  }
+}
+
 /** Opens the ⋯ menu wherever it is (the editor's "Page options", the reader's "More actions"). */
 async function openMenu(p) {
   const btn = p.getByRole("button", { name: /^(Page options|More actions)$/ }).filter({ visible: true }).last();
@@ -282,7 +291,7 @@ await step("exports-classic", async () => {
   await stubPrint(c);
   const w = watch(c, p);
   await p.goto(`${APP}/public-handbook`, { waitUntil: "networkidle" });
-  await p.waitForTimeout(1000);
+  await leaveFullScreen(p);
   const start = p.url();
   await openMenu(p);
   await p.getByRole("menuitem", { name: /Export PDF/ }).click();
@@ -304,6 +313,7 @@ await step("exports-encrypted", async () => {
   const w = watch(c, p);
   await p.goto(`${APP}/${slug}#k=${e2e.exportKey(key)}`, { waitUntil: "networkidle" });
   await p.getByText("Only this browser can read").waitFor({ timeout: 30000 });
+  await leaveFullScreen(p);
   const start = p.url();
   await openMenu(p);
   const [dl] = await Promise.all([p.waitForEvent("download", { timeout: 15000 }), p.getByRole("menuitem", { name: /Download Markdown/ }).click()]);
@@ -325,7 +335,12 @@ await step("exports-mcp", async () => {
   if (!url) fail(`export_page: ${r.text}`);
   const { c, p } = await ctx(browser, {});
   await p.setContent(`<a id=l href="${url}" target=_blank>Download</a><a id=x href="${url}x" target=_blank>Old link</a>`);
-  const [dl] = await Promise.all([c.waitForEvent("page").then((np) => np.waitForEvent("download", { timeout: 15000 })), p.click("#l")]);
+  // The browser reports the download on the page that opened the link, or on the new tab.
+  const anyDownload = new Promise((ok) => {
+    p.once("download", ok);
+    c.once("page", (np) => np.once("download", ok));
+  });
+  const [dl] = await Promise.all([Promise.race([anyDownload, new Promise((_, no) => setTimeout(() => no(new Error("no download from the MCP link")), 15000))]), p.click("#l")]);
   if (!/\.html$/.test(dl.suggestedFilename())) fail(`mcp link: ${dl.suggestedFilename()}`);
   const [np] = await Promise.all([c.waitForEvent("page"), p.click("#x")]);
   await np.waitForLoadState();
@@ -471,12 +486,15 @@ async function recover(url, label, { tenant = false } = {}) {
       await fetch(`${APP}/api/revalidate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag: "host:acme.localhost" }) });
       await p.goto(`${APP}/robots.txt`);
       await p.goto(addr, { waitUntil: "networkidle" });
+      await leaveFullScreen(p);
       const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ })).or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
       await signIn.first().click({ timeout: 20000 });
       await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
     }
     await p.goto(addr, { waitUntil: "networkidle" });
     await p.getByText("Still a page at heart.").first().waitFor({ timeout: 30000 });
+    // Its editors get the framed reader (the banner, the menu); a reader may get full screen.
+    if (who === "reader") await leaveFullScreen(p);
     const banner = p.getByRole("button", { name: /^Switch back to the page editor$/ });
     if (who === "reader") {
       await p.waitForTimeout(1500);

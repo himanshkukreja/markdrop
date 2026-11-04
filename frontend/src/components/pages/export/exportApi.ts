@@ -101,7 +101,10 @@ function keepUntilLeave(url: string) {
  */
 export function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
+  // createElementNS, not createElement: popup-blocking extensions wrap document.createElement("a")
+  // + click() and reopen the address in a new tab, where a blob: address can't be opened (the same
+  // workaround as FileSaver.js).
+  const a = document.createElementNS("http://www.w3.org/1999/xhtml", "a") as HTMLAnchorElement;
   a.href = url;
   a.download = name;
   a.style.display = "none";
