@@ -64,6 +64,10 @@ When you [replace a file](/files/replace-and-versions) with a new version, each 
 
 The Versions tab always covers each version's whole life, whatever range you picked.
 
+## Ask AI what to change
+
+At the top of the **Video**, **Listening** and **Versions** tabs, **✦ Insights** turns the drops, skips and rewatches into timestamped suggestions and chapter ideas, and says which version works better and how sure that is. See [AI insights for one link](/analytics/ai-insights).
+
 ## Watch it once
 
 ::video{id="video-analytics" title="Find where viewers drop off" duration="0:45"}

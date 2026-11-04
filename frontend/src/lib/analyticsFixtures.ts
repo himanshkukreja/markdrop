@@ -8,6 +8,7 @@ import {
   AnalyticsError, fnv1a32Utf8,
   type AnalyticsDoc, type AnalyticsRange, type AudienceAnalytics, type ContentAnalytics, type HomeAnalytics, type Insight,
   type Kpi, type LiveAnalytics, type MediaAnalytics, type Overview, type PagesAnalytics, type VersionsAnalytics,
+  type AiAnalysis, type AiKind, type AiResult,
 } from "./analytics";
 
 const DAY = 86400000;
@@ -371,9 +372,55 @@ function live(): LiveAnalytics {
 }
 
 /** Answers one API path (with its query string) from the samples above. */
+const AI_RESULTS: Record<AiKind, AiResult> = {
+  content: {
+    summary: "Most readers stop at Configuration: it is long, and the one setting most people need comes last.",
+    findings: [
+      { severity: "high", title: "Readers leave at Configuration", why: "41% fewer readers reach it than Install, and those who do spend 2:10 there.", suggestion: "Lead with the one required setting; move the rest to a reference table.", section: { n: 3, id: "user-content-configuration", title: "Configuration", depth: 2, reached_pct: 48, lost_before_pct: 41 }, rewrite: "Set your **API key** first; everything else is optional.\n\n| Setting | Default |\n|---|---|\n| region | us |" },
+      { severity: "medium", title: "The install command is copied, the rest skipped", why: "Install is the most copied section.", suggestion: "Put the command at the very top.", section: { n: 2, id: "user-content-install", title: "Install", depth: 2, reached_pct: 89, lost_before_pct: 11 } },
+      { severity: "low", title: "Few reach Deploy", why: "Only 22% get there.", suggestion: "Link to Deploy from the introduction." },
+    ],
+  },
+  media: {
+    summary: "Viewers leave during the long intro; the demo itself holds them.",
+    findings: [
+      { severity: "high", title: "The intro loses a third of viewers", why: "34% leave between 0:08 and 0:20.", suggestion: "Cut the intro to 5 seconds and show the result first.", t: 8, end: 20, frame_t: 8 },
+      { severity: "medium", title: "People skip the settings walkthrough", why: "A dip at 1:12 recovers by 1:30.", suggestion: "Speed it up or make it a chapter.", t: 72 },
+      { severity: "low", title: "The dashboard tour gets replayed", why: "Replayed 1.6× on average.", suggestion: "Slow it down a little.", t: 134 },
+    ],
+    chapters: [{ t: 0, title: "Intro" }, { t: 20, title: "Setup" }, { t: 72, title: "Settings" }, { t: 130, title: "Dashboard tour" }],
+    moments: [{ n: 1, t: 8, kind: "drop", still_watching_pct: 88, frame: true, delta: 34 }, { n: 2, t: 72, kind: "skip", still_watching_pct: 41, frame: true, dip: 9 }],
+  },
+  pages: {
+    summary: "Readers stop after the market slide; the team page keeps them longest.",
+    findings: [
+      { severity: "high", title: "Page 4 loses a quarter of readers", why: "26 points fewer reach page 5.", suggestion: "Cut page 4 to one chart.", page: 4 },
+      { severity: "medium", title: "Page 7 gets the most time", why: "Median 48 s.", suggestion: "Move it earlier.", page: 7 },
+      { severity: "low", title: "People come back to pricing", why: "18% return to page 9.", suggestion: "Add a summary of pricing on page 2.", page: 9 },
+    ],
+  },
+  versions: {
+    summary: "Version 3 holds viewers better in the first minute.",
+    verdict: { winner: 3, headline: "v3 keeps more viewers", explanation: "64% watched on average against 51% for v2.", metric: "Avg watched", value: 64, unit: "percent", sessions: 240, runner_up: { version: 2, value: 51, sessions: 310 }, confidence: { level: "high", note: "Based on 240 and 310 sessions. A difference this size is very unlikely to be chance." } },
+    findings: [
+      { severity: "high", title: "The shorter intro works", why: "v3 holds 80% at 0:30 vs 62%.", suggestion: "Keep the short intro.", version: 3 },
+      { severity: "medium", title: "v3 loses people at the end", why: "The outro drops 20 points.", suggestion: "Trim the outro.", version: 3 },
+      { severity: "low", title: "v1 is too old to compare", why: "Only 12 sessions.", suggestion: "Ignore it." },
+    ],
+  },
+};
+
+function aiFixture(kind: AiKind, run: boolean): AiAnalysis {
+  const kinds: AiKind[] = [kind];
+  if (!run) return { kind, state: "empty", result: null, stale: false, generated_at: null, sample: { have: 140, need: 20 }, note: null, limit: null, can_apply: kind === "content", kinds };
+  return { kind, state: "ready", result: AI_RESULTS[kind], stale: false, generated_at: new Date().toISOString(), sample: { have: 140, need: 20 }, note: null, limit: null, can_apply: kind === "content", kinds };
+}
+
 export function fixtureFor(path: string): unknown {
   const [p, qs = ""] = path.split("?");
   const params = new URLSearchParams(qs);
+  const ai = /^\/me\/documents\/[^/]+\/analytics\/ai\/(content|media|pages|versions)$/.exec(p!);
+  if (ai) return aiFixture(ai[1] as AiKind, params.get("run") === "1");
   const r = params.get("range");
   const range: AnalyticsRange = r === "7d" || r === "90d" || r === "all" ? r : "30d";
   if (p === "/me/analytics") return home(range);

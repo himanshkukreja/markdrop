@@ -56,7 +56,7 @@ Files you've replaced with a new version also get a **Versions** tab that compar
 
 ![The analytics page for the Getting started with Acme document: tabs Overview, Content and Audience; tiles for Views, People, Read to the end, Median read time and Copies & link clicks; What stands out; Views per day; and Where views come from.](/docs-assets/analytics/overview/link-analytics-overview.webp)
 
-The other tabs are covered in [Documents and PDFs](/analytics/documents-and-pdfs) and [Video and audio](/analytics/video-and-audio).
+The other tabs are covered in [Documents and PDFs](/analytics/documents-and-pdfs) and [Video and audio](/analytics/video-and-audio). At the top of the **Content**, **Pages**, **Video**, **Listening** and **Versions** tabs, **✦ Insights** asks AI why people stop and what to change: see [AI insights for one link](/analytics/ai-insights).
 
 ## Insights and Ask
 

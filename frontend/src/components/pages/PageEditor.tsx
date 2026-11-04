@@ -42,6 +42,7 @@ import { usePageEditSession } from "./usePageEditSession";
 import { EditorProperties } from "./props/EditorProperties";
 import type { PagePropertiesInfo } from "./props/api";
 import { pageEditorAi, suggestPageMeta, usePagesAiStatus, type PageMeta } from "@/lib/pages-ai/client";
+import { APPLY_PARAM, APPLY_VALUE, takeRewrite, type InsightRewrite } from "@/lib/insightApply";
 import { MetaChip, type MetaState } from "./ai/MetaChip";
 import "./ai/pageAi.css";
 import { usePageAssets } from "./usePageEmbeds";
@@ -278,6 +279,41 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   // Who's viewing already says someone else is editing: read only before anyone clicks.
   const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
   const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
+
+  // Analytics › ✦ Insights › "Apply in page" (lib/insightApply): the rewrite, offered as a
+  // suggestion over its section once the editor is up (Visual mode); nothing changes until Accept.
+  const [insight, setInsight] = useState<InsightRewrite | null>(null);
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get(APPLY_PARAM) !== APPLY_VALUE) return;
+    p.delete(APPLY_PARAM);
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${p.size ? `?${p}` : ""}${window.location.hash}`);
+    const r = takeRewrite(slug);
+    if (r) setInsight(r);
+    else toast.info("That suggestion isn't here any more. Open it again from the page's analytics.");
+  }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!insight || !editor) return;
+    if (readOnly) {
+      toast.info(lockedForMe ? "This page is locked, so the suggestion can't be offered here." : "Someone else is editing this page, so the suggestion can't be offered here. Copy it from the analytics instead.");
+      setInsight(null);
+      return;
+    }
+    if (mode !== "visual") { setMode("visual"); return; }
+    const r = insight;
+    const t = window.setTimeout(() => {
+      const ok = api.current?.suggest({
+        heading: r.heading,
+        level: r.level || undefined,
+        markdown: r.markdown,
+        title: r.title,
+        note: "From the page's analytics insights. Edit it after you accept, or discard it.",
+      });
+      if (!ok) toast.info("That section has changed since the analysis, so the rewrite can't be offered in place. Copy it from the analytics instead.");
+      setInsight(null);
+    }, 350);
+    return () => window.clearTimeout(t);
+  }, [insight, editor, readOnly, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── AI (lib/pages-ai): the editor's AI for people who can write here; the menu says so when
   // the workspace turned it off.

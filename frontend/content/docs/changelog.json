@@ -37,6 +37,24 @@
       "body": "- **Insights** sums up the period in 3 to 5 sentences: what changed and the likely cause (a link, a site that sent people, a new version, devices or countries), each linking to where to look. Written once a day; **Refresh** writes it again. See [Insights and Ask](/analytics/overview#insights-and-ask).\n- **Ask your analytics**: type a question like \"Which link did best this month?\". The AI picks from a fixed set of queries Markdrop runs on your own links and answers with links.\n- **Write this next** (workspace owners and admins, and people with their own Guides): searches that found nothing or that nobody opened, and guide questions Ask AI couldn't answer, grouped into topics with an outline. **Create page from this outline** starts the page. See [What people couldn't find](/analytics/content-gaps).\n- Workspace searches are now kept without who searched, for 90 days, to power this. See [Privacy at Markdrop](/security/privacy#what-searching-a-workspace-records).\n- The weekly analytics email gets the same summary, once it starts sending.\n- New MCP tools: `analytics_story`, `ask_analytics` and `content_gaps`. All use Claude Haiku 5.5 and count towards your AI limits; only totals and your own titles are sent, never who visited."
     },
     {
+      "id": "analytics-ai-insights",
+      "date": "2026-11-05",
+      "title": "✦ Insights: AI says why people stop, and what to change",
+      "kind": "new",
+      "area": "Analytics",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A link's Content, Pages, Video and Versions tabs get ✦ Insights: Claude Haiku 5.5 reads the numbers (and your own content) and comes back with three to five findings that point at the exact section, moment, page or version, with rewrites, chapters and a version verdict.",
+      "body": "- **Why did they stop?** On a document or page's **Content** tab: where readers leave and why, from section reach, time and the text of those sections, with a **suggested rewrite** to copy, or, on a page you can edit, **Apply in page**: it's offered over that section and nothing changes until you accept.\n- **Video and audio coach.** Up to six key moments where people drop, skip or rewatch, with a small frame of each, become timestamped suggestions: cuts, reorders, pacing and **suggested chapters** to copy. Choose a time to mark it on the **Who's still watching** chart.\n- **PDF coach.** The pages where readers stop or linger, with their text, and what to cut, move or summarise.\n- **Version verdict.** On **Versions**: which version works better, with a **High**, **Medium** or **Low** confidence that Markdrop computes from the sessions, not the AI.\n- Needs at least 20 sessions; analyses are saved per period, shared with your AI assistant, and marked out of date when you change the document (**Re-analyse**).\n- Only the numbers and your own content are sent, never anything about your readers; encrypted links never send content. Counts towards your AI limits; admins see it as **Analytics AI** with its own caps.\n- MCP: the new `analyze_document_engagement` tool (71 tools now, with this release's `analytics_story`, `ask_analytics` and `content_gaps`). API: `GET` / `POST /api/v1/me/documents/{slug}/analytics/ai/{kind}`. See [AI insights for one link](/analytics/ai-insights).",
+      "docs": [
+        "/analytics/ai-insights",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "cli-0-6-1",
       "date": "2026-11-05",
       "title": "CLI 0.6.1: markdrop search looks inside your content",

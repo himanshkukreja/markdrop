@@ -7,6 +7,7 @@ import { CompareChart } from "./charts";
 import { day, num, pct, secs } from "./format";
 import { Legend } from "./MediaTab";
 import { LoadError, Panel, PanelSkeleton, useLoad } from "./parts";
+import InsightsPanel from "./InsightsPanel";
 
 function metric(m: { label: string; value: number } | null): string {
   if (!m) return "—";
@@ -31,6 +32,7 @@ export default function VersionsTab({ slug, ov, range, internal }: { slug: strin
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
+      <InsightsPanel slug={slug} kind="versions" range={range} internal={internal} />
       {a && b && (
         <Panel id="vr-cmp" title={`Version ${a.version} vs version ${b.version}, first minute`}
           headerExtra={<Legend a={`Version ${a.version}${a.version === current ? " (now)" : ""}`} b={`Version ${b.version}`} />}>

@@ -1179,6 +1179,21 @@
       "title": "Numbers by version",
       "description": "A file's numbers split by the version people saw."
     },
+    "GET /api/v1/me/documents/{slug}/analytics/ai/{kind}": {
+      "title": "Get AI insights",
+      "description": "The saved AI analysis of one of your documents or files, never a new one. `kind` is `content` (documents and pages), `media` (video and audio), `pages` (PDFs) or `versions` (files with several versions). `state` is `ready` (with `result`: `summary` and 3 to 5 `findings`), `empty` (nothing yet: `POST` to analyse), `thin` (fewer than 20 sessions with data: `sample` says how many), `encrypted` or `unsupported`. `stale` is `true` when the document changed since; `limit` says why AI can't run right now.",
+      "params": { "kind": "content", "range": "30d" },
+      "mcp": "analyze_document_engagement",
+      "guide": { "label": "AI insights for one link", "href": "/analytics/ai-insights" }
+    },
+    "POST /api/v1/me/documents/{slug}/analytics/ai/{kind}": {
+      "title": "Analyse with AI",
+      "description": "Claude Haiku 5.5 reads the numbers (and your own content) and returns 3 to 5 findings that point at a section, timestamp, page or version, with rewrites (`content`), chapters (`media`) and a verdict with a confidence Markdrop computes (`versions`). Returns the saved analysis when there is one; send `{\"refresh\": true}` to analyse again. Below 20 sessions the model isn't called (`state: thin`). Counts towards your AI limits: `429` with `code: limit` and a `reason` when one is reached.",
+      "params": { "kind": "content", "range": "30d" },
+      "example": { "refresh": true },
+      "mcp": "analyze_document_engagement",
+      "guide": { "label": "AI insights for one link", "href": "/analytics/ai-insights" }
+    },
     "GET /api/v1/me/documents/{slug}/analytics.csv": {
       "title": "Export document analytics",
       "description": "One document's analytics, as CSV.",
