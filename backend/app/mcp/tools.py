@@ -1135,8 +1135,10 @@ async def get_viewers(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services.document import _doc_from_mongo
 
     raw = await load_for(ctx, args["document"], "read", "read")
+    # Who is editing is named only for people with a relationship (as on the page).
+    related = await viewers.relationship(ctx.db, raw, ctx.user.id) is not None
     snap = viewers.observe(raw["slug"], str(raw["_id"]), enabled=raw.get("show_presence") is not False,
-                           encrypted=bool(raw.get("encrypted")), user_id=ctx.user.id)
+                           encrypted=bool(raw.get("encrypted")), user_id=ctx.user.id, related=related)
     urls_out = await url_pair(ctx, raw)
     name = display_title(_doc_from_mongo(raw))
     where = f"{name} ({urls_out['url']})" if name else urls_out["url"]
@@ -1158,8 +1160,8 @@ async def get_viewers(ctx: Context, args: dict) -> tuple[str, dict]:
         return f"Nobody is viewing {where} right now.", out
     lines = []
     for v in listed:
-        notes = [n for n in ("owner" if v["owner"] else None, "you" if v["you"] else None,
-                             "away" if v["state"] == "away" else None) if n]
+        notes = [n for n in ("editing" if v["editing"] else None, "owner" if v["owner"] else None,
+                             "you" if v["you"] else None, "away" if v["state"] == "away" else None) if n]
         line = f"- {v['name']}" + (f" ({', '.join(notes)})" if notes else "")
         if v["section"]:
             line += f": {v['section']}"

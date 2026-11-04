@@ -1,9 +1,9 @@
 ---
 title: See who's viewing
 description: Avatars on a document or file show who has it open right now and where they're reading. People with access appear by name; everyone else as an anonymous animal.
-updated: 2026-11-03
+updated: 2026-11-04
 prerequisites: [/sharing/who-can-open]
-keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, mcp, get_viewers, set_presence, ai]
+keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, who's editing, editing, pencil, mcp, get_viewers, set_presence, ai]
 ---
 
 When other people have the same document or file open, their avatars appear at the top of the page, next to **Copy link**. Choose the avatars to see the list: everyone who's viewing and the section each of them is reading.
@@ -18,11 +18,12 @@ Presence is live and lives only in memory: nothing about who viewed is stored, a
 | A faded avatar with an amber dot | They're away: the tab is open but hidden. |
 | **+3** | Three more people than fit in the row. |
 | Your own avatar, last in the row | You. In the list you come first, marked **(you)**. |
+| An avatar with a blue ring and a pencil, first in the row | That person is editing the page right now. Hover it for **Riya is editing**; on a wide screen the words also show beside the avatars. |
 | Small coloured dots beside a heading | Someone in that colour is reading that section. The dots sit in the **Contents** list, or in the margin when Contents isn't on screen. |
 
 On a PDF the list says which page each person is on, and on a video, roughly where they are. Readers in full screen see the avatars in the corner, beside **Show details**, whenever someone else is there too.
 
-On phones the row is shorter, and the list opens as a sheet.
+On phones the row is shorter, and the list opens as a sheet. On a page, the bar on a phone shows only the person who's editing, with the pencil.
 
 ## Who appears by name
 
@@ -39,6 +40,10 @@ Your animal stays the same while the tab stays open, even if your connection dro
 :::note
 Markdrop decides who appears by name on its servers, from the document's access settings, every time someone joins and again about every minute after. When someone takes away your access to the document, you leave the list at once. If you're removed from its workspace but can still open it by its link, you turn anonymous within a minute or two.
 :::
+
+## Who's editing a page
+
+On a [page](/pages/overview), the person who's editing it gets the pencil, and the page's bar says **Riya is editing**. People with access to the page see who it is by name. Anyone else, whether anonymous or signed in without access, sees an anonymous animal with the pencil, such as **Anonymous Fox is editing**, and never the editor's name. If the editor turned on **Show me as anonymous**, everyone sees an animal. When they stop editing, the pencil goes, for everyone at once. Over MCP, `get_viewers` marks the editor the same way.
 
 ## Show me as anonymous
 
