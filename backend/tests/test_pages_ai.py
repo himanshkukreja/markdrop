@@ -678,11 +678,12 @@ def spanish(params: dict) -> str:
 
 class Translate(PagesAIWorld):
     async def make(self, parent: bool = True) -> dict:
-        r = await self.http.post("/api/v1/pages", json={"title": "Parent", "workspace": self.ws["W1"]},
-                                 headers=self.session("owner"))
+        # Fixtures: no auto cover (its pick would be one more call to the fake; test_page_covers.py).
+        r = await self.http.post("/api/v1/pages", json={"title": "Parent", "workspace": self.ws["W1"],
+                                                        "auto_cover": False}, headers=self.session("owner"))
         self.assertEqual(r.status_code, 201, r.text)
         self.parent_slug = r.json()["document"]["slug"]
-        body = {"title": "Launch", "content": "# x\n"}
+        body = {"title": "Launch", "content": "# x\n", "auto_cover": False}
         body["parent" if parent else "workspace"] = self.parent_slug if parent else self.ws["W1"]
         r = await self.http.post("/api/v1/pages", json=body, headers=self.session("owner"))
         self.assertEqual(r.status_code, 201, r.text)

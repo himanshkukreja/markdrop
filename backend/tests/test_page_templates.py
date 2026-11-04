@@ -516,7 +516,10 @@ class Deltas(TemplateWorld):
         day = f"{today:%B} {today.day}, {today:%Y}"
 
         def check(doc: dict, title: str, author: str):
-            self.assertEqual(doc["content"].strip().splitlines()[0],
+            # (After the front matter: the page may have its auto cover by now.)
+            from app.services import page_props
+
+            self.assertEqual(page_props.split(doc["content"])[1].strip().splitlines()[0],
                              f"**{title}** · {author} · {day} · filed in 02-prds")
             self.assertEqual(doc["template_id"], prd["id"])
             self.assertEqual(doc["editor"], "blocks")

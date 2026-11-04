@@ -471,8 +471,14 @@ async def update_document(
     # key — over a newer version (an undone key rotation). Checked here for a
     # clear answer and again in the write itself (cas) for the race.
     cas: dict = {"slug": slug}
+    from app.services import page_covers
+
     if data.base_rev is not None:
         current = raw.get("rev", 1)
+        # The one write since the editor's read was an auto cover: not a conflict, the cover is
+        # merged into what it saves (services/page_covers.py).
+        if data.base_rev != current and page_covers.merge_on_save(raw, data):
+            data.base_rev = current
         if data.base_rev != current:
             raise StaleRevision(current)
         if "rev" in raw:
@@ -495,8 +501,6 @@ async def update_document(
 
     # Auto covers (services/page_covers.py): a save that removes the cover is remembered (it is
     # never auto-added again); one that changes it makes the cover the person's own.
-    from app.services import page_covers
-
     cover_unset = page_covers.on_save(raw, sets.get("content"), sets)
 
     extra, narrows = settings_sets(

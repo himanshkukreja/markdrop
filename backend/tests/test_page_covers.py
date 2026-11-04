@@ -282,8 +282,8 @@ class Removal(CoverWorld):
         self.assertIsNone(row.get("cover_removed_at"))
 
     async def test_a_stale_editor_cant_remove_it_by_accident(self):
-        # The editor opened the page before the cover landed: its save is refused (409), not taken
-        # as a removal; its next save carries the cover (usePageEditSession merges it).
+        # The editor opened the page before the cover landed: the cover was the only write since, so
+        # its save goes through with the cover merged in (not a conflict, and not a removal).
         r = await self.http.post("/api/v1/pages", json={"title": "Q3 roadmap", "content": ROADMAP},
                                  headers=self.session("owner"))
         slug = r.json()["document"]["slug"]
@@ -291,10 +291,27 @@ class Removal(CoverWorld):
         await page_covers.wait_idle()
         r = await self.http.put(f"/api/v1/documents/{slug}", headers=self.session("owner"),
                                 json={"title": "Q3 roadmap", "content": ROADMAP + "\nmore", "base_rev": rev0})
-        self.assertEqual(r.status_code, 409)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertTrue(r.json()["cover_auto"])  # the editor takes the cover from the response
         row = await self.doc(slug)
         self.assertIsNone(row.get("cover_removed_at"))
         self.assertEqual(self.cover_of(row), "gallery:route")
+        self.assertTrue(row["cover_auto"])
+        self.assertTrue(row["content"].rstrip().endswith("more"))
+        self.assertEqual(row["rev"], rev0 + 2)
+        # Anything more than the cover since its read is still a conflict.
+        r = await self.http.put(f"/api/v1/documents/{slug}", headers=self.session("owner"),
+                                json={"title": "Q3 roadmap", "content": ROADMAP, "base_rev": rev0})
+        self.assertEqual(r.status_code, 409)
+        # A stale editor that had chosen its own cover keeps it (and it's no longer automatic).
+        d = await self.create(title="Hiring plan", content="Recruiting")
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}", headers=self.session("owner"),
+                                json={"title": "Hiring plan", "content": "---\ncover: gallery:sage\n---\nRecruiting",
+                                      "base_rev": d["rev"]})
+        self.assertEqual(r.status_code, 200, r.text)
+        row = await self.doc(d["slug"])
+        self.assertEqual((self.cover_of(row), row.get("cover_auto")), ("gallery:sage", None))
+        self.assertIsNone(row.get("cover_removed_at"))
 
     async def test_it_lands_while_the_editor_holds_the_lock(self):
         r = await self.http.post("/api/v1/pages", json={"title": "Q3 roadmap", "content": ROADMAP},

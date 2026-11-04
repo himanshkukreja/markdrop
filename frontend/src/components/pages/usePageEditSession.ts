@@ -136,6 +136,16 @@ export function usePageEditSession({
       const doc = await savePage(slug, { title: sent.title, content: sent.content, baseRev: baseRev.current }, secret);
       baseRev.current = typeof doc.rev === "number" ? doc.rev : baseRev.current;
       base.current = sent;
+      // An auto cover that landed before this save, merged in by the server: take it, so the next
+      // save doesn't drop it (which would count as removing it).
+      const merged = doc.cover_auto ? readPageProps(doc.content ?? "").cover : null;
+      if (merged && !readPageProps(sent.content).cover) {
+        base.current = { ...sent, content: doc.content ?? sent.content };
+        if (!readPageProps(fields.current.content).cover) {
+          fields.current = { ...fields.current, content: writePageProps(fields.current.content, { cover: merged, coverY: 50 }) };
+        }
+        cbs.current.onCover?.(merged);
+      }
       cbs.current.onSaved?.(doc);
       setSave(dirty.current ? { state: "dirty" } : { state: "saved", at: Date.now() });
     } catch (e) {

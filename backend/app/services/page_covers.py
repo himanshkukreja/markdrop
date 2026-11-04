@@ -345,7 +345,7 @@ async def apply(db: AsyncIOMotorDatabase, doc_id, cover_id: str, *, how: str,
         rev = int(cur.get("rev") or 1)
         q: dict = {"_id": cur["_id"], "rev": rev if "rev" in cur else {"$exists": False}}
         after = await db["documents"].find_one_and_update(
-            q, {"$set": {"content": content, "cover_auto": True, "cover_auto_how": how},
+            q, {"$set": {"content": content, "cover_auto": True, "cover_auto_how": how, "cover_auto_rev": rev + 1},
                 "$unset": {"cover_pick": "", "cover_pick_at": "", "cover_pick_by": "", "cover_removed_at": "",
                            "cover_auto_off": ""},
                 "$inc": {"rev": 1}},
@@ -493,6 +493,24 @@ async def suggest(db: AsyncIOMotorDatabase, raw: dict, user, *, via: str = "web"
                         workspace_id=raw.get("workspace_id"), slug=raw.get("slug"), via=via)
 
 
+def merge_on_save(raw: dict, data) -> bool:
+    """document.update_document, a save based on an older rev: True when the only write since that
+    rev was this page's auto cover (it landed while the editor was open). The cover then goes into
+    the content being saved (unless that already has a cover of its own) and the save goes ahead,
+    so an editor that hadn't seen the cover yet neither conflicts nor removes it."""
+    if raw.get("kind") == "artifact" or raw.get("encrypted") or not raw.get("cover_auto"):
+        return False
+    current = int(raw.get("rev") or 1)
+    if raw.get("cover_auto_rev") != current or data.base_rev != current - 1 or data.content is None:
+        return False
+    cover = page_props.parse(raw.get("content")).get("cover")
+    if not cover:
+        return False
+    if not page_props.parse(data.content).get("cover"):
+        data.content = page_props.apply(data.content, {"cover": cover})
+    return True
+
+
 def on_save(raw: dict, new_content: str | None, sets: dict) -> list[str]:
     """document.update_document: a save that removes the page's cover records it (never auto-added
     again); one that changes it makes it the person's own. Returns the fields to unset."""
@@ -502,7 +520,7 @@ def on_save(raw: dict, new_content: str | None, sets: dict) -> list[str]:
     new = page_props.parse(new_content).get("cover")
     if old == new:
         return []
-    unset = ["cover_auto", "cover_auto_how"] if raw.get("cover_auto") else []
+    unset = ["cover_auto", "cover_auto_how", "cover_auto_rev"] if raw.get("cover_auto") else []
     if old and not new:
         sets["cover_removed_at"] = now_utc()
     return unset
