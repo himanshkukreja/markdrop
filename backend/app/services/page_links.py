@@ -47,6 +47,11 @@ async def reindex(db: AsyncIOMotorDatabase, raw: dict | None) -> None:
     """Rewrite the rows for ``raw`` from its Markdown. Never fails the write."""
     if not raw or raw.get("_id") is None:
         return
+    # Every content write that rewrites a page's links also moves global search's content index
+    # (services/search_index.py; async, off the request): sync pushes, MCP appends, copies…
+    from app.services import search_index
+
+    search_index.touch(db, raw["_id"])
     doc_id = str(raw["_id"])
     try:
         # The page's icon, copied out of its front matter so lists (sub-pages,

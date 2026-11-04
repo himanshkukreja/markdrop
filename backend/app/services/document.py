@@ -259,6 +259,7 @@ async def create_document(
 
         await lifecycle.clear_tombstone(db, data.custom_slug)
         await _schedule_expiry(db, doc_dict)
+        _search_touch(db, doc_dict)
         return _doc_from_mongo(doc_dict), raw_secret
 
     # Preferred slug path (e.g. from a filename): try it, then add a short
@@ -280,6 +281,7 @@ async def create_document(
                 if not await _kept_after_insert(db, doc_dict, owner_id):
                     continue
                 await _schedule_expiry(db, doc_dict)
+                _search_touch(db, doc_dict)
                 return _doc_from_mongo(doc_dict), raw_secret
 
     # Random slug path with retry
@@ -295,9 +297,17 @@ async def create_document(
         if not await _kept_after_insert(db, doc_dict, owner_id):
             continue
         await _schedule_expiry(db, doc_dict)
+        _search_touch(db, doc_dict)
         return _doc_from_mongo(doc_dict), raw_secret
 
     raise HTTPException(status_code=503, detail="Could not generate unique slug. Try again.")
+
+
+def _search_touch(db: AsyncIOMotorDatabase, doc_dict: dict) -> None:
+    """Global search's content index follows (services/search_index.py; async, off the request)."""
+    from app.services import search_index
+
+    search_index.touch(db, doc_dict.get("_id"))
 
 
 async def _kept_after_insert(db: AsyncIOMotorDatabase, doc_dict: dict, owner_id: str | None) -> bool:
@@ -554,6 +564,8 @@ async def update_document(
     # A new page waiting for its auto cover gets it once it says what it's about.
     if after.get("cover_pick") == "waiting":
         await page_covers.after_save(db, after)
+    # Global search's content index (services/search_index.py): headings and text follow the save.
+    _search_touch(db, after)
     return after
 
 

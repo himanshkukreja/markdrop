@@ -142,6 +142,9 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     if res.deleted_count == 0:
         return False
     await page_assets.forget_document(db, doc_id)
+    from app.services import search_index
+
+    await search_index.drop(db, raw["_id"])
     from app.services import page_history, page_links
 
     await page_history.forget_document(db, doc_id)

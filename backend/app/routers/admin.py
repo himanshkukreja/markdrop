@@ -872,6 +872,9 @@ async def admin_update_document(
     if full is not None:
         live.publish(slug, int(full.get("rev") or 1))
         await revalidate.purge_doc(db, full)
+        from app.services import search_index
+
+        search_index.touch(db, full["_id"])
     await db["admin_access_log"].insert_one({"slug": slug, "action": "update", "ts": now})
     raw.update(updates)
     return _to_doc_response(raw)

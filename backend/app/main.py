@@ -59,6 +59,7 @@ from app.routers.creator_analytics import router as creator_analytics_router
 from app.routers.notifications import router as notifications_router
 from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
+from app.routers.search import router as search_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -271,6 +272,7 @@ app.include_router(invites_router)
 app.include_router(library_router)
 app.include_router(access_router)
 app.include_router(personal_router)
+app.include_router(search_router)
 app.include_router(oauth_router)
 app.include_router(mcp_router)
 

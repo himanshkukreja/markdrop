@@ -14,6 +14,10 @@ one API worker runs it (§5.1, §5.5, A6):
     notifications  every 30 s  send the batched mention / sign-off emails (services/notifications.py)
     page_covers     every 15 s  finish auto-cover picks a stopped process left pending, and run one
                              batch of the admin's cover backfill (services/page_covers.py)
+    search_index    every 10 s  global search's content index: the one-time backfill (a slice of
+                             at most 8 s per pass), re-index what changed through a path without a
+                             hook, extract file contents (HTML / PDF text, a few files per pass), and
+                             every 10 minutes drop rows whose document is gone (services/search_index.py)
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -154,6 +158,12 @@ async def _page_covers(db: AsyncIOMotorDatabase) -> None:
     await page_covers.background(db)
 
 
+async def _search_index(db: AsyncIOMotorDatabase) -> None:
+    from app.services import search_index
+
+    await search_index.background(db)
+
+
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
@@ -161,7 +171,8 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     for name, every, body in (("revalidate", 5.0, _revalidate), ("sweeper", SWEEP_EVERY, _sweep),
                               ("reconciler", 60.0, _reconcile), ("guide_insights", 3600.0, _insights),
                               ("page_history", 3600.0, _page_history), ("trash", TRASH_EVERY, _trash),
-                              ("notifications", 30.0, _notifications), ("page_covers", 15.0, _page_covers)):
+                              ("notifications", 30.0, _notifications), ("page_covers", 15.0, _page_covers),
+                              ("search_index", 10.0, _search_index)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
 
