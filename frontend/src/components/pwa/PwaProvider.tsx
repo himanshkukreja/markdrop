@@ -4,6 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { usePathname } from "next/navigation";
 import { Button, Dialog, Drawer, Icon, useToast } from "@/components/ui";
 import { track } from "@/lib/track";
+import { DOCS_PAGES } from "@/lib/docsLinks";
+import { docsUrl } from "@/components/shell/links";
 import { BUILD_ID, PWA_ENABLED, installPathFor, isAppRoute, isStandalone, pwaSurface, type InstallPath } from "@/lib/pwa";
 
 /**
@@ -245,7 +247,7 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
 
 /* ── Instructions where there is no install button ─────────────────────── */
 
-const INSTALL_DOCS = "https://docs.markdrop.in/get-started/install-app";
+const INSTALL_DOCS = docsUrl(DOCS_PAGES.installApp);
 
 function Step({ n, children }: { n: number; children: React.ReactNode }) {
   return (
