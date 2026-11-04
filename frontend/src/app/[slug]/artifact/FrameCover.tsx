@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FileIcon, MarkdropLoader, Spinner, cx, type FileRenderer } from "@/components/ui";
+import { openingElapsed } from "@/lib/opening";
 
 /**
  * Covers the frame until the artifact origin has painted something (REVAMP_PLAN 7.7).
@@ -28,16 +29,23 @@ export function FrameCover({
   mime?: string;
   tenant?: boolean;
 }) {
-  // Same 300ms grace as the loader, so a fast load never flashes the label row.
+  // Same 300ms grace as the loader, so a fast load never flashes the label row. Taking over from
+  // the opening cover (lib/opening), the grace already ran there: carry on from where it got to,
+  // so its loader doesn't vanish and come back.
+  const [grace] = useState(() => {
+    const e = openingElapsed();
+    return e == null ? 300 : Math.max(0, Math.round(300 - e));
+  });
   const [shown, setShown] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => setShown(true), 300);
+    const t = setTimeout(() => setShown(true), grace);
     return () => clearTimeout(t);
-  }, []);
+  }, [grace]);
 
   return (
     <div
       aria-hidden={!show}
+      data-frame-cover=""
       className={cx(
         "absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-bg",
         "transition-opacity duration-(--duration-panel) ease-(--ease-out) motion-reduce:transition-none",
@@ -53,7 +61,7 @@ export function FrameCover({
         )
       ) : (
         <>
-          <MarkdropLoader label="" hideWordmark size="md" />
+          <MarkdropLoader label="" hideWordmark size="md" delay={grace} />
           {shown && (
             <p className="m-0 flex items-center gap-2 text-caption text-text-secondary">
               <FileIcon renderer={renderer} name={name} mime={mime} size={16} />

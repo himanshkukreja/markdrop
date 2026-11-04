@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
@@ -28,6 +28,9 @@ import { DeviceKeyNotice, EncryptionState, RotatedNotice } from "./doc/Encryptio
 import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
+import { OpeningCover } from "./doc/OpeningCover";
+import { ready as preloaded } from "./doc/preload";
+import { noteViewKind } from "@/lib/opening";
 import vs from "./doc/viewer.module.css";
 import type { PageActionRequest } from "@/components/pages/PageActions";
 import { hasPageProps, readPageProps, withoutFrontMatter } from "@/components/pages/pageProps";
@@ -158,6 +161,12 @@ export default function DocumentView(props: DocumentViewProps) {
   const router = useRouter();
   const toast = useToast();
   const [leaving, setLeaving] = useState(false);
+  // The opening cover (lib/opening) stays up through the read and, for a page, until the page's
+  // frame (its own code, loaded on demand) is on screen, so nothing paints in between.
+  const [opened, setOpened] = useState(false);
+  if (pwdFetching && !opened) setOpened(true);
+  const [pageFramed, setPageFramed] = useState(false);
+  const onPageFrame = useCallback((el: HTMLDivElement | null) => { if (el) setPageFramed(true); }, []);
   const phone = useMediaQuery(PHONE_QUERY);
   const layerRef = useRef<HTMLDivElement>(null);
   const [headings, setHeadings] = useState<Heading[]>([]);
@@ -172,6 +181,11 @@ export default function DocumentView(props: DocumentViewProps) {
   // A page: a document in the block editor (never an encrypted one).
   const page = v.page;
   const isPage = !encrypted && page?.editor === "blocks";
+  // The next item opened in this tab opens on this kind's look (lib/opening).
+  useEffect(() => {
+    if (v.artifactDoc) noteViewKind("file");
+    else if (v.readable && !pwdFetching && !v.pwdLocked) noteViewKind(isPage ? "page" : "doc");
+  }, [v.artifactDoc, v.readable, pwdFetching, v.pwdLocked, isPage]);
   // A classic document that was a page (its front matter, its place among pages): its editors get a
   // clear way back to the page editor, on markdrop.in and on the workspace's own domain.
   const wasPage = !isPage && !encrypted && !!page && (hasPageProps(displayContent) || (page.children_count ?? 0) > 0 || !!page.parent || (page.page_path?.length ?? 0) > 0);
@@ -341,8 +355,10 @@ export default function DocumentView(props: DocumentViewProps) {
 
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
+    // Its code was fetched before the read was adopted (doc/preload): render it directly.
+    const Artifact = preloaded.ArtifactView ?? ArtifactView;
     return (
-      <ArtifactView
+      <Artifact
         slug={slug}
         title={artifactDoc.title}
         url={url}
@@ -759,6 +775,7 @@ export default function DocumentView(props: DocumentViewProps) {
             layout={pageLayoutClass}
             full={!!pageProps?.fullWidth}
             innerRef={readRef}
+            frameRef={onPageFrame}
             className="ph-no-capture"
             bar={
               <PageTopBar
@@ -860,6 +877,8 @@ export default function DocumentView(props: DocumentViewProps) {
   return (
     // data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page.
     <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
+      {/* First, so its inline script runs before the locked chrome below is parsed (lib/opening). */}
+      {(pwdFetching || (opened && pageScreen && !pageFramed)) && <OpeningCover tenant={!!tenant} />}
       {!pageScreen && framed && header}
 
       <main id="main" tabIndex={-1} className={pageScreen ? "pb-screen outline-none" : "flex min-w-0 flex-1 flex-col outline-none"}>
