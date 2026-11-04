@@ -895,6 +895,8 @@ html.dx-modal-open { overflow: hidden; }
   .dx-chapters__item { align-items: center; }
   .dx-chip { min-height: 44px; display: inline-flex; align-items: center; }
   .dx-ask__input { height: 44px; }
+  .dx-prereq a { position: relative; }
+  .dx-prereq a::after { content: ""; position: absolute; inset: -12px -4px; }
   .dx-area__title, .dx-area__links a,
   .dx-footer a, .dx-footer__choices, .dx-crumbs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
 }

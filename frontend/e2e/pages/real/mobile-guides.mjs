@@ -488,7 +488,7 @@ const STATES = [
   ["an-overview", ["owner"], () => `${APP}/dashboard/analytics/launch-plan`, h1, async (p) => p.waitForTimeout(1500)],
   ["an-tooltip", ["owner"], () => `${APP}/dashboard/analytics/launch-plan`, h1, async (p) => {
     await p.waitForTimeout(1500);
-    const chart = p.locator("main svg").filter({ has: p.locator("path, rect") }).first();
+    const chart = p.locator('main svg[role="img"][tabindex="0"]').first();
     if (!(await chart.isVisible().catch(() => false))) return "skip";
     const b = await chart.boundingBox();
     await p.touchscreen.tap(b.x + b.width * 0.6, b.y + b.height * 0.5);

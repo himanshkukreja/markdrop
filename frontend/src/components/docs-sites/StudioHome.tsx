@@ -170,7 +170,7 @@ function StartTile({ scope, bar }: { scope: StudioScope | null; bar?: boolean })
       <ul className="flex flex-wrap gap-1.5" aria-label="Ways to start">
         {STARTS.map((s) => (
           <li key={s.start}>
-            <Anchor href={studioNew(scope, s.start)} className="md-focus md-touch-hit inline-flex rounded-full no-underline" title={s.title}>
+            <Anchor href={studioNew(scope, s.start)} className="md-focus inline-flex items-center rounded-full no-underline pointer-coarse:min-h-11" title={s.title}>
               <Badge icon={s.icon} className="hover:bg-surface-hover">{s.short}</Badge>
             </Anchor>
           </li>

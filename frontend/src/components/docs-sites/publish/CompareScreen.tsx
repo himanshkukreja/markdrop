@@ -259,7 +259,7 @@ export default function CompareScreen() {
                       type="button"
                       aria-pressed={view === v}
                       onClick={() => { setView(v); go({ view: v }); guideEvents.compareView(v); }}
-                      className={cx("md-focus md-touch-hit h-[26px] rounded-md px-2.5 text-[12px]", view === v ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text")}
+                      className={cx("md-focus h-[26px] rounded-md px-2.5 text-[12px] pointer-coarse:h-11", view === v ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text")}
                     >
                       {v === "text" ? "Text" : "Side by side"}
                     </button>

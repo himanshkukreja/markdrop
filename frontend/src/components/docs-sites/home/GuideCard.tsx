@@ -191,7 +191,7 @@ function FixChip({ ins, site, className }: { ins: CardInsights; site: SiteSummar
   const words = `${num(f.open)} ${f.open === 1 ? "thing" : "things"} to fix`;
   return (
     <Anchor href={`${siteBase(site.id)}/fixes`} title={f.high ? `${words}, ${f.high} high impact` : words}
-      className={cx("md-focus inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold no-underline hover:underline",
+      className={cx("md-focus md-touch-hit inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold no-underline hover:underline",
         f.high ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning", className)}>
       <Icon name="flag" size={12} />{num(f.open)} to fix<span className="md-visually-hidden"> in {site.name}</span>
     </Anchor>
