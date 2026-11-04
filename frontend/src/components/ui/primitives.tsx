@@ -636,24 +636,30 @@ export function ConfirmDialog({ open, onClose, onConfirm, title, body, descripti
 }
 
 /* ── Anchored positioning (Dropdown, Popover) ─────────────────────────── */
-function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>, panel: React.RefObject<HTMLElement | null>, opts: { placement: "auto" | "top" | "bottom"; align: "left" | "right"; portal?: boolean; gap?: number }) {
+function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>, panel: React.RefObject<HTMLElement | null>, opts: { placement: "auto" | "top" | "bottom"; align: "left" | "right"; portal?: boolean; gap?: number; fit?: boolean }) {
   const [up, setUp] = useState(false);
   const [style, setStyle] = useState<React.CSSProperties | undefined>(undefined);
-  const { placement, align, portal, gap = 6 } = opts;
+  const { placement, align, portal, gap = 6, fit = false } = opts;
   useIsoLayoutEffect(() => {
     if (!open) return;
     const place = () => {
       const a = anchor.current?.getBoundingClientRect(), p = panel.current;
       if (!a || !p) return;
-      const h = p.offsetHeight, vh = window.innerHeight, vw = document.documentElement.clientWidth;
+      // The panel's natural height (scrollHeight: a height capped by a previous `fit` doesn't count).
+      const h = fit ? p.scrollHeight : p.offsetHeight, vh = window.innerHeight, vw = document.documentElement.clientWidth;
       const below = vh - a.bottom, above = a.top;
       const flip = placement === "top" || (placement === "auto" && below < h + gap + 8 && above > below);
       setUp(flip);
+      // `fit` (menus): never taller than the room on its side; the rest scrolls inside the menu.
+      const room = Math.max(120, (flip ? above : below) - gap - 8);
+      const fitStyle: React.CSSProperties = fit && h > room ? { maxHeight: room, overflowY: "auto", overscrollBehavior: "contain" } : {};
       if (portal) {
-        const s: React.CSSProperties = { position: "fixed" };
+        const s: React.CSSProperties = { position: "fixed", ...fitStyle };
         if (flip) s.bottom = vh - a.top + gap; else s.top = a.bottom + gap;
         if (align === "right") s.right = Math.max(8, vw - a.right); else s.left = Math.max(8, a.left);
         setStyle(s);
+      } else {
+        setStyle(fit ? fitStyle : undefined);
       }
     };
     place();
@@ -661,7 +667,7 @@ function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement | null>,
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
-  }, [open, placement, align, portal, gap]);
+  }, [open, placement, align, portal, gap, fit]);
   return { up, style };
 }
 
@@ -711,7 +717,7 @@ export function Dropdown({ trigger, items, align = "right", defaultOpen = false,
   };
   const close = (returnFocus: boolean) => { setOpen(false); if (returnFocus) triggerEl()?.focus(); };
 
-  const { up, style } = useAnchored(isOpen, wrap, menu, { placement, align, portal });
+  const { up, style } = useAnchored(isOpen, wrap, menu, { placement, align, portal, fit: true });
   useOverlayLayer(isOpen, () => close(true), () => menu.current, false);
   useEffect(() => {
     if (!isOpen) return;
