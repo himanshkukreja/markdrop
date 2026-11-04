@@ -1284,6 +1284,69 @@
         }
       }
     },
+    "/api/v1/documents/{slug}/mentionable": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Mentionable People",
+        "description": "Who the page's editor can @-mention (``@`` and ``/person`` in the page\neditor): ``{state, people: [{id, name, email, avatar_url, you}]}``, the\nmembers of the page's workspace, sorted by name. can(edit_content).\n\n``state`` is ``ok``; ``signin`` for an edit-link editor with no account;\n``personal`` for a page in no workspace; ``not_member`` for someone who\nedits it (a grant, the edit link) but isn't a member of its workspace.\nOnly ``ok`` lists anyone. ``email`` is filled in for a signed-in member on\nmarkdrop.in only, never on the workspace's own domain (as ``/auth/me``).",
+        "operationId": "mentionable_people_api_v1_documents__slug__mentionable_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-edit-secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Edit-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/documents/{slug}/parent": {
       "put": {
         "tags": [

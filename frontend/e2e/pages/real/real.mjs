@@ -979,8 +979,11 @@ await step("blocks", async () => {
   await slashPick(p, "date");
   await p.keyboard.type("for ");
   await slashPick(p, "person");
-  await p.getByLabel("Search people").fill("ben");
-  await p.getByRole("dialog", { name: "Mention someone" }).getByRole("button", { name: "Ben Member" }).click();
+  // The `@` picker (docs-editor/menus/people.tsx): type to filter, Enter picks.
+  await p.locator(".dxe-people [role=option]").first().waitFor({ timeout: 10000 });
+  await p.keyboard.type("ben");
+  await p.locator(".dxe-people [role=option]", { hasText: "Ben Member" }).first().waitFor();
+  await p.keyboard.press("Enter");
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/toggle");

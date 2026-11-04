@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "page-at-mentions",
+      "date": "2026-11-04",
+      "title": "Pages: type @ to mention someone, in tables too",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Type @ in a page and a list of the people in its workspace opens at your cursor, with their picture, name and email address. Type to narrow it, then pick someone. /person opens the same list, which now always shows your teammates, and both work in table cells.",
+      "body": "- **@ opens the list** at the start of a line or after a space or punctuation, never in the middle of a word (so email addresses don't open it) and never in code, Mermaid diagrams or equations. Part of a name or an email address finds someone, and so do letters in order.\n- **Keys:** ↑ and ↓ move, Enter or Tab picks, Esc closes the list and keeps what you typed, and deleting the @ closes it. Clicking works too.\n- **Fixed:** **Mention a person** (`/person`) could open with nobody in it, on a workspace's own domain and whenever the people couldn't be loaded. It now lists the workspace's members there too (names and pictures only on the domain), and a page in no workspace says why there's nobody to mention.\n- **Tables:** `@` and the `/` menu work in table cells. A cell's `/` menu offers what fits in a line: **Mention a person**, **Mention an item**, **Date** and **Emoji**.\n- **API:** `GET /api/v1/documents/{slug}/mentionable` lists who you can mention on a page you can edit.\n\nA mention is the same `:person[Name]{id=\"…\"}` either way, so notifications, exports and AI apps see no difference. See [Mentions and notifications](/pages/mentions-and-notifications).",
+      "docs": [
+        "/pages/mentions-and-notifications"
+      ]
+    },
+    {
       "id": "cli-0-6-0",
       "date": "2026-11-04",
       "title": "CLI 0.6.0: pages, exports, trash, access requests and search from the terminal",
