@@ -21,14 +21,15 @@ const defaultOrigin = "https://www.markdrop.in"
 // version is the CLI version. Release builds set it from the git tag via
 // -ldflags "-X github.com/markdrop/cli/cmd.version=<ver>"; this default is what
 // a plain `go build` / `go install` reports.
-var version = "0.5.0"
+var version = "0.6.0"
 
 var rootCmd = &cobra.Command{
 	Use:   "markdrop",
-	Short: "markdrop — share files peer-to-peer, or publish them behind a link you can update",
-	Long: `markdrop shares files directly between machines (send / get), and publishes
+	Short: "markdrop — share files peer-to-peer, publish files and pages behind links you can update",
+	Long: `markdrop shares files directly between machines (send / get), publishes
 files on markdrop.in behind a link whose file you can replace later (upload /
-replace), keeping earlier versions.
+replace), keeping earlier versions, and writes pages (page new / get / update /
+append), with their history, export, links, trash and search.
 
   Peer-to-peer transfers are end-to-end encrypted via WebRTC DataChannel; the
   signalling server only sees tiny handshake messages — never your files.
@@ -38,6 +39,9 @@ Examples:
   markdrop get https://markdrop.in/share/a3f7c12e
   markdrop upload demo.mp4                 # needs MARKDROP_TOKEN or markdrop login
   markdrop replace demo-clip demo-v2.mp4   # same link, new file
+  markdrop page new "Notes" --from-file notes.md
+  markdrop export notes -o notes.md
+  markdrop search roadmap
   markdrop mcp            # local MCP server for AI assistants (stdio)`,
 	// A failed transfer is not a usage mistake: print the error, not the help.
 	SilenceUsage: true,
@@ -73,5 +77,6 @@ func init() {
 // tests can build their own root).
 func addFileCommands(root *cobra.Command) {
 	root.AddCommand(newUploadCmd(), newReplaceCmd(), newVersionsCmd(), newRestoreCmd(), newInfoCmd(),
-		newWorkspacesCmd(), newLoginCmd(), newLogoutCmd())
+		newWorkspacesCmd(), newLoginCmd(), newLogoutCmd(),
+		newPageCmd(), newLinkCmd(), newExportCmd(), newTrashCmd(), newAccessCmd(), newSearchCmd())
 }

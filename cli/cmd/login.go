@@ -18,9 +18,10 @@ func newLoginCmd() *cobra.Command {
 	var token string
 	c := &cobra.Command{
 		Use:   "login",
-		Short: "Save an API token for upload, replace, versions, restore and info",
+		Short: "Save an API token for the commands that use your account (upload, page, search, …)",
 		Long: `Save a Markdrop API token on this computer (readable only by you, mode 0600),
-so the file commands work without MARKDROP_TOKEN.
+so the commands that use your account (upload, replace, page, export, trash,
+access, search, …) work without MARKDROP_TOKEN.
 
   Create a token at https://markdrop.in/settings/tokens, then run
   ` + "`markdrop login`" + ` and paste it (or pass --token, or pipe it in).

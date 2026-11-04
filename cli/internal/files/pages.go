@@ -556,6 +556,80 @@ func (c *Client) Export(ctx context.Context, slug, format string, subpages bool,
 	return res, nil
 }
 
+// ExportToFile saves a page's export. dest is a file path, or a folder (one
+// that exists, or ends in a path separator; "" = the current folder) where it
+// is saved under the server's file name. It downloads into a temporary file
+// next to the target and renames it at the end; an existing file is
+// overwritten only with overwrite.
+func (c *Client) ExportToFile(ctx context.Context, slug, format string, subpages bool, dest string,
+	overwrite bool) (*ExportResult, error) {
+	dir, name := ".", ""
+	if dest != "" {
+		if fi, err := os.Stat(dest); (err == nil && fi.IsDir()) || strings.HasSuffix(dest, "/") ||
+			strings.HasSuffix(dest, string(os.PathSeparator)) {
+			dir = dest
+		} else {
+			dir, name = filepath.Dir(dest), filepath.Base(dest)
+		}
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return nil, fmt.Errorf("cannot create %s: %w", dir, unwrapPath(err))
+	}
+	if name != "" {
+		if err := refuseExisting(filepath.Join(dir, name), overwrite); err != nil {
+			return nil, err
+		}
+	}
+	tmp, err := os.CreateTemp(dir, ".markdrop-export-*.part")
+	if err != nil {
+		return nil, fmt.Errorf("cannot write in %s: %w", dir, unwrapPath(err))
+	}
+	keep := false
+	defer func() {
+		if !keep {
+			tmp.Close()
+			os.Remove(tmp.Name())
+		}
+	}()
+	res, err := c.Export(ctx, slug, format, subpages, tmp)
+	if err != nil {
+		return nil, err
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, err
+	}
+	if name == "" {
+		name = res.FileName
+	}
+	final := filepath.Join(dir, name)
+	if err := refuseExisting(final, overwrite); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(tmp.Name(), final); err != nil {
+		return nil, err
+	}
+	keep = true
+	if abs, err := filepath.Abs(final); err == nil {
+		final = abs
+	}
+	res.Path = final
+	return res, nil
+}
+
+func refuseExisting(path string, overwrite bool) error {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return nil
+	}
+	if fi.IsDir() {
+		return fmt.Errorf("%s is a folder", path)
+	}
+	if !overwrite {
+		return fmt.Errorf("%s already exists (use --force to overwrite it)", path)
+	}
+	return nil
+}
+
 // dispositionName is the file name of a Content-Disposition header, reduced
 // to a plain base name.
 func dispositionName(h string) string {

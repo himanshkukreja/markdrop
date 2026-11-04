@@ -40,7 +40,7 @@ var (
 	reAssetRef   = regexp.MustCompile(`^asset:([A-Za-z0-9_-]{8,64})$`)
 	reGalleryRef = regexp.MustCompile(`^gallery:([a-z0-9][a-z0-9-]{0,39})$`)
 	reFMLine     = regexp.MustCompile(`^([A-Za-z_][\w-]*)[ \t]*:[ \t]*(.*?)[ \t]*$`)
-	reHTTPSURL   = regexp.MustCompile(`^https://[^\s"'<>()]{1,2000}$`)
+	reHTTPSURL   = regexp.MustCompile(`^https://[^\s"'<>()]+$`) // and at most 2000 characters after https://
 )
 
 const maxFrontMatterLines = 60
@@ -125,7 +125,7 @@ func ValidatePageProps(changes map[string]any) (map[string]any, error) {
 			clean[k] = s
 		case "cover":
 			s, _ := v.(string)
-			if !reAssetRef.MatchString(s) && !reGalleryRef.MatchString(s) && !reHTTPSURL.MatchString(s) {
+			if !reAssetRef.MatchString(s) && !reGalleryRef.MatchString(s) && !(reHTTPSURL.MatchString(s) && len(s) <= 2008) {
 				return nil, fmt.Errorf("cover must be asset:<id> (an image uploaded to the page), gallery:<name> " +
 					"(a built-in cover, e.g. gallery:dusk) or an https:// image address")
 			}
