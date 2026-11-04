@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { Button, Dialog, Drawer, Icon, useToast } from "@/components/ui";
+import { Button, Dialog, Drawer, useToast } from "@/components/ui";
 import { track } from "@/lib/track";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { docsUrl } from "@/components/shell/links";
@@ -258,6 +258,15 @@ function Step({ n, children }: { n: number; children: React.ReactNode }) {
   );
 }
 
+/** iOS's Share symbol (a box with an arrow out of its top), which is what people look for. */
+function IosShareGlyph() {
+  return (
+    <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden className="inline-block align-[-3px] text-accent-text" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12M8 7l4-4 4 4M7 11H6a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1" />
+    </svg>
+  );
+}
+
 function IosInstallSheet({ open, onClose, appName, iPad }: { open: boolean; onClose: () => void; appName: string; iPad: boolean }) {
   return (
     <Drawer
@@ -275,7 +284,7 @@ function IosInstallSheet({ open, onClose, appName, iPad }: { open: boolean; onCl
     >
       <ol className="m-0 flex list-none flex-col gap-4 p-0" data-testid="pwa-ios-steps">
         <Step n={1}>
-          Tap <strong>Share</strong> <Icon name="share" size={16} className="inline-block align-[-3px]" /> in the browser&rsquo;s toolbar.
+          Tap <strong>Share</strong> <IosShareGlyph /> in the browser&rsquo;s toolbar.
           In Safari it may be under <strong>&middot;&middot;&middot;</strong> first.
         </Step>
         <Step n={2}>Scroll down and choose <strong>Add to Home Screen</strong>.</Step>
