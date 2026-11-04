@@ -213,6 +213,9 @@ async def connect() -> None:
     await db["documents"].create_index("old_slugs", sparse=True)
     await db["documents"].create_index(
         "access_dirty", partialFilterExpression={"access_dirty": True})
+    # Documents a workspace-wide sign-in change still has to carry through to their stored bytes,
+    # images and cached renders (lifecycle.run_require_auth; progress for the settings page).
+    await db["documents"].create_index("ra_pending.ws", sparse=True)
     await db["slug_tombstones"].create_index("slug", unique=True)
     await db["slug_tombstones"].create_index("until", expireAfterSeconds=0)
     await db["revalidate_jobs"].create_index([("state", 1), ("next_at", 1)])

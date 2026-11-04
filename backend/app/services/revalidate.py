@@ -97,15 +97,16 @@ async def enqueue(
     if not keys:
         return []
     now = _now()
-    seen: set[str] = set()
-    for key, payload in keys:
-        if key in seen:
-            continue
-        seen.add(key)
-        await _upsert_pending(db, key, payload, now)
+    unique = dict(keys)
+    if len(unique) > 1:
+        # One round trip for a whole workspace's worth (W1/W2), not one each.
+        await _upsert_pending_many(db, unique, now)
+    else:
+        for key, payload in unique.items():
+            await _upsert_pending(db, key, payload, now)
     if attempt_now:
-        _spawn(db, list(seen))
-    return list(seen)
+        _spawn(db, list(unique))
+    return list(unique)
 
 
 async def _upsert_pending(db: AsyncIOMotorDatabase, key: str, payload: dict, now: datetime) -> None:
@@ -118,7 +119,11 @@ async def _upsert_pending(db: AsyncIOMotorDatabase, key: str, payload: dict, now
     absorbs a newer purge: a second job is written instead. The generation
     (``gen``) makes the same true for a lease that expired mid-send: the
     sender only marks a job done when nothing was merged into it meanwhile."""
-    await db[JOBS].update_one(
+    await db[JOBS].update_one(*_pending_op(key, payload, now), upsert=True)
+
+
+def _pending_op(key: str, payload: dict, now: datetime) -> tuple[dict, dict]:
+    return (
         # Scheduled jobs (``schedule``) are left alone: pulling one forward
         # would spend the purge that must happen at its due time.
         {"key": key, "state": "pending", "scheduled": {"$ne": True},
@@ -127,8 +132,23 @@ async def _upsert_pending(db: AsyncIOMotorDatabase, key: str, payload: dict, now
                           "attempts": 0, "created_at": now},
          "$set": {"next_at": now, "updated_at": now},
          "$inc": {"gen": 1}},
-        upsert=True,
     )
+
+
+async def _upsert_pending_many(db: AsyncIOMotorDatabase, items: dict[str, dict], now: datetime) -> None:
+    """``_upsert_pending`` for many keys in one unordered bulk write (same
+    filter and update per key). Falls back to one at a time if the bulk write
+    is refused (an upsert racing another one's insert)."""
+    from pymongo import UpdateOne
+
+    ops = [UpdateOne(*_pending_op(key, payload, now), upsert=True) for key, payload in items.items()]
+    try:
+        await db[JOBS].bulk_write(ops, ordered=False)
+        return
+    except Exception:
+        log.info("bulk purge enqueue of %d key(s) fell back to one at a time", len(ops), exc_info=True)
+    for key, payload in items.items():
+        await _upsert_pending(db, key, payload, now)
 
 
 def _payload(key: str) -> dict | None:

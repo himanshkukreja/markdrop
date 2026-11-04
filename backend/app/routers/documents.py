@@ -108,7 +108,8 @@ def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = Non
 async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
                          ctx: access.Ctx) -> dict:
     doc = doc_service._doc_from_mongo(raw)
-    public = await publicity.doc_is_public(db, raw)
+    # (The model doesn't carry the sign-in mark: decided on the row.)
+    public = publicity.unsigned_ok(raw, await publicity.doc_is_public(db, raw))
     body = _to_response(doc, actor.user_id, public=public)
     body["workspace_url"] = await urls.workspace_url(db, raw)
     body["can"] = await access.can_flags(actor, raw, ctx)

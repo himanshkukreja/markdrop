@@ -234,7 +234,7 @@ async def urls_for(db: AsyncIOMotorDatabase, page: dict, ids: list[str] | None =
     rows = await db[COLL].find(q, {"key": 1, "mime": 1}).to_list(length=MAX_PER_PAGE)
     if not rows:
         return {}
-    public = await is_public(db, page)
+    public = publicity.unsigned_ok(page, await is_public(db, page))
     epoch = publicity.epoch_of(page)
     ttl = int(get_settings().artifact_url_ttl_seconds)
     expires = None if public else (now_utc() + timedelta(seconds=ttl)).isoformat().replace("+00:00", "Z")

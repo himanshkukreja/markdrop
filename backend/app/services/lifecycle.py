@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -267,71 +268,66 @@ async def release_db_first(db: AsyncIOMotorDatabase, raw: dict, workspace_id: st
 # ── Workspace-wide (W1, W2, W3) ───────────────────────────────────────────────
 
 
-async def require_auth_toggled(db: AsyncIOMotorDatabase, workspace_id: str, on: bool) -> dict:
-    """W1/W2: every filed document's audience changes at once. ON: epoch bump
-    and guard every L/LP document's bytes; OFF: open L documents. Purge every
-    document plus the workspace listing and host tags."""
-    from app.services import transitions
+#   W1/W2 — require sign-in, in two parts (C-N8, D3):
+#
+#   1. ``begin_require_auth`` — in the request, a handful of database writes.
+#      The gate itself is read live from the workspace row (publicity.
+#      workspace_requires_auth), so the API answers 401 from the moment the
+#      setting is written. On top of that, one ``update_many`` bumps the access
+#      epoch of every document whose audience shrinks (read tickets and signed
+#      links already handed out die with it), marks each one ``access_dirty``
+#      and ``ra_pending`` ({ws, gen, at}), and the purge jobs for every cached
+#      render are written to the outbox in one bulk write.
+#   2. ``run_require_auth`` — everything slow, in the background: each marked
+#      document's stored bytes and page images re-derived from its current row
+#      and the current setting (bounded parallelism), and the purges sent.
+#      ``ra_pending`` is the durable cursor: a runner that dies leaves the rest
+#      marked, and the next one (the request's own kick, the background loop
+#      after a restart) carries on. One runner per workspace (a lease on the
+#      workspace row, renewed while it works).
+#
+#   Toggling back while a runner works: every toggle bumps ``require_auth_gen``
+#   and re-marks the documents with it, and a runner clears a mark only with a
+#   compare-and-set on the gen it read, so a document it handled under the old
+#   setting stays marked and is handled again with the new one.
 
-    changed = 0
-    slugs: list[str] = []
-    rows = await db["documents"].find({"workspace_id": workspace_id}).to_list(length=20_000)
-    for raw in rows:
-        slugs.append(raw.get("slug"))
-        slugs.extend(s for s in (raw.get("old_slugs") or []) if isinstance(s, str))
-        if on:
-            if (raw.get("access_level") or "link") != "link":
-                continue
-            try:
-                await transitions.change(db, raw, sets={}, narrows=True, require_auth_after=True,
-                                         purge=False)
-                changed += 1
-            except HTTPException:
-                # Left dirty for the reconciler; it re-derives from the row.
-                await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"access_dirty": True}})
-        else:
-            if publicity.is_public(raw, require_auth=False) and publicity._has_bytes(raw):
-                if not await publicity.apply(raw, True, epoch=publicity.epoch_of(raw)):
-                    await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"access_dirty": True}})
-                changed += 1
-            from app.services import page_assets
-
-            if not await page_assets.sync(db, raw):
-                await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"access_dirty": True}})
-            live.publish(raw.get("slug"), int(raw.get("rev") or 1))
-    keys = await revalidate.enqueue(db, slugs=slugs, tags=[f"wsl:{workspace_id}", *await _host_tags(db, workspace_id)],
-                                    attempt_now=not on)
-    if on:
-        # B2: turning sign-in on narrows every document; answer once the
-        # cached open renders are gone (bounded; the outbox retries the rest).
-        await revalidate.flush(db, keys)
-    return {"documents": len(rows), "changed": changed}
+RA_PENDING = "ra_pending"
+REQUIRE_AUTH_LEASE = timedelta(seconds=60)
+# How many documents a runner works on at once (each one is a few R2 calls).
+RA_CONCURRENCY = 8
+# How many cached-render purges are in flight at once while a runner works.
+RA_PURGE_CONCURRENCY = 16
+RA_BATCH = 500
+# A mark older than this, with nobody working on it, is the reconciler's.
+RA_STALE = timedelta(minutes=10)
+_RUNNERS: dict[str, asyncio.Task] = {}
 
 
-REQUIRE_AUTH_LEASE = timedelta(seconds=120)
+def _ra_affected(workspace_id: str) -> dict:
+    """Documents of the workspace whose audience the setting decides: link
+    level (stored, or by default), and pages that take their parent's access."""
+    return {"workspace_id": workspace_id,
+            "$or": [{"access_level": {"$in": ["link", None]}},
+                    {"parent_id": {"$ne": None}, "access_inherit": {"$ne": False}}]}
 
 
-async def sync_require_auth(db: AsyncIOMotorDatabase, workspace_id: str, *,
-                            wait: float = 10.0) -> dict | None:
-    """C-N8: make the documents reflect the workspace's *current*
-    ``require_auth_to_view`` — never the value a request saw before it wrote.
-
-    ``require_auth_applied`` records what the bytes, epochs and caches
-    reflect. Under a per-workspace lease (so two toggles can't open and close
-    the same objects at once) the holder re-reads the setting and applies it
-    until applied == wanted; every filed document is marked dirty first, so a
-    failure mid-way is repaired by the reconciler from the current row. A
-    request that finds the lease taken waits (bounded) for the holder, which
-    picks up its change on the next round."""
-    import asyncio
-
+def _ws_oid(workspace_id: str) -> ObjectId | None:
     try:
-        oid = ObjectId(workspace_id)
+        return ObjectId(workspace_id)
     except Exception:
         return None
-    deadline = _now() + timedelta(seconds=wait)
+
+
+async def begin_require_auth(db: AsyncIOMotorDatabase, workspace_id: str) -> dict | None:
+    """The synchronous part of W1/W2 (see above). Returns None when the
+    documents already reflect the current setting."""
+    from pymongo import ReturnDocument
+
+    oid = _ws_oid(workspace_id)
+    if oid is None:
+        return None
     result: dict | None = None
-    while True:
+    for _attempt in range(5):
         row = await db["workspaces"].find_one({"_id": oid}, {"settings": 1, "require_auth_applied": 1})
         if row is None:
             return result
@@ -344,31 +340,315 @@ async def sync_require_auth(db: AsyncIOMotorDatabase, workspace_id: str, *,
             return result
         if bool(applied) == want:
             return result
-        now = _now()
-        lease = await db["workspaces"].update_one(
-            {"_id": oid, "$or": [{"require_auth_lock": None}, {"require_auth_lock": {"$lt": now}}]},
-            {"$set": {"require_auth_lock": now + REQUIRE_AUTH_LEASE}})
-        if lease.matched_count == 0:
-            if _now() >= deadline:
-                log.warning("require_auth of %s still being applied elsewhere", workspace_id)
-                return result
-            await asyncio.sleep(0.1)
+        # The generation and the setting from one snapshot of the row: a
+        # toggle landing after this bumps the generation again and re-marks.
+        # (``require_auth_running`` before anything is marked: the background
+        # loop resumes a runner that died, whatever happens next.)
+        row = await db["workspaces"].find_one_and_update(
+            {"_id": oid}, {"$inc": {"require_auth_gen": 1}, "$set": {"require_auth_running": True}},
+            projection={"settings": 1, "require_auth_gen": 1}, return_document=ReturnDocument.AFTER)
+        if row is None:
+            return result
+        gen = int(row.get("require_auth_gen") or 0)
+        want = bool((row.get("settings") or {}).get("require_auth_to_view"))
+        result = await _mark_for_require_auth(db, workspace_id, want, gen)
+        # The generation moves again once the marks are in, and the job is
+        # (re)declared running: a runner that looked for marks before they
+        # landed can't record the job as finished (its compare-and-set on the
+        # generation fails), and one that already did is overruled here.
+        await db["workspaces"].update_one(
+            {"_id": oid},
+            {"$inc": {"require_auth_gen": 1},
+             "$set": {"require_auth_running": True,
+                      "require_auth_job": {"want": want, "gen": gen, "total": result["changed"],
+                                           "started_at": _now(), "finished_at": None}}})
+        # What was marked is what is applied; the loop then re-reads the
+        # setting, so a toggle that wrote in between (and may have found
+        # "applied" equal to its value, so did nothing) gets its own round.
+        await db["workspaces"].update_one({"_id": oid}, {"$set": {"require_auth_applied": want}})
+    log.warning("require sign-in of %s kept changing while it was applied", workspace_id)
+    return result
+
+
+async def _mark_for_require_auth(db: AsyncIOMotorDatabase, workspace_id: str, want: bool, gen: int) -> dict:
+    """One ``update_many``: every affected document marked (and, turning
+    sign-in on, its epoch bumped); sockets told; every cached render's purge
+    written to the outbox (sent by the runner)."""
+    mark = {"ws": workspace_id, "gen": gen, "at": _now()}
+    update: dict = {"$set": {"access_dirty": True, RA_PENDING: mark}}
+    if want:
+        update["$inc"] = {"access_epoch": 1}
+    res = await db["documents"].update_many(_ra_affected(workspace_id), update)
+    # Open sockets re-check (a narrowing closes them); every cached render of
+    # the workspace goes, the unaffected documents' too (their gate and
+    # branding differ under sign-in).
+    rows = await db["documents"].find({"workspace_id": workspace_id},
+                                      {"slug": 1, "old_slugs": 1, "rev": 1, RA_PENDING: 1}).to_list(length=20_000)
+    slugs: list[str] = []
+    for r in rows:
+        slugs.append(r.get("slug"))
+        slugs.extend(s for s in (r.get("old_slugs") or []) if isinstance(s, str))
+        if (r.get(RA_PENDING) or {}).get("gen") == gen:
+            if want:
+                live.access_changed(r.get("slug"))
+            else:
+                live.publish(r.get("slug"), int(r.get("rev") or 1))
+    await revalidate.enqueue(db, slugs=slugs, tags=[f"wsl:{workspace_id}", *await _host_tags(db, workspace_id)],
+                             attempt_now=False)
+    return {"documents": len(rows), "changed": res.modified_count, "want": want, "gen": gen}
+
+
+async def _apply_marked(db: AsyncIOMotorDatabase, raw: dict) -> bool:
+    """Re-derive one marked document's bytes and page images from its row and
+    the *current* setting, then clear its mark — only if nobody re-marked or
+    changed it meanwhile (else it is handled again). A failure leaves it
+    dirty for the reconciler. Returns True when it is clean."""
+    from app.services import page_assets
+
+    mark = raw.get(RA_PENDING) or {}
+    ok = True
+    try:
+        public = await publicity.doc_is_public(db, raw)
+        if publicity._has_bytes(raw):
+            ok = await publicity.apply(raw, public, epoch=publicity.epoch_of(raw))
+        ok = await page_assets.sync(db, raw) and ok
+    except Exception:
+        log.warning("re-deriving %s for sign-in failed", raw.get("slug"), exc_info=True)
+        ok = False
+    marked = {"_id": raw["_id"], f"{RA_PENDING}.ws": mark.get("ws"), f"{RA_PENDING}.gen": mark.get("gen")}
+    if ok:
+        res = await db["documents"].update_one(
+            {**marked, "access_epoch": raw.get("access_epoch"), "access_level": raw.get("access_level"),
+             "read_password_hash": raw.get("read_password_hash"), "workspace_id": raw.get("workspace_id")},
+            {"$set": {"access_dirty": False}, "$unset": {RA_PENDING: ""}})
+        if res.matched_count:
+            return True
+    # Re-marked (handled again with the newer setting) or changed by someone
+    # else (their own transition re-derived it; the reconciler checks).
+    await db["documents"].update_one(marked, {"$unset": {RA_PENDING: ""}})
+    return False
+
+
+async def _take_ra_lease(db: AsyncIOMotorDatabase, oid: ObjectId, holder: str) -> bool:
+    now = _now()
+    res = await db["workspaces"].update_one(
+        {"_id": oid, "$or": [{"require_auth_lock": None}, {"require_auth_lock": {"$lt": now}},
+                             {"require_auth_lock_holder": holder}]},
+        {"$set": {"require_auth_lock": now + REQUIRE_AUTH_LEASE, "require_auth_lock_holder": holder}})
+    return res.matched_count == 1
+
+
+async def run_require_auth(db: AsyncIOMotorDatabase, workspace_id: str) -> dict | None:
+    """The background part of W1/W2: work through every document marked by
+    this workspace until none is left. None when another runner holds the
+    workspace's lease (it picks up anything marked meanwhile)."""
+    import secrets
+
+    oid = _ws_oid(workspace_id)
+    if oid is None:
+        return None
+    holder = secrets.token_hex(8)
+    if not await _take_ra_lease(db, oid, holder):
+        return None
+    lost = asyncio.Event()
+
+    async def heartbeat() -> None:
+        while True:
+            await asyncio.sleep(REQUIRE_AUTH_LEASE.total_seconds() / 4)
+            if not await _take_ra_lease(db, oid, holder):
+                lost.set()
+                return
+
+    beat = asyncio.get_running_loop().create_task(heartbeat())
+    done = failed = 0
+    try:
+        for _round in range(1000):
+            if lost.is_set():
+                break
+            rows = await db["documents"].find({f"{RA_PENDING}.ws": workspace_id}).limit(RA_BATCH).to_list(
+                length=RA_BATCH)
+            if not rows:
+                break
+            # Every cached render of the workspace (the outbox already holds
+            # the jobs; only the due ones go), bounded, alongside the bytes.
+            keys = await _workspace_purge_keys(db, workspace_id)
+            purge = asyncio.get_running_loop().create_task(
+                revalidate.run_due(db, keys=keys, limit=len(keys) * 2, concurrency=RA_PURGE_CONCURRENCY))
+            queue = list(reversed(rows))
+
+            async def lane() -> None:
+                nonlocal done, failed
+                while queue and not lost.is_set():
+                    raw = queue.pop()
+                    if await _apply_marked(db, raw):
+                        done += 1
+                    else:
+                        failed += 1
+
+            await asyncio.gather(*(lane() for _ in range(min(RA_CONCURRENCY, len(rows)))))
+            try:
+                await purge
+            except Exception:  # pragma: no cover - the outbox keeps them
+                log.warning("purges for %s's sign-in change failed; left to the worker", workspace_id,
+                            exc_info=True)
+        if not lost.is_set() and (done or failed) and not await publicity.workspace_requires_auth(db, workspace_id):
+            # Reopened: renders cached while the objects were catching up carry
+            # signed links (publicity.unsigned_ok), which lapse. Once more,
+            # now that the objects are public.
+            keys = await revalidate.rearm(db, await _workspace_purge_keys(db, workspace_id))
+            await revalidate.run_due(db, keys=keys, limit=len(keys) * 2, concurrency=RA_PURGE_CONCURRENCY)
+        if not lost.is_set():
+            # Finished — unless a toggle overlapped: the generation is read
+            # before the last look for marks, and a toggle bumps it before and
+            # after it marks (begin_require_auth).
+            ws = await db["workspaces"].find_one({"_id": oid}, {"require_auth_gen": 1})
+            gen = (ws or {}).get("require_auth_gen")
+            if ws is not None and not await db["documents"].find_one({f"{RA_PENDING}.ws": workspace_id},
+                                                                      {"_id": 1}):
+                await db["workspaces"].update_one(
+                    {"_id": oid, "require_auth_gen": gen},
+                    {"$set": {"require_auth_job.finished_at": _now()}, "$unset": {"require_auth_running": ""}})
+    finally:
+        beat.cancel()
+        await db["workspaces"].update_one({"_id": oid, "require_auth_lock_holder": holder},
+                                          {"$set": {"require_auth_lock": None, "require_auth_lock_holder": None}})
+    return {"done": done, "failed": failed}
+
+
+async def _workspace_purge_keys(db: AsyncIOMotorDatabase, workspace_id: str) -> list[str]:
+    rows = await db["documents"].find({"workspace_id": workspace_id}, {"slug": 1, "old_slugs": 1}).to_list(
+        length=20_000)
+    keys = [revalidate.doc_key(s) for r in rows
+            for s in [r.get("slug"), *(r.get("old_slugs") or [])] if isinstance(s, str) and s]
+    return keys + [revalidate.tag_key(t) for t in [f"wsl:{workspace_id}", *await _host_tags(db, workspace_id)]]
+
+
+def kick_require_auth(db: AsyncIOMotorDatabase, workspace_id: str) -> asyncio.Task | None:
+    """Start a runner in this process now (one per workspace per process; the
+    lease keeps it to one overall). Returns its task."""
+    task = _RUNNERS.get(workspace_id)
+    if task is not None and not task.done():
+        return task
+    try:
+        task = asyncio.get_running_loop().create_task(run_require_auth(db, workspace_id))
+    except RuntimeError:
+        return None
+    _RUNNERS[workspace_id] = task
+
+    def _done(t: asyncio.Task) -> None:
+        if _RUNNERS.get(workspace_id) is t:
+            _RUNNERS.pop(workspace_id, None)
+        if not t.cancelled() and t.exception() is not None:
+            log.warning("require sign-in runner for %s failed", workspace_id, exc_info=t.exception())
+
+    task.add_done_callback(_done)
+    return task
+
+
+async def require_auth_progress(db: AsyncIOMotorDatabase, workspace_id: str, row: dict | None = None) -> dict | None:
+    """``{"state": "applying" | "done", "pending", "total", "want"}`` for the
+    settings page, or None when no sign-in change was ever applied in the
+    background. ``pending`` counts documents whose bytes, images and cached
+    renders still follow the old setting (the gate itself already doesn't)."""
+    oid = _ws_oid(workspace_id)
+    if oid is None:
+        return None
+    if row is None or "require_auth_job" not in row:
+        row = await db["workspaces"].find_one({"_id": oid}, {"require_auth_job": 1, "require_auth_running": 1})
+    job = (row or {}).get("require_auth_job")
+    if not job:
+        return None
+    pending = 0
+    if row.get("require_auth_running") or not job.get("finished_at"):
+        pending = await db["documents"].count_documents({f"{RA_PENDING}.ws": workspace_id})
+    applying = bool(pending) or (bool(row.get("require_auth_running")) and not job.get("finished_at"))
+    total = max(int(job.get("total") or 0), pending)
+    return {"state": "applying" if applying else "done", "pending": pending, "total": total,
+            "want": bool(job.get("want"))}
+
+
+async def sync_require_auth(db: AsyncIOMotorDatabase, workspace_id: str, *,
+                            wait: float = 10.0) -> dict | None:
+    """C-N8: make the documents reflect the workspace's *current*
+    ``require_auth_to_view`` — never the value a request saw before it wrote.
+
+    The database part is done before this returns (``begin_require_auth``:
+    the gate holds from here on); the rest runs in the background and this
+    waits for it up to ``wait`` seconds — a small workspace is done by then,
+    a big one answers with progress (``require_auth_progress``) and carries
+    on. Returns None when there was nothing to do."""
+    begun = await begin_require_auth(db, workspace_id)
+    if begun is None:
+        # Nothing new. One still applying (another request's, or a stopped
+        # process's) is nudged along, without waiting for it.
+        progress = await require_auth_progress(db, workspace_id)
+        if progress is not None and progress["state"] == "applying":
+            kick_require_auth(db, workspace_id)
+        return None
+    task = kick_require_auth(db, workspace_id)
+    deadline = asyncio.get_running_loop().time() + max(0.0, wait)
+    while True:
+        if task is not None and not task.done():
+            left = deadline - asyncio.get_running_loop().time()
+            if left <= 0:
+                break
+            await asyncio.wait({task}, timeout=min(left, 0.25))
             continue
+        progress = await require_auth_progress(db, workspace_id)
+        if progress is None or progress["state"] == "done" or asyncio.get_running_loop().time() >= deadline:
+            break
+        # Another process's runner holds the lease: watch it finish (bounded).
+        await asyncio.sleep(0.1)
+        task = kick_require_auth(db, workspace_id)
+    progress = await require_auth_progress(db, workspace_id)
+    return {**(begun or {}), "progress": progress}
+
+
+async def resume_require_auth(db: AsyncIOMotorDatabase) -> int:
+    """Background loop: finish what a stopped process left (its runner's
+    lease lapses), and apply a setting a request wrote but died before
+    applying. Returns how many workspaces were worked on."""
+    n = 0
+    now = _now()
+    ids: list = []
+    async for w in db["workspaces"].find(
+            {"require_auth_running": True,
+             "$or": [{"require_auth_lock": None}, {"require_auth_lock": {"$lt": now}}]}, {"_id": 1}):
+        ids.append(w["_id"])
+    last = _RESUME_SCAN.get("t")
+    if last is None or now - last >= RESUME_SCAN_EVERY:
+        _RESUME_SCAN["t"] = now
+        ids.extend(await _unapplied_workspaces(db))
+    for oid in dict.fromkeys(ids):
+        wid = str(oid)
         try:
-            while True:
-                row = await db["workspaces"].find_one({"_id": oid}, {"settings": 1, "require_auth_applied": 1})
-                if row is None:
-                    break
-                want = bool((row.get("settings") or {}).get("require_auth_to_view"))
-                if bool(row.get("require_auth_applied")) == want:
-                    break
-                await db["documents"].update_many({"workspace_id": workspace_id},
-                                                  {"$set": {"access_dirty": True}})
-                result = await require_auth_toggled(db, workspace_id, want)
-                await db["workspaces"].update_one({"_id": oid}, {"$set": {"require_auth_applied": want}})
-        finally:
-            await db["workspaces"].update_one({"_id": oid}, {"$set": {"require_auth_lock": None}})
-        return result
+            await begin_require_auth(db, wid)
+            res = await run_require_auth(db, wid)
+            if res is not None:
+                n += 1
+        except Exception:
+            log.warning("resuming the sign-in change of %s failed", wid, exc_info=True)
+    return n
+
+
+RESUME_SCAN_EVERY = timedelta(seconds=60)
+_RESUME_SCAN: dict[str, datetime] = {}
+
+
+async def _unapplied_workspaces(db: AsyncIOMotorDatabase) -> list:
+    """Workspaces whose setting differs from what their documents reflect (a
+    request that wrote the setting and died before marking anything)."""
+    ids: list = []
+    try:
+        async for w in db["workspaces"].find(
+                {"require_auth_applied": {"$exists": True},
+                 "$expr": {"$ne": [{"$toBool": "$require_auth_applied"},
+                                   {"$toBool": {"$ifNull": ["$settings.require_auth_to_view", False]}}]}},
+                {"_id": 1}):
+            ids.append(w["_id"])
+    except Exception:  # pragma: no cover - a store without $expr
+        pass
+    return ids
 
 
 async def _host_tags(db: AsyncIOMotorDatabase, workspace_id: str) -> list[str]:
@@ -534,9 +814,12 @@ async def reconcile_document(db: AsyncIOMotorDatabase, raw: dict) -> bool:
 
     if not await page_assets.sync(db, raw):
         return False
+    # A stale sign-in mark (its runner is long gone) is cleared with the row:
+    # compare-and-set on it, so a fresh one is never lost.
+    clean = {"$set": {"access_dirty": False}, "$unset": {RA_PENDING: ""}}
     if not publicity._has_bytes(raw):
         await db["documents"].update_one(
-            {"_id": raw["_id"], "access_epoch": raw.get("access_epoch")}, {"$set": {"access_dirty": False}})
+            {"_id": raw["_id"], "access_epoch": raw.get("access_epoch"), RA_PENDING: raw.get(RA_PENDING)}, clean)
         return True
     public = await publicity.doc_is_public(db, raw)
     if not await publicity.apply(raw, public, epoch=publicity.epoch_of(raw)):
@@ -544,15 +827,19 @@ async def reconcile_document(db: AsyncIOMotorDatabase, raw: dict) -> bool:
     res = await db["documents"].update_one(
         {"_id": raw["_id"], "access_epoch": raw.get("access_epoch"),
          "access_level": raw.get("access_level"), "read_password_hash": raw.get("read_password_hash"),
-         "workspace_id": raw.get("workspace_id")},
-        {"$set": {"access_dirty": False}})
+         "workspace_id": raw.get("workspace_id"), RA_PENDING: raw.get(RA_PENDING)},
+        clean)
     return res.matched_count == 1
 
 
 async def reconcile_once(db: AsyncIOMotorDatabase, *, limit: int = 200, full: bool = False) -> dict:
     """Dirty rows (and with ``full``, dangling workspace refs and orphan grants)."""
     fixed = failed = 0
-    async for raw in db["documents"].find({"access_dirty": True}).limit(limit):
+    # Documents a workspace's sign-in runner is working through are its own
+    # (two writers on one object could leave it open); a mark older than
+    # RA_STALE means that runner is gone and nobody resumed it.
+    query = {"access_dirty": True, "$or": [{RA_PENDING: None}, {f"{RA_PENDING}.at": {"$lt": _now() - RA_STALE}}]}
+    async for raw in db["documents"].find(query).limit(limit):
         try:
             if await reconcile_document(db, raw):
                 fixed += 1

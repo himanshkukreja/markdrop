@@ -157,11 +157,22 @@ def sign(blob_key: str, *, epoch: int, ttl: int | None = None) -> str:
     )
 
 
+def unsigned_ok(doc: Any, public: bool) -> bool:
+    """Whether a reader may be handed *unsigned* byte URLs: the document is
+    public and its stored objects already say so. While a workspace's sign-in
+    change is still being carried through (``ra_pending``, services/
+    lifecycle.py) the objects may hold the old flag, so links are signed —
+    a token works whichever way the flag currently points."""
+    return public and not _get(doc, "ra_pending")
+
+
 def byte_urls(doc: Any, *, public: bool) -> dict[str, str | None]:
     """artifact_url / download_url / poster_url for a reader already past every
     gate. Signed (``?t=``, carrying the epoch) unless the bytes are public."""
     from app.services import artifact as art_service
     from app.services import r2
+
+    public = unsigned_ok(doc, public)
 
     out: dict[str, str | None] = {"artifact_url": None, "download_url": None, "poster_url": None}
     if _get(doc, "kind") != "artifact" or not r2.is_configured():
