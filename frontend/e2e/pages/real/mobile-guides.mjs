@@ -86,7 +86,7 @@ const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token
 
 
 /** Runs in the page: every rule above, as [{rule, who, detail}]. */
-function measure({ checkTargets }) {
+function measure({ checkTargets, skip }) {
   const vw = document.documentElement.clientWidth;
   const vh = window.innerHeight;
   const out = [];
@@ -119,6 +119,7 @@ function measure({ checkTargets }) {
       if (a.getAttribute("aria-hidden") === "true" && a.closest("[inert], [aria-hidden=true]") && !a.closest("[role=dialog]")) return false;
       if (a.hasAttribute("inert")) return false;
       if (a.hasAttribute("data-audit-skip")) return false;
+      if (skip && a.matches(skip)) return false;
       const cs = getComputedStyle(a);
       if (cs.clipPath === "inset(50%)" || cs.clip === "rect(0px, 0px, 0px, 0px)") return false;
     }
@@ -189,6 +190,11 @@ function measure({ checkTargets }) {
       if (el.matches("[role=listbox], [role=menu], [role=dialog], [role=grid], [role=tabpanel], [role=region], [role=group], ul, ol, main, section, form, div[tabindex='0'][class*='scroll']")) continue;
       if (el.matches("input[type=checkbox], input[type=radio]") && el.closest("label")) continue; // the label is the target
       let target = el;
+      // A field inside its label: the whole label takes the tap.
+      if (el.matches("input, textarea") && el.closest("label") && visible(el.closest("label"))) target = el.closest("label");
+      // Text in the visual editor's page (a card's title, a callout's title, the page's title): a line
+      // of the page you tap into, like a paragraph, not a control.
+      if (el.matches("input, textarea") && el.closest('[contenteditable="true"], .dxe-header')) continue;
       if (!visible(target)) {
         // A hidden native input behind a custom control: its label is the target.
         if (el.matches("input") && el.closest("label") && visible(el.closest("label"))) target = el.closest("label");
@@ -196,8 +202,9 @@ function measure({ checkTargets }) {
       }
       const r = target.getBoundingClientRect();
       // Inline links inside running text are exempt (WCAG 2.5.8's inline exception).
-      if (el.tagName === "A" && getComputedStyle(el).display === "inline") {
-        const block = el.parentElement;
+      if (el.tagName === "A" && /^inline/.test(getComputedStyle(el).display)) {
+        let block = el.parentElement;
+        while (block && /^inline/.test(getComputedStyle(block).display)) block = block.parentElement;
         const t = (block?.innerText || "").trim().length;
         if (t > (el.innerText || "").trim().length + 12) continue;
       }
@@ -549,7 +556,9 @@ for (const theme of themes) {
             if (typeof r === "string") extra = r;
           }
           await p.waitForTimeout(250);
-          const res = [...(await p.evaluate(measure, { checkTargets: true })), ...(await p.evaluate(measureImages))];
+          // Analytics sits in the app's shell: its header is fix/mobile-shell's, not measured here.
+          const skip = name.startsWith("an-") ? "body header:not(main header)" : null;
+          const res = [...(await p.evaluate(measure, { checkTargets: true, skip })), ...(await p.evaluate(measureImages))];
           if (extra) res.push({ rule: name === "site-ask" ? "keyboard" : name === "an-tooltip" ? "touch" : "state", who: name, detail: extra });
           if (!action) {
             const s = await stickyCheck(p).catch(() => null);
@@ -590,7 +599,7 @@ if (!ONLY || ONLY.has("rotate")) {
       for (const d of [b, a]) {
         await p.setViewportSize({ width: d.w, height: d.h });
         await p.waitForTimeout(700);
-        const res = (await p.evaluate(measure, { checkTargets: false })).filter((f) => ["hscroll", "offscreen", "popup", "overlap"].includes(f.rule));
+        const res = (await p.evaluate(measure, { checkTargets: false, skip: null })).filter((f) => ["hscroll", "offscreen", "popup", "overlap"].includes(f.rule));
         states++;
         for (const f of res) findings.push({ browser: BROWSER, theme: "light", device: `${a.name}→${d.name}`, role: "owner", state: `rotate:${u.replace(APP, "").replace(/[0-9a-f]{24}/g, "…")}`, ...f });
       }

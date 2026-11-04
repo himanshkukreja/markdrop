@@ -138,7 +138,7 @@ function Address({ site, className }: { site: SiteSummary; className?: string })
     );
   }
   return (
-    <a href={`https://${address}`} target="_blank" rel="noopener noreferrer" className={cx(cls, "md-focus max-w-full self-start rounded no-underline hover:text-text hover:underline")} title={`${address} (opens in a new tab)`}>
+    <a href={`https://${address}`} target="_blank" rel="noopener noreferrer" className={cx(cls, "md-focus md-touch-hit max-w-full self-start rounded no-underline hover:text-text hover:underline")} title={`${address} (opens in a new tab)`}>
       <span className="ph-sensitive ph-mask truncate">{address}</span>
       <Icon name="external" size={12} className="shrink-0" />
     </a>

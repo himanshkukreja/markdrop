@@ -3,9 +3,9 @@
  * studio, and the dialogs, drawers and menus it portals to <body>), in Analytics and on published
  * guides (html:has(.md-touch): their roots carry the class). Mouse and trackpad layouts are untouched.
  *
- *  - Every control is at least 44 × 44 px to the finger. Compact controls keep their look and get an
- *    invisible hit area (::after) that grows them to 44 px; controls inside a scroller (which would
- *    clip that area) grow for real.
+ *  - Every control is at least 44 × 44 px to the finger: buttons, segments, tabs, menu items and
+ *    fields grow for real (as on iOS and Android, a toolbar row is 44 px). A link or chip that has
+ *    to keep its look opts in to .md-touch-hit: an invisible 44 px hit area centred on it (::after).
  *  - Text fields are 16 px: iOS zooms the page into any field under 16 px when it takes focus.
  *  - Nothing reads under 12 px.
  *
@@ -13,13 +13,21 @@
  */
 @media (pointer: coarse) {
   :is(html[data-studio], html:has(.md-touch)) {
-    /* 1. Hit areas: a 44 px box centred on the control, never smaller than the control itself. */
-    & :is(.md-btn, .md-seg__opt, .md-touch-hit) {
-      position: relative;
-    }
-    /* A link or button that only opts in to the hit area keeps any position it already has. */
+    /* 1. Real sizes. */
+    & .md-btn { min-height: 44px; }
+    & .md-iconbtn { min-width: 44px; }
+    & .md-seg__opt { min-height: 44px; }
+    & .md-seg--icons .md-seg__opt { min-width: 44px; }
+    & .md-tab { min-height: 44px; }
+    & .md-menu__item { min-height: 44px; }
+    & .md-disclosure__btn { min-height: 44px; }
+    & :is(.md-input, .md-select):not(textarea) { min-height: 44px; }
+    & .md-input-group:has(> .md-input--bare) { min-height: 44px; }
+
+    /* Hit areas: a 44 px box centred on the control, never smaller than the control itself. */
+    & .md-touch-hit { position: relative; }
     & .md-touch-hit:is(.absolute, .fixed, .sticky) { position: revert-layer; }
-    & :is(.md-btn, .md-seg__opt, .md-touch-hit)::after {
+    & :is(.md-touch-hit, .md-tag__x)::after {
       content: "";
       position: absolute;
       top: min(0px, calc((100% - 44px) / 2));
@@ -27,15 +35,6 @@
       left: min(0px, calc((100% - 44px) / 2));
       right: min(0px, calc((100% - 44px) / 2));
     }
-    /* A loading button's spinner keeps its own box. */
-    & .md-btn__spinner::after { content: none; }
-
-    /* In a scroller the hit area would be clipped: these grow for real. */
-    & .md-tab { min-height: 44px; }
-    & .md-tabs--pill .md-tab { min-height: 40px; }
-    & .md-menu__item { min-height: 44px; }
-    & :is(.md-input, .md-select):not(textarea) { min-height: 44px; }
-    & .md-input-group:has(> .md-input--bare) { min-height: 44px; }
 
     /* 2. Text fields at 16 px. */
     & :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="submit"], [type="button"], [type="reset"], [type="image"]), textarea, select) {
@@ -49,4 +48,19 @@
     & .md-badge--sm { height: 20px; }
     & .dx-icode { font-size: max(12px, 0.875em); }
   }
+
+  /* The Guides editor's own small controls keep their place in the page and get the invisible hit
+     area (the Pages editor keeps its sizes: html[data-studio] only). */
+  :where(html[data-studio]) :where(.dxe-callout__kindbtn, .dxe-card__grip, .dxe-iconpick, .dxe-code__wrap, .dxe-linkbtn) {
+    position: relative;
+  }
+  html[data-studio] :is(.dxe-callout__kindbtn, .dxe-card__grip, .dxe-iconpick, .dxe-code__wrap, .dxe-linkbtn)::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc((100% - 44px) / 2));
+    bottom: min(0px, calc((100% - 44px) / 2));
+    left: min(0px, calc((100% - 44px) / 2));
+    right: min(0px, calc((100% - 44px) / 2));
+  }
+  html[data-studio] :is(.dxe-code__lang, .dxe-code__title, .dxe-card select) { min-height: 44px; }
 }

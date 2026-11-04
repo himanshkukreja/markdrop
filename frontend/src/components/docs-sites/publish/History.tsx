@@ -101,7 +101,7 @@ export function History({ builds, restoring, onRestore, className }: {
               {all ? "Show fewer" : `See all ${builds.length} publishes`}
             </button>
           )}
-          {compareTwo && <Anchor href={compareTwo} className="text-accent-text underline-offset-2 hover:underline">Compare two publishes</Anchor>}
+          {compareTwo && <Anchor href={compareTwo} className="md-touch-hit text-accent-text underline-offset-2 hover:underline">Compare two publishes</Anchor>}
         </span>
       )}
     </section>

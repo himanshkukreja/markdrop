@@ -164,13 +164,13 @@ function StartTile({ scope, bar }: { scope: StudioScope | null; bar?: boolean })
     <div className="flex h-full min-h-[240px] flex-col justify-center gap-3.5 rounded-xl border-[1.5px] border-dashed border-border-strong p-6">
       <span className="grid size-10 place-items-center rounded-lg bg-accent-soft text-accent-text" aria-hidden><Icon name="plus" size={20} /></span>
       <span className="flex flex-col gap-1">
-        <Anchor href={studioNew(scope)} className="md-focus self-start rounded text-[16px] font-semibold leading-6 text-text no-underline hover:underline">Start a new guide</Anchor>
+        <Anchor href={studioNew(scope)} className="md-focus self-start rounded text-[16px] font-semibold leading-6 text-text no-underline hover:underline pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">Start a new guide</Anchor>
         <span className="text-body text-text-secondary">Blank, from a template, from GitBook or a GitHub repository, or an API reference from an OpenAPI file.</span>
       </span>
       <ul className="flex flex-wrap gap-1.5" aria-label="Ways to start">
         {STARTS.map((s) => (
           <li key={s.start}>
-            <Anchor href={studioNew(scope, s.start)} className="md-focus inline-flex rounded-full no-underline" title={s.title}>
+            <Anchor href={studioNew(scope, s.start)} className="md-focus md-touch-hit inline-flex rounded-full no-underline" title={s.title}>
               <Badge icon={s.icon} className="hover:bg-surface-hover">{s.short}</Badge>
             </Anchor>
           </li>

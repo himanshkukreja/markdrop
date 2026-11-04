@@ -888,9 +888,13 @@ html.dx-modal-open { overflow: hidden; }
 
 /* ── Touch screens (phones, tablets): 44 px targets; text sizes are in styles/touch.css ── */
 @media (pointer: coarse) {
-  .dx-brand, .dx-otp, .dx-sheet__tab, .dx-chapters__item { min-height: 44px; }
+  .dx-brand, .dx-otp, .dx-chapters__item, .dx-palette__row, .dx-followup, .dx-seg__opt { min-height: 44px; }
+  .dx-sheet__tab { min-height: 44px; min-width: 44px; }
+  .dx-palette__input { min-height: 44px; }
+  .dx-composer__input { min-height: 44px; }
   .dx-chapters__item { align-items: center; }
   .dx-chip { min-height: 44px; display: inline-flex; align-items: center; }
   .dx-ask__input { height: 44px; }
+  .dx-area__title, .dx-area__links a,
   .dx-footer a, .dx-footer__choices, .dx-crumbs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
 }

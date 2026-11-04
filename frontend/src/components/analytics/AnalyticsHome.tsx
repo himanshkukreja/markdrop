@@ -131,7 +131,7 @@ export default function AnalyticsHome() {
                       );
                       return (
                         <li key={`${i.slug}-${i.key}`} className="border-t border-border pt-2.5 pb-1 first:border-t-0 first:pt-0">
-                          {href ? <Anchor href={href} className="md-focus block rounded-sm no-underline hover:[&>div:first-child]:text-accent-text">{body}</Anchor> : body}
+                          {href ? <Anchor href={href} className="md-focus block rounded-sm no-underline hover:[&>div:first-child]:text-accent-text pointer-coarse:min-h-11">{body}</Anchor> : body}
                         </li>
                       );
                     })}

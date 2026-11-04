@@ -112,7 +112,7 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
         trigger={
           <button
             type="button"
-            className="md-focus grid size-9 shrink-0 cursor-pointer place-items-center rounded-full max-md:size-11"
+            className="md-focus grid size-9 shrink-0 cursor-pointer place-items-center rounded-full max-md:size-11 pointer-coarse:size-11"
             aria-label={`Account menu for ${user.name || user.email}`}
             title={user.email}
           >

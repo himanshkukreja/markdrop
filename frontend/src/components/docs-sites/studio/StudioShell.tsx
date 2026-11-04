@@ -25,7 +25,7 @@ import { StudioSignInFailed, useHandoffStuck } from "./StudioSignIn";
  */
 export function StudioWordmark({ size = 26, compact, className }: { size?: number; compact?: boolean; className?: string }) {
   return (
-    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline pointer-coarse:min-h-11", className)} aria-label="Markdrop Guides home">
+    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center justify-center gap-2 rounded-md text-text no-underline pointer-coarse:min-h-11 pointer-coarse:min-w-11", className)} aria-label="Markdrop Guides home">
       <MarkdropMark size={size} className="sm:hidden" />
       <span className={cx("docs-studio__word text-[17px] leading-none", compact && "max-sm:hidden")} aria-hidden>
         <em>Guides</em>
@@ -105,7 +105,7 @@ function WorkspaceBadge() {
   const label = current.workspace_id ? name : "Personal";
   if (!label) return null;
   return (
-    <Anchor href={studioHome(scopeOf(current))} className="md-focus hidden shrink-0 rounded-full no-underline sm:inline-flex" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
+    <Anchor href={studioHome(scopeOf(current))} className="md-focus md-touch-hit hidden shrink-0 rounded-full no-underline sm:inline-flex" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
       <Badge size="sm" icon={current.workspace_id ? "users" : "user"}>{label}</Badge>
     </Anchor>
   );
@@ -124,7 +124,7 @@ function GuidesDocsLink() {
       rel="noopener"
       title="Markdrop Guides documentation (opens in a new tab)"
       aria-label="Docs: Markdrop Guides documentation (opens in a new tab)"
-      className="md-focus inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2.5 text-body text-text-secondary no-underline transition-colors hover:bg-surface-hover hover:text-text max-sm:size-11 max-sm:justify-center max-sm:px-0"
+      className="md-focus inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2.5 pointer-coarse:h-11 text-body text-text-secondary no-underline transition-colors hover:bg-surface-hover hover:text-text max-sm:size-11 max-sm:justify-center max-sm:px-0"
     >
       <Icon name="doc" size={18} className="sm:hidden" />
       <span className="max-sm:hidden">Docs</span>
