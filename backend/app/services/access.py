@@ -77,7 +77,9 @@ ACTIONS = frozenset({
 # workspace pin above this check (``scope``) is what keeps every one of these inside the token's
 # own workspace; this set only says *which* actions, never *where*.
 TENANT_ACTIONS = frozenset({"read", "list", "beacon", "subscribe",
-                            "edit_content", "list_versions", "restore_version"})
+                            "edit_content", "list_versions", "restore_version",
+                            # Sharing with specific people (never the access level): 2026-11-04.
+                            "see_grants", "share", "revoke_grant"})
 # Actions that change something (MCP needs documents:write for these).
 WRITE_ACTIONS = ACTIONS - frozenset({
     "read", "list", "see_grants", "view_stats", "list_versions", "subscribe", "beacon",

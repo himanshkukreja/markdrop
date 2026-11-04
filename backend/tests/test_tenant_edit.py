@@ -179,13 +179,9 @@ class ForbiddenOnTheDomain(TenantWorld):
             ("PATCH", f"/api/v1/documents/{slug}/slug", {"new_slug": "taken-over"}),
             ("GET", f"/api/v1/documents/{slug}/slug-check?new_slug=abc", None),
             ("POST", f"/api/v1/documents/{slug}/edit-secret/rotate", None),
-            ("GET", f"/api/v1/documents/{slug}/access", None),
             ("PUT", f"/api/v1/documents/{slug}/access/level", {"level": "link"}),
             ("PUT", f"/api/v1/documents/{slug}/access/resharing", {"allow": True}),
             ("PUT", f"/api/v1/documents/{slug}/access/presence", {"show": False}),
-            ("POST", f"/api/v1/documents/{slug}/access/people",
-             {"email": "x@example.com", "role": "editor", "notify": False}),
-            ("DELETE", f"/api/v1/documents/{slug}/access/people/gv@example.com", None),
             ("POST", "/api/v1/documents/access/level", {"slugs": [slug], "level": "link"}),
             ("PUT", f"/api/v1/documents/{slug}/parent", {"parent": None}),
             ("POST", f"/api/v1/documents/{slug}/copy", {}),
@@ -227,14 +223,16 @@ class ForbiddenOnTheDomain(TenantWorld):
         ctx = access.Ctx(self.db)
         for action in ("delete", "edit_settings", "rename_slug", "change_access", "set_resharing",
                        "move_in_workspace", "unshare", "copy", "claim", "sync", "gdocs_export",
-                       "view_stats", "replace_file", "delete_version", "file_into_workspace",
-                       "share", "revoke_grant", "see_grants"):
+                       "view_stats", "replace_file", "delete_version", "file_into_workspace"):
             d = await access.can(actor, raw, action, ctx)
             self.assertFalse(d.allowed, action)
-        for action in ("read", "edit_content", "list_versions", "restore_version"):
+        # Sharing with specific people is allowed on the domain (owner, 2026-11-04); the access level isn't.
+        for action in ("read", "edit_content", "list_versions", "restore_version",
+                       "share", "revoke_grant", "see_grants"):
             self.assertTrue((await access.can(actor, raw, action, ctx)).allowed, action)
         x = await self.db["documents"].find_one({"_id": self.X["_id"]})
-        for action in ("read", "edit_content", "list_versions", "restore_version"):
+        for action in ("read", "edit_content", "list_versions", "restore_version",
+                       "share", "revoke_grant", "see_grants"):
             self.assertEqual((await access.can(actor, x, action, ctx)).status, 404, action)
 
     async def _user(self, who):
@@ -669,3 +667,76 @@ class RequestEditAccess(TenantWorld):
         self.assertNotIn("role_requested", row)
         # An admin never decides a request to open something.
         self.assertEqual((await self.decide(r.json()["id"], "wa", "view")).status_code, 404)
+
+
+# ── Sharing with specific people on the domain (owner, 2026-11-04) ────────────
+
+
+class ShareOnTheDomain(TenantWorld):
+    """Who has access, add a person, remove a person: allowed on the workspace's own domain with the
+    same answers as on markdrop.in. The general access level, resharing and presence: never."""
+
+    async def _add(self, slug: str, headers: dict, email: str, role: str = "viewer"):
+        return await self.http.post(f"/api/v1/documents/{slug}/access/people",
+                                    json={"email": email, "role": role, "notify": False}, headers=headers)
+
+    async def test_owner_shares_and_unshares_on_the_domain(self):
+        slug, h = self.W["slug"], self.tenant("owner", "W1")
+        r = await self.http.get(f"/api/v1/documents/{slug}/access", headers=h)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertTrue(r.json()["can_share"])
+        r = await self._add(slug, h, "newcomer@example.com", "editor")
+        self.assertEqual(r.status_code, 201, r.text)
+        g = await self.db["document_grants"].find_one({"document_id": str(self.W["_id"]), "email": "newcomer@example.com"})
+        self.assertIsNotNone(g)
+        self.assertEqual(g["role"], "editor")
+        r = await self.http.delete(f"/api/v1/documents/{slug}/access/people/newcomer@example.com", headers=h)
+        self.assertEqual(r.status_code, 204, r.text)
+        self.assertIsNone(await self.db["document_grants"].find_one(
+            {"document_id": str(self.W["_id"]), "email": "newcomer@example.com"}))
+        # The level never moved.
+        self.assertEqual((await self.db["documents"].find_one({"_id": self.W["_id"]}))["access_level"], "workspace")
+
+    async def test_same_answer_as_on_markdrop_in(self):
+        # Whoever may (or may not) share on markdrop.in gets the same answer on the domain.
+        slug = self.L["slug"]
+        for i, who in enumerate(("owner", "wm", "ge", "gv", "wv", "wa")):
+            dom = await self._add(slug, self.tenant(who, "W1"), f"d{i}@example.com")
+            web = await self._add(slug, self.session(who), f"s{i}@example.com")
+            self.assertEqual(dom.status_code, web.status_code, (who, dom.text, web.text))
+            ga = await self.http.get(f"/api/v1/documents/{slug}/access", headers=self.tenant(who, "W1"))
+            gw = await self.http.get(f"/api/v1/documents/{slug}/access", headers=self.session(who))
+            self.assertEqual(ga.status_code, gw.status_code, who)
+
+    async def test_scoped_to_the_domains_workspace(self):
+        # wm is in W1 and W2; their W1 domain token can't touch W2's page, nor a personal one.
+        h = self.tenant("wm", "W1")
+        for doc in (self.X, self.U):
+            slug = doc["slug"]
+            self.assertEqual((await self.http.get(f"/api/v1/documents/{slug}/access", headers=h)).status_code, 404)
+            self.assertEqual((await self._add(slug, h, "x@example.com")).status_code, 404)
+            r = await self.http.delete(f"/api/v1/documents/{slug}/access/people/x@example.com", headers=h)
+            self.assertEqual(r.status_code, 404)
+        self.assertEqual(await self.db["document_grants"].count_documents({"email": "x@example.com"}), 0)
+
+    async def test_origin_and_live_host_still_required(self):
+        slug = self.W["slug"]
+        r = await self._add(slug, self.no_origin("owner"), "o@example.com")
+        self.assertEqual(r.status_code, 401)
+        r = await self._add(slug, self.tenant("owner", "W1", origin="https://evil.example"), "o@example.com")
+        self.assertEqual(r.status_code, 401)
+        self.assertEqual(await self.db["document_grants"].count_documents({"email": "o@example.com"}), 0)
+
+    async def test_general_access_stays_on_markdrop_in(self):
+        slug, h = self.W["slug"], self.tenant("owner", "W1")
+        for method, path, body in (
+            ("PUT", f"/api/v1/documents/{slug}/access/level", {"level": "link"}),
+            ("PUT", f"/api/v1/documents/{slug}/access/resharing", {"allow": True}),
+            ("PUT", f"/api/v1/documents/{slug}/access/presence", {"show": False}),
+            ("POST", "/api/v1/documents/access/level", {"slugs": [slug], "level": "link"}),
+            ("PATCH", f"/api/v1/documents/{slug}/settings", {"read_password": "pw"}),
+        ):
+            r = await self.http.request(method, path, json=body, headers=h)
+            self.assertIn(r.status_code, (401, 405), (method, path, r.text))
+        doc = await self.db["documents"].find_one({"_id": self.W["_id"]})
+        self.assertEqual((doc["access_level"], doc.get("read_password_hash")), ("workspace", None))

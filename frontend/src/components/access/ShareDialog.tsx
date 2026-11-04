@@ -88,7 +88,7 @@ const EXPIRY: Array<{ value: "" | ExpiresIn; label: string }> = [
 const bare = (u: string) => u.replace(/^https?:\/\//, "").replace(/\/$/, "");
 
 export default function ShareDialog({
-  slug, title, documentId, shareUrl, location, startWithLocation, onClose, onChanged,
+  slug, title, documentId, shareUrl, location, startWithLocation, onClose, onChanged, peopleOnly,
 }: {
   slug: string;
   title: string;
@@ -105,6 +105,10 @@ export default function ShareDialog({
   startWithLocation?: boolean;
   onClose: () => void;
   onChanged?: () => void;
+  /** On a workspace's own domain: share with specific people only. Who can open it in general,
+   *  password and expiry, its workspace, resharing and presence stay on markdrop.in — this is the
+   *  link to the same document's share settings there. */
+  peopleOnly?: string;
 }) {
   void documentId;
   const toast = useToast();
@@ -270,7 +274,7 @@ export default function ShareDialog({
       ) : (
         <span>Personal: not in a workspace</span>
       )}
-      {state && canChangeLocation && !locOpen && (
+      {state && canChangeLocation && !locOpen && !peopleOnly && (
         <>
           <span aria-hidden>·</span>
           <button type="button" className="md-focus cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text hover:underline" onClick={() => setLocOpen(true)}>
@@ -278,7 +282,7 @@ export default function ShareDialog({
           </button>
         </>
       )}
-      {state && canRemove && wsId && !locOpen && (
+      {state && canRemove && wsId && !locOpen && !peopleOnly && (
         <>
           <span aria-hidden>·</span>
           <button type="button" className="md-focus cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text hover:underline" onClick={() => setConfirmRemove(true)}>
@@ -299,7 +303,7 @@ export default function ShareDialog({
       className="!max-w-[568px]"
       footer={
         <div className="flex w-full flex-wrap items-center gap-2">
-          {wsId && <Button variant="ghost" iconLeft="eye" onClick={preview}>Preview as</Button>}
+          {wsId && !peopleOnly && <Button variant="ghost" iconLeft="eye" onClick={preview}>Preview as</Button>}
           <ReadMore topic="whoCanOpen" className="px-2 text-caption">How sharing works</ReadMore>
           <span className="ml-auto" />
           {copyUrl && <CopyButton text={copyUrl} label="Copy link" variant="secondary" size="md" />}
@@ -354,8 +358,18 @@ export default function ShareDialog({
               />
             )}
 
+            {peopleOnly && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-surface-inset px-3 py-2.5 text-caption text-text-secondary">
+                <Icon name="globe" size={14} className="shrink-0 text-text-muted" />
+                <span className="min-w-0 flex-1">Here you can share with specific people. Who can open it in general, a password or an expiry are set on markdrop.in.</span>
+                <a href={peopleOnly} target="_blank" rel="noopener noreferrer" className="md-focus shrink-0 rounded-sm font-semibold text-accent-text hover:underline">
+                  Change general access on markdrop.in ↗
+                </a>
+              </div>
+            )}
+
             {/* ── Who can open it ───────────────────────────────────── */}
-            <div className="flex flex-col gap-2">
+            {!peopleOnly && <div className="flex flex-col gap-2">
               <PresetCards<AccessLevel>
                 legend="Who can open it"
                 name="md-share-level"
@@ -389,10 +403,10 @@ export default function ShareDialog({
               ) : (
                 <p className="text-caption text-text-muted">Only the owner can change who can open it.</p>
               )}
-            </div>
+            </div>}
 
             {/* ── More options: password and expiry ─────────────────── */}
-            {canManage && (
+            {canManage && !peopleOnly && (
               <div className="flex flex-col gap-3">
                 <button
                   type="button"
@@ -520,7 +534,7 @@ export default function ShareDialog({
                 ))}
               </ul>
 
-              {canManage && (
+              {canManage && !peopleOnly && (
                 <Switch
                   className="mt-1"
                   checked={state.allow_resharing}
@@ -534,7 +548,7 @@ export default function ShareDialog({
                   }
                 />
               )}
-              {canManage && (
+              {canManage && !peopleOnly && (
                 <Switch
                   className="mt-1"
                   checked={state.show_presence !== false}

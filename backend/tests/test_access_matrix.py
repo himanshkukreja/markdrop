@@ -124,8 +124,11 @@ AX_ROWS: list[tuple[str, list]] = [
     # Domain editing (2026-11-04): a tenant token edits content on its own workspace's domain
     # (settings, access, link, delete still 401). Another workspace's token reaches the allowed
     # routes and gets the pinned 404 there (edit; settings = the same PUT with settings fields).
-    ("TS", [OK, OK, OK] + [A] * 13),
-    ("TX", [404, ABS, 404, A, A, 404] + [A] * 10),
+    # Sharing with specific people (owner, 2026-11-04): share and grants on the domain answer as the
+    # same person's session does on markdrop.in (wm: share F, grants OK); another workspace's token
+    # gets the pinned 404. Access level, resharing, link, delete: still 401.
+    ("TS", [OK, OK, OK] + [A] * 7 + [F, OK] + [A] * 4),
+    ("TX", [404, ABS, 404, A, A, 404] + [A] * 4 + [404, 404] + [A] * 4),
     # The table's ES change_access "4" is unreachable over REST: the route
     # needs an account, so it is a 401 (catalogue #53/#64 say the same).
     ("ES", [OK, SKIP, OK, A, A, OK, A, A, OK, OK, A, A, A, A, A, A]),
