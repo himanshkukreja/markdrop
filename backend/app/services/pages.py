@@ -888,10 +888,13 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
 
 async def children_listing(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> list[dict]:
     out = []
-    for k in await children_rows(db, raw["_id"], projection=_NO_CONTENT):
+    rows = await children_rows(db, raw["_id"], projection=_NO_CONTENT)
+    # Which of them have sub-pages: one query for the listing (it was one per child).
+    parents = set(await db["documents"].distinct("parent_id", {"parent_id": {"$in": [k["_id"] for k in rows]}})) if rows else set()
+    for k in rows:
         if not (await access.can(actor, k, "read", ctx)).allowed:
             continue
-        has = await db["documents"].find_one({"parent_id": k["_id"]}, {"_id": 1}) is not None
+        has = k["_id"] in parents
         out.append({
             "slug": k["slug"],
             "title": k.get("title") or k["slug"],

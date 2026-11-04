@@ -47,7 +47,8 @@ function useRailData(userId: string | null) {
     const loadWorkspaces = () =>
       listWorkspaces()
         .then((ws) => live && setData((d) => ({ ...d, workspaces: ws })))
-        .catch(() => {});
+        // Failed: no workspaces section rather than placeholders forever (a later change retries).
+        .catch(() => live && setData((d) => ({ ...d, workspaces: d.workspaces ?? [] })));
     void loadWorkspaces();
     // A workspace made, renamed, joined or deleted on any screen shows up here without a reload.
     window.addEventListener(WORKSPACES_EVENT, loadWorkspaces);

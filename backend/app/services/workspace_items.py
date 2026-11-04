@@ -33,6 +33,9 @@ from app.services.library import kind_clause, search_filter
 
 settings = get_settings()
 MAX_ITEMS_PAGE = 100
+# The rail's outline (``nav``): at most this many items per folder (and at the top level); the
+# rest are counted in ``more`` and the rail links to the folder view for them.
+NAV_PER_PLACE = 50
 
 
 # ── Opaque handles for redacted rows ──────────────────────────────────────────
@@ -110,9 +113,18 @@ def display_title(raw: dict) -> str | None:
     return raw.get("title") or (raw.get("original_filename") if raw.get("kind") == "artifact" else None)
 
 
+async def with_children(db: AsyncIOMotorDatabase, ids: list) -> set:
+    """Which of ``ids`` have at least one sub-page: one query for a whole listing (it was one
+    ``find_one`` per row)."""
+    ids = [i for i in ids if i is not None]
+    if not ids:
+        return set()
+    return set(await db["documents"].distinct("parent_id", {"parent_id": {"$in": ids}}))
+
+
 async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx,
-                   *, names: dict, folders: dict, hosts: urls.HostCache) -> dict:
-    """One readable row (contract shape)."""
+                   *, names: dict, folders: dict, hosts: urls.HostCache, kids: set | None = None) -> dict:
+    """One readable row (contract shape). ``kids``: the listing's ``with_children`` set."""
     flags = await access.can_flags(actor, raw, ctx)
     mine = bool(actor.user_id) and raw.get("owner_id") == actor.user_id
     folder = folders.get(raw.get("folder_id") or "") if raw.get("folder_id") else None
@@ -143,7 +155,8 @@ async def item_for(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx
         # in the page tree (a sub-page is listed under its parent, not on its own).
         "editor": raw.get("editor"),
         "is_subpage": raw.get("parent_id") is not None,
-        "has_children": await db["documents"].find_one({"parent_id": raw["_id"]}, {"_id": 1}) is not None,
+        "has_children": (raw["_id"] in kids) if kids is not None
+        else await db["documents"].find_one({"parent_id": raw["_id"]}, {"_id": 1}) is not None,
         "icon": raw.get("page_icon"),
     }
     if mine:
@@ -248,6 +261,73 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     }
 
 
+_NAV_FIELDS = {"slug": 1, "title": 1, "kind": 1, "editor": 1, "original_filename": 1, "encrypted": 1,
+               "folder_id": 1, "parent_id": 1, "created_at": 1}
+
+
+async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str) -> dict:
+    """The app rail's outline of a workspace, in one request: every readable top-level item
+    (pages, documents and files; sub-pages come from ``GET /documents/{slug}/children`` when a
+    page is opened), compact, grouped by folder. Per folder (``""`` = the top level): pages first
+    in the order they were made (the order sub-pages use), then everything else by title; at most
+    ``NAV_PER_PLACE`` of them, the rest counted in ``more``. ``has_children`` counts only
+    sub-pages this caller can read. Two queries (the tree's projected scan of readable rows, then
+    the rows shown, without their content), a ``can(read)`` per row shown, and a link for each
+    image icon."""
+    from app.services import pages as pages_service
+
+    rows = await readable_rows(db, actor, ctx, workspace_id, projection=_NAV_FIELDS)
+    parents = {r.get("parent_id") for r in rows if r.get("parent_id") is not None}
+    places: dict[str, list[dict]] = {}
+    for r in rows:
+        if r.get("parent_id") is None:
+            places.setdefault(r.get("folder_id") or "", []).append(r)
+    epoch = datetime.min.replace(tzinfo=timezone.utc)
+
+    def made(r: dict):
+        c = r.get("created_at") or epoch
+        return (c if c.tzinfo else c.replace(tzinfo=timezone.utc), str(r["_id"]))
+
+    def title_key(r: dict):
+        return ((display_title(r) or r["slug"]).lower(), r["slug"])
+
+    order: list[dict] = []
+    more: dict[str, int] = {}
+    for place, group in places.items():
+        ranked = [*sorted((r for r in group if r.get("editor") == "blocks"), key=made),
+                  *sorted((r for r in group if r.get("editor") != "blocks"), key=title_key)]
+        order.extend(ranked[:NAV_PER_PLACE])
+        if len(ranked) > NAV_PER_PLACE:
+            more[place or "root"] = len(ranked) - NAV_PER_PLACE
+    full = {r["_id"]: r for r in await db["documents"].find(
+        {"_id": {"$in": [r["_id"] for r in order]}}, {"content": 0}).to_list(length=len(order) or 1)}
+    items: list[dict] = []
+    for r in order:
+        raw = full.get(r["_id"])
+        # The filter is the policy's (A1); can(read) stays the authority for anything we name.
+        if raw is None or not (await access.can(actor, raw, "read", ctx)).allowed:
+            continue
+        page = raw.get("editor") == "blocks"
+        artifact = raw.get("kind") == "artifact"
+        row = {
+            "slug": raw["slug"],
+            "title": display_title(raw),
+            "kind": "page" if page else ("artifact" if artifact else "markdown"),
+            "folder_id": raw.get("folder_id") or None,
+            "has_children": raw["_id"] in parents,
+            "renderer": art_service.renderer_for(raw.get("mime") or "") if artifact else None,
+            "mime": raw.get("mime") if artifact else None,
+            "filename": raw.get("original_filename") if artifact else None,
+            "icon": None,
+            "icon_url": None,
+        }
+        if page:
+            row.update(await pages_service.icon_fields(db, raw))
+        # Compact: optional fields only when set.
+        items.append({k: v for k, v in row.items() if v is not None or k in ("title", "folder_id")})
+    return {"items": items, "more": more}
+
+
 # ── Items ─────────────────────────────────────────────────────────────────────
 
 
@@ -272,10 +352,11 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
     folders = folder_index(await folder_service.list_folders(db, workspace_id))
     names = await owner_names(db, [r.get("owner_id") for r in rows])
     hosts = urls.HostCache(db)
+    kids = await with_children(db, [r["_id"] for r in rows])
     out = []
     for raw in rows:
         if (await access.can(actor, raw, "read", ctx)).allowed:
-            out.append(await item_for(db, raw, actor, ctx, names=names, folders=folders, hosts=hosts))
+            out.append(await item_for(db, raw, actor, ctx, names=names, folders=folders, hosts=hosts, kids=kids))
         elif redacted_q is not None:
             out.append(redacted_item(raw, workspace_id, names=names, folders=folders))
     next_cursor = encode_cursor(rows[-1].get("updated_at"), rows[-1]["_id"]) if more and rows else None
@@ -290,7 +371,8 @@ async def items_by_slug(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     hosts = urls.HostCache(db)
     ctx.forget()
     by_slug = {r["slug"]: r for r in rows}
-    return [await item_for(db, by_slug[s], actor, ctx, names=names, folders=folders, hosts=hosts)
+    kids = await with_children(db, [r["_id"] for r in rows])
+    return [await item_for(db, by_slug[s], actor, ctx, names=names, folders=folders, hosts=hosts, kids=kids)
             for s in slugs if s in by_slug]
 
 

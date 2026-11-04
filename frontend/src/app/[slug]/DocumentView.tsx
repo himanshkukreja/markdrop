@@ -672,6 +672,7 @@ export default function DocumentView(props: DocumentViewProps) {
               key={`${crumbs[0]?.slug ?? slug}:${treeKey}:${user?.id ?? "anon"}`}
               slug={slug}
               title={displayTitle}
+              icon={pageProps?.icon ?? null}
               crumbs={crumbs}
               childrenCount={page?.children_count ?? 0}
               addressing={addressing}
@@ -839,6 +840,7 @@ export default function DocumentView(props: DocumentViewProps) {
                       key={`${crumbs[0]?.slug ?? slug}:${treeKey}:${user?.id ?? "anon"}`}
                       slug={slug}
                       title={displayTitle}
+                      icon={pageProps?.icon ?? null}
                       crumbs={crumbs}
                       childrenCount={page?.children_count ?? 0}
                       addressing={addressing}

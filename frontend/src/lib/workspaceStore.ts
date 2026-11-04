@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getWorkspaceTree, type TreeFolder, type WorkspaceTree } from "@/lib/workspaces";
+import { announce } from "@/lib/navBus";
 
 interface Entry {
   tree: WorkspaceTree | null;
@@ -19,6 +20,8 @@ interface Entry {
   loading: boolean;
   /** Bumped on every successful load (subscribers compare it to decide whether to refetch items). */
   version: number;
+  /** When it last loaded (ms), for refreshTree. */
+  at?: number;
 }
 
 const EMPTY: Entry = { tree: null, error: null, loading: false, version: 0 };
@@ -44,11 +47,19 @@ export function loadTree(id: string): Promise<void> {
   if (running) return running;
   set(id, { loading: true });
   const p = getWorkspaceTree(id)
-    .then((tree) => set(id, { tree, error: null, loading: false, version: (entries.get(id)?.version ?? 0) + 1 }))
+    .then((tree) => set(id, { tree, error: null, loading: false, version: (entries.get(id)?.version ?? 0) + 1, at: Date.now() }))
     .catch((error) => set(id, { error, loading: false }))
     .finally(() => inflight.delete(id));
   inflight.set(id, p);
   return p;
+}
+
+/** Refetch `id`'s tree in the background when the copy we have is older than `maxAge` ms (the rail,
+ *  on mount and when the window regains focus: what changed elsewhere shows up without a blank). */
+export function refreshTree(id: string, maxAge: number): void {
+  const e = entries.get(id);
+  if (!e?.tree || inflight.has(id) || Date.now() - (e.at ?? 0) <= maxAge) return;
+  void loadTree(id);
 }
 
 /** The last loaded tree for `id`, without subscribing (event handlers, e.g. a drop on the rail). */
@@ -120,13 +131,14 @@ function snapshotFor(key: string): Record<string, TreeSlot> {
  */
 export function workspaceChanged(id: string) {
   void loadTree(id);
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { id } }));
+  // Here and in the person's other tabs (lib/navBus): their rail and lists refresh too.
+  announce(CHANGE_EVENT, { id });
 }
 
 /** Personal documents changed (moved into or out of a workspace, access changed): rail counts and
  *  the personal list reload. */
 export function documentsChanged() {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(DOCS_EVENT));
+  announce(DOCS_EVENT);
 }
 
 /** Run `cb` whenever `workspaceChanged(id)` is called (any id when `id` is "*"). */

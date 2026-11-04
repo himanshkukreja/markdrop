@@ -1,6 +1,7 @@
 """Workspace folder views and batch filing (workspaces v2 contracts).
 
     GET    /api/v1/workspaces/{id}/tree
+    GET    /api/v1/workspaces/{id}/nav   (the app rail's outline)
     GET    /api/v1/workspaces/{id}/items?folder=<id|root|unfiled|all>&q=&kind=&cursor=&limit=
     POST   /api/v1/workspaces/{id}/items/move    {slugs, folder_id|null}
     POST   /api/v1/workspaces/{id}/items/add     {slugs, folder_id|null, access?}
@@ -86,6 +87,19 @@ async def workspace_tree(request: Request, workspace_id: str,
     role = await ws_service.require_role(db, workspace_id, user.id, "viewer")
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await items_service.tree(db, actor, ctx, workspace_id, role))
+
+
+@router.get("/{workspace_id}/nav")
+@limiter.limit("120/minute")
+async def workspace_nav(request: Request, workspace_id: str,
+                        db: AsyncIOMotorDatabase = Depends(get_db),
+                        user: User = Depends(require_user)):
+    """The app rail's outline: every readable top-level item, compact, grouped by folder
+    (``{items: [{slug, title, kind: page|markdown|artifact, folder_id, has_children, icon,
+    icon_url, renderer, mime, filename}], more: {<folder id>|root: n}}``). Viewer+."""
+    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    actor, ctx = _ac(request, db, user)
+    return jsonable_encoder(await items_service.nav(db, actor, ctx, workspace_id))
 
 
 @router.get("/{workspace_id}/items")

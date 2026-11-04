@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved } from "./lib.mjs";
+import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -641,7 +641,7 @@ await step("bookmark", async () => {
   log("link-preview:", r.status, JSON.stringify(r.body).slice(0, 200));
   if (r.status !== 200 || !r.body.title) fail(`link-preview → ${r.status}`);
   state.bookmarkFetched = r.body.fetched;
-  const bad = await api("POST", "/api/v1/link-preview", T.owner, { url: "http://127.0.0.1:8230/__sandbox/health" });
+  const bad = await api("POST", "/api/v1/link-preview", T.owner, { url: `${API}/__sandbox/health` });
   if (bad.status !== 422) fail(`SSRF to loopback → ${bad.status}`);
   save();
 });
@@ -683,6 +683,53 @@ await step("rail", async () => {
   const rail = await p.locator("nav").first().innerText().catch(() => "");
   if (!rail.includes("Page builder launch")) log("rail text lacks the page:", rail.slice(0, 300));
   await shot(p, "24-rail-pages", { wait: 1500 });
+  await c.close();
+});
+
+// The rail's tree: one outline request per workspace, the current folder highlighted, hover
+// actions, and a rename in another tab showing up in place (no reload, no new request).
+await step("rail-live", async () => {
+  const made = await api("POST", "/api/v1/pages", T.owner, { title: "Rail rename probe", workspace: WS, folder: FOLDER });
+  if (made.status !== 200 && made.status !== 201) fail(`create → ${made.status}`);
+  const slug = made.body.document.slug;
+  const { c, p } = await ctx(browser, { token: T.owner });
+  await c.addInitScript(([ws, f]) => localStorage.setItem("md_rail_tree", JSON.stringify([`ws:${ws}:root`, `ws:${ws}:folder:${f}`])), [WS, FOLDER]);
+  const calls = [];
+  p.on("request", (r) => { if (r.url().startsWith(API) && r.method() === "GET") calls.push(new URL(r.url()).pathname); });
+  await p.goto(`${APP}/w/${WS}/f/${FOLDER}`, { waitUntil: "networkidle" });
+  const tree = p.locator('aside nav[aria-label="Your drive"]');
+  const row = tree.locator(`[data-rail-key="ws:${WS}:page:${slug}"]`);
+  await row.waitFor({ timeout: 10000 });
+  const navCalls = calls.filter((u) => u.endsWith("/nav")).length;
+  if (navCalls !== 1) fail(`expected one /nav request for the open workspace, saw ${navCalls}: ${calls.join(", ")}`);
+  // The current folder: aria-current and inside the rail's visible area.
+  const cur = tree.locator(`[data-rail-key="ws:${WS}:folder:${FOLDER}"]`);
+  if ((await cur.getAttribute("aria-current")) !== "page") fail("the current folder isn't marked aria-current");
+  const seen = await cur.evaluate((el) => { const r = el.getBoundingClientRect(), a = el.closest("aside").getBoundingClientRect(); return r.top >= a.top && r.bottom <= a.bottom; });
+  if (!seen) fail("the current folder isn't scrolled into view");
+  // Row height and hover actions (+ and ⋯ only while hovered).
+  const h = await row.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+  if (h < 28 || h > 30) fail(`rail rows are ${h} px`);
+  const add = tree.getByRole("link", { name: "Add a page inside Rail rename probe" });
+  if (await add.count()) fail("the + shows without hover");
+  await row.hover();
+  await add.waitFor({ timeout: 3000 });
+  await shot(p, "24b-rail-hover");
+  // Rename it in a second tab of the same browser: the first tab's rail follows without a request.
+  calls.length = 0;
+  const p2 = await c.newPage();
+  await p2.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
+  await p2.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await p2.getByLabel("Page title").click();
+  await p2.keyboard.press("ControlOrMeta+a");
+  await p2.keyboard.type("Rail renamed live");
+  await waitSaved(p2);
+  await p.bringToFront();
+  const renamed = await row.filter({ hasText: "Rail renamed live" }).waitFor({ timeout: 8000 }).then(() => true, () => false);
+  if (!renamed) fail(`the other tab's rail still says “${await row.innerText().catch(() => "?")}”`);
+  const refetched = calls.filter((u) => u.endsWith("/nav") || u.endsWith("/children"));
+  if (refetched.length) fail(`a rename refetched: ${refetched.join(", ")}`);
+  await shot(p, "24c-rail-renamed");
   await c.close();
 });
 

@@ -1,0 +1,106 @@
+/* The workspace tree (FolderTree.tsx): the app rail ("nav") and the Move to… picker ("select").
+   Rows indent 12 px a level; the rail draws one faint guide line per level, under each ancestor's
+   chevron. Tokens only (light and dark follow the theme). */
+
+.md-tree {
+  --tree-base: 4px;
+  --tree-step: 12px;
+  --tree-chev: 20px;
+  --tree-gap: 6px;
+  --tree-guide: color-mix(in srgb, var(--border-strong) 55%, transparent);
+}
+.md-tree--select { --tree-step: clamp(8px, 2.6vw, 12px); --tree-base: 6px; }
+@media (max-width: 1023.98px) {
+  /* The phone drawer: 44 px rows, a 32 px chevron to tap. */
+  .md-tree--nav { --tree-chev: 32px; --tree-base: 0px; --tree-step: 12px; }
+}
+
+.md-tree__row { position: relative; min-width: 0; }
+.md-tree--nav > .md-tree__row {
+  background: repeating-linear-gradient(to right, var(--tree-guide) 0 1px, transparent 1px var(--tree-step))
+    calc(var(--tree-base) + var(--tree-chev) / 2 - 0.5px) 0 / calc(var(--tree-level, 0) * var(--tree-step)) 100% no-repeat;
+}
+/* No guide through the row you're on or pointing at (its own background shows there). */
+.md-tree--nav > .md-tree__row:hover,
+.md-tree--nav > .md-tree__row:has(> [aria-current="page"]) { background-image: none; }
+
+.md-tree__item {
+  padding-left: calc(var(--tree-base) + var(--tree-level, 0) * var(--tree-step));
+  -webkit-user-drag: none;
+}
+.md-tree__item--armed { padding-right: 56px; }
+
+.md-tree__chevron {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: var(--tree-chev);
+  height: 20px;
+  margin-right: calc(var(--tree-gap) * -1 + 2px);
+  border-radius: var(--radius-sm, 5px);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.md-tree__chevron:hover { background: var(--surface-active); color: var(--text); }
+.md-tree__chevron .md-icon { transition: transform var(--duration-fast, 120ms) var(--ease-out, ease-out); }
+.md-tree__chevron[data-open] .md-icon { transform: rotate(90deg); }
+.md-tree__chevron--none { cursor: default; }
+.md-tree__chevron--none:hover { background: none; }
+@media (max-width: 1023.98px) { .md-tree--nav .md-tree__chevron { height: 40px; } }
+@media (prefers-reduced-motion: reduce) { .md-tree__chevron .md-icon { transition: none; } }
+
+.md-tree__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 1;
+}
+.md-tree__icon img { width: 16px; height: 16px; border-radius: 3px; object-fit: cover; }
+.md-tree__emoji { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+
+/* Hover actions: + and ⋯ at the row's end, while it's hovered or holds focus. */
+.md-tree__actions {
+  position: absolute;
+  top: 0;
+  right: 4px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.md-tree__act,
+.md-tree__actions .md-tree__act.md-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  min-height: 24px;
+  padding: 0;
+  border-radius: var(--radius-sm, 5px);
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.md-tree__act:hover { background: var(--surface-active); color: var(--text); }
+/* The phone drawer: 40 px targets when they show (a long press, a keyboard). */
+@media (max-width: 1023.98px) {
+  .md-tree--nav .md-tree__item--armed { padding-right: 88px; }
+  .md-tree--nav .md-tree__act,
+  .md-tree--nav .md-tree__actions .md-tree__act.md-btn { width: 40px; height: 40px; min-height: 40px; }
+}
+
+/* A quiet line (an empty workspace) and the loading placeholders: aligned with the labels. */
+.md-tree__note,
+.md-tree__skeleton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding-left: calc(var(--tree-base) + var(--tree-level, 0) * var(--tree-step) + var(--tree-chev) + 2px);
+  padding-right: 8px;
+}
+.md-tree__note-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-muted); }
+@media (max-width: 1023.98px) { .md-tree--nav .md-tree__note, .md-tree--nav .md-tree__skeleton { height: 44px; } }

@@ -1,15 +1,20 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Anchor, Icon, cx } from "@/components/ui";
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Anchor, FileIcon, Icon, Skeleton, copyText, cx, useToast } from "@/components/ui";
 import VSCodeIcon from "@/components/VSCodeIcon";
 import { DOCS_URL } from "./links";
 import { studioUrl } from "@/lib/studioHost";
-import { TreeView, type TreeNode } from "@/components/workspace/FolderTree";
+import { TreeView, shareNodes, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
-import { can, type TreeFolder, type Workspace } from "@/lib/workspaces";
-import { childrenMap, descendants, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
-import { railPageKey, useRailPages, type RailPage } from "@/components/pages/railPages";
+import { can, type NavItem, type TreeFolder, type Workspace, type WorkspaceNav } from "@/lib/workspaces";
+import { childrenMap, descendants, refreshTree, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
+import { childrenSlot, navSlot, useNavRetain, type NavSlot } from "@/lib/navStore";
+import { useAuth } from "@/contexts/AuthContext";
+import type { FileRenderer } from "@/components/ui/markdrop";
+
+/** A page's rail key (also its expand key). */
+export const railPageKey = (wsId: string, slug: string) => `ws:${wsId}:page:${slug}`;
 
 /** What the rail shows. Every field may be missing: the rail omits what failed to load. */
 export interface RailData {
@@ -112,7 +117,10 @@ function useActivePill(container: React.RefObject<HTMLElement | null>, pill: Rea
 }
 
 const ITEM =
-  "md-focus relative flex min-h-9 min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11";
+  "md-focus relative flex min-h-8 min-w-0 items-center gap-2.5 rounded-md px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11";
+/** A tree row: 30 px (44 px in the phone drawer); tree.css indents it and adds the guides. */
+const TREE_ITEM =
+  "md-focus relative flex h-[30px] min-w-0 items-center gap-1.5 rounded-md pr-2 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:h-11";
 const ACTIVE = "font-semibold text-accent-text hover:bg-transparent hover:text-accent-text";
 
 function RailLink({ k, href, active, onNavigate, children, style, className }: { k: string; href: string; active: string | null; onNavigate?: () => void; children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
@@ -151,60 +159,160 @@ export function WorkspaceTile({ ws, active, size = 18 }: { ws: Pick<Workspace, "
   );
 }
 
-/** The workspace's tree as rail nodes: the workspace (its root folder view), then its folders by
- *  depth with total counts. Drop targets for rows and folders (dnd-kit) and for files (uploads). */
-/** Where a page sits in the rail: its folder (null: the workspace's top level), its parent page
- *  and every page above it. Members drag pages (onto a page: inside it; onto a folder: there). */
-interface PagePlace { folderId: string | null; parent: string | null; ancestors: string[]; member: boolean }
+/* ── The tree's nodes ─────────────────────────────────────────────────── */
 
-/** A page in the rail, with its sub-pages (lazy) a level down. */
-function pageNode(wsId: string, p: RailPage, pagesOf: (key: string) => RailPage[] | undefined, at: PagePlace = { folderId: null, parent: null, ancestors: [], member: false }): TreeNode {
+/** A page's icon: its emoji, its image, else the page glyph. */
+function PageIcon({ icon, url }: { icon?: string | null; url?: string | null }) {
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={url} alt="" />;
+  }
+  if (icon && !icon.startsWith("asset:")) return <span className="md-tree__emoji">{icon}</span>;
+  return <Icon name="doc" size={16} />;
+}
+
+/** A document or file's icon by kind (a Markdown document: lines; files: their type's glyph and tint). */
+function ItemIcon({ it }: { it: NavItem }) {
+  if (it.kind === "markdown") return <Icon name="lines" size={16} />;
+  return <FileIcon renderer={(it.renderer as FileRenderer | null) ?? null} mime={it.mime ?? ""} name={it.filename ?? ""} size={16} />;
+}
+
+/** Where a row sits, for drag and drop: its folder (null: the top level), its parent page and every
+ *  page above it. Members drag pages (onto a page: inside it; onto a folder: there) and files. */
+interface Place { folderId: string | null; parent: string | null; ancestors: string[] }
+
+interface Ctx {
+  ws: Workspace;
+  member: boolean;
+  expanded: Set<string>;
+  /** Open pages whose sub-pages the tree needs (collected while building). */
+  want: string[];
+  copy: (href: string, label: string) => void;
+}
+
+/** A node's `sig` (see shareNodes): the values its row shows and its handlers use. */
+const sig = (...parts: unknown[]) => JSON.stringify(parts);
+
+const absolute = (href: string) => (typeof window === "undefined" ? href : new URL(href, window.location.origin).toString());
+
+/** `shown`: every row above it is open (only then are its sub-pages asked for). */
+function pageNode(c: Ctx, p: { slug: string; title: string | null; has_children?: boolean; icon?: string | null; icon_url?: string | null }, at: Place, shown: boolean): TreeNode {
+  const wsId = c.ws.id;
   const key = railPageKey(wsId, p.slug);
-  const kids = p.has_children ? pagesOf(key) : [];
-  const label = p.title || "Untitled";
-  const below: PagePlace = { ...at, parent: p.slug, ancestors: [...at.ancestors, p.slug] };
+  const label = p.title?.trim() || "Untitled";
+  const href = `/${encodeURIComponent(p.slug)}`;
+  let children: TreeNode[] | undefined;
+  let lazy = false;
+  if (p.has_children && shown && c.expanded.has(key)) {
+    c.want.push(p.slug);
+    const kids = childrenSlot(p.slug);
+    if (kids === null) lazy = true;
+    else if (kids) {
+      const below: Place = { ...at, parent: p.slug, ancestors: [...at.ancestors, p.slug] };
+      children = kids.map((k) => pageNode(c, k, below, true));
+    }
+  } else if (p.has_children) lazy = true;
+  const isLazy = lazy && !children?.length;
+  const isLeaf = !p.has_children || (children !== undefined && !children.length);
   return {
     key,
+    sig: sig("p", label, p.icon, p.icon_url, isLazy, isLeaf, c.member, at.folderId, at.parent, at.ancestors),
     label,
-    icon: <Icon name="layers" size={16} />,
-    href: `/${encodeURIComponent(p.slug)}`,
-    children: kids?.length ? kids.map((k) => pageNode(wsId, k, pagesOf, below)) : undefined,
-    lazy: p.has_children && kids === undefined,
-    leaf: !p.has_children,
-    drag: at.member ? { type: "page", workspaceId: wsId, slug: p.slug, label, parent: at.parent, folderId: at.folderId } : null,
-    drop: at.member ? { workspaceId: wsId, folderId: at.folderId, label: `“${label}”`, acceptsFolders: false, page: { slug: p.slug, ancestors: at.ancestors } } : null,
+    icon: <PageIcon icon={p.icon} url={p.icon_url} />,
+    href,
+    children: children?.length ? children : undefined,
+    lazy: isLazy,
+    leaf: isLeaf,
+    drag: c.member ? { type: "page", workspaceId: wsId, slug: p.slug, label, parent: at.parent, folderId: at.folderId } : null,
+    drop: c.member ? { workspaceId: wsId, folderId: at.folderId, label: `“${label}”`, acceptsFolders: false, page: { slug: p.slug, ancestors: at.ancestors } } : null,
+    actions: {
+      add: c.member ? { href: `/pages/new?parent=${encodeURIComponent(p.slug)}`, label: `Add a page inside ${label}` } : null,
+      menu: [
+        ...(c.member ? [{ label: "Add a sub-page", icon: "plus", href: `/pages/new?parent=${encodeURIComponent(p.slug)}` }] : []),
+        { label: "Copy link", icon: "link", onClick: () => c.copy(href, label) },
+        { label: "Open in new tab", icon: "external", href, external: true },
+      ],
+    },
   };
 }
 
+function itemNode(c: Ctx, it: NavItem): TreeNode {
+  const label = (it.title?.trim() || it.filename || it.slug);
+  const href = `/${encodeURIComponent(it.slug)}`;
+  return {
+    key: `ws:${c.ws.id}:item:${it.slug}`,
+    sig: sig("i", label, it.kind, it.renderer, it.mime, it.filename, it.folder_id, c.member),
+    label,
+    icon: <ItemIcon it={it} />,
+    href,
+    leaf: true,
+    drag: c.member ? { type: "items", workspaceId: c.ws.id, slugs: [it.slug], label, fromFolderId: it.folder_id ?? null } : null,
+    actions: {
+      menu: [
+        { label: "Copy link", icon: "link", onClick: () => c.copy(href, label) },
+        { label: "Open in new tab", icon: "external", href, external: true },
+      ],
+    },
+  };
+}
+
+/** What sits directly in a place (a folder, or the top level): pages first, then documents and files,
+ *  then "N more" (a link to the folder view) when the outline was cut. */
+function placeNodes(c: Ctx, nav: WorkspaceNav, folderId: string | null, href: string, shown: boolean): TreeNode[] {
+  const here = nav.items.filter((it) => (it.folder_id ?? null) === folderId);
+  const out = here.map((it) =>
+    it.kind === "page" ? pageNode(c, it, { folderId, parent: null, ancestors: [] }, shown) : itemNode(c, it),
+  );
+  const more = nav.more[folderId ?? "root"];
+  if (more) {
+    out.push({
+      key: `ws:${c.ws.id}:more:${folderId ?? "root"}`,
+      sig: sig("m", more, href),
+      label: `${more} more`,
+      icon: <Icon name="more" size={16} />,
+      href,
+      leaf: true,
+      className: "text-text-muted",
+    });
+  }
+  return out;
+}
+
 function workspaceNode(
-  ws: Workspace,
+  c: Ctx,
   slot: TreeSlot,
+  nav: NavSlot<WorkspaceNav> | undefined,
   active: boolean,
   onFiles: ((wsId: string, folderId: string | null, label: string, files: File[]) => void) | null,
-  pagesOf: (key: string) => RailPage[] | undefined = () => [],
 ): TreeNode {
+  const { ws } = c;
   const tree = slot || null;
   const admin = can(tree?.workspace.role ?? ws.role, "admin");
-  const member = can(tree?.workspace.role ?? ws.role, "member");
+  const member = c.member;
   const filesTo = (folderId: string | null, label: string) =>
     member && onFiles ? (files: File[]) => onFiles(ws.id, folderId, label, files) : undefined;
+  const wsHref = `/w/${encodeURIComponent(ws.id)}`;
+  const folderHref = (id: string) => `${wsHref}/f/${encodeURIComponent(id)}`;
+  // The outline loads with the tree; until both are here the open workspace shows placeholders.
+  const outline = nav || null;
   let children: TreeNode[] | undefined;
-  let total: number | undefined;
-  if (tree) {
+  if (tree && nav !== null) {
     const kids = childrenMap(tree.folders);
-    const build = (f: TreeFolder): TreeNode => {
-      const sub = kids.get(f.id) ?? [];
-      // Its pages, once the folder is open (it may have pages only when it has items).
-      const pages = f.item_count > 0 ? pagesOf(wsFolderKey(ws.id, f.id)) : [];
-      const children = [...sub.map(build), ...(pages ?? []).map((p) => pageNode(ws.id, p, pagesOf, { folderId: f.id, parent: null, ancestors: [], member }))];
+    const build = (f: TreeFolder, parentShown: boolean): TreeNode => {
+      const shown = parentShown && c.expanded.has(wsFolderKey(ws.id, f.id));
+      const sub = (kids.get(f.id) ?? []).map((k) => build(k, shown));
+      const items = outline ? placeNodes(c, outline, f.id, folderHref(f.id), shown) : [];
+      const all = [...sub, ...items];
+      const blocked = admin ? [...descendants(tree.folders, f.id)] : [];
       return {
         key: wsFolderKey(ws.id, f.id),
+        sig: sig("f", f.name, f.parent_id, f.share?.level ?? null, !all.length, member, admin, blocked),
         label: f.name,
         icon: <Icon name="folder" size={16} />,
-        count: f.total_count,
-        href: `/w/${encodeURIComponent(ws.id)}/f/${encodeURIComponent(f.id)}`,
-        children: children.length ? children : undefined,
-        lazy: !children.length && pages === undefined,
+        href: folderHref(f.id),
+        children: all.length ? all : undefined,
+        // Without an outline (it failed), a folder with items opens on the folder view instead.
+        leaf: !all.length,
         marker: f.share ? (
           <span className="inline-flex shrink-0 text-text-muted" title={f.share.level === "link" ? "Shared by link" : "Shared with the team"}>
             <Icon name="link" size={12} />
@@ -213,34 +321,48 @@ function workspaceNode(
         ) : undefined,
         drop: member ? { workspaceId: ws.id, folderId: f.id, label: f.name, acceptsFolders: admin } : null,
         drag: admin
-          ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked: [...descendants(tree.folders, f.id)] }
+          ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked }
           : null,
         onFiles: filesTo(f.id, f.name),
+        actions: {
+          add: member ? { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&folder=${encodeURIComponent(f.id)}`, label: `New page in ${f.name}` } : null,
+          menu: [
+            ...(member ? [{ label: "New page here", icon: "plus", href: `/pages/new?workspace=${encodeURIComponent(ws.id)}&folder=${encodeURIComponent(f.id)}` }] : []),
+            { label: "Copy link", icon: "link", onClick: () => c.copy(folderHref(f.id), f.name) },
+          ],
+        },
       };
     };
-    // Guides: the workspace's guides live in Markdrop Guides (its own area, with its own
-    // header); this link opens it filtered to the workspace.
-    children = [
-      ...(kids.get(null) ?? []).map(build),
-      // Pages filed at the top of the workspace.
-      ...(tree.unfiled_count > 0 ? pagesOf(wsRootKey(ws.id)) ?? [] : []).map((p) => pageNode(ws.id, p, pagesOf, { folderId: null, parent: null, ancestors: [], member })),
-      { key: wsDocsKey(ws.id), label: "Guides", icon: <Icon name="layers" size={16} />, href: studioUrl(`/?ws=${encodeURIComponent(ws.id)}`), leaf: true },
-    ];
-    total = tree.unfiled_count + (kids.get(null) ?? []).reduce((n, f) => n + f.total_count, 0);
+    const open = c.expanded.has(wsRootKey(ws.id));
+    children = [...(kids.get(null) ?? []).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
+    if (!children.length) {
+      children = [{ key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
+    }
   }
+  const lazy = slot === null || (!!tree && nav === null);
   return {
     key: wsRootKey(ws.id),
+    sig: sig("w", ws.name, ws.branding?.logo_url, ws.branding?.site_name, active, lazy, slot === false, member, admin),
     label: ws.name,
     icon: <WorkspaceTile ws={ws} active={active} />,
-    count: total,
-    href: `/w/${encodeURIComponent(ws.id)}`,
+    href: wsHref,
     children,
-    // Not loaded yet: expandable, with a spinner when opened. Loaded and empty: a leaf. Failed: a leaf
-    // too (the folder view explains the error).
-    lazy: slot === null,
+    // Not loaded yet: expandable, with placeholders when opened. Failed: a leaf (the folder view
+    // explains the error).
+    lazy,
+    leaf: slot === false,
     className: "font-semibold text-text",
     drop: member ? { workspaceId: ws.id, folderId: null, label: `the top of ${ws.name}`, acceptsFolders: admin } : null,
     onFiles: filesTo(null, ws.name),
+    actions: {
+      add: member ? { href: `/pages/new?workspace=${encodeURIComponent(ws.id)}`, label: `New page in ${ws.name}` } : null,
+      menu: [
+        ...(member ? [{ label: "New page", icon: "plus", href: `/pages/new?workspace=${encodeURIComponent(ws.id)}` }] : []),
+        // The workspace's guides live in Markdrop Guides (its own area); this opens it filtered.
+        { label: "Open in Guides", icon: "layers", href: studioUrl(`/?ws=${encodeURIComponent(ws.id)}`) },
+        { label: "Workspace settings", icon: "settings", href: `/settings/workspaces/${encodeURIComponent(ws.id)}` },
+      ],
+    },
   };
 }
 
@@ -259,8 +381,16 @@ export interface SideNavProps {
 
 /**
  * The drive rail (simpler UI, Main board): My files · Shared with me ("N new") · Recent, then
- * WORKSPACES (each workspace's tile, its folder tree with counts, "New workspace"), then the quieter
- * account links at the bottom. `nav aria-label="Your drive"`. Files dropped on a folder upload there.
+ * WORKSPACES (each workspace › its folders › their pages (with sub-pages), documents and files),
+ * "New workspace", then the quieter account links at the bottom. `nav aria-label="Your drive"`.
+ * Files dropped on a folder upload there.
+ *
+ * Data: an open workspace costs two requests whatever is open inside it: its folder tree (the
+ * shared workspaceStore copy the folder view uses too) and its outline (`/nav`, lib/navStore);
+ * an open page asks for its sub-pages once (shared with the page tree). Both are cached and
+ * refreshed in the background (on mount when older than 10 s, on window focus after a minute,
+ * and whenever `workspaceChanged` / a page change says so), so moving around the app never
+ * blanks or refetches the tree.
  */
 export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedback, footer, className }: SideNavProps) {
   const container = useRef<HTMLElement>(null);
@@ -269,6 +399,9 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
   const uploads = useUploads();
+  const toast = useToast();
+  const { user, loading: authLoading } = useAuth();
+  const viewer = user?.id ?? null;
   const activeWs = workspaceOfKey(active);
 
   const openWs = useMemo(
@@ -276,23 +409,65 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     [data.workspaces, expanded],
   );
   const trees = useWorkspaceTrees(openWs);
+  // Coming back to the app (from a page, another tab) refreshes the open trees in the background.
+  const openSig = openWs.join(",");
+  useEffect(() => {
+    const ids = openSig ? openSig.split(",") : [];
+    for (const id of ids) refreshTree(id, 10_000);
+    const onFocus = () => { if (document.visibilityState !== "hidden") for (const id of ids) refreshTree(id, 60_000); };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
+  }, [openSig]);
+
+  // The open pages whose sub-pages are on screen (known after building the nodes).
+  const [wantPages, setWantPages] = useState<string[]>([]);
+  const navVersion = useNavRetain(openWs, wantPages);
+
   const onFiles = useMemo(
     () => (uploads
       ? (wsId: string, folderId: string | null, label: string, files: File[]) => uploads.upload(files, uploads.resolve(wsId, folderId, label))
       : null),
     [uploads],
   );
-  const pagesOf = useRailPages(expanded);
-  const nodes = useMemo(
-    () => (data.workspaces ?? []).map((ws) => workspaceNode(ws, trees[ws.id] ?? null, ws.id === activeWs, onFiles, pagesOf)),
-    [data.workspaces, trees, activeWs, onFiles, pagesOf],
-  );
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+  const copy = useCallback((href: string, label: string) => {
+    void copyText(absolute(href)).then((ok) => (ok ? toastRef.current.success(`Link to “${label}” copied`) : toastRef.current.error("Couldn't copy")));
+  }, []);
+
+  // The previous build's nodes, for shareNodes (dropped when the handlers nodes close over change).
+  const prevNodes = useRef<{ byKey: Map<string, TreeNode>; deps: unknown[] }>({ byKey: new Map(), deps: [] });
+  const built = useMemo(() => {
+    const want: string[] = [];
+    const fresh = (data.workspaces ?? []).map((ws) => {
+      const slot = trees[ws.id] ?? null;
+      const open = expanded.has(wsRootKey(ws.id));
+      const c: Ctx = { ws, member: can((slot || null)?.workspace.role ?? ws.role, "member"), expanded, want, copy };
+      return workspaceNode(c, slot, open ? navSlot(ws.id) : undefined, ws.id === activeWs, onFiles);
+    });
+    const deps = [onFiles, copy];
+    const prev = prevNodes.current.deps.every((d, i) => d === deps[i]) && prevNodes.current.deps.length ? prevNodes.current.byKey : new Map<string, TreeNode>();
+    const { nodes, byKey } = shareNodes(fresh, prev);
+    prevNodes.current = { byKey, deps };
+    return { nodes, want: [...new Set(want)].sort() };
+    // navVersion: the outlines and sub-page lists (read through navSlot / childrenSlot) changed.
+  }, [data.workspaces, trees, expanded, activeWs, onFiles, viewer, copy, navVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  const nodes = built.nodes;
+  const wantSig = built.want.join(",");
+  useEffect(() => {
+    setWantPages((w) => (w.join(",") === wantSig ? w : wantSig ? wantSig.split(",") : []));
+  }, [wantSig]);
 
   const layoutKey = [
     mounted,
     data.workspaces?.length ?? -1,
     [...expanded].join(","),
     Object.entries(trees).map(([k, v]) => `${k}:${v ? v.folders.length : String(v)}`).join(","),
+    navVersion,
     data.sharedNew ?? -1,
     data.tokens ?? -1,
   ].join("|");
@@ -327,7 +502,18 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
 
       <section aria-labelledby={`${uid}-ws`} className="flex flex-col gap-0.5">
         <h2 id={`${uid}-ws`} className="text-eyebrow uppercase mb-1.5 px-2.5 text-text-muted">Workspaces</h2>
-        {nodes.length > 0 && (
+        {data.workspaces === undefined && (authLoading || !!user) ? (
+          // Loading: rows the size of the real ones, so nothing below jumps when they arrive.
+          <div aria-busy="true" className="flex flex-col">
+            <span className="md-visually-hidden">Loading workspaces</span>
+            {["58%", "44%"].map((w) => (
+              <span key={w} aria-hidden className="flex h-[30px] items-center gap-2.5 px-2.5 max-lg:h-11">
+                <Skeleton width={18} height={18} variant="rect" className="shrink-0" />
+                <Skeleton width={w} height={10} />
+              </span>
+            ))}
+          </div>
+        ) : nodes.length > 0 && (
           <TreeView
             label="Workspaces"
             nodes={nodes}
@@ -335,7 +521,7 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
             onToggle={onToggle}
             current={active}
             onNavigate={onNavigate}
-            itemClassName={cx(ITEM, "gap-1.5 pr-2")}
+            itemClassName={TREE_ITEM}
             activeClassName={ACTIVE}
           />
         )}

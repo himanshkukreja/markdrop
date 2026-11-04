@@ -30,6 +30,8 @@ import { engagementOptedOut, useAuthSettled, useDocEngagement } from "@/lib/enga
 import { getAccess, type AccessState } from "@/lib/access";
 import { shortcutsEnabled } from "@/lib/shortcuts";
 import { usePresenceChannel } from "@/lib/presence";
+import { announce } from "@/lib/navBus";
+import { readPageProps } from "@/components/pages/pageProps";
 import { pageFieldsOf, type DocumentViewProps, type PageFields } from "./types";
 
 export type ViewMode = "write" | "split" | "preview";
@@ -968,6 +970,10 @@ export function useDocumentViewer({
           : undefined;
         getDocument(slug, cachedPwd, claimSecret || undefined)
           .then((doc) => {
+            // A rename (or a page's new icon) shows in the rail and page trees, in every tab.
+            if (!doc.encrypted && doc.title != null) {
+              announce("md:pages-change", { slug, title: doc.title, ...((doc as { editor?: string | null }).editor === "blocks" ? { icon: readPageProps(doc.content ?? "").icon } : {}) });
+            }
             if (adoptDoc(doc, { created: false })) return;
             setLiveUpdate((n) => n + 1);
             setVscodeSynced(!!doc.vscode_synced);

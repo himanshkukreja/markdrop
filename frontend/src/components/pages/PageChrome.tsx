@@ -27,7 +27,8 @@ import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
 import { useAuth } from "@/contexts/AuthContext";
 import { LIGHT_ENABLED } from "@/lib/theme";
 import { useWorkspaceTree } from "@/lib/workspaceStore";
-import { listBacklinks, listChildren, type ChildPage, type Crumb } from "@/lib/pages";
+import { listBacklinks, type ChildPage, type Crumb } from "@/lib/pages";
+import { fetchChildren } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import type { SaveState } from "./usePageEditSession";
 import { PageAccount, PageBrand } from "./PageBarEnds";
@@ -641,7 +642,8 @@ export function SubPages({
     }
     let live = true;
     setError(false);
-    listChildren(slug)
+    // The shared cache (lib/navStore): the page tree asks for the same list as this mounts.
+    fetchChildren(slug, refreshKey ? 0 : 5_000)
       .then((k) => live && setKids(k))
       .catch(() => live && setError(true));
     return () => {
