@@ -10,7 +10,8 @@
  *                breadcrumbs (workspace › folders › ancestors › this page, the middle folded into
  *                "…"; "… / Title" on phones), then who's viewing, Saved / Saving…, Share, ⋯, and
  *                search, Create and the avatar menu (or Sign in); a hairline once the page has
- *                scrolled; a calm banner under it when someone else is editing;
+ *                scrolled; a calm banner under it when someone else is editing. A classic
+ *                document's framed view has the same bar (app/[slug]/doc/DocumentTopBar);
  *   PageRailHead the rail's top row (the logo, level with the bar) while the rail is open;
  *   PageMenu     the ⋯ menu: a dropdown, a bottom sheet with drag-to-dismiss on phones (PageSheet);
  *   SubPages     "Pages inside" (with "Add a sub-page"), Backlinks ("N backlinks").
@@ -481,6 +482,12 @@ export function PageTopBar({
   shareUrl,
   onCopied,
   menu,
+  menuLabel,
+  tools,
+  badge,
+  rail: hasRail = true,
+  hideAccount,
+  className,
   banner,
 }: {
   crumbs: Crumb[];
@@ -496,6 +503,17 @@ export function PageTopBar({
   shareUrl?: string;
   onCopied?: () => void;
   menu: MenuEntry[];
+  /** The ⋯ button's name ("Page options"). */
+  menuLabel?: string;
+  /** More of the bar's own buttons, before Share (a classic document: Contents, Edit, full screen). */
+  tools?: ReactNode;
+  /** Beside the title: a classic document's E2E or lock badge. */
+  badge?: ReactNode;
+  /** There is a rail (a sidebar) for the bar's toggle to show and hide. */
+  rail?: boolean;
+  /** No account slot (a gate is showing its own sign-in). */
+  hideAccount?: boolean;
+  className?: string;
   /** A notice under the bar (someone else is editing). */
   banner?: ReactNode;
 }) {
@@ -532,34 +550,42 @@ export function PageTopBar({
   // Phones: Share leads the ⋯ menu (the bar keeps its room for the title).
   const items = [...(phone && onShare ? [{ label: "Share", icon: "share", onClick: onShare }] : []), ...menu, ...extra];
   return (
-    <header className="pb-barwrap no-print" data-scrolled={scrolled ? "" : undefined}>
+    <header className={cx("pb-barwrap no-print", className)} data-scrolled={scrolled ? "" : undefined}>
       <SkipLink />
       {/* A collapsed rail stays collapsed from the first paint (railState). */}
       <script dangerouslySetInnerHTML={{ __html: RAIL_SCRIPT }} />
       <div className="pb-bar" aria-label="Page">
-        <IconButton
-          icon="sidebar"
-          label={railOpen ? "Hide the sidebar" : "Show the sidebar"}
-          size="sm"
-          variant="ghost"
-          className="pb-bar__btn pb-bar__rail"
-          aria-keyshortcuts="Meta+Backslash Control+Backslash"
-          aria-expanded={railOpen}
-          onClick={toggleRail}
-        />
+        {hasRail && (
+          <IconButton
+            icon="sidebar"
+            label={railOpen ? "Hide the sidebar" : "Show the sidebar"}
+            size="sm"
+            variant="ghost"
+            className="pb-bar__btn pb-bar__rail"
+            aria-keyshortcuts="Meta+Backslash Control+Backslash"
+            aria-expanded={railOpen}
+            onClick={toggleRail}
+          />
+        )}
         <PageBrand className="pb-bar__brandslot" />
         <PageBreadcrumbs crumbs={crumbs} title={title} icon={icon} resolve={resolve} addressing={addressing} place={place} className="pb-bar__crumbs" />
+        {badge && <span className="pb-bar__badge">{badge}</span>}
         <div className="pb-bar__actions">
           {presence && <span className="pb-bar__presence">{presence}</span>}
           {status}
+          {tools}
           {onShare ? (
             <Button variant="ghost" size="sm" className="pb-bar__btn pb-bar__share" onClick={onShare}>Share</Button>
           ) : shareUrl ? (
-            <CopyButton text={shareUrl} label="Copy link" size="sm" variant="ghost" iconOnly className="pb-bar__btn" onCopy={onCopied} />
+            <CopyButton text={shareUrl} label="Copy link" size="sm" variant="ghost" iconOnly className="pb-bar__btn pb-bar__copy" onCopy={onCopied} />
           ) : null}
-          <PageMenu items={items} />
-          <span className="pb-bar__div" aria-hidden />
-          <PageAccount returnPath={addressing.tenant ? pathname || undefined : undefined} />
+          <PageMenu items={items} label={menuLabel} />
+          {!hideAccount && (
+            <>
+              <span className="pb-bar__div" aria-hidden />
+              <PageAccount returnPath={addressing.tenant ? pathname || undefined : undefined} />
+            </>
+          )}
         </div>
       </div>
       {banner}

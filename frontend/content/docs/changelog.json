@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "documents-one-top-bar",
+      "date": "2026-11-04",
+      "title": "Documents: one top bar, like pages",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web"
+      ],
+      "summary": "Leave full screen on a Markdown document and you get a single bar at the top, the same as a page's: the app's header and the document's bar under it are now one. Hide the Contents and Details sidebars with ⌘ \\ to keep just the text.",
+      "body": "- **One bar.** On the left: the sidebar button, the logo (your workspace's logo on its own domain) and the title, after the workspace and folder if you're a member. On the right: who's viewing, **Edit**, **Read full screen**, **Share** (or **Copy link**), **More actions** (**⋯**), **Create** and your avatar, or **Sign in**. It's the same in the editor and in front of a password or sign-in gate.\n- **Nothing moved out of reach.** **Copy link** and **Details** are in **⋯** when **Share** is in the bar, with **View raw**, **Export PDF**, **Save a copy**, **Request edit access** and, on your workspace's domain, **General access on markdrop.in**. The theme switch is in your avatar menu (in **⋯** when you're signed out).\n- **Hide the sidebars** with the sidebar button or **⌘ \\\\** (**Ctrl \\\\** on Windows and Linux): **Contents** and **Details** step aside and **Contents** moves into the bar. Your browser remembers it, together with a page's sidebar.\n- **On a phone** the bar keeps the title, full screen and **⋯** (with **Share** first), and **Contents**, **Copy link** and **Share** or **Edit** stay in the bar at the bottom.",
+      "docs": [
+        "/get-started/tour",
+        "/sharing/see-whos-viewing"
+      ]
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",

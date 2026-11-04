@@ -180,3 +180,25 @@ export async function waitSaved(p, timeout = 20000) {
   await p.waitForTimeout(2600);
   await p.locator('.pb-save[data-state="saved"]').first().waitFor({ state: "attached", timeout });
 }
+
+/**
+ * The bars across the top of the screen: visible sticky or fixed elements within 120 px of the top,
+ * 32 to 120 px tall and at least 60 % of the viewport wide, not counting one inside another (a bar's
+ * own inner row). A screen with the app header and a document bar under it has two; one bar, one.
+ */
+export async function topBars(p) {
+  return p.evaluate(() => {
+    const vw = window.innerWidth;
+    const hits = [];
+    for (const el of document.querySelectorAll("body *")) {
+      const cs = getComputedStyle(el);
+      if (cs.position !== "sticky" && cs.position !== "fixed") continue;
+      if (cs.display === "none" || cs.visibility === "hidden" || Number(cs.opacity) === 0) continue;
+      const r = el.getBoundingClientRect();
+      if (r.top < -1 || r.top > 120 || r.height < 32 || r.height > 120 || r.width < vw * 0.6) continue;
+      hits.push(el);
+    }
+    const top = hits.filter((el) => !hits.some((o) => o !== el && o.contains(el)));
+    return top.map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(/\s+/).slice(0, 3).join(".")}@${Math.round(el.getBoundingClientRect().top)}`);
+  });
+}

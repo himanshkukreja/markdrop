@@ -273,7 +273,8 @@ export default [
       await h.sleep(600);
       await h.page.mouse.move(700, 700);
     },
-    crop: { box: { x: 0, y: 56, width: 1440, height: 440 } },
+    // One bar at the top now (the app header and the document bar are one).
+    crop: { box: { x: 0, y: 0, width: 1440, height: 480 } },
   },
 
   // ════ /documents/writing ════════════════════════════════════════════════════

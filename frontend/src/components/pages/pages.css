@@ -306,6 +306,24 @@ button.pb-mention--date { cursor: pointer; }
 .pb-crumb__glyph { flex: none; color: var(--text-muted); }
 .pb-crumb--narrow { display: none; flex: none; }
 
+/* Beside the title: a classic document's E2E or lock badge (the crumbs shrink to their text). */
+.pb-bar__crumbs:has(+ .pb-bar__badge) { flex: 0 1 auto; }
+.pb-bar__badge { display: flex; flex: 1 0 auto; align-items: center; min-width: 0; margin-left: 2px; }
+
+/* ── A classic document's framed view (app/[slug]/doc/DocumentTopBar): the same bar, on the app's
+   background. Its sidebar toggle (≥ 1280 px, ⌘\, remembered with a page's rail) hides the Contents
+   and Details rails and the column centres; Contents moves to the bar then (and below 1280 px). ── */
+.md-docbar.pb-barwrap { background: color-mix(in srgb, var(--bg) 82%, transparent); }
+.md-docbar__contents { display: inline-flex; }
+@media (min-width: 1280px) {
+  :root:not([data-pb-rail="collapsed"]) .md-docbar__contents { display: none; }
+  :root[data-pb-rail="collapsed"] .md-docgrid { grid-template-columns: minmax(0, 680px); justify-content: center; }
+  :root[data-pb-rail="collapsed"] .md-docgrid > .md-docrail { display: none; }
+}
+@media (max-width: 1279px) { .md-docbar .pb-bar__rail { display: none !important; } }
+/* Phones: Contents and Copy link are on the bottom action bar. */
+@media (max-width: 639px) { .md-docbar__contents, .md-docbar .pb-bar__copy { display: none !important; } }
+
 /* Saved / Saving… : cross-faded in one slot (no width jump). */
 .pb-save { display: inline-grid; align-items: center; justify-items: end; margin: 0 8px 0 4px; color: var(--text-muted); font: 500 12px/1 var(--font-mono); white-space: nowrap; }
 .pb-save__l { grid-area: 1 / 1; display: inline-flex; align-items: center; gap: 5px; opacity: 0; transform: translateY(2px); transition: opacity 180ms var(--ease-out), transform 180ms var(--ease-out); }
@@ -482,6 +500,8 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-bar { gap: 2px; padding: 0 4px; }
   .pb-bar__wide, .pb-bar__div { display: none !important; }
   .pb-bar__brandslot { margin: 0; }
+  /* A workspace's name without a logo leaves the title room. */
+  .pb-bar__brand { flex: 0 1 auto; max-width: 38%; }
   /* The sidebar button takes the logo's place (the drawer's head carries it); Share is in ⋯. */
   .pb-shell--rail .pb-bar__brandslot { display: none; }
   .pb-bar .pb-bar__signin { height: 44px; padding: 0 8px; }
