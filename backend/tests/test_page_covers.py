@@ -129,6 +129,17 @@ class Choice(CoverWorld):
         for c in page_covers.CATALOG:
             self.assertIn(c["tint"], ("light", "dark"))
             self.assertGreaterEqual(len(c["tags"]), 4, c["id"])
+        # The frontend's manifest (frontend/scripts/page-covers/generate.mjs writes both) says the same.
+        from pathlib import Path
+
+        manifest = Path(__file__).resolve().parents[2] / "frontend/public/page-covers/manifest.json"
+        if manifest.exists():
+            m = json.loads(manifest.read_text())["covers"]
+            self.assertEqual([(c["id"], c["tint"], c["tags"]) for c in m],
+                             [(c["id"], c["tint"], c["tags"]) for c in page_covers.CATALOG])
+            for c in m:
+                f = manifest.parent / f"{c['id']}.webp"
+                self.assertLessEqual(f.stat().st_size, 60 * 1024, c["id"])
 
 
 class Fallback(CoverWorld):
