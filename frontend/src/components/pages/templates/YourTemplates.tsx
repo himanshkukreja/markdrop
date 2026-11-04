@@ -108,6 +108,7 @@ export function YourTemplates({ open, workspace, folder, workspaceName, chosen, 
   }
 
   const wsName = workspaceName || "Your workspace";
+  const wsIn = workspaceName || "this workspace";
   const showWs = !!list.workspace_id && (list.workspace.length > 0 || list.can_save_workspace);
   const hasFolderLine = !!list.folder?.can_set_default || !!list.folder?.default_template;
   const canManageAny = [...list.workspace, ...list.personal].some((t) => t.can_manage) || list.can_reorder_workspace;
@@ -164,7 +165,7 @@ export function YourTemplates({ open, workspace, folder, workspaceName, chosen, 
             <div className="tpl-empty">
               <Icon name="layers" />
               <span>
-                No templates in {wsName} yet. Open any page and choose <strong>Use as template</strong> from its ⋯ menu: everyone in {wsName} can then start from it here.
+                No templates in {wsIn} yet. Open any page and choose <strong>Use as template</strong> from its ⋯ menu: everyone in {wsIn} can then start from it here.
               </span>
             </div>
           )}
