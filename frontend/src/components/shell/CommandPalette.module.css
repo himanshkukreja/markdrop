@@ -111,6 +111,7 @@
 
 .filters {
   display: flex;
+  flex: none; /* the results list shrinks, never the filter row (its chips would be clipped) */
   align-items: center;
   gap: 6px;
   padding: 0 14px 10px;
