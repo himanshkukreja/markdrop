@@ -550,7 +550,7 @@ await step("tenant-edit", async () => {
   await o.p.keyboard.press("Escape");
   // Share with people right on the domain (2026-11-04): the dialog's people-only mode.
   const shareCalls = captureApi(o.p);
-  await o.p.locator(".pb-bar, header").getByRole("button", { name: /^Share$/ }).first().click({ timeout: 10000 });
+  await o.p.getByRole("button", { name: "Share", exact: true }).first().click({ timeout: 10000 });
   const dlg = o.p.getByRole("dialog");
   await dlg.getByText(/Change general access on markdrop\.in/).waitFor({ timeout: 15000 });
   if (await dlg.getByText("Who can open it", { exact: true }).count()) fail("the access level is offered on the domain");
