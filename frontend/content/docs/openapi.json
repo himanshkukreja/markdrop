@@ -9875,6 +9875,63 @@
         }
       }
     },
+    "/api/v1/workspaces/{workspace_id}/items/previews": {
+      "post": {
+        "tags": [
+          "workspace-items"
+        ],
+        "summary": "Items Previews",
+        "description": "What the Cards view shows of each item: ``{previews: {slug: preview}}``\n(services/card_preview.py). The app asks only for the cards on screen.\nViewer+, like the listing; each item answers ``locked`` unless the caller\ncan open it right now (no password, no sign-in, no refusal in the way),\n``encrypted`` for end-to-end encrypted documents, ``pending`` while a\npicture is being made, else ``ok`` with plain-text blocks, a sheet's first\ncells, a text file's first lines, a small WebP thumbnail (``src``, a data\nURI) or, for an HTML file, its signed ``live`` URL on the artifact origin.",
+        "operationId": "items_previews_api_v1_workspaces__workspace_id__items_previews_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItemsPreviews"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/workspaces/{workspace_id}/preview": {
       "get": {
         "tags": [
@@ -16537,6 +16594,24 @@
           "slugs"
         ],
         "title": "ItemsMove"
+      },
+      "ItemsPreviews": {
+        "properties": {
+          "slugs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Slugs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slugs"
+        ],
+        "title": "ItemsPreviews"
       },
       "ItemsRemove": {
         "properties": {
