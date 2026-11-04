@@ -19,6 +19,8 @@
 .stack[aria-expanded="true"] :global(.md-tip__bubble) { display: none; }
 /* Touch: a tap opens the sheet, so a tooltip would only linger after it closes. */
 @media (hover: none) { .stack :global(.md-tip__bubble) { display: none; } }
+/* Touch: a 44 px tall target (the avatars keep their size). */
+@media (pointer: coarse) { .stack { min-height: 44px; } }
 .stack > * + * { margin-left: -4px; }
 .stack > .self { margin-left: 6px; }
 

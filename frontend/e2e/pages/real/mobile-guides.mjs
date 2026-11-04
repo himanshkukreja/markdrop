@@ -214,10 +214,15 @@ function measure({ checkTargets, skip }) {
       const atCentre = document.elementFromPoint(Math.min(vw - 1, Math.max(0, cx)), Math.min(vh - 1, Math.max(0, cy)));
       if (!atCentre || !(target === atCentre || target.contains(atCentre) || atCentre.contains(target))) continue;
       const probes = [[cx - 21.5, cy], [cx + 21.5, cy], [cx, cy - 21.5], [cx, cy + 21.5]];
+      // An open menu, sheet or popover laid over part of the control isn't a neighbour.
+      const POPUP = "[role=menu], [role=listbox], [role=dialog], [role=tooltip], .md-popover, .dxe-slash";
+      const targetPopup = target.closest(POPUP);
       let ok = true;
       for (const [x, y] of probes) {
         if (x < 0 || y < 0 || x >= vw || y >= vh) continue;
         const hit = document.elementFromPoint(x, y);
+        const over = hit && hit.closest(POPUP);
+        if (over && over !== targetPopup && !over.contains(target)) continue;
         if (!hit || !(hit === target || target.contains(hit))) { ok = false; break; }
       }
       if (!ok) push("target", el, `${Math.round(r.width)}×${Math.round(r.height)}`);
@@ -558,8 +563,8 @@ for (const theme of themes) {
             if (typeof r === "string") extra = r;
           }
           await p.waitForTimeout(250);
-          // Analytics sits in the app's shell: its header is fix/mobile-shell's, not measured here.
-          const skip = name.startsWith("an-") ? "body header:not(main header)" : null;
+          // Analytics sits in the app's shell: its header and sidebar are fix/mobile-shell's, not measured here.
+          const skip = name.startsWith("an-") ? "body header:not(main header), body aside:not(main aside)" : null;
           const res = [...(await p.evaluate(measure, { checkTargets: true, skip })), ...(await p.evaluate(measureImages))];
           if (extra) res.push({ rule: name === "site-ask" ? "keyboard" : name === "an-tooltip" ? "touch" : "state", who: name, detail: extra });
           if (!action) {

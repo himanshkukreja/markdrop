@@ -67,4 +67,14 @@
   }
   html[data-studio] :is(.dxe-code__lang, .dxe-code__title, .dxe-cards__cols select) { min-height: 44px; }
   html[data-studio] .dxe-card__grip { min-width: 44px; min-height: 44px; }
+  /* The "/" menu's section heads and Markdown shortcuts. */
+  html[data-studio] :is(.dxe-slash__head, .dxe-slash__kbd) { font-size: 12px; }
+  /* A long press's block handle (at the block's right edge): a 44 px grip, still inside the block. */
+  html[data-studio] .dxe-handle--touch .dxe-handle__btn { width: 44px; height: 44px; }
+  html[data-studio] .dxe-handle--touch { margin-left: -20px; }
+}
+/* The mouse's block handle follows the pointer (and a tap's emulated mouse move) into the gutter
+   with two 24 px buttons; a finger has the touch bar (+ Block, the block menu) and the long press. */
+@media (hover: none) and (pointer: coarse) {
+  html[data-studio] .dxe-handle:not(.dxe-handle--touch) { display: none; }
 }

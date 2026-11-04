@@ -105,7 +105,7 @@ function WorkspaceBadge() {
   const label = current.workspace_id ? name : "Personal";
   if (!label) return null;
   return (
-    <Anchor href={studioHome(scopeOf(current))} className="md-focus md-touch-hit hidden shrink-0 rounded-full no-underline sm:inline-flex" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
+    <Anchor href={studioHome(scopeOf(current))} className="md-focus md-touch-hit hidden shrink-0 rounded-full no-underline sm:inline-flex pointer-coarse:max-lg:hidden" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
       <Badge size="sm" icon={current.workspace_id ? "users" : "user"}>{label}</Badge>
     </Anchor>
   );
@@ -141,7 +141,8 @@ export const HEADER_SLOT_ID = "guides-header-slot";
  * a guide's screens its switcher, workspace and your role there; then the guide search (⌘K), Docs
  * (Guides' documentation, new tab), the theme switch and the account menu (which keeps the way back
  * to the Markdrop dashboard). Phones: the mark with "Guides" (the mark alone with a guide open), the
- * search button, the Docs icon and the account menu.
+ * search button, the Docs icon and the account menu. Touch tablets under lg (44 px buttons): no
+ * workspace and role badges (the switcher's menu has both) and no theme switch (the account menu's).
  */
 export function StudioHeader() {
   const { current } = useStudio();
@@ -155,7 +156,7 @@ export function StudioHeader() {
           <span aria-hidden className="text-[18px] font-light text-text-subtle">/</span>
           <SiteSwitcher />
           <WorkspaceBadge />
-          <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Guides role on this guide" />
+          <RoleBadge role={current.your_role} className="max-sm:hidden pointer-coarse:max-lg:hidden" title="Your Guides role on this guide" />
         </>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -163,7 +164,7 @@ export function StudioHeader() {
         <div id={HEADER_SLOT_ID} className="flex items-center empty:hidden" />
         <GuideSearch compact={!!current} />
         <GuidesDocsLink />
-        <ThemeToggle className="max-md:hidden" />
+        <ThemeToggle className="max-md:hidden pointer-coarse:max-lg:hidden" />
         <HeaderAuthSlot studio />
       </div>
     </header>

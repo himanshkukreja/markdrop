@@ -143,7 +143,7 @@ export default function AnalyticsHome() {
                 <span className="text-[13px] text-text-secondary">
                   Connected to Markdrop over MCP, it can read these numbers: &ldquo;Where do readers drop off in my getting-started guide? Rewrite that section.&rdquo;
                 </span>
-                <Anchor href="/mcp" className="inline-flex items-center gap-1 self-start text-[13px]">Connect an assistant<Icon name="arrowRight" size={14} /></Anchor>
+                <Anchor href="/mcp" className="inline-flex items-center gap-1 self-start text-[13px] pointer-coarse:min-h-11">Connect an assistant<Icon name="arrowRight" size={14} /></Anchor>
               </section>
             </aside>
           </div>

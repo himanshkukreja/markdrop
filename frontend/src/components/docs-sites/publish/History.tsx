@@ -95,9 +95,9 @@ export function History({ builds, restoring, onRestore, className }: {
         </ol>
       )}
       {builds && builds.length > 0 && (
-        <span className="flex flex-wrap gap-3 text-[13px]">
+        <span className="flex flex-wrap gap-3 text-[13px] pointer-coarse:gap-x-5 pointer-coarse:pt-3">
           {builds.length > 4 && (
-            <button type="button" className="md-focus rounded text-accent-text underline-offset-2 hover:underline" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            <button type="button" className="md-focus md-touch-hit rounded text-accent-text underline-offset-2 hover:underline" onClick={() => setAll((v) => !v)} aria-expanded={all}>
               {all ? "Show fewer" : `See all ${builds.length} publishes`}
             </button>
           )}

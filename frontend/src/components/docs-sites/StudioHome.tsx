@@ -283,7 +283,7 @@ function HomeSkeleton() {
         ))}
       </div>
       <div className="flex items-center gap-3"><Skeleton width={300} height={34} /><span className="flex-1" /><Skeleton width={200} height={34} className="max-md:hidden" /></div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pointer-fine:lg:grid-cols-3 xl:grid-cols-3">
         {[0, 1, 2].map((i) => <GuideCardSkeleton key={i} />)}
       </div>
     </div>
@@ -441,7 +441,8 @@ export default function StudioHome() {
                       {shown.map((s) => <GuideRow key={s.id} site={s} where={where(s)} insights={cardIns(s)} canManagePeople={managesPeople(s)} {...item} />)}
                     </ul>
                   ) : null}
-                  <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 max-sm:gap-3 ${layout === "list" ? "sm:hidden" : ""}`}>
+                  {/* Touch tablets keep two columns up to xl: a card's 44 px footer buttons need ~360 px. */}
+                  <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 pointer-fine:lg:grid-cols-3 xl:grid-cols-3 max-sm:gap-3 ${layout === "list" ? "sm:hidden" : ""}`}>
                     {shown.map((s) => <GuideCard key={s.id} site={s} where={where(s)} insights={cardIns(s)} canManagePeople={managesPeople(s)} {...item} />)}
                     {showStart && layout === "cards" && <div className="h-full max-sm:hidden"><StartTile scope={newScope} /></div>}
                   </div>

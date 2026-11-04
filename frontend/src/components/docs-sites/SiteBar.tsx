@@ -157,12 +157,14 @@ function PublishControls({ preview }: { preview: boolean }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => guideEvents.liveOpened("site_bar")}
-          className="md-focus md-touch-hit inline-flex h-[30px] min-w-0 max-w-[340px] shrink items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-semibold text-success no-underline hover:underline"
+          className="md-focus md-touch-hit inline-flex h-[30px] min-w-0 max-w-[340px] shrink items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-semibold text-success no-underline hover:underline pointer-coarse:max-xl:shrink-0"
           title={`Open ${host} in a new tab`}
         >
           <span className="size-[7px] shrink-0 rounded-full bg-success" aria-hidden />
-          {/* Phones: "Live" alone (the address is in the title and read out), so the bar keeps to one row. */}
-          <span className="min-w-0 truncate">Live<span className="max-sm:sr-only"> · <span className="ph-sensitive ph-mask">{host}</span></span></span>
+          {/* Phones, and touch tablets under xl (44 px tabs and buttons fill the row): "Live" alone (the
+              address is in the title and read out), so the bar keeps to one row and the pill never
+              squeezes to a dot. */}
+          <span className="min-w-0 truncate">Live<span className="max-sm:sr-only pointer-coarse:max-xl:sr-only"> · <span className="ph-sensitive ph-mask">{host}</span></span></span>
           <Icon name="external" size={12} className="shrink-0" />
           <span className="md-visually-hidden">(opens in a new tab)</span>
         </a>
