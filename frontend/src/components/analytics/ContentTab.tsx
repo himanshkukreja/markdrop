@@ -13,6 +13,7 @@ import type { Heading } from "@/components/reading/slug";
 import { clock, num, pct, secs } from "./format";
 import { TrackingNote } from "./OverviewTab";
 import { KpiGrid, LoadError, Panel, PanelSkeleton, Quiet, StatBox, useLoad } from "./parts";
+import InsightsPanel from "./InsightsPanel";
 
 export default function ContentTab({ slug, ov, range, internal, headings, blocks, titleFor }: {
   slug: string;
@@ -76,6 +77,7 @@ export default function ContentTab({ slug, ov, range, internal, headings, blocks
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
+      <InsightsPanel slug={slug} kind="content" range={range} internal={internal} />
       <KpiGrid>
         <StatBox label="Readers" value={num(c.sessions)} note={people?.note ?? "reading sessions"} />
         <StatBox label="Read it all" value={pct(c.read_all_pct)} note="reached the last section" />

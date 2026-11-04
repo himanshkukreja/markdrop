@@ -12,6 +12,7 @@ import { BarList, CompareChart, HeatStrip, RetentionChart } from "./charts";
 import { RANGE_WORDS, clock, countryName, ms, num, pct } from "./format";
 import { TrackingNote } from "./OverviewTab";
 import { FrameThumb, LoadError, Panel, PanelSkeleton, Quiet, useLoad } from "./parts";
+import InsightsPanel from "./InsightsPanel";
 
 const REASON: Record<string, string> = { network: "network", decode: "couldn't decode", src: "file not supported", expired: "link expired", other: "other" };
 
@@ -64,6 +65,12 @@ export default function MediaTab({ slug, ov, range, internal }: { slug: string; 
   const fileVersion = ov.doc.file_version ?? 1;
   // The version on show (null = the current one); the list comes back with the media answer.
   const [ver, setVer] = useState<number | null>(null);
+  // ✦ Insights: the moment a finding's timestamp chip marks on the retention chart.
+  const [focusT, setFocusT] = useState<number | null>(null);
+  const markMoment = (t: number) => {
+    setFocusT((cur) => (cur === t ? null : t));
+    document.getElementById("md-ret")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  };
   const media = useLoad(ov.has_engagement ? `media:${slug}:${range}:${internal}:${ver ?? ""}` : null, () => getMedia(slug, { range, internal }, ver));
   const versions = useLoad(video && fileVersion > 1 && ov.has_engagement ? `ver:${slug}:${range}:${internal}` : null, () => getVersions(slug, { range, internal }));
 
@@ -93,10 +100,11 @@ export default function MediaTab({ slug, ov, range, internal }: { slug: string; 
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
+      <InsightsPanel slug={slug} kind="media" range={range} internal={internal} ver={ver} video={video} onMoment={markMoment} activeT={focusT} />
       <Panel id="md-ret" title={video ? "Who's still watching, second by second" : "Who's still listening, second by second"}
         aside={`${num(m.viewers)} ${video ? "viewers" : "listeners"}${fileVersion > 1 ? ` · version ${m.ver}` : ""} · ${RANGE_WORDS[range]}`}
         headerExtra={m.versions.length > 1 ? <VersionSelect versions={m.versions.map((v) => v.version)} value={m.ver} onChange={setVer} /> : undefined}>
-        <RetentionChart points={m.retention} dur={m.dur} marks={marks} noun={noun} />
+        <RetentionChart points={m.retention} dur={m.dur} marks={marks} noun={noun} highlight={focusT} />
         {m.moments.length > 0 && (
           <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 sm:grid-cols-[repeat(auto-fit,minmax(240px,1fr))]">
             {m.moments.map((mo) => (

@@ -328,6 +328,108 @@ export const downloadDocCsv = (slug: string, range: AnalyticsRange) =>
 export const downloadHomeCsv = (range: AnalyticsRange) =>
   downloadCsv(`/me/analytics.csv${q({ range })}`, `markdrop-analytics-${range}.csv`);
 
+// ── Analytics AI per document (services/analytics_ai_doc.py) ─────────────────
+
+/** content (Markdown), media (video/audio), pages (PDF), versions (files with versions). */
+export type AiKind = "content" | "media" | "pages" | "versions";
+export type AiState = "ready" | "empty" | "thin" | "encrypted" | "unsupported";
+export type AiSeverity = "high" | "medium" | "low";
+
+export interface AiFinding {
+  severity: AiSeverity;
+  title: string;
+  why: string;
+  suggestion: string;
+  /** content: the section it's about (heading text and level, for "Apply in page"). */
+  section?: { n: number; id: string; title: string; depth: number; reached_pct: number; lost_before_pct: number } | null;
+  /** content: new Markdown for that section's body (never applied by itself). */
+  rewrite?: string | null;
+  /** media: seconds (and an optional end). */
+  t?: number | null;
+  end?: number | null;
+  /** media: a key moment with a frame near `t`. */
+  frame_t?: number | null;
+  /** pages: the page number. */
+  page?: number | null;
+  /** versions: the version it's about. */
+  version?: number | null;
+}
+
+export interface AiMoment { n: number; t: number; kind: "drop" | "skip" | "rewatch"; still_watching_pct: number; frame?: boolean; delta?: number; dip?: number; ratio?: number }
+
+export interface AiResult {
+  summary: string;
+  findings: AiFinding[];
+  chapters?: { t: number; title: string }[];
+  moments?: AiMoment[];
+  ver?: number;
+  verdict?: {
+    winner: number;
+    headline: string;
+    explanation: string;
+    metric: string;
+    value: number;
+    unit: "percent" | "seconds";
+    sessions: number;
+    runner_up: { version: number; value: number; sessions: number } | null;
+    confidence: { level: "high" | "medium" | "low"; note: string };
+  };
+}
+
+export interface AiAnalysis {
+  kind: AiKind;
+  state: AiState;
+  result: AiResult | null;
+  stale: boolean;
+  generated_at: string | null;
+  sample: { have: number; need: number } | null;
+  note: string | null;
+  /** Why AI can't run right now (off, workspace_off, daily, …), before anyone clicks. */
+  limit: { reason: string; message: string } | null;
+  /** A page this person may edit: a rewrite can be offered in its editor. */
+  can_apply: boolean;
+  kinds: AiKind[];
+}
+
+/** A failed analysis: `code` "limit" (with `reason`), "bad_output", "upstream"… */
+export class AiError extends AnalyticsError {
+  code: string;
+  reason: string | null;
+  constructor(message: string, status: number, code: string, reason: string | null) {
+    super(message, status);
+    this.name = "AiError";
+    this.code = code;
+    this.reason = reason;
+  }
+}
+
+const aiPath = (slug: string, kind: AiKind, s: Scope, ver?: number | null) =>
+  `${doc(slug)}/analytics/ai/${kind}${scopeQ(s, { ver: kind === "media" ? ver : null })}`;
+
+export const getAiAnalysis = (slug: string, kind: AiKind, s: Scope, ver?: number | null) =>
+  getJson<AiAnalysis>(aiPath(slug, kind, s, ver));
+
+/** Analyse (or Re-analyse with `refresh`). Throws AiError (429 limits, 502 a failed answer). */
+export async function runAiAnalysis(slug: string, kind: AiKind, s: Scope, ver?: number | null, refresh = false): Promise<AiAnalysis> {
+  if (fixtureMode()) return fromFixture<AiAnalysis>(`${aiPath(slug, kind, s, ver)}${refresh ? "&refresh=1" : ""}&run=1`);
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1${aiPath(slug, kind, s, ver)}`, {
+      method: "POST", cache: "no-store",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify(refresh ? { refresh: true } : {}),
+    });
+  } catch {
+    throw new AiError("Couldn't reach Markdrop. Check your connection and try again.", 0, "network", null);
+  }
+  const body = (await res.json().catch(() => null)) as (AiAnalysis & { detail?: unknown; code?: string; reason?: string }) | null;
+  if (!res.ok) {
+    const msg = typeof body?.detail === "string" ? body.detail : "AI hit a problem. Try again in a moment.";
+    throw new AiError(msg, res.status, body?.code ?? "error", body?.reason ?? null);
+  }
+  return body as AiAnalysis;
+}
+
 /**
  * A markdown document's text for mapping heading ids to titles and copy hashes to code. Owner
  * read (bearer). null for encrypted documents, artifacts or any failure: callers fall back.

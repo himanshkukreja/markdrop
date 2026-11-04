@@ -1,0 +1,29 @@
+/* ✦ Insights (components/analytics/InsightsPanel.tsx): light and dark through the theme tokens. */
+.an-ai { position: relative; }
+.an-ai__spark { color: var(--accent-text); font-size: 1.05em; line-height: 1; }
+.an-ai__spark--busy { animation: an-ai-pulse 1.4s ease-in-out infinite; }
+@keyframes an-ai-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
+@media (prefers-reduced-motion: reduce) { .an-ai__spark--busy { animation: none; } }
+
+.an-ai__card--high { border-left: 3px solid var(--warning, var(--accent)); }
+
+.an-ai__chip {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 2px 8px 2px 2px;
+  border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface);
+  color: var(--text-secondary); font-size: 12px; cursor: pointer;
+}
+.an-ai__chip:has(> .md-icon:first-child) { padding-left: 8px; }
+.an-ai__chip:hover { background: var(--surface-hover); color: var(--text); }
+.an-ai__chip--on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+
+.an-ai__toggle {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 0 2px; border: 0; background: none;
+  color: var(--accent-text); font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.an-ai__toggle:hover { color: var(--accent-text-hover, var(--accent-text)); text-decoration: underline; }
+
+/* Phones and touch screens: every control at least 44 px tall. */
+@media (max-width: 640px), (pointer: coarse) {
+  .an-ai .md-btn, .an-ai__chip, .an-ai__toggle { min-height: 44px; }
+  .an-ai__chip { padding-right: 12px; }
+}
