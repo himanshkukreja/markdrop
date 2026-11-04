@@ -30,7 +30,7 @@ import { getWorkspace } from "@/lib/workspaces";
 import { uploadArtifact } from "@/lib/api";
 import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
-import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, setEditor, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
+import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
@@ -166,12 +166,13 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const [title, setTitle] = useState(initialTitle ?? "");
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<EditorMode>("visual");
+  // Another page in this same editor (a client navigation that keeps it): blocks again.
+  useEffect(() => setMode("visual"), [slug]);
   const api = useRef<DocsEditorApi | null>(null);
   const [editor, setEditorInstance] = useState<Editor | null>(null);
   const local = useRef(new Map<string, string>());
   const [, setLocalTick] = useState(0);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
-  const [switching, setSwitching] = useState(false);
   const [templates, setTemplates] = useState<PageTemplate[]>([]);
   // What this browser kept from an earlier visit that the server never confirmed.
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -424,19 +425,6 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     session.activity();
   };
 
-  async function toClassic() {
-    setSwitching(true);
-    try {
-      await session.flush();
-      await setEditor(slug, "classic", secret);
-      toast.success("Switched to the classic editor. The Markdown is unchanged.");
-      window.location.assign(`${window.location.pathname}?edit=1`);
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't switch editors.");
-      setSwitching(false);
-    }
-  }
-
   const menu: MenuEntry[] = [
     { custom: <FontTiles value={props.font} onChange={(f) => setProps({ font: f })} disabled={readOnly} /> },
     {
@@ -463,8 +451,10 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     ...(onAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: onAddSubPage }] : []),
     ...(onMoveTo ? [{ label: "Move to…", icon: "arrowRight", onClick: onMoveTo }] : []),
     ...(onDuplicate ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => void session.flush().then(onDuplicate, onDuplicate) }] : []),
-    { label: mode === "visual" ? "Edit as Markdown" : "Edit with blocks", icon: "code", onClick: () => setMode(mode === "visual" ? "markdown" : "visual"), separated: true },
-    { label: "Open in the classic editor", icon: "lines", description: "The same Markdown, in a text editor", onClick: () => void toClassic(), disabled: switching || readOnly },
+    // The Markdown source is a view of this page, here and now: it never changes the page's editor and
+    // never outlives this visit (a reload, or another page, opens blocks). A page stays a page: there is
+    // no "classic editor" here (the API and MCP still offer it).
+    { label: mode === "visual" ? "Edit as Markdown" : "Edit with blocks", icon: "code", description: mode === "visual" ? "The page's source, for now. It stays a page." : undefined, onClick: () => setMode(mode === "visual" ? "markdown" : "visual"), separated: true },
     ...(chrome.menu ?? []),
     ...(onDelete ? [{ label: "Delete page", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
     // The footer: the word count, and that pages are in beta.
@@ -594,6 +584,16 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
               {t.name}
             </button>
           ))}
+        </div>
+      )}
+      {/* The Markdown source is a temporary view: always a way back on screen. */}
+      {mode === "markdown" && (
+        <div className="pb-sourcebar no-print" role="region" aria-label="Markdown source">
+          <Icon name="code" size={16} aria-hidden className="pb-sourcebar__icon" />
+          <span className="pb-sourcebar__text">
+            <strong>Editing the Markdown source.</strong> Changes save as you type. This page stays a page, and opens with blocks next time.
+          </span>
+          <Button size="sm" variant="secondary" onClick={() => setMode("visual")}>Edit with blocks</Button>
         </div>
       )}
       {/* ph-no-capture: the page being written is never recorded (the editor masks itself too). */}

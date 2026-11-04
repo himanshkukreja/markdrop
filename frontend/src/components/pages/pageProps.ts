@@ -72,6 +72,14 @@ export function readPageProps(markdown: string): PageProps {
   };
 }
 
+const PAGE_KEYS = ["icon", "cover", "cover_y", "full_width", "small_text", "font", "locked", "allow_export"];
+
+/** Front matter only a page writes (an icon, a cover, its layout…): a classic document with it was a page. */
+export function hasPageProps(markdown: string): boolean {
+  const d = frontKeys(markdown);
+  return PAGE_KEYS.some((k) => k in d);
+}
+
 export type CoverCategory = "Paper" | "Duotone" | "Lines" | "Calm";
 export interface GalleryCover {
   id: string;

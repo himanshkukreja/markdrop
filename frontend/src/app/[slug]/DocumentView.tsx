@@ -30,7 +30,7 @@ import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
 import vs from "./doc/viewer.module.css";
 import type { PageActionRequest } from "@/components/pages/PageActions";
-import { readPageProps } from "@/components/pages/pageProps";
+import { hasPageProps, readPageProps } from "@/components/pages/pageProps";
 import { assetId, pagePath } from "@/lib/pageAddress.mjs";
 import type { PageAiStatus } from "@/lib/pages-ai/ask";
 
@@ -168,6 +168,9 @@ export default function DocumentView(props: DocumentViewProps) {
   // A page: a document in the block editor (never an encrypted one).
   const page = v.page;
   const isPage = !encrypted && page?.editor === "blocks";
+  // A classic document that was a page (its front matter, its place among pages): its editors get a
+  // clear way back to the page editor, on markdrop.in and on the workspace's own domain.
+  const wasPage = !isPage && !encrypted && !!page && (hasPageProps(displayContent) || (page.children_count ?? 0) > 0 || !!page.parent || (page.page_path?.length ?? 0) > 0);
   const addressing = { tenant: !!tenant, folderPath: page?.folder_path ?? [], workspaceId: page?.workspace_id ?? null };
   const crumbs = isPage ? page?.breadcrumbs ?? [] : [];
   // Sub-pages, history: signed-in editors, here or on a workspace's own domain. Moving, duplicating,
@@ -362,12 +365,53 @@ export default function DocumentView(props: DocumentViewProps) {
   // for editors (below). Someone who must type the edit secret first gets the edit flow's prompt.
   const pageScreen = isPage && readable && !gated && !(editing && !secretUnlocked);
 
+  // Open a classic document with blocks, or (it was a page) back in the page editor.
+  const toBlocksDialog = (
+    <ConfirmDialog
+      open={toBlocks}
+      onClose={() => !toBlocksBusy && setToBlocks(false)}
+      title={wasPage ? "Switch back to the page editor?" : "Open in the block editor?"}
+      body={wasPage
+        ? "It opens with blocks again: its icon, cover, sub-pages and layout come back. The Markdown is unchanged and the link stays the same."
+        : "You'll write this document with blocks: headings, toggles, checklists, callouts, tables, images and embeds of your Markdrop files. The Markdown is unchanged and the link stays the same."}
+      confirmLabel={wasPage ? "Switch back" : "Open in block editor"}
+      tone="default"
+      onConfirm={async () => {
+        setToBlocksBusy(true);
+        try {
+          await (await pagesApi()).setEditor(slug, "blocks", v.secretInput || null);
+          v.setPage({ ...(page ?? {}), editor: "blocks" });
+          setToBlocks(false);
+          track(wasPage ? "page_back_to_blocks" : "page_open_blocks");
+          handleEditClick();
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Couldn't switch editors. Try again.");
+        } finally {
+          setToBlocksBusy(false);
+        }
+      }}
+    />
+  );
+  // Its editors see where it went, and the way back, above the document (and its classic editor).
+  const backToPage = wasPage && secretUnlocked && readable ? (
+    <Alert
+      tone="info"
+      icon="layers"
+      className="no-print"
+      title="This page is open in the classic editor"
+      actions={<Button size="sm" variant="primary" onClick={() => setToBlocks(true)}>Switch back to the page editor</Button>}
+    >
+      It was switched to the Markdown editor. Switch back to write it with blocks again; nothing is lost.
+    </Alert>
+  ) : null;
+
   // ── Edit flow ──────────────────────────────────────────────────────────────
   if (editing && !pageScreen) {
     return (
       <>
         {header}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+          {secretUnlocked && !isPage && backToPage && <div className="mx-auto w-full max-w-reading px-4 pt-4 sm:px-6">{backToPage}</div>}
           {secretUnlocked && !isPage ? (
             <EditorScreen
               v={v}
@@ -381,6 +425,7 @@ export default function DocumentView(props: DocumentViewProps) {
             <SecretUnlock v={v} />
           )}
         </main>
+        {toBlocksDialog}
       </>
     );
   }
@@ -471,8 +516,11 @@ export default function DocumentView(props: DocumentViewProps) {
       : []),
     ...(!secretUnlocked ? [{ label: "Edit", icon: "edit", disabled: editBlocked, onClick: startEdit }] : []),
     // Any document that isn't encrypted can be written with blocks; the Markdown stays as it is.
-    ...(secretUnlocked && readable && !encrypted && !isPage && !tenant
-      ? [{ label: "Open in block editor", icon: "layers", description: "Write it with blocks. The Markdown is unchanged.", onClick: () => setToBlocks(true) }]
+    // One that was a page goes back to the page editor, here or on the workspace's own domain.
+    ...(secretUnlocked && readable && !encrypted && !isPage && (wasPage || !tenant)
+      ? [wasPage
+          ? { label: "Switch back to the page editor", icon: "layers", description: "It was a page. The Markdown is unchanged.", onClick: () => setToBlocks(true) }
+          : { label: "Open in block editor", icon: "layers", description: "Write it with blocks. The Markdown is unchanged.", onClick: () => setToBlocks(true) }]
       : []),
     ...(canAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: () => setNewSubPage(true) }] : []),
     ...(canManagePage ? [{ label: "Move to…", icon: "arrowRight", onClick: () => setPageAction({ kind: "move" }) }] : []),
@@ -544,6 +592,7 @@ export default function DocumentView(props: DocumentViewProps) {
 
   const notices = (
     <>
+      {backToPage}
       {isPage && page?.template && !tenant && <TemplateNotice template={page.template} title={displayTitle} workspaceId={page.workspace_id} slug={slug} />}
       {showPanel && (
         <PublishedPanel
@@ -1087,28 +1136,7 @@ export default function DocumentView(props: DocumentViewProps) {
         />
       )}
 
-      <ConfirmDialog
-        open={toBlocks}
-        onClose={() => !toBlocksBusy && setToBlocks(false)}
-        title="Open in the block editor?"
-        body="You'll write this document with blocks: headings, toggles, checklists, callouts, tables, images and embeds of your Markdrop files. The Markdown is unchanged, the link stays the same, and you can switch back to the classic editor any time."
-        confirmLabel="Open in block editor"
-        tone="default"
-        onConfirm={async () => {
-          setToBlocksBusy(true);
-          try {
-            await (await pagesApi()).setEditor(slug, "blocks", v.secretInput || null);
-            v.setPage({ ...(page ?? {}), editor: "blocks" });
-            setToBlocks(false);
-            track("page_open_blocks");
-            handleEditClick();
-          } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Couldn't switch editors. Try again.");
-          } finally {
-            setToBlocksBusy(false);
-          }
-        }}
-      />
+      {toBlocksDialog}
 
       {newSubPage && (
         <TemplateGallery

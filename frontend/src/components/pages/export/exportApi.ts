@@ -72,18 +72,43 @@ export async function fetchExport(
   return new Blob(chunks, { type: res.headers.get("content-type") ?? "application/octet-stream" });
 }
 
-/** Hands a blob to the browser as a download. */
+/**
+ * How long a saved file's blob: address stays readable. The browser reads it when the download
+ * really starts, which can be long after the click: Safari (and iOS) first asks "Download …?",
+ * Chrome with "Ask where to save" waits for its dialog. An address revoked before then is a tab
+ * that "can't open the page" (WebKitBlobResource error 1) instead of a file. Kept until the page goes
+ * away, or this long at most.
+ */
+const BLOB_TTL_MS = 10 * 60_000;
+const live = new Set<string>();
+let releasing = false;
+function keepUntilLeave(url: string) {
+  live.add(url);
+  window.setTimeout(() => {
+    if (live.delete(url)) URL.revokeObjectURL(url);
+  }, BLOB_TTL_MS);
+  if (releasing) return;
+  releasing = true;
+  window.addEventListener("pagehide", () => {
+    for (const u of live) URL.revokeObjectURL(u);
+    live.clear();
+  });
+}
+
+/**
+ * Hands a blob to the browser as a download, in this tab: a plain same-origin `<a download>`, no
+ * target and no rel (both are about new browsing contexts, which a download never needs).
+ */
 export function saveBlob(blob: Blob, name: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
-  a.rel = "noopener";
   a.style.display = "none";
   document.body.appendChild(a);
   a.click();
   a.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  keepUntilLeave(url);
 }
 
 /** An encrypted document's Markdown, decrypted here, saved here: it never goes back to the server. */

@@ -12,7 +12,7 @@
 """
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import HTMLResponse, Response, StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
@@ -80,11 +80,53 @@ async def export_page(
     return await respond(db, raw, actor, person, ctx, format, subpages)
 
 
+def _wants_page(request: Request) -> bool:
+    """A browser opening the link (a click in an AI app), not a script or curl."""
+    accept = request.headers.get("accept") or ""
+    return "text/html" in accept and request.headers.get("sec-fetch-dest", "document") in ("document", "")
+
+
+_REFUSAL_PAGE = """<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export link · Markdrop</title><style>
+:root{color-scheme:light dark}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f6f7f9;color:#1d1f23;
+font:16px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:440px;margin:24px;padding:28px 28px 24px;border:1px solid #e3e6ea;border-radius:12px;background:#fff}
+h1{margin:0 0 8px;font-size:20px;line-height:1.3}p{margin:0 0 12px;color:#5f6670}a{color:#2563eb}
+@media (prefers-color-scheme:dark){body{background:#111317;color:#e8eaed}main{background:#1a1d22;border-color:#2c3038}
+p{color:#a0a7b1}a{color:#7aa2ff}}
+</style></head><body><main><h1>%(title)s</h1><p>%(message)s</p>
+<p>Ask your AI app to export the page again for a fresh link, or open the page on Markdrop and use
+<strong>Export…</strong> in its ⋯ menu.</p></main></body></html>
+"""
+
+
+def _refusal_page(status: int, message: str) -> HTMLResponse:
+    """The same refusal as a short page: a link opened in a browser never shows raw JSON."""
+    title = "This download link has expired" if status == 404 else "This page can't be exported"
+    body = _REFUSAL_PAGE % {"title": export.esc(title), "message": export.esc(message)}
+    return HTMLResponse(body, status_code=status, headers={
+        "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"})
+
+
 @router.get("/{slug}/export/download")
 @limiter.limit("30/minute")
 async def export_download(request: Request, slug: str, token: str = Query(..., max_length=2000),
                           db: AsyncIOMotorDatabase = Depends(get_db)):
-    """An export link from ``export_page`` (MCP), for the user it was made for."""
+    """An export link from ``export_page`` (MCP), for the user it was made for. A browser that
+    opens a link which no longer works gets a short page saying so (an API client, the JSON)."""
+    try:
+        return await _export_download(slug, token, db)
+    except HTTPException as e:
+        if not _wants_page(request):
+            raise
+        detail = e.detail if isinstance(e.detail, str) else "This export link doesn't work any more."
+        return _refusal_page(e.status_code, detail)
+
+
+async def _export_download(slug: str, token: str, db: AsyncIOMotorDatabase):
     from app.services import user as user_service
 
     gone = HTTPException(status_code=404, detail="This download link has expired. Export the page again.")

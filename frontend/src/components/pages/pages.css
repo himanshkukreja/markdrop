@@ -385,6 +385,12 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 .pb-frame.pb-font-mono :is(.md-prose, .pb-title) { font-family: var(--font-mono); }
 .pb-emptyread { margin: 4px 0; color: var(--text-muted); font-size: 15px; }
 .pb-notice { margin: 4px 0 12px; }
+/* The Markdown source's bar (PageEditor): what this view is, and the way back to blocks. */
+.pb-sourcebar { position: sticky; top: 56px; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 4px 0 12px; padding: 8px 10px 8px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in srgb, var(--accent) 6%, var(--pb-paper)); color: var(--text-secondary); font-size: 13px; line-height: 18px; animation: pb-fade 140ms var(--ease-out); }
+.pb-sourcebar__icon { flex: none; color: var(--accent-text); }
+.pb-sourcebar__text { flex: 1 1 240px; min-width: 0; }
+.pb-sourcebar__text strong { color: var(--text); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .pb-sourcebar { animation: none; } }
 
 /* Under the body: Pages inside, backlinks, the colophon */
 .pb-children { margin-top: 28px; padding-top: 16px; border-top: 1px solid var(--border); }
