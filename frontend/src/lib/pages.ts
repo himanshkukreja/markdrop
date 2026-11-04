@@ -80,6 +80,9 @@ export interface Crumb {
 export interface AssetUrl {
   url: string;
   expires_at?: string | null;
+  /** The image's size in pixels, when it was read at upload (it keeps the image's room while it loads). */
+  width?: number;
+  height?: number;
 }
 
 /** A document as the page builder reads it: GET /documents/{slug} plus the page fields. */

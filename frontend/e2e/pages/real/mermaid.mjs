@@ -2,7 +2,9 @@
  * Mermaid in the page editor, on the real stack (up.sh): a ```mermaid block shows its diagram
  * unless it's being edited (click: the code, Esc or a click away: the diagram again), a render error
  * shows the error and the code, and a locked page shows diagrams to the owner, an admin and a member
- * (read only). Uses the existing seed (never reseeds) and makes its own pages.
+ * (read only); on a locked page, Esc shows the owner's and an admin's diagram again and it stays (a
+ * click's deferred open never pulls the code back). Uses the existing seed (never reseeds) and makes
+ * its own pages.
  *
  *   [SHOT_DIR=…] [ONLY=…] node mermaid.mjs
  */
@@ -53,6 +55,8 @@ function watch(p) {
     const t = m.text();
     // A browser's own resource noise (a 4xx it logs for a probe) isn't the app's.
     if (/Failed to load resource/.test(t)) return;
+    // WebKit's notice about the report-only CSP (next.config.ts: no report-uri on purpose).
+    if (/was delivered in report-only mode, but does not specify a 'report-to'/.test(t)) return;
     errs.push(t.slice(0, 300));
   });
   p.on("pageerror", (e) => errs.push(`pageerror: ${e.message.slice(0, 300)}`));
@@ -166,8 +170,8 @@ await step("owner", async () => {
   if (!inCode) fail("click: the caret isn't in the code");
   await shot(p, "02-owner-click-code", { wait: 600 });
 
-  // Edit: add a node; the preview follows (debounced), then Esc renders it.
-  await p.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
+  // Edit: add a node (the click put the caret at the code's end; ⌘↓ would leave the block in
+  // WebKit); the preview follows (debounced), then Esc renders it.
   await p.keyboard.type("\n    J --> L[Later]");
   await p.waitForTimeout(1200);
   const live = await block(p).locator(".dxe-mermaid__view--live .md-diagram__canvas > svg g.node").count();
@@ -233,10 +237,13 @@ await step("locked", async () => {
   if (!d.page?.locked) fail(`not locked: ${JSON.stringify(d.page)}`);
   // The owner and a workspace admin edit a locked page (can.edit_locked, 2026-11-04); both see the
   // diagram until they click it.
+  // The admin gets a page of their own: the owner's click took this one's edit lock, which can
+  // outlive their closed tab for a moment (the admin's editor would rightly open read only).
+  const lockedFor = { owner: state.locked, admin: await newPage("Product docs playbook (admin)", `---\nlocked: true\n---\n\n${BODY}`) };
   for (const who of ["owner", "admin"]) {
     const { c, p } = await ctx(browser, { token: T[who] });
     const errs = watch(p);
-    const editable = await openEditor(p, state.locked, true);
+    const editable = await openEditor(p, lockedFor[who], true);
     log(`locked, ${who}: ${editable ? "editable" : "read only"}`);
     await expectDiagram(p, `locked, ${who}`);
     await shot(p, `06-locked-${who}-diagram`, { wait: 800 });
@@ -276,6 +283,67 @@ await step("locked", async () => {
   await shot(r.p, "08-reader-view", { wait: 800 });
   noErrors(rerrs, "reader");
   await r.c.close();
+});
+
+/* ── 4b. Esc on a locked page, for the people who may edit it: the diagram again, and it stays ── */
+await step("locked-esc", async () => {
+  // A page each: the owner's click takes the page's edit lock, which outlives their closed tab for a
+  // while (the admin's editor would rightly open read only behind it).
+  const pages = {};
+  for (const who of ["owner", "admin"]) pages[who] = await newPage(`Locked lifecycle (${who})`, `---\nlocked: true\n---\n\n${BODY}`);
+  const before = await content(pages.owner);
+  /** The code stays hidden (and the diagram up) for 30 frames in a row: a deferred open would show it. */
+  const staysClosed = async (p, where) => {
+    await block(p).locator(".md-codeblock__body").waitFor({ state: "hidden", timeout: 5000 });
+    const ok = await p.evaluate(
+      () =>
+        new Promise((done) => {
+          let n = 0;
+          const tick = () => {
+            const b = document.querySelector('.pb-live .dxe-code[data-lang="mermaid"]');
+            const body = b?.querySelector(".md-codeblock__body");
+            if (!b || !body || !body.hidden || !b.querySelector(".md-diagram__canvas > svg")) return done(false);
+            if (++n >= 30) return done(true);
+            requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick);
+        }),
+    );
+    if (!ok) fail(`${where}: the code came back after Esc`);
+  };
+  const selectedBlock = (p) => block(p).evaluate((b) => !!b.closest(".ProseMirror-selectednode"));
+  for (const who of ["owner", "admin"]) {
+    const { c, p } = await ctx(browser, { token: T[who] });
+    const errs = watch(p);
+    if (!(await openEditor(p, pages[who], true))) fail(`locked, ${who}: read only`);
+    await expectDiagram(p, `locked-esc, ${who}`);
+    // Click → the code; Esc → the diagram, the block selected, and the code doesn't come back.
+    await svgIn(p).click();
+    await block(p).locator(".md-codeblock__body").waitFor({ state: "visible", timeout: 5000 });
+    await p.keyboard.press("Escape");
+    await staysClosed(p, `locked, ${who}, Esc`);
+    if (!(await selectedBlock(p))) fail(`locked, ${who}: Esc didn't leave the block selected`);
+    await expectDiagram(p, `locked-esc, ${who}, after Esc`);
+    // Enter edits it again, Esc shows the diagram again.
+    await p.keyboard.press("Enter");
+    await block(p).locator(".md-codeblock__body").waitFor({ state: "visible", timeout: 5000 });
+    await p.keyboard.press("Escape");
+    await staysClosed(p, `locked, ${who}, Enter then Esc`);
+    // Esc before the click's deferred open has run (one task: the click, then the key): Esc wins.
+    await svgIn(p).evaluate((svg) => {
+      svg.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+      document.querySelector(".pb-live .ProseMirror").dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, bubbles: true, cancelable: true }));
+    });
+    await staysClosed(p, `locked, ${who}, Esc right after the click`);
+    await shot(p, `06c-locked-${who}-esc`, { el: block(p) });
+    noErrors(errs, `locked-esc, ${who}`);
+    await c.close();
+  }
+  // Esc changed nothing: the pages are as they were, and still locked.
+  for (const who of ["owner", "admin"]) {
+    if ((await content(pages[who])).replace(`(${who})`, "") !== before.replace("(owner)", "")) fail(`locked-esc, ${who}: Esc changed the page`);
+    if (!(await docOf(pages[who], T.member)).page?.locked) fail(`locked-esc, ${who}: no longer locked`);
+  }
 });
 
 /* ── 5. the Guides studio editor: the same view ── */

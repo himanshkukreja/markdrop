@@ -495,6 +495,22 @@
       ]
     },
     {
+      "id": "fixes-2026-11-04-followups",
+      "date": "2026-11-04",
+      "title": "Workspace lists keep up with renames, and pages don't jump while images load",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "A workspace's list shows renames from your other tabs at once and other people's within half a minute, without a reload. Page images keep their space while they load, so nothing below them moves under your pointer. Esc on a Mermaid diagram's code shows the diagram again on locked pages too.",
+      "body": "- **Renames show without a reload.** Rename a page in one tab and the workspace or folder list in your other tabs shows the new name straight away. What other people rename, add or move shows within half a minute while the list is open, or as soon as you come back to the tab. Moving between folders stays as fast as before.\n- **Images keep their space.** Page images reserve their size before they load, in the editor and for readers, so the text and buttons below them no longer jump as you scroll. A click on **Add a sub-page** at the end of a page with images could land on an image instead.\n- **Mermaid and Esc.** On a page you can edit, including a locked page you're allowed to edit, **Esc** in a diagram's code always shows the diagram again. A click on the diagram followed quickly by **Esc** no longer reopens the code.\n- Removing a member while ownership of the workspace was being handed to them could leave the workspace without an owner. Ownership now always wins: the removal is refused.",
+      "docs": [
+        "/workspaces/folders#browse-a-workspace",
+        "/pages/markdown-reference#code-and-diagrams"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

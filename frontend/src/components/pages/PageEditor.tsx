@@ -183,6 +183,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const api = useRef<DocsEditorApi | null>(null);
   const [editor, setEditorInstance] = useState<Editor | null>(null);
   const local = useRef(new Map<string, string>());
+  const localSize = useRef(new Map<string, { width: number; height: number }>());
   const [, setLocalTick] = useState(0);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [templates, setTemplates] = useState<PageTemplate[]>([]);
@@ -322,6 +323,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       if (!file.type.startsWith("image/")) throw new Error("Choose an image file (PNG, JPG, WebP or GIF).");
       const a = await uploadPageAsset(slug, file, secret);
       local.current.set(a.id, URL.createObjectURL(file));
+      if (a.width && a.height) localSize.current.set(a.id, { width: a.width, height: a.height });
       setLocalTick((n) => n + 1);
       return `asset:${a.id}`;
     },
@@ -334,6 +336,14 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     const id = assetId(src);
     if (!id) return src;
     return local.current.get(id) ?? assetsRef.current[id]?.url ?? "";
+  }, []);
+  // An image's size keeps its room while it loads: a lazy image coming in near the viewport no
+  // longer pushes what's below it down (a click on "Add a sub-page" landed on the image instead).
+  const assetSize = useCallback((src: string) => {
+    const id = assetId(src);
+    if (!id) return null;
+    const a = assetsRef.current[id];
+    return localSize.current.get(id) ?? (a?.width && a.height ? { width: a.width, height: a.height } : null);
   }, []);
 
   const pages = useMemo<PagesEditorHost>(
@@ -368,8 +378,9 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       crumbs,
       pageTitle: title,
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
+      assetSize,
     }),
-    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs],
+    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs, assetSize],
   );
 
   const setBody = useCallback(

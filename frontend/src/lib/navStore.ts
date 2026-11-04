@@ -19,8 +19,11 @@
  * - the first page of a folder view's rows (`GET /workspaces/{id}/items`), per workspace, place
  *   (folder id, "root" or "all"), search and kind: a folder you've seen opens at once, and hover /
  *   focus on a folder link (lib/folderNav) fetches its rows before the click. A save (and a change the reading view sees live) patches the page's
- * title and icon in place (`patchPage`), with no request. The person's other tabs get the same
- * events (lib/navBus). A refresh never empties what is on screen.
+ * title and icon in place (`patchPage`), in the outlines, sub-page lists and folder views alike, with
+ * no request. The person's other tabs get the same events (lib/navBus). What someone else changes
+ * shows when the window comes back (rows older than a few seconds) and, while a folder view is on
+ * screen, from a light poll (`useFolderItems`). A refresh that finds nothing new changes nothing on
+ * screen (the cached value stays the same object), and never empties what is on screen.
  */
 import { useEffect, useSyncExternalStore } from "react";
 import { getWorkspaceNav, listWorkspaceItems, type ItemsPage, type WorkspaceNav } from "@/lib/workspaces";
@@ -35,6 +38,11 @@ const WS_CHANGE_EVENT = "md:workspace-change";
 /** Fired by lib/pages after a page is created, saved, moved or deleted. */
 export const PAGES_EVENT = "md:pages-change";
 const FOCUS_MAX_AGE = 60_000;
+/** A folder view's rows on screen refresh when the window comes back and they're older than this
+ *  (a rename in another tab or by someone else shows as you return), and are polled this often
+ *  while the tab is visible. */
+export const ITEMS_FOCUS_MAX_AGE = 5_000;
+export const ITEMS_POLL_MS = 30_000;
 
 interface Entry<T> {
   data: T | null;
@@ -69,7 +77,11 @@ class Cache<T> {
     const running = this.inflight.get(key);
     if (running) return running;
     const p = this.fetcher(key)
-      .then((data) => {
+      .then((fresh) => {
+        // Nothing new: keep the same object, so nothing on screen re-renders (or drops what it
+        // added, like a folder view's "Load more" rows).
+        const prev = this.entries.get(key)?.data;
+        const data = prev && same(prev, fresh) ? prev : fresh;
         this.entries.set(key, { data, error: false, at: Date.now(), stale: false });
         this.trim();
         return data;
@@ -118,6 +130,11 @@ class Cache<T> {
     for (const k of this.active.keys()) void this.load(k, maxAge).catch(() => {});
   }
 
+  /** Whether any request is running (a folder opening, say). */
+  busy(): boolean {
+    return this.inflight.size > 0;
+  }
+
   /** Rewrite cached values in place (`edit` returns the same value when nothing changed); keys it
    *  can't patch (`refetch`) refresh like `invalidate`. Returns whether anything changed. */
   patch(edit: (data: T) => T | "refetch"): boolean {
@@ -139,6 +156,15 @@ class Cache<T> {
   bump() {
     this.version++;
     for (const l of listeners) l();
+  }
+}
+
+/** Same JSON (API responses are plain data). */
+function same(a: unknown, b: unknown): boolean {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
   }
 }
 
@@ -212,7 +238,7 @@ function wire() {
     if (document.visibilityState === "hidden") return;
     navCache.refreshActive(FOCUS_MAX_AGE);
     kidsCache.refreshActive(FOCUS_MAX_AGE);
-    itemsCache.refreshActive(FOCUS_MAX_AGE);
+    itemsCache.refreshActive(ITEMS_FOCUS_MAX_AGE);
   };
   window.addEventListener("focus", refresh);
   document.addEventListener("visibilitychange", refresh);
@@ -261,7 +287,14 @@ export function patchPage(slug: string, p: { title?: string | null; icon?: strin
     return items === "refetch" ? items : items === nav.items ? nav : { ...nav, items };
   });
   const b = kidsCache.patch(inList);
+  // Folder views' rows too (a "Load more" page's rows are FolderView's own: it patches them on
+  // the same event).
+  const c = itemsCache.patch((page) => {
+    const items = inList(page.items);
+    return items === "refetch" ? items : items === page.items ? page : { ...page, items };
+  });
   if (a || b) navCache.bump();
+  if (c) itemsCache.bump();
 }
 
 /** A page was created, saved, moved or deleted: outlines and sub-page lists refresh. */
@@ -349,11 +382,21 @@ function itemsSlotOf(key: string | null): ItemsSlot {
 /**
  * The first page of a folder view's rows (`key` from `itemsKey`; null = nothing): what's cached
  * shows at once and is refreshed in the background when older than `maxAge`; kept fresh while
- * mounted (workspace changes, focus). `reload()` asks the API again.
+ * mounted (workspace changes, focus, and with `poll` a light poll while the tab is visible: what
+ * other people rename shows without a reload). `reload()` asks the API again.
  */
-export function useFolderItems(key: string | null, maxAge = 15_000): ItemsSlot & { reload: () => Promise<unknown> } {
+export function useFolderItems(key: string | null, maxAge = 15_000, poll = false): ItemsSlot & { reload: () => Promise<unknown> } {
   const slot = useSyncExternalStore(subscribe, () => itemsSlotOf(key), () => EMPTY_ITEMS);
   useEffect(() => (key ? itemsCache.retain([key], maxAge) : undefined), [key, maxAge]);
+  useEffect(() => {
+    if (!key || !poll) return;
+    const t = window.setInterval(() => {
+      // Never while hidden, and never alongside a folder that's opening (slow networks).
+      if (document.visibilityState === "hidden" || itemsCache.busy()) return;
+      void itemsCache.load(key, ITEMS_POLL_MS - 1_000).catch(() => {});
+    }, ITEMS_POLL_MS);
+    return () => window.clearInterval(t);
+  }, [key, poll]);
   return { ...slot, reload: () => (key ? itemsCache.load(key, 0).catch(() => {}) : Promise.resolve()) };
 }
 
