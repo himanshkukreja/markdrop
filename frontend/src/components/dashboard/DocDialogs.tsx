@@ -45,7 +45,7 @@ export function ChangeUrlDialog({
   const unchanged = !!doc && trimmed === doc.slug;
   const hint = invalid
     ? undefined
-    : <>Existing links to the old URL will stop working. Analytics are preserved. <ReadMore topic="addresses" /></>;
+    : <>The old link keeps working: it redirects to the new one. Analytics are preserved. <ReadMore topic="addresses" /></>;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

@@ -6,9 +6,11 @@ updated: 2026-11-03
 keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates]
 updated: 2026-11-04
 keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, move_page, pages, sub-pages, scopes, reference]
+updated: 2026-11-04
+keywords: [mcp tools, publish_document, publish_page, set_slug, change link, custom link, slug, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 51 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 52 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -23,6 +25,7 @@ Wherever a tool takes `document`, it accepts a slug (`q3-report`), a markdrop.in
 | `publish_document` | write | Publishes Markdown as a document that renders headings, tables, code, Mermaid diagrams and math. Returns the link. | `markdown`, and the publish options below |
 | `publish_page` | write | Publishes a complete HTML page, or a `.txt`, `.csv`, `.json` or `.svg` file, as a link that opens rendered. Up to 25 MB. | `filename` (with its extension), `content`, and the publish options |
 | `update_document` | write | Replaces the full content of a document or text file, keeping its link. Works on documents you own or can edit. | `document`, `content`, `title` |
+| `set_slug` | write | Changes the link of a page, document or file you own. The old link keeps working: it redirects to the new one on markdrop.in and on the workspace's own domain, sub-page addresses included, and embeds and mentions of the old slug keep working. A slug another document has or had, or one deleted less than 30 days ago, is an error that names it. Refused while someone has the page open in the editor. | `document`, `slug` |
 | `delete_document` | write | Deletes a document, page or file you own, permanently: exactly the one at the slug or link you give, never another item with the same title. Marked as destructive, so apps that honour that ask you first. A page with pages inside it needs `children`: `delete` deletes them too, `lift` moves them up a level. The result lists every item deleted in `deleted_items` (`slug`, `title`, `kind`: `file`, `page` or `document`) and any sub-pages moved up in `lifted_items`. | `document`, `children` |
 
 The **publish options** are all optional:
@@ -30,13 +33,15 @@ The **publish options** are all optional:
 | Option | Values |
 |---|---|
 | `title` | Up to 200 characters |
-| `slug` | A custom address, 3 to 50 letters, digits, `-` or `_`. A taken slug is an error, never a silent rename. Random when omitted. |
+| `slug` | A custom address, 3 to 50 letters, digits, `-` or `_`. A taken slug is an error that names it, never a silent rename. Random when omitted. Change it later with `set_slug`. |
 | `access` | `link` (anyone with the link, the default outside a workspace), `private`, `password` or `workspace` |
 | `password` | Required with `access: "password"` |
 | `expires` | `never` (default), `1h`, `1d`, `7d` or `30d`, counted from now |
 | `workspace`, `folder` | File it in a workspace and an existing folder there. Without `access`, the folder's setting for new items applies, otherwise the workspace's default. |
 
-Results carry `url` (on the workspace's custom domain when it has a live one), `markdrop_url`, `slug`, `title`, `access` and `expires_at`.
+`publish_document` also takes `editor`: `classic` (the default) opens the document in the Markdown editor, `blocks` makes it a [page](/pages/overview) that opens in the block editor, like `create_page`.
+
+Results carry `url` (on the workspace's custom domain when it has a live one), `markdrop_url`, `slug`, `title`, `access` and `expires_at`; `publish_document`'s also carry `editor`.
 
 ### Read and find
 
@@ -58,6 +63,7 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | Tool | Permission | What it does | Main inputs |
 |---|---|---|---|
 | `create_page` | write | Creates a page, from a template or your own Markdown, in a workspace folder or inside another page. `template` is a built-in id or a workspace or personal template's id or slug; `{{title}}`, `{{date}}`, `{{author}}` and `{{folder}}` are filled in. In a folder with a default template, a page with neither `template` nor `content` starts from it (`template: "blank"` for an empty page). A page made inside another page lives in that page's workspace and folder and has the same access. | `title`, `template`, `content`, `properties`, `workspace`, `folder`, `parent` |
+| `create_page` | write | Creates a page, from a template or your own Markdown, in a workspace folder or inside another page. A page made inside another page lives in that page's workspace and folder and has the same access. `slug` gives it its link (the rules of the publish option; a taken slug is an error naming it, and nothing is created). | `title`, `slug`, `template`, `content`, `properties`, `workspace`, `folder`, `parent` |
 | `get_page` | read | Reads a page for editing: its Markdown, revision, properties, parent and sub-pages, the Markdrop items it embeds or mentions (each with whether you can open it) and its images. Also says who is editing it right now. | `document` |
 | `update_page` | write | Replaces a page's whole Markdown. Nothing is saved if the page changed since the revision you read. | `document`, `markdown`, `base_rev` |
 | `append_blocks` | write | Adds Markdown at the end of a page. Works even while someone is editing it: their editor shows the new blocks at once. | `document`, `markdown` |
@@ -86,6 +92,9 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `export_page` | read | Exports a page as portable Markdown or one HTML file, returned as text; with sub-pages (or `zip` for Markdown with images), a link to a `.zip` that works for 10 minutes. Items you can't open are written as "Locked item", and readers can export only when the page allows it. See [Export a page](/pages/export). | `document`, `format` (`markdown`, `html`), `include_subpages`, `zip` |
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. Adding an image to a page works while someone is editing it; putting its Markdown in the page follows the same rules. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
+A page's link is its slug: `markdrop.in/<slug>`, and on the workspace's own domain `/<folders>/<parent pages>/<slug>`. For example, `create_page` with `title`, `slug: "sl-template-prd"`, `workspace` and `folder: "product-hub/templates"` returns `https://docs.acme.com/product-hub/templates/sl-template-prd`. Change it later with `set_slug`; the old link redirects.
+
+While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 
 Readers who can't open an embedded or mentioned item see a locked placeholder with no title. In a page, people mentioned with `@` are named only to the page's owner and its workspace's members.
 

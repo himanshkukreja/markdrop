@@ -113,6 +113,25 @@
       ]
     },
     {
+      "id": "page-links",
+      "date": "2026-11-04",
+      "title": "Pages: choose a page's link, and change it without breaking the old one",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Change a page's link from its ⋯ menu, with the whole new address shown as you type. The old link keeps working on markdrop.in and on your workspace's own domain, and AI apps can set a page's link when they create it.",
+      "body": "- **Change link…** in a page's **⋯** menu (owners): type the new slug, see it checked as you type and the full address it will have, with your domain, folders and parent pages.\n- **The old link redirects.** On markdrop.in and on your workspace's domain, sub-page addresses included. Change it again and every earlier link goes to the newest one. Embeds and mentions of the old link keep working, with nothing to rewrite.\n- **MCP:** `create_page` takes `slug`, the new `set_slug` tool changes the link of a page, document or file, and `publish_document` takes `editor: \"blocks\"` to publish a page. A taken link is an error that names it, never a silent rename.\n- **API:** `POST /api/v1/pages` takes `slug`, and `GET /api/v1/documents/{slug}/slug-check?new_slug=` says whether a link is free and what the full address would be.",
+      "docs": [
+        "/pages/overview",
+        "/documents/addresses",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

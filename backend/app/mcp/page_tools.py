@@ -29,6 +29,7 @@ from app.mcp.tools import (
     ENCRYPTED_READ,
     ENCRYPTED_WRITE,
     MAX_RETURNED_CHARS,
+    SLUG_ARG,
     Context,
     Tool,
     ToolError,
@@ -41,6 +42,7 @@ from app.mcp.tools import (
     precheck_workspace,
     resolve_doc,
     resolve_workspace,
+    slug_error,
     url_pair,
 )
 from app.services import access as access_service
@@ -188,9 +190,9 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         raw, _secret, error = await pages.create_page(
             ctx.db, ctx.user, actor_of(ctx), _actx(ctx), title=args["title"], workspace=ws_id,
             folder=args.get("folder") if ws_id else None, parent=parent_slug,
-            template=args.get("template"), content=content)
+            template=args.get("template"), content=content, slug=args.get("slug") or None)
     except HTTPException as exc:
-        raise ToolError(http_message(exc))
+        raise ToolError(slug_error(args.get("slug"), exc))
     if props:
         # Properties on a page made from a template (or a folder's default): written into what it got.
         after = await _save(ctx, raw, page_props.apply(raw.get("content") or "", props), None)
@@ -778,6 +780,9 @@ PAGE_TOOLS: list[Tool] = [
                      "id or slug), in a workspace folder (a folder's default template applies when neither "
                      "template nor content is given), or inside another page "
                      "(parent: it then lives in that page's workspace and folder and has the same access). "
+                     "slug sets its link: markdrop.in/<slug>, and on the workspace's domain "
+                     "/<folders>/<parent pages>/<slug>; a taken slug is an error naming it (never a silent "
+                     "rename); change it later with set_slug. "
                      "Always give the user the returned url. " + _SYNTAX),
         scope=WRITE,
         writes=True,
@@ -794,6 +799,8 @@ PAGE_TOOLS: list[Tool] = [
                 "user's name) and {{folder}} are filled in; its images and sub-pages are copied. Without "
                 "template or content, a page in a folder with a default template starts from that; pass "
                 "'blank' for an empty page.")},
+            "slug": {**SLUG_ARG, "description": ("Optional: its link (random if omitted). 3-50 letters, digits, "
+                                                 "- or _. If it is taken you get an error naming it.")},
             "content": {"type": "string", "maxLength": settings.max_content_chars,
                         "description": "Optional Markdown for the page (instead of a template)."},
             "properties": {"type": "object", "description": (

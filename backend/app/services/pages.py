@@ -907,12 +907,15 @@ async def children_listing(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
 async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: access.Ctx, *,
                       title: str, workspace: str | None = None, folder: str | None = None,
                       parent: str | None = None, template: str | None = None,
-                      content: str | None = None) -> tuple[dict, str, str | None]:
+                      content: str | None = None, slug: str | None = None) -> tuple[dict, str, str | None]:
     """A new page: (row, edit secret, workspace error). From a template when
     one is named (``{{date}}`` / ``{{title}}`` filled in), else ``content``.
     Under ``parent`` (a slug the caller can edit): in its workspace and folder,
     inheriting its access. In ``workspace`` (member+): filed like any new
-    document there. Otherwise a personal page (anyone with the link)."""
+    document there. Otherwise a personal page (anyone with the link).
+    ``slug``: its link, with publish's custom-slug rules (3-50 letters, digits,
+    - or _; 409 when taken or reserved, never a silent rename; 409 beside a
+    folder of that slug on its workspace's domain). Nothing is created then."""
     from app.config import get_settings
     from app.schemas.document import DocumentCreate
     from app.services import document as doc_service
@@ -920,6 +923,13 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
 
     if user is None:
         raise HTTPException(status_code=401, detail="Sign in to create a page.")
+    from app.utils.slug import is_reserved_slug, is_valid_slug
+
+    slug = (slug or "").strip() or None
+    if slug is not None and not is_valid_slug(slug):
+        raise HTTPException(status_code=422, detail=doc_service.SLUG_INVALID)
+    if slug is not None and is_reserved_slug(slug):
+        raise HTTPException(status_code=409, detail=doc_service.SLUG_RESERVED)
     title = " ".join((title or "").split())[:200]
     if not title:
         raise HTTPException(status_code=422, detail="Give the page a title.")
@@ -999,7 +1009,11 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
         })
         if ws_id:
             extra["allow_resharing"] = False
-        data = DocumentCreate(title=title, content=content, access_level="private")
+            if slug:
+                from app.services import folder as folder_service
+
+                await folder_service.assert_doc_fits(db, ws_id, parent_raw.get("folder_id"), slug)
+        data = DocumentCreate(title=title, content=content, access_level="private", custom_slug=slug)
         doc, secret = await doc_service.create_document(db, data, owner_id=user.id, extra=extra)
         raw = await db["documents"].find_one({"slug": doc.slug})
         raw = await resync_from_parent(db, raw)
@@ -1008,8 +1022,8 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
     if workspace:
         from app.services import library as lib_service
 
-        folder_id, level = await lib_service.prepare_new_filing(db, user, workspace, folder)
-        data = DocumentCreate(title=title, content=content, access_level="private")
+        folder_id, level = await lib_service.prepare_new_filing(db, user, workspace, folder, custom_slug=slug)
+        data = DocumentCreate(title=title, content=content, access_level="private", custom_slug=slug)
         doc, secret = await doc_service.create_document(db, data, owner_id=user.id, extra=extra)
         raw = await db["documents"].find_one({"slug": doc.slug})
         after, error = await lib_service.place_new(db, raw, user, workspace, folder_id, level)
@@ -1017,7 +1031,7 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
 
     if folder:
         raise HTTPException(status_code=422, detail="A folder needs a workspace.")
-    data = DocumentCreate(title=title, content=content, access_level="link")
+    data = DocumentCreate(title=title, content=content, access_level="link", custom_slug=slug)
     doc, secret = await doc_service.create_document(db, data, owner_id=user.id, extra=extra)
     return await db["documents"].find_one({"slug": doc.slug}), secret, None
 

@@ -1,8 +1,8 @@
 ---
 title: Choose a link for your document
 description: Pick a custom link like markdrop.in/q3-plan, change it later, and know which addresses are reserved.
-updated: 2026-10-30
-keywords: [slug, url, custom link, rename, address, change url]
+updated: 2026-11-04
+keywords: [slug, url, custom link, rename, address, change url, change link, redirect, set_slug]
 ---
 
 Every document and file has an address. By default Markdrop picks a short random one, like `markdrop.in/7Hk2mPq`. You can choose your own instead, such as `markdrop.in/q3-plan`, and change it later.
@@ -44,11 +44,13 @@ Type it after `markdrop.in/` and choose **Change URL**.
 
 For a file, you can also open it, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **More artifact actions › Settings**. Edit **Link** and choose **Save changes**.
 
+For a [page](/pages/overview), choose **Change link…** from its **⋯** menu: it shows the whole new address, on your workspace's domain too, and checks the link as you type. See [Change a page's link](/pages/overview#change-a-pages-link). An AI app can change it with the `set_slug` tool ([MCP tools](/ai/tools)).
+
 Views and analytics stay with the document.
 
 ### What happens to the old link
 
-The old address keeps pointing at the document for anyone who can open it: they're redirected to the new one. People who can't open the document get the same answer as before, and the old address never tells them the new one.
+The old address keeps pointing at the document for anyone who can open it: they're redirected to the new one, on markdrop.in and on your workspace's own domain (folders and parent pages included). If you change the link again, every earlier link redirects to the newest one. Embeds and mentions of the old link in pages keep working. People who can't open the document get the same answer as before, and the old address never tells them the new one.
 
 As long as the document exists, nobody else can take the old address. It stays attached to this document.
 
@@ -62,7 +64,7 @@ When a document is deleted or expires, its link is held for 30 days. During that
 
 ## Links on your own domain
 
-A document filed in a workspace that has its own domain also has an address there, made of the folder path and the link: `docs.acme.com/guides/setup`. The `markdrop.in/setup` address keeps working too. See [Put your workspace on your own domain](/workspaces/custom-domain) and [Folders](/workspaces/folders).
+A document filed in a workspace that has its own domain also has an address there, made of the folder path and the link: `docs.acme.com/guides/setup`. A sub-page's address has the pages it sits inside between them: `docs.acme.com/guides/setup/first-run`. The `markdrop.in/setup` address keeps working too. See [Put your workspace on your own domain](/workspaces/custom-domain) and [Folders](/workspaces/folders).
 
 ## Related
 

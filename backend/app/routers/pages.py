@@ -36,14 +36,15 @@ async def create_page(
     template (``{{date}}`` / ``{{title}}`` filled in); ``content`` gives its
     Markdown instead. ``workspace`` (member+) and ``folder`` file it there;
     ``parent`` (the slug of a page you can edit) puts it inside that page, in
-    its workspace and folder, inheriting its access."""
+    its workspace and folder, inheriting its access. ``slug`` gives it its link
+    (publish's custom-slug rules; 409 when taken, nothing is created)."""
     from app.routers.documents import _ctx, _full_response
 
     actor = access.actor_from_request(request, user)
     ctx = _ctx(db, request)
     raw, secret, error = await pages.create_page(
         db, user, actor, ctx, title=data.title, workspace=data.workspace, folder=data.folder,
-        parent=data.parent, template=data.template, content=data.content)
+        parent=data.parent, template=data.template, content=data.content, slug=data.slug)
     body = await _full_response(db, raw, actor, access.Ctx(db, surface="rest"))
     return PageCreateResponse(document=DocumentResponse(**body), edit_secret=secret, workspace_error=error)
 

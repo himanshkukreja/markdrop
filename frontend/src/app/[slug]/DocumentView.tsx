@@ -67,6 +67,7 @@ const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) =>
 const TemplateNotice = dynamic(() => import("@/components/pages/templates/TemplateNotice").then((m) => m.TemplateNotice), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
 const ExportDialog = dynamic(() => import("@/components/pages/export/ExportDialog").then((m) => m.ExportDialog), { loading: () => null });
+const ChangeLinkDialog = dynamic(() => import("@/components/pages/slug/ChangeLinkDialog").then((m) => m.ChangeLinkDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
 // Page AI (reader side): the Ask pill for signed-in readers, and Translate… for editors. Both load on demand.
 const AskLauncher = dynamic(() => import("@/components/pages/ai/AskLauncher").then((m) => m.AskLauncher), { ssr: false, loading: () => null });
@@ -217,6 +218,7 @@ export default function DocumentView(props: DocumentViewProps) {
   }, [slug]); // eslint-disable-line react-hooks/exhaustive-deps
   const [deleting, setDeleting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [changingLink, setChangingLink] = useState(false);
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
   const [aiStatus, setAiStatus] = useState<PageAiStatus | null>(null);
@@ -467,6 +469,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(canAddSubPage ? [{ label: "Version history", icon: "history", description: "See and restore earlier versions", onClick: () => setHistoryOpen(true) }] : []),
     ...(encrypted && secretUnlocked && readable ? [{ label: "Version history", icon: "history", description: "Not kept for end-to-end encrypted documents", disabled: true, onClick: () => {} }] : []),
     ...(canAddSubPage && !page?.template ? [{ label: "Use as template", icon: "layers", description: "Everyone in the workspace can start pages from it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
+    ...(isPage && !tenant && (isOwner || v.canEditSettings) ? [{ label: "Change link…", icon: "link", description: "The old link keeps working", onClick: () => setChangingLink(true) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -1095,6 +1098,7 @@ export default function DocumentView(props: DocumentViewProps) {
         <PageHistory open={historyOpen} slug={slug} title={displayTitle} onClose={() => setHistoryOpen(false)} signInHref={signInHref} crumbs={crumbs} href={pageHref} viewer={user?.id ?? null} />
       )}
       {pageExport}
+      {changingLink && <ChangeLinkDialog slug={slug} secret={v.secretInput || null} onClose={() => setChangingLink(false)} />}
       {isPage && (
         <DeletePageDialog
           open={deleting}

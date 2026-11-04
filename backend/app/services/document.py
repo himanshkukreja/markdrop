@@ -586,31 +586,88 @@ async def copy_document(db: AsyncIOMotorDatabase, slug: str, actor, ctx) -> tupl
                                  preferred_slug=raw.get("title") or None)
 
 
+SLUG_INVALID = "Slug must be 3-50 chars: letters, numbers, hyphens or underscores."
+SLUG_RESERVED = "This URL is reserved. Please choose another."
+SLUG_TAKEN = "This URL is already taken. Please choose another."
+
+
+async def new_slug_problem(db: AsyncIOMotorDatabase, raw: dict, new_slug: str) -> tuple[int, str, str] | None:
+    """Why the document ``raw`` can't answer at ``new_slug``: ``(status, code,
+    message)`` with code ``invalid`` | ``reserved`` | ``taken`` | ``folder``,
+    or None when it can (its own current or former slug included). The rules of
+    a custom slug at publish time (3-50 letters, digits, - or _; not an app
+    route), plus Q4: another document's live or former slug, and someone else's
+    deleted slug for 30 days, are taken; and B5: never the address of a folder
+    beside it on its workspace's domain."""
+    from app.services import lifecycle
+
+    if not is_valid_slug(new_slug):
+        return 422, "invalid", SLUG_INVALID
+    if is_reserved_slug(new_slug):
+        return 409, "reserved", SLUG_RESERVED
+    if new_slug == raw.get("slug"):
+        return None
+    # The reservation first (as before this check was shared), then a live document at it.
+    if await lifecycle.slug_unavailable(db, new_slug, raw.get("owner_id"), doc_id=raw["_id"]):
+        return 409, "taken", SLUG_TAKEN
+    if await db["documents"].find_one({"slug": new_slug, "_id": {"$ne": raw["_id"]}}, {"_id": 1}):
+        return 409, "taken", SLUG_TAKEN
+    if raw.get("workspace_id"):
+        from app.services import folder as folder_service
+
+        if await folder_service.folder_slug_taken(db, raw["workspace_id"], raw.get("folder_id"), new_slug):
+            return 409, "folder", folder_service._clash_detail(new_slug)
+    return None
+
+
+async def check_new_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor, ctx) -> dict:
+    """``GET …/slug-check``: may the document at ``slug`` move to ``new_slug``,
+    and the links it would then have (markdrop.in and its workspace's domain,
+    folders and parent pages included). Asked by whoever may rename it
+    (can(rename_slug)), so nobody else can probe the reservations."""
+    from app.services import access, urls
+
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "rename_slug", ctx)
+    problem = await new_slug_problem(db, raw, new_slug)
+    shown = new_slug if is_valid_slug(new_slug) else raw["slug"]
+    preview = {**raw, "slug": shown}
+    ws_url = await urls.workspace_url(db, preview)
+    out = {
+        "slug": new_slug,
+        "current": raw["slug"],
+        "available": problem is None,
+        "code": "same" if new_slug == raw["slug"] else (problem[1] if problem else None),
+        "detail": problem[2] if problem else None,
+        "url": ws_url or urls.markdrop_url(shown),
+        "markdrop_url": urls.markdrop_url(shown),
+        "workspace_url": ws_url,
+        "redirects_from": [s for s in (raw.get("old_slugs") or []) if isinstance(s, str)],
+    }
+    return out
+
+
 async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor, ctx) -> dict:
     """Rename (owner or edit secret, D4). The old slug joins ``old_slugs``:
     readers who can open the document are redirected from it, and nobody else
-    can ever claim it (Q4)."""
-    from app.services import access, lifecycle, live, revalidate
+    can ever claim it (Q4). A page someone else is editing (its edit lock) is
+    refused with 423 — their next save would go to the old address; an MCP
+    rename is refused while anyone holds it (services/pages.check_write_lock)."""
+    from app.services import access, lifecycle, live, pages, revalidate
 
     if not is_valid_slug(new_slug):
-        raise HTTPException(
-            status_code=422,
-            detail="Slug must be 3-50 chars: letters, numbers, hyphens or underscores.",
-        )
+        raise HTTPException(status_code=422, detail=SLUG_INVALID)
     if is_reserved_slug(new_slug):
-        raise HTTPException(status_code=409, detail="This URL is reserved. Please choose another.")
+        raise HTTPException(status_code=409, detail=SLUG_RESERVED)
 
     raw = await db["documents"].find_one({"slug": slug})
     await access.require(actor, raw, "rename_slug", ctx)
     if new_slug == slug:
         return raw
-    if await lifecycle.slug_unavailable(db, new_slug, raw.get("owner_id"), doc_id=raw["_id"]):
-        raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
-    if raw.get("workspace_id"):
-        from app.services import folder as folder_service
-
-        # B5: never onto the address of a folder next to it on the workspace's domain.
-        await folder_service.assert_doc_fits(db, raw["workspace_id"], raw.get("folder_id"), new_slug)
+    problem = await new_slug_problem(db, raw, new_slug)
+    if problem is not None:
+        raise HTTPException(status_code=problem[0], detail=problem[2])
+    pages.check_write_lock(raw, actor)
 
     now = datetime.now(timezone.utc)
     old_slugs = [s for s in (raw.get("old_slugs") or []) if s != new_slug]
@@ -623,7 +680,7 @@ async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor,
             return_document=True,
         )
     except DuplicateKeyError:
-        raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+        raise HTTPException(status_code=409, detail=SLUG_TAKEN)
     if after is None:
         raise HTTPException(status_code=409, detail="This document changed meanwhile. Try again.")
     # C6: another document may have renamed away from ``new_slug`` (reserving
@@ -634,14 +691,12 @@ async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor,
             {"_id": raw["_id"], "slug": new_slug},
             {"$set": {"slug": slug, "old_slugs": list(raw.get("old_slugs") or []),
                       "updated_at": raw.get("updated_at") or now}})
-        raise HTTPException(status_code=409, detail="This URL is already taken. Please choose another.")
+        raise HTTPException(status_code=409, detail=SLUG_TAKEN)
     await lifecycle.clear_tombstone(db, new_slug)
     await revalidate.purge_doc(db, after, extra_slugs=[slug])
     live.gone(slug)
     ctx.forget(raw)
     # Sub-pages' addresses on a custom domain carry their ancestors' slugs.
-    from app.services import pages
-
     await pages.refresh_page_paths(db, after)
     return after
 
