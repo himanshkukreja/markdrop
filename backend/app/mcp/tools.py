@@ -3297,5 +3297,9 @@ TOOLS += ACCESS_REQUEST_TOOLS
 from app.mcp.analytics_ai_tools import ANALYTICS_AI_TOOLS  # noqa: E402
 
 TOOLS += ANALYTICS_AI_TOOLS
+# Meetings (import a call, list / read meetings, ask them): app/mcp/meeting_tools.py.
+from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
+
+TOOLS += MEETING_TOOLS
 
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

@@ -536,6 +536,8 @@ export interface TreeFolder {
   /** Whose items are in it (up to three, most recently active first), and how many people in all. */
   people?: ItemOwner[];
   people_count?: number;
+  /** The workspace's Meetings folder (imported calls; /meetings/<workspace>). */
+  meetings?: boolean;
 }
 
 /** A person shown on a row: a name (null when unknown), an https photo or null, and whether it's you. */

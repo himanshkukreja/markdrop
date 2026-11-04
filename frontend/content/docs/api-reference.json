@@ -15,6 +15,7 @@
     { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
+    { "id": "meetings", "title": "Meetings", "tags": ["meetings"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
@@ -1297,6 +1298,73 @@
     "DELETE /api/v1/me/connections/{client_id}": {
       "title": "Disconnect an app",
       "description": "Revokes an AI app's access at once."
+    },
+    "GET /api/v1/meetings/status": {
+      "title": "Meetings status",
+      "description": "What the Meetings page of a workspace needs: whether Meetings AI can run for you (`ai.enabled`, and `ai.reason` / `ai.message` when it can't), whether the Google Docs picker is set up and connected (`google`), the Meetings folder's id (`folder_id`, null before the first import), whether you can import (`can_import`: members and up) and the meeting `types`.",
+      "paramNotes": {"workspace": "The workspace's id."},
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "POST /api/v1/meetings/preview": {
+      "title": "Preview an import",
+      "description": "What an import would make, without writing anything: the meetings the sources become (notes and a transcript of the same call pair into one), each with its detected `title`, `date`, `duration_s`, `attendees`, number of transcript `segments` and whether Google's notes were found. Each source is `{name, text}` or `{name, data_b64}` (a .txt, .vtt, .srt, .sbv, .docx or .md file, base64).",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "POST /api/v1/meetings/import": {
+      "title": "Import a meeting",
+      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; `restricted: true` limits it to attendees who are members. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`.",
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "sources": [{"name": "Weekly sync - Transcript", "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed."}]},
+      "mcp": "import_meeting",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "POST /api/v1/meetings/google/token": {
+      "title": "Google Picker token",
+      "description": "A short-lived Google access token (scope drive.file) and the Picker's keys, so the browser can open the Google Picker on your own Drive. Markdrop can then read only the Docs you pick. 428 `reconnect_required` when Google Docs isn't connected.",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "GET /api/v1/meetings": {
+      "title": "List meetings",
+      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources` and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
+      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300)."},
+      "mcp": "list_meetings",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "POST /api/v1/meetings/ask": {
+      "title": "Ask across meetings",
+      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. Claude Haiku 5.5 answers in English; each cited meeting is checked against your access again. Counts towards Meetings AI.",
+      "returns": "text/event-stream",
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "question": "What did we decide about pricing?"},
+      "mcp": "ask_meetings",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "GET /api/v1/meetings/{meeting_id}": {
+      "title": "Get a meeting",
+      "description": "One meeting you can open, with what you may do to it: `can_manage` (restrict to attendees: the page's owner), `can_delete` (the importer or a workspace admin) and `can_regenerate` (anyone who can edit the page). 404 when it doesn't exist or you can't open it.",
+      "mcp": "get_meeting",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "PATCH /api/v1/meetings/{meeting_id}": {
+      "title": "Update a meeting",
+      "description": "`restricted: true` makes the meeting page private with access for the attendees who are workspace members; `false` gives it back to the team and removes exactly those grants (the page's owner only). `type` changes the meeting's type (anyone who can edit the page).",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "DELETE /api/v1/meetings/{meeting_id}": {
+      "title": "Delete a meeting",
+      "description": "The person who imported it, or a workspace admin or owner (any meeting, even one restricted from them): the meeting page and its transcript go to the Trash for 30 days and the stored transcript is deleted at once.",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "POST /api/v1/meetings/{meeting_id}/regenerate": {
+      "title": "Write the summary again",
+      "description": "Writes the meeting's AI sections again (summary, decisions, action items, open questions, topics) and waits for them. When nobody has edited the page since, it's rewritten; otherwise the new sections are added at the end. Anyone who can edit the page. Counts towards Meetings AI.",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "POST /api/v1/meetings/{meeting_id}/ask": {
+      "title": "Ask a meeting",
+      "description": "Asks one meeting, as Server-Sent Events (`delta`, then `done` with the `answer` and its `citations`, or `limit` / `error`). The answer comes from the meeting's transcript (when you can open it) and its page, including edits, in English; citations open the transcript at that moment. `history` carries the last turns of the conversation (`{question, answer}`, up to 6). Counts towards Meetings AI.",
+      "returns": "text/event-stream",
+      "example": {"question": "What did we decide?"},
+      "mcp": "ask_meetings",
+      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     }
   }
 }

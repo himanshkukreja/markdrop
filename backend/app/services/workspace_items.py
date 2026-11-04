@@ -328,6 +328,7 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 "updated_at": activity[f.id]["updated_at"] or f.updated_at,
                 "people": people(f.id),
                 "people_count": len(activity[f.id]["owners"]),
+                **({"meetings": True} if f.meetings else {}),
             }
             for f in ordered
         ],

@@ -391,6 +391,7 @@ FEATURES: dict[str, str] = {
     "pages_ai": "Pages AI",
     "search_ai": "AI search",
     "analytics_ai": "Analytics AI",
+    "meetings_ai": "Meetings AI",
 }
 
 SETTINGS = "ai_settings"
@@ -410,6 +411,7 @@ _CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "pages_ai": ("pages_ai_daily_usd", "pages_ai_monthly_usd", ("pages_ai_enabled",)),
     "search_ai": ("search_ai_daily_usd", "search_ai_monthly_usd", ("search_ai_enabled",)),
     "analytics_ai": ("analytics_ai_daily_usd", "analytics_ai_monthly_usd", ("analytics_ai_enabled",)),
+    "meetings_ai": ("meetings_ai_daily_usd", "meetings_ai_monthly_usd", ("meetings_ai_enabled",)),
 }
 
 _cache: dict[tuple[str, str], tuple[float, Any]] = {}

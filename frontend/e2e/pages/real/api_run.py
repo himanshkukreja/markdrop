@@ -259,6 +259,79 @@ if os.environ.get("PB_FAKE_ANALYTICS_AI"):
     _dclient = _NS(messages=_DMessages())
     analytics_ai_doc.docs_agent = _NS(get_client=lambda: _dclient, configured=lambda: True)
 
+# Meetings AI (services/meetings_ai.py) against a fake model: PB_FAKE_MEETINGS_AI=1 (meetings.mjs). It writes a
+# meeting's sections from the transcript lines it was sent (decisions: "decide"/"agree" lines; action items:
+# "will"/"can you" lines, owned by their speaker; questions: lines ending in "?"), and answers questions by
+# citing the transcript line sharing most words with the question. Streams like the real API; nothing leaves.
+if os.environ.get("PB_FAKE_MEETINGS_AI"):
+    import asyncio as _aio
+    import json as _json
+    import re as _re
+    from types import SimpleNamespace as _NS
+
+    from app.services import meetings_ai
+
+    class _MStream:
+        def __init__(self, text: str):
+            self.text = text
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            return self._gen()
+
+        async def _gen(self):
+            for i in range(0, len(self.text), 14):
+                await _aio.sleep(0.02)
+                yield _NS(type="text", text=self.text[i:i + 14])
+
+        async def get_final_message(self):
+            return _NS(content=[_NS(type="text", text=self.text)], stop_reason="end_turn",
+                       usage=_NS(input_tokens=6000, output_tokens=len(self.text) // 4 + 5, cache_read_input_tokens=0,
+                                 cache_creation_input_tokens=0, cache_creation=None))
+
+    _LINE = _re.compile(r"\[(s\d+)\] \S+ ([^:\n]+): ([^\n]+)")
+
+    def _words(t):
+        return {w for w in _re.findall(r"[a-z]{4,}", t.lower())}
+
+    class _MMessages:
+        def stream(self, **params):
+            system = params["system"][0]["text"]
+            user = "\n".join(b["text"] for b in params["messages"][-1]["content"])
+            lines = _LINE.findall(user)
+            if system.startswith("You write the team's notes") or system.startswith("You merge partial"):
+                dec = [{"text": t.rstrip("."), "cite": s} for s, _w, t in lines if _re.search(r"decide|agree", t, _re.I)][:3]
+                act = [{"text": _re.sub(r"^(yes,? )?(i'll|i will|can you)\s*", "", t, flags=_re.I).rstrip(".?"), "owner": w, "due": None, "cite": s}
+                       for s, w, t in lines if _re.search(r"\b(i'll|i will|will)\b", t, _re.I)][:4]
+                oq = [{"text": t, "cite": s} for s, _w, t in lines if t.strip().endswith("?")][:2]
+                top = [{"title": " ".join(t.split()[:3]), "gist": t[:80], "cite": s} for s, _w, t in lines[:2]]
+                first = lines[0][2] if lines else "The team met."
+                out = {"summary": f"The team met. {first}", "highlights": [t for _s, _w, t in lines[:2]], "decisions": dec,
+                       "action_items": act, "open_questions": oq, "topics": top, "type": "Planning"}
+                return _MStream(_json.dumps(out))
+            if system.startswith("You read Google's meeting notes"):
+                return _MStream(_json.dumps({"decisions": [{"text": "Ship on Friday"}], "open_questions": [], "topics": [], "type": "Planning"}))
+            q = user.rsplit("The question", 1)[-1]
+            if system.startswith("You answer questions about one meeting"):
+                best = max(lines, key=lambda x: len(_words(x[2]) & _words(q)), default=None)
+                if not best:
+                    return _MStream("The notes say the team met [n1].")
+                return _MStream(f"{best[1]} said: {best[2]} [{best[0]}]. See also the notes [n1].")
+            ns = _re.findall(r'<untrusted_meeting n="(\d+)"', user)
+            segs = _re.findall(r"\[(M\d+-s\d+)\] \S+ ([^:\n]+): ([^\n]+)", user)
+            best = max(segs, key=lambda x: len(_words(x[2]) & _words(q)), default=None)
+            cite = f" [{best[0]}]" if best else ""
+            said = f"{best[1]} said {best[2]}" if best else "The meetings don't say"
+            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{said}{cite} — see [M1].")
+
+    _mclient = _NS(messages=_MMessages())
+    meetings_ai.docs_agent = _NS(get_client=lambda: _mclient, configured=lambda: True)
+
 # PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
 # real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).
 _lat = float(os.environ.get("PB_R2_LATENCY_MS") or 0) / 1000

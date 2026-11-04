@@ -12871,6 +12871,535 @@
         }
       }
     },
+    "/api/v1/meetings/status": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Status",
+        "operationId": "status_api_v1_meetings_status_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/preview": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Preview",
+        "operationId": "preview_api_v1_meetings_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/import": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Import Meeting",
+        "operationId": "import_meeting_api_v1_meetings_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/google/token": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Google Token",
+        "operationId": "google_token_api_v1_meetings_google_token_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "List Meetings",
+        "operationId": "list_meetings_api_v1_meetings_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "title": "Workspace"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 300,
+              "minimum": 1,
+              "default": 100,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/ask": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Ask All",
+        "operationId": "ask_all_api_v1_meetings_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskAllBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/{meeting_id}": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Get Meeting",
+        "operationId": "get_meeting_api_v1_meetings__meeting_id__get",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Patch Meeting",
+        "operationId": "patch_meeting_api_v1_meetings__meeting_id__patch",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Delete Meeting",
+        "operationId": "delete_meeting_api_v1_meetings__meeting_id__delete",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/{meeting_id}/regenerate": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Regenerate",
+        "operationId": "regenerate_api_v1_meetings__meeting_id__regenerate_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/{meeting_id}/ask": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Ask One",
+        "operationId": "ask_one_api_v1_meetings__meeting_id__ask_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__meetings__AskBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/oauth/requests/{request_id}": {
       "get": {
         "tags": [
@@ -14319,6 +14848,27 @@
         ],
         "title": "ArtifactUploadUrlResponse"
       },
+      "AskAllBody": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Workspace"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "question"
+        ],
+        "title": "AskAllBody"
+      },
       "BatchLevelUpdate": {
         "properties": {
           "slugs": {
@@ -15276,6 +15826,18 @@
             "title": "Cover Pending",
             "default": false
           },
+          "meeting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting"
+          },
           "edit_secret": {
             "type": "string",
             "title": "Edit Secret"
@@ -15775,6 +16337,18 @@
             "type": "boolean",
             "title": "Cover Pending",
             "default": false
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting"
           }
         },
         "type": "object",
@@ -17073,6 +17647,76 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "ImportBody": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Workspace"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceIn"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Sources"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 150
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "wait": {
+            "type": "boolean",
+            "title": "Wait",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "sources"
+        ],
+        "title": "ImportBody"
+      },
       "InviteAcceptResponse": {
         "properties": {
           "workspace_id": {
@@ -18267,6 +18911,35 @@
         "type": "object",
         "title": "ParentMoveRequest"
       },
+      "PatchBody": {
+        "properties": {
+          "restricted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restricted"
+          },
+          "type": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "title": "PatchBody"
+      },
       "PreferencesUpdate": {
         "properties": {
           "analytics_digest": {
@@ -18313,6 +18986,24 @@
         ],
         "title": "PresenceUpdate",
         "description": "The owner's \"Show who's viewing\" switch (services/viewers.py)."
+      },
+      "PreviewBody": {
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/SourceIn"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Sources"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sources"
+        ],
+        "title": "PreviewBody"
       },
       "PreviewRequest": {
         "properties": {
@@ -18485,6 +19176,75 @@
           "new_slug"
         ],
         "title": "SlugChangeRequest"
+      },
+      "SourceIn": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1500000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "data_b64": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 5333349
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data B64"
+          },
+          "google_file_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google File Id"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "paste",
+                  "upload"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          }
+        },
+        "type": "object",
+        "title": "SourceIn"
       },
       "SyncCreateRequest": {
         "properties": {
@@ -19858,6 +20618,37 @@
               }
             ],
             "title": "Access Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskBody"
+      },
+      "app__routers__meetings__AskBody": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "history": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array",
+                "maxItems": 6
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History"
           }
         },
         "type": "object",

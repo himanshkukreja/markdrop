@@ -850,6 +850,10 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
                      if raw.get("template") and raw.get("parent_id") is None
                      else ({"part_of": True} if raw.get("template") else None)),
         "assets": {},
+        # Meetings (services/meetings.py): the meeting page or its transcript; the reader mounts the
+        # meeting panel (the meeting itself is decided again, GET /meetings/{id}).
+        "meeting": ({"id": raw["meeting_id"], "role": raw.get("meeting_role") or "page"}
+                    if raw.get("meeting_id") else None),
     }
     if raw.get("editor") == "blocks" and not raw.get("encrypted"):
         # Auto covers (services/page_covers.py): was this cover picked for the page, is one on its way.

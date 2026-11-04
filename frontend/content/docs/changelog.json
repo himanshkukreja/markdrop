@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings",
+      "date": "2026-11-05",
+      "title": "Meetings: every call becomes a page you can ask",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Import a Google Meet transcript, Gemini's meeting notes, or both. Markdrop writes the summary, decisions and action items (and @mentions their owners), keeps the transcript, and answers questions about one meeting or all of them, citing the moment it was said.",
+      "body": "- **Import** by pasting, uploading (`.txt`, `.vtt`, `.srt`, `.sbv`, `.docx`), or picking Google Meet's transcript and Gemini notes from your Drive. Notes and a transcript of the same call become one meeting.\n- **A page per meeting** in the workspace's new **Meetings** folder, with Date, Type, Attendees, Organizer, Duration and Action items as properties: a summary, decisions, an action-item checklist that @mentions and notifies the members who own them, open questions, topics, and the transcript as a sub-page with a line per turn.\n- **Google's notes, as written.** When Gemini's notes are there, their summary, details and next steps are used word for word; AI only fills the gaps.\n- **Ask this meeting** and **Ask across meetings**: answers in English, with chips that open the transcript at the moment it was said. Only meetings you can open are ever used.\n- **Restrict to attendees**, and delete (the importer, or a workspace admin for any meeting).\n- **Meetings AI** has its own budget ($5 a day, $50 a month), in the admin's AI tab.\n- **For AI apps:** `import_meeting`, `list_meetings`, `get_meeting` and `ask_meetings` (75 MCP tools now).",
+      "docs": [
+        "/workspaces/meetings",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "analytics-ai-home",
       "date": "2026-11-05",
       "title": "Analytics tells you what changed, answers questions, and shows what people couldn't find",

@@ -58,6 +58,8 @@ export interface PageFields {
   /** Auto covers: the cover was picked automatically / one is on its way (the editor fades it in). */
   cover_auto?: boolean;
   cover_pending?: boolean;
+  /** Meetings: this page is a meeting (or its transcript); the reader mounts the meeting panel. */
+  meeting?: { id: string; role: string } | null;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -81,6 +83,8 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     page_properties: d.page_properties && typeof d.page_properties === "object" && Array.isArray((d.page_properties as PagePropertiesInfo).properties) ? (d.page_properties as PagePropertiesInfo) : null,
     cover_auto: d.cover_auto === true,
     cover_pending: d.cover_pending === true,
+    meeting: d.meeting && typeof d.meeting === "object" && typeof (d.meeting as { id?: unknown }).id === "string"
+      ? { id: (d.meeting as { id: string }).id, role: String((d.meeting as { role?: unknown }).role ?? "page") } : null,
   };
 }
 

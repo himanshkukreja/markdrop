@@ -33,6 +33,8 @@ class Folder:
     # None = the workspace's ``settings.default_access``. A preselection for
     # new items only: it never changes a document that is already filed.
     default_access: str | None = None
+    # The workspace's Meetings folder (services/meetings.py): imported calls are filed here.
+    meetings: bool = False
 
 
 FOLDER_DEFAULT_LEVELS = ("private", "workspace", "link")

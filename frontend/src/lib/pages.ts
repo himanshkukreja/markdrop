@@ -102,6 +102,8 @@ export interface PageDocument extends DocumentResponse {
   cover_auto?: boolean;
   /** Auto covers: one is being picked right now (the editor fades it in when it lands). */
   cover_pending?: boolean;
+  /** Meetings: this page is a meeting (or its transcript); the reader shows the meeting panel. */
+  meeting?: { id: string; role: "page" | "transcript" } | null;
 }
 
 export interface PageTemplate {
