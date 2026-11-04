@@ -47,7 +47,7 @@ await step("create", async () => {
   await p.getByRole("button", { name: "New page" }).first().waitFor({ timeout: 30000 });
   await shot(p, "01-folder-new-page");
   await p.getByRole("button", { name: "New page" }).first().click();
-  await p.getByRole("dialog").getByText("Feature guide / release notes").click();
+  await p.getByRole("dialog").getByText("Feature guide / release notes", { exact: true }).click();
   await p.getByRole("dialog").getByLabel("Title").fill("Page builder launch");
   await shot(p, "02-template-gallery", { wait: 800 });
   await p.getByRole("dialog").getByRole("button", { name: "Create page" }).click();
@@ -231,7 +231,7 @@ await step("subpage", async () => {
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
   await p.getByRole("button", { name: "Add a sub-page" }).first().click();
   const dlg = p.getByRole("dialog");
-  await dlg.getByText("Meeting notes").click();
+  await dlg.getByText("Meeting notes", { exact: true }).click();
   await dlg.getByLabel("Title").fill("Launch sync, Nov 3");
   await shot(p, "11-subpage-gallery");
   await dlg.getByRole("button", { name: "Create page" }).click();

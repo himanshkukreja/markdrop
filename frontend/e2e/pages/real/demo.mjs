@@ -57,7 +57,7 @@ await p.goto(`${APP}/w/${S.ws}/f/${S.folder}`, { waitUntil: "networkidle" });
 await pause(1200);
 await p.getByRole("button", { name: "New page" }).first().click();
 await pause(900);
-await p.getByRole("dialog").getByText("Feature guide / release notes").click();
+await p.getByRole("dialog").getByText("Feature guide / release notes", { exact: true }).click();
 await pause(500);
 await p.getByRole("dialog").getByLabel("Title").fill("");
 await p.getByRole("dialog").getByLabel("Title").pressSequentially("Page builder launch", { delay: 45 });
