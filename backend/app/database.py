@@ -150,6 +150,11 @@ async def connect() -> None:
 
     await _trash.ensure_indexes(db)
 
+    # Card previews (services/card_preview.py): files' previews kept two weeks, dropped with their document.
+    from app.services import card_preview as _card_preview
+
+    await _card_preview.ensure_indexes(db)
+
     # Email campaigns + opt-out lookups for building an audience
     await db["campaigns"].create_index([("created_at", -1)])
     await db["users"].create_index("unsubscribed_at", sparse=True)

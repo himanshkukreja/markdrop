@@ -1669,11 +1669,25 @@ async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
         "owner": "you" if i["owner"]["is_you"] else (i["owner"]["name"] or "someone else"),
         "updated_at": iso(i.get("updated_at")),
     } for i in res["items"] if not i["redacted"]]
+    if args.get("previews") and items:
+        # What each item's card shows (services/card_preview.py), as text: the same read
+        # decision as opening it, a few items at a time.
+        from app.services import card_preview
+
+        actor, actx = access_service.Actor.of(ctx.user), access_service.Ctx(ctx.db)
+        slugs = [i["slug"] for i in items]
+        found: dict[str, dict] = {}
+        for k in range(0, len(slugs), card_preview.MAX_SLUGS):
+            found.update(await card_preview.previews(ctx.db, actor, actx, ws_id,
+                                                     slugs[k:k + card_preview.MAX_SLUGS], wait=3.0))
+        for i in items:
+            i["preview"] = card_preview.as_text(found.get(i["slug"]) or {})
     out = {"items": items, "next_cursor": res["next_cursor"]}
     if not items:
         return "Nothing here that the user can open.", out
     return f"{len(items)} item(s):\n" + "\n".join(
-        f"- {i['title'] or i['slug']} (by {i['owner']}): {i['url']}" for i in items), out
+        f"- {i['title'] or i['slug']} (by {i['owner']}): {i['url']}"
+        + (f"\n  {i['preview']}" if i.get("preview") else "") for i in items), out
 
 
 async def add_to_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2916,6 +2930,10 @@ _WS_ITEM = _out({
     "url": {"type": "string"}, "markdrop_url": {"type": "string"}, "access": _ACCESS_OUT,
     "redacted": {"type": "boolean"}, "folder": _NULLABLE_STR, "owner": {"type": "string"},
     "updated_at": _NULLABLE_STR,
+    "preview": {"type": ["string", "null"], "description": (
+        "Only with previews=true: the start of the item as plain text, what its card in the app's "
+        "Cards view shows (headings and first lines, a sheet's first cells, a text file's first "
+        "lines). Null when there is no text to show (an image, a video, audio).")},
 }, ["slug", "title", "kind", "url", "markdrop_url", "access", "owner"])
 
 TOOLS += [
@@ -2968,7 +2986,9 @@ TOOLS += [
         name="list_workspace_items",
         title="List a workspace's documents",
         description=("Documents and files in a workspace (or one folder of it) that the user can open, "
-                     "newest first, with their canonical links (custom domain when live) and who owns each."),
+                     "newest first, with their canonical links (custom domain when live) and who owns each. "
+                     "previews=true adds the start of each item as plain text (what its card shows in the "
+                     "app's Cards view); it is slower, so ask for it with a small limit."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
@@ -2976,6 +2996,8 @@ TOOLS += [
             "query": {"type": "string", "maxLength": 200},
             "cursor": {"type": "string", "maxLength": 300},
             "limit": {"type": "integer", "minimum": 1, "maximum": 100, "default": 50},
+            "previews": {"type": "boolean", "default": False,
+                         "description": "Add each item's opening text as `preview`."},
         }, "required": ["workspace"]},
         output_schema=_out({"items": {"type": "array", "items": _WS_ITEM}, "next_cursor": _NULLABLE_STR}),
         annotations=_ann(True, False, True),
