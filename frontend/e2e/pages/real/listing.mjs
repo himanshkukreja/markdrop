@@ -279,7 +279,7 @@ await step("views", async () => {
   await p.goto(wsUrl, { waitUntil: "networkidle" });
   const sw = p.getByRole("radiogroup", { name: "View" });
   await sw.waitFor({ timeout: 20000 });
-  if ((await p.locator("#main [data-view]").first().getAttribute("data-view")) !== "list") fail("the default view isn't List");
+  if ((await p.locator("#main [data-view]").first().getAttribute("data-view")) !== "cards") fail("the default view isn't Cards");
   // Keyboard: arrows move the choice (a radio group).
   await sw.getByRole("radio", { name: "List" }).focus();
   await p.keyboard.press("ArrowRight");
