@@ -553,7 +553,8 @@ await step("tenant-edit", async () => {
   await o.p.locator(".pb-bar, header").getByRole("button", { name: /^Share$/ }).first().click({ timeout: 10000 });
   const dlg = o.p.getByRole("dialog");
   await dlg.getByText(/Change general access on markdrop\.in/).waitFor({ timeout: 15000 });
-  if (await dlg.getByText("Who can open it").count()) fail("the access level is offered on the domain");
+  if (await dlg.getByText("Who can open it", { exact: true }).count()) fail("the access level is offered on the domain");
+  if (await dlg.getByRole("radio", { name: /Anyone with the link/ }).count()) fail("the access level is offered on the domain");
   const who = `domain-share-${Date.now().toString(36)}@example.com`;
   await dlg.getByPlaceholder("Add people by email").fill(who);
   await dlg.getByRole("button", { name: /^Share$/ }).click();
