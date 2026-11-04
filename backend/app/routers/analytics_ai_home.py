@@ -14,7 +14,6 @@ personal Guides. Limits come back in the body (``status: "limit"`` / a ``limit``
 HTTP error, so the card can say what happened.
 """
 
-from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase

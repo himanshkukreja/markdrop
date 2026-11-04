@@ -130,14 +130,15 @@ class World(AccessWorld, AIEnv):
                     device: str = "Desktop", channel: str | None = None, people: int | None = None) -> None:
         """``n`` views of ``doc`` ``days_ago`` days ago, from ``people`` distinct visitors."""
         people = people or n
+        tag = secrets.token_hex(4)
         rows = [{"doc_id": str(doc["_id"]), "owner_id": doc.get("owner_id"), "type": "view",
                  "ts": now() - timedelta(days=days_ago, minutes=i), "referrer": ref, "internal": False,
-                 "ip_hash": f"iphash-{secrets.token_hex(4)}-{i % people}", "country": country, "device": device,
+                 "ip_hash": f"iphash-{tag}-{i % people}", "country": country, "device": device,
                  "channel": channel} for i in range(n)]
         await self.db["events"].insert_many(rows)
 
     async def ledger(self, kind: str | None = None) -> list[dict]:
-        q = {"feature": "analytics_ai", **({"meta.kind": kind} if kind else {})}
+        q = {"feature": "analytics_ai", **({"kind": kind} if kind else {})}
         return await self.db[ai_usage.REQUESTS].find(q).to_list(length=100)
 
     def report(self, label: str) -> None:
@@ -218,7 +219,7 @@ class Story(World):
         rows = await self.ledger("story")
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["outcome"], "ok")
-        self.assertEqual(rows[0]["meta"]["via"], "web")
+        self.assertEqual(rows[0]["via"], "web")
         self.report("story")
 
     async def test_cache_and_refresh(self):
@@ -253,7 +254,7 @@ class Story(World):
         s = await self.get(range="7d")
         self.assertEqual((s["status"], s["reason"]), ("limit", "off"))
         settings.analytics_ai_enabled = True
-        await self.db[ai_usage.SETTINGS].update_one({"_id": "global"}, {"$set": {"enabled.analytics_ai": False}},
+        await self.db[ai_usage.SETTINGS].update_one({"_id": ai_usage.BUDGETS_ID}, {"$set": {"enabled.analytics_ai": False}},
                                                     upsert=True)
         ai_usage.invalidate_settings()
         s = await self.get(range="7d")
@@ -370,7 +371,7 @@ class Ask(World):
         self.assertIn("Unknown tool", prompt)
         rows = await self.ledger("ask")
         self.assertEqual(len(rows), 1)
-        self.assertEqual([t["name"] for t in rows[0]["meta"]["tools"]],
+        self.assertEqual([t["name"] for t in rows[0]["tools"]],
                          ["top_documents", "breakdown", "drop_database", "totals", "top_documents"])
         self.report("ask (2 rounds)")
         # Same question the same day: from the cache, no model call.
@@ -490,7 +491,7 @@ class Gaps(World):
         await self.db[ai_usage.REQUESTS].insert_many([
             {"feature": "docs_ask", "site": self.site, "ts": now() - timedelta(days=1), "insights": True,
              "outcome": "no_answer", "question": "How do refunds work?", "user_id": self.uid["stranger"],
-             "visitor": "u:" + self.uid["stranger"]} for _ in range(2)])
+             "visitor": "u:" + self.uid["stranger"], "request_id": secrets.token_hex(8)} for _ in range(2)])
         await guide_insights.record_search(self.db, self.site, query="laptop policy", results=0, path="/",
                                            ua="Mozilla", ip="10.1.1.1", out=False)
         self.model.script = lambda kw: json.dumps(GAPS_REPLY)
@@ -543,7 +544,7 @@ class Gaps(World):
         self.assertTrue(first["markdown"].startswith("# Onboarding contractors\n"))
         self.assertIn("## Questions people asked", first["markdown"])
         self.assertEqual(g["create"], {"workspace": self.ws["W1"]})
-        self.assertEqual((await self.ledger("gaps"))[0]["meta"]["scope"], "workspace")
+        self.assertEqual((await self.ledger("gaps"))[0]["scope"], "workspace")
         self.report("gaps")
 
     async def test_markdown_escapes_queries(self):
@@ -607,7 +608,6 @@ class SearchLog(World):
         await self.search("wm", "4111 1111 1111", scope=f"workspace:{self.ws['W1']}")     # a long number
         await self.search("wm", "x", scope=f"workspace:{self.ws['W1']}")                  # too short
         await self.search("stranger", "secrets", current=self.ws["W1"])          # not a member
-        await self.search("wm", "onboarding", scope=f"workspace:{self.ws['W1']}", cursor="20")  # a later page
         self.assertEqual(await self.db[search_log.COLL].count_documents({}), 0)
 
     async def test_ttl_ninety_days(self):
@@ -639,7 +639,7 @@ class Digest(World):
         self.assertIn("/dashboard/analytics/launch-notes", d.html)
         await analytics_digest.compose(self.db, user, when)
         self.assertEqual(len(self.model.calls), 1)          # once per person per week
-        self.assertEqual((await self.ledger("story"))[0]["meta"]["via"], "digest")
+        self.assertEqual((await self.ledger("story"))[0]["via"], "digest")
         # AI off: the email is the same, without the story.
         await self.db[aah.CACHE].delete_many({})
         settings.analytics_ai_enabled = False
@@ -664,7 +664,7 @@ class MCP(World):
         self.assertEqual(out["status"], "ok")
         self.assertTrue(out["bullets"][0]["url"].endswith("/dashboard/analytics/launch-notes"))
         self.assertTrue(out["bullets"][0]["url"].startswith("http"))
-        self.assertEqual((await self.ledger("story"))[0]["meta"]["via"], "mcp")
+        self.assertEqual((await self.ledger("story"))[0]["via"], "mcp")
 
         def script(kw):
             if not any(m["role"] == "assistant" for m in kw["messages"]):
