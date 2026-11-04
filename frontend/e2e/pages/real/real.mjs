@@ -403,7 +403,7 @@ await step("trash", async () => {
   await tshot(p, "t1-delete-dialog-page");
   await dlg.getByRole("button", { name: /Move to Trash/ }).click();
   await p.waitForURL((u) => !u.pathname.endsWith(page), { timeout: 20000 });
-  const toast = p.locator(".md-toast", { hasText: /Moved to Trash/ });
+  const toast = p.locator(".md-toast", { hasText: /Moved\b.*\bto Trash/ });
   await toast.waitFor({ timeout: 10000 });
   await tshot(p, "t2-moved-to-trash-toast");
   await waitStatus(page, 404);
@@ -416,7 +416,7 @@ await step("trash", async () => {
   await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
   const row = p.locator("li", { hasText: page }).first();
   await row.waitFor({ timeout: 20000 });
-  await row.getByRole("button", { name: /Actions for|More actions|Actions/ }).last().click();
+  await row.getByRole("button", { name: /^Actions for/ }).click();
   await p.getByRole("menuitem", { name: /^Delete/ }).click();
   await dlg.getByText(new RegExp(`/${page}`)).first().waitFor({ timeout: 10000 });
   await tshot(p, "t3-delete-dialog-dashboard");
@@ -438,7 +438,7 @@ await step("trash", async () => {
   await p.goto(`${APP}/trash`, { waitUntil: "networkidle" });
   const trow = p.locator("li", { hasText: page }).first();
   await trow.waitFor({ timeout: 20000 });
-  for (const want of [/days? left|Last day/, /You|Ada/]) await trow.getByText(want).first().waitFor();
+  for (const want of [/days? left|Last day/i, /you|Ada/i]) await trow.getByText(want).first().waitFor();
   await tshot(p, "t6-trash-page", { full: true });
   await trow.getByRole("button", { name: /^Restore/ }).click();
   await waitStatus(page, 200);
