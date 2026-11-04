@@ -601,9 +601,10 @@ async def new_slug_problem(db: AsyncIOMotorDatabase, raw: dict, new_slug: str) -
         return 409, "reserved", SLUG_RESERVED
     if new_slug == raw.get("slug"):
         return None
-    if await db["documents"].find_one({"slug": new_slug, "_id": {"$ne": raw["_id"]}}, {"_id": 1}):
-        return 409, "taken", SLUG_TAKEN
+    # The reservation first (as before this check was shared), then a live document at it.
     if await lifecycle.slug_unavailable(db, new_slug, raw.get("owner_id"), doc_id=raw["_id"]):
+        return 409, "taken", SLUG_TAKEN
+    if await db["documents"].find_one({"slug": new_slug, "_id": {"$ne": raw["_id"]}}, {"_id": 1}):
         return 409, "taken", SLUG_TAKEN
     if raw.get("workspace_id"):
         from app.services import folder as folder_service
