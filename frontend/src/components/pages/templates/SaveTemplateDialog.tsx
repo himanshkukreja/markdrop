@@ -62,6 +62,7 @@ export function SaveTemplateDialog({ open, onClose, slug, title, workspaceId, wo
 
   async function save(e?: React.FormEvent) {
     e?.preventDefault();
+    e?.stopPropagation();
     setBusy(true);
     setError("");
     try {

@@ -210,6 +210,9 @@ function Row({ t, draggable, editing, busy, onEdit, onCancel, onSave, onDelete }
           className="tpl-row__edit"
           onSubmit={(e) => {
             e.preventDefault();
+            // The gallery's own form is an ancestor in the React tree (this dialog portals out of
+            // it, but React events still bubble there): don't let Save create a page.
+            e.stopPropagation();
             onSave({ name, description, icon });
           }}
         >
