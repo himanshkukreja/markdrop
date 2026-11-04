@@ -10,6 +10,9 @@
  *
  * Loaded after markdrop.css in the components layer (app/globals.css), so utilities still win.
  */
+/* The anchor for a small link's touch hit area (below); no visual change on any screen. */
+.md-hit { position: relative; }
+
 @media (pointer: coarse) {
   /* ── Text: 12 px floor ─────────────────────────────────────────────── */
   :root {
@@ -18,7 +21,8 @@
     --text-kbd: 12px;
   }
   .md-badge, .md-badge--sm, .md-kbd, .md-tab__count, .md-menu__caption, .md-table th,
-  .md-avatar--sm, .md-explainer__peer, .md-explainer__relay { font-size: 12px; }
+  .md-avatar--sm, .md-explainer__peer, .md-explainer__relay, .md-explainer__path::before,
+  .md-explainer__num, .md-explainer__step h3 span { font-size: 12px; }
 
   /* ── Buttons: a 44 × 44 hit area around anything drawn smaller ────── */
   .md-btn::after {
@@ -30,6 +34,16 @@
     right: min(0px, calc((100% - 44px) / 2));
   }
   .md-btn--link { min-height: 44px; }
+  /* Small text links and text buttons (Read more, How sharing works, Back to …): the same hit area. */
+  .md-hit::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc((100% - 44px) / 2));
+    bottom: min(0px, calc((100% - 44px) / 2));
+    left: min(0px, calc((100% - 44px) / 2));
+    right: min(0px, calc((100% - 44px) / 2));
+  }
+  .md-logo { min-height: 44px; }
 
   /* ── Form fields: 16 px text (no iOS zoom on focus) and 44 px tall ─── */
   .md-input, .md-textarea, .md-select { font-size: 16px; line-height: 22px; }

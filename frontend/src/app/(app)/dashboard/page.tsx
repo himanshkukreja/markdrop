@@ -302,7 +302,7 @@ export default function DashboardPage() {
       <Anchor
         href={href}
         title={`In ${label}`}
-        className="md-focus relative z-[1] inline-flex min-w-0 max-w-[45%] shrink items-center gap-1 rounded-sm bg-surface-active px-1.5 text-micro text-text-secondary no-underline hover:text-text sm:max-w-56"
+        className="md-focus md-hit relative z-[1] inline-flex min-w-0 max-w-[45%] shrink items-center gap-1 rounded-sm bg-surface-active px-1.5 text-micro text-text-secondary no-underline hover:text-text sm:max-w-56"
       >
         <Icon name="folder" size={11} className="shrink-0" />
         {/* Phones: just the innermost place; the full trail is in the title. */}

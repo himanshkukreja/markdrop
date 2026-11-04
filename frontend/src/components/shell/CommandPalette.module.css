@@ -438,4 +438,7 @@
   .foot {
     display: none;
   }
+  .group {
+    font-size: 12px;
+  }
 }

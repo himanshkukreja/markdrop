@@ -413,7 +413,7 @@ export default function ShareDialog({
                   aria-expanded={moreOpen}
                   aria-controls="md-share-more"
                   onClick={() => setMoreOpen((o) => !o)}
-                  className="md-focus flex cursor-pointer items-center gap-2 self-start rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text"
+                  className="md-focus md-hit flex cursor-pointer items-center gap-2 self-start rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text"
                 >
                   <Icon name={moreOpen ? "chevronDown" : "chevronRight"} size={14} />
                   More options: password and expiry

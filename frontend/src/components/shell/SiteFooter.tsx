@@ -49,10 +49,10 @@ export function SiteFooter({ className }: { className?: string }) {
         <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-6 text-caption text-text-muted">
           <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>© Markdrop · MIT licensed</span>
-            <Anchor href="/privacy" className="md-focus inline-flex min-h-6 items-center rounded-sm text-text-muted no-underline hover:text-text">
+            <Anchor href="/privacy" className="md-focus md-hit inline-flex min-h-6 items-center rounded-sm text-text-muted no-underline hover:text-text">
               Privacy
             </Anchor>
-            <PrivacyChoicesButton className="md-focus inline-flex min-h-6 cursor-pointer items-center rounded-sm text-text-muted hover:text-text" />
+            <PrivacyChoicesButton className="md-focus md-hit inline-flex min-h-6 cursor-pointer items-center rounded-sm text-text-muted hover:text-text" />
           </span>
           <span className="inline-flex items-center gap-1.5">
             <Icon name="globe" size={14} />

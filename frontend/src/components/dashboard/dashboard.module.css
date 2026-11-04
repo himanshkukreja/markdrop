@@ -34,6 +34,12 @@
 /* Rows are stacking contexts (the rise animation); the row whose menu is open must sit above the
    rows after it, or the menu renders underneath them. */
 .row:focus-within { border-color: var(--border-strong); z-index: 2; }
+/* Touch screens: the whole row opens the item (the title's link stretches over it); the controls on
+   it (chip, actions, menu) sit above the stretched link. A mouse keeps the title-only link. */
+@media (pointer: coarse) {
+  .row .link::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .row .lift { position: relative; z-index: 1; }
+}
 
 /* The analytics drawer's chart crosshair dot. */
 .dot { transition: cx var(--duration-fast) var(--ease-out), cy var(--duration-fast) var(--ease-out); }

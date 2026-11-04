@@ -268,14 +268,19 @@ function measure({ checkTargets }) {
       // Under something else at its own centre: obscured, not a target right now.
       const atCentre = document.elementFromPoint(Math.min(vw - 1, Math.max(0, cx)), Math.min(vh - 1, Math.max(0, cy)));
       if (!atCentre || !(target === atCentre || target.contains(atCentre) || atCentre.contains(target))) continue;
-      const probes = [[cx - 21.5, cy], [cx + 21.5, cy], [cx, cy - 21.5], [cx, cy + 21.5]];
-      let ok = true;
-      for (const [x, y] of probes) {
-        if (x < 0 || y < 0 || x >= vw || y >= vh) continue;
-        const hit = document.elementFromPoint(x, y);
-        if (!hit || !(hit === target || target.contains(hit))) { ok = false; break; }
-      }
-      if (!ok) push("target", el, `${Math.round(r.width)}×${Math.round(r.height)}`);
+      // The hit area along the centre lines, walked out 1 px at a time (a stretched link's ::after or
+      // a larger invisible hit area counts; the screen's edge counts as reach).
+      const owns = (x, y) => { const h = document.elementFromPoint(x, y); return !!h && (h === target || target.contains(h)); };
+      const reach = (dx, dy) => {
+        for (let s = 1; s <= 22; s++) {
+          const x = cx + dx * s, y = cy + dy * s;
+          if (x < 0 || y < 0 || x >= vw || y >= vh) return 22;
+          if (!owns(x, y)) return s - 1;
+        }
+        return 22;
+      };
+      const hw = reach(-1, 0) + reach(1, 0) + 1, hh = reach(0, -1) + reach(0, 1) + 1;
+      if (hw < 43 || hh < 43) push("target", el, `${Math.round(r.width)}×${Math.round(r.height)} (hit ${hw}×${hh})`);
     }
   }
 
@@ -295,6 +300,9 @@ function measure({ checkTargets }) {
     const fs = parseFloat(getComputedStyle(el).fontSize);
     if (fs >= 11.95) continue;
     if (!visible(el)) continue;
+    // An avatar's initials (one or two letters in a small round chip) are a mark, not text to read.
+    const br = el.getBoundingClientRect();
+    if (n.nodeValue.trim().length <= 2 && br.width <= 28 && br.height <= 28 && /^[A-Z?]+$/i.test(n.nodeValue.trim())) continue;
     push("text", el, `${fs}px`);
   }
 

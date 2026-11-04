@@ -62,7 +62,7 @@ function JourneyLink({ u }: { u: AdminUserListItem }) {
   return (
     <a
       href={href}
-      className="md-focus inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-sm text-caption font-medium text-accent-text hover:underline"
+      className="md-focus md-hit inline-flex min-h-8 items-center gap-1 whitespace-nowrap rounded-sm text-caption font-medium text-accent-text hover:underline"
       aria-label={`Journey of ${u.name || u.email}`}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;

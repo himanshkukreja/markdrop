@@ -340,3 +340,11 @@
   .dropIconLink { display: none; }
   .dropIconCheck { display: block; }
 }
+
+/* Touch screens (fix/mobile-shell): the people field is 44 px tall with 16 px text (no iOS zoom),
+   and the text input fills its height so a tap anywhere on the field lands in it. */
+@media (pointer: coarse) {
+  .comboField { min-height: 44px; }
+  .comboInput { font-size: 16px; height: 42px; margin-block: -5px; }
+  .chipsEyebrow, .keyDemoNote, .keyDemoNoteKey, .previewLabel, .dtpGrid th, .secretEyebrow { font-size: 12px; }
+}

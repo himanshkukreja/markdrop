@@ -192,3 +192,9 @@ a.row:hover {
     display: none;
   }
 }
+
+/* The field fills the bar's height, so the whole bar is the tap target. Touch: 12 px text floor. */
+.input { align-self: stretch; }
+@media (pointer: coarse) {
+  .trashHead { font-size: 12px; }
+}

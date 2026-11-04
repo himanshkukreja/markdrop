@@ -260,3 +260,11 @@
   .wl-grid:not(.wl-cards) { gap: 10px; }
   .wl-grid:not(.wl-cards) .wl-tile { min-height: 108px; padding: 12px; gap: 10px; }
 }
+
+/* Touch screens (fix/mobile-shell): a long press on a row drags it (WorkspaceDnd), so no iOS link
+   preview and no text selection on the stretched link; the kind label meets the 12 px floor. */
+@media (pointer: coarse) {
+  .wl-name { -webkit-touch-callout: none; }
+  .wl-row, .wl-prow, .wl-tile { -webkit-user-select: none; user-select: none; }
+  .wl-card__kind { font-size: 12px; }
+}
