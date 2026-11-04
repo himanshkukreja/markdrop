@@ -12,6 +12,7 @@ A page can hold other pages. Sub-pages show at the bottom of their parent under 
 
 - At the bottom of a page, choose **Add a sub-page**, pick a template and choose **Create page**.
 - In the page, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
+- In the page tree beside the page, or in your workspace's sidebar, point at a page and choose **+**.
 
 You need to be signed in and able to edit the parent.
 

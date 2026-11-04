@@ -1,9 +1,9 @@
 ---
 title: Members and roles
 description: "Invite people to a workspace by email and choose what each person can do: Can view, Can edit, Admin or Owner."
-updated: 2026-10-30
+updated: 2026-11-04
 prerequisites: [/workspaces/create]
-keywords: [invite, member, role, admin, owner, viewer, editor, team]
+keywords: [invite, member, role, admin, owner, viewer, editor, team, locked page, unlock, trash, templates]
 ---
 
 Everyone in a workspace has one role. The role decides what they can open and change across the whole workspace. You can change a person's role at any time.
@@ -14,7 +14,7 @@ Everyone in a workspace has one role. The role decides what they can open and ch
 | --- | --- |
 | **Can view** | Open everything the team can open. |
 | **Can edit** | Also add files, change files the team can open, and make folders. |
-| **Admin** | Also invite people, manage folders, and change the workspace's privacy, domains and branding. |
+| **Admin** | Also invite people, manage folders and the workspace's [templates](/pages/templates), edit, lock and unlock [locked pages](/pages/overview#page-options), restore anything in the workspace's [Trash](/documents/trash), and change the workspace's privacy, domains, branding and **AI features** and **Auto covers** switches. |
 | **Owner** | Everything an admin can do, plus manage admins, hand the workspace on and delete it. Each workspace has one owner. At first it's the person who created it. |
 
 A few things only the owner can do:

@@ -1,7 +1,7 @@
 ---
 title: Markdrop Docs
 description: Publish documents and files, share them safely, run workspaces on your own domain, and use Markdrop from your editor, terminal and AI assistant.
-updated: 2026-11-03
+updated: 2026-11-04
 ---
 
 Markdrop turns what you drop into a link that renders in any browser: Markdown documents, and files like PDFs, videos, spreadsheets, Word documents, HTML and zipped websites. These docs cover every part of it.
@@ -16,10 +16,11 @@ Markdrop turns what you drop into a link that renders in any browser: Markdown d
 
 ## Browse by area
 
-- Documents: [Writing](/documents/writing), [Addresses](/documents/addresses), [Edit key](/documents/edit-key), [Passwords and expiry](/documents/passwords-and-expiry)
+- Documents: [Writing](/documents/writing), [Addresses](/documents/addresses), [Edit key](/documents/edit-key), [Passwords and expiry](/documents/passwords-and-expiry), [Link previews](/documents/link-previews), [Trash](/documents/trash)
+- Pages: [Pages and the block editor](/pages/overview), [Templates](/pages/templates), [Properties and views](/pages/properties-and-views), [Version history](/pages/history), [Sign-off](/pages/sign-off), [AI in pages](/pages/ai), [Export](/pages/export)
 - Files: [Supported types](/files/supported-types), [Limits](/files/limits), [Replace and versions](/files/replace-and-versions)
-- Sharing and access: [Who can open a link](/sharing/who-can-open), [Share with people](/sharing/share-with-people), [End-to-end encryption](/sharing/end-to-end-encryption)
-- Workspaces and domains: [Create a workspace](/workspaces/create), [Folders](/workspaces/folders), [Your own domain](/workspaces/custom-domain)
+- Sharing and access: [Who can open a link](/sharing/who-can-open), [Share with people](/sharing/share-with-people), [Request access](/sharing/request-access), [See who's viewing](/sharing/see-whos-viewing), [End-to-end encryption](/sharing/end-to-end-encryption)
+- Workspaces and domains: [Create a workspace](/workspaces/create), [Members and roles](/workspaces/members-and-roles), [Folders](/workspaces/folders), [Your own domain](/workspaces/custom-domain), [Sign-in and editing on your domain](/workspaces/sign-in-on-your-domain)
 - Analytics: [Overview](/analytics/overview), [What gets counted](/analytics/what-gets-counted)
 - CLI: [Install](/cli/install), [Upload and replace](/cli/upload-and-replace), [Send and receive](/cli/send-and-receive)
 - VS Code: [Sync a file](/vscode/sync), [Conflicts](/vscode/conflicts)

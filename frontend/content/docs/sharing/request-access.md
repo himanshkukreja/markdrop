@@ -3,7 +3,7 @@ title: Request access
 description: Ask a document's owner for access from the page, or for edit access to a page you can read. The owner gets an email and approves or declines.
 updated: 2026-11-04
 prerequisites: [/get-started/accounts]
-keywords: [request access, ask for access, request edit access, edit access, denied, permission, approve, decline]
+keywords: [request access, ask for access, request edit access, edit access, denied, permission, approve, decline, mcp, request_edit_access, list_access_requests, decide_access_request]
 ---
 
 Opened a link and got "You don't have access yet"? You can ask the owner from that page. They get an email with your note and decide with one click, and you get an email when they do. Nothing opens until they say yes.
@@ -90,6 +90,16 @@ After you approve, the person shows in the document's **People with access** lis
 :::note
 Approving never lowers someone's access. If they already had **Can edit** and you choose **Let them view**, they keep **Can edit**.
 :::
+
+## From an AI app
+
+With Markdrop [connected to your AI app](/ai/hosted-mcp), the same requests work from a chat, under the same rules:
+
+- "Ask the owner of the Q3 plan if I can edit it" uses `request_edit_access`, with an optional note.
+- "Who's asked for access to my documents?" uses `list_access_requests`: the requests waiting for you, or the ones you've made.
+- "Let Dana edit it" uses `decide_access_request` to approve or decline. Only the person who can answer in the app can answer from an AI app, and the requester gets the same email. Your assistant should check with you before it approves anything.
+
+See [MCP tools](/ai/tools#access).
 
 ## Related
 
