@@ -8,10 +8,14 @@
 .pb-covergal__tab { position: relative; flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--text-muted); font: 500 13px/1 var(--font-sans); cursor: pointer; transition: background-color 120ms ease, color 120ms ease; }
 .pb-covergal__tab:hover { background: var(--surface-hover); color: var(--text); }
 .pb-covergal__tab--on { color: var(--text); }
-.pb-covergal__auto { display: inline-flex; flex: none; align-items: center; gap: 5px; height: 28px; margin-left: auto; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--accent-text, var(--accent)); font: 500 13px/1 var(--font-sans); cursor: pointer; transition: background-color 120ms ease, opacity 120ms ease; }
+/* "Pick for me": its own row under the covers, so the tab strip never has to scroll to it. */
+.pb-covergal__foot { display: flex; align-items: center; gap: 8px; margin: 10px -4px 0; padding: 8px 0 0; border-top: 1px solid var(--border); }
+.pb-covergal__auto { display: inline-flex; flex: none; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--accent-text, var(--accent)); font: 500 13px/1 var(--font-sans); cursor: pointer; transition: background-color 120ms ease, opacity 120ms ease; }
 .pb-covergal__auto:hover { background: var(--accent-soft); }
 .pb-covergal__auto--busy { opacity: .7; cursor: progress; }
 .pb-covergal__auto--busy svg { animation: pb-covergal-spin 1.2s linear infinite; }
+.pb-covergal__foothint { min-width: 0; overflow: hidden; color: var(--text-muted); font-size: 12px; line-height: 16px; text-overflow: ellipsis; white-space: nowrap; }
+.pb-covergal__foothint--bad { color: var(--danger); }
 @keyframes pb-covergal-spin { to { transform: rotate(360deg); } }
 .pb-covergal__tab--on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -7px; height: 2px; border-radius: 2px; background: var(--accent); }
 

@@ -295,7 +295,8 @@ button.pb-mention--date { cursor: pointer; }
 .pb-headbtn:hover { background: var(--surface-raised); color: var(--text); }
 .pb-headbtn--quiet { background: none; box-shadow: none; color: var(--text-muted); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .pb-headbtn--quiet:hover { background: var(--surface-hover); }
-.pb-cover-img .pb-coverpick { top: auto; bottom: 48px; left: auto; right: max(12px, calc((100% - var(--pb-w)) / 2)); }
+/* From the cover: it opens below the cover tools, over the page (44 covers make it too tall to open upward). */
+.pb-cover-img .pb-coverpick { top: calc(100% - 6px); bottom: auto; left: auto; right: max(12px, calc((100% - var(--pb-w)) / 2)); }
 
 .pb-head__body { position: relative; padding-top: 64px; }
 .pb-head--cover .pb-head__body { padding-top: 12px; }

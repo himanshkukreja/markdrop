@@ -107,18 +107,6 @@ export function CoverGallery({ current, onPick, onUpload, onSuggest, onClose, cl
             {t}
           </button>
         ))}
-        {onSuggest && (
-          <button
-            type="button"
-            className={cx("pb-covergal__auto md-focus", suggesting && "pb-covergal__auto--busy")}
-            onClick={() => void suggest()}
-            disabled={suggesting}
-            title={suggestFailed ? "Couldn't pick one right now. Try again." : "A cover chosen for what this page is about"}
-          >
-            <Icon name="sparkle" size={14} aria-hidden />
-            {suggesting ? "Picking…" : "Pick for me"}
-          </button>
-        )}
       </div>
 
       <div className="pb-covergal__panel" role="tabpanel" aria-label={tab}>
@@ -190,6 +178,22 @@ export function CoverGallery({ current, onPick, onUpload, onSuggest, onClose, cl
           </div>
         )}
       </div>
+      {onSuggest && (
+        <div className="pb-covergal__foot">
+          <button
+            type="button"
+            className={cx("pb-covergal__auto md-focus", suggesting && "pb-covergal__auto--busy")}
+            onClick={() => void suggest()}
+            disabled={suggesting}
+          >
+            <Icon name="sparkle" size={14} aria-hidden />
+            {suggesting ? "Picking…" : "Pick for me"}
+          </button>
+          <span className={cx("pb-covergal__foothint", suggestFailed && "pb-covergal__foothint--bad")} aria-live="polite">
+            {suggestFailed ? "Couldn't pick one right now. Try again." : "A cover for what this page is about"}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
