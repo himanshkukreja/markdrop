@@ -7,7 +7,7 @@ import { ReadMore } from "@/components/ReadMore";
 import { teamName } from "@/components/workspace/folder/items";
 import { deleteWorkspace, removeMember, updateWorkspace, type ItemAccess, type WorkspaceSettings } from "@/lib/workspaces";
 import { SwitchRow } from "../../../settings-shared";
-import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
+import { AccessSyncNote, Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
 
 /**
  * Advanced (Settings board): the individual switches behind Privacy — what new items start as,
@@ -90,6 +90,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
             />
           </div>
         </Locked>
+        <AccessSyncNote sync={ws.access_sync} />
         <Locked locked={!isAdmin}>
           <div>
             <SwitchRow

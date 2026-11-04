@@ -110,6 +110,7 @@
     "read_password": "Readers must enter this password before they see the content.",
     "remove_password": "`true` removes the password.",
     "access_level": "Who can open it: `link` (anyone with the link), `private` (only you and the people you share it with) or `workspace` (members of its workspace).",
+    "access_sync": "A sign-in change (`require_auth_to_view` on or off) still applying to stored files, page images and cached pages: `state` (`applying` or `done`), `pending` and `total` items, and `want` (the setting being applied). The sign-in gate itself holds as soon as the change is saved. `null` when none was ever applied.",
     "workspace": "File it in this workspace: the workspace's id.",
     "folder": "An existing folder of `workspace`: its id or its path, like `guides/setup`.",
     "encrypted": "Set by clients that encrypt in the browser: `content` and `title` are already ciphertext. The server never sees the key.",
@@ -843,7 +844,7 @@
     },
     "PUT /api/v1/workspaces/{workspace_id}": {
       "title": "Update a workspace",
-      "description": "Changes a workspace's name, branding or settings. Every field is optional.",
+      "description": "Changes a workspace's name, branding or settings. Every field is optional. Turning `require_auth_to_view` on or off takes effect for readers at once; files, page images and cached pages follow in the background, and the answer's `access_sync` says how many items are still applying (`GET` the workspace to follow it).",
       "example": { "name": "Acme Inc." },
       "guide": { "label": "Branding", "href": "/workspaces/branding" }
     },

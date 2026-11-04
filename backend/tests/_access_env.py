@@ -134,6 +134,11 @@ class AccessWorld(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(0)
         for task in list(file_uploads._RUNNING.values()):
             await asyncio.wait({task}, timeout=5)
+        from app.services import lifecycle
+
+        # Sign-in runners a settings PUT left working in the background.
+        for task in list(lifecycle._RUNNERS.values()):
+            await asyncio.wait({task}, timeout=30)
         await self.http.aclose()
         if env.MONGO:
             await self.client.drop_database(self.db_name)
