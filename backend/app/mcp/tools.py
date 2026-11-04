@@ -3172,4 +3172,9 @@ from app.mcp.access_request_tools import ACCESS_REQUEST_TOOLS  # noqa: E402
 
 TOOLS += ACCESS_REQUEST_TOOLS
 
+# Meetings (import a call, list / read meetings, ask them): app/mcp/meeting_tools.py.
+from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
+
+TOOLS += MEETING_TOOLS
+
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

@@ -38,7 +38,7 @@ from typing import Any
 from xml.etree import ElementTree as ET
 
 MAX_SEGMENTS = 6000
-MAX_TEXT = 600_000          # characters of transcript kept per meeting
+MAX_TEXT = 450_000          # characters of transcript kept per meeting (~11 hours of talk)
 MAX_SEGMENT_CHARS = 1500    # a longer turn is cut into several segments
 MERGE_CHARS = 600           # consecutive cues of one speaker are merged up to this length
 

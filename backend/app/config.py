@@ -58,6 +58,11 @@ class Settings(BaseSettings):
     # (generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())").
     google_docs_redirect_uri: str = "http://localhost:8080/api/v1/google/callback"
     token_encryption_key: str = ""  # Fernet key; REQUIRED for Google Docs in prod
+    # Google Picker (Meetings import: pick a Meet transcript / Gemini notes Doc, granted per file
+    # under drive.file). The browser key of the Cloud project (restricted to the Picker API and
+    # markdrop.in) and the project number. Empty: the Google Docs tab of Import is hidden.
+    google_picker_api_key: str = ""
+    google_cloud_app_id: str = ""
 
     # Passwordless email login via Resend (Phase 2)
     resend_api_key: str = ""
@@ -553,6 +558,12 @@ class Settings(BaseSettings):
     search_ai_enabled: bool = True
     search_ai_daily_usd: float = 2.0
     search_ai_monthly_usd: float = 20.0
+    # Meetings AI (services/meetings_ai.py, ledger feature "meetings_ai"): summaries of imported
+    # meetings and Ask this meeting / Ask across meetings (owner decision 2026-11-05: $5 a day,
+    # $50 a month; the admin AI tab overrides them).
+    meetings_ai_enabled: bool = True
+    meetings_ai_daily_usd: float = 5.0
+    meetings_ai_monthly_usd: float = 50.0
 
     @property
     def docs_r2_configured(self) -> bool:
