@@ -131,7 +131,8 @@ class AIWorld(World, AIEnv):
 
     async def markdown_doc(self, n: int = 30, content: str = DOC, **extra) -> dict:
         d = await self.mkdoc("L", ws=None, content=content, title="Getting started", **extra)
-        ids = [h["id"] for h in aid.md_outline.extract_headings(content)]
+        # What the reader's tracker reports: the rendered headings (front matter isn't rendered).
+        ids = [h["id"] for h in aid.md_outline.extract_headings(aid._FRONT.sub("", content))]
         for i in range(n):
             # Everyone reaches the top two; half reach "Configure"; few reach "Deploy".
             reached = ids[:2] + ([ids[2]] if i % 2 == 0 else []) + ([ids[3]] if i % 6 == 0 else [])
@@ -421,6 +422,15 @@ class Validation(AIWorld):
         self.assertEqual(res["findings"][1]["severity"], "medium")
         self.assertEqual(res["findings"][2]["why"], "leak fine")
         self.assertEqual(len(res["summary"]), aid.LEN["summary"])
+
+    async def test_page_front_matter_isnt_a_section(self):
+        d = await self.markdown_doc(content="---\nicon: 🚀\ncover: grad-1\n---\n" + DOC, editor="blocks")
+        built = await aid.build_content(self.db, await self.doc(d["slug"]), ca.window("30d"), False)
+        titles = [r["title"] for r in built.refs["sections"].values()]
+        self.assertEqual(titles[0], "Getting started")
+        self.assertFalse(any("icon" in t or "cover" in t for t in titles))
+        self.assertTrue((await self.get(d, "content"))["can_apply"])
+        self.assertFalse((await self.get(d, "content", who="owner"))["state"] == "unsupported")
 
     def test_rewrite_needs_the_sections_text(self):
         built = aid.Built(data={}, refs={"sections": {1: {"n": 1, "id": "user-content-a", "title": "A", "depth": 2,

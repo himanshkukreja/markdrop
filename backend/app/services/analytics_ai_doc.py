@@ -205,6 +205,9 @@ class Built:
     numbers_only: bool = False
 
 
+_FRONT = re.compile(r"\A---\r?\n.*?\r?\n---[ \t]*(?:\r?\n|\Z)", re.S)
+
+
 def sections_text(markdown: str) -> tuple[list[dict], dict[str, str]]:
     """Headings (with ``line``) and each heading's own text: from its line to the next heading."""
     hs = md_outline.extract_headings(markdown, with_lines=True)
@@ -228,7 +231,8 @@ def body_of(section_text: str) -> str:
 
 async def build_content(db, raw: dict, w: ca.Window, internal: bool) -> Built:
     rep = await ca.content_report(db, raw, w, internal)
-    md = raw.get("content") or ""
+    # A page's front matter (icon, cover…) isn't shown: its "key: value" + "---" would read as a heading.
+    md = _FRONT.sub("", raw.get("content") or "", count=1)
     hs, texts = sections_text(md)
     by_id = {h["id"]: h for h in hs}
     # The document's own order; sections nobody reached still count (0%).
