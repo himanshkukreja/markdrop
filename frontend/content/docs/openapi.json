@@ -7660,12 +7660,12 @@
       }
     },
     "/api/v1/og/w/{workspace_id}.png": {
-      "head": {
+      "get": {
         "tags": [
           "og-image"
         ],
         "summary": "Workspace Image",
-        "operationId": "workspace_image_api_v1_og_w__workspace_id__png_head",
+        "operationId": "workspace_image_api_v1_og_w__workspace_id__png_get",
         "parameters": [
           {
             "name": "workspace_id",
@@ -7704,12 +7704,12 @@
           ]
         }
       },
-      "get": {
+      "head": {
         "tags": [
           "og-image"
         ],
         "summary": "Workspace Image",
-        "operationId": "workspace_image_api_v1_og_w__workspace_id__png_head",
+        "operationId": "workspace_image_api_v1_og_w__workspace_id__png_get",
         "parameters": [
           {
             "name": "workspace_id",
@@ -7750,12 +7750,12 @@
       }
     },
     "/api/v1/og/w/{workspace_id}/f/{folder_id}.png": {
-      "head": {
+      "get": {
         "tags": [
           "og-image"
         ],
         "summary": "Folder Image",
-        "operationId": "folder_image_api_v1_og_w__workspace_id__f__folder_id__png_head",
+        "operationId": "folder_image_api_v1_og_w__workspace_id__f__folder_id__png_get",
         "parameters": [
           {
             "name": "workspace_id",
@@ -7803,12 +7803,12 @@
           ]
         }
       },
-      "get": {
+      "head": {
         "tags": [
           "og-image"
         ],
         "summary": "Folder Image",
-        "operationId": "folder_image_api_v1_og_w__workspace_id__f__folder_id__png_head",
+        "operationId": "folder_image_api_v1_og_w__workspace_id__f__folder_id__png_get",
         "parameters": [
           {
             "name": "workspace_id",
@@ -7858,12 +7858,12 @@
       }
     },
     "/api/v1/og/f/{share_id}.png": {
-      "head": {
+      "get": {
         "tags": [
           "og-image"
         ],
         "summary": "Shared Folder Image",
-        "operationId": "shared_folder_image_api_v1_og_f__share_id__png_head",
+        "operationId": "shared_folder_image_api_v1_og_f__share_id__png_get",
         "parameters": [
           {
             "name": "share_id",
@@ -7913,12 +7913,12 @@
           ]
         }
       },
-      "get": {
+      "head": {
         "tags": [
           "og-image"
         ],
         "summary": "Shared Folder Image",
-        "operationId": "shared_folder_image_api_v1_og_f__share_id__png_head",
+        "operationId": "shared_folder_image_api_v1_og_f__share_id__png_get",
         "parameters": [
           {
             "name": "share_id",
