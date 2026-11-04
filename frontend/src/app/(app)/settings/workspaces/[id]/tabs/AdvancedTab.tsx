@@ -11,19 +11,19 @@ import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-share
 
 /**
  * Advanced (Settings board): the individual switches behind Privacy — what new items start as,
- * whether members can share folders, whether visitors must sign in — then leaving or deleting the
- * workspace. Each switch saves on its own; Privacy on the People tab shows "Custom" when they don't
+ * whether members can share folders, whether visitors must sign in — and whether the workspace's
+ * pages have AI features (`ai_enabled`, default on), then leaving or deleting the workspace. Each switch saves on its own; Privacy on the People tab shows "Custom" when they don't
  * match one of its presets.
  */
 export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: WsTabProps) {
   const toast = useToast();
   const router = useRouter();
-  const [saving, setSaving] = useState<"" | "default" | "share" | "auth">("");
+  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai">("");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const team = teamName(ws);
   const current: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
 
-  async function save(key: "default" | "share" | "auth", patch: Partial<WorkspaceSettings>, done: string) {
+  async function save(key: "default" | "share" | "auth" | "ai", patch: Partial<WorkspaceSettings>, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     try {
@@ -86,6 +86,19 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               disabled={saving === "auth"}
               locked={!isAdmin}
               onChange={(on) => void save("auth", { require_auth_to_view: on }, on ? "Visitors now need to sign in." : "Links work for anyone they're open to again.")}
+            />
+          </div>
+        </Locked>
+        <Locked locked={!isAdmin}>
+          <div>
+            <SwitchRow
+              id="ws-ai"
+              label="AI features"
+              hint="Ask AI, summaries and suggestions on this workspace's pages. What someone asks about is sent to Anthropic to process; Markdrop keeps only usage counts."
+              checked={ws.settings.ai_enabled !== false}
+              disabled={saving === "ai"}
+              locked={!isAdmin}
+              onChange={(on) => void save("ai", { ai_enabled: on }, on ? "AI features are on for this workspace." : "AI features are off for this workspace.")}
             />
           </div>
         </Locked>

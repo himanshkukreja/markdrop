@@ -5,12 +5,14 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import {
-  Alert, Button, ConfirmDialog, Dialog, Drawer, EmptyState, Field, Icon, IconButton, Input, Kbd, SegmentedControl, Select, Spinner,
+  Alert, Button, ConfirmDialog, Dialog, Drawer, Dropdown, EmptyState, Field, Icon, IconButton, Input, Kbd, SegmentedControl, Select, Spinner,
   copyText, cx, useToast,
 } from "@/components/ui";
 import {
-  DocsEditor, preloadDocsEditor, type ApiOperationOption, type AssistFn, type DocsEditorApi, type EditorMode, type TextAnchor, type UploadImage,
+  DocsEditor, preloadDocsEditor, type ApiOperationOption, type DocsEditorApi, type EditorAi, type EditorMode, type TextAnchor, type UploadImage,
 } from "@/components/docs-editor";
+import { guideEditorAi, suggestGuideMeta, type PageMeta } from "@/lib/pages-ai/client";
+import { MetaChip, type MetaState } from "@/components/pages/ai/MetaChip";
 import { getApiReference } from "@/lib/docsApiReference";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,7 +20,7 @@ import {
   assetPreviewUrl, createPage, deletePage, docsErrorMessage, listPages, saveNav, slugFrom, uploadAsset,
   type NavGroup, type Page, type PageSummary, type PagesResponse, type SaveConflict,
 } from "@/lib/docsSites";
-import { commentsSummary, editorAiEdit, editorAiStatus, type EditorAiStatus, type PresencePerson } from "@/lib/guideEditor";
+import { commentsSummary, editorAiStatus, type EditorAiStatus, type PresencePerson } from "@/lib/guideEditor";
 import { colorFor, type PresenceViewer } from "@/lib/presence";
 import { PresenceStack } from "@/components/presence/PresenceStack";
 import { guideEvents } from "@/lib/guidesEvents";
@@ -199,6 +201,7 @@ const SHORTCUTS: Array<{ group: string; rows: Array<[string, string[]]> }> = [
       ["Undo", ["mod", "Z"]],
       ["Redo", ["mod", "⇧", "Z"]],
       ["Send a comment or reply", ["mod", "Enter"]],
+      ["Ask AI (the selection, or write on a new line)", ["mod", "J"]],
       ["Keyboard shortcuts", ["?"]],
     ],
   },
@@ -264,12 +267,38 @@ function AltTextDialog({ src, onClose, onSave }: { src: string | null; onClose: 
 }
 
 /** The bar under the page: words and reading time, Find and replace, Shortcuts. */
-function StatusBar({ words, onFind, onShortcuts, onEmbed }: { words: number; onFind: () => void; onShortcuts: () => void; onEmbed?: () => void }) {
+function StatusBar({ words, onFind, onShortcuts, onEmbed, ai }: {
+  words: number;
+  onFind: () => void;
+  onShortcuts: () => void;
+  onEmbed?: () => void;
+  /** AI on the whole page: Summarize, Find action items, Suggest title (or why it's off). */
+  ai?: { off: string | null; run: (c: "summary" | "actions" | "write") => void; meta: () => void };
+}) {
   const mins = readMinutes(words);
   return (
     <div className="sticky bottom-0 z-10 mt-auto flex h-[34px] shrink-0 items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5">
       <span aria-live="off">{words.toLocaleString("en")} {words === 1 ? "word" : "words"}{mins ? ` · ${mins} min read` : ""}</span>
       <span className="flex-1" />
+      {ai && (
+        <Dropdown
+          aria-label="AI"
+          align="right"
+          minWidth={260}
+          portal
+          trigger={
+            <button type="button" className="md-focus inline-flex items-center gap-1.5 rounded text-accent-text hover:text-text">
+              <Icon name="sparkle" size={14} /><span>AI</span>
+            </button>
+          }
+          items={ai.off ? [{ header: ai.off }] : [
+            { label: "Ask AI to write…", icon: "edit", description: `At the caret · ${isMac() ? "⌘J" : "Ctrl J"}`, onClick: () => ai.run("write") },
+            { label: "Summarize page", icon: "sparkle", description: "A short summary at the top, to accept or discard", onClick: () => ai.run("summary") },
+            { label: "Find action items", icon: "checkSquare", description: "To-dos with owners and dates", onClick: () => ai.run("actions") },
+            { label: "Suggest title & description", icon: "type", onClick: ai.meta },
+          ]}
+        />
+      )}
       {onEmbed && (
         <button type="button" onClick={onEmbed} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text" title="Embed an interactive HTML demo, a website, a PDF or a video from Markdrop">
           <Icon name="layers" size={14} /><span className="max-sm:hidden">Embed a Markdrop file</span><span className="sm:hidden">Embed</span>
@@ -574,14 +603,91 @@ export default function EditorPage() {
     editorAiStatus(site.id).then(setAi).catch(() => setAi(null));
   }, [site.id, canEdit]);
   const aiOn = !!ai && ai.reason !== "disabled" && ai.reason !== "not_configured";
-  const assist = useMemo<AssistFn | undefined>(() => (aiOn ? async (req) => {
-    const r = await editorAiEdit(site.id, { ...req, page_id: pageId ?? undefined });
-    setAi((a) => a && { ...a, used_today: r.used_today, limit_today: r.limit_today });
-    return r.markdown;
-  } : undefined), [aiOn, site.id, pageId]);
+  // The editor's AI (streaming; lib/pages-ai/client.ts): this page's Guides endpoints, charged to
+  // the guide's editor AI budget. When the budget says no, the AI menu says why.
+  const aiMessage = ai && !ai.available && ai.message ? ai.message : null;
+  const aiLanguages = ai?.languages;
+  const editorAi = useMemo<EditorAi | null>(() => {
+    if (!aiOn || !pageId) return null;
+    const base = guideEditorAi(site.id, pageId);
+    return {
+      ...base,
+      off: aiMessage,
+      languages: aiLanguages?.length ? aiLanguages : undefined,
+      transform: (req, o) => {
+        guideEvents.aiAssist(req.action);
+        return base.transform(req, o);
+      },
+      write: (req, o) => {
+        guideEvents.aiAssist("write");
+        return base.write!(req, o);
+      },
+      actionItems: (req, o) => {
+        guideEvents.aiAssist("action_items");
+        return base.actionItems!(req, o);
+      },
+      summary: (o) => {
+        guideEvents.aiAssist("summary");
+        return base.summary!(o);
+      },
+    };
+  }, [aiOn, site.id, pageId, aiMessage, aiLanguages]);
+  const aiUsable = !!editorAi && !editorAi.off;
+
+  // Title, description and icon: AI's suggestion as a chip over the page (never applied by
+  // itself), from the status bar's AI menu, or once on its own when an untitled page reaches about
+  // 80 words.
+  const [meta, setMeta] = useState<MetaState | null>(null);
+  const metaSeq = useRef(0);
+  useEffect(() => {
+    metaSeq.current++;
+    setMeta(null);
+  }, [pageId]);
+  const askMeta = useCallback((auto: boolean) => {
+    if (!aiUsable || !pageId) return;
+    const seq = ++metaSeq.current;
+    if (!auto) setMeta({ phase: "loading" });
+    guideEvents.aiAssist("meta");
+    suggestGuideMeta(site.id, pageId).then(
+      (m) => seq === metaSeq.current && setMeta(m && (m.title || m.icon || m.description) ? { phase: "ready", meta: m } : auto ? null : { phase: "error", message: "No suggestion this time. Write a little more and try again." }),
+      (e: unknown) => seq === metaSeq.current && setMeta(auto ? null : { phase: "error", message: e instanceof Error && e.message ? e.message : "AI couldn't suggest a title just now." }),
+    );
+  }, [aiUsable, site.id, pageId]);
+  const applyMeta = (m: PageMeta) => {
+    metaSeq.current++;
+    setMeta(null);
+    const patch: Partial<PageFields> = {};
+    const keys: Record<string, string | null> = {};
+    if (m.title) { patch.title = m.title; keys.title = m.title; }
+    if (m.icon && !fields?.icon) { patch.icon = m.icon; keys.icon = m.icon; }
+    if (m.description) { patch.description = m.description.slice(0, 300); keys.description = patch.description; }
+    if (!Object.keys(keys).length) return;
+    session.update(patch);
+    setEdited({ seq: seqRef.current, doc: setDocKeys(docRef.current, keys) });
+  };
+  const runAi = (command: "summary" | "actions" | "write") => {
+    if (editorApi.current?.runAi(command)) return;
+    toast.info(mode === "markdown" ? "Switch to Visual to use AI." : "Finish the open AI suggestion first.");
+  };
 
   // ── Checks, outline, words ──
   const scan = useMemo(() => (fields ? scanPage(fields.markdown) : null), [fields?.markdown]); // eslint-disable-line react-hooks/exhaustive-deps
+  // An untitled page reaching about 80 words: a title suggestion, once per page in this browser.
+  const metaDue = aiUsable && editable && mode === "visual" && !!pageId && !!fields && (!fields.title.trim() || fields.title.trim() === "Untitled") && (scan?.words ?? 0) >= 80;
+  useEffect(() => {
+    if (!metaDue || meta || !pageId) return;
+    const key = `md_ai_meta:g:${pageId}`;
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {
+      return;
+    }
+    const t = window.setTimeout(() => {
+      try { localStorage.setItem(key, "1"); } catch { /* asked once anyway */ }
+      askMeta(true);
+    }, 1500);
+    return () => window.clearTimeout(t);
+  }, [metaDue, meta, pageId, askMeta]);
   const checkCtx = useMemo<CheckContext>(() => ({
     path: fields?.path ?? summary?.path ?? "/",
     pages: (tree?.pages ?? []).map((p) => ({ id: p.id, path: p.id === pageId && fields ? fields.path : p.path, title: p.title, published: p.published ?? true })),
@@ -932,6 +1038,11 @@ export default function EditorPage() {
                 </div>
               )}
 
+              {meta && editable && (
+                <div className={cx(mode === "visual" && "sm:pl-14")}>
+                  <MetaChip state={meta} hasIcon={!!fields?.icon} onUse={applyMeta} onDismiss={() => { metaSeq.current++; setMeta(null); }} />
+                </div>
+              )}
               {fields && page && (
                 <DocsEditor
                   key={page.id}
@@ -953,8 +1064,7 @@ export default function EditorPage() {
                   accessRules={editorRules}
                   stickyTop={chromeBottom}
                   apiRef={editorApi}
-                  assist={editable ? assist : undefined}
-                  assistLanguages={ai?.languages}
+                  ai={editable ? editorAi : null}
                   onComment={canEdit ? onComment : undefined}
                   comments={canEdit ? highlights : undefined}
                   onCommentClick={onCommentClick}
@@ -966,7 +1076,15 @@ export default function EditorPage() {
               )}
             </div>
           </div>
-          {fields && <StatusBar words={scan?.words ?? 0} onFind={() => editorApi.current?.openFind()} onShortcuts={() => setShortcuts(true)} onEmbed={editable && mode === "visual" ? () => editorApi.current?.insertMarkdropFile() : undefined} />}
+          {fields && (
+            <StatusBar
+              words={scan?.words ?? 0}
+              onFind={() => editorApi.current?.openFind()}
+              onShortcuts={() => setShortcuts(true)}
+              onEmbed={editable && mode === "visual" ? () => editorApi.current?.insertMarkdropFile() : undefined}
+              ai={editable && editorAi ? { off: editorAi.off ?? null, run: runAi, meta: () => askMeta(false) } : undefined}
+            />
+          )}
         </main>
 
         <aside aria-label="Page panel" className="sticky hidden w-[288px] shrink-0 border-l border-border bg-surface xl:block" style={sideH}>

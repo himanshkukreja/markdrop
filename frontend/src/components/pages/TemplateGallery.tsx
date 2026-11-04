@@ -7,11 +7,13 @@
  */
 import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Badge, Button, Dialog, Icon, Input, Skeleton } from "@/components/ui";
+import { Alert, Badge, Button, Dialog, Icon, Input, SegmentedControl, Skeleton } from "@/components/ui";
 import { createPage, listPageTemplates, type CreatedPage, type PageTemplate } from "@/lib/pages";
 import { fillTemplate } from "@/lib/pageBlocks.mjs";
 import { track } from "@/lib/track";
 import { PageRenderer } from "./PageRenderer";
+import { usePagesAiStatus } from "@/lib/pages-ai/client";
+import { NotesToPage, splitDraftTitle, type NotesDraft } from "./ai/NotesToPage";
 import "./pages.css";
 
 const BLANK: PageTemplate = { id: "blank", name: "Blank", description: "Start from an empty page", icon: "doc", category: "Basic", content: "" };
@@ -56,6 +58,12 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const titleId = useId();
+  // "Start from notes" (AI): offered when this person may use AI for a page here.
+  const ai = usePagesAiStatus({ workspace: workspace ?? null }, !open);
+  const notesOn = !!ai?.enabled && ai.can_write !== false;
+  const [source, setSource] = useState<"template" | "notes">("template");
+  const [notes, setNotes] = useState<NotesDraft>({ markdown: "", streaming: false, ready: false });
+  const fromNotes = source === "notes" && notesOn;
 
   useEffect(() => {
     if (!open) return;
@@ -78,13 +86,19 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
 
   async function create(e?: React.FormEvent) {
     e?.preventDefault();
-    const name = title.trim() || (current.id === "blank" ? "Untitled" : current.name);
+    if (fromNotes && !notes.ready) return;
+    const draft = fromNotes ? splitDraftTitle(notes.markdown) : null;
+    const name = title.trim() || draft?.title?.trim() || (fromNotes || current.id === "blank" ? "Untitled" : current.name);
     setBusy(true);
     setError("");
     try {
-      const created = await createPage({ title: name, workspace, folder, parent, template: current.id === "blank" ? null : current.id });
+      const created = await createPage(
+        draft
+          ? { title: name, workspace, folder, parent, content: `${draft.body.trim()}\n` }
+          : { title: name, workspace, folder, parent, template: current.id === "blank" ? null : current.id },
+      );
       rememberSecret(created);
-      track("page_create", { template: current.id, sub_page: !!parent, workspace: !!workspace });
+      track("page_create", { template: fromNotes ? "ai_notes" : current.id, sub_page: !!parent, workspace: !!workspace });
       if (onCreated) onCreated(created);
       else router.push(`/${encodeURIComponent(created.document.slug)}?edit=1`);
     } catch (err) {
@@ -114,7 +128,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           <Button variant="ghost" onClick={onClose} disabled={busy}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={() => void create()} loading={busy} iconLeft="plus">
+          <Button variant="primary" onClick={() => void create()} loading={busy} iconLeft="plus" disabled={fromNotes && !notes.ready}>
             Create page
           </Button>
         </>
@@ -128,6 +142,23 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           <Input id={titleId} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={current.id === "blank" ? "Untitled" : current.name} autoFocus className="ph-mask" maxLength={200} />
         </div>
         {error && <Alert tone="danger">{error}</Alert>}
+        {notesOn && (
+          <SegmentedControl
+            aria-label="Start from"
+            size="sm"
+            value={source}
+            onChange={setSource}
+            className="pb-source"
+            options={[
+              { value: "template", label: "Template", icon: "layers" },
+              { value: "notes", label: "Start from notes", icon: "sparkle" },
+            ]}
+          />
+        )}
+        {fromNotes ? (
+          <NotesToPage title={title} workspace={workspace} onDraft={setNotes} disabled={busy} />
+        ) : (
+        <>
         <div className="flex flex-col gap-2">
           <span className="text-caption-strong text-text" id={`${titleId}-t`}>
             Template
@@ -156,6 +187,8 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
               <PageRenderer slug="" content={preview} embeds={{}} />
             </div>
           </div>
+        )}
+        </>
         )}
       </form>
     </Dialog>

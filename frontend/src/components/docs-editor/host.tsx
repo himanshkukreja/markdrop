@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
-import type { ApiOperationOption, AssistFn, MarkdropFilesHost, PagesEditorHost, TextAnchor, UploadImage } from "./types";
+import type { ApiOperationOption, AssistFn, EditorAi, MarkdropFilesHost, PagesEditorHost, TextAnchor, UploadImage } from "./types";
 
 /** What node views and menus need from the editor's host (props of DocsEditor). */
 export interface EditorHost {
@@ -14,6 +14,8 @@ export interface EditorHost {
   /** Ask AI in the format toolbar. */
   assist?: AssistFn;
   assistLanguages?: string[];
+  /** AI (streaming): Ask AI ✦, "/ai", action items, summary, alt text. */
+  ai?: EditorAi | null;
   /** Comment in the format toolbar. */
   onComment?: (anchor: TextAnchor) => void;
   /** The guide's private-page rules, for a private section's "who can see this" picker. */

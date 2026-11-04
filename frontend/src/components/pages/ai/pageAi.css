@@ -1,0 +1,58 @@
+/* Page AI on the page's own chrome: the title suggestion chip, New page › Start from notes.
+   Mist tokens, one blue accent; 140 ms cubic-bezier(.16,1,.3,1); instant with reduced motion. */
+
+/* ── "✦ Use title ‘X’ · 🚀 · description" ── */
+.pb-aimeta { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; margin: 6px 0 2px; padding: 2px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); border-radius: 999px; background: color-mix(in srgb, var(--accent) 7%, var(--surface-raised)); color: var(--text); font-family: var(--font-sans); font-size: 13px; line-height: 18px; animation: pb-aimeta-in 160ms cubic-bezier(.16,1,.3,1) both; }
+.pb-aimeta--leaving { animation: pb-aimeta-out 110ms ease-in forwards; }
+@keyframes pb-aimeta-in { from { opacity: 0; transform: translateY(-4px) scale(.98); } }
+@keyframes pb-aimeta-out { to { opacity: 0; transform: translateY(-2px) scale(.98); } }
+.pb-aimeta--loading, .pb-aimeta--error { gap: 8px; padding: 4px 6px 4px 12px; color: var(--text-muted); }
+.pb-aimeta--loading { padding-right: 12px; }
+.pb-aimeta__use { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; padding: 4px 10px 4px 9px; border: 0; border-radius: 999px; background: transparent; color: inherit; font: inherit; cursor: pointer; transition: background-color 100ms ease; }
+.pb-aimeta__use:hover { background: var(--accent-soft); }
+.pb-aimeta__spark { flex-shrink: 0; color: var(--accent-text); }
+.pb-aimeta__verb { font-weight: 600; color: var(--accent-text); }
+.pb-aimeta__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-aimeta__dot { color: var(--text-muted); }
+.pb-aimeta__icon { font-size: 15px; line-height: 1; }
+.pb-aimeta__desc { color: var(--text-secondary); }
+.pb-aimeta__x { display: grid; place-items: center; flex-shrink: 0; width: 26px; height: 26px; border: 0; border-radius: 50%; background: transparent; color: var(--text-muted); cursor: pointer; }
+.pb-aimeta__x:hover { background: var(--surface-hover); color: var(--text); }
+
+/* ── New page › Start from notes ── */
+.pb-source { align-self: flex-start; }
+.pb-notes { display: flex; flex-direction: column; gap: 14px; animation: pb-notes-in 160ms cubic-bezier(.16,1,.3,1) both; }
+@keyframes pb-notes-in { from { opacity: 0; transform: translateY(4px); } }
+.pb-notes__text { min-height: 136px; resize: vertical; font-size: 14px; line-height: 21px; }
+.pb-notes__shapes { display: flex; flex-wrap: wrap; gap: 6px; }
+.pb-notes__shape { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer; transition: border-color 100ms ease, background-color 100ms ease, color 100ms ease; }
+.pb-notes__shape svg { color: var(--text-muted); }
+.pb-notes__shape:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text); }
+.pb-notes__shape[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.pb-notes__shape[aria-checked="true"] svg { color: var(--accent-text); }
+.pb-notes__shape:disabled { opacity: .6; cursor: default; }
+.pb-notes__go { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.pb-notes__hint { font-size: 12px; line-height: 16px; color: var(--text-muted); }
+.pb-notes__writing { display: inline-block; color: var(--accent-text); animation: pb-notes-breathe 1.4s ease-in-out infinite; }
+.pb-notes__writing::after { content: "…"; }
+@keyframes pb-notes-breathe { 50% { opacity: .45; } }
+.pb-notes__preview { max-height: 340px; padding: 8px 18px 12px; }
+.pb-notes__preview--live { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+.pb-notes__title { margin: 10px 0 2px; font-size: 24px; line-height: 30px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+.pb-notes__skeleton { display: flex; flex-direction: column; gap: 10px; padding: 14px 0; }
+.pb-notes__skeleton span { position: relative; display: block; height: 10px; overflow: hidden; border-radius: 5px; background: var(--surface-inset); }
+.pb-notes__skeleton span:first-child { width: 40%; height: 16px; }
+.pb-notes__skeleton span:nth-child(2) { width: 92%; }
+.pb-notes__skeleton span:nth-child(3) { width: 84%; }
+.pb-notes__skeleton span:nth-child(4) { width: 62%; }
+.pb-notes__skeleton span::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 16%, transparent), transparent); transform: translateX(-100%); animation: pb-notes-sweep 1.3s cubic-bezier(.16,1,.3,1) infinite; }
+@keyframes pb-notes-sweep { to { transform: translateX(100%); } }
+
+/* The empty page's "✦ Write with AI" chip. */
+.pb-empty__chip--ai { color: var(--accent-text); }
+.pb-empty__chip--ai svg { vertical-align: -2px; margin-right: 4px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-aimeta, .pb-aimeta--leaving, .pb-notes, .pb-notes__writing { animation: none !important; }
+  .pb-notes__skeleton span::after { animation: none !important; }
+}

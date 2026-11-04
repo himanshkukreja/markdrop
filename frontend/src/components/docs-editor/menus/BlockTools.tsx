@@ -2,8 +2,9 @@
 
 /**
  * Page editing helpers around the document:
- *   - SelectionBar: with blocks selected, "N blocks" and Turn into, Colour, Copy, Cut, Duplicate,
- *     Delete (the same as the keys and the block menu, for the mouse and for touch);
+ *   - SelectionBar: with blocks selected, "N blocks" and Ask AI ✦ (when the page has AI), Turn into,
+ *     Colour, Copy, Cut, Duplicate, Delete (the same as the keys and the block menu, for the mouse
+ *     and for touch);
  *   - BlockMarquee: dragging from the margin draws a rectangle that selects the blocks it touches;
  *   - TouchBar: on touch screens, "+" (the block menu of "/") and "⋮⋮" (the block's menu) above the
  *     keyboard, since there's no hover to show the handle;
@@ -18,6 +19,9 @@ import { blockColor, colorBlock, colorable, findAnchor } from "./blockOps";
 import { ColorList, type ColorChoice } from "./ColorMenu";
 import { turnBlocks, type TurnInto } from "../pageKeys";
 import type { BlockMenuApi } from "./BlockHandle";
+import { aiHooks } from "./aiKeys";
+import { AiMenu } from "./aiMenu";
+import { useHost } from "../host";
 
 const TURN: Array<[TurnInto, string]> = [
   ["text", "Text"], ["h1", "Heading 1"], ["h2", "Heading 2"], ["h3", "Heading 3"], ["todo", "To-do list"],
@@ -34,9 +38,11 @@ export function SelectionBar({ editor }: { editor: Editor }) {
     },
     equalityFn: (a, b) => JSON.stringify(a) === JSON.stringify(b),
   });
-  const [menu, setMenu] = useState<null | "turn" | "color">(null);
+  const [menu, setMenu] = useState<null | "turn" | "color" | "ai">(null);
+  const host = useHost();
   useEffect(() => setMenu(null), [st?.from, st?.to]);
   if (!st || !editor.isEditable) return null;
+  const ai = aiHooks(editor);
   const blocks = () => (editor.state.selection instanceof BlockSelection ? editor.state.selection.blocks() : []);
   const clip = (cut: boolean) => {
     editor.view.focus();
@@ -54,6 +60,34 @@ export function SelectionBar({ editor }: { editor: Editor }) {
   return (
     <div className="dxe-selbar" role="toolbar" aria-label="Selected blocks" onMouseDown={(e) => e.target instanceof HTMLInputElement || e.preventDefault()}>
       <span className="dxe-selbar__count" aria-live="polite">{st.n === 1 ? "1 block" : `${st.n} blocks`}</span>
+      {ai && (host.ai || host.assist) && (
+        <span style={{ position: "relative" }}>
+          <button
+            type="button"
+            className="dxe-selbar__btn dxe-selbar__btn--ai"
+            aria-haspopup="menu"
+            aria-expanded={menu === "ai"}
+            onClick={() => {
+              if (window.matchMedia("(max-width: 640px)").matches) ai.menu();
+              else setMenu(menu === "ai" ? null : "ai");
+            }}
+          >
+            <Icon name="sparkle" size={14} aria-hidden /> Ask AI
+          </button>
+          {menu === "ai" && (
+            <div className="dxe-selbar__menu dxe-selbar__menu--ai">
+              <AiMenu
+                onPick={(p) => { setMenu(null); ai.pick(p); }}
+                onClose={() => { setMenu(null); editor.view.focus(); }}
+                off={host.ai?.off}
+                languages={host.ai ? host.ai.languages : host.assistLanguages}
+                legacy={!host.ai}
+                actions={!!host.ai?.actionItems}
+              />
+            </div>
+          )}
+        </span>
+      )}
       <span style={{ position: "relative" }}>
         <button type="button" className="dxe-selbar__btn" aria-haspopup="menu" aria-expanded={menu === "turn"} onClick={() => setMenu(menu === "turn" ? null : "turn")}>
           <Icon name="refresh" size={14} aria-hidden /> Turn into

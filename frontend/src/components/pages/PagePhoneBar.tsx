@@ -9,6 +9,7 @@
  *   ⋮⋮       this block's menu (Turn into, colour, duplicate, delete, …)
  *   ☑        select this block (then the selection bar's actions)
  *   Aa       format: bold, italic, underline, strike, code, link, and Turn into (a bottom sheet)
+ *   ✦        Ask AI: on the selection (a bottom sheet), or the "/ai" prompt at the caret
  *   ↶ ↷      undo, redo
  *   ⌄        done: put the keyboard away
  *
@@ -19,6 +20,7 @@ import type { Editor } from "@tiptap/react";
 import { Icon, cx } from "@/components/ui";
 import { PageSheet } from "./PageChrome";
 import { openSlashAt } from "@/components/docs-editor/menus/slash";
+import { aiHooks } from "@/components/docs-editor/menus/aiKeys";
 
 type Cmds = Record<string, ((...a: unknown[]) => boolean) | undefined>;
 const has = (ed: Editor, name: string) => typeof (ed.commands as unknown as Cmds)[name] === "function";
@@ -79,7 +81,7 @@ const TURN: Array<{ label: string; glyph: string; go: (ed: Editor) => boolean; o
   { label: "Quote", glyph: "❝", go: (ed) => run(ed, "toggleBlockquote"), on: (ed) => ed.isActive("blockquote") },
 ];
 
-export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; readOnly: boolean }) {
+export function PagePhoneBar({ editor, readOnly, ai = false }: { editor: Editor | null; readOnly: boolean; ai?: boolean }) {
   const [focused, setFocused] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [, setTick] = useState(0);
@@ -172,6 +174,13 @@ export function PagePhoneBar({ editor, readOnly }: { editor: Editor | null; read
         {btn("This block's menu", <Icon name="grip" size={20} aria-hidden />, blockMenu)}
         {btn("Select this block", <Icon name="checkSquare" size={20} aria-hidden />, () => editor.commands.keyboardShortcut("Escape"))}
         {btn("Format", <Icon name="type" size={20} aria-hidden />, () => setSheet(true), { pressed: sheet })}
+        {ai && btn("Ask AI", <Icon name="sparkle" size={20} aria-hidden />, () => {
+          const h = aiHooks(editor);
+          if (!h || h.busy()) return;
+          const { from, to } = editor.state.selection;
+          if (from !== to && editor.state.doc.textBetween(from, to, " ").trim()) h.menu();
+          else h.prompt();
+        })}
         <span className="pb-phonebar__sep" aria-hidden />
         {btn("Undo", <Icon name="undo" size={20} aria-hidden />, () => run(editor, "undo"), { disabled: !(can as unknown as Cmds).undo?.() })}
         {btn("Redo", <Icon name="redo" size={20} aria-hidden />, () => run(editor, "redo"), { disabled: !(can as unknown as Cmds).redo?.() })}

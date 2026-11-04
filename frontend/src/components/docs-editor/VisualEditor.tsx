@@ -10,6 +10,7 @@
  */
 import "@/docs/docs.css";
 import "katex/dist/katex.min.css";
+import "./menus/ai.css";
 import { useCallback, useEffect, useId, useMemo, useRef } from "react";
 import { EditorContent, useEditor } from "@tiptap/react";
 import type { Editor } from "@tiptap/core";
@@ -26,6 +27,9 @@ import { TableBar } from "./menus/TableBar";
 import { markdownSlice, sliceMarkdown } from "./menus/markdownSlice";
 import { createAnnotations, refreshAnnotations, type AnnotationSource } from "./menus/annotations";
 import { AssistPanel, AssistStore } from "./menus/assist";
+import { AiSheet } from "./menus/aiSheet";
+import { useAltText } from "./menus/aiAlt";
+import type { AiHooks } from "./menus/aiKeys";
 import { PasteController, PasteMenu } from "./menus/PasteMenu";
 import type { VisualHandle } from "./FindBar";
 import { CODE_LANGS } from "./views/code";
@@ -33,7 +37,7 @@ import { BlockMarquee, SelectionBar, TouchBar, useEditorAnchor } from "./menus/B
 import { insertColumns } from "./menus/columns";
 import { blockDropAt } from "./menus/dnd";
 import { services, uploadMedia } from "./menus/mediaUpload";
-import type { ApiOperationOption, AssistFn, CommentMark, TextAnchor, UploadImage, MarkdropFilesHost, PagesEditorHost } from "./types";
+import type { ApiOperationOption, AssistFn, CommentMark, EditorAi, TextAnchor, UploadImage, MarkdropFilesHost, PagesEditorHost } from "./types";
 
 export interface VisualEditorProps {
   value: string;
@@ -56,6 +60,7 @@ export interface VisualEditorProps {
   onHandle?: (h: VisualHandle | null) => void;
   assist?: AssistFn;
   assistLanguages?: string[];
+  ai?: EditorAi | null;
   onComment?: (anchor: TextAnchor) => void;
   comments?: CommentMark[];
   onCommentClick?: (id: string) => void;
@@ -73,15 +78,20 @@ const EMIT_DELAY = 300;
 const identity = (s: string) => s;
 
 export default function VisualEditor(props: VisualEditorProps) {
-  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop, blocks, pages, darkImages } = props;
+  const { value, readOnly = false, placeholder, onUploadImage, operations, accessRules, resolveAssetUrl, autoFocus, onRequestMarkdown, onReady, stickyTop, onHandle, assist, assistLanguages, ai = null, onComment, comments, onCommentClick, checkLink, flagImages = false, markdrop, blocks, pages, darkImages } = props;
   const toast = useToast();
   const initial = useMemo(() => parseMarkdown(value), []); // eslint-disable-line react-hooks/exhaustive-deps -- parsed once; later values are synced below
   const meta = useRef<DocState>(initial);
   const lastEmitted = useRef(value);
   const onChangeRef = useRef(props.onChange);
   onChangeRef.current = props.onChange;
-  const uploadRef = useRef(onUploadImage);
-  uploadRef.current = onUploadImage;
+  const uploadWithAlt = useMemo<UploadImage | undefined>(() => (onUploadImage ? async (file, info) => {
+    const r = await onUploadImage(file, info);
+    if (info.variant === "light") altText.uploaded(typeof r === "string" ? r : r.url, file.name);
+    return r;
+  } : undefined), [onUploadImage]); // eslint-disable-line react-hooks/exhaustive-deps
+  const uploadRef = useRef(uploadWithAlt);
+  uploadRef.current = uploadWithAlt;
   const stickyTopRef = useRef(stickyTop);
   stickyTopRef.current = stickyTop;
   const editorRef = useRef<Editor | null>(null);
@@ -95,8 +105,13 @@ export default function VisualEditor(props: VisualEditorProps) {
   const source = useMemo<AnnotationSource>(() => ({ find: null, flagImages, comments: comments ?? [], checkLink, onCommentClick }), []); // eslint-disable-line react-hooks/exhaustive-deps
   source.onCommentClick = onCommentClick;
   const assistStore = useMemo(() => new AssistStore(), []);
+  assistStore.ai = ai;
+  assistStore.legacy = assist;
+  // Images: an upload with AI available gets a suggested description (menus/aiAlt.ts).
+  const altText = useAltText(ai?.altText);
+  altText.altText = ai && !ai.off ? ai.altText : undefined;
   const paste = useMemo(() => new PasteController(`${listboxId.replace(/-slash$/, "")}-paste`), []); // eslint-disable-line react-hooks/exhaustive-deps
-  Object.assign(paste, { pages, upload: onUploadImage });
+  Object.assign(paste, { pages, upload: uploadWithAlt });
   // A page: Notion-style keys, Markdown shortcuts and the `:emoji` menu.
   const emoji = useMemo(() => (pages ? { store: new SlashStore(), listboxId: `${listboxId.replace(/-slash$/, "")}-emoji` } : null), []); // eslint-disable-line react-hooks/exhaustive-deps
   const extensions = useMemo(() => [...buildExtensions({ slash, listboxId, placeholder, blocks, emoji }), createAnnotations(source)], []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -249,8 +264,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   }, [editor, value]);
 
   const host: EditorHost = useMemo(
-    () => ({ upload: onUploadImage, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop, pages, darkImages }),
-    [onUploadImage, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, onComment, accessRules, markdrop, pages, darkImages],
+    () => ({ upload: uploadWithAlt, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, ai, onComment, accessRules, markdrop, pages, darkImages }),
+    [uploadWithAlt, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, ai, onComment, accessRules, markdrop, pages, darkImages],
   );
 
   // What blocks need from the host (slash items, uploads), on the editor's storage.
@@ -271,6 +286,43 @@ export default function VisualEditor(props: VisualEditorProps) {
     });
   }, [editor, pages, toast]);
   useEditorAnchor(pages ? editor : null);
+  useEffect(() => {
+    altText.attach(editor ?? null);
+  }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AI's keys and "/" commands (menus/aiKeys.ts, blocks.ts AI_ITEMS) reach the store through the
+  // editor's storage; the empty line's placeholder follows whether AI is on.
+  useEffect(() => {
+    if (!editor) return;
+    const st = editor.storage as unknown as { dxeAi?: AiHooks; docsAiMenu?: { open?: () => boolean } };
+    const usable = !!ai || !!assist;
+    st.dxeAi = usable
+      ? {
+          on: !!ai && !ai.off,
+          space: !!pages && !!ai?.write,
+          menu: () => st.docsAiMenu?.open?.() ?? false,
+          prompt: () => {
+            if (!ai) return false;
+            if (ai.off) return st.docsAiMenu?.open?.() ?? false;
+            return assistStore.openPrompt(editor);
+          },
+          busy: () => assistStore.busy,
+          pick: (p) => {
+            if ("command" in p) assistStore.actions(editor, "selection");
+            else assistStore.start(editor, p.action, { tone: p.tone, lang: p.lang });
+          },
+        }
+      : undefined;
+    services(editor).ai = ai && !ai.off
+      ? (e: Editor, r: { from: number; to: number }, command: "write" | "actions" | "summary") => {
+          if (command === "write") return void assistStore.openPrompt(e, r);
+          e.chain().focus().deleteRange(r).run();
+          if (command === "actions") assistStore.actions(e, "line");
+          else assistStore.summary(e);
+        }
+      : undefined;
+    if (!editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta("addToHistory", false));
+  }, [editor, ai, assist, pages, assistStore]);
 
   return (
     <EditorHostContext.Provider value={host}>
@@ -280,7 +332,8 @@ export default function VisualEditor(props: VisualEditorProps) {
         {editor && !readOnly && (
           <>
             <FormatToolbar editor={editor} stickyTop={stickyTop} assist={assistStore} />
-            <AssistPanel editor={editor} store={assistStore} assist={assist} container={wrap} />
+            <AssistPanel editor={editor} store={assistStore} container={wrap} />
+            {(ai || assist) && <AiSheet editor={editor} store={assistStore} />}
             <BlockHandle editor={editor} container={wrap} />
             {pages && (
               <>

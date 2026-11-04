@@ -1,0 +1,147 @@
+/* ── AI in the editor: Ask AI ✦ menu, the suggestion card, the "/ai" prompt, the phone sheet ──
+   Mist tokens, one blue accent. Motion: 140 ms cubic-bezier(.16,1,.3,1), transform and opacity only;
+   instant with prefers-reduced-motion (the end of this file). */
+
+/* The toolbar's button: the accent, so it reads as the AI entry point. */
+.dxe-tb__btn--ai { color: var(--accent-text); }
+.dxe-tb__btn--ai:hover, .dxe-tb__btn--ai[aria-expanded="true"] { background: var(--accent-soft); color: var(--accent-text); }
+.dxe-tb__menu--ai { min-width: 0; padding: 0; }
+
+/* ── the menu ── */
+.dxe-aim { display: flex; flex-direction: column; width: 268px; max-height: min(440px, 62vh); padding: 6px; overflow-y: auto; overscroll-behavior: contain; font-family: var(--font-sans); color: var(--text); }
+.dxe-aim__head { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.dxe-aim__spark { display: inline-flex; color: var(--accent-text); }
+.dxe-aim__group + .dxe-aim__group { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--border); }
+.dxe-aim__ghead { padding: 6px 8px 3px; font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.dxe-aim__item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 0 8px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; transition: background-color 80ms ease; }
+.dxe-aim__item:hover, .dxe-aim__item:focus-visible { background: var(--surface-hover); outline: none; }
+.dxe-aim__item:focus-visible { box-shadow: inset 0 0 0 2px var(--border-focus); }
+.dxe-aim__icon { display: inline-flex; width: 18px; flex-shrink: 0; justify-content: center; color: var(--text-muted); transition: color 80ms ease; }
+.dxe-aim__item:hover .dxe-aim__icon, .dxe-aim__item:focus-visible .dxe-aim__icon { color: var(--accent-text); }
+.dxe-aim__label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dxe-aim__hint { flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
+.dxe-aim__chev { flex-shrink: 0; color: var(--text-muted); }
+.dxe-aim__view { animation: dxe-aim-in 140ms var(--dxe-ease) both; }
+.dxe-aim__view--sub { --dxe-dx: 10px; }
+@keyframes dxe-aim-in { from { opacity: 0; transform: translateX(var(--dxe-dx, -10px)); } }
+.dxe-aim__back { display: flex; align-items: center; gap: 4px; padding: 0 4px 6px 0; font-size: 12px; font-weight: 600; color: var(--text-muted); }
+.dxe-aim__backbtn { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text-secondary); cursor: pointer; }
+.dxe-aim__backbtn:hover { background: var(--surface-hover); color: var(--text); }
+.dxe-aim__backbtn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+.dxe-aim__search { display: flex; align-items: center; gap: 6px; height: 32px; margin: 0 0 6px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text-muted); }
+.dxe-aim__search:focus-within { border-color: var(--border-focus); }
+.dxe-aim__search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13px; outline: none; }
+.dxe-aim__list { max-height: 248px; overflow-y: auto; overscroll-behavior: contain; }
+.dxe-aim__none { margin: 0; padding: 8px; font-size: 13px; color: var(--text-muted); }
+.dxe-aim__off { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 6px 8px 8px; font-size: 13px; line-height: 19px; color: var(--text-secondary); }
+.dxe-aim__off svg { flex-shrink: 0; margin-top: 2px; color: var(--text-muted); }
+
+/* ── the phone sheet ── */
+.dxe-aisheet { position: fixed; inset: 0; z-index: 90; font-family: var(--font-sans); }
+.dxe-aisheet__scrim { position: absolute; inset: 0; background: rgb(8 12 20 / .36); animation: dxe-fade-in 180ms ease both; }
+.dxe-aisheet__panel { position: absolute; left: 0; right: 0; bottom: 0; max-height: min(80vh, 640px); overflow-y: auto; overscroll-behavior: contain; padding: 0 8px calc(12px + env(safe-area-inset-bottom, 0px)); border-radius: 16px 16px 0 0; background: var(--surface-raised); box-shadow: 0 -12px 40px rgb(0 0 0 / .22); animation: dxe-sheet-in 220ms var(--dxe-ease) both; transition: transform 180ms var(--dxe-ease); touch-action: pan-y; }
+.dxe-aisheet--closing .dxe-aisheet__panel { animation: dxe-aisheet-out 160ms ease-in forwards; }
+.dxe-aisheet--closing .dxe-aisheet__scrim { animation: dxe-aisheet-fade 160ms ease-in forwards; }
+@keyframes dxe-aisheet-out { to { transform: translateY(100%); } }
+@keyframes dxe-aisheet-fade { to { opacity: 0; } }
+.dxe-aisheet__grab { position: sticky; top: 0; height: 22px; margin: 0 -8px; background: var(--surface-raised); touch-action: none; cursor: grab; }
+.dxe-aisheet__grab::before { content: ""; position: absolute; top: 8px; left: 50%; width: 36px; height: 4px; margin-left: -18px; border-radius: 2px; background: var(--border-strong); }
+.dxe-aisheet__title { display: flex; align-items: center; gap: 8px; padding: 0 10px 6px; font-size: 16px; line-height: 22px; font-weight: 700; color: var(--text); }
+.dxe-aisheet__title svg { color: var(--accent-text); }
+.dxe-aim--sheet { width: auto; max-height: none; padding: 0; overflow: visible; }
+.dxe-aim--sheet .dxe-aim__item { min-height: 44px; font-size: 15px; }
+.dxe-aim--sheet .dxe-aim__search { height: 40px; }
+.dxe-aim--sheet .dxe-aim__search input { font-size: 16px; }
+.dxe-aim--sheet .dxe-aim__list { max-height: none; }
+
+/* ── the card ── */
+.dxe-ai { position: absolute; left: var(--dxe-gutter); right: 0; z-index: 6; display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface-raised); box-shadow: var(--shadow-lg), 0 0 0 4px color-mix(in srgb, var(--accent) 6%, transparent); color: var(--text); font-family: var(--font-sans); animation: dxe-in 140ms var(--dxe-ease) both; }
+.dxe-ai__spark { display: inline-flex; flex-shrink: 0; color: var(--accent-text); }
+.dxe-ai--streaming .dxe-ai__head .dxe-ai__spark { animation: dxe-ai-pulse 1.2s ease-in-out infinite; }
+@keyframes dxe-ai-pulse { 50% { opacity: .45; transform: scale(.86) rotate(12deg); } }
+
+/* the prompt: one line, the page's own size */
+.dxe-ai--prompt { gap: 0; padding: 4px; }
+.dxe-ai__ask { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 4px 0 10px; }
+.dxe-ai__input { flex: 1; min-width: 0; height: 36px; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 15px; outline: none; }
+.dxe-ai__input::placeholder { color: var(--text-muted); }
+.dxe-ai__send { display: grid; place-items: center; flex-shrink: 0; width: 30px; height: 30px; border: 0; border-radius: 50%; background: var(--accent); color: #fff; cursor: pointer; transition: opacity 120ms ease, transform 120ms var(--dxe-ease); }
+.dxe-ai__send:disabled { opacity: .3; cursor: default; }
+.dxe-ai__send:not(:disabled):hover { transform: scale(1.05); }
+.dxe-ai__send:not(:disabled):active { transform: scale(.94); }
+.dxe-ai__send:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.dxe-ai__ideas { display: flex; flex-direction: column; gap: 1px; margin-top: 4px; padding: 4px 0 0; border-top: 1px solid var(--border); animation: dxe-fade-in 140ms ease both; }
+.dxe-ai__idea { display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.dxe-ai__idea svg { flex-shrink: 0; color: var(--text-muted); }
+.dxe-ai__idea:hover, .dxe-ai__idea:focus-visible { background: var(--surface-hover); outline: none; }
+.dxe-ai__idea:hover svg, .dxe-ai__idea:focus-visible svg { color: var(--accent-text); }
+.dxe-ai__offnote { display: flex; gap: 8px; margin: 0; padding: 8px 10px; font-size: 13px; line-height: 19px; color: var(--text-secondary); }
+
+/* the answer */
+.dxe-ai__head { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; line-height: 18px; }
+.dxe-ai__title { flex: 1; min-width: 0; overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.dxe-ai__status { flex-shrink: 0; font-size: 12px; color: var(--text-muted); }
+.dxe-ai__writing { display: inline-block; animation: dxe-ai-breathe 1.4s ease-in-out infinite; }
+.dxe-ai__writing::after { content: "…"; }
+@keyframes dxe-ai-breathe { 50% { opacity: .45; } }
+.dxe-ai__body { position: relative; max-height: min(360px, 46vh); margin: 0 -14px; padding: 2px 14px; overflow-y: auto; overscroll-behavior: contain; }
+.dxe-visual .dxe-ai__preview.dxe-visual, .dxe-ai__preview.dxe-visual { margin: 0; padding-left: 0; }
+.dxe-ai .dxe-ai__preview .dxe-content { min-height: 0; padding-bottom: 0; }
+.dxe-ai .dxe-ai__preview .dxe-content > :first-child { margin-top: 0; }
+.dxe-ai .dxe-ai__preview .dxe-content > :last-child { margin-bottom: 0; }
+/* The editor's trailing empty line (a schema rule) isn't part of the answer. */
+.dxe-ai .dxe-ai__preview .dxe-content > p:last-child:has(> br:only-child) { display: none; }
+.dxe-ai .dxe-ai__preview .dxe-content > :nth-last-child(2):has(+ p > br:only-child) { margin-bottom: 0; }
+.dxe-ai__preview .ProseMirror { cursor: default; }
+.dxe-ai__skeleton { display: flex; flex-direction: column; gap: 10px; padding: 6px 0 4px; }
+.dxe-ai__skeleton span { position: relative; display: block; height: 10px; overflow: hidden; border-radius: 5px; background: var(--surface-inset); }
+.dxe-ai__skeleton span::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 18%, transparent), transparent); transform: translateX(-100%); animation: dxe-ai-sweep 1.3s var(--dxe-ease) infinite; }
+.dxe-ai__skeleton span:nth-child(1) { width: 94%; }
+.dxe-ai__skeleton span:nth-child(2) { width: 82%; }
+.dxe-ai__skeleton span:nth-child(2)::after { animation-delay: .12s; }
+.dxe-ai__skeleton span:nth-child(3) { width: 56%; }
+.dxe-ai__skeleton span:nth-child(3)::after { animation-delay: .24s; }
+@keyframes dxe-ai-sweep { to { transform: translateX(100%); } }
+.dxe-ai__dots { display: flex; gap: 4px; padding: 8px 0 2px; }
+.dxe-ai__dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); opacity: .25; animation: dxe-ai-dot 1s ease-in-out infinite; }
+.dxe-ai__dots i:nth-child(2) { animation-delay: .15s; }
+.dxe-ai__dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dxe-ai-dot { 40% { opacity: 1; transform: translateY(-2px); } }
+.dxe-ai__error { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--surface-inset); color: var(--text); font-size: 13px; line-height: 19px; }
+.dxe-ai__error svg { flex-shrink: 0; margin-top: 2px; color: var(--warning-text, var(--warning)); }
+.dxe-ai__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 -14px; padding: 10px 14px 0; border-top: 1px solid var(--border); }
+.dxe-ai__note { margin-left: auto; font-size: 12px; color: var(--text-muted); }
+.dxe-ai__kbd { margin-left: 6px; padding: 0 4px; border: 1px solid var(--border); border-radius: 4px; color: var(--text-muted); font: 500 10px/14px var(--font-mono); }
+
+/* What AI just put in settles into place. */
+.dxe-content .dxe-ai-new { animation: dxe-ai-new 420ms var(--dxe-ease) both; }
+@keyframes dxe-ai-new { from { opacity: 0; transform: translateY(6px); } }
+
+/* "✦ Alt text suggested" under an image AI described. */
+.dxe-altsug { display: flex; align-items: center; gap: 5px; width: fit-content; margin: 6px auto 0; padding: 2px 9px; border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent-text); font: 600 12px/18px var(--font-sans); cursor: pointer; animation: dxe-fade-in 200ms ease both; }
+.dxe-altsug:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.dxe-altsug:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+
+/* Phones: the card is a sheet over the keyboard (assist.tsx moves it up by the keyboard's height). */
+@media (max-width: 640px) {
+  .dxe-ai { position: fixed; top: auto !important; right: 8px; bottom: calc(8px + env(safe-area-inset-bottom, 0px)); left: 8px; z-index: 85; max-height: 72vh; border-radius: 16px; box-shadow: 0 -8px 36px rgb(0 0 0 / .22); animation: dxe-sheet-in 220ms var(--dxe-ease) both; transition: transform 120ms var(--dxe-ease); }
+  .dxe-ai__note { display: none; }
+  .dxe-ai__body { max-height: 42vh; }
+  .dxe-ai__actions .md-btn { min-height: 40px; }
+  .dxe-ai__kbd { display: none; }
+  .dxe-ai__input { font-size: 16px; }
+  .dxe-ai__idea { height: 44px; font-size: 15px; }
+  /* The toolbar is tight on a phone: the AI button is its sparkle. */
+  .dxe-tb__btn--ai > span { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dxe-aim__view, .dxe-aisheet__scrim, .dxe-aisheet__panel, .dxe-ai, .dxe-ai *, .dxe-ai__ideas, .dxe-altsug, .dxe-content .dxe-ai-new {
+    animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 0s !important;
+  }
+  .dxe-ai__skeleton span::after, .dxe-ai__dots i { animation: none !important; }
+}
+
+/* The selection bar (blocks selected): Ask AI ✦ and its menu (above the bar). */
+.dxe-selbar__btn--ai { color: var(--accent-text); }
+.dxe-selbar__menu--ai { padding: 0; }

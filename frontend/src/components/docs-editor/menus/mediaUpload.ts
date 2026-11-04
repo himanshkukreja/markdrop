@@ -18,6 +18,8 @@ const ACCEPT: Record<MediaKind, string> = { video: "video/*", audio: "audio/*", 
 export interface EditorServices {
   pages?: PagesEditorHost;
   toast?: { success: (m: string) => void; error: (m: string) => void; info?: (m: string) => void };
+  /** AI's "/" commands (blocks.ts AI_ITEMS). */
+  ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
 }
 
 export function services(editor: Editor): EditorServices {
