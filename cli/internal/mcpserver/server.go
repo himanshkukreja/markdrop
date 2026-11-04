@@ -28,6 +28,10 @@ Publish a file behind a lasting link (needs MARKDROP_TOKEN or ` + "`markdrop log
 - list_file_versions, restore_file_version (undo a replace) and get_file_info (size, sha256, version, video duration/resolution).
 Uploads are verified by sha256 and resume if interrupted: call the same tool again with the same arguments. Markdown documents are written with the remote server's publish_document/update_document, not these tools.
 
+Pages and files on this computer (needs a token too):
+- upload_page_image puts an image file from this computer into a page (set_as cover or icon, or append it); write the Markdown it returns into the page with the remote server's tools.
+- export_page saves a page as a Markdown, HTML or zip file on this computer (default ~/Downloads/Markdrop).
+
 Share peer-to-peer (no upload; the link works only while this app stays open):
 - share_files starts a share and returns a markdrop.in/share link; it keeps serving recipients one at a time until stop_share or until this app closes.
 - receive_share downloads a Markdrop share link into ~/Downloads/Markdrop (or a folder the user names) in the background.
@@ -38,11 +42,12 @@ Anyone with a link can open what it points to, so only publish or share what the
 func boolPtr(b bool) *bool { return &b }
 
 // NewServer builds the MCP server with its tools: four for peer-to-peer
-// sharing and seven for publishing files and finding workspaces (files.go).
+// sharing, seven for publishing files and finding workspaces (files.go) and
+// two for pages and this computer's disk (pages.go).
 func NewServer(m *Manager, version string) *mcp.Server {
 	s := mcp.NewServer(&mcp.Implementation{
 		Name:       ServerName,
-		Title:      "Markdrop: P2P sharing and file publishing",
+		Title:      "Markdrop: P2P sharing, file publishing and page files",
 		Version:    version,
 		WebsiteURL: "https://markdrop.in/mcp",
 	}, &mcp.ServerOptions{Instructions: instructions})
@@ -152,6 +157,7 @@ func NewServer(m *Manager, version string) *mcp.Server {
 	})
 
 	addFileTools(s, m)
+	addPageTools(s, m)
 	return s
 }
 

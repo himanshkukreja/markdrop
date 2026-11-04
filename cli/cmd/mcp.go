@@ -19,7 +19,7 @@ import (
 
 var mcpCmd = &cobra.Command{
 	Use:   "mcp",
-	Short: "Run a local MCP server so AI apps can publish, replace and share files",
+	Short: "Run a local MCP server so AI apps can publish, replace and share files, and add images to pages",
 	Long: `Run Markdrop's local Model Context Protocol server over stdio.
 
   AI apps on this computer (Claude Code, Claude Desktop, Cursor, VS Code, …)
@@ -32,13 +32,15 @@ var mcpCmd = &cobra.Command{
     get_file_info         size, sha256, version, media details of a published file
     list_workspaces       your workspaces and their custom domains (for upload_file)
     list_folders          a workspace's folders (for upload_file's folder)
+    upload_page_image     add an image file from this computer to a page (cover, icon, or inline)
+    export_page           save a page as a .md, .html or .zip file on this computer
 
     share_files    share files or folders peer-to-peer and get a markdrop.in/share link
     share_status   progress of shares and downloads
     stop_share     stop a share (or cancel a download)
     receive_share  download a Markdrop share link into ~/Downloads/Markdrop
 
-  The file and workspace tools need an API token. Peer-to-peer shares live as
+  The file, workspace and page tools need an API token. Peer-to-peer shares live as
   long as this process: when the app closes, every share link stops.
 
   Claude Code:  claude mcp add markdrop-p2p -e MARKDROP_TOKEN=mdk_… -- markdrop mcp
