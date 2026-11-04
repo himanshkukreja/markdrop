@@ -121,8 +121,11 @@ AX_ROWS: list[tuple[str, list]] = [
     ("WM", _wm_like(F)),
     ("WA", _wm_like(OK)),
     ("WO", _wm_like(OK)),
-    ("TS", [OK, OK] + [A] * 14),
-    ("TX", [404, ABS] + [A] * 14),
+    # Domain editing (2026-11-04): a tenant token edits content on its own workspace's domain
+    # (settings, access, link, delete still 401). Another workspace's token reaches the allowed
+    # routes and gets the pinned 404 there (edit; settings = the same PUT with settings fields).
+    ("TS", [OK, OK, OK] + [A] * 13),
+    ("TX", [404, ABS, 404, A, A, 404] + [A] * 10),
     # The table's ES change_access "4" is unreachable over REST: the route
     # needs an account, so it is a 401 (catalogue #53/#64 say the same).
     ("ES", [OK, SKIP, OK, A, A, OK, A, A, OK, OK, A, A, A, A, A, A]),
