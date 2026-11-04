@@ -49,7 +49,8 @@ class Tools(McpTestCase):
     async def test_publish_document(self):
         out = self.ok(await self.tool("publish_document", markdown="# Hello\n\nworld", title="Hello"))
         self.assertEqual(set(out), {"url", "markdrop_url", "workspace_url", "slug", "title", "access",
-                                    "expires_at"})
+                                    "expires_at", "editor"})
+        self.assertEqual(out["editor"], "classic")
         self.assertEqual(out["url"], f"https://markdrop.in/{out['slug']}")
         self.assertEqual((out["markdrop_url"], out["workspace_url"]), (out["url"], None))
         self.assertEqual((out["title"], out["access"], out["expires_at"]), ("Hello", "link", None))
