@@ -89,7 +89,8 @@ async def backlinks(db: AsyncIOMotorDatabase, raw: dict, actor, ctx) -> list[dic
     oids = [ObjectId(i) for i in kinds if ObjectId.is_valid(i)]
     if not oids:
         return []
-    docs = await db["documents"].find({"_id": {"$in": oids}}, {"content": 0}).sort("updated_at", -1).to_list(
+    docs = await db["documents"].find({"_id": {"$in": oids}, **access.NOT_TEMPLATE}, {"content": 0}).sort(
+        "updated_at", -1).to_list(
         length=len(oids))
     out = []
     for d in docs:

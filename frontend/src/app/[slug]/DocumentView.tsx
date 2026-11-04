@@ -64,6 +64,7 @@ const PageTopBar = dynamic(() => import("@/components/pages/PageChrome").then((m
 const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.SubPages), { loading: () => null });
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
+const TemplateNotice = dynamic(() => import("@/components/pages/templates/TemplateNotice").then((m) => m.TemplateNotice), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
 const ExportDialog = dynamic(() => import("@/components/pages/export/ExportDialog").then((m) => m.ExportDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
@@ -465,6 +466,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(canAddSubPage ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => setPageAction({ kind: "duplicate", open: true }) }] : []),
     ...(canAddSubPage ? [{ label: "Version history", icon: "history", description: "See and restore earlier versions", onClick: () => setHistoryOpen(true) }] : []),
     ...(encrypted && secretUnlocked && readable ? [{ label: "Version history", icon: "history", description: "Not kept for end-to-end encrypted documents", disabled: true, onClick: () => {} }] : []),
+    ...(canAddSubPage && !page?.template ? [{ label: "Use as template", icon: "layers", description: "Everyone in the workspace can start pages from it", onClick: () => setPageAction({ kind: "template", icon: pageProps?.icon ?? null }) }] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),
     ...(!secretUnlocked ? [{ label: "Report", icon: "flag", separated: !myGrant, onClick: openReport }] : []),
@@ -521,6 +523,7 @@ export default function DocumentView(props: DocumentViewProps) {
 
   const notices = (
     <>
+      {isPage && page?.template && !tenant && <TemplateNotice template={page.template} title={displayTitle} workspaceId={page.workspace_id} slug={slug} />}
       {showPanel && (
         <PublishedPanel
           url={url}
@@ -721,6 +724,7 @@ export default function DocumentView(props: DocumentViewProps) {
           <div className={editorReady ? "pb-live" : "pb-preload"} aria-hidden={editorReady ? undefined : true}>
             <PageEditor
               slug={slug}
+              userId={user?.id ?? null}
               title={displayTitle}
               content={displayContent}
               rev={v.docRev}
@@ -1083,7 +1087,7 @@ export default function DocumentView(props: DocumentViewProps) {
       />
 
       {newSubPage && (
-        <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} />
+        <TemplateGallery open onClose={() => setNewSubPage(false)} parent={slug} parentTitle={shownTitle} templatesWorkspace={page?.workspace_id ?? null} />
       )}
       {pageActions}
       {translating && <TranslateDialog open onClose={() => setTranslating(false)} slug={slug} title={displayTitle} onCreated={() => setTreeKey((k) => k + 1)} />}

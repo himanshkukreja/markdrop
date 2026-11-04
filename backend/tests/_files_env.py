@@ -61,7 +61,7 @@ class FakeR2:
 
     def patches(self) -> list:
         names = ("is_configured", "head", "delete", "set_public", "set_public_prefix", "delete_prefix",
-                 "put_bytes", "get_bytes", "presign_put", "presign_get", "presign_upload_part",
+                 "put_bytes", "get_bytes", "copy_object", "presign_put", "presign_get", "presign_upload_part",
                  "create_multipart", "list_parts", "complete_multipart", "abort_multipart", "sha256_of")
         return [mock.patch.object(r2, n, getattr(self, n)) for n in names]
 
@@ -106,6 +106,13 @@ class FakeR2:
 
     def put_bytes(self, key, data, content_type, public=True, live=False):
         self.objects[key] = {"data": data, "content_type": content_type, "public": public}
+        return True
+
+    def copy_object(self, src, dst, content_type, public):
+        o = self.objects.get(src)
+        if o is None:
+            return False
+        self.objects[dst] = {"data": o["data"], "content_type": content_type, "public": public}
         return True
 
     def get_bytes(self, key, max_bytes):

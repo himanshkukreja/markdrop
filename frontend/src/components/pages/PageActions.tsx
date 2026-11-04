@@ -9,8 +9,9 @@ import { useEffect, useRef } from "react";
 import { useToast } from "@/components/ui";
 import { MovePageDialog, type MovablePage, type MovedTo } from "./MovePage";
 import { useDuplicatePage } from "./DuplicatePage";
+import { SaveTemplateDialog } from "./templates/SaveTemplateDialog";
 
-export type PageActionRequest = { kind: "move" } | { kind: "duplicate"; open: boolean };
+export type PageActionRequest = { kind: "move" } | { kind: "duplicate"; open: boolean } | { kind: "template"; icon?: string | null };
 
 export function PageActions({ request, page, onClose, onMoved }: {
   request: PageActionRequest | null;
@@ -42,6 +43,7 @@ export function PageActions({ request, page, onClose, onMoved }: {
         />
       )}
       {dup.dialog}
+      {request?.kind === "template" && <SaveTemplateDialog open onClose={onClose} slug={page.slug} title={page.title} workspaceId={page.workspaceId} childrenCount={page.childrenCount} pageIcon={request.icon} />}
     </>
   );
 }

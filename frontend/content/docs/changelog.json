@@ -79,6 +79,24 @@
       ]
     },
     {
+      "id": "page-templates",
+      "date": "2026-11-04",
+      "title": "Workspace templates: use any page as a template",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Use a page as a template for your workspace or just for you, with its sub-pages and images. It shows up in New page and Add a sub-page, a folder can start every new page from one, and {{title}}, {{date}}, {{author}} and {{folder}} are filled in.",
+      "body": "- **⋯ › Use as template** on any page: choose **Everyone in** your workspace or **Just me**, a name, a description and an emoji, and whether to include the sub-pages you can open. Images are copied with it.\n- **New page** and **Add a sub-page** show your workspace's templates first, then yours, then the built-in ones, each with a preview.\n- **A folder's default template:** admins choose what New page in a folder starts from, like a PRD template in `product-hub/02-prds`. Anyone can still pick Blank or another template.\n- **Placeholders:** `{{title}}`, `{{date}}`, `{{author}}` and `{{folder}}` become the page's title, the day, the person making it and its folder.\n- **Manage templates:** rename, edit (a template is a page, in the same editor), delete, and drag to reorder. Admins manage the workspace's templates; members can rename or delete the ones they saved. Editing a template never changes pages already made from it.\n- Templates never show up in lists, search, the sidebar, folder pages or AI apps' document search. Viewers and people outside the workspace never see them.\n- AI apps: `list_page_templates` (optionally for one `workspace`) lists them with ids, `create_page` takes a template's id or slug, `set_page_properties` with `template` turns a page into a template and back, and the new `save_page_as_template` and `set_folder_default_template` save one and set a folder's default.",
+      "docs": [
+        "/pages/templates",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

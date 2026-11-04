@@ -120,7 +120,8 @@ class Transport(McpTestCase):
             "translate_page", "summarize_page", "suggest_page_meta",
             # A page's version history.
             "list_page_versions", "get_page_version", "restore_page_version",
-            "export_page"})
+            "export_page",
+            "save_page_as_template", "set_folder_default_template"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
@@ -173,6 +174,7 @@ class Transport(McpTestCase):
         self.assertEqual(r.json()["result"]["resultType"], "complete")
         self.assertEqual(len(r.json()["result"]["tools"]), 42)
         self.assertEqual(len(r.json()["result"]["tools"]), 40)
+        self.assertEqual(len(r.json()["result"]["tools"]), 41)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")
