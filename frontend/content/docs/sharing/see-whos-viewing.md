@@ -1,6 +1,6 @@
 ---
 title: See who's viewing
-description: Avatars on a document or file show who has it open right now and where they're reading. People with access appear by name; everyone else as an anonymous animal.
+description: Avatars show who has a document or file open and where they're reading. People with access see each other by name; everyone else sees animals.
 updated: 2026-11-04
 prerequisites: [/sharing/who-can-open]
 keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, who's editing, editing, pencil, mcp, get_viewers, set_presence, ai]
@@ -27,13 +27,15 @@ On phones the row is shorter, and the list opens as a sheet. On a page, the bar 
 
 ## Who appears by name
 
-You appear by name and photo only to people viewing a document you have a real relationship with:
+You appear by name and photo only when you have a real relationship with the document:
 
 - you own it;
 - you're a member of the workspace it's in, with a role that can open it;
 - it was shared with you by email.
 
 Everyone else appears as an anonymous animal, like **Anonymous Otter** or **Anonymous Fox**, with its own colour. That includes people who are signed in but have none of those relationships: someone who opened a public link while signed in is still anonymous. No name, email address or photo of an anonymous viewer is ever sent to anyone.
+
+Names are also only shown *to* people with a relationship. Someone reading a public page without one sees every viewer as an animal, your team included, so who is reading a team's page stays with the team.
 
 Your animal stays the same while the tab stays open, even if your connection drops and comes back. Another tab, or another document, gets another animal.
 

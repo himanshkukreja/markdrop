@@ -22,6 +22,10 @@ anonymous within a minute even when nothing pinged the socket.
 
 What everyone sees
 ------------------
+Someone with a relationship to the document sees the named people by name.
+Anyone else (anonymous, or signed in without one) sees EVERY viewer as an
+anonymous animal: who is reading a team's page is for the team (owner decision
+2026-11-04).
 ``{"type": "presence", "on": true, "total": N, "viewers": [...], "you": id,
 "me": {...}}`` — at most :data:`MAX_LISTED` entries (named people merged across
 their tabs, then anonymous tabs; active before away), plus the total.
@@ -367,12 +371,15 @@ def _public(e: dict) -> dict:
 
 
 def _unnamed(slug: str, e: dict) -> dict:
-    """An editor as someone without a relationship sees them: an animal, the flag."""
-    if not (e.get("editing") and "name" in e):
+    """A named person as someone without a relationship sees them: an animal (and
+    the editing flag when they hold the lock). Names are for the document's people."""
+    if "name" not in e:
         return e
-    animal = ANIMALS[_h("animal", slug, "editor", e["id"]) % len(ANIMALS)]
-    return {"id": e["id"], "animal": animal, "color": e["color"], "state": e["state"],
-            "sec": e["sec"], "editing": True}
+    animal = ANIMALS[_h("animal", slug, "named", e["id"]) % len(ANIMALS)]
+    out = {"id": e["id"], "animal": animal, "color": e["color"], "state": e["state"], "sec": e["sec"]}
+    if e.get("editing"):
+        out["editing"] = True
+    return out
 
 
 def snapshots(r: Room) -> dict[str, dict]:
