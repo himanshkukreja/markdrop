@@ -482,9 +482,10 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(isPage && !tenant && (isOwner || v.canEditSettings) ? [{ label: "Change link…", icon: "link", description: "The old link keeps working", onClick: () => setChangingLink(true) }] : []),
     ...(editReq?.canRequest ? [{ label: editReq.pending ? "Edit access requested" : "Request edit access", icon: "edit", description: editReq.pending ? "You'll get an email when they decide" : "Ask the owner to let you edit", disabled: editReq.pending, onClick: () => setRequestingEdit(true) }] : []),
     ...(domainOwner ? [
-      { label: "Manage access on markdrop.in ↗", icon: "users", href: onMarkdrop, external: true, separated: true },
-      ...(isPage ? [{ label: "Change link on markdrop.in ↗", icon: "link", href: onMarkdrop, external: true }] : []),
-      { label: "Delete on markdrop.in ↗", icon: "trash", href: onMarkdrop, external: true },
+      // (An external link: the menu draws the ↗ itself.)
+      { label: "Manage access on markdrop.in", icon: "users", href: onMarkdrop, external: true, separated: true },
+      ...(isPage ? [{ label: "Change link on markdrop.in", icon: "link", href: onMarkdrop, external: true }] : []),
+      { label: "Delete on markdrop.in", icon: "trash", href: onMarkdrop, external: true },
     ] : []),
     // Someone added by email can take themselves off, even when they can't open Share.
     ...(myGrant ? [{ label: "Remove me", icon: "userX", danger: true, separated: true, onClick: () => setLeaving(true) }] : []),

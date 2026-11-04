@@ -505,7 +505,12 @@ await step("tenant-edit", async () => {
   const lock = calls.find((b) => b.url.includes(`/documents/${state.slug}/lock`));
   if (!lock || lock.status !== 200) fail(`lock on the domain → ${lock?.status}`);
   if (calls.some((b) => b.status === 401 && /documents\/[^/]+(\/lock|\/assets)?$/.test(new URL(b.url).pathname))) fail("a 401 on an editing route on the domain");
-  // His ⋯ menu: no Delete / Move / Change link here; those open markdrop.in for the owner only.
+  // Leaving the page lets go of the lock (the close beacon carries the domain's session).
+  await m.p.goto(`${TENANT}/robots.txt`);
+  await m.p.waitForTimeout(1500);
+  const free = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (free.status !== 200) fail(`the lock outlived leaving the domain page → ${free.status} ${JSON.stringify(free.body)}`);
+  await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   await m.c.close();
 
   // Vic (a workspace viewer) on the domain: reads the new text, may ask to edit.
@@ -539,7 +544,7 @@ await step("tenant-edit", async () => {
   await tenantSignIn(o.p, addr);
   await o.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await pageMenu(o.p);
-  await o.p.getByRole("menuitem", { name: /Manage access on markdrop\.in/ }).waitFor({ timeout: 10000 });
+  await o.p.getByRole("menuitem", { name: /Manage access on markdrop\.in/ }).or(o.p.getByRole("link", { name: /Manage access on markdrop\.in/ })).waitFor({ timeout: 10000 });
   if (await o.p.getByRole("menuitem", { name: /^Delete page$/ }).count()) fail("Delete page is offered on the domain");
   await shot(o.p, "34-tenant-owner-menu", { wait: 500 });
   await o.c.close();
