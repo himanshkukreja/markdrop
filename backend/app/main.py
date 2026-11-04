@@ -46,6 +46,7 @@ from app.routers.domains import router as domains_router
 from app.routers.email_public import router as email_public_router
 from app.routers.folders import router as folders_router
 from app.routers.folder_pages import router as folder_pages_router
+from app.routers.page_db import router as page_db_router
 from app.routers.workspace_items import router as workspace_items_router
 from app.routers.invites import router as invites_router
 from app.routers.library import router as library_router
@@ -55,6 +56,7 @@ from app.routers.live import router as live_router
 from app.routers.mcp import router as mcp_router
 from app.routers.me import router as me_router
 from app.routers.creator_analytics import router as creator_analytics_router
+from app.routers.notifications import router as notifications_router
 from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
 from app.routers.og import router as og_router
@@ -64,6 +66,7 @@ from app.routers.pages import router as pages_router
 from app.routers.pages_ai import guides_router as pages_ai_guides_router
 from app.routers.pages_ai import router as pages_ai_router
 from app.routers.page_history import router as page_history_router
+from app.routers.signoffs import router as signoffs_router
 from app.routers.page_export import router as page_export_router
 from app.routers.bookmarks import router as bookmarks_router
 from app.routers.bookmarks import web_router as web_embeds_router
@@ -214,6 +217,7 @@ app.include_router(pages_router)
 app.include_router(pages_ai_router)
 app.include_router(pages_ai_guides_router)
 app.include_router(page_history_router)
+app.include_router(signoffs_router)
 app.include_router(page_export_router)
 app.include_router(bookmarks_router)
 app.include_router(web_embeds_router)
@@ -236,6 +240,7 @@ app.include_router(auth_router)
 app.include_router(unsubscribe_alias_router, include_in_schema=False)
 app.include_router(me_router)
 app.include_router(creator_analytics_router)
+app.include_router(notifications_router)
 app.include_router(sync_router)
 app.include_router(og_router)
 app.include_router(live_router)
@@ -261,6 +266,7 @@ app.include_router(domains_router)
 app.include_router(folders_router)
 app.include_router(workspace_items_router)
 app.include_router(folder_pages_router)
+app.include_router(page_db_router)
 app.include_router(invites_router)
 app.include_router(library_router)
 app.include_router(access_router)

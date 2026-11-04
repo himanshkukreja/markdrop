@@ -1,11 +1,12 @@
-// The page cover gallery (public/page-covers): 12 calm covers drawn in code (noise fields, SVG
-// lines and shapes, grain), rendered to 1500x480 WebP at <= 60 KB each, with a 384x123 thumbnail
-// for the picker and manifest.json (ids, names, categories, and the old gradient ids' aliases).
+// The page cover gallery (public/page-covers): calm covers drawn in code (noise fields, SVG lines
+// and shapes, grain), rendered to 1500x480 WebP at <= 60 KB each, with a 384x123 thumbnail for the
+// picker and manifest.json (ids, names, categories, tint, tags, and the old gradient ids' aliases).
+// The first twelve are below; the themed ones (auto covers) are in themed.mjs.
 //
 //   node scripts/page-covers/generate.mjs [outDir] [--png] [id...]
 //
-// The backend keeps the same ids (backend/app/services/page_props.py GALLERY); its tests check
-// the two lists agree.
+// The backend reads the same catalog (backend/app/services/page_covers.json, written here too:
+// ids, tint and tags for auto covers; page_props.GALLERY); its tests check the two agree.
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,6 +14,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url));
 const require = createRequire(path.join(here, "../../package.json"));
 const sharp = require("sharp");
+import { THEMED_META, BASE_TAGS, themed } from "./themed.mjs";
 
 const W = 1500, H = 480, N = W * H;
 const args = process.argv.slice(2);
@@ -123,7 +125,7 @@ async function save(id, raw) {
 
 // ---------- the covers ----------
 // Mist (the app's light theme): #E3E7ED / #EBEEF2, ink #111A2C, accent #2150D8.
-const CATEGORIES = ["Paper", "Duotone", "Lines", "Calm"];
+const CATEGORIES = ["Paper", "Duotone", "Lines", "Shapes", "Calm"];
 const META = {
   mist: ["Mist paper", "Paper"], linen: ["Linen", "Paper"], graphite: ["Graphite", "Paper"],
   fold: ["Fold", "Duotone"], halftone: ["Halftone", "Duotone"], dusk: ["Dusk", "Duotone"],
@@ -344,19 +346,29 @@ const covers = {
   },
 };
 
+Object.assign(covers, themed({ Canvas, perlin, fbm, rng, smooth, clamp, W, H }));
+for (const [id, [name, cat, tint, tags]] of Object.entries(THEMED_META)) META[id] = [name, cat, tint, tags];
+for (const [id, [tint, tags]] of Object.entries(BASE_TAGS)) META[id] = [META[id][0], META[id][1], tint, tags];
+
 fs.mkdirSync(path.join(OUT, "thumbs"), { recursive: true });
 for (const [id, make] of Object.entries(covers)) {
   if (ONLY.length && !ONLY.includes(id)) continue;
   await save(id, await make());
 }
-if (!ONLY.length) {
-  const manifest = {
-    size: [W, H],
-    categories: CATEGORIES,
-    covers: Object.keys(covers).map((id) => ({ id, name: META[id][0], category: META[id][1] })),
-    aliases: ALIASES,
-  };
-  // One cover per line: easy to read in a diff.
-  const json = JSON.stringify(manifest, null, 2).replace(/\{\n\s+("id"[^}]*?)\n\s+\}/g, (_, body) => `{ ${body.replace(/\n\s+/g, " ")} }`).replace(/\[\n\s+(\d+),\n\s+(\d+)\n\s+\]/, "[$1, $2]");
-  fs.writeFileSync(path.join(OUT, "manifest.json"), json + "\n");
+// The manifest always lists every cover (rendering only some ids still writes the full list).
+const manifest = {
+  size: [W, H],
+  categories: CATEGORIES,
+  covers: Object.keys(covers).map((id) => ({ id, name: META[id][0], category: META[id][1], tint: META[id][2], tags: META[id][3] })),
+  aliases: ALIASES,
+};
+// One cover per line: easy to read in a diff.
+const oneLine = (v) => JSON.stringify(v, null, 2)
+  .replace(/\{\n\s+("id"[^}]*?)\n\s+\}/g, (_, body) => `{ ${body.replace(/\n\s+/g, " ").replace(/\[ /g, "[").replace(/ \]/g, "]")} }`)
+  .replace(/\[\n\s+(\d+),\n\s+(\d+)\n\s+\]/, "[$1, $2]");
+fs.writeFileSync(path.join(OUT, "manifest.json"), oneLine(manifest) + "\n");
+if (path.resolve(OUT) === path.resolve(here, "../../public/page-covers")) {
+  // The backend's copy (it doesn't ship the frontend): ids, tint and tags for auto covers.
+  const backend = { covers: manifest.covers.map(({ id, tint, tags }) => ({ id, tint, tags })), aliases: ALIASES };
+  fs.writeFileSync(path.join(here, "../../../backend/app/services/page_covers.json"), oneLine(backend) + "\n");
 }

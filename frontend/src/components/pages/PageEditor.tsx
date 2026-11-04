@@ -30,7 +30,7 @@ import { getWorkspace } from "@/lib/workspaces";
 import { uploadArtifact } from "@/lib/api";
 import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
-import { PAGE_IMAGE_MAX, createPage, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
+import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
@@ -38,10 +38,14 @@ import { PagePhoneBar } from "./PagePhoneBar";
 import { readPageProps, type PageFont, type PageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
 import { usePageEditSession } from "./usePageEditSession";
+import { EditorProperties } from "./props/EditorProperties";
+import type { PagePropertiesInfo } from "./props/api";
 import { pageEditorAi, suggestPageMeta, usePagesAiStatus, type PageMeta } from "@/lib/pages-ai/client";
 import { MetaChip, type MetaState } from "./ai/MetaChip";
 import "./ai/pageAi.css";
 import { usePageAssets } from "./usePageEmbeds";
+import { usePageSignoffs } from "./signoff/store";
+import { SignoffSummary } from "./signoff/SignoffSummary";
 import { clearPageDraft, dropLegacyPageDraft, readPageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
 import "./pages.css";
 import "./page-blocks.css";
@@ -58,6 +62,10 @@ export interface PageChromeSlots {
   menu?: MenuEntry[];
   /** Under the title (backlinks). */
   below?: ReactNode;
+  /** Typed properties of the page's folder (the document read's `page_properties`): rows under the title. */
+  properties?: PagePropertiesInfo | null;
+  /** Where a linked page goes (markdrop.in; the item's own link on a workspace's domain). */
+  propertiesHref?: (slug: string) => string;
   /** Under the body (Pages inside, the colophon). */
   footer?: ReactNode;
   /** Notices at the top of the column (Save to account, …). */
@@ -106,6 +114,10 @@ export interface PageEditorProps {
    * `pb-eh-<n>`: the n-th heading in the editor.
    */
   onHeadings?: (headings: Heading[]) => void;
+  /** Auto covers: one is being picked for this page (it fades in when it lands). */
+  coverPending?: boolean;
+  /** The cover on the page was picked automatically. */
+  coverAuto?: boolean;
 }
 
 
@@ -159,7 +171,7 @@ function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (
   );
 }
 
-export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings }: PageEditorProps) {
+export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings, coverPending = false, coverAuto = false }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
@@ -186,11 +198,32 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     }
   }, [slug, userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto covers: waiting for one (from the page, or a save that started a pick), and whether the
+  // cover on the page is automatic (until someone changes it here).
+  const [pendingCover, setPendingCover] = useState(coverPending);
+  const [autoCover, setAutoCover] = useState(coverAuto);
+  const contentRef = useRef(initialContent);
+  // The page's own read can come after the editor mounted.
+  useEffect(() => {
+    if (coverPending) setPendingCover(true);
+  }, [coverPending]);
+  useEffect(() => {
+    if (coverAuto) setAutoCover(true);
+  }, [coverAuto]);
   const session = usePageEditSession({
     slug,
     secret,
     initial: { title: initialTitle ?? "", content: initialContent, rev },
+    onCover: (cover) => {
+      const next = writePageProps(contentRef.current, { cover, coverY: 50 });
+      contentRef.current = next;
+      setContent(next);
+      setPendingCover(false);
+      setAutoCover(true);
+      session.update({ content: next });
+    },
     onSaved: (doc) => {
+      if (doc.cover_pending) setPendingCover(true);
       onSaved?.(doc);
       // The server has it: the local copy can go (unless more was typed meanwhile).
       const d = readPageDraft(store(), slug, userId);
@@ -203,7 +236,42 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     },
     subscribeLive,
   });
+  contentRef.current = content;
   const props = useMemo(() => readPageProps(content), [content]);
+  // A pick on its way: the live socket brings it; ask too (a socket on another server, or none),
+  // a few times, then give up quietly (the page simply has no cover).
+  const remoteCover = session.remoteCover;
+  useEffect(() => {
+    if (!pendingCover || props.cover) return;
+    let stop = false;
+    let n = 0;
+    let timer = 0;
+    const tick = async () => {
+      if (stop) return;
+      try {
+        const st = await getCoverStatus(slug, secret);
+        if (stop) return;
+        if (st.cover) {
+          if (st.cover_auto) remoteCover(st.cover, st.rev);
+          setPendingCover(false);
+          return;
+        }
+        if (!st.cover_pending && n > 0) {
+          setPendingCover(false);
+          return;
+        }
+      } catch {
+        /* try again */
+      }
+      if (++n < 14) timer = window.setTimeout(() => void tick(), 1200);
+      else setPendingCover(false);
+    };
+    timer = window.setTimeout(() => void tick(), 800);
+    return () => {
+      stop = true;
+      window.clearTimeout(timer);
+    };
+  }, [pendingCover, props.cover, slug, secret, remoteCover]);
   const lockedForMe = props.locked && !isOwner && !mayEditLocked;
   // Who's viewing already says someone else is editing: read only before anyone clicks.
   const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
@@ -222,6 +290,8 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   }, [slug, userId, title, content, rev]);
 
   const assets = usePageAssets(slug, initialAssets, content);
+  // Sign-offs (components/pages/signoff): their state, the lock on signed blocks, the summary.
+  const signoffs = usePageSignoffs(slug, content, { viewer: userId, subscribeLive });
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -280,6 +350,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       renderMention: (p) => <PageMention slug={p.slug} resolved={p.resolved as never} />,
       linkPreview: (u) => linkPreview(u),
       people: workspaceId ? (q) => searchPeople(workspaceId, q) : undefined,
+      signoffs,
       // Video, audio and other files: a Markdrop item beside the page (its workspace and folder),
       // embedded with ::markdrop (page assets are images only; DEVIATIONS "Frontend → backend").
       uploadFile: async (file, onProgress) => {
@@ -298,7 +369,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       pageTitle: title,
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
     }),
-    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath],
+    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs],
   );
 
   const setBody = useCallback(
@@ -309,7 +380,21 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     },
     [session, keepDraft],
   );
-  const setProps = (patch: Partial<PageProps>) => setBody(writePageProps(content, patch));
+  const setProps = (patch: Partial<PageProps>) => {
+    if ("cover" in patch) {
+      // A cover chosen (or removed) here is the person's own; a removed one is never added back.
+      setAutoCover(false);
+      setPendingCover(false);
+    }
+    setBody(writePageProps(content, patch));
+  };
+  const pickForMe = useCallback(async () => {
+    try {
+      return (await suggestCover(slug, secret)).cover;
+    } catch {
+      return null;
+    }
+  }, [slug, secret]);
   // Nothing left to save and the local copy is what's on screen: the server has it, so it goes (an
   // AI app's append changes the page with no save of ours, so onSaved never drops that copy).
   useEffect(() => {
@@ -530,10 +615,15 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           title={title}
           props={props}
           resolve={resolveAsset}
+          coverPending={pendingCover && !props.cover}
+          coverAuto={autoCover && !!props.cover}
+          suggestCover={readOnly ? null : pickForMe}
           below={
-            meta || chrome.below ? (
+            meta || chrome.below || chrome.properties || signoffs?.all().length ? (
               <>
+                {chrome.properties && <EditorProperties info={chrome.properties} markdown={content} onMarkdown={setBody} readOnly={readOnly} workspaceId={workspaceId ?? null} pageHref={chrome.propertiesHref} />}
                 {meta && !readOnly && <MetaChip state={meta} hasIcon={!!props.icon} onUse={applyMeta} onDismiss={() => { metaSeq.current++; setMeta(null); }} />}
+                <SignoffSummary store={signoffs} />
                 {chrome.below}
               </>
             ) : undefined

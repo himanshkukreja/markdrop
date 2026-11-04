@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import json
 import re
 from typing import Any
 
@@ -117,20 +118,26 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
     lock (their editor inserts it live: the socket gets ``appended``)."""
     from datetime import datetime, timezone
 
+    from app.services import signoffs
+
     _check_embeds(block)
     for _ in range(5):
         cur = await ctx.db["documents"].find_one({"_id": raw["_id"]})
         if cur is None:
             raise ToolError("That page was deleted meanwhile.")
+        # Sign-off blocks added here get their ids now, so the open editor receives them with ids.
+        block = signoffs.normalize_ids(block, str(cur["_id"]), taken={
+            b.id for b in signoffs.blocks_of(cur.get("content")) if b.id}) or block
         try:
             await pages.check_page_lock(cur, actor_of(ctx), _actx(ctx), pages.appended(cur.get("content") or "", block))
+            content, removed = await signoffs.guard(ctx.db, cur, pages.appended(cur.get("content") or "", block),
+                                                    actor_of(ctx), _actx(ctx))
         except HTTPException as exc:
             raise ToolError(http_message(exc))
-        content = pages.appended(cur.get("content") or "", block)
         if len(content) > settings.max_content_chars:
             raise ToolError(f"Pages are limited to {settings.max_content_chars:,} characters.")
         rev = int(cur.get("rev") or 1)
-        q: dict = {"_id": cur["_id"]}
+        q: dict = {"_id": cur["_id"], **signoffs.cas(cur)}
         q["rev"] = rev if "rev" in cur else {"$exists": False}
         after = await ctx.db["documents"].find_one_and_update(
             q, {"$set": {"content": content, "updated_at": datetime.now(timezone.utc)}, "$inc": {"rev": 1}},
@@ -139,6 +146,10 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
             from app.services import page_history
 
             await page_history.on_save(ctx.db, cur, after, actor_of(ctx))
+            await signoffs.after_write(ctx.db, cur, after, actor_of(ctx), removed)
+            from app.services import notifications
+
+            await notifications.on_page_saved(ctx.db, cur, after, actor_of(ctx))
             new_rev = int(after.get("rev") or 1)
             live.notify(after["slug"], {"type": "appended", "rev": new_rev, "markdown": block.strip("\n")})
             live.publish(after["slug"], new_rev)
@@ -152,6 +163,32 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
 
 async def _result(ctx: Context, after: dict) -> dict:
     return {**await url_pair(ctx, after), "slug": after["slug"], "rev": int(after.get("rev") or 1)}
+
+
+async def _typed(ctx: Context, raw: dict, actor, actx) -> tuple[dict, list[dict] | None]:
+    """(the page's typed values by key, [{key, name, type, value, display}] for
+    its folder's schema — None when it has none)."""
+    from app.services import page_db
+
+    values = page_db.read_values(raw.get("content"))
+    folder, _why = await page_db.schema_for_page(ctx.db, raw)
+    schema = (folder or {}).get("properties") or []
+    if not schema:
+        return values, None
+    from app.mcp.props_tools import _display
+
+    sees = await pages.sees_people(actor, raw, actx)
+    people = await page_db.people_for(ctx.db, page_db._people_in(schema, values)) if sees else {}
+    links = await page_db.links_for(ctx.db, page_db._links_in(schema, values), actor, actx)
+    return values, [{"key": p["key"], "name": p["name"], "type": p["type"], "value": values.get(p["key"]),
+                     "display": _display(p, values.get(p["key"]), people, links)} for p in schema]
+
+
+async def _all_props(raw: dict) -> dict:
+    """The page's own properties (icon, cover, …) and its typed ones (by key)."""
+    from app.services import page_db
+
+    return {**page_db.read_values(raw.get("content")), **page_props.parse(raw.get("content"))}
 
 
 async def _people(ctx: Context, page: dict, markdown: str) -> tuple[str, list[str]]:
@@ -180,7 +217,7 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     parent = args.get("parent")
     if parent and (args.get("workspace") or args.get("folder")):
         raise ToolError("A sub-page lives in its parent's workspace and folder: pass parent alone.")
-    ws_id = None
+    ws_id = _folder_id = None
     if not parent:
         ws_id, _folder_id = await precheck_workspace(ctx, args)
     parent_slug = None
@@ -194,6 +231,19 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         _check_embeds(content)
         content, left = await _people(ctx, {"editor": "blocks", "workspace_id": (
             parent_raw.get("workspace_id") if parent_raw else ws_id)}, content)
+        # Sign-off blocks written without an id get one (services/signoffs.py).
+        import secrets as _secrets
+
+        from app.services import signoffs
+
+        content = signoffs.normalize_ids(content, _secrets.token_hex(6)) or content
+    # Typed properties of the folder (services/page_db.py): checked before anything is created.
+    typed, ignored = await _create_typed(ctx, args, ws_id, _folder_id, parent)
+    if typed and content is not None:
+        from app.services import page_db
+
+        content = page_db.write_values(content, typed)
+        typed = {}
     if args.get("properties"):
         props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
         if any(str(v or "").startswith("asset:") for v in props.values()):
@@ -216,18 +266,68 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
             template=args.get("template"), content=content, slug=args.get("slug") or None)
     except HTTPException as exc:
         raise ToolError(slug_error(args.get("slug"), exc))
-    if props:
+    if props or typed:
         # Properties on a page made from a template (or a folder's default): written into what it got.
-        after = await _save(ctx, raw, page_props.apply(raw.get("content") or "", props), None)
+        from app.services import page_db
+
+        after = await _save(ctx, raw, page_db.write_values(page_props.apply(raw.get("content") or "", props),
+                                                           typed), None)
         raw = after or raw
+    elif content:
+        # People mentioned in the new page hear about it (content given: properties went into it).
+        from app.services import notifications
+
+        await notifications.on_page_saved(ctx.db, None, raw, actor_of(ctx))
+    # Auto cover (services/page_covers.py): picked now, so the result can say which.
+    from app.services import page_covers
+
+    cover_auto = False
+    if args.get("auto_cover", True) is False:
+        await page_covers.opt_out(ctx.db, raw)
+    else:
+        picked = await page_covers.pick_now(ctx.db, raw, ctx.user, via="mcp")
+        if picked is not None:
+            raw, cover_auto = picked, True
+    cover = page_props.parse(raw.get("content")).get("cover")
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
            "editor": "blocks", "parent": parent_slug, "workspace_error": error,
-           "template_id": raw.get("template_id")}
+           "template_id": raw.get("template_id"), "cover": cover, "cover_auto": cover_auto}
     where = f" inside {parent_slug}" if parent_slug else ""
     text = f"Created the page {out['title']!r}{where}: {out['url']}"
+    if cover_auto:
+        text += (f"\nIt got the cover {cover} automatically (change it with set_page_properties: cover, "
+                 "cover=\"auto\" to pick again, or null to remove it).")
     if error:
         text += f"\n{error}"
+    if ignored:
+        text += (f"\nIgnored {', '.join(ignored)}: not page properties, and its folder has no typed properties "
+                 "(set_folder_properties).")
     return _people_note(text, out, left), out
+
+
+async def _create_typed(ctx: Context, args: dict, ws_id: str | None, folder_id: str | None,
+                        parent: str | None) -> tuple[dict, list[str]]:
+    """create_page's properties that aren't the page's own (icon, cover, …):
+    the destination folder's typed properties, checked. ({key: value}, names
+    ignored because the folder has no schema)."""
+    from app.services import page_db
+
+    extra = {k: v for k, v in (args.get("properties") or {}).items() if k not in page_props.KEYS}
+    if not extra:
+        return {}, []
+    if parent:
+        raise ToolError("A sub-page isn't a row of its folder, so it has no typed properties: create it "
+                        "without them, or as a top-level page in the folder.")
+    folder = await page_db.folder_row(ctx.db, ws_id, folder_id)
+    schema = (folder or {}).get("properties") or []
+    if not schema:
+        return {}, sorted(extra)
+    stand_in = {"workspace_id": ws_id, "folder_id": folder_id}
+    try:
+        clean = await page_db.check_values(ctx.db, stand_in, extra, actor_of(ctx), _actx(ctx), schema=schema)
+    except page_db.PropsError as exc:
+        raise ToolError(str(exc))
+    return {k: v for k, v in clean.items() if v is not None}, []
 
 
 async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -250,6 +350,7 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
             item.update(title=e.get("title"), kind=e.get("kind"), url=e.get("url"))
         embeds.append(item)
     content = await pages.content_for(actor, raw, actx) or ""
+    custom, typed = await _typed(ctx, raw, actor, actx)
     note = None
     if len(content) > MAX_RETURNED_CHARS:
         content = content[:MAX_RETURNED_CHARS]
@@ -262,11 +363,15 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         "rev": int(raw.get("rev") or 1),
         "editor": raw.get("editor") or "classic",
         "parent": fields["parent"],
-        "properties": {k: v for k, v in fields["page"].items() if k not in ("icon_url", "cover_url")},
+        "properties": {**custom,
+                       **{k: v for k, v in fields["page"].items() if k not in ("icon_url", "cover_url")},
+                       "cover_auto": bool(fields.get("cover_auto"))},
         "children": [{"slug": k["slug"], "title": k["title"]} for k in kids],
         "embeds": embeds,
         "assets": [{"id": i, "url": a["url"]} for i, a in fields["assets"].items()],
     }
+    if typed is not None:
+        out["property_values"] = typed
     if note:
         out["note"] = note
     lock = pages.lock_view(raw.get("edit_lock"))
@@ -448,10 +553,24 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
     changes = {k: args[k] for k in page_props.KEYS if k in args}
+    # cover="auto": pick one again, like a new page gets (after the other changes).
+    auto = isinstance(changes.get("cover"), str) and changes["cover"].strip().lower() == "auto"
+    if auto:
+        changes.pop("cover")
+        if raw.get("encrypted") or raw.get("template"):
+            raise ToolError("Only ordinary pages get an automatic cover (not templates).")
+        if args.get("template") is not None:
+            raise ToolError('Pass cover="auto" without template (one change at a time).')
+        if not changes and not args.get("properties"):
+            _lock_check(raw, ctx)
+            return await _auto_cover(ctx, raw, "")
     as_template = args.get("template")
-    if not changes and as_template is None:
+    custom = args.get("properties")
+    if custom is not None and not isinstance(custom, dict):
+        raise ToolError("properties is an object: {property key or name: value or null}.")
+    if not changes and as_template is None and not custom:
         raise ToolError(f"Nothing to change: pass one of {', '.join(page_props.KEYS)} (null clears it), "
-                        "or template.")
+                        "properties (the folder's typed properties), or template.")
     note = ""
     if as_template is not None:
         from app.services import page_user_templates
@@ -464,7 +583,7 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
         note = (f" It is now a template (id {raw['_id']}): it shows in the New page gallery and "
                 f"create_page(template={str(raw['_id'])!r}) starts a page from it; it no longer appears in "
                 "lists or search." if as_template else " It is an ordinary page again.")
-        if not changes:
+        if not changes and not custom:
             props = page_props.parse(raw.get("content"))
             out = {**await _result(ctx, raw), "properties": props, "template": bool(raw.get("template")),
                    "template_id": str(raw["_id"]) if raw.get("template") else None}
@@ -480,12 +599,46 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
         content = page_props.apply(raw.get("content") or "", changes)
     except ValueError as exc:
         raise ToolError(str(exc))
+    clean: dict[str, Any] = {}
+    if custom:
+        # The folder's typed properties (services/page_db.py), checked against its schema.
+        from app.services import page_db
+
+        try:
+            clean = await page_db.check_values(ctx.db, raw, custom, actor_of(ctx), _actx(ctx))
+        except page_db.PropsError as exc:
+            raise ToolError(str(exc))
+        content = page_db.write_values(content, clean)
     after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
-    props = page_props.parse(after.get("content"))
-    out = {**await _result(ctx, after), "properties": props, "template": bool(after.get("template")),
+    props = await _all_props(after)
+    said = [f"{k}={props[k]}" for k in changes] + [
+        f"{k}={json.dumps(v, ensure_ascii=False)}" if v is not None else f"{k} cleared" for k, v in clean.items()]
+    if auto:
+        return await _auto_cover(ctx, after, f"Updated the page properties of {after['slug']}: " + ", ".join(said)
+                                 + note + ". ")
+    out = {**await _result(ctx, after), "properties": {**props, "cover_auto": bool(after.get("cover_auto"))},
+           "template": bool(after.get("template")),
            "template_id": str(after["_id"]) if after.get("template") else None}
-    return f"Updated the page properties of {out['url']}: " + ", ".join(
-        f"{k}={props[k]}" for k in changes) + note, out
+    return f"Updated the page properties of {out['url']}: " + ", ".join(said) + note, out
+
+
+async def _auto_cover(ctx: Context, raw: dict, prefix: str) -> tuple[str, dict]:
+    """set_page_properties(cover="auto"): pick a cover again and write it."""
+    from app.services import page_covers
+
+    after, how = await page_covers.repick(ctx.db, raw, ctx.user, via="mcp")
+    if after is None:
+        if how == "workspace_off":
+            raise ToolError("Auto covers are off for this page's workspace (its admins can turn them on in "
+                            "the workspace's settings, Advanced). Choose one with cover=\"gallery:<name>\".")
+        raise ToolError("Couldn't pick a cover for this page right now. Try again, or choose one with "
+                        "cover=\"gallery:<name>\".")
+    props = await _all_props(after)
+    out = {**await _result(ctx, after), "properties": {**props, "cover_auto": True},
+           "template": bool(after.get("template")), "template_id": None,
+           "cover": props["cover"], "cover_auto": True}
+    how_text = "by AI" if how == "ai" else "by matching the page's words"
+    return f"{prefix}Picked the cover {props['cover']} for {out['url']} ({how_text}).", out
 
 
 async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -865,9 +1018,15 @@ PAGE_SYNTAX = (
     "title=\"…\" description=\"…\"}'. Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): "
     "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}' (ids from "
     "list_workspace_members; ':person[Name]' alone is given the id when exactly one member of the page's "
-    "workspace has that name, else it stays plain text); date: ':date[YYYY-MM-DD]'; "
-    "key: ':kbd[⌘ K]'. Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
-    "font, locked, allow_export): use set_page_properties."
+    "workspace has that name, else it stays plain text). A person newly mentioned is notified (in Markdrop, "
+    "and by email unless they turned that off) when they can open the page; put the mention in a block with "
+    "an anchor ('{#b-…}') so the notification links to it. Date: ':date[YYYY-MM-DD]'; "
+    "key: ':kbd[⌘ K]'. Sign-off (one named person approves): ':::signoff{#b-k3x9a1 person=\"<user id>\" "
+    "label=\"Release approval\" options=\"Approved for production|Not approved\" lock=above}' optional text "
+    "':::' (lock=above: once signed, the section from the previous heading down to it is read-only; the "
+    "decision is never written in the Markdown: list_signoffs reads it, sign_off makes it, and a signed block "
+    "can't be changed or deleted). Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
+    "font, locked, allow_export, and 'props: {…}' for a folder's typed properties): use set_page_properties."
 )
 _SYNTAX = PAGE_SYNTAX
 
@@ -883,7 +1042,8 @@ PAGE_TOOLS: list[Tool] = [
                      "slug sets its link: markdrop.in/<slug>, and on the workspace's domain "
                      "/<folders>/<parent pages>/<slug>; a taken slug is an error naming it (never a silent "
                      "rename); change it later with set_slug. "
-                     "Always give the user the returned url. " + _SYNTAX),
+                     "A page without a cover gets one picked for it (auto_cover, default true): the result's "
+                     "cover. Always give the user the returned url. " + _SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -906,11 +1066,19 @@ PAGE_TOOLS: list[Tool] = [
             "properties": {"type": "object", "description": (
                 "Optional page properties: icon (an emoji), cover (gallery:<name>, one of "
                 f"{', '.join(page_props.GALLERY)}; or an https:// image), cover_y, full_width, "
-                "small_text, font (default, serif, mono), locked.")},
+                "small_text, font (default, serif, mono), locked. In a folder with typed properties "
+                "(set_folder_properties), its properties too, by key or name (e.g. {\"Status\": \"Proposed\", "
+                "\"owner\": \"<user id>\"}), checked before the page is created; they override a "
+                "template's defaults.")},
+            "auto_cover": {"type": "boolean", "default": True, "description": (
+                "Default true: a page without a cover gets one of Markdrop's covers, picked for what it's "
+                "about (from its title and the start of its text; the workspace's Auto covers setting "
+                "can turn this off). The result's cover says which. false: no cover.")},
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
                             "editor": {"type": "string"}, "parent": _NULLABLE_STR,
                             "workspace_error": _NULLABLE_STR, "template_id": _NULLABLE_STR,
+                            "cover": _NULLABLE_STR, "cover_auto": {"type": "boolean"},
                             "unresolved_people": _UNRESOLVED},
                            ["url", "markdrop_url", "slug", "title", "editor"]),
         annotations=_ann(False, False, False),
@@ -921,7 +1089,10 @@ PAGE_TOOLS: list[Tool] = [
         title="Read a page",
         description=("Read a page (or any Markdown document) for editing: its Markdown, revision (pass it to "
                      "update_page as base_rev), parent and sub-pages, the Markdrop items it embeds or mentions "
-                     "(each with whether the user can open it) and its images. " + _SYNTAX),
+                     "(each with whether the user can open it) and its images. properties has the page's own "
+                     "(icon, cover, …) and its folder's typed properties by key; property_values lists the "
+                     "folder's properties in order with each value and a readable display (people's names, "
+                     "linked pages' titles when the user can open them). " + _SYNTAX),
         scope=READ,
         input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
         output_schema=_out({
@@ -929,6 +1100,9 @@ PAGE_TOOLS: list[Tool] = [
             "rev": {"type": "integer"}, "editor": {"type": "string"}, "parent": {"type": ["object", "null"]},
             "children": {"type": "array"}, "embeds": {"type": "array"}, "assets": {"type": "array"},
             "editing": {"type": "string"}, "note": {"type": "string"}, "properties": {"type": "object"},
+            "property_values": {"type": "array", "items": {"type": "object", "properties": {
+                "key": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"},
+                "value": {}, "display": {"type": "string"}}}},
         }, ["url", "markdrop_url", "slug", "title", "markdown", "rev", "editor", "parent", "children",
             "embeds", "assets"]),
         annotations=_ann(True, False, True),
@@ -1105,7 +1279,8 @@ PAGE_TOOLS: list[Tool] = [
         title="Set a page's properties",
         description=("Set a page's icon (an emoji, or asset:<id> of an image of this page), "
                      "cover (asset:<id> of an image of this page, an https:// image, or gallery:<name>, a "
-                     f"built-in cover: {', '.join(page_props.GALLERY)}) and its focal point cover_y "
+                     f"built-in cover: {', '.join(page_props.GALLERY)}; or \"auto\": pick one for what the "
+                     "page is about, as new pages get, replacing the cover it has) and its focal point cover_y "
                      "(0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one) and allow_export (false: "
@@ -1114,7 +1289,14 @@ PAGE_TOOLS: list[Tool] = [
                      "then complete_page_image_upload (or base64 with upload_page_image), or copy one from "
                      "another page with copy_page_asset; it then shows to exactly the page's readers. "
                      "They live in the page's front matter. Refused while someone is editing the page. "
-                     "template: true turns the page into a workspace (or personal) template, false back."),
+                     "template: true turns the page into a workspace (or personal) template, false back. "
+                     "properties sets the typed properties of the page's folder (set_folder_properties; "
+                     "list_folder_pages shows them): {key or name: value, or null to clear}. select: an "
+                     "option's name; multi_select: a list of them; person: a member's user id "
+                     "(list_workspace_members); date: YYYY-MM-DD; text; number; checkbox: true/false; link: an "
+                     "https:// address or a Markdrop page's slug (or a list). A value that doesn't fit is "
+                     "refused with the reason; the other properties are left as they are. On a template, "
+                     "they are the defaults new pages start with."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -1122,7 +1304,8 @@ PAGE_TOOLS: list[Tool] = [
             "icon": {"type": ["string", "null"], "maxLength": 80},
             "cover": {"type": ["string", "null"], "maxLength": 80,
                       "description": "asset:<id> (an image of this page), gallery:<name>, an https:// image, "
-                                     "or null."},
+                                     "\"auto\" (pick one for the page again), or null (remove it: an "
+                                     "automatic cover is then never added again)."},
             "cover_y": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
             "full_width": {"type": ["boolean", "null"]},
             "small_text": {"type": ["boolean", "null"]},
@@ -1134,6 +1317,8 @@ PAGE_TOOLS: list[Tool] = [
                 "personal page): it leaves every list and search, and create_page(template=<its id or "
                 "slug>) starts new pages from a copy of it. Top-level pages only; its sub-pages come with "
                 "it. false: back to an ordinary page. Pages already made from it never change.")},
+            "properties": {"type": "object", "maxProperties": 30, "description": (
+                "The folder's typed properties: {key or name: value | null}.")},
         }, "required": ["document"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
                             "properties": {"type": "object"}, "template": {"type": "boolean"},

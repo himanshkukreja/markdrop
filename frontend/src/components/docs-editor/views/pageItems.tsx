@@ -15,6 +15,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { Button, Dialog, EmptyState, FileIcon, Icon, IconButton, Input, SegmentedControl, Spinner, Tabs, type FileRenderer } from "@/components/ui";
 import { useHost } from "../host";
+import { ensureAnchorAround } from "../menus/blockOps";
 import type { PagePickItem, PageResolvedItem, PagesEditorHost } from "../types";
 import { cx } from "./shared";
 
@@ -330,7 +331,7 @@ function DateChip({ node, updateAttributes, selected }: ReactNodeViewProps) {
 }
 
 /** `:person[Name]{id}`: a workspace member, picked from a search. */
-function PersonChip({ node, updateAttributes, deleteNode, selected, editor }: ReactNodeViewProps) {
+function PersonChip({ node, updateAttributes, deleteNode, selected, editor, getPos }: ReactNodeViewProps) {
   const host = useHost();
   const id = String((node.attrs.attributes ?? {}).id ?? "");
   const label = String(node.attrs.label ?? "");
@@ -338,6 +339,16 @@ function PersonChip({ node, updateAttributes, deleteNode, selected, editor }: Re
   const [people, setPeople] = useState<Array<{ id: string; name: string }> | null>(null);
   const picking = !id && !host.readOnly && !!host.pages?.people;
   const picked = useRef(false);
+  const pick = (p: { id: string; name: string }) => {
+    picked.current = true;
+    updateAttributes({ label: p.name.replace(/[[\]\\\n\r]+/g, " "), attributes: { id: p.id } });
+    // The block gets an anchor ({#b-…}), so the person's notification opens the page right here.
+    try {
+      const pos = typeof getPos === "function" ? getPos() : undefined;
+      if (typeof pos === "number") ensureAnchorAround(editor, pos);
+    } catch { /* an anchor is a convenience: the mention stands without one */ }
+    editor.view.focus();
+  };
   useEffect(() => {
     if (!picking) return;
     let live = true;
@@ -377,9 +388,7 @@ function PersonChip({ node, updateAttributes, deleteNode, selected, editor }: Re
             }
             if (e.key === "Enter" && people?.[0]) {
               e.preventDefault();
-              picked.current = true;
-              updateAttributes({ label: people[0].name.replace(/[[\]\\\n\r]+/g, " "), attributes: { id: people[0].id } });
-              editor.view.focus();
+              pick(people[0]);
             }
           }}
           onBlur={() => window.setTimeout(() => { if (!picked.current) deleteNode(); }, 200)}
@@ -391,11 +400,7 @@ function PersonChip({ node, updateAttributes, deleteNode, selected, editor }: Re
               type="button"
               className="dxe-pick__row"
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                picked.current = true;
-                updateAttributes({ label: p.name.replace(/[[\]\\\n\r]+/g, " "), attributes: { id: p.id } });
-                editor.view.focus();
-              }}
+              onClick={() => pick(p)}
             >
               <Icon name="user" size={14} aria-hidden /> <span className="ph-mask">{p.name}</span>
             </button>

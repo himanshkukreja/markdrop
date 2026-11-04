@@ -62,12 +62,12 @@ function mentionOf(c, s) {
   return { type: "mention", attrs: { name: c.name, label, attributes: { ...(c.attributes ?? {}) } } };
 }
 /** Container node types that serialize as `:::name` directives. */
-const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private", "columns", "column", "indent", "button"]);
+const CONTAINER_TYPES = new Set(["callout", "steps", "tabs", "tab", "cards", "card", "details", "private", "columns", "column", "indent", "button", "signoff"]);
 /** Containers holding one kind of child: `::::tabs` → `:::tab`, `::::cards` → `:::card`, `::::columns` → `:::column`. */
 const PARENT_OF = { tabs: "tab", cards: "card", columns: "column" };
 const CHILD_TYPES = new Set(Object.values(PARENT_OF));
 /** Containers holding any blocks. */
-const FLOW_CONTAINERS = new Set(["steps", "details", "private", "indent", "button"]);
+const FLOW_CONTAINERS = new Set(["steps", "details", "private", "indent", "button", "signoff"]);
 
 /** Attributes that carry meaning, per node / mark type (everything else, `md` included, is UI state). */
 const SEM = {
@@ -96,6 +96,7 @@ const SEM = {
   column: ["label", "attributes"],
   indent: ["label", "attributes"],
   button: ["label", "attributes"],
+  signoff: ["label", "attributes"],
   directiveLeaf: ["name", "label", "attributes"],
   rawBlock: ["value"],
   rawInline: ["value"],

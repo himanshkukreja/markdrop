@@ -85,16 +85,21 @@ export function withoutFrontMatter(markdown: string): string {
   return String(markdown ?? "").replace(FRONT_RE, "");
 }
 
-export type CoverCategory = "Paper" | "Duotone" | "Lines" | "Calm";
+export type CoverCategory = "Paper" | "Duotone" | "Lines" | "Shapes" | "Calm";
 export interface GalleryCover {
   id: string;
   name: string;
   category: CoverCategory;
+  /** Light or dark (auto covers pick within a theme by tint). */
+  tint?: "light" | "dark";
+  /** What kind of page it suits (auto covers match on these). */
+  tags?: string[];
 }
 
 /**
- * Built-in covers (public/page-covers, drawn by scripts/page-covers/generate.mjs): 1500×480 WebP,
- * each with a small thumbnail for the picker. The backend keeps the same ids (page_props.GALLERY).
+ * Built-in covers (public/page-covers, drawn by scripts/page-covers/generate.mjs and themed.mjs):
+ * 1500×480 WebP, each with a small thumbnail for the picker, a tint and tags. The backend keeps the
+ * same ids, tints and tags (services/page_covers.json) and picks one for new pages (auto covers).
  */
 export const COVER_CATEGORIES = coverManifest.categories as CoverCategory[];
 export const COVER_GALLERY = coverManifest.covers as GalleryCover[];

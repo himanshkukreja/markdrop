@@ -257,6 +257,16 @@ export const PAGE_ONLY_ITEMS: BlockItem[] = [
     run: insert({ type: "directiveLeaf", attrs: { name: "page", attributes: {} } }),
   },
   {
+    id: "signoff",
+    label: "Sign-off",
+    hint: "One person approves; can lock the section above",
+    icon: "checkCircle",
+    keywords: "sign-off signoff sign off approval approve approver review release decision lock",
+    group: "markdrop",
+    // The id is given by the editor (core/schema.mjs signoffIds); the person is picked in the block.
+    run: insert({ type: "signoff", attrs: { label: null, attributes: { label: "Sign-off", options: "Approved|Not approved" } }, content: [p()] }),
+  },
+  {
     id: "bookmark",
     label: "Bookmark",
     hint: "A link with its preview",
@@ -378,7 +388,7 @@ export const PAGE_BLOCKS = [
   "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
   "quote", "divider", "callout-note", "callout-tip", "callout-warning", "callout-danger",
   "image", "page-video", "page-audio", "page-file", "bookmark", "web-embed",
-  "page-embed", "mention", "subpage",
+  "page-embed", "mention", "subpage", "signoff",
   "table", "columns-2", "columns-3", "columns-4", "columns-5", "code", "math", "mermaid", "toc", "breadcrumb", "button",
   "person", "date", "emoji",
 ] as const;

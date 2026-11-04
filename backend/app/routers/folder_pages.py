@@ -179,7 +179,13 @@ async def host_folder(
     # (site name and look), never the workspace id or internal name (small B).
     insider = await ctx.role(ws.id, actor.user_id) is not None
     face = _branding(ws) if (insider or not ws.settings.require_auth_to_view) else _public_branding(ws)
+    # A folder with typed page properties (services/page_db.py): each page's values, read only.
+    from app.services import page_db
+
+    props = await page_db.folder_index_props(db, actor, ctx, ws.id, folder_id, listing["documents"],
+                                             insider=insider) if folder_id else None
     return jsonable_encoder({
+        "properties": props,
         "folder": folder,
         "trail": trail,
         "folders": [{"name": f.name, "path": paths.get(f.id) or [], "document_count": total.get(f.id, 0)}

@@ -3,7 +3,7 @@ title: Page Markdown reference
 description: Every block of a page as Markdown, for people who write it by hand and AI apps that read and write pages.
 updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [markdown, syntax, reference, allow_export, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption, person, people, mention by name]
+keywords: [markdown, syntax, reference, allow_export, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption, person, people, mention by name, sign-off, signoff, approval, props, properties]
 ---
 
 A page is stored as Markdown: GitHub-flavoured Markdown plus a few directives for the blocks Markdown doesn't have. The editor reads and writes exactly this, without changing what it doesn't touch, so a page written by hand, by VS Code or by an AI app opens in the block editor as it was written. AI apps use the same syntax with `get_page`, `update_page`, `append_blocks` and `create_page`.
@@ -22,10 +22,13 @@ small_text: true
 font: serif              # default, serif or mono
 locked: true             # only the owner and workspace admins can edit
 allow_export: false      # readers can't export it; editors always can
+props: {status: "In build", owner: "<user id>", target_date: "2026-11-20"}
 ---
 ```
 
-The built-in covers come in four sets: paper (`mist`, `linen`, `graphite`), duotone (`fold`, `halftone`, `dusk`), lines (`contour`, `blueprint`, `strata`) and calm (`dawn`, `sage`, `moonlit`). A page that uses a name from the first gallery (`aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` or `mint`) shows the closest of these. The page's title isn't in the front matter: it's the document's title.
+`props` holds the values of the folder's typed properties, by key, on one line. See [Properties and views](/pages/properties-and-views).
+
+The 44 built-in covers come in five sets: paper (`mist`, `linen`, `graphite`, `terminal`, `ledger`, `seal`, `sheets`, `index`), duotone (`fold`, `halftone`, `dusk`, `prism`, `columns`, `signal`, `pillars`, `heatmap`, `vault`), lines (`contour`, `blueprint`, `strata`, `circuit`, `pulse`, `scatter`, `lattice`, `route`, `waypoints`), calm (`dawn`, `sage`, `moonlit`, `constellation`, `lanterns`, `beacon`, `tide`, `doorway`, `horizon`) and shapes (`facets`, `ascent`, `circles`, `orbit`, `swatches`, `bezier`, `gather`, `confetti`, `bubbles`). A new page without a cover gets one of them automatically ([automatic covers](/pages/overview#automatic-covers)). A page that uses a name from the first gallery (`aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` or `mint`) shows the closest of these. The page's title isn't in the front matter: it's the document's title.
 
 ## Text
 
@@ -170,6 +173,8 @@ You can also write just the name, `:person[Ada Lovelace]`. When the page is save
 
 A person's name shows only to the page's owner and the members of its workspace. Everyone else, including the Markdown an AI app reads for them, gets `:person[]{id=…}`, shown as "a person".
 
+A person newly mentioned gets a notification, if they can open the page. See [Mentions and notifications](/pages/mentions-and-notifications).
+
 ## Keys
 
 ```markdown
@@ -250,6 +255,20 @@ A line nested under it.
 - `:::indent` holds the blocks nested under the block before it.
 - A `:::button` holds the blocks that clicking it inserts. Readers don't see buttons.
 - An outer fence needs more colons than the fences inside it. For example, columns that hold a callout use `:::::columns`, then `::::column`, then `:::note`.
+
+## Sign-off
+
+```markdown
+:::signoff{#b-k3x9a1 person="<user id>" label="Release approval" options="Approved for production|Not approved" lock=above}
+QA passed on staging.
+:::
+```
+
+- `person` is the one member of the page's workspace who can sign it, by account id (AI apps get ids from `list_workspace_members`).
+- `label` defaults to "Sign-off"; `options` is up to six choices separated by `|`, by default `Approved|Not approved`.
+- `lock=above` locks the section from the previous heading (or the top of the page) down to the block once it's signed.
+- The text inside is optional. A block written without an id (`#b-…`) gets one when the page is saved.
+- The decision isn't part of the Markdown. Anything like `option="Approved"` written in the braces is ignored: only the person named can sign, on the page or with `sign_off`. Once signed, the block can't be changed or deleted, and neither can a locked section. See [Sign-off](/pages/sign-off).
 
 ## Anything else
 

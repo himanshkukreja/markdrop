@@ -717,7 +717,8 @@ await step("tenant-edit", async () => {
 
 /* ── 7. page properties: icon, cover upload + reposition, full width, font, lock ── */
 await step("properties", async () => {
-  const mk = await api("POST", "/api/v1/pages", T.owner, { title: "Properties", workspace: WS, folder: FOLDER });
+  // auto_cover: false — this step adds its own cover (a new page otherwise gets an automatic one).
+  const mk = await api("POST", "/api/v1/pages", T.owner, { title: "Properties", workspace: WS, folder: FOLDER, auto_cover: false });
   const slug = mk.body.document.slug;
   state.props = slug;
   save();
@@ -879,7 +880,7 @@ await step("rail-live", async () => {
 
 /* ── 10. Notion-style editing ── */
 await step("parity", async () => {
-  const r = await api("POST", "/api/v1/pages", T.owner, { title: "Notion parity", workspace: WS, folder: FOLDER });
+  const r = await api("POST", "/api/v1/pages", T.owner, { title: "Notion parity", workspace: WS, folder: FOLDER, auto_cover: false });
   const d = r.body.document;
   state.parity = d.slug;
   save();

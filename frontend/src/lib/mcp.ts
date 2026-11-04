@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 56 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 63 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -60,6 +60,8 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "list_page_templates", scope: "read" },
       { name: "save_page_as_template", scope: "write" },
       { name: "set_folder_default_template", scope: "write" },
+      { name: "set_folder_properties", scope: "write" },
+      { name: "list_folder_pages", scope: "read" },
       { name: "list_subpages", scope: "read" },
       { name: "move_page", scope: "write" },
       { name: "translate_page", scope: "write" },
@@ -70,9 +72,26 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "restore_page_version", scope: "write" },
       { name: "export_page", scope: "read" },
       { name: "duplicate_page", scope: "write" },
+      { name: "list_signoffs", scope: "read" },
+      { name: "sign_off", scope: "write" },
     ],
   },
-  { title: "Access", icon: "lock", tools: [{ name: "set_access", scope: "write" }] },
+  {
+    title: "Access",
+    icon: "lock",
+    tools: [
+      { name: "set_access", scope: "write" },
+      { name: "share_with_people", scope: "write" },
+    ],
+  },
+  {
+    title: "Notifications",
+    icon: "bell",
+    tools: [
+      { name: "list_notifications", scope: "read" },
+      { name: "mark_notifications_read", scope: "write" },
+    ],
+  },
   {
     title: "Files and uploads",
     icon: "film",

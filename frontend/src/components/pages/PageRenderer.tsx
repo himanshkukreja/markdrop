@@ -36,12 +36,15 @@ import { BookmarkCard } from "@/components/docs-editor/views/BookmarkCard";
 import { usePageEmbeds } from "./usePageEmbeds";
 import { useBlockAnchor } from "./anchors";
 import { ImageLightbox } from "@/components/docs-editor/views/Lightbox";
+import { SignoffCard } from "./signoff/SignoffCard";
+import { usePageSignoffs, useSignoffState, type SignoffStore } from "./signoff/store";
+import { signoffInfo } from "@/lib/signoff.mjs";
 import "./pages.css";
 import "./page-blocks.css";
 
 
-const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite"];
-const PB_PROPS = ["data-pb", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site"];
+const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef"];
+const PB_PROPS = ["data-pb", "data-kind", "data-label", "data-src", "data-mode", "data-asset", "data-icon", "data-color", "data-heading", "data-url", "data-title", "data-desc", "data-image", "data-site", "data-person", "data-options", "data-lock", "data-ref"];
 
 /** Block attributes (attrs.mjs) any element may carry: anchor, colours, image and table layout. */
 const BLOCK_ATTRS = ["dataBid", "dataColor", "dataBg", "dataWidth", "dataAlign", "dataWidths", "dataHcol", "dataHrow", "dataCaption", "dataBlock"];
@@ -70,8 +73,10 @@ interface Ctx {
   crumbs: Crumb[];
   title: string | null;
   href: (slug: string, ancestors: string[]) => string;
+  /** The page's sign-offs for this viewer. */
+  signoffs: SignoffStore | null;
 }
-const PageCtx = createContext<Ctx>({ embeds: {}, headings: [], crumbs: [], title: null, href: (s) => `/${encodeURIComponent(s)}` });
+const PageCtx = createContext<Ctx>({ embeds: {}, headings: [], crumbs: [], title: null, href: (s) => `/${encodeURIComponent(s)}`, signoffs: null });
 
 function textOf(node: ReactNode): string {
   if (typeof node === "string") return node;
@@ -142,8 +147,37 @@ function DivInner({ node: _n, children, ...rest }: P<"div">) {
   if (pb === "breadcrumb") return <CrumbBlock />;
   if (pb === "subpage") return <SubPageBlock src={String(rest["data-src"] ?? "")} />;
   if (pb === "webembed") return <WebEmbedBlock url={str(rest["data-url"]) ?? ""} title={str(rest["data-title"])} />;
+  if (pb === "signoff") return <SignoffBlock rest={rest}>{children}</SignoffBlock>;
+  if (pb === "signoff-range") return <SignoffRange id={str(rest["data-ref"])}>{children}</SignoffRange>;
   if (pb === "unknown") return <div className="pb-unknown">{children}</div>;
   return <div {...(plainProps(rest) as object)}>{children}</div>;
+}
+
+/** A sign-off block: the card, its state for this viewer from the server. */
+function SignoffBlock({ rest, children }: { rest: Record<string, unknown>; children?: ReactNode }) {
+  const { signoffs } = useContext(PageCtx);
+  const info = signoffInfo({ id: str(rest["data-bid"]), person: str(rest["data-person"]), label: str(rest["data-label"]), options: str(rest["data-options"]), lock: str(rest["data-lock"]) });
+  const state = useSignoffState(signoffs, info.id);
+  const body = Children.toArray(children).filter((c) => !(typeof c === "string" && !c.trim()));
+  return (
+    <SignoffCard info={info} state={state} loading={!!signoffs && !signoffs.loaded} onSign={state?.can_sign && signoffs && info.id ? async (o) => void (await signoffs.sign(info.id!, o)) : undefined}>
+      {body.length ? body : null}
+    </SignoffCard>
+  );
+}
+
+/** The section a `lock=above` sign-off locks: a quiet rail once it is signed. */
+function SignoffRange({ id, children }: { id?: string; children?: ReactNode }) {
+  const { signoffs } = useContext(PageCtx);
+  const state = useSignoffState(signoffs, id ?? null);
+  const locked = !!state?.option;
+  const who = state?.signed_by?.name;
+  return (
+    <div className={`pb-signoff-range${locked ? " is-locked" : ""}`} data-tone={state?.tone ?? undefined} title={locked ? `Locked: ${who ? `${who} signed off` : "signed off"} “${state!.label}” (${state!.option})` : undefined}>
+      {locked && <span className="pb-signoff-range__lock" aria-hidden><Icon name="lock" size={10} /></span>}
+      {children}
+    </div>
+  );
 }
 
 function EmbedBlock({ src, mode, label }: { src: string; mode: string; label: string | null }) {
@@ -357,16 +391,19 @@ export interface PageRendererProps {
   className?: string;
   /** Who is reading (a user id, or null): embeds are resolved again when it changes. */
   viewer?: string | null;
+  /** The document's live socket (sign-offs refresh when someone signs). */
+  subscribeLive?: ((fn: (msg: Record<string, unknown>) => void) => () => void) | null;
 }
 
 const defaultHref = (s: string) => `/${encodeURIComponent(s)}`;
 
-export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null }: PageRendererProps) {
+export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null, subscribeLive = null }: PageRendererProps) {
   // The page's properties (icon, cover, width…) live in its front matter; the body is the rest.
   const content = useMemo(() => splitFrontmatter(source).body, [source]);
   const refs = useMemo(() => pageRefs(content), [content]);
   const own = usePageEmbeds(slug, refs.slugs, !given, viewer);
   const embeds = given ?? own;
+  const signoffs = usePageSignoffs(slug, content, { viewer, subscribeLive });
   const collected = useRef<Heading[]>([]);
   const sent = useRef<string | null>(null);
   const onHeadingsRef = useRef(onHeadings);
@@ -399,7 +436,7 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
     onHeadingsRef.current?.(collected.current);
   }, [content]);
 
-  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref }), [embeds, signInHref, headings, crumbs, title, href]);
+  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs }), [embeds, signInHref, headings, crumbs, title, href, signoffs]);
   const root = useRef<HTMLDivElement>(null);
   useBlockAnchor(root);
   return (

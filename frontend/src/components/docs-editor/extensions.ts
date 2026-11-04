@@ -21,6 +21,8 @@ import { BlockDnd } from "./menus/dnd";
 import { BlockSelectionExt } from "./menus/blockSelection";
 import { ColumnsExt, columnView, columnsView } from "./menus/columns";
 import { ButtonView } from "./views/ButtonView";
+import { SignoffView } from "./views/SignoffView";
+import { signoffLockPlugin } from "./views/signoffLock";
 import { AiKeys, aiHooks } from "./menus/aiKeys";
 
 const view = (component: ComponentType<ReactNodeViewProps>, options?: Parameters<typeof ReactNodeViewRenderer>[1]) => ({
@@ -175,6 +177,13 @@ function viewOverrides() {
     columns: columnsView(),
     column: columnView(),
     button: view(ButtonView),
+    // Sign-offs: the card, and signed blocks (and the sections they lock) kept as they are.
+    signoff: {
+      ...view(SignoffView),
+      addProseMirrorPlugins(this: { parent?: () => unknown[]; editor: import("@tiptap/core").Editor }) {
+        return [...((this.parent?.() as unknown[]) ?? []), signoffLockPlugin(this.editor)];
+      },
+    },
   };
 }
 

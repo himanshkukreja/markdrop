@@ -203,6 +203,8 @@ export interface PagesEditorHost {
   linkPreview?(url: string): Promise<{ title?: string | null; description?: string | null; image_url?: string | null; site_name?: string | null; favicon_url?: string | null }>;
   /** Workspace members, for `@person`. */
   people?(q: string): Promise<Array<{ id: string; name: string; avatar_url?: string | null }>>;
+  /** The page's sign-offs for this viewer (components/pages/signoff/store.ts): the blocks' state and the lock. */
+  signoffs?: import("@/components/pages/signoff/store").SignoffStore | null;
   /** Uploads a video, audio or other file to Markdrop (beside the page) for a `::markdrop` embed. */
   uploadFile?(file: File, onProgress?: (pct: number) => void): Promise<{ slug: string; title?: string | null }>;
   /** Creates a sub-page of this page (the "/page" block); resolves with its slug and title. */

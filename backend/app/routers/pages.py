@@ -12,9 +12,9 @@ from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
-from app.routers.auth import require_user
+from app.routers.auth import optional_user, require_user
 from app.schemas.document import DocumentResponse, PageCreate, PageCreateResponse
-from app.services import access, page_templates, page_user_templates, pages
+from app.services import access, page_covers, page_templates, page_user_templates, pages
 
 settings = get_settings()
 router = APIRouter(prefix="/api/v1", tags=["pages"])
@@ -37,7 +37,9 @@ async def create_page(
     Markdown instead. ``workspace`` (member+) and ``folder`` file it there;
     ``parent`` (the slug of a page you can edit) puts it inside that page, in
     its workspace and folder, inheriting its access. ``slug`` gives it its link
-    (publish's custom-slug rules; 409 when taken, nothing is created)."""
+    (publish's custom-slug rules; 409 when taken, nothing is created). Unless it
+    has a cover (or ``auto_cover`` is false, or its workspace turned Auto covers
+    off), a cover is picked for it in the background: ``cover_pending``."""
     from app.routers.auth import is_tenant_request
     from app.routers.documents import _ctx, _full_response
 
@@ -62,11 +64,58 @@ async def create_page(
     raw, secret, error = await pages.create_page(
         db, user, actor, ctx, title=data.title, workspace=data.workspace, folder=data.folder,
         parent=data.parent, template=data.template, content=data.content, slug=data.slug)
+    # Its cover is picked in the background; the page says cover_pending until it lands.
+    await page_covers.start(db, raw, user, via="web", auto=data.auto_cover)
     body = await _full_response(db, raw, actor, access.Ctx(db, surface="rest"))
     # The new page's edit secret is a key to all of it (settings, delete, anywhere): never handed to
     # a workspace's domain. Its creator is signed in and owns it, so they don't need it.
     return PageCreateResponse(document=DocumentResponse(**body), edit_secret=None if tenant else secret,
                               workspace_error=error)
+
+
+@router.get("/pages/{slug}/cover")
+@limiter.limit(settings.rate_limit_read)
+async def cover_status(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User | None = Depends(optional_user),
+):
+    """The page's cover now, for an editor waiting on an auto cover: ``{cover, cover_auto,
+    cover_pending, rev}`` (anyone who can read it)."""
+    from app.routers.documents import _ctx
+    from app.services import page_props
+
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "read", _ctx(db, request))
+    if raw.get("encrypted") or raw.get("kind") == "artifact":
+        return {"cover": None, "cover_auto": False, "cover_pending": False, "rev": int(raw.get("rev") or 1)}
+    return {"cover": page_props.parse(raw.get("content")).get("cover"), **page_covers.fields(raw),
+            "rev": int(raw.get("rev") or 1)}
+
+
+@router.post("/pages/{slug}/cover/suggest")
+@limiter.limit("30/minute")
+async def cover_suggest(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    x_edit_secret: str | None = Header(None),
+    user: User = Depends(require_user),
+):
+    """A cover for the page, picked like an auto cover, not written (the cover picker's "Pick for
+    me"): ``{cover: "gallery:<id>", how}``. Editors only."""
+    from app.routers.documents import _ctx
+
+    actor = access.actor_from_request(request, user, edit_secret=x_edit_secret)
+    raw = await db["documents"].find_one({"slug": slug})
+    await access.require(actor, raw, "edit_content", _ctx(db, request))
+    if raw.get("encrypted") or raw.get("kind") == "artifact":
+        raise HTTPException(status_code=422, detail="Only pages get covers.")
+    cid, how = await page_covers.suggest(db, raw, user, via="web")
+    return {"cover": f"gallery:{cid}", "how": "ai" if how == "ai" else "keywords"}
 
 
 @router.get("/page-templates")

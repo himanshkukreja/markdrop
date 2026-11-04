@@ -178,7 +178,7 @@ export default function ShareDialog({
         // Says what actually happened rather than what was requested (the address masked).
         const who = <span className="ph-sensitive ph-mask">{addr}</span>;
         results.push(
-          notify && g.notified ? <>Shared with {who} and emailed them.</>
+          notify && g.notified ? <>Shared with {who} and notified them.</>
           : notify ? <>Shared with {who}, but the email didn&apos;t send.</>
           : <>Shared with {who}.</>
         );
@@ -466,7 +466,8 @@ export default function ShareDialog({
                   {emails.length > 0 && (
                     <div className="flex flex-col gap-2">
                       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                        <Checkbox label="Email them" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+                        {/* An email with the link, and a notification under the bell for people with an account. */}
+                        <Checkbox label="Notify people" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
                         {notify && !showMessage && (
                           <Button variant="link" size="sm" onClick={() => setShowMessage(true)}>Add a message</Button>
                         )}

@@ -58,6 +58,17 @@ export function useAiSend(token: string) {
   }, [token, onUnauthorized]);
 }
 
+/** POST (no body); resolves with the response JSON, rejects with the API's message. */
+export function useAiPost(token: string) {
+  const onUnauthorized = useOnUnauthorized();
+  return useCallback(async <T,>(path: string): Promise<T> => {
+    const res = await fetch(`${API}/api/v1/admin/ai/${path}`, { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+    if (res.status === 401) { onUnauthorized(); throw new Error("UNAUTHORIZED"); }
+    if (!res.ok) throw new ApiError(await detailOf(res, "That didn't work. Try again."), res.status);
+    return res.json();
+  }, [token, onUnauthorized]);
+}
+
 /** Download a CSV through the admin token (a plain link can't send the header). */
 export function useAiDownload(token: string) {
   const onUnauthorized = useOnUnauthorized();

@@ -55,7 +55,7 @@ class McpPages(AccessWorld):
 
     def test_catalogue(self):
         names = {t.name for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 56)  # + restore_document, list_trash
+        self.assertEqual(len(mcp_tools.TOOLS), 63)  # + notifications (3), sign-off (2), typed properties (2)
         self.assertTrue(PAGE_TOOLS <= names)
         for t in mcp_tools.TOOLS:
             if t.name in PAGE_TOOLS:
@@ -337,7 +337,7 @@ class McpPages(AccessWorld):
         await self.ok("wm", "append_blocks", {"document": page["slug"], "markdown": "member note"})
 
     async def test_create_page_with_properties(self):
-        out = await self.ok("owner", "create_page", {"title": "P", "template": "prd",
+        out = await self.ok("owner", "create_page", {"title": "P", "template": "prd", "auto_cover": False,
                                                      "properties": {"icon": "📘", "full_width": True}})
         raw = await self.doc(out["slug"])
         self.assertTrue(raw["content"].startswith("---\nicon: 📘\nfull_width: true\n---\n:::note"))

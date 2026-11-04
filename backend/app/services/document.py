@@ -471,8 +471,14 @@ async def update_document(
     # key — over a newer version (an undone key rotation). Checked here for a
     # clear answer and again in the write itself (cas) for the race.
     cas: dict = {"slug": slug}
+    from app.services import page_covers
+
     if data.base_rev is not None:
         current = raw.get("rev", 1)
+        # The one write since the editor's read was an auto cover: not a conflict, the cover is
+        # merged into what it saves (services/page_covers.py).
+        if data.base_rev != current and page_covers.merge_on_save(raw, data):
+            data.base_rev = current
         if data.base_rev != current:
             raise StaleRevision(current)
         if "rev" in raw:
@@ -480,6 +486,7 @@ async def update_document(
 
     now = datetime.now(timezone.utc)
     sets: dict = {"title": data.title or None, "updated_at": now}
+    signoffs_removed: list = []
     # Artifacts keep their bytes in R2 — `content` is only a search stand-in, so
     # never let a markdown-shaped edit overwrite it.
     if raw.get("kind") != "artifact":
@@ -492,6 +499,20 @@ async def update_document(
             from app.services import page_people
 
             sets["content"], _left = await page_people.resolve(db, sets["content"], raw, actor.user_id)
+            # Sign-off blocks (services/signoffs.py): ids given, signed blocks and the sections
+            # they lock left as they are (423), a workspace admin's removal noted.
+            from app.services import signoffs
+
+            sets["content"], signoffs_removed = await signoffs.guard(db, raw, sets["content"], actor, ctx)
+            cas.update(signoffs.cas(raw))
+            # Typed page properties (services/page_db.py): changed values must fit the folder's schema.
+            from app.services import page_db
+
+            await page_db.check_save(db, raw, sets["content"], actor, ctx)
+
+    # Auto covers (services/page_covers.py): a save that removes the cover is remembered (it is
+    # never auto-added again); one that changes it makes the cover the person's own.
+    cover_unset = page_covers.on_save(raw, sets.get("content"), sets)
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,
@@ -503,19 +524,36 @@ async def update_document(
     try:
         after = await transitions.change(
             db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
-            cas=cas,
+            cas=cas, unset=cover_unset or None,
         )
     except HTTPException as exc:
         if exc.status_code == 409 and "rev" in cas:
             fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"rev": 1})
             if fresh is not None and fresh.get("rev", 1) != cas["rev"]:
                 raise StaleRevision(fresh.get("rev", 1))
+        if exc.status_code == 409 and "signoff_rev" in cas:
+            fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"signoff_rev": 1})
+            if fresh is not None and fresh.get("signoff_rev") != cas["signoff_rev"]:
+                from app.services import signoffs
+
+                raise signoffs.race_error()
         raise
     ctx.forget(raw)
     # Version history (services/page_history.py): one version per editing session per 10 minutes.
     from app.services import page_history
 
     await page_history.on_save(db, raw, after, actor, **(history or {}))
+    if signoffs_removed:
+        from app.services import signoffs
+
+        await signoffs.after_write(db, raw, after, actor, signoffs_removed)
+    # People newly mentioned (or named on a sign-off) hear about it (services/notifications.py).
+    from app.services import notifications
+
+    await notifications.on_page_saved(db, raw, after, actor)
+    # A new page waiting for its auto cover gets it once it says what it's about.
+    if after.get("cover_pick") == "waiting":
+        await page_covers.after_save(db, after)
     return after
 
 
@@ -944,10 +982,14 @@ async def sync_push(
     if base_rev != cur_rev:
         return ("conflict", _doc_from_mongo(raw))
 
+    # Signed-off blocks and the sections they lock (services/signoffs.py) hold here too.
+    from app.services import signoffs
+
+    content, _removed = await signoffs.guard(db, raw, content, None, None)
     now = datetime.now(timezone.utc)
     # Compare-and-swap on rev so a concurrent writer can't be clobbered.
     updated = await db["documents"].find_one_and_update(
-        {"_id": ObjectId(doc_id), "rev": cur_rev},
+        {"_id": ObjectId(doc_id), "rev": cur_rev, **signoffs.cas(raw)},
         {
             "$set": {
                 "content": content,

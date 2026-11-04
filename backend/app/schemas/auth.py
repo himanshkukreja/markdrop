@@ -13,10 +13,14 @@ class UserResponse(BaseModel):
     created_at: datetime
     # Weekly analytics email (Settings → Account).
     analytics_digest: Literal["weekly", "off"] = "weekly"
+    # "Email me when someone mentions me" (and asks for my sign-off).
+    mention_emails: bool = True
 
 
 class PreferencesUpdate(BaseModel):
-    analytics_digest: Literal["weekly", "off"]
+    """Either or both; what's left out is unchanged."""
+    analytics_digest: Literal["weekly", "off"] | None = None
+    mention_emails: bool | None = None
 
 
 class TokenResponse(BaseModel):

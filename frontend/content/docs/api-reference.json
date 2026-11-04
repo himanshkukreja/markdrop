@@ -102,7 +102,7 @@
     "LevelUpdate.level": "`link` (anyone with the link), `private` (only the people you share it with) or `workspace` (members of its workspace).",
     "GrantCreate.email": "The person's email address. They don't need an account yet.",
     "GrantCreate.role": "`viewer` can open it; `editor` can also change it.",
-    "GrantCreate.notify": "Email them a link.",
+    "GrantCreate.notify": "Notify them: an email with a link (and the message), plus a notification under the bell for people with a Markdrop account.",
     "GrantCreate.message": "A note included in the email.",
     "AccessRequestDecision.decision": "`view` or `edit` approves with that role; `decline` refuses.",
     "InviteCreateRequest.role": "`admin`, `member` or `viewer`. See [Members and roles](/workspaces/members-and-roles).",

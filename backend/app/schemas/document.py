@@ -168,9 +168,16 @@ class DocumentResponse(BaseModel):
     # Page properties from the content's front matter (services/page_props.py):
     # {icon, icon_url, cover, cover_url, cover_y, full_width, small_text, font, locked}.
     page: dict | None = None
+    # Typed properties (services/page_db.py), for a page filed in a folder that has a property
+    # schema: {folder, mode, properties, rev, values, people, people_hidden, links, can_edit_schema}.
+    page_properties: dict | None = None
     # The page images its content references (``asset:<id>``), as links for
     # this reader: {id: {url, expires_at}} (expires_at null when public).
     assets: dict = {}
+    # Auto covers (services/page_covers.py): the cover was picked automatically; a pick is on
+    # its way (the editor fades it in when it lands).
+    cover_auto: bool = False
+    cover_pending: bool = False
 
     model_config = {"from_attributes": True}
 
@@ -355,6 +362,9 @@ class PageCreate(BaseModel):
     # Its link (markdrop.in/<slug>, and its last segment on a workspace's domain):
     # publish's custom-slug rules; 409 when taken. Random when left out.
     slug: str | None = Field(None, min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_-]+$")
+    # A cover picked for it, unless it has one (services/page_covers.py; the workspace's "Auto
+    # covers" setting too). false: never one (a duplicate keeps its source's cover, or none).
+    auto_cover: bool = True
 
 
 class PageCreateResponse(BaseModel):

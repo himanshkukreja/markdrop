@@ -53,6 +53,8 @@ const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m)
 // Pages (documents in the block editor): the renderer ships with a page; the editor and the
 // template gallery load when used.
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
+// Sign-offs under a page's title (the reader's page fills the store: components/pages/signoff).
+const SignoffSummary = dynamic(() => import("@/components/pages/signoff/SignoffSummary").then((m) => m.SignoffSummary), { loading: () => null });
 const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
 // Drag and drop, Move to and Duplicate load only for pages.
 const PageTree = dynamic(() => import("@/components/pages/PageTree").then((m) => m.PageTree), { loading: () => null });
@@ -66,6 +68,8 @@ const PageTopBar = dynamic(() => import("@/components/pages/PageChrome").then((m
 const PageRailHead = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageRailHead), { loading: () => null });
 const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.SubPages), { loading: () => null });
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
+// Typed page properties (components/pages/props): loads only for a page in a folder with a schema.
+const PropertiesPanel = dynamic(() => import("@/components/pages/props/PropertiesPanel").then((m) => m.PropertiesPanel), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
 const TemplateNotice = dynamic(() => import("@/components/pages/templates/TemplateNotice").then((m) => m.TemplateNotice), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
@@ -695,6 +699,8 @@ export default function DocumentView(props: DocumentViewProps) {
   const otherEditor = snap?.viewers.find((x) => x.editing && x.id !== snap.you && x.id !== snap.me?.id && !(snap.you == null && !!user?.name && x.name === user.name)) ?? null;
   const othersEditing = otherEditor ? otherEditor.name || (otherEditor.animal ? `Anonymous ${otherEditor.animal}` : "Someone") : null;
   const pageBacklinks = !tenant ? <Backlinks key={user?.id ?? "anon"} slug={slug} addressing={addressing} /> : null;
+  const propsHref = tenant ? undefined : (s: string) => `/${encodeURIComponent(s)}`;
+  const readerProps = page?.page_properties ? <PropertiesPanel info={page.page_properties} workspaceId={page.workspace_id ?? null} pageHref={propsHref} /> : null;
   const pageFooter = isPage ? (
     <>
       <SubPages
@@ -768,7 +774,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 menu={readerPageMenu}
               />
             }
-            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={pageBacklinks} />}
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{pageBacklinks}</>} />}
             footer={pageFooter}
           >
             {notices}
@@ -791,6 +797,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 title={displayTitle}
                 href={pageHref}
                 viewer={user?.id ?? null}
+                subscribeLive={v.subscribeLive}
               />
             )}
             {!showRaw && !(wideRail && pageRail && tocEntries.length > 0) && <PresenceMargin root={readRef} markers={markers} left={-14} />}
@@ -813,6 +820,8 @@ export default function DocumentView(props: DocumentViewProps) {
               onReady={() => setEditorReady(true)}
               othersEditing={othersEditing}
               onHeadings={setHeadings}
+              coverPending={page?.cover_pending === true}
+              coverAuto={page?.cover_auto === true}
               onSaved={(doc) => {
                 if (typeof doc.rev === "number") v.setDocRev(doc.rev);
                 if (typeof doc.content === "string") v.setDisplayContent(doc.content);
@@ -835,6 +844,8 @@ export default function DocumentView(props: DocumentViewProps) {
                 onCopied: copyLinkEvent,
                 menu: editorDocMenu,
                 below: pageBacklinks,
+                properties: page?.page_properties ?? null,
+                propertiesHref: propsHref,
                 footer: pageFooter,
                 notices,
               }}

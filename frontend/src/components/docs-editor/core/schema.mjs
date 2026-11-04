@@ -8,6 +8,7 @@
  * bookkeeping) is never rendered: a pasted block is written canonically.
  */
 import { Extension, Mark, Node, mergeAttributes } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import Code from "@tiptap/extension-code";
 import CodeBlock from "@tiptap/extension-code-block";
@@ -127,6 +128,16 @@ export const Column = container("column", "block+", { group: undefined, isolatin
 export const Indent = container("indent", "block+");
 /** `:::button{label="…"}`: a button that inserts a copy of the blocks it holds (pages). */
 export const ButtonBlock = container("button", "block+");
+/**
+ * `:::signoff{#b-x person="<user id>" label="…" options="A|B" lock=above}` (pages): one named
+ * person approves; the decision lives on the server, never in these attributes. Every sign-off
+ * needs an id of its own, so one the user adds (the "/" menu, a paste, a duplicate) gets one.
+ */
+export const SignoffBlock = container("signoff", "block+", {
+  addProseMirrorPlugins() {
+    return [signoffIds()];
+  },
+});
 
 /** `::video{…}`, `::clip{…}`, `::embed{…}`, `::api{…}`: one line, edited through a form. */
 export const DirectiveLeaf = Node.create({
@@ -393,6 +404,7 @@ export function baseExtensions() {
     Column,
     Indent,
     ButtonBlock,
+    SignoffBlock,
     Span,
     Underline,
     DirectiveLeaf,
@@ -409,4 +421,52 @@ export function baseExtensions() {
 /** Replaces the named extensions by `ext.extend(overrides[name])` (node views, keymaps). */
 export function withOverrides(extensions, overrides) {
   return extensions.map((e) => (overrides[e.name] ? e.extend(overrides[e.name]) : e));
+}
+
+
+/* ── sign-off ids ─────────────────────────────────────────────────────────── */
+
+const ANCHOR = /^b-[a-z0-9]{4,12}$/;
+const signoffIdsKey = new PluginKey("dxeSignoffIds");
+
+/** A new `b-` + 6 random base-36 characters, not in `taken`. */
+function freshId(taken) {
+  for (;;) {
+    let s = "";
+    for (let i = 0; i < 6; i++) s += "abcdefghijklmnopqrstuvwxyz0123456789"[Math.floor(Math.random() * 36)];
+    const id = `b-${s}`;
+    if (!taken.has(id)) return id;
+  }
+}
+
+/**
+ * After an edit (never a load: `setContent` and remote updates pass `preventUpdate` or skip
+ * history), a sign-off block without an id, or with one an earlier block already has, gets its own.
+ */
+export function signoffIds() {
+  return new Plugin({
+    key: signoffIdsKey,
+    appendTransaction(trs, _old, state) {
+      if (!trs.some((tr) => tr.docChanged && !tr.getMeta("preventUpdate") && tr.getMeta("addToHistory") !== false)) return null;
+      const taken = new Set();
+      const fix = [];
+      state.doc.descendants((n, pos) => {
+        const id = n.isBlock ? (n.attrs.battrs?.id ?? n.attrs.attributes?.id) : null;
+        if (n.type.name === "signoff") {
+          if (typeof id !== "string" || !ANCHOR.test(id) || taken.has(id)) fix.push({ pos, node: n });
+          else taken.add(id);
+        } else if (typeof id === "string" && ANCHOR.test(id)) taken.add(id);
+        return !n.isTextblock;
+      });
+      if (!fix.length) return null;
+      const tr = state.tr;
+      for (const { pos, node } of fix) {
+        const id = freshId(taken);
+        taken.add(id);
+        const { id: _drop, ...rest } = node.attrs.attributes ?? {};
+        tr.setNodeMarkup(pos, undefined, { ...node.attrs, attributes: { id, ...rest } });
+      }
+      return tr.setMeta("addToHistory", false);
+    },
+  });
 }

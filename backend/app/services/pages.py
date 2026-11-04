@@ -87,14 +87,17 @@ def is_page_capable(raw: dict | None) -> bool:
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["documents"].create_index("parent_id", sparse=True)
+    # Auto covers: picks a stopped process left pending (services/page_covers.finish_stale).
+    await db["documents"].create_index("cover_pick", sparse=True)
     from app.services import bookmarks, page_assets, page_links
 
     await page_assets.ensure_indexes(db)
     await bookmarks.ensure_indexes(db)
     await page_links.ensure_indexes(db)
-    from app.services import page_history
+    from app.services import page_history, signoffs
 
     await page_history.ensure_indexes(db)
+    await signoffs.ensure_indexes(db)
 
 
 # ── The tree ──────────────────────────────────────────────────────────────────
@@ -848,6 +851,11 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
                      else ({"part_of": True} if raw.get("template") else None)),
         "assets": {},
     }
+    if raw.get("editor") == "blocks" and not raw.get("encrypted"):
+        # Auto covers (services/page_covers.py): was this cover picked for the page, is one on its way.
+        from app.services import page_covers
+
+        out.update(page_covers.fields(raw))
     if raw.get("parent_id") is not None:
         crumbs = []
         cur = raw
@@ -883,6 +891,11 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
             props[f"{key}_url"] = hit["url"] if hit else (v if v.startswith("https://") else None)
     else:
         props["icon_url"] = props["cover_url"] = None
+    # Typed properties (services/page_db.py): a block page filed in a folder with a schema.
+    if raw.get("editor") == "blocks" and raw.get("workspace_id"):
+        from app.services import page_db
+
+        out["page_properties"] = await page_db.panel(db, raw, actor, ctx)
     return out
 
 

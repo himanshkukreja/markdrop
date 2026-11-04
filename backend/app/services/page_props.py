@@ -20,15 +20,18 @@ writes a change back while keeping everything else in the block in place.
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 from typing import Any
 
 KEYS = ("icon", "cover", "cover_y", "full_width", "small_text", "font", "locked", "allow_export")
 FONTS = ("default", "serif", "mono")
 # The built-in covers, gallery:<name> (the app ships them: frontend/public/page-covers, whose
-# manifest.json lists the same names).
-GALLERY = ("mist", "linen", "graphite", "fold", "halftone", "dusk",
-           "contour", "blueprint", "strata", "dawn", "sage", "moonlit")
+# manifest.json lists the same names; page_covers.json is the backend's copy, with each cover's
+# tint and tags for auto covers: services/page_covers.py).
+GALLERY: tuple[str, ...] = tuple(
+    c["id"] for c in json.loads(Path(__file__).with_name("page_covers.json").read_text())["covers"])
 # The first gallery's gradients, still on existing pages: each now shows the nearest cover above.
 GALLERY_ALIASES = {"aurora": "dusk", "ocean": "dusk", "sunset": "dawn", "peach": "dawn",
                    "sand": "linen", "slate": "graphite", "forest": "sage", "mint": "sage"}

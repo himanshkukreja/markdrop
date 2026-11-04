@@ -118,6 +118,9 @@ _TENANT_ALLOWED = (
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/assets/urls$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/children$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/backlinks$")),
+    # A page's sign-off blocks as this reader sees them (routers/signoffs.py). Read-only:
+    # signing stays on markdrop.in (a tenant token can't change anything).
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/signoffs$")),
     # Page AI for signed-in readers on the workspace's own domain (routers/pages_ai.py): what
     # the page offers, and Ask (answers from the page and the embeds this reader can open).
     # Both check can(read).
@@ -319,6 +322,7 @@ def _to_user_response(user: User) -> UserResponse:
         providers=user.providers,
         created_at=user.created_at,
         analytics_digest=user.analytics_digest,
+        mention_emails=user.mention_emails,
     )
 
 

@@ -12,18 +12,19 @@ import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-share
 /**
  * Advanced (Settings board): the individual switches behind Privacy — what new items start as,
  * whether members can share folders, whether visitors must sign in — and whether the workspace's
- * pages have AI features (`ai_enabled`, default on), then leaving or deleting the workspace. Each switch saves on its own; Privacy on the People tab shows "Custom" when they don't
+ * pages have AI features (`ai_enabled`, default on) and auto covers (`auto_covers`, default on), then
+ * leaving or deleting the workspace. Each switch saves on its own; Privacy on the People tab shows "Custom" when they don't
  * match one of its presets.
  */
 export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: WsTabProps) {
   const toast = useToast();
   const router = useRouter();
-  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai">("");
+  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers">("");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const team = teamName(ws);
   const current: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
 
-  async function save(key: "default" | "share" | "auth" | "ai", patch: Partial<WorkspaceSettings>, done: string) {
+  async function save(key: "default" | "share" | "auth" | "ai" | "covers", patch: Partial<WorkspaceSettings>, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     try {
@@ -99,6 +100,19 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               disabled={saving === "ai"}
               locked={!isAdmin}
               onChange={(on) => void save("ai", { ai_enabled: on }, on ? "AI features are on for this workspace." : "AI features are off for this workspace.")}
+            />
+          </div>
+        </Locked>
+        <Locked locked={!isAdmin}>
+          <div>
+            <SwitchRow
+              id="ws-auto-covers"
+              label="Auto covers"
+              hint={<>New pages get one of Markdrop&apos;s covers, picked for what they&apos;re about. With AI features on, AI picks it from the title and the first lines; otherwise it&apos;s matched by keywords. Anyone can change or remove a cover. <ReadMore topic="autoCovers" /></>}
+              checked={ws.settings.auto_covers !== false}
+              disabled={saving === "covers"}
+              locked={!isAdmin}
+              onChange={(on) => void save("covers", { auto_covers: on }, on ? "New pages here get a cover." : "New pages here start without a cover.")}
             />
           </div>
         </Locked>

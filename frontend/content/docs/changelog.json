@@ -204,6 +204,80 @@
       ]
     },
     {
+      "id": "page-notifications",
+      "date": "2026-11-04",
+      "title": "Mentions that notify: a bell, emails and Notify people",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Mention someone on a page and they're told: a notification under the new bell at the top of Markdrop, and an email, both opening the page at the block that mentions them. Only people who can open the page are notified.",
+      "body": "- **The bell:** an unread badge, the list newest first with who, what, the page and when, **All** / **Unread** and **Mark all read**. Choosing one opens the page at the block and highlights it. A bottom sheet on phones.\n- **Who's told:** each person newly mentioned (or named on a sign-off block) who can open the page. Never you, never someone already mentioned before your change, never someone who can't open the page, and a page they lose access to later shows without its title.\n- **Email:** at most one per page every 10 minutes, with the mentions batched. Turn it off in **Settings › Account** (**Email me when someone mentions me**) or from the email's own link; the bell keeps working.\n- **Share › Notify people** (was **Email them**): the email with your message, plus a notification for people with an account.\n- **MCP:** pages an AI app writes notify the same way, and three new tools: `list_notifications`, `mark_notifications_read` and `share_with_people`. See [Mentions and notifications](/pages/mentions-and-notifications).",
+      "docs": [
+        "/pages/mentions-and-notifications",
+        "/sharing/share-with-people",
+        "/ai/tools"
+      ]
+    },
+    {
+      "id": "page-signoff",
+      "date": "2026-11-04",
+      "title": "Pages: sign-off blocks, approved by one named person and locked once signed",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Add a Sign-off block to a page, name who signs it and give it options such as Approved for production or Not approved. Only that person can choose; Markdrop records the decision with their name and the time, and nobody can change the block, or the section above it, until they clear it.",
+      "body": "- **/ › Sign-off** in any page in a workspace: choose who signs, the label and up to six options, and whether signing locks the section above.\n- **Only the person named can sign**, not the owner, not an admin, not an AI app acting for someone else. The decision is stored by Markdrop, never in the page's Markdown, so it can't be faked by editing.\n- **Once signed**, the block (and with *lock above*, everything from the previous heading down to it) can't be changed or deleted, in the editor, in Markdown, from VS Code or through MCP. The signer can change or clear their decision; a workspace admin can remove a signed block, and that's recorded.\n- Sign-offs show on the block, as pills under the page's title and in **Version history** (\"Signed off by Riya: Approved for production\").\n- Two new MCP tools: `list_signoffs` and `sign_off`. See [Sign-off](/pages/sign-off).",
+      "docs": [
+        "/pages/sign-off",
+        "/pages/markdown-reference",
+        "/ai/tools"
+      ]
+    },
+    {
+      "id": "page-properties",
+      "date": "2026-11-04",
+      "title": "Page properties, and folders as tables and boards",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Give a folder's pages typed properties such as Status, Owner and Target date. They show under each page's title, and the folder opens as a table or a board: drag a card to change its status.",
+      "body": "- **Properties under the title:** Select and Multi-select with coloured options, Person (a workspace member, with their picture), Date with a calendar, Text, Link (an address or a page), Number and Checkbox. Anyone who can edit the page changes them in place; readers see the ones that are set.\n- **A folder is the database:** add a property once and every page in the folder has it. Members and admins add, rename and remove properties. Removing one never deletes a page's value.\n- **Table and board views** in the folder: a sticky header, resizable columns, filter, sort and group, and cells you edit in place. On the board, drag a card between columns to change its value. Members save up to 20 views per folder.\n- **Only what you can open:** views list just the pages you can read, and a linked page's title shows only to people who can open it.\n- **For AI apps:** `set_folder_properties` and `list_folder_pages` are new, `set_page_properties` and `create_page` take `properties`, and `get_page` returns them. See [Properties and views](/pages/properties-and-views).",
+      "docs": [
+        "/pages/properties-and-views",
+        "/ai/tools"
+      ]
+    },
+    {
+      "id": "auto-covers",
+      "date": "2026-11-04",
+      "title": "Automatic covers for pages, and 32 new covers",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "A new page gets a cover picked for what it's about, from 44 calm covers now. Remove it in one click and it never comes back; workspace admins can turn Auto covers off.",
+      "body": "- New pages get one of Markdrop's covers by themselves: AI reads the title and the first lines and picks one, or the page's words are matched when AI is off. It fades in a moment after the page opens. An untitled, empty page gets its cover once you've named it and started writing.\n- 32 new covers, for roadmaps, meetings, releases, research, design, runbooks, people, finance, marketing, legal, support, data, security, docs and more, in a new **Shapes** group. **Pick for me** in the cover picker chooses one for the page.\n- An automatic cover says **Auto** when you hover it. **Remove** is one click, and a removed cover is never added back. A duplicate keeps its original's cover; templates and encrypted pages never get one.\n- **Auto covers** on the workspace settings' **Advanced** tab, next to **AI features**, turns it off for a workspace.\n- Pages made before this got a cover the same way, once.\n- MCP: `create_page` picks a cover (`auto_cover`, default true) and says which in `cover`; `set_page_properties` with `cover: \"auto\"` picks one again. See [Automatic covers](/pages/overview#automatic-covers).",
+      "docs": [
+        "/pages/overview",
+        "/pages/ai",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

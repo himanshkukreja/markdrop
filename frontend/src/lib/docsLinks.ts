@@ -16,6 +16,7 @@ export const DOCS_PAGES = {
   // Pages (the block editor)
   pagesOverview: "/pages/overview",
   pagesAi: "/pages/ai",
+  autoCovers: "/pages/overview#automatic-covers",
   // Files
   supportedTypes: "/files/supported-types",
   fileLimits: "/files/limits",
