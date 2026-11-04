@@ -19,6 +19,7 @@ boto3==1.43.83
 python-multipart==0.0.20
 PyYAML==6.0.3
 pypdf==6.21.4
+pypdfium2==5.14.0
 markdown-it-py==4.2.0
 mdit-py-plugins==0.6.1
 rapidfuzz==3.14.6

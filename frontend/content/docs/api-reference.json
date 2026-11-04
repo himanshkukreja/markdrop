@@ -980,6 +980,13 @@
       "mcp": "add_to_workspace",
       "example": { "slugs": ["k3x9q2m"], "folder_id": "FOLDER_ID" }
     },
+    "POST /api/v1/workspaces/{workspace_id}/items/previews": {
+      "title": "Preview items",
+      "description": "What the Cards view shows of each item, for up to 12 items at a time. Each answers `locked` unless you can open it right now, `encrypted` for an end-to-end encrypted document, and `pending` while a picture is being made (ask again). Otherwise `ok` with plain-text `blocks` (pages, documents, HTML and Word files), a sheet's first `rows`, a text file's first `lines`, or `src`, a small WebP thumbnail as a data URI (images, a PDF's first page, a video's poster, a page's cover). An HTML file also has `live`, its signed address on the files origin. Any member.",
+      "mcp": "list_workspace_items",
+      "example": { "slugs": ["k3x9q2m", "q3-report"] },
+      "guide": { "label": "Browse a workspace", "href": "/workspaces/folders#browse-a-workspace" }
+    },
     "POST /api/v1/workspaces/{workspace_id}/items/move": {
       "title": "Move documents",
       "description": "Moves documents to another folder. Every document is checked first: if you can't move one, none move.",
