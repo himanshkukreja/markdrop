@@ -156,13 +156,14 @@ export const MCP_TOOL_COUNT = MCP_TOOL_GROUPS.reduce((n, g) => n + g.tools.lengt
  */
 export const MCP_LOCAL_SERVER = "markdrop-p2p";
 export const MCP_LOCAL_COMMAND = "markdrop mcp";
-/** The first CLI release with every local tool (0.3.0 sharing, 0.4.0 files, 0.5.0 workspaces). */
-export const MCP_LOCAL_MIN_CLI = "0.5.0";
+/** The first CLI release with every local tool (0.3.0 sharing, 0.4.0 files, 0.5.0 workspaces, 0.6.0 pages). */
+export const MCP_LOCAL_MIN_CLI = "0.6.0";
 
-/** The local server's 11 tools (docs: ai/tools "Local server tools"). */
+/** The local server's 13 tools (docs: ai/tools "Local server tools"). */
 export const MCP_LOCAL_TOOL_GROUPS: Array<{ title: string; tools: string[] }> = [
   { title: "Publish files from disk", tools: ["upload_file", "replace_file", "list_file_versions", "restore_file_version", "get_file_info"] },
   { title: "Workspaces", tools: ["list_workspaces", "list_folders"] },
+  { title: "Pages and files on disk", tools: ["upload_page_image", "export_page"] },
   { title: "Share peer to peer", tools: ["share_files", "share_status", "stop_share", "receive_share"] },
 ];
 

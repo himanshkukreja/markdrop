@@ -6,7 +6,7 @@ updated: 2026-11-04
 keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions, delete_document, restore_document, list_trash, trash, restore, undo delete, notifications, list_notifications, mark_notifications_read, share_with_people, notify, request_edit_access, list_access_requests, decide_access_request, access requests, approve, list_signoffs, sign_off, sign-off, approval, set_folder_properties, list_folder_pages, typed properties, database views, auto_cover, automatic covers]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 66 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 66 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -182,7 +182,7 @@ The hosted server can't send or receive files; that needs the [local server](/ai
 
 ## Local server tools
 
-These run on your computer, inside `markdrop mcp`. They have no permissions to approve; the file and workspace tools act as the owner of the server's API token: `MARKDROP_TOKEN` in its environment, or else the token saved by `markdrop login`. See [Add the local MCP server](/ai/local-mcp).
+These run on your computer, inside `markdrop mcp`. They have no permissions to approve; the file, workspace and page tools act as the owner of the server's API token: `MARKDROP_TOKEN` in its environment, or else the token saved by `markdrop login`. See [Add the local MCP server](/ai/local-mcp).
 
 ### Publish files from disk
 
@@ -203,6 +203,13 @@ Results of `upload_file` and `replace_file` carry `url`, `markdrop_url`, `slug`,
 | `list_workspaces` | Yes | Your workspaces: id, name, role, custom domains (verified, live, default) and default access. | none |
 | `list_folders` | Yes | A workspace's folders: id, name, path, depth and item count. | `workspace` |
 
+### Pages and files on disk
+
+| Tool | Token | What it does | Main inputs |
+|---|---|---|---|
+| `upload_page_image` | Yes | Uploads an image file from this computer (PNG, JPEG, GIF or WebP, up to 10 MB) to a page and returns `asset` and the Markdown that shows it. Optionally makes it the cover or icon, or adds it at the end of the page. | `document`, `path`, `alt`, `set_as` (`cover`, `icon`), `append` |
+| `export_page` | Yes | Saves a page as a file on this computer: Markdown, one HTML file, or a zip with its images (and sub-pages). Returns `path`, `filename` and `bytes`. Never replaces a file unless asked. | `document`, `format` (`md`, `html`, `zip`), `include_subpages`, `path` (a file or folder; default `~/Downloads/Markdrop`), `overwrite` |
+
 ### Share peer to peer
 
 | Tool | Token | What it does | Main inputs |
@@ -216,4 +223,4 @@ With a token (`MARKDROP_TOKEN` or the one saved by `markdrop login`), shares sta
 
 ## Same name, two servers
 
-`get_file_info`, `list_file_versions`, `restore_file_version`, `list_workspaces` and `list_folders` exist on both servers and do the same thing. If an app has both servers, either may answer.
+`get_file_info`, `list_file_versions`, `restore_file_version`, `list_workspaces` and `list_folders` exist on both servers and do the same thing. If an app has both servers, either may answer. `upload_page_image` and `export_page` share a name but not their inputs: the hosted ones take the image as base64 and return the export as text or a link; the local ones read and write files on your computer.

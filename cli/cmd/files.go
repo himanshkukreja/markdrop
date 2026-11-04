@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"regexp"
@@ -268,6 +269,15 @@ Examples:
 	return c
 }
 
+// pageHint points a file command used on a page (or a markdown document) at
+// the page command that does the same.
+func pageHint(err error, instead string) error {
+	if files.IsStatus(err, http.StatusConflict) && strings.Contains(err.Error(), "markdown document") {
+		return fmt.Errorf("%w\n  It is a page or document, not a file: use %s", err, instead)
+	}
+	return err
+}
+
 func orDash(s string) string {
 	if s == "" {
 		return "-"
@@ -303,7 +313,7 @@ marked with *. Markdrop keeps up to 5 versions of each file.`,
 			}
 			vs, err := client.Versions(cmdContext(cmd), slug)
 			if err != nil {
-				return err
+				return pageHint(err, "markdrop page versions "+slug)
 			}
 			if ff.json {
 				return printJSON(cmd.OutOrStdout(), vs.Raw)
@@ -356,7 +366,7 @@ Example:
 			}
 			info, err := client.Restore(cmdContext(cmd), slug, n)
 			if err != nil {
-				return err
+				return pageHint(err, "markdrop page restore "+slug+" "+args[1])
 			}
 			if ff.json {
 				return printJSON(cmd.OutOrStdout(), info.Raw)
@@ -387,7 +397,7 @@ func newInfoCmd() *cobra.Command {
 			}
 			info, err := client.FileInfo(cmdContext(cmd), slug)
 			if err != nil {
-				return err
+				return pageHint(err, "markdrop page get "+slug+" --info")
 			}
 			if ff.json {
 				return printJSON(cmd.OutOrStdout(), info.Raw)
