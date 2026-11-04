@@ -1,0 +1,10 @@
+Design review
+
+Ada Lovelace  0:03
+So the new page header is ready for review.
+
+Bo Chen  0:41
+I like it. The icons look a bit small on phones though.
+
+Ada Lovelace  1:15
+Good point, I'll bump them to 20 pixels.

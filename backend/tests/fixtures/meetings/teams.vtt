@@ -1,0 +1,17 @@
+WEBVTT
+
+1a2b3c4d-1
+00:00:01.200 --> 00:00:05.800
+<v Ada Lovelace>Morning all, quick standup today.</v>
+
+1a2b3c4d-2
+00:00:06.000 --> 00:00:09.100
+<v Ada Lovelace>Bo, you go first.</v>
+
+1a2b3c4d-3
+00:00:09.500 --> 00:00:15.000
+<v Bo Chen>Yesterday I fixed the export bug. Today I'm on the docs.</v>
+
+1a2b3c4d-4
+00:01:02.000 --> 00:01:08.000
+<v Priya Sharma>I'm blocked on the staging database, can someone give me access?</v>

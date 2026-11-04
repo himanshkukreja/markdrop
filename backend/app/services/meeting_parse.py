@@ -1,0 +1,851 @@
+"""Meeting sources → a normal form (Meetings v1, .work/meetings/SPEC.md). Pure: no I/O.
+
+A *source* is one file or one pasted text: a transcript, Google's Gemini meeting notes, or a notes
+Doc whose second tab is the transcript (both). :func:`parse_source` detects the format and returns a
+:class:`Source`::
+
+    kind        "transcript" | "notes" | "both"
+    format      "google_meet" | "gemini_notes" | "vtt" | "srt" | "sbv" | "otter" | "speaker_lines" | "plain"
+    title, date ("YYYY-MM-DD"), time ("HH:MM"), duration_s, attendees [{name, email}]
+    segments    [{speaker, t, text}]   t: seconds from the start, or None; approx: interpolated
+    notes       {summary, details: [..], next_steps: [..]} | None
+
+Formats understood:
+
+* **Google Meet transcript Doc**: "<name> (2026-11-04 10:00 GMT+05:30) - Transcript", an
+  "Attendees" block, "Name: text" lines, a bare "00:05:00" every five minutes, "Transcription
+  ended after 00:42:13". Times inside a five-minute block are interpolated by characters.
+* **Gemini "Take notes for me" Doc**: Summary / Details / Suggested next steps ("Notes by Gemini"),
+  optionally followed by a Transcript tab (``=== Tab: Transcript ===`` from the Docs API reader,
+  or a "Transcript" heading followed by speaker lines).
+* **WebVTT** (``<v Name>`` voice tags or "Name: text"), **SRT**, **SBV** (YouTube).
+* **Otter / Zoom text**: "Name  12:34" then the words on the next lines.
+* "[12:34] Name: text", "12:34 Name: text", "Name (12:34): text", plain "Name: text".
+* Anything else: one segment per paragraph, no speaker.
+
+:func:`docx_text` reads a .docx (zip + XML, headings kept as ``#``). :func:`pair` groups notes and
+transcripts that belong to the same meeting by their normalised title and date.
+"""
+
+from __future__ import annotations
+
+import io
+import re
+import zipfile
+from dataclasses import dataclass, field
+from datetime import date
+from typing import Any
+from xml.etree import ElementTree as ET
+
+MAX_SEGMENTS = 6000
+MAX_TEXT = 600_000          # characters of transcript kept per meeting
+MAX_SEGMENT_CHARS = 1500    # a longer turn is cut into several segments
+MERGE_CHARS = 600           # consecutive cues of one speaker are merged up to this length
+
+TAB_MARK = re.compile(r"^=== Tab: (.*?) ===\s*$")
+
+_TS = r"(?:(\d{1,2}):)?(\d{1,2}):(\d{2})(?:[.,](\d{1,3}))?"
+_TS_RE = re.compile(rf"^{_TS}$")
+_BARE_TS = re.compile(r"^\s*\(?(\d{1,2}:\d{2}(?::\d{2})?)\)?\s*$")
+_VTT_CUE = re.compile(rf"^\s*{_TS}\s*-->\s*{_TS}")
+_SBV_CUE = re.compile(r"^\s*(\d{1,2}:\d{2}:\d{2}\.\d{3}),(\d{1,2}:\d{2}:\d{2}\.\d{3})\s*$")
+_SRT_INDEX = re.compile(r"^\s*\d{1,6}\s*$")
+_VOICE = re.compile(r"<v(?:\.[\w.-]+)?\s+([^>]+)>", re.I)
+_TAGS = re.compile(r"</?[a-z][^>]*>", re.I)
+_OTTER = re.compile(r"^(?P<name>[^\d\s:][^:\n]{0,60}?)\s{2,}(?P<ts>\d{1,2}:\d{2}(?::\d{2})?)\s*$")
+_OTTER_NAME_FIRST = re.compile(r"^(?P<name>[^\d\s:\[][^:\n]{0,60}?)\s+(?P<ts>\d{1,2}:\d{2}(?::\d{2})?)\s*$")
+_BRACKET_TS = re.compile(r"^\s*[\[(]?(?P<ts>\d{1,2}:\d{2}(?::\d{2})?)[\])]?\s*[-–—]?\s*(?P<rest>.+)$")
+_NAME_TS = re.compile(r"^(?P<name>[^:\n\[\]()]{1,60}?)\s*[\[(](?P<ts>\d{1,2}:\d{2}(?::\d{2})?)[\])]\s*:?\s*(?P<text>.*)$")
+_SPEAKER = re.compile(r"^(?P<name>[^:\n]{1,60}?)\s*:\s+(?P<text>\S.*)$")
+_ENDED = re.compile(r"transcription ended after\s+(\d{1,2}:\d{2}:\d{2})", re.I)
+_HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
+_BULLET = re.compile(r"^\s*(?:[-*•●▪◦]|\d{1,3}[.)])\s+(?:\[[ xX]\]\s+)?(.*)$")
+_CHECK = re.compile(r"^\s*(?:[-*•]\s+)?\[[ xX]\]\s+(.*)$")
+
+_NOT_NAMES = frozenset("""
+note notes summary details agenda action actions decision decisions question questions next steps todo to-do
+http https www re fw fwd subject date time attendees transcript topic topics outcome outcomes owner owners
+meeting example warning important tip update status q a
+""".split())
+
+_MONTHS = {m: i + 1 for i, m in enumerate(
+    ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"))}
+
+NOTES_HEADS = {
+    "summary": ("summary", "meeting summary", "overview"),
+    "details": ("details", "discussion", "notes", "key points", "discussion points"),
+    "next_steps": ("suggested next steps", "next steps", "action items", "follow-ups", "follow ups"),
+}
+_GEMINI_BOILER = re.compile(
+    r"^(you should review gemini'?s notes|please provide feedback about using gemini|get tips and learn how gemini"
+    r"|this editable transcript was computer generated|people can also change the text|meeting records\b"
+    r"|attachments\b|notes by gemini\s*$|📝|📖|transcript\s*$)", re.I)
+
+
+@dataclass
+class Source:
+    name: str = ""
+    kind: str = "transcript"           # transcript | notes | both
+    format: str = "plain"
+    title: str | None = None
+    date: str | None = None
+    time: str | None = None
+    duration_s: int | None = None
+    attendees: list[dict] = field(default_factory=list)
+    segments: list[dict] = field(default_factory=list)
+    notes: dict | None = None
+    approx_times: bool = False
+    truncated: bool = False
+
+    @property
+    def speakers(self) -> list[str]:
+        out: list[str] = []
+        for s in self.segments:
+            sp = s.get("speaker")
+            if sp and sp not in out:
+                out.append(sp)
+        return out
+
+    def describe(self) -> dict:
+        return {"name": self.name, "kind": self.kind, "format": self.format, "title": self.title,
+                "date": self.date, "time": self.time, "duration_s": self.duration_s,
+                "attendees": [a["name"] for a in self.attendees], "speakers": self.speakers,
+                "segments": len(self.segments), "has_notes": bool(self.notes), "truncated": self.truncated,
+                "approx_times": self.approx_times}
+
+
+# ── Small helpers ─────────────────────────────────────────────────────────────
+
+
+def to_seconds(ts: str | None) -> int | None:
+    """"1:02:03" / "02:03" / "00:00:01.500" / "00:00:01,500" → whole seconds."""
+    if not ts:
+        return None
+    m = _TS_RE.match(ts.strip())
+    if not m:
+        return None
+    h, mi, s = int(m.group(1) or 0), int(m.group(2)), int(m.group(3))
+    if s >= 60 or (m.group(1) is not None and mi >= 60):
+        return None
+    return h * 3600 + mi * 60 + s
+
+
+def clock(t: int | None) -> str:
+    """Seconds → "12:34" (or "1:02:03")."""
+    if t is None:
+        return ""
+    t = max(0, int(t))
+    h, rem = divmod(t, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m}:{s:02d}"
+
+
+def _clean_line(line: str) -> str:
+    return line.replace("\u00a0", " ").replace("\u200b", "").rstrip()
+
+
+def _plausible_name(name: str) -> bool:
+    n = name.strip().strip("*_").strip()
+    if not n or len(n) > 60 or "http" in n.lower() or "@" in n and " " in n:
+        return False
+    words = n.split()
+    if len(words) > 6:
+        return False
+    if n.casefold() in _NOT_NAMES or words[0].casefold() in _NOT_NAMES:
+        return False
+    if sum(ch.isdigit() for ch in n) > 2:
+        return False
+    if not any(ch.isalpha() for ch in n):
+        return False
+    return not n.endswith((".", "?", "!", ","))
+
+
+def clean_speaker(name: str) -> str:
+    n = re.sub(r"\s+", " ", name.strip().strip("*_>-").strip())
+    n = re.sub(r"\s*\((?:guest|host|external|presenter)\)$", "", n, flags=re.I)
+    return n[:60]
+
+
+def _cut(text: str) -> list[str]:
+    """A long turn → pieces of at most MAX_SEGMENT_CHARS, cut at sentence ends when possible."""
+    text = text.strip()
+    if len(text) <= MAX_SEGMENT_CHARS:
+        return [text] if text else []
+    out, cur = [], ""
+    for sent in re.split(r"(?<=[.!?])\s+", text):
+        while len(sent) > MAX_SEGMENT_CHARS:
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(sent[:MAX_SEGMENT_CHARS])
+            sent = sent[MAX_SEGMENT_CHARS:]
+        if len(cur) + len(sent) + 1 > MAX_SEGMENT_CHARS and cur:
+            out.append(cur)
+            cur = sent
+        else:
+            cur = f"{cur} {sent}".strip()
+    if cur:
+        out.append(cur)
+    return out
+
+
+def _finish(segs: list[dict], *, merge: bool) -> tuple[list[dict], bool]:
+    """Merge short consecutive cues of one speaker, cut long ones, cap the total."""
+    merged: list[dict] = []
+    for s in segs:
+        text = re.sub(r"\s+", " ", s.get("text") or "").strip()
+        if not text:
+            continue
+        sp = s.get("speaker") or None
+        prev = merged[-1] if merged else None
+        if merge and prev and prev["speaker"] == sp and len(prev["text"]) + len(text) < MERGE_CHARS:
+            prev["text"] = f"{prev['text']} {text}"
+            continue
+        merged.append({"speaker": sp, "t": s.get("t"), "text": text})
+    out: list[dict] = []
+    total = 0
+    truncated = False
+    for s in merged:
+        for piece in _cut(s["text"]):
+            if len(out) >= MAX_SEGMENTS or total + len(piece) > MAX_TEXT:
+                truncated = True
+                break
+            out.append({"speaker": s["speaker"], "t": s["t"], "text": piece})
+            total += len(piece)
+        if truncated:
+            break
+    return out, truncated
+
+
+# ── Dates and titles ──────────────────────────────────────────────────────────
+
+_ISO_DT = re.compile(r"(\d{4})[-/_.](\d{1,2})[-/_.](\d{1,2})(?:[ T_]+(\d{1,2})[:_.](\d{2}))?")
+_MDY = re.compile(r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b", re.I)
+_DMY = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?,?\s+(\d{4})\b", re.I)
+_CLOCK = re.compile(r"\b(\d{1,2}):(\d{2})\s*(am|pm)?\b", re.I)
+
+
+def find_date(text: str | None) -> tuple[str | None, str | None]:
+    """The first date (and a time right after it) in ``text``: ("2026-11-04", "10:00")."""
+    if not text:
+        return None, None
+    best: tuple[int, str, str | None] | None = None
+    for m in _ISO_DT.finditer(text):
+        try:
+            d = date(int(m.group(1)), int(m.group(2)), int(m.group(3))).isoformat()
+        except ValueError:
+            continue
+        t = f"{int(m.group(4)):02d}:{m.group(5)}" if m.group(4) and int(m.group(4)) < 24 else None
+        best = (m.start(), d, t)
+        break
+    for rx, order in ((_MDY, "mdy"), (_DMY, "dmy")):
+        m = rx.search(text)
+        if not m:
+            continue
+        try:
+            if order == "mdy":
+                d = date(int(m.group(3)), _MONTHS[m.group(1)[:3].lower()], int(m.group(2))).isoformat()
+            else:
+                d = date(int(m.group(3)), _MONTHS[m.group(2)[:3].lower()], int(m.group(1))).isoformat()
+        except (ValueError, KeyError):
+            continue
+        if best is None or m.start() < best[0]:
+            t = None
+            c = _CLOCK.search(text, m.end(), m.end() + 20)
+            if c:
+                h = int(c.group(1)) % 12 + (12 if (c.group(3) or "").lower() == "pm" else 0) if c.group(3) else int(c.group(1))
+                if h < 24:
+                    t = f"{h:02d}:{c.group(2)}"
+            best = (m.start(), d, t)
+    return (best[1], best[2]) if best else (None, None)
+
+
+_TITLE_JUNK = [
+    re.compile(r"\s*[-–—:]\s*(?:transcript|notes by gemini|meeting notes|notes)\s*$", re.I),
+    re.compile(r"^\s*(?:transcript|notes by gemini|meeting notes|notes)\s*[-–—:]\s*", re.I),
+    re.compile(r"\s*\((?:[^()]*\d{4}[^()]*)\)\s*"),
+    re.compile(r"\s*[-–—]\s*\d{4}[-/_.]\d{1,2}[-/_.]\d{1,2}(?:[ T_]+\d{1,2}[:_.]\d{2})?(?:\s*[A-Z]{2,5}(?:[+-]\d{1,2}(?::?\d{2})?)?)?\s*"),
+    re.compile(r"\s*[-–—,]?\s*(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\s+\d{1,2},?\s+\d{4}\s*", re.I),
+    re.compile(r"\.(?:txt|vtt|srt|sbv|docx|md)$", re.I),
+]
+
+
+def clean_title(title: str | None) -> str | None:
+    """A meeting's name without Google's suffixes, dates and file extensions."""
+    if not title:
+        return None
+    t = title.strip().strip("#").strip()
+    for _ in range(3):
+        before = t
+        for rx in _TITLE_JUNK:
+            t = rx.sub(" ", t).strip()
+        if t == before:
+            break
+    t = re.sub(r"[_]+", " ", t)
+    t = re.sub(r"\s+", " ", t).strip(" -–—:")
+    return t[:150] or None
+
+
+def title_key(title: str | None) -> str:
+    t = (clean_title(title) or "").casefold()
+    return re.sub(r"[^a-z0-9\u00c0-\uffff]+", " ", t).strip()
+
+
+# ── Notes (Gemini "Take notes for me") ────────────────────────────────────────
+
+
+def _head_kind(line: str) -> str | None:
+    """Which notes section a line opens ("summary" | "details" | "next_steps"), if it's a heading."""
+    m = _HEADING.match(line)
+    text = (m.group(1) if m else line).strip().strip("*").strip().rstrip(":").strip()
+    if len(text) > 40:
+        return None
+    t = re.sub(r"^[^\w]+", "", text).casefold()
+    for kind, names in NOTES_HEADS.items():
+        if t in names:
+            return kind
+    return None
+
+
+def _strip_bullet(line: str) -> str:
+    m = _CHECK.match(line) or _BULLET.match(line)
+    return (m.group(1) if m else line).strip()
+
+
+def parse_notes(lines: list[str]) -> dict | None:
+    """{summary, details, next_steps} from the lines of a notes document (None: not notes)."""
+    sect: str | None = None
+    buf: dict[str, list[str]] = {"summary": [], "details": [], "next_steps": []}
+    seen: set[str] = set()
+    for raw in lines:
+        line = _clean_line(raw)
+        k = _head_kind(line)
+        if k:
+            sect = k
+            seen.add(k)
+            continue
+        if sect is None:
+            continue
+        if _HEADING.match(line) and not k:
+            sect = None   # some other section (e.g. the transcript tab's heading)
+            continue
+        if _GEMINI_BOILER.match(line.strip()):
+            continue
+        buf[sect].append(line)
+    if "summary" not in seen or not (seen & {"details", "next_steps"}):
+        return None
+
+    def items(ls: list[str]) -> list[str]:
+        out: list[str] = []
+        for line in ls:
+            if not line.strip():
+                continue
+            if _BULLET.match(line) or _CHECK.match(line) or not out:
+                out.append(_strip_bullet(line))
+            elif line.startswith((" ", "\t")):
+                out[-1] = f"{out[-1]} {line.strip()}"
+            else:
+                out.append(line.strip())
+        return [re.sub(r"\s+", " ", x).strip() for x in out if x.strip()][:80]
+
+    summary = "\n\n".join(p.strip() for p in "\n".join(buf["summary"]).strip().split("\n\n") if p.strip())
+    return {"summary": summary[:6000], "details": items(buf["details"]), "next_steps": items(buf["next_steps"])}
+
+
+# ── Transcripts ───────────────────────────────────────────────────────────────
+
+
+def _vtt(lines: list[str]) -> list[dict]:
+    segs: list[dict] = []
+    i = 0
+    while i < len(lines):
+        m = _VTT_CUE.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        t = to_seconds(lines[i].split("-->")[0].strip())
+        i += 1
+        text_lines = []
+        while i < len(lines) and lines[i].strip():
+            text_lines.append(lines[i].strip())
+            i += 1
+        text = " ".join(text_lines)
+        speaker = None
+        v = _VOICE.search(text)
+        if v:
+            speaker = clean_speaker(v.group(1))
+        text = _TAGS.sub("", text).strip()
+        if speaker is None:
+            sm = _SPEAKER.match(text)
+            if sm and _plausible_name(sm.group("name")):
+                speaker, text = clean_speaker(sm.group("name")), sm.group("text")
+        segs.append({"speaker": speaker, "t": t, "text": text})
+    return segs
+
+
+def _sbv(lines: list[str]) -> list[dict]:
+    segs: list[dict] = []
+    i = 0
+    while i < len(lines):
+        m = _SBV_CUE.match(lines[i])
+        if not m:
+            i += 1
+            continue
+        t = to_seconds(m.group(1))
+        i += 1
+        text_lines = []
+        while i < len(lines) and lines[i].strip():
+            text_lines.append(lines[i].strip())
+            i += 1
+        text = " ".join(text_lines)
+        speaker = None
+        sm = _SPEAKER.match(text) or re.match(r"^>>\s*(?P<name>[^:]{1,60}):\s*(?P<text>.*)$", text)
+        if sm and _plausible_name(sm.group("name")):
+            speaker, text = clean_speaker(sm.group("name")), sm.group("text")
+        segs.append({"speaker": speaker, "t": t, "text": text})
+    return segs
+
+
+def _otter(lines: list[str]) -> list[dict]:
+    segs: list[dict] = []
+    cur: dict | None = None
+    for raw in lines:
+        line = raw.strip()
+        m = _OTTER.match(raw.rstrip()) or _OTTER_NAME_FIRST.match(line)
+        if m and _plausible_name(m.group("name")):
+            cur = {"speaker": clean_speaker(m.group("name")), "t": to_seconds(m.group("ts")), "text": ""}
+            segs.append(cur)
+            continue
+        if not line or cur is None:
+            continue
+        cur["text"] = f"{cur['text']} {line}".strip()
+    return segs
+
+
+def _speaker_lines(lines: list[str]) -> tuple[list[dict], bool]:
+    """Google Meet transcripts and every "Name: text" style. (segments, google_style_time_marks)."""
+    segs: list[dict] = []
+    t_mark: int | None = None
+    marks = 0
+    cur: dict | None = None
+    for raw in lines:
+        line = _clean_line(raw).strip()
+        if not line:
+            continue
+        if _GEMINI_BOILER.match(line) and not _SPEAKER.match(line):
+            continue
+        bm = _BARE_TS.match(line)
+        if bm:
+            t_mark = to_seconds(bm.group(1))
+            marks += 1
+            cur = None
+            continue
+        nm = _NAME_TS.match(line)
+        if nm and _plausible_name(nm.group("name")):
+            cur = {"speaker": clean_speaker(nm.group("name")), "t": to_seconds(nm.group("ts")),
+                   "text": nm.group("text").strip()}
+            segs.append(cur)
+            continue
+        t = None
+        rest = line
+        bt = _BRACKET_TS.match(line)
+        if bt and to_seconds(bt.group("ts")) is not None and (line.startswith(("[", "(")) or _SPEAKER.match(bt.group("rest"))):
+            t, rest = to_seconds(bt.group("ts")), bt.group("rest")
+        sm = _SPEAKER.match(rest)
+        if sm and _plausible_name(sm.group("name")):
+            cur = {"speaker": clean_speaker(sm.group("name")), "t": t if t is not None else t_mark,
+                   "text": sm.group("text").strip(), "_mark": t is None}
+            segs.append(cur)
+            continue
+        if cur is not None:
+            cur["text"] = f"{cur['text']} {rest}".strip()
+        else:
+            cur = {"speaker": None, "t": t if t is not None else t_mark, "text": rest, "_mark": t is None}
+            segs.append(cur)
+    if marks:
+        # Google stamps the first mark at 05:00: what came before it started at 0.
+        for s in segs:
+            if s.get("_mark") and s["t"] is None:
+                s["t"] = 0
+    return segs, marks > 0
+
+
+def _skip_header(lines: list[str]) -> list[str]:
+    """Drop a short header (title, "Attendees", "Transcript", Google's notice) before the first speaker line."""
+    for i, raw in enumerate(lines[:40]):
+        line = _clean_line(raw).strip()
+        sm = _SPEAKER.match(line)
+        if (sm and _plausible_name(sm.group("name")) and not re.match(r"^(attendees|invited|participants)\b", line, re.I)) \
+                or _BARE_TS.match(line) or _NAME_TS.match(line):
+            head = [x for x in lines[:i] if x.strip()]
+            if len(head) <= 12 and all(len(x) < 300 for x in head):
+                return lines[i:]
+            return lines
+    return lines
+
+
+def _interpolate(segs: list[dict], end_s: int | None) -> bool:
+    """Google Meet only stamps every five minutes: spread each block's time over its turns by characters.
+    True when any time was interpolated."""
+    changed = False
+    i = 0
+    while i < len(segs):
+        if not segs[i].pop("_mark", False):
+            i += 1
+            continue
+        j = i
+        while j < len(segs) and segs[j].get("_mark", j == i) and segs[j]["t"] == segs[i]["t"]:
+            segs[j].pop("_mark", None)
+            j += 1
+        start = segs[i]["t"]
+        nxt = segs[j]["t"] if j < len(segs) else end_s
+        if start is not None and nxt is not None and nxt > start and j - i > 1:
+            total = sum(len(s["text"]) for s in segs[i:j]) or 1
+            acc = 0
+            for s in segs[i:j]:
+                s["t"] = start + int((nxt - start) * acc / total)
+                acc += len(s["text"])
+            changed = True
+        i = max(j, i + 1)
+    for s in segs:
+        s.pop("_mark", None)
+    return changed
+
+
+def _attendees_from(lines: list[str]) -> list[dict]:
+    """The names on an "Attendees" / "Invited" / "Participants" line (or the line under it)."""
+    out: list[dict] = []
+    for i, raw in enumerate(lines[:60]):
+        line = _clean_line(raw).strip()
+        m = re.match(r"^(?:#+\s*)?(attendees|invited|participants|present)\s*:?\s*(.*)$", line, re.I)
+        if not m:
+            continue
+        rest = m.group(2).strip()
+        if not rest and i + 1 < len(lines):
+            rest = _clean_line(lines[i + 1]).strip()
+        for part in re.split(r"[,;]|\s+and\s+", rest):
+            part = part.strip()
+            if not part:
+                continue
+            em = re.search(r"<?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)>?", part)
+            email = em.group(1).lower() if em else None
+            name = clean_speaker(re.sub(r"<?[\w.+-]+@[\w-]+(?:\.[\w-]+)+>?", "", part)) or (email.split("@")[0] if email else "")
+            if name and _plausible_name(name) and not any(a["name"] == name for a in out):
+                out.append({"name": name, "email": email})
+        if out:
+            break
+    return out[:100]
+
+
+# ── Detection ─────────────────────────────────────────────────────────────────
+
+
+def _split_tabs(text: str) -> list[tuple[str | None, list[str]]]:
+    tabs: list[tuple[str | None, list[str]]] = [(None, [])]
+    for line in text.split("\n"):
+        m = TAB_MARK.match(line.strip())
+        if m:
+            tabs.append((m.group(1).strip(), []))
+        else:
+            tabs[-1][1].append(line)
+    return [t for t in tabs if any(x.strip() for x in t[1])] or [(None, [])]
+
+
+def _first_title(lines: list[str]) -> str | None:
+    for raw in lines[:12]:
+        line = _clean_line(raw).strip()
+        if not line or line.upper() == "WEBVTT":
+            continue
+        m = _HEADING.match(line)
+        if m:
+            return m.group(1).strip()
+        if _SPEAKER.match(line) or _BARE_TS.match(line) or _VTT_CUE.match(line) or _SBV_CUE.match(line):
+            return None
+        if len(line) <= 150 and not line.endswith("."):
+            return line
+        return None
+    return None
+
+
+def _transcript_of(lines: list[str]) -> tuple[list[dict], str, bool, int | None]:
+    """(segments, format, approx_times, duration_s) for the lines of a transcript."""
+    text = "\n".join(lines)
+    head = "\n".join(lines[:5]).lstrip("\ufeff").strip()
+    ended = _ENDED.search(text)
+    end_s = to_seconds(ended.group(1)) if ended else None
+    if head.upper().startswith("WEBVTT") or sum(1 for x in lines[:40] if _VTT_CUE.match(x)) >= 2:
+        fmt = "srt" if any(_SRT_INDEX.match(x) for x in lines[:3]) and "," in (next((x for x in lines[:5] if "-->" in x), "")) else "vtt"
+        return _vtt(lines), fmt, False, end_s
+    if sum(1 for x in lines[:40] if _SBV_CUE.match(x)) >= 2:
+        return _sbv(lines), "sbv", False, end_s
+    otter_hits = sum(1 for x in lines[:200] if (_OTTER.match(x.rstrip()) or _OTTER_NAME_FIRST.match(x.strip()))
+                     and _plausible_name((_OTTER.match(x.rstrip()) or _OTTER_NAME_FIRST.match(x.strip())).group("name")))
+    speaker_hits = sum(1 for x in lines[:200] if _SPEAKER.match(x.strip()) and _plausible_name(_SPEAKER.match(x.strip()).group("name")))
+    if otter_hits >= 2 and otter_hits >= speaker_hits:
+        return _otter(lines), "otter", False, end_s
+    segs, google_marks = _speaker_lines(_skip_header(lines))
+    named = sum(1 for s in segs if s.get("speaker"))
+    if named >= 2 or (named >= 1 and len(segs) <= 3):
+        approx = _interpolate(segs, end_s) if google_marks else False
+        is_google = google_marks or bool(ended) or re.search(r"-\s*transcript\b", head, re.I) is not None
+        return segs, "google_meet" if is_google else "speaker_lines", approx, end_s
+    # Plain prose: a segment per paragraph.
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if len(paras) <= 1:
+        paras = [x.strip() for x in lines if x.strip()]
+    return [{"speaker": None, "t": None, "text": p} for p in paras], "plain", False, end_s
+
+
+def _is_transcript_heading(line: str) -> bool:
+    m = _HEADING.match(line)
+    t = (m.group(1) if m else line).strip().strip("*").strip()
+    return re.sub(r"^[^\w]+", "", t).casefold() in ("transcript", "meeting transcript", "full transcript")
+
+
+def parse_source(name: str, text: str) -> Source:
+    """Detect what ``text`` is and normalise it (see the module docstring)."""
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n").lstrip("\ufeff")
+    src = Source(name=(name or "").strip()[:200])
+    tabs = _split_tabs(text)
+    all_lines = text.split("\n")
+    first = tabs[0][1]
+    notes = parse_notes(first)
+    transcript_lines: list[str] | None = None
+    if notes is not None:
+        # A transcript in a later tab, or under a "Transcript" heading after the notes.
+        for title, ls in tabs[1:]:
+            if (title or "").casefold().strip(" 📖") in ("transcript", "meeting transcript") or \
+                    sum(1 for x in ls[:80] if _SPEAKER.match(x.strip())) >= 2:
+                transcript_lines = ls
+                break
+        if transcript_lines is None:
+            for i, line in enumerate(first):
+                if _is_transcript_heading(line) and i > 0:
+                    after = first[i + 1:]
+                    if sum(1 for x in after[:80] if _SPEAKER.match(x.strip())) >= 2:
+                        transcript_lines = after
+                        break
+        src.notes = notes
+        src.kind = "both" if transcript_lines else "notes"
+        src.format = "gemini_notes"
+    else:
+        transcript_lines = [line for _t, ls in tabs for line in ls]
+    if transcript_lines:
+        segs, fmt, approx, end_s = _transcript_of(transcript_lines)
+        if notes is None:
+            src.format = fmt
+        src.segments, src.truncated = _finish(segs, merge=fmt in ("vtt", "srt", "sbv"))
+        src.approx_times = approx
+        last = max((s["t"] for s in src.segments if s.get("t") is not None), default=None)
+        src.duration_s = end_s if end_s else (last + 30 if last else None)
+    # Title, date, attendees.
+    raw_title = _first_title(all_lines)
+    if src.format in ("vtt", "srt", "sbv"):
+        raw_title = None
+    src.title = clean_title(raw_title) or clean_title(src.name)
+    d, t = find_date(raw_title)
+    if not d:
+        d, t = find_date("\n".join(x for x in all_lines[:8]))
+    if not d:
+        d, t = find_date(src.name)
+    src.date, src.time = d, t
+    att = _attendees_from(all_lines)
+    for sp in src.speakers:
+        if not any(a["name"].casefold() == sp.casefold() for a in att):
+            att.append({"name": sp, "email": None})
+    src.attendees = att[:100]
+    return src
+
+
+# ── Several sources → meetings ────────────────────────────────────────────────
+
+
+def pair(sources: list[Source]) -> list[list[Source]]:
+    """Group sources into meetings: a notes source and a transcript source with the same normalised
+    title (and the same date when both have one) are one meeting. Order is kept."""
+    groups: list[list[Source]] = []
+    for s in sources:
+        key = title_key(s.title or s.name)
+        placed = False
+        for g in groups:
+            kinds = {x.kind for x in g}
+            if "both" in kinds or s.kind == "both" or s.kind in kinds:
+                continue
+            gk = title_key(g[0].title or g[0].name)
+            dates = {x.date for x in g if x.date}
+            if key and gk and (key == gk or key.startswith(gk) or gk.startswith(key)) and \
+                    (not s.date or not dates or s.date in dates):
+                g.append(s)
+                placed = True
+                break
+        if not placed:
+            groups.append([s])
+    # Two sources, one of each kind, that don't name themselves alike: still one meeting.
+    if len(groups) == 2 and {groups[0][0].kind, groups[1][0].kind} == {"notes", "transcript"} \
+            and len(sources) == 2 and (not sources[0].date or not sources[1].date or sources[0].date == sources[1].date):
+        return [groups[0] + groups[1]]
+    return groups
+
+
+@dataclass
+class Merged:
+    title: str | None
+    date: str | None
+    time: str | None
+    duration_s: int | None
+    attendees: list[dict]
+    segments: list[dict]
+    notes: dict | None
+    kinds: list[str]
+    approx_times: bool
+    truncated: bool
+
+
+def merge(group: list[Source]) -> Merged:
+    """One meeting from its sources: the transcript's segments, the notes' sections."""
+    tr = next((s for s in group if s.kind in ("both", "transcript") and s.segments), None)
+    nt = next((s for s in group if s.notes), None)
+    title = (nt.title if nt and nt.title else None) or next((s.title for s in group if s.title), None)
+    d = next((s.date for s in group if s.date), None)
+    tm = next((s.time for s in group if s.time), None)
+    dur = next((s.duration_s for s in group if s.duration_s), None)
+    att: list[dict] = []
+    for s in group:
+        for a in s.attendees:
+            hit = next((x for x in att if x["name"].casefold() == a["name"].casefold()), None)
+            if hit is None:
+                att.append(dict(a))
+            elif a.get("email") and not hit.get("email"):
+                hit["email"] = a["email"]
+    return Merged(title=title, date=d, time=tm, duration_s=dur, attendees=att[:100],
+                  segments=tr.segments if tr else [], notes=nt.notes if nt else None,
+                  kinds=[s.kind for s in group], approx_times=bool(tr and tr.approx_times),
+                  truncated=any(s.truncated for s in group))
+
+
+# ── .docx and Google Docs → text ──────────────────────────────────────────────
+
+_W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+
+
+def docx_text(data: bytes) -> str:
+    """The text of a .docx: a line per paragraph, headings as "#"s, list items as "- "."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            xml = z.read("word/document.xml")
+    except (zipfile.BadZipFile, KeyError) as exc:
+        raise ValueError("That isn't a readable .docx file.") from exc
+    if len(xml) > 30_000_000:
+        raise ValueError("That .docx is too big.")
+    root = ET.fromstring(xml)
+    out: list[str] = []
+    for p in root.iter(f"{_W}p"):
+        style = p.find(f"{_W}pPr/{_W}pStyle")
+        sval = (style.get(f"{_W}val") if style is not None else "") or ""
+        is_list = p.find(f"{_W}pPr/{_W}numPr") is not None
+        parts: list[str] = []
+        for el in p.iter():
+            if el.tag == f"{_W}t" and el.text:
+                parts.append(el.text)
+            elif el.tag == f"{_W}tab":
+                parts.append("\t")
+            elif el.tag in (f"{_W}br", f"{_W}cr"):
+                parts.append("\n")
+        text = "".join(parts).rstrip()
+        hm = re.match(r"^(?:heading|überschrift)\s*(\d)$", sval, re.I) or re.match(r"^Heading(\d)$", sval)
+        if sval.lower() == "title" and text:
+            text = f"# {text}"
+        elif hm and text:
+            text = f"{'#' * min(6, int(hm.group(1)) + 1)} {text}"
+        elif is_list and text:
+            text = f"- {text}"
+        out.append(text)
+    return "\n".join(out)
+
+
+def gdoc_text(doc: dict) -> str:
+    """A Google Docs API document (``includeTabsContent=true``) as text: headings as "#"s, bullets as
+    "- ", person chips as "Name <email>", each tab after the first opened by ``=== Tab: <title> ===``."""
+    out: list[str] = []
+
+    def body_text(body: dict) -> None:
+        for el in (body or {}).get("content") or []:
+            para = el.get("paragraph")
+            if para:
+                style = ((para.get("paragraphStyle") or {}).get("namedStyleType") or "")
+                parts: list[str] = []
+                for pe in para.get("elements") or []:
+                    if "textRun" in pe:
+                        parts.append((pe["textRun"].get("content") or ""))
+                    elif "person" in pe:
+                        pp = (pe["person"].get("personProperties") or {})
+                        nm, em = pp.get("name") or "", pp.get("email") or ""
+                        parts.append(f"{nm} <{em}>" if em else nm)
+                    elif "richLink" in pe:
+                        parts.append(((pe["richLink"].get("richLinkProperties") or {}).get("title")) or "")
+                text = "".join(parts).replace("\u000b", "\n").rstrip("\n")
+                if style == "TITLE" and text:
+                    text = f"# {text}"
+                elif style.startswith("HEADING_") and text:
+                    text = f"{'#' * min(6, int(style[-1]) + 1)} {text}"
+                elif para.get("bullet") and text:
+                    text = f"- {text}"
+                out.append(text)
+            elif el.get("table"):
+                for row in el["table"].get("tableRows") or []:
+                    cells = []
+                    for cell in row.get("tableCells") or []:
+                        sub: list[str] = []
+                        for c in cell.get("content") or []:
+                            for pe in (c.get("paragraph") or {}).get("elements") or []:
+                                sub.append(((pe.get("textRun") or {}).get("content") or "").strip())
+                        cells.append(" ".join(x for x in sub if x))
+                    out.append(" | ".join(cells))
+
+    tabs = doc.get("tabs")
+    if tabs:
+        flat: list[dict] = []
+
+        def walk(ts: list[dict]) -> None:
+            for t in ts:
+                flat.append(t)
+                walk(t.get("childTabs") or [])
+        walk(tabs)
+        for i, t in enumerate(flat):
+            if i > 0:
+                out.append(f"=== Tab: {((t.get('tabProperties') or {}).get('title') or 'Tab')} ===")
+            body_text(((t.get("documentTab") or {}).get("body")) or {})
+    else:
+        body_text(doc.get("body") or {})
+    return "\n".join(out)
+
+
+def decode_upload(name: str, data: bytes) -> str:
+    """An uploaded file's text: .docx through :func:`docx_text`, everything else as UTF-8 (or UTF-16)."""
+    low = (name or "").lower()
+    if low.endswith(".docx") or data[:2] == b"PK":
+        return docx_text(data)
+    for enc in ("utf-8-sig", "utf-16"):
+        try:
+            text = data.decode(enc)
+            if enc == "utf-16" and not data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+                continue
+            return text
+        except UnicodeDecodeError:
+            continue
+    return data.decode("latin-1")
+
+
+ACCEPTED = (".txt", ".vtt", ".srt", ".sbv", ".docx", ".md")
+
+
+def summary_of(sources: list[Source]) -> list[dict[str, Any]]:
+    """What a preview shows: one entry per meeting the sources make."""
+    out = []
+    for g in pair(sources):
+        m = merge(g)
+        out.append({"title": m.title, "date": m.date, "time": m.time, "duration_s": m.duration_s,
+                    "attendees": [a["name"] for a in m.attendees], "segments": len(m.segments),
+                    "has_notes": bool(m.notes), "kinds": m.kinds, "sources": [s.describe() for s in g],
+                    "truncated": m.truncated})
+    return out

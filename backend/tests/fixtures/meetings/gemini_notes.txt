@@ -1,0 +1,22 @@
+# Weekly product sync
+Nov 4, 2026
+Invited Ada Lovelace <ada@acme.test>, Bo Chen <bo@acme.test>, Priya Sharma <priya@acme.test>, Ravi Kumar <ravi@acme.test>
+Attachments Weekly product sync
+Meeting records Transcript
+
+## Summary
+Ada Lovelace, Bo Chen, Priya Sharma and Ravi Kumar agreed to ship the release on Friday if tomorrow's staging dry run passes. The onboarding docs will be refreshed with new light-theme screenshots, and the annual discount on the pricing page waits for finance.
+
+## Details
+- **Release timing**: Bo Chen reported that QA signed off on the build. Priya Sharma asked for one more migration dry run on staging before shipping (00:00:40).
+- **Customer communication**: Ravi Kumar will email the Senseloaf team the release notes before the release (00:03:10).
+- **Onboarding docs**: the screenshots show the old UI; Priya Sharma will redo them in the light theme (00:05:20).
+- **Pricing page**: the annual discount is on hold until finance confirms the numbers (00:10:05).
+
+## Suggested next steps
+- [ ] Priya Sharma will run the migration dry run on staging tomorrow morning.
+- [ ] Ravi Kumar will email the Senseloaf team the release notes by Thursday.
+- [ ] Bo Chen will update the onboarding docs with the new screenshots by next Wednesday.
+
+You should review Gemini's notes to make sure they're accurate. Get tips and learn how Gemini takes notes
+Please provide feedback about using Gemini to take notes in a short survey.

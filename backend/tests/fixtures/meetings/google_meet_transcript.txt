@@ -1,0 +1,22 @@
+Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transcript
+Attendees
+Ada Lovelace, Bo Chen, Priya Sharma, Ravi Kumar
+Transcript
+This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
+Ada Lovelace: Okay, let's get started. Three things today: the release date, the onboarding docs, and the pricing page.
+Bo Chen: Sounds good. On the release, QA signed off on the build last night, so I think we can ship on Friday.
+Priya Sharma: Haan, I agree, but the migration script still needs one more dry run on staging. Main kal subah kar dungi.
+Ada Lovelace: Great. Then let's decide: we ship on Friday if the staging dry run passes tomorrow.
+Ravi Kumar: One question, do we tell the Senseloaf team before or after the release?
+Ada Lovelace: Before. Ravi, can you email them by Thursday with the release notes?
+Ravi Kumar: Yes, I'll do that.
+00:05:00
+Bo Chen: Next, onboarding docs. The screenshots are from the old UI, so they look wrong now.
+Priya Sharma: I can redo the screenshots but I need the light theme to be the default first.
+Ada Lovelace: It already is the default since last week. Bo, can you update the onboarding docs with Priya's screenshots by next Wednesday?
+Bo Chen: Sure, I'll take it.
+00:10:00
+Ada Lovelace: Last thing, the pricing page. Do we show the annual discount or not?
+Ravi Kumar: I'm not sure yet, finance hasn't confirmed the numbers. Let's park that until we hear back.
+Ada Lovelace: Okay, open question then. Thanks everyone, see you next week.
+Transcription ended after 00:12:41
