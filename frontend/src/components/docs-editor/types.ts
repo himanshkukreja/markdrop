@@ -240,6 +240,8 @@ export interface DocsEditorApi {
   focus(): void;
   /** The caret at the very start of the page, on an empty line (Enter in a page's title). */
   focusStart(): void;
+  /** Sends a change still waiting to `onChange` now (typing is debounced), e.g. before a save. */
+  flush(): void;
   /** Adds an empty "Markdrop file" block at the caret (its picker opens); Markdown mode adds the line. */
   insertMarkdropFile(): void;
   /**

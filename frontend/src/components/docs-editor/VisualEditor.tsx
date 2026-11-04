@@ -205,7 +205,7 @@ export default function VisualEditor(props: VisualEditorProps) {
     onCreate: ({ editor: e }) => {
       editorRef.current = e;
       onReady?.(e);
-      onHandleRef.current?.({ editor: e, source, assist: assistStore });
+      onHandleRef.current?.({ editor: e, source, assist: assistStore, flush: emit });
     },
     onUpdate: () => {
       if (timer.current) clearTimeout(timer.current);
@@ -264,8 +264,8 @@ export default function VisualEditor(props: VisualEditorProps) {
   }, [editor, value]);
 
   const host: EditorHost = useMemo(
-    () => ({ upload: uploadWithAlt, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, ai, onComment, accessRules, markdrop, pages, darkImages }),
-    [uploadWithAlt, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, ai, onComment, accessRules, markdrop, pages, darkImages],
+    () => ({ upload: uploadWithAlt, resolveAsset: resolveAssetUrl ?? identity, operations: operations ?? [], readOnly, toMarkdown: onRequestMarkdown, assist, assistLanguages, ai, onComment, accessRules, markdrop, pages, darkImages, blocks }),
+    [uploadWithAlt, resolveAssetUrl, operations, readOnly, onRequestMarkdown, assist, assistLanguages, ai, onComment, accessRules, markdrop, pages, darkImages, blocks],
   );
 
   // What blocks need from the host (slash items, uploads), on the editor's storage.

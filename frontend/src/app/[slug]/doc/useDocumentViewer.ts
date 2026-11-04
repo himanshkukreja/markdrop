@@ -1320,6 +1320,12 @@ export function useDocumentViewer({
 
   async function handleSave() {
     if (canEditContent && !editContent.trim()) return;
+    // Write's textarea stops at the limit; Preview can't, so say it here rather than let the server refuse.
+    if (canEditContent && editContent.length > MAX_CHARS) {
+      setSaveConflict(false);
+      setSaveError(`It's ${(editContent.length - MAX_CHARS).toLocaleString()} characters over the ${MAX_CHARS.toLocaleString()} limit. Shorten it to save.`);
+      return;
+    }
     setSaving(true);
     setSaveError("");
     setSaveConflict(false);

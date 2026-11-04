@@ -26,6 +26,8 @@ export interface EditorHost {
   pages?: PagesEditorHost;
   /** Images may have a dark-theme version (default true). */
   darkImages?: boolean;
+  /** The blocks the "/" menu offers (DocsEditorProps.blocks); every block when left out. "kbd" keeps Keyboard key in the format toolbar. */
+  blocks?: readonly string[];
 }
 
 export const EditorHostContext = createContext<EditorHost>({ resolveAsset: (s) => s, operations: [], readOnly: false });

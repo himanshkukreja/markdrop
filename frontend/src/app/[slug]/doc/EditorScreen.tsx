@@ -12,6 +12,7 @@ import { SecretReveal } from "@/components/kit/SecretReveal";
 import { DateTimePicker } from "@/components/kit/DateTimePicker";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import MarkdownPreview from "@/components/MarkdownPreview";
+import { DocsEditor, preloadDocsEditor, type DocsEditorApi } from "@/components/docs-editor";
 import MarkdownToolbar from "@/components/MarkdownToolbar";
 import { MAX_CHARS } from "@/lib/limits";
 import { rotateEditSecret, type ExpiresIn } from "@/lib/api";
@@ -59,6 +60,12 @@ export function SecretUnlock({ v }: { v: Viewer }) {
   );
 }
 
+/**
+ * What Preview's "/" menu offers: blocks a document renders. The docs engine's own (callouts, steps,
+ * tabs, embeds…) would be saved as Markdown the document page shows as plain text.
+ */
+const DOCUMENT_BLOCKS = ["text", "h2", "h3", "bullets", "numbers", "tasks", "quote", "code", "table", "math", "divider"];
+
 const EXPIRY_OPTIONS: { value: ExpiresIn | ""; label: string }[] = [
   { value: "", label: "No change" },
   { value: "never", label: "Remove expiry" },
@@ -71,8 +78,10 @@ const EXPIRY_OPTIONS: { value: ExpiresIn | ""; label: string }[] = [
 /**
  * The editor (REVAMP_PLAN 7.6 "Edit flow"; Editor board look): a bar with the title, "Unsaved
  * changes", Settings (Drawer), Cancel and the save button; pill tabs Write / Split / Preview; the
- * toolbar and an EditorFrame; a status bar with the characters left and ⌘S. Cancel or Escape
- * while dirty asks "Discard your changes?". Every save/delete path is the hook's, unchanged.
+ * toolbar and an EditorFrame; a status bar with the characters left and ⌘S. Preview is editable in
+ * place (the visual DocsEditor over the same Markdown; untouched blocks keep their exact source).
+ * Cancel or Escape while dirty asks "Discard your changes?". Every save/delete path is the hook's,
+ * unchanged.
  */
 export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayTitle, displayContent }: {
   v: Viewer;
@@ -90,6 +99,12 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   const [newSecret, setNewSecret] = useState("");
   const saveRef = useRef(v.handleSave);
   saveRef.current = v.handleSave;
+  const previewApi = useRef<DocsEditorApi | null>(null);
+  // Preview's typing reaches editContent after a short debounce: flush it, then save or cancel once
+  // the hook has re-rendered with it (saveRef / cancelRef are the fresh closures by then).
+  const [afterFlush, setAfterFlush] = useState<"save" | "cancel" | null>(null);
+
+  useEffect(() => { preloadDocsEditor(); }, []);
 
   const settingsDirty = !!(v.editNewPassword || v.editRemovePassword || v.editExpiresIn || v.rotateKey || v.editE2EPassword !== null);
   const dirty =
@@ -104,17 +119,36 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   const cancelRef = useRef(requestCancel);
   cancelRef.current = requestCancel;
 
+  function flushThen(action: "save" | "cancel") {
+    if (!previewApi.current) {
+      if (action === "save") saveRef.current();
+      else cancelRef.current();
+      return;
+    }
+    previewApi.current.flush();
+    setAfterFlush(action);
+  }
+  const flushThenRef = useRef(flushThen);
+  flushThenRef.current = flushThen;
+
+  useEffect(() => {
+    if (!afterFlush) return;
+    setAfterFlush(null);
+    if (afterFlush === "save") saveRef.current();
+    else cancelRef.current();
+  }, [afterFlush]);
+
   // ⌘S / Ctrl+S saves; Escape (when no overlay took it) cancels, asking first if dirty.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === "s" || e.key === "S")) {
         e.preventDefault();
-        if (!v.saving) saveRef.current();
+        if (!v.saving) flushThenRef.current("save");
         return;
       }
       if (e.key === "Escape" && !e.defaultPrevented) {
         e.preventDefault();
-        cancelRef.current();
+        flushThenRef.current("cancel");
       }
     };
     window.addEventListener("keydown", onKey);
@@ -156,9 +190,9 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
         <div className="flex flex-wrap items-center gap-2">
           {dirty && <Badge tone="warning" dot size="sm">Unsaved changes</Badge>}
           {v.canEditSettings && <Button variant="ghost" iconLeft="settings" onClick={() => setSettingsOpen(true)}>Settings</Button>}
-          <Button variant="ghost" onClick={requestCancel}>Cancel</Button>
+          <Button variant="ghost" onClick={() => flushThen("cancel")}>Cancel</Button>
           <Button
-            onClick={v.handleSave}
+            onClick={() => flushThen("save")}
             loading={v.saving}
             disabled={v.canEditContent && !v.editContent.trim()}
           >
@@ -269,10 +303,29 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
               </div>
             )}
             {mode === "preview" && (
-              <div className="min-h-[50dvh] rounded-xl border border-border bg-bg p-4 sm:p-8">
-                {v.editContent.trim()
-                  ? <MarkdownPreview content={v.editContent} size="reading" className="mx-auto max-w-reading" />
-                  : <p className="text-body text-text-muted">Nothing to preview yet.</p>}
+              <div className="flex flex-col gap-2">
+                <div className="min-h-[50dvh] rounded-xl border border-border bg-bg p-4 sm:p-8">
+                  <div className="mx-auto w-full max-w-reading">
+                    {/* Wide enough, the block handles' gutter sits left of the text so it lines up as in reading. */}
+                    <DocsEditor
+                      apiRef={previewApi}
+                      className="lg:-ml-14 lg:w-[calc(100%+3.5rem)]"
+                      aria-label="Document"
+                      value={v.editContent}
+                      onChange={v.setEditContent}
+                      mode="visual"
+                      onModeChange={(m) => { if (m === "markdown") v.setViewMode("write"); }}
+                      showHeader={false}
+                      showModeSwitch={false}
+                      blocks={DOCUMENT_BLOCKS}
+                      placeholder="Start writing, or type / to add a heading, list, table or code"
+                    />
+                  </div>
+                </div>
+                <div className="no-print flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-caption text-text-muted">
+                  <span>Click into the text to edit it. Your changes are written back to the Markdown.</span>
+                  <EditorStatus remaining={v.remaining} nearLimit={nearLimit} />
+                </div>
               </div>
             )}
           </div>
@@ -549,8 +602,8 @@ function EncryptedPasswordSection({ v }: { v: Viewer }) {
 function EditorStatus({ remaining, nearLimit }: { remaining: number; nearLimit: boolean }) {
   return (
     <>
-      <span className={`tabular-nums ${nearLimit ? "text-warning" : ""}`}>
-        {remaining.toLocaleString()} characters left
+      <span className={`tabular-nums ${remaining < 0 ? "text-danger" : nearLimit ? "text-warning" : ""}`}>
+        {remaining < 0 ? `${(-remaining).toLocaleString()} characters over the limit` : `${remaining.toLocaleString()} characters left`}
       </span>
       <span className="ml-auto inline-flex items-center gap-1.5">
         <Kbd>⌘S</Kbd> to save

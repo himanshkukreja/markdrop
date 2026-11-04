@@ -6,7 +6,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseMarkdown, serializeMarkdown, serializeBlock, parseBlocks, fp } from "../core/markdown.mjs";
 import { schema, throughEditor, sameContent, clone, p } from "./helpers.mjs";
-import { BLOCK_ITEMS } from "../blocks.ts";
+import { BLOCK_ITEMS, filterItems, itemsFor, orderItems } from "../blocks.ts";
 
 /** Markdown of a document built from fresh nodes (no source to reuse). */
 function write(...content) {
@@ -330,4 +330,13 @@ test("parseBlocks reads a pasted fragment into blocks", () => {
   const blocks = parseBlocks(":::tip\nPasted.\n:::\n\nAnd text.\n");
   assert.deepEqual(blocks.map((b) => b.type), ["callout", "paragraph"]);
   assert.equal(fp(blocks[0]), blocks[0].attrs.md.fp);
+});
+
+test("the / menu can be limited to a host's blocks", () => {
+  const only = ["text", "h2", "table"];
+  assert.deepEqual(filterItems("", itemsFor(only)).map((b) => b.id), ["text", "h2", "table"]);
+  assert.deepEqual(filterItems("callout", itemsFor(only)), []);
+  assert.deepEqual(filterItems("tab", itemsFor(only)).map((b) => b.id), ["table"]);
+  // No limit: the whole menu (before typing, the search-only variants stay hidden).
+  assert.equal(filterItems("").length, orderItems(BLOCK_ITEMS).length);
 });

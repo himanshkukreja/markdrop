@@ -284,6 +284,9 @@ export function DocsEditor({
         v.editor.commands.focus();
       } else textarea.current?.focus();
     },
+    flush() {
+      if (modeRef.current === "visual") visualRef.current?.flush?.();
+    },
     focusStart() {
       const v = visualRef.current;
       if (modeRef.current !== "visual" || !v || v.editor.isDestroyed) {
