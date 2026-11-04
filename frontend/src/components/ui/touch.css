@@ -1,0 +1,50 @@
+/* Touch screens (phones, tablets): the design system's primitives at finger size (fix/mobile-shell).
+ *
+ * Everything here is inside `(pointer: coarse)`, so a mouse and trackpad keep the desktop sizes. Two
+ * techniques, chosen per control:
+ *   - a larger hit area that doesn't change the layout (a transparent ::after around buttons that are
+ *     drawn smaller than 44 px), for buttons whose visual size is part of a dense bar;
+ *   - a real minimum height of 44 px, for rows people scan with a thumb (menu items, tabs, segmented
+ *     options) and for form fields (which also get 16 px text: iOS zooms the page into a smaller one).
+ * Text is never under 12 px.
+ *
+ * Loaded after markdrop.css in the components layer (app/globals.css), so utilities still win.
+ */
+@media (pointer: coarse) {
+  /* ── Text: 12 px floor ─────────────────────────────────────────────── */
+  :root {
+    --text-micro: 12px;
+    --text-eyebrow: 12px;
+    --text-kbd: 12px;
+  }
+  .md-badge, .md-badge--sm, .md-kbd, .md-tab__count, .md-menu__caption, .md-table th,
+  .md-avatar--sm, .md-explainer__peer, .md-explainer__relay { font-size: 12px; }
+
+  /* ── Buttons: a 44 × 44 hit area around anything drawn smaller ────── */
+  .md-btn::after {
+    content: "";
+    position: absolute;
+    top: min(0px, calc((100% - 44px) / 2));
+    bottom: min(0px, calc((100% - 44px) / 2));
+    left: min(0px, calc((100% - 44px) / 2));
+    right: min(0px, calc((100% - 44px) / 2));
+  }
+  .md-btn--link { min-height: 44px; }
+
+  /* ── Form fields: 16 px text (no iOS zoom on focus) and 44 px tall ─── */
+  .md-input, .md-textarea, .md-select { font-size: 16px; line-height: 22px; }
+  .md-input, .md-select { min-height: 44px; }
+
+  /* ── Rows: menus, tabs, segmented options ──────────────────────────── */
+  .md-menu__item { min-height: 44px; }
+  .md-menu__item--rich { min-height: 52px; }
+  .md-tab { min-height: 44px; }
+  .md-seg__opt, .md-seg--sm .md-seg__opt { height: auto; min-height: 44px; }
+  .md-seg--icons .md-seg__opt, .md-seg--sm.md-seg--icons .md-seg__opt { min-width: 44px; }
+
+  /* ── Checkboxes, radios, switches: the label row is the target ─────── */
+  .md-check, .md-switch { padding-block: 12px; margin-block: -12px; }
+
+  /* Keyboard hints mean nothing without a keyboard. */
+  .md-menu__kbd { display: none; }
+}

@@ -5,6 +5,8 @@
 @plugin "@tailwindcss/typography";
 /* Component styles load in the components layer so utilities still win on the same property. */
 @import "../components/ui/markdrop.css" layer(components);
+/* Touch screens: finger-sized primitives, 16 px fields, a 12 px text floor (all inside pointer: coarse). */
+@import "../components/ui/touch.css" layer(components);
 @import "../styles/syntax.css";
 @import "../styles/prose.css";
 @import "../styles/print.css";
