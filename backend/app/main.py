@@ -56,6 +56,7 @@ from app.routers.live import router as live_router
 from app.routers.mcp import router as mcp_router
 from app.routers.me import router as me_router
 from app.routers.creator_analytics import router as creator_analytics_router
+from app.routers.analytics_ai_doc import router as analytics_ai_doc_router
 from app.routers.notifications import router as notifications_router
 from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
@@ -249,6 +250,7 @@ app.include_router(auth_router)
 app.include_router(unsubscribe_alias_router, include_in_schema=False)
 app.include_router(me_router)
 app.include_router(creator_analytics_router)
+app.include_router(analytics_ai_doc_router)
 app.include_router(notifications_router)
 app.include_router(sync_router)
 app.include_router(og_router)

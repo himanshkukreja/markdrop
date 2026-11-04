@@ -124,21 +124,29 @@ def heading_source_text(source: str) -> str:
 # ── The scanner ───────────────────────────────────────────────────────────────
 
 
-def extract_headings(markdown: str) -> list[dict]:
+def extract_headings(markdown: str, *, with_lines: bool = False) -> list[dict]:
     """Headings h1–h4 of a markdown string, ``[{id, text, depth}]``, with the
     ids the viewer gives them. One pass over the lines, no parser; headings
-    inside list items aren't seen (as in the frontend scanner)."""
+    inside list items aren't seen (as in the frontend scanner).
+
+    ``with_lines``: each heading also carries ``line``, the index of its first
+    source line (a setext heading's first text line), for cutting the document
+    into sections (services/analytics_ai_doc.py)."""
     slug = make_slugger()
     out: list[dict] = []
 
-    def push(depth: int, text: str) -> None:
+    def push(depth: int, text: str, line_no: int) -> None:
         if depth <= 4:
-            out.append({"id": HEADING_ID_PREFIX + slug(text), "text": text, "depth": depth})
+            h = {"id": HEADING_ID_PREFIX + slug(text), "text": text, "depth": depth}
+            if with_lines:
+                h["line"] = line_no
+            out.append(h)
 
     fence: tuple[str, int] | None = None
     math = html = False
     para: list[str] = []
-    for raw in re.split(r"\r?\n", markdown or ""):
+    para_at = 0
+    for i, raw in enumerate(re.split(r"\r?\n", markdown or "")):
         line = _QUOTE_PREFIX.sub("", raw, count=1)
         if fence:
             close = re.match(r"^\s{0,3}(`{3,}|~{3,})\s*$", line)
@@ -167,12 +175,12 @@ def extract_headings(markdown: str) -> list[dict]:
             continue
         atx = re.match(r"^\s{0,3}(#{1,6})(?:\s|$)", line)
         if atx:
-            push(len(atx.group(1)), heading_source_text(line))
+            push(len(atx.group(1)), heading_source_text(line), i)
             para = []
             continue
         underline = re.match(r"^\s{0,3}(=+|-+)\s*$", line)
         if underline and para:
-            push(1 if underline.group(1)[0] == "=" else 2, inline_text(" ".join(para)))
+            push(1 if underline.group(1)[0] == "=" else 2, inline_text(" ".join(para)), para_at)
             para = []
             continue
         if not para:
@@ -184,6 +192,8 @@ def extract_headings(markdown: str) -> list[dict]:
         if re.match(r"^\s{0,3}(?:[-+*]|\d{1,9}[.)])(?:\s|$)|^\s{0,3}\||^\s{0,3}(?:[-*_]\s*){3,}$", line):
             para = []
             continue
+        if not para:
+            para_at = i
         para.append(line)
     return out
 

@@ -262,6 +262,13 @@ async def connect() -> None:
         await _engage.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] engagement indexes skipped: {exc}")
+    # Analytics AI per document (services/analytics_ai_doc.py): cached analyses, 90-day TTL.
+    try:
+        from app.services import analytics_ai_doc as _analytics_ai_doc
+
+        await _analytics_ai_doc.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] analytics AI indexes skipped: {exc}")
     try:
         from app.services import analytics_digest as _digest
 
