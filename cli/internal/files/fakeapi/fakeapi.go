@@ -52,6 +52,15 @@ type Server struct {
 	sessions   map[string]*session
 	docs       map[string]*Doc
 	workspaces []*Workspace
+	requests   []*AccessRequest
+
+	// Pages (pages.go).
+	LastPageCreate map[string]any
+	LastPut        map[string]any
+	PagePuts       int
+	// BeforePut runs (outside the lock) before a PUT is applied: tests use it
+	// to save the page in between, as someone else would.
+	BeforePut func(slug string)
 
 	// Counters and logs.
 	PartPuts     map[int]int // PUT attempts per part number (any outcome)
@@ -112,6 +121,22 @@ type Doc struct {
 
 	Workspace  string // workspace id it is filed in ("" = none)
 	FolderPath string // "guides/setup" ("" = the workspace's root)
+
+	// Pages and markdown documents (pages.go).
+	Content    string
+	Rev        int
+	Editor     string            // "blocks" for a page
+	Parent     string            // slug of the page it is inside
+	OldSlugs   []string          // links that redirect here
+	Editors    map[string]bool   // tokens that may edit it (besides its owner)
+	EditingBy  string            // a token holding the editor lock (others get 423)
+	Schema     []string          // typed property keys of its folder (nil = none)
+	Values     map[string]any    // typed property values
+	Assets     map[string]string // page images: id → mime
+	History    []*PageVersion    // oldest first
+	Trashed    bool
+	TemplateID string
+	Encrypted  bool
 }
 
 // Workspace is a workspace the fake knows.
@@ -339,6 +364,9 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	user, ok := s.auth(r)
 	if !ok {
 		detail(w, 401, "Invalid API token")
+		return
+	}
+	if s.servePages(w, r, user) {
 		return
 	}
 	switch {
