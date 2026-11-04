@@ -101,6 +101,8 @@ graph TD
 ```
 ````
 
+In the editor, a Mermaid block shows its diagram, just as readers see it. Click the diagram to edit its code, with a preview below that follows as you type. Press **Esc** or click elsewhere to see the diagram again. If the code has an error, the block shows the error and the code.
+
 ## Tables
 
 ```markdown

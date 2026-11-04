@@ -29,6 +29,7 @@ On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** wher
 | **⌘ Enter** | Check or uncheck a to-do |
 | **Tab** / **⇧ Tab** | Nest the line under the block above / bring it back out (a list item: indent / outdent); in a table, the next / previous cell |
 | **Enter** in the title | Start writing at the top of the page |
+| **Esc** in a diagram's code / **Enter** on a selected diagram | Show the Mermaid diagram / edit its code again |
 
 ## AI
 
