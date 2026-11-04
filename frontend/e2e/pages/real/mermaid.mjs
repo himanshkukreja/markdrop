@@ -70,7 +70,7 @@ async function shot(p, name, opts = {}) {
 }
 
 const block = (p) => p.locator('.pb-live .dxe-code[data-lang="mermaid"]').first();
-const svgIn = (p) => block(p).locator(".md-diagram__canvas svg, .md-diagram svg").first();
+const svgIn = (p) => block(p).locator(".md-diagram__canvas > svg").first();
 const codeVisible = (p) => block(p).locator(".md-codeblock__body").isVisible();
 
 async function openEditor(p, slug, editable = true) {
@@ -145,13 +145,13 @@ await step("owner", async () => {
 
   // Typing elsewhere doesn't redraw the diagram (the SVG node stays the same element).
   await p.evaluate(() => {
-    window.__svg = document.querySelector('.pb-live .dxe-code[data-lang="mermaid"] svg');
+    window.__svg = document.querySelector('.pb-live .dxe-code[data-lang="mermaid"] .md-diagram__canvas > svg');
   });
   await p.locator(".pb-live .ProseMirror").getByText("How a page moves").click();
   await p.keyboard.press("End");
   await p.keyboard.type(" Typing here.");
   await p.waitForTimeout(1200);
-  if (!(await p.evaluate(() => document.querySelector('.pb-live .dxe-code[data-lang="mermaid"] svg') === window.__svg))) fail("typing elsewhere redrew the diagram");
+  if (!(await p.evaluate(() => document.querySelector('.pb-live .dxe-code[data-lang="mermaid"] .md-diagram__canvas > svg') === window.__svg))) fail("typing elsewhere redrew the diagram");
 
   // Click the diagram: the code shows, with the caret in it (and a live preview below).
   await svgIn(p).click();
@@ -167,7 +167,7 @@ await step("owner", async () => {
   await p.keyboard.press(process.platform === "darwin" ? "Meta+ArrowDown" : "Control+End");
   await p.keyboard.type("\n    J --> L[Later]");
   await p.waitForTimeout(1200);
-  const live = await block(p).locator(".dxe-mermaid__view--live svg g.node").count();
+  const live = await block(p).locator(".dxe-mermaid__view--live .md-diagram__canvas > svg g.node").count();
   if (live < 12) fail(`live preview: ${live} nodes after adding one`);
   await shot(p, "03-owner-editing-live-preview");
   await p.keyboard.press("Escape");
@@ -258,7 +258,7 @@ await step("locked", async () => {
   const r = await ctx(browser, { token: T.reader });
   const rerrs = watch(r.p);
   await r.p.goto(`${APP}/${state.locked}`, { waitUntil: "networkidle" });
-  await r.p.locator(".md-diagram svg").first().waitFor({ timeout: 20000 });
+  await r.p.locator(".md-diagram__canvas > svg").first().waitFor({ timeout: 20000 });
   await shot(r.p, "08-reader-view", { wait: 800 });
   noErrors(rerrs, "reader");
   await r.c.close();
@@ -276,10 +276,10 @@ await step("studio", async () => {
   const errs = watch(p);
   await p.goto(`${APP}/guides/${sid}?page=${pid}`, { waitUntil: "networkidle" });
   const b = p.locator('.dxe-code[data-lang="mermaid"]').first();
-  await b.locator(".md-diagram svg").first().waitFor({ timeout: 30000 });
+  await b.locator(".md-diagram__canvas > svg").first().waitFor({ timeout: 30000 });
   if (await b.locator(".md-codeblock__body").isVisible()) fail("studio: the code shows with the diagram");
   await shot(p, "10-studio-diagram", { wait: 800 });
-  await b.locator(".md-diagram svg").first().click();
+  await b.locator(".md-diagram__canvas > svg").first().click();
   await b.locator(".md-codeblock__body").waitFor({ state: "visible", timeout: 5000 });
   await shot(p, "11-studio-editing", { wait: 600 });
   await p.keyboard.press("Escape");
