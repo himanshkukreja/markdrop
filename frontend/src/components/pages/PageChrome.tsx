@@ -18,7 +18,8 @@ import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { Anchor, Button, CopyButton, Dropdown, Icon, IconButton, Skeleton, Spinner, cx, type MenuEntry } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
-import { listBacklinks, listChildren, type ChildPage, type Crumb } from "@/lib/pages";
+import { listBacklinks, type ChildPage, type Crumb } from "@/lib/pages";
+import { fetchChildren } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import type { SaveState } from "./usePageEditSession";
 import "./pages.css";
@@ -490,7 +491,8 @@ export function SubPages({
     }
     let live = true;
     setError(false);
-    listChildren(slug)
+    // The shared cache (lib/navStore): the page tree asks for the same list as this mounts.
+    fetchChildren(slug, refreshKey ? 0 : 5_000)
       .then((k) => live && setKids(k))
       .catch(() => live && setError(true));
     return () => {

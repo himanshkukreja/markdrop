@@ -16,10 +16,11 @@ from pymongo import MongoClient
 WT = Path(__file__).resolve().parents[4]
 ROOT = Path(str(WT).split("/.claude/worktrees/")[0])  # the main checkout (fixtures, .work)
 OUT = Path(os.environ.get("PB_STACK") or ROOT / ".work" / "page-builder" / "stack")
-API = "http://127.0.0.1:8230"
+STACK_ID = int(os.environ.get("STACK_ID") or 5)
+API = f"http://127.0.0.1:{8180 + 10 * STACK_ID}"
 # The docs media's rendered demo files (git-ignored; `npm run docs:media` makes them).
 FIX = Path(os.environ.get("PB_FIXTURES") or ROOT / "frontend" / "scripts" / "docs-media" / ".data" / "fixtures")
-DB = MongoClient("mongodb://127.0.0.1:27019")["markdrop_docs_demo_5"]
+DB = MongoClient("mongodb://127.0.0.1:27019")[f"markdrop_docs_demo_{STACK_ID}"]
 http = httpx.Client(base_url=API, timeout=60)
 
 

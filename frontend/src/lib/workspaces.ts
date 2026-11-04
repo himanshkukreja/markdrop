@@ -188,8 +188,14 @@ function announce<T>(p: Promise<T>): Promise<T> {
   });
 }
 
-export const listWorkspaces = () =>
-  request<{ workspaces: Workspace[] }>("/api/v1/workspaces").then((r) => r.workspaces);
+// Callers that ask at the same moment (the rail and the dashboard both do on load) share one request.
+let workspacesInflight: Promise<Workspace[]> | null = null;
+export const listWorkspaces = (): Promise<Workspace[]> => {
+  workspacesInflight ??= request<{ workspaces: Workspace[] }>("/api/v1/workspaces")
+    .then((r) => r.workspaces)
+    .finally(() => { workspacesInflight = null; });
+  return workspacesInflight;
+};
 
 export const createWorkspace = (name: string) =>
   announce(request<Workspace>("/api/v1/workspaces", { method: "POST", body: JSON.stringify({ name }) }));
@@ -518,6 +524,35 @@ export interface WorkspaceTree {
 
 export const getWorkspaceTree = (id: string) =>
   request<WorkspaceTree>(`/api/v1/workspaces/${encodeURIComponent(id)}/tree`);
+
+/** One row of `GET /workspaces/{id}/nav`: a readable top-level item, compact (the app rail). */
+export interface NavItem {
+  slug: string;
+  /** null for an encrypted document. */
+  title: string | null;
+  kind: "page" | "markdown" | "artifact";
+  /** null: the workspace's top level. */
+  folder_id: string | null;
+  /** Pages: it has sub-pages this caller can read. */
+  has_children?: boolean;
+  /** Pages: an emoji or asset:<id>, and the image's link for asset icons. */
+  icon?: string | null;
+  icon_url?: string | null;
+  renderer?: string | null;
+  mime?: string | null;
+  filename?: string | null;
+}
+
+/** The rail's outline of a workspace: per folder (and the top), pages first in the order they were
+ *  made, then documents and files by title, at most 50 each; `more` counts the rest per folder id
+ *  ("root" for the top level). */
+export interface WorkspaceNav {
+  items: NavItem[];
+  more: Record<string, number>;
+}
+
+export const getWorkspaceNav = (id: string) =>
+  request<WorkspaceNav>(`/api/v1/workspaces/${encodeURIComponent(id)}/nav`);
 
 export type ItemAccess = "private" | "link" | "workspace";
 

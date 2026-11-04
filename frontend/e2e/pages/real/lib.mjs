@@ -1,4 +1,5 @@
-/** Shared helpers for the page builder's real-stack Playwright runs (up.sh: API :8230, Worker :8837, next :3450). */
+/** Shared helpers for the page builder's real-stack Playwright runs (up.sh: API :8230, Worker :8837, next :3450;
+ *  PB_STACK_ID=N moves them to 8180+10N / 8787+10N / 3400+10N and db markdrop_docs_demo_N, default 5). */
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -13,13 +14,15 @@ export const STACK = path.join(WORK, "stack");
 export const BROWSER = process.env.BROWSER === "webkit" ? "webkit" : "chromium";
 export const SHOTS = path.join(WORK, "real-shots", process.env.SHOT_DIR || BROWSER);
 fs.mkdirSync(SHOTS, { recursive: true });
-export const APP = "http://localhost:3450";
-export const TENANT = "http://acme.localhost:3450";
-export const API = "http://127.0.0.1:8230";
-export const WORKER = "http://127.0.0.1:8837";
+export const STACK_ID = Number(process.env.PB_STACK_ID || 5);
+export const NEXT_PORT = 3400 + 10 * STACK_ID;
+export const APP = `http://localhost:${NEXT_PORT}`;
+export const TENANT = `http://acme.localhost:${NEXT_PORT}`;
+export const API = `http://127.0.0.1:${8180 + 10 * STACK_ID}`;
+export const WORKER = `http://127.0.0.1:${8787 + 10 * STACK_ID}`;
 export const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const PY = path.join(ROOT, "backend", ".venv", "bin", "python");
-const ENV = { ...process.env, STACK_ID: "5", DOCS_MEDIA_DATA: path.join(STACK, "data"), PB_STACK: STACK };
+const ENV = { ...process.env, STACK_ID: String(STACK_ID), DOCS_MEDIA_DATA: path.join(STACK, "data"), PB_STACK: STACK };
 
 export const log = (...a) => console.log("•", ...a);
 export const fail = (m) => {
@@ -94,8 +97,10 @@ export async function ctx(browser, { token = null, theme = "light", width = 1440
     BROWSER === "webkit"
       ? r.fulfill({ status: 200, contentType: "text/html", body: `<script>location.replace(location.href.replace(${from.toString()}, ${JSON.stringify(to)}))</script>` })
       : r.fulfill({ status: 302, headers: { location: r.request().url().replace(from, to) } });
-  await c.route(/^https:\/\/localhost:3450\//, (r) => hop(r, /^https:\/\/localhost:3450/, APP));
-  await c.route(/^https:\/\/acme\.localhost(:3450)?\//, (r) => hop(r, /^https:\/\/acme\.localhost(:3450)?/, TENANT));
+  const local = new RegExp(`^https://localhost:${NEXT_PORT}`);
+  const tenant = new RegExp(`^https://acme\\.localhost(:${NEXT_PORT})?`);
+  await c.route(new RegExp(`${local.source}/`), (r) => hop(r, local, APP));
+  await c.route(new RegExp(`${tenant.source}/`), (r) => hop(r, tenant, TENANT));
   await c.addInitScript(
     ([t, th]) => {
       try {

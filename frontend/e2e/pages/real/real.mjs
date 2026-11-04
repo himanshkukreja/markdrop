@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved } from "./lib.mjs";
+import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -538,7 +538,7 @@ await step("bookmark", async () => {
   log("link-preview:", r.status, JSON.stringify(r.body).slice(0, 200));
   if (r.status !== 200 || !r.body.title) fail(`link-preview → ${r.status}`);
   state.bookmarkFetched = r.body.fetched;
-  const bad = await api("POST", "/api/v1/link-preview", T.owner, { url: "http://127.0.0.1:8230/__sandbox/health" });
+  const bad = await api("POST", "/api/v1/link-preview", T.owner, { url: `${API}/__sandbox/health` });
   if (bad.status !== 422) fail(`SSRF to loopback → ${bad.status}`);
   save();
 });

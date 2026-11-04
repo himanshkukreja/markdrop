@@ -5,11 +5,12 @@
  * sub-pages, with drag and drop to move pages (editors) and a ⋯ menu on each row. Loaded on its
  * own (DocumentView imports it lazily), so a plain document never ships the drag code.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { DndContext, DragOverlay, PointerSensor, TouchSensor, useDraggable, useSensor, useSensors, type DragEndEvent, type DragMoveEvent, type DragStartEvent, type Modifier } from "@dnd-kit/core";
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import { Anchor, Dropdown, Icon, IconButton, Skeleton, Spinner, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
-import { listChildren, type ChildPage, type Crumb } from "@/lib/pages";
+import { type ChildPage, type Crumb } from "@/lib/pages";
+import { fetchChildren } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import { TREE_INDENT, dropAt, subtree, type TreeDrop, type TreeRow } from "@/lib/pageTree.mjs";
 import { workspaceChanged } from "@/lib/workspaceStore";
@@ -26,6 +27,8 @@ interface TreeItem {
   title: string | null;
   has_children: boolean;
   access_inherit?: boolean | null;
+  icon?: string | null;
+  icon_url?: string | null;
 }
 
 interface Row {
@@ -65,6 +68,23 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, transform }
   return { ...transform, x: transform.x + p.x - draggingNodeRect.left + 14, y: transform.y + p.y - draggingNodeRect.top + 10 };
 };
 
+/** A page's icon in the tree: its emoji, its image, else the page glyph. */
+function RowIcon({ item }: { item: TreeItem }) {
+  if (item.icon_url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <span className="pb-tree__icon" aria-hidden><img src={item.icon_url} alt="" /></span>;
+  }
+  if (item.icon && !item.icon.startsWith("asset:")) return <span className="pb-tree__icon pb-tree__icon--emoji" aria-hidden>{item.icon}</span>;
+  return <span className="pb-tree__icon" aria-hidden><Icon name="doc" size={14} /></span>;
+}
+
+/** A long title shows in full on hover, only when it's cut off. */
+const tipIfCut = (e: React.PointerEvent<HTMLElement>, text: string) => {
+  const t = e.currentTarget.querySelector<HTMLElement>(".pb-tree__text");
+  if (t && t.scrollWidth > t.clientWidth + 1) e.currentTarget.title = text;
+  else e.currentTarget.removeAttribute("title");
+};
+
 function TreeRowView({ row, kidsOf, open, current, addressing, toggle, canEdit, draggingSlug, drop, busy, menu, suppress }: {
   row: Row;
   kidsOf: Kids;
@@ -87,11 +107,12 @@ function TreeRowView({ row, kidsOf, open, current, addressing, toggle, canEdit, 
   const drag = useDraggable({ id: `pt:${item.slug}`, data: { slug: item.slug }, disabled: !draggable });
   const into = !!drop && drop.kind === "inside" && drop.row === item.slug && drop.valid && !drop.noop;
   const items = menu(row);
+  const name = item.title || "Untitled";
   return (
     <div
       ref={drag.setNodeRef}
       className={cx("pb-tree__row", draggingSlug === item.slug && "pb-tree__row--source", into && "pb-tree__row--into", busy === item.slug && "pb-tree__row--busy")}
-      style={{ paddingLeft: depth * TREE_INDENT }}
+      style={{ paddingLeft: depth * TREE_INDENT, "--pt-depth": depth } as React.CSSProperties}
       data-pt-row={item.slug}
       data-drag-on={draggable ? "" : undefined}
       {...(draggable ? drag.listeners : {})}
@@ -101,7 +122,7 @@ function TreeRowView({ row, kidsOf, open, current, addressing, toggle, canEdit, 
           type="button"
           className="pb-tree__toggle md-focus"
           aria-expanded={isOpen}
-          aria-label={`${isOpen ? "Collapse" : "Expand"} ${item.title || "Untitled"}`}
+          aria-label={`${isOpen ? "Collapse" : "Expand"} ${name}`}
           onClick={() => toggle(item.slug)}
         >
           {isOpen && kids === "loading" ? <Spinner size={10} /> : <Icon name="chevronRight" size={12} />}
@@ -111,11 +132,12 @@ function TreeRowView({ row, kidsOf, open, current, addressing, toggle, canEdit, 
       )}
       <Anchor
         href={hrefFor(item.slug, row.ancestors, addressing)}
-        className="pb-tree__link md-focus ph-sensitive ph-mask"
+        className="pb-tree__link md-focus"
         aria-current={item.slug === current ? "page" : undefined}
         dir="auto"
         draggable={false}
         data-level={depth}
+        onPointerEnter={(e) => tipIfCut(e, name)}
         onClickCapture={(e) => {
           // A drag that ended over its own row isn't a click.
           if (Date.now() - (suppress.current ?? 0) < 350) {
@@ -124,18 +146,24 @@ function TreeRowView({ row, kidsOf, open, current, addressing, toggle, canEdit, 
           }
         }}
       >
-        {item.title || "Untitled"}
+        <RowIcon item={item} />
+        <span className="pb-tree__text ph-sensitive ph-mask">{name}</span>
       </Anchor>
       {items.length > 0 && (
         <span className="pt-row-menu" onPointerDown={(e) => e.stopPropagation()}>
-          <Dropdown portal align="right" minWidth={200} aria-label={`Actions for ${item.title || "Untitled"}`} trigger={<IconButton icon="more" label={`Actions for ${item.title || "Untitled"}`} size="sm" variant="ghost" />} items={items} />
+          {canEdit && !addressing.tenant && (
+            <Anchor href={`/pages/new?parent=${encodeURIComponent(item.slug)}`} className="pt-row-add md-focus" aria-label={`Add a page inside ${name}`} title={`Add a page inside ${name}`}>
+              <Icon name="plus" size={14} />
+            </Anchor>
+          )}
+          <Dropdown portal align="right" minWidth={200} aria-label={`Actions for ${name}`} trigger={<IconButton icon="more" label={`Actions for ${name}`} size="sm" variant="ghost" />} items={items} />
         </span>
       )}
     </div>
   );
 }
 
-function TreeBranch(props: {
+const TreeBranch = memo(function TreeBranch(props: {
   row: Row;
   rows: Row[];
   kidsOf: Kids;
@@ -172,7 +200,7 @@ function TreeBranch(props: {
       )}
     </li>
   );
-}
+});
 
 export interface PageTreeProps {
   slug: string;
@@ -190,6 +218,8 @@ export interface PageTreeProps {
   /** A page in the tree moved from one parent to another (null: the top level); the reading view
    *  re-reads this page when its place or its sub-pages changed. */
   onMoved?: (slug: string, from: string | null, to: string | null) => void;
+  /** This page's icon (an emoji or asset:<id>), so its row shows the current one. */
+  icon?: string | null;
 }
 
 /**
@@ -203,11 +233,17 @@ export interface PageTreeProps {
  * page asks first. Each row's ⋯ menu has Move to… (the keyboard way to do the same), Duplicate
  * and Copy link.
  */
-export function PageTree({ slug, title, crumbs, childrenCount, addressing, canEdit = false, workspaceId = null, rootParent, onMoved }: PageTreeProps) {
+export function PageTree({ slug, title, crumbs, childrenCount, addressing: addressingProp, canEdit = false, workspaceId = null, rootParent, onMoved, icon = null }: PageTreeProps) {
   const toast = useToast();
   const mover = useMovePage();
   const dup = useDuplicatePage();
-  const root: TreeItem = crumbs.length ? { slug: crumbs[0].slug, title: crumbs[0].title, has_children: true } : { slug, title, has_children: childrenCount > 0 };
+  // The reading view rebuilds `addressing` on every render; rows are memoised, so keep one object
+  // per actual value.
+  const folderKey = addressingProp.folderPath.join("/");
+  const addressing = useMemo<PageAddressing>(() => addressingProp, [addressingProp.tenant, folderKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const root: TreeItem = crumbs.length
+    ? { slug: crumbs[0].slug, title: crumbs[0].title, has_children: true, icon: crumbs[0].slug === slug ? icon : crumbs[0].icon ?? null }
+    : { slug, title, has_children: childrenCount > 0, icon };
   const [open, setOpen] = useState<Set<string>>(() => new Set([...crumbs.map((c) => c.slug), ...(childrenCount > 0 ? [slug] : [])]));
   const [kidsOf, setKidsOf] = useState<Kids>({});
   const [draggingSlug, setDragging] = useState<string | null>(null);
@@ -224,9 +260,11 @@ export function PageTree({ slug, title, crumbs, childrenCount, addressing, canEd
   const rootParentKnown = rootParent !== undefined;
   const topParent = rootParent ?? null;
 
+  // Sub-pages come from the shared cache (lib/navStore): the rail, this tree and "Pages inside"
+  // never fetch the same list twice at once; `force` asks the API.
   const load = useCallback((s: string, force = false) => {
     setKidsOf((m) => (!force && m[s] && m[s] !== "error" ? m : { ...m, [s]: Array.isArray(m[s]) && force ? m[s] : "loading" }));
-    listChildren(s)
+    fetchChildren(s, force ? 0 : 5_000)
       .then((k) => setKidsOf((m) => ({ ...m, [s]: k })))
       .catch(() => setKidsOf((m) => ({ ...m, [s]: "error" })));
   }, []);
@@ -237,15 +275,15 @@ export function PageTree({ slug, title, crumbs, childrenCount, addressing, canEd
     });
   }, [open, kidsOf, load]);
 
-  const toggle = (s: string) =>
+  const toggle = useCallback((s: string) =>
     setOpen((o) => {
       const n = new Set(o);
       if (n.has(s)) n.delete(s);
       else n.add(s);
       return n;
-    });
+    }), []);
 
-  const rows = useMemo(() => flatten(root, topParent, kidsOf, open), [root.slug, root.title, root.has_children, topParent, kidsOf, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => flatten(root, topParent, kidsOf, open), [root.slug, root.title, root.has_children, root.icon, topParent, kidsOf, open]); // eslint-disable-line react-hooks/exhaustive-deps
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const titleOf = (s: string | null) => (s ? rows.find((r) => r.item.slug === s)?.item.title?.trim() || "Untitled" : null);
@@ -415,7 +453,7 @@ export function PageTree({ slug, title, crumbs, childrenCount, addressing, canEd
 
   /* ── row menus ── */
 
-  const menu = (row: Row): MenuEntry[] => {
+  const menuFor = (row: Row): MenuEntry[] => {
     if (!canEdit) return [];
     const name = row.item.title || "Untitled";
     const out: MenuEntry[] = [];
@@ -428,6 +466,10 @@ export function PageTree({ slug, title, crumbs, childrenCount, addressing, canEd
     });
     return out;
   };
+  // Rows are memoised: they get one function that always runs the latest menu.
+  const menuRef = useRef(menuFor);
+  menuRef.current = menuFor;
+  const menu = useCallback((row: Row) => menuRef.current(row), []);
 
   if (!hasKids(kidsOf, root) && !crumbs.length) return null;
   const rootRow = rows[0]!;

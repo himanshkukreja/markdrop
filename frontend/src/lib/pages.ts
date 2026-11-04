@@ -111,6 +111,9 @@ export interface ChildPage {
   updated_at?: string | null;
   has_children: boolean;
   access_inherit?: boolean | null;
+  /** An emoji or asset:<id>, and the image's link for asset icons. */
+  icon?: string | null;
+  icon_url?: string | null;
 }
 
 export type EmbedState = "ok" | "signin" | "denied" | "password" | "encrypted" | "missing";
@@ -152,11 +155,20 @@ export interface LockInfo {
 
 /* ── pages ──────────────────────────────────────────────────────────────── */
 
+/** Tell the navigation caches (lib/navStore) that pages changed: the rail's outline and sub-page
+ *  lists refresh (an event, so this module doesn't import the store that imports it). */
+function changed<T>(p: Promise<T>, soft = false): Promise<T> {
+  return p.then((r) => {
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("md:pages-change", { detail: { soft } }));
+    return r;
+  });
+}
+
 /** `POST /pages`: a new page (signed in). `parent` is a page's slug; the new page inherits its access. */
 export function createPage(input: { title: string; workspace?: string | null; folder?: string | null; parent?: string | null; template?: string | null; content?: string | null; after?: string | null }) {
   const body: Record<string, unknown> = { title: input.title };
   for (const k of ["workspace", "folder", "parent", "template", "content", "after"] as const) if (input[k]) body[k] = input[k];
-  return call<CreatedPage>("/api/v1/pages", { method: "POST", body: JSON.stringify(body) });
+  return changed(call<CreatedPage>("/api/v1/pages", { method: "POST", body: JSON.stringify(body) }));
 }
 
 /** A page as this person reads it (GET /documents/{slug}, with their session). */
@@ -196,10 +208,10 @@ export interface AccessChange {
  * the field and lists sub-pages oldest first.
  */
 export function movePage(slug: string, parent: string | null, confirmAccessChange = false, after?: string | null) {
-  return call<PageDocument>(`/api/v1/documents/${enc(slug)}/parent`, {
+  return changed(call<PageDocument>(`/api/v1/documents/${enc(slug)}/parent`, {
     method: "PUT",
     body: JSON.stringify({ parent, ...(after !== undefined ? { after } : {}), ...(confirmAccessChange ? { confirm_access_change: true } : {}) }),
-  });
+  }));
 }
 
 /** The 409 a move gets when it would change who can read the page (confirm and send again). */
@@ -226,7 +238,7 @@ export async function searchMyPages(q: string): Promise<Array<{ slug: string; ti
 /** Delete a page; with sub-pages, `children` says whether they go too or move up a level. */
 export function deletePage(slug: string, children?: "delete" | "lift", secret?: string | null) {
   const q = children ? `?children=${children}` : "";
-  return call<void>(`/api/v1/documents/${enc(slug)}${q}`, { method: "DELETE", secret });
+  return changed(call<void>(`/api/v1/documents/${enc(slug)}${q}`, { method: "DELETE", secret }));
 }
 
 /* ── saving, the edit lock ──────────────────────────────────────────────── */
@@ -236,7 +248,9 @@ export function deletePage(slug: string, children?: "delete" | "lift", secret?: 
  * "locked", holder}` while someone else holds the edit lock.
  */
 export function savePage(slug: string, input: { title: string | null; content: string; baseRev: number | null }, secret?: string | null) {
-  return call<PageDocument>(`/api/v1/documents/${enc(slug)}`, {
+  // A save may rename the page or change its icon: "soft" only marks the caches stale (autosave
+  // runs often; nothing is fetched until a rail or tree mounts or the window regains focus).
+  return changed(call<PageDocument>(`/api/v1/documents/${enc(slug)}`, {
     method: "PUT",
     secret,
     body: JSON.stringify({
@@ -244,7 +258,7 @@ export function savePage(slug: string, input: { title: string | null; content: s
       content: input.content || "\n",
       ...(typeof input.baseRev === "number" && input.baseRev > 0 ? { base_rev: input.baseRev } : {}),
     }),
-  });
+  }), true);
 }
 
 /** Take (or refresh) the edit lock: held 2 minutes, refreshed every 30 s. 423 when someone else has it. */

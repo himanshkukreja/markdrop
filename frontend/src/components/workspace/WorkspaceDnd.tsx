@@ -171,8 +171,11 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
     onDragCancel: () => "Move cancelled.",
   }), []);
 
+  // One value per drag state: a new object on every render re-rendered every rail row (a context
+  // consumer skips React.memo) whenever the app shell did, e.g. on each navigation.
+  const ctxValue = useMemo(() => ({ active }), [active]);
   return (
-    <Ctx.Provider value={{ active }}>
+    <Ctx.Provider value={ctxValue}>
       <DndContext
         sensors={sensors}
         collisionDetection={collision}
