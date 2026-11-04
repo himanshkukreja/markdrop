@@ -115,7 +115,8 @@ class Transport(McpTestCase):
             "remove_from_workspace", "create_folder", "move_to_folder",
             # Pages (block editor, sub-pages, embeds, page images).
             "create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
-            "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties"})
+            "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
+            "export_page"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
