@@ -247,6 +247,9 @@ async def connect() -> None:
         from app.services import search_log as _search_log
 
         await _search_log.ensure_indexes(db)
+        from app.services import analytics_ai_home as _aah
+
+        await _aah.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] search indexes skipped: {exc}")
 
