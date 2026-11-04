@@ -3,6 +3,7 @@
     GET    /api/v1/workspaces/{id}/tree
     GET    /api/v1/workspaces/{id}/nav   (the app rail's outline)
     GET    /api/v1/workspaces/{id}/items?folder=<id|root|unfiled|all>&q=&kind=&cursor=&limit=
+    POST   /api/v1/workspaces/{id}/items/previews {slugs}   (the Cards view's previews)
     POST   /api/v1/workspaces/{id}/items/move    {slugs, folder_id|null}
     POST   /api/v1/workspaces/{id}/items/add     {slugs, folder_id|null, access?}
     POST   /api/v1/workspaces/{id}/items/remove  {slugs?, handles?}
@@ -26,7 +27,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.models.workspace import role_allows
 from app.routers.auth import require_user
-from app.services import access, revalidate
+from app.services import access, card_preview, revalidate
 from app.services import library as lib_service
 from app.services import folder as folder_service
 from app.services import workspace as ws_service
@@ -55,6 +56,10 @@ class ItemsAdd(BaseModel):
     slugs: list[str] = Field(..., min_length=1, max_length=MAX_BATCH)
     folder_id: str | None = None
     access: Literal["link", "private", "workspace"] | None = None
+
+
+class ItemsPreviews(BaseModel):
+    slugs: list[str] = Field(..., min_length=1, max_length=card_preview.MAX_SLUGS)
 
 
 class ItemsRemove(BaseModel):
@@ -118,6 +123,24 @@ async def workspace_items(
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await items_service.items(
         db, actor, ctx, workspace_id, folder=folder, q=q, kind=kind, cursor=cursor, limit=limit))
+
+
+@router.post("/{workspace_id}/items/previews")
+@limiter.limit("240/minute")
+async def items_previews(request: Request, workspace_id: str, data: ItemsPreviews,
+                         db: AsyncIOMotorDatabase = Depends(get_db),
+                         user: User = Depends(require_user)):
+    """What the Cards view shows of each item: ``{previews: {slug: preview}}``
+    (services/card_preview.py). The app asks only for the cards on screen.
+    Viewer+, like the listing; each item answers ``locked`` unless the caller
+    can open it right now (no password, no sign-in, no refusal in the way),
+    ``encrypted`` for end-to-end encrypted documents, ``pending`` while a
+    picture is being made, else ``ok`` with plain-text blocks, a sheet's first
+    cells, a text file's first lines, a small WebP thumbnail (``src``, a data
+    URI) or, for an HTML file, its signed ``live`` URL on the artifact origin."""
+    await ws_service.require_role(db, workspace_id, user.id, "viewer")
+    actor, ctx = _ac(request, db, user)
+    return {"previews": await card_preview.previews(db, actor, ctx, workspace_id, data.slugs)}
 
 
 @router.get("/{workspace_id}/preview")

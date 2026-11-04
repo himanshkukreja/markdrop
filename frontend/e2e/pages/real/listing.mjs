@@ -5,7 +5,13 @@
  * of item without a flash of other UI (open; seed_open.py). Seeds the busy "Senseloaf" workspace
  * (seed_listing.py) on top of seed.py.
  *
- *   PB_STACK_ID=12 [ONLY=timing,owner,views,privacy,nav,renames,shots,open] [PROFILES=4g,3g] [RUNS=3] node listing.mjs
+ *   PB_STACK_ID=12 [ONLY=timing,owner,views,privacy,nav,renames,cards,cards-timing,shots,open] [PROFILES=4g,3g] [RUNS=3] node listing.mjs
+ *
+ * `cards` (feat/card-previews) checks the Cards view's previews in the "Gallery" folder: every kind,
+ * the access answers, no item markup in the app's origin, the live HTML frame on hover (sandboxed,
+ * on the artifact origin, at most three), lazy loading in a 60-item folder, List and Grid unchanged,
+ * and screenshots (CARD_SHOTS, default <out>/cards). `cards-timing` compares folder clicks in Cards
+ * and List.
  *
  * `timing` is selector-agnostic (it clicks folder links by href and watches the page), so it also
  * measures an older build: LABEL=before writes timing-before.json, LABEL=after timing-after.json.
@@ -297,6 +303,228 @@ await step("views", async () => {
   if ((await p2.locator("#main [data-view]").first().getAttribute("data-view")) !== "grid") fail("the switch fails without storage");
   await c2.close();
   await c.close();
+});
+
+/* ── Card previews (feat/card-previews) ─────────────────────────────── */
+
+const G = L.gallery || {};
+const CARD_OUT = process.env.CARD_SHOTS || path.join(OUT, "cards");
+// What each Gallery card's band shows once its preview is in (data-pv on .wl-card__band).
+const EXPECT = {
+  dash: "html", page: "page", pdf: "pdf", md: "markdown", photo: "image", csv: "sheet", video: "video", page2: "page",
+  pricing: "html", docx: "docx", xlsx: "sheet", enc: "lock", md2: "markdown", arch: "image", status: "html", json: "text",
+  page3: "page", release: "html", pw: "markdown",
+};
+const cardOf = (p, slug) => p.locator(`#main li[data-row-kind=item]:has(a[href$="/${slug}"])`).first();
+const bandOf = (p, slug) => cardOf(p, slug).locator(".wl-card__band");
+const NO_CDP = { on() {}, off() {}, send: async () => ({}) };
+
+/** Requests to the previews endpoint (and the slugs each asked for), from now on. */
+function watchPreviews(p) {
+  const asked = [];
+  p.on("request", (r) => {
+    if (r.method() === "POST" && r.url().includes("/items/previews")) {
+      try { asked.push(...(JSON.parse(r.postData() || "{}").slugs || [])); } catch {}
+    }
+  });
+  return asked;
+}
+
+await step("cards", async () => {
+  if (!G.dash) fail("seed-listing.json has no gallery (reseed: unset NO_RESEED)");
+  fs.mkdirSync(CARD_OUT, { recursive: true });
+  // API: a preview only for what the caller can open; one answer for everything else.
+  const pv = async (who, slugs) => api("POST", `/api/v1/workspaces/${WS}/items/previews`, T[who], { slugs });
+  let r = await pv("member", [G.md, G.pw, G.enc, G.private, "no-such-item"]);
+  if (r.status !== 200) fail(`member previews → ${r.status}`);
+  const got = r.body.previews;
+  if (got[G.md].state !== "ok" || got[G.md].type !== "markdown") fail(`markdown preview: ${JSON.stringify(got[G.md]).slice(0, 200)}`);
+  if (got[G.pw].state !== "ok") fail("a member's role opens the password-protected doc, so it previews");
+  if (JSON.stringify(got[G.enc]) !== '{"state":"encrypted"}') fail(`encrypted: ${JSON.stringify(got[G.enc])}`);
+  if (JSON.stringify(got[G.private]) !== '{"state":"locked"}' || JSON.stringify(got["no-such-item"]) !== '{"state":"locked"}') fail("private/unknown must both be locked");
+  if (JSON.stringify(got).includes("Not for you")) fail("the private doc's text leaked");
+  r = await pv("reader", [G.md, G.private]);
+  if (r.body.previews[G.md].state !== "ok" || r.body.previews[G.private].state !== "locked") fail("viewer previews");
+  r = await pv("owner", [G.private]);
+  if (r.body.previews[G.private].state !== "ok") fail("the owner previews her private doc");
+  for (const who of ["stranger", null]) {
+    const x = await api("POST", `/api/v1/workspaces/${WS}/items/previews`, who ? T[who] : null, { slugs: [G.md] });
+    if (x.status < 400 || JSON.stringify(x.body).includes("API rate limits")) fail(`${who ?? "anonymous"} previews → ${x.status}`);
+  }
+
+  // The page: every kind, lazily, with the live HTML frame on hover.
+  const { c, p } = await ctx(browser, { token: T.member, width: 1440, height: 900 });
+  await c.addInitScript(() => { try { localStorage.setItem("md_ws_view", "cards"); } catch {} });
+  const asked = watchPreviews(p);
+  await p.goto(fUrl(L.folders.Gallery), { waitUntil: "load" });
+  await cardOf(p, G.dash).waitFor({ timeout: 30000 });
+  if (await cardOf(p, G.private).count()) fail("Ada's private doc is listed for Ben");
+  for (const [k, want] of Object.entries(EXPECT)) {
+    const band = bandOf(p, G[k]);
+    await band.scrollIntoViewIfNeeded();
+    try {
+      await p.waitForFunction(([sel, w]) => document.querySelector(sel)?.getAttribute("data-pv") === w,
+        [`#main li[data-row-kind=item]:has(a[href$="/${G[k]}"]) .wl-card__band`, want], { timeout: 25000, polling: 150 });
+    } catch {
+      fail(`${k}: band is ${await band.getAttribute("data-pv")} (want ${want})`);
+    }
+  }
+  await p.evaluate(() => window.scrollTo(0, 0));
+  // Nothing from an item renders as markup here: no script, style or iframe in the previews (no live frame yet).
+  const markup = await p.locator("#main .wl-card__band script, #main .wl-card__band style, #main .wl-card__band b, #main .wl-card__band iframe").count();
+  if (markup) fail(`${markup} element(s) from item content in the previews`);
+  if (!(await bandOf(p, G.dash).innerText()).includes("Revenue") && !(await bandOf(p, G.dash).textContent()).includes("Q3 revenue")) fail("the HTML card's static text is missing");
+  if (!(await bandOf(p, G.enc).textContent()).includes("End-to-end encrypted")) fail("the encrypted card has no lock");
+  const pdfImg = await bandOf(p, G.pdf).locator("img").getAttribute("src");
+  if (!pdfImg?.startsWith("data:image/webp;base64,")) fail("the PDF's first page isn't a data: WebP");
+  // Owners and the ⋯ menu still work on a card with a picture.
+  if (!(await cardOf(p, G.photo).locator("[data-owner]").count())) fail("no owner on the photo card");
+  await cardOf(p, G.photo).hover();
+  await cardOf(p, G.photo).getByRole("button", { name: /Actions for Team offsite/ }).click();
+  await p.getByRole("menu").first().waitFor({ timeout: 5000 });
+  await p.keyboard.press("Escape");
+  await p.evaluate(() => document.activeElement?.blur());
+  await p.mouse.move(5, 5);
+  await p.waitForTimeout(300);
+  await p.screenshot({ path: path.join(CARD_OUT, `gallery-light-1440-${process.env.BROWSER || "chromium"}.png`) });
+
+  // Live: hover an HTML card → its own URL in a sandboxed frame on the artifact origin; at most three at once.
+  const live = async (k) => {
+    await cardOf(p, G[k]).scrollIntoViewIfNeeded();
+    await cardOf(p, G[k]).hover({ position: { x: 60, y: 60 } });
+    await p.waitForFunction((sel) => document.querySelector(sel)?.getAttribute("data-live") === "true",
+      `#main li[data-row-kind=item]:has(a[href$="/${G[k]}"]) .wl-card__band`, { timeout: 20000, polling: 150 });
+  };
+  await live("dash");
+  const frame = bandOf(p, G.dash).locator("iframe");
+  const src = await frame.getAttribute("src");
+  if ((await frame.getAttribute("sandbox")) !== "allow-scripts") fail(`live frame sandbox: ${await frame.getAttribute("sandbox")}`);
+  if (!src || new URL(src).origin === new URL(APP).origin || !new URL(src).pathname.startsWith("/r/")) fail(`live frame src: ${src}`);
+  await p.waitForTimeout(700);
+  await p.screenshot({ path: path.join(CARD_OUT, `gallery-live-hover-1440-${process.env.BROWSER || "chromium"}.png`) });
+  for (const k of ["pricing", "status", "release"]) await live(k);
+  const frames = await p.locator("#main iframe").count();
+  if (frames > 3) fail(`${frames} live frames (want ≤ 3)`);
+  if (await bandOf(p, G.dash).locator("iframe").count()) fail("the oldest live frame wasn't let go");
+  await c.close();
+
+  // Lazy: a 60-item folder in Cards asks only for what's on screen, then more as it scrolls.
+  {
+    const { c: c2, p: p2 } = await ctx(browser, { token: T.member, width: 1440, height: 900 });
+    await c2.addInitScript(() => { try { localStorage.setItem("md_ws_view", "cards"); } catch {} });
+    const asked2 = watchPreviews(p2);
+    await p2.goto(fUrl(L.folders.Archive), { waitUntil: "load" });
+    await p2.locator("#main li[data-row-kind=item]").first().waitFor({ timeout: 30000 });
+    await p2.waitForTimeout(3500);
+    const first = new Set(asked2).size;
+    if (first === 0 || first > 30) fail(`Archive asked for ${first} previews on its first screen (want 1–30 of 60)`);
+    for (let i = 0; i < 12; i++) { await p2.mouse.wheel(0, 900); await p2.waitForTimeout(250); }
+    await p2.waitForTimeout(2500);
+    const after = new Set(asked2).size;
+    if (after <= first) fail(`scrolling asked for no more previews (${first} → ${after})`);
+    log(`lazy: ${first} previews on the first screen, ${after} after scrolling (of 60)`);
+    await c2.close();
+    // List (the default) and Grid never ask.
+    const { c: c4, p: p4 } = await ctx(browser, { token: T.member, width: 1440, height: 900 });
+    const asked3 = watchPreviews(p4);
+    await p4.goto(fUrl(L.folders.Gallery), { waitUntil: "load" });
+    await p4.locator("#main [data-view=list]").first().waitFor({ timeout: 20000 });
+    await p4.getByRole("radiogroup", { name: "View" }).getByRole("radio", { name: "Grid" }).click();
+    await p4.locator("#main [data-view=grid]").first().waitFor({ timeout: 5000 });
+    await p4.waitForTimeout(2500);
+    if (asked3.length) fail(`List/Grid asked for ${asked3.length} previews`);
+    if (await p4.locator("#main .wl-pv").count()) fail("previews rendered outside Cards");
+    await c4.close();
+  }
+  void asked;
+
+  // Screenshots: desktop and phones, light and dark, the first screen and further down.
+  for (const [theme, width] of [["light", 1440], ["dark", 1440], ["light", 390], ["dark", 390]]) {
+    const phone = width < 500;
+    const { c: c3, p: p3 } = await ctx(browser, { token: T.member, theme, width, height: phone ? 844 : 900, mobile: phone });
+    await c3.addInitScript(() => { try { localStorage.setItem("md_ws_view", "cards"); } catch {} });
+    await p3.goto(fUrl(L.folders.Gallery), { waitUntil: "load" });
+    await cardOf(p3, G.dash).waitFor({ timeout: 30000 });
+    const keys = phone ? ["dash", "page", "pdf"] : ["dash", "page", "pdf", "md", "photo", "csv", "video", "page2"];
+    for (const k of keys) {
+      await p3.waitForFunction(([sel, w]) => document.querySelector(sel)?.getAttribute("data-pv") === w,
+        [`#main li[data-row-kind=item]:has(a[href$="/${G[k]}"]) .wl-card__band`, EXPECT[k]], { timeout: 25000, polling: 150 });
+    }
+    if (phone) {
+      if (await p3.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)) fail(`horizontal scroll at ${width}px`);
+      await cardOf(p3, G.dash).scrollIntoViewIfNeeded();
+    }
+    await p3.waitForTimeout(600);
+    await p3.screenshot({ path: path.join(CARD_OUT, `gallery-${theme}-${width}-${process.env.BROWSER || "chromium"}.png`) });
+    {
+      // The rest of the kinds: video, Word, sheets, the encrypted lock, text (desktop); more on phones.
+      const more = phone ? ["md", "photo", "csv"] : ["video", "docx", "xlsx", "enc", "md2", "arch", "status", "json"];
+      for (const k of more) {
+        await cardOf(p3, G[k]).scrollIntoViewIfNeeded();
+        await p3.waitForFunction(([sel, w]) => document.querySelector(sel)?.getAttribute("data-pv") === w,
+          [`#main li[data-row-kind=item]:has(a[href$="/${G[k]}"]) .wl-card__band`, EXPECT[k]], { timeout: 25000, polling: 150 });
+      }
+      await cardOf(p3, G[more[0]]).evaluate((el) => el.scrollIntoView({ block: "start" }));
+      await p3.evaluate(() => window.scrollBy(0, -24));
+      await p3.waitForTimeout(500);
+      await p3.screenshot({ path: path.join(CARD_OUT, `gallery-${theme}-${width}-more-${process.env.BROWSER || "chromium"}.png`) });
+    }
+    await c3.close();
+  }
+  log("card shots in", CARD_OUT);
+});
+
+await step("cards-timing", async () => {
+  // Folder clicks stay instant in Cards: first feedback ≤ 100 ms (or within 30 ms of List), and the
+  // destination's items no later than in List (+300 ms of slack), on Fast 4G with a 4× slower CPU (Chromium; WebKit has no
+  // throttling, so it runs unthrottled).
+  const runs = Number(process.env.RUNS || 2);
+  const gallery = L.folders.Gallery, product = L.folders.Product, specs = L.nested.Specs;
+  const titles = { product: await firstTitle(product), specs: await firstTitle(specs), gallery: await firstTitle(gallery), root: await firstTitle("root") };
+  const out = {};
+  for (const view of ["list", "cards"]) {
+    out[view] = [];
+    for (let i = 0; i < runs; i++) {
+      const { c, p } = await ctx(browser, { token: T.member });
+      await c.addInitScript((v) => { try { localStorage.setItem("md_ws_view", v); } catch {} }, view);
+      let cdp = NO_CDP;
+      if (process.env.BROWSER !== "webkit") {
+        cdp = await c.newCDPSession(p);
+        await cdp.send("Network.enable");
+        await cdp.send("Network.emulateNetworkConditions", { offline: false, ...PROFILES["4g"] });
+        await cdp.send("Emulation.setCPUThrottlingRate", { rate: 4 });
+      }
+      await p.goto(wsUrl, { waitUntil: "load", timeout: 90000 });
+      await p.waitForFunction((t) => document.querySelector("#main")?.innerText.includes(t), titles.root, { timeout: 60000 });
+      await p.waitForTimeout(2500);
+      const run = {};
+      run.rootToGallery = await timedClick(p, cdp, `#main a[href$="/f/${gallery}"]`, { want: `/f/${gallery}`, text: titles.gallery });
+      await p.waitForTimeout(2500); // the Gallery's previews load meanwhile (Cards)
+      run.galleryToRoot = await timedClick(p, cdp, `#main nav a[href$="/w/${WS}"]`, { want: `/w/${WS}`, text: titles.root });
+      await p.waitForTimeout(1200);
+      run.rootToProduct = await timedClick(p, cdp, `#main a[href$="/f/${product}"]`, { want: `/f/${product}`, text: titles.product });
+      await p.waitForTimeout(1200);
+      run.productToSpecs = await timedClick(p, cdp, `#main a[href$="/f/${specs}"]`, { want: `/f/${specs}`, text: titles.specs });
+      out[view].push(run);
+      log(`${view} run ${i + 1}: ${Object.entries(run).map(([k, v]) => `${k} fb ${v.feedback} / content ${v.content} ms`).join("; ")}`);
+      await c.close();
+    }
+  }
+  const med = (xs) => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+  const summary = {};
+  for (const view of ["list", "cards"]) {
+    summary[view] = {};
+    for (const k of Object.keys(out[view][0])) summary[view][k] = { feedback: med(out[view].map((r) => r[k].feedback)), content: med(out[view].map((r) => r[k].content)) };
+  }
+  fs.mkdirSync(CARD_OUT, { recursive: true });
+  fs.writeFileSync(path.join(CARD_OUT, `timing-cards-${process.env.BROWSER || "chromium"}.json`), JSON.stringify({ summary, out }, null, 1));
+  console.log(JSON.stringify(summary, null, 1));
+  for (const k of Object.keys(summary.cards)) {
+    // ≤ 100 ms, or no worse than List where List itself is slower (a cold folder; navigation's own budget).
+    const fbMax = Math.max(100, summary.list[k].feedback + 30);
+    if (summary.cards[k].feedback > fbMax) fail(`cards ${k}: first feedback ${summary.cards[k].feedback} ms (want ≤ ${fbMax}; list ${summary.list[k].feedback})`);
+    if (summary.cards[k].content > summary.list[k].content + 300) fail(`cards ${k}: content ${summary.cards[k].content} ms vs list ${summary.list[k].content} ms`);
+  }
 });
 
 /* ── Renames elsewhere show without a reload (fix/followups) ─────────── */
