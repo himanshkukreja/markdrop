@@ -773,6 +773,7 @@
       "group": "access",
       "description": "Asks the owner of a document you can't open for access, or, with `role: \"editor\"`, for edit access to one you can read. The owner can approve or decline it.",
       "example": { "message": "Could I see the Q3 numbers?" },
+      "mcp": "request_edit_access",
       "guide": { "label": "Request access", "href": "/sharing/request-access" }
     },
     "GET /api/v1/documents/{slug}/access-requests/mine": {
@@ -784,7 +785,8 @@
     "GET /api/v1/me/access-requests": {
       "group": "access",
       "title": "List requests for you",
-      "description": "Requests for access to documents you own."
+      "description": "Requests for access to documents you own.",
+      "mcp": "list_access_requests"
     },
     "GET /api/v1/access-requests/{request_id}": {
       "group": "access",
@@ -795,7 +797,8 @@
       "group": "access",
       "title": "Answer an access request",
       "description": "Approves a request as a viewer or editor, or declines it.",
-      "example": { "decision": "view" }
+      "example": { "decision": "view" },
+      "mcp": "decide_access_request"
     },
 
     "GET /api/v1/notifications": {

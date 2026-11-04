@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "mcp-access-requests",
+      "date": "2026-11-04",
+      "title": "AI apps can ask for edit access, and answer access requests",
+      "kind": "new",
+      "area": "AI and MCP",
+      "products": [
+        "mcp"
+      ],
+      "summary": "Three new MCP tools bring Request edit access and Access requests to your AI app: ask a page's owner to let you edit it, see the requests waiting for you, and approve or decline them, with the same rules and emails as the app.",
+      "body": "- **`request_edit_access`** asks for edit access to a page, document or file you can open but not edit, with an optional note, just like **Request edit access** in the page's **⋯** menu. It goes to the owner, or to the workspace's admins when the page has no owner who can be reached.\n- **`list_access_requests`** lists the requests waiting for you to answer (`incoming`, the default) or the ones you made (`outgoing`), pending, approved, declined or all.\n- **`decide_access_request`** approves or declines one. Only the person who can answer in the app can answer here: the document's owner, or a workspace admin for an edit request sent to the admins. The requester gets the same email either way, and assistants are told to check with you before approving.\n- The hosted MCP server now has 66 tools.",
+      "docs": [
+        "/sharing/request-access",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "link-previews-folders",
       "date": "2026-11-04",
       "title": "Folder and workspace links unfurl with a card, and every Markdrop link has one",
