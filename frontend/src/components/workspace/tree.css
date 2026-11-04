@@ -85,6 +85,12 @@
   text-decoration: none;
 }
 .md-tree__act:hover { background: var(--surface-active); color: var(--text); }
+/* The phone drawer: 40 px targets when they show (a long press, a keyboard). */
+@media (max-width: 1023.98px) {
+  .md-tree--nav .md-tree__item--armed { padding-right: 88px; }
+  .md-tree--nav .md-tree__act,
+  .md-tree--nav .md-tree__actions .md-tree__act.md-btn { width: 40px; height: 40px; min-height: 40px; }
+}
 
 /* A quiet line (an empty workspace) and the loading placeholders: aligned with the labels. */
 .md-tree__note,
