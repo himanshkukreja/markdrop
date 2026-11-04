@@ -24,6 +24,21 @@
   "next": [],
   "entries": [
     {
+      "id": "cli-0-6-1",
+      "date": "2026-11-05",
+      "title": "CLI 0.6.1: markdrop search looks inside your content",
+      "kind": "improved",
+      "area": "CLI",
+      "products": [
+        "cli"
+      ],
+      "versions": {
+        "cli": "0.6.1"
+      },
+      "summary": "markdrop search now uses the same global search as the app: it finds words inside pages, documents and file contents, forgives typos, and shows the text that matched.",
+      "body": "- **`markdrop search`** runs on the app's global search: titles, headings, body text and file contents (HTML and PDF text), folders, workspaces and Guides pages, forgiving typos.\n- A new **`guide`** kind for `--kind`, and a **MATCHED** column with the text that matched. `--limit` is now the total number of results (20 by default, at most 50).\n- Against a server without the new search it falls back to the titles-only search of 0.6.0.\n- Update with `brew upgrade markdrop`, or see [Install the markdrop CLI](/cli/install)."
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",
