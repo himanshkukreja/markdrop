@@ -63,3 +63,9 @@ AI search needs an account and counts towards your AI limits. When a limit is re
 ## Search from an AI app
 
 The hosted MCP server's `search` tool uses the same search, and `ask_documents` asks a question the same way Ask AI does. See [MCP tools](/ai/tools#read-and-find).
+
+## Search from the terminal or the API
+
+`markdrop search` in the [CLI](/cli/search-trash-access#search) uses the same search, with `--kind` and `--workspace` filters and the matching text for each result.
+
+With an [API token](/cli/login-and-tokens), `GET /api/v1/search?q=…` returns the same results as JSON: each one's kind, title, workspace and folder, a snippet with the matched words marked, and `web_url`, a full link to open it. `scope=workspace:<id>`, `kind`, `owner=me` and `updated=week|month` narrow it, and `next_cursor` pages through the rest. See [Search everything](/api/search/search-everything) in the API reference.

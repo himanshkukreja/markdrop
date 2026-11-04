@@ -54,6 +54,9 @@ type Server struct {
 	workspaces []*Workspace
 	requests   []*AccessRequest
 
+	// NoSearchV1 answers GET /api/v1/search with 404, as a server from before it.
+	NoSearchV1 bool
+
 	// Pages (pages.go).
 	LastPageCreate map[string]any
 	LastPut        map[string]any

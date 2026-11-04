@@ -14,6 +14,7 @@
     { "id": "notifications", "title": "Notifications", "tags": ["notifications"] },
     { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
+    { "id": "search", "title": "Search", "tags": ["search"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
@@ -1185,6 +1186,38 @@
     "GET /api/v1/me/recent": {
       "title": "Recently opened",
       "description": "Documents you opened recently."
+    },
+    "GET /api/v1/search": {
+      "title": "Search everything",
+      "description": "Fuzzy search over everything you can open: titles, headings, the text of pages and documents, the text of HTML files and PDFs, folders, workspaces, the Guides pages you have a role on and, at the end, your Trash. Typos, partial words and any word order match. `items` is the ranked page of results; `groups` holds the first few of each kind, for a grouped list; `trash` lists matching items you can restore. Each result has its `kind`, `title`, `workspace`, `folder`, `owner` (named only when you're related to the item), `updated_at`, a `snippet` with the matched words' ranges in `marks`, `match` (`title`, `heading` or `body`), `url` (what the app opens) and `web_url` (always a full link). Encrypted and password-protected items match by title only and never have a snippet. Pass `next_cursor` back as `cursor` for more. `ai_suggested` is `true` when `q` reads like a question.",
+      "params": { "q": "onbording plyabook" },
+      "paramNotes": {
+        "q": "What to look for.",
+        "scope": "`all` (the default) or `workspace:<workspace id>` for one workspace.",
+        "kind": "Comma-separated kinds: `page`, `doc`, `file`, `folder`, `workspace`, `guide`.",
+        "owner": "`me` keeps only your own items.",
+        "updated": "`week` or `month` keeps only what changed in that time.",
+        "current": "The id of the workspace you're in: its items rank a little higher.",
+        "cursor": "The `next_cursor` of the previous answer.",
+        "limit": "Results per answer, up to 50.",
+        "trash": "`false` leaves out the Trash matches."
+      },
+      "cli": "markdrop search \"onbording plyabook\"",
+      "mcp": "search",
+      "guide": { "label": "Search", "href": "/workspaces/search" }
+    },
+    "GET /api/v1/search/ai-status": {
+      "title": "Check AI search availability",
+      "description": "Whether Ask AI can answer now, for everything (no `scope`) or for one workspace. When it can't, `enabled` is `false`, `reason` says why (`off`, `not_configured`, `workspace_off`, `blocked`, `burst`, `user_daily`, `daily` or `monthly`) and `message` says it in words. `model` names the model it uses.",
+      "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
+    },
+    "POST /api/v1/search/ask": {
+      "title": "Ask AI about your items",
+      "description": "Answers a question from the items you can open, with Claude Haiku 5.5: AI turns the question into search terms, search finds up to 40 matching items, and AI picks the relevant ones and writes a short answer that cites them as [n]. Only text you can open is sent, never an encrypted item. Streams server-sent events: `status` (the stage), `results` (the matching items), `delta` (answer text as it's written), then `done` with `answer`, `citations` and `ranked`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI limits.",
+      "returns": "text/event-stream",
+      "example": { "question": "How do we onboard contractors?" },
+      "mcp": "ask_documents",
+      "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
     },
     "GET /api/v1/search/quick": {
       "title": "Quick search",
