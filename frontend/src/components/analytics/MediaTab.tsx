@@ -69,7 +69,7 @@ export default function MediaTab({ slug, ov, range, internal }: { slug: string; 
   const [focusT, setFocusT] = useState<number | null>(null);
   const markMoment = (t: number) => {
     setFocusT((cur) => (cur === t ? null : t));
-    document.getElementById("md-ret")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    document.querySelector('section[aria-labelledby="md-ret"]')?.scrollIntoView({ block: "center", behavior: "smooth" });
   };
   const media = useLoad(ov.has_engagement ? `media:${slug}:${range}:${internal}:${ver ?? ""}` : null, () => getMedia(slug, { range, internal }, ver));
   const versions = useLoad(video && fileVersion > 1 && ov.has_engagement ? `ver:${slug}:${range}:${internal}` : null, () => getVersions(slug, { range, internal }));

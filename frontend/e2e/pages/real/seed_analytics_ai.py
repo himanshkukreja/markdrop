@@ -118,8 +118,11 @@ raw = doc_row(page)
 ids = [h["id"] for h in md_outline.extract_headings(PAGE)]   # what the reader's tracker reports
 rows = []
 for i in range(48):
-    reach = 2 + (1 if i % 3 else 0) + (1 if i % 3 and i % 2 == 0 else 0) + (1 if i % 7 == 0 else 0)
-    got = ids[:min(len(ids), reach)]
+    # Half stop before Configuration; most of those who read it go on.
+    conf = i % 2 == 0
+    first = conf and i % 8 != 0
+    trouble = first and i % 3 != 0
+    got = ids[:2 + conf + first + trouble]
     rows.append(session(raw, kind="doc", reached=got, sec={h: rnd.randint(8, 40) + (60 if "configuration" in h else 0) for h in got},
                         active_s=rnd.randint(40, 200), depth=100 if len(got) == len(ids) else 30 + 15 * len(got),
                         copies={f"1a2b3c4d|{ids[1]}": 1} if i % 4 == 0 else {}))

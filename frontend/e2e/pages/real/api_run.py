@@ -186,7 +186,7 @@ if os.environ.get("PB_FAKE_ANALYTICS_AI"):
             with _calls.open("a") as fh:
                 fh.write(_json.dumps({"system": system[:80], "user": user,
                                       "images": sum(1 for b in blocks if b["type"] == "image")}) + "\n")
-            return _AStream(_answer(system, user))
+            return _AStream(_answer(system, blocks[0]["text"]))
 
     _aclient = _NS(messages=_AMessages())
     analytics_ai_doc.docs_agent = _NS(get_client=lambda: _aclient, configured=lambda: True)
