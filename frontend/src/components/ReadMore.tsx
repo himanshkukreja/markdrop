@@ -13,7 +13,7 @@ export function ReadMore({ topic, children = "Read more", className }: { topic: 
       target="_blank"
       rel="noopener"
       // Plain join, not cx: the ui barrel is client-only and this also renders in server components.
-      className={`inline-flex items-center gap-0.5 whitespace-nowrap font-semibold text-accent-text underline-offset-2 hover:underline ${className ?? ""}`}
+      className={`md-touch-hit inline-flex items-center gap-0.5 whitespace-nowrap font-semibold text-accent-text underline-offset-2 hover:underline ${className ?? ""}`}
     >
       {children}
       <Icon name="arrowUpRight" size={13} />

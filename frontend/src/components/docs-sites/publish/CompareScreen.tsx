@@ -177,7 +177,7 @@ export default function CompareScreen() {
 
   return (
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-col gap-[18px] px-4 pb-14 pt-6 outline-none sm:px-6">
-      <Anchor href={`${base}/publish`} className="inline-flex items-center gap-1.5 self-start text-[13px] text-accent-text no-underline hover:underline">
+      <Anchor href={`${base}/publish`} className="inline-flex items-center gap-1.5 self-start text-[13px] text-accent-text no-underline hover:underline pointer-coarse:min-h-11">
         <Icon name="chevronLeft" size={14} /> Back to Publish
       </Anchor>
       <div className="flex flex-wrap items-center gap-3">
@@ -259,7 +259,7 @@ export default function CompareScreen() {
                       type="button"
                       aria-pressed={view === v}
                       onClick={() => { setView(v); go({ view: v }); guideEvents.compareView(v); }}
-                      className={cx("md-focus h-[26px] rounded-md px-2.5 text-[12px]", view === v ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text")}
+                      className={cx("md-focus md-touch-hit h-[26px] rounded-md px-2.5 text-[12px]", view === v ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text")}
                     >
                       {v === "text" ? "Text" : "Side by side"}
                     </button>

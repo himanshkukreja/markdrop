@@ -359,7 +359,7 @@ export function PageTree({
   return (
     <div className="flex min-h-full flex-col">
       <div className="flex items-center gap-1.5 px-1 pb-2">
-        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-surface-inset px-2.5 text-text-muted focus-within:ring-2 focus-within:ring-border-focus">
+        <label className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md bg-surface-inset px-2.5 pointer-coarse:h-11 text-text-muted focus-within:ring-2 focus-within:ring-border-focus">
           <Icon name="search" size={13} />
           <input
             type="search"
@@ -457,7 +457,7 @@ function TreeGroupBox({
           onClick={onToggle}
           disabled={!!q}
           className={cx(
-            "md-focus flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-left text-[12px] font-semibold disabled:cursor-default",
+            "md-focus flex h-7 min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 text-left text-[12px] font-semibold disabled:cursor-default pointer-coarse:h-11",
             lit ? "text-accent-text" : g.hidden ? "text-text-subtle" : "text-text-muted",
             !q && !lit && "hover:text-text",
           )}
@@ -466,7 +466,7 @@ function TreeGroupBox({
           <span className="min-w-0 flex-1 truncate">{g.group}</span>
           {!open && g.pages.some((p) => p.has_changes) && <span aria-hidden className="mr-1.5 size-1.5 shrink-0 rounded-full bg-accent" />}
         </button>
-        {dragOn && <Grip label={`Move the group ${g.group}`} handle={handle} className="mr-0.5 h-6 w-5 lg:group-hover/head:opacity-100 max-lg:h-9 max-lg:w-9" />}
+        {dragOn && <Grip label={`Move the group ${g.group}`} handle={handle} className="mr-0.5 h-6 w-5 lg:group-hover/head:opacity-100 max-lg:h-9 max-lg:w-9 pointer-coarse:size-11" />}
       </div>
       <div id={listId} data-tree-list="" hidden={!open} className="flex flex-col gap-px">
         {children}
@@ -505,7 +505,7 @@ function PageRow({
         <Grip
           label={`Move ${p.title || "Untitled"}`}
           handle={handle}
-          className="absolute left-0.5 top-1/2 z-[1] h-6 w-[18px] -translate-y-1/2 lg:group-hover/row:opacity-100 max-lg:left-0 max-lg:h-11 max-lg:w-[22px]"
+          className="absolute left-0.5 top-1/2 z-[1] h-6 w-[18px] -translate-y-1/2 lg:group-hover/row:opacity-100 max-lg:left-0 max-lg:h-11 max-lg:w-[22px] pointer-coarse:left-0 pointer-coarse:h-11 pointer-coarse:w-11"
         />
       )}
       <a
@@ -517,7 +517,7 @@ function PageRow({
           onOpen();
         }}
         className={cx(
-          "md-focus flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-md pl-[22px] pr-2 text-[13px] no-underline max-lg:h-11",
+          "md-focus flex h-[30px] min-w-0 flex-1 items-center gap-2 rounded-md pl-[22px] pr-2 text-[13px] no-underline max-lg:h-11 pointer-coarse:h-11 pointer-coarse:pl-11",
           on ? "font-semibold text-text" : "font-medium text-text-secondary",
           muted && !on && "text-text-muted",
         )}

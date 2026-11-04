@@ -20,6 +20,38 @@ function unavailableText(reason: string | undefined): string {
     : `${name} is turned off right now. You can still search the docs, or open this page in your own assistant.`;
 }
 
+/**
+ * The on-screen keyboard over the phone's bottom sheet: how far it reaches up from the bottom of the
+ * layout viewport (iOS and Android Chrome shrink only the visual viewport), as --dx-kb on <html>, so
+ * the sheet sits on top of the keyboard with the composer in view (docs.css .dx-askdrawer--sheet).
+ */
+function useKeyboardInset(on: boolean) {
+  useEffect(() => {
+    const vv = window.visualViewport;
+    const root = document.documentElement;
+    if (!on || !vv) return;
+    let raf = 0;
+    const up = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+        root.style.setProperty("--dx-kb", `${kb}px`);
+        root.style.setProperty("--dx-vvh", `${Math.round(vv.height)}px`);
+      });
+    };
+    up();
+    vv.addEventListener("resize", up);
+    vv.addEventListener("scroll", up);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", up);
+      vv.removeEventListener("scroll", up);
+      root.style.removeProperty("--dx-kb");
+      root.style.removeProperty("--dx-vvh");
+    };
+  }, [on]);
+}
+
 function liveText(s: AskState): string {
   const last = s.panel.turns[s.panel.turns.length - 1];
   if (!last) return "";
@@ -65,6 +97,7 @@ export default function AskPanel({ mode, suggestions }: { mode: PanelMode; sugge
   const followUps = useFollowUps(last, asked);
   const unavailable = s.availability === "unavailable";
   const onNavigate = mode === "docked" ? undefined : () => closeAsk({ restoreFocus: false });
+  useKeyboardInset(mode === "sheet" && s.open);
 
   const ask = (q: string) => {
     askIn("panel", q, s.context);

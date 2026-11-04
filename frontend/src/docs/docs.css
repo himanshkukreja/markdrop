@@ -557,6 +557,8 @@ html.dx-modal-open { overflow: hidden; }
 .dx-askdrawer__title .md-icon { font-size: 18px; color: var(--accent-text); }
 .dx-askdrawer .md-drawer__head { padding: 10px 10px 10px 16px; }
 .dx-askdrawer--sheet { height: 86dvh; }
+/* The on-screen keyboard (AskPanel useKeyboardInset): the sheet rides on top of it, no taller than what's left. */
+.dx-askdrawer--sheet.md-drawer--bottom { bottom: var(--dx-kb, 0px); max-height: calc(var(--dx-vvh, 100dvh) - 8px); }
 .dx-askdrawer--sheet .md-drawer__head { border-bottom: 0; padding-top: 6px; }
 .dx-askdrawer .md-drawer__body.dx-askpanel__body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .dx-askdrawer .md-drawer__foot { display: block; padding: 10px 16px; }
@@ -883,3 +885,12 @@ html.dx-modal-open { overflow: hidden; }
 .dx-private > :last-child { margin-bottom: 12px; }
 .dx-private__label { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary); }
 .dx-nav__lock { flex: none; width: 13px; height: 13px; margin-left: auto; color: var(--text-muted); }
+
+/* ── Touch screens (phones, tablets): 44 px targets; text sizes are in styles/touch.css ── */
+@media (pointer: coarse) {
+  .dx-brand, .dx-otp, .dx-sheet__tab, .dx-chapters__item { min-height: 44px; }
+  .dx-chapters__item { align-items: center; }
+  .dx-chip { min-height: 44px; display: inline-flex; align-items: center; }
+  .dx-ask__input { height: 44px; }
+  .dx-footer a, .dx-footer__choices, .dx-crumbs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+}

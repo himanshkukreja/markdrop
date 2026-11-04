@@ -96,7 +96,7 @@ export default function AnalyticsHome() {
                         return (
                           <tr key={l.slug} className="border-t border-border">
                             <th scope="row" className="max-w-[320px] px-2 py-2.5 text-left font-normal">
-                              <Anchor href={docHref(l.slug)} className="md-focus flex min-w-0 items-center gap-2.5 rounded-sm text-text no-underline hover:text-accent-text">
+                              <Anchor href={docHref(l.slug)} className="md-focus flex min-w-0 items-center gap-2.5 rounded-sm text-text no-underline hover:text-accent-text pointer-coarse:min-h-11">
                                 <LinkIcon l={l} />
                                 <span className="truncate font-semibold" dir="auto">{t}</span>
                                 {l.live && <span aria-label="Live now" role="img" className="size-2 shrink-0 rounded-full bg-success-fill" />}

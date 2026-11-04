@@ -17,6 +17,8 @@
     & :is(.md-btn, .md-seg__opt, .md-touch-hit) {
       position: relative;
     }
+    /* A link or button that only opts in to the hit area keeps any position it already has. */
+    & .md-touch-hit:is(.absolute, .fixed, .sticky) { position: revert-layer; }
     & :is(.md-btn, .md-seg__opt, .md-touch-hit)::after {
       content: "";
       position: absolute;
@@ -41,7 +43,10 @@
     }
 
     /* 3. Nothing under 12 px. */
-    & :is(.md-badge, .md-badge--sm, .md-tab__count, .md-kbd, .text-eyebrow) { font-size: 12px; }
+    & :is(.md-badge, .md-badge--sm, .md-tab__count, .md-kbd, .md-avatar--sm, .md-menu__caption, .md-table th,
+      .md-codeblock__lang, .md-diagram__kind, .md-toc__title, .md-toc__here, .text-eyebrow, .text-micro,
+      .dx-eyebrow, .dx-composer__note) { font-size: 12px; }
     & .md-badge--sm { height: 20px; }
+    & .dx-icode { font-size: max(12px, 0.875em); }
   }
 }
