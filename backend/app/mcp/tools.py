@@ -1728,7 +1728,7 @@ async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
         # decision as opening it, a few items at a time.
         from app.services import card_preview
 
-        actor, actx = access_service.Actor.of(ctx.user), access_service.Ctx(ctx.db)
+        actor, actx = actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp")
         slugs = [i["slug"] for i in items]
         found: dict[str, dict] = {}
         for k in range(0, len(slugs), card_preview.MAX_SLUGS):

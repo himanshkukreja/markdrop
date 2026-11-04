@@ -279,7 +279,8 @@ export function PreviewBand({ workspaceId, it, title, tint, fallback, kind }: {
   return (
     <span
       ref={ref}
-      className="wl-card__band"
+      // ph-no-capture: a preview is the item's own content, never recorded (lib/thirdPartyAnalytics).
+      className={cx("wl-card__band", body && "ph-no-capture")}
       data-pv={variant}
       data-live={liveUrl && ready === liveUrl ? "true" : undefined}
       style={{ "--tint": tint } as React.CSSProperties}
