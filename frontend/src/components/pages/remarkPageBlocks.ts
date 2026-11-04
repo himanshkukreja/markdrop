@@ -209,6 +209,11 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           } else if (node.name === "date" && /^\d{4}-\d{2}-\d{2}$/.test(textOf(node).trim())) {
             set(node, "span", { dataPb: "date", dataLabel: textOf(node).trim() });
             node.children = [];
+          } else if (node.name === "person" && !attr(node, "id") && parent) {
+            // `:person[Name]` without an id: no member was found by that name (the server gives a
+            // unique one their id when the page is saved), so it's only text.
+            parent.children![index] = { type: "text", value: textOf(node) };
+            return;
           } else if (node.name === "person") {
             set(node, "span", { dataPb: "person", dataLabel: textOf(node).trim() || "a person" });
             node.children = [];

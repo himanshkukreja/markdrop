@@ -154,6 +154,25 @@ async def _result(ctx: Context, after: dict) -> dict:
     return {**await url_pair(ctx, after), "slug": after["slug"], "rev": int(after.get("rev") or 1)}
 
 
+async def _people(ctx: Context, page: dict, markdown: str) -> tuple[str, list[str]]:
+    """``:person[Name]`` without an id: given the id of the one member of the
+    page's workspace with that name (services/page_people.py). (Markdown, the
+    names left as plain text.)"""
+    from app.services import page_people
+
+    out, left = await page_people.resolve(ctx.db, markdown, page, ctx.user.id if ctx.user else None)
+    return out or markdown, left
+
+
+def _people_note(text: str, out: dict, left: list[str]) -> str:
+    from app.services import page_people
+
+    if not left:
+        return text
+    out["unresolved_people"] = left
+    return f"{text}\n{page_people.warning(left)}"
+
+
 # ── Handlers ──────────────────────────────────────────────────────────────────
 
 
@@ -165,12 +184,16 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if not parent:
         ws_id, _folder_id = await precheck_workspace(ctx, args)
     parent_slug = None
+    parent_raw = None
     if parent:
         parent_raw = await load_for(ctx, parent, "edit_content", "add pages to")
         parent_slug = parent_raw["slug"]
     content = args.get("content")
+    left: list[str] = []
     if content:
         _check_embeds(content)
+        content, left = await _people(ctx, {"editor": "blocks", "workspace_id": (
+            parent_raw.get("workspace_id") if parent_raw else ws_id)}, content)
     if args.get("properties"):
         props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
         if any(str(v or "").startswith("asset:") for v in props.values()):
@@ -204,7 +227,7 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     text = f"Created the page {out['title']!r}{where}: {out['url']}"
     if error:
         text += f"\n{error}"
-    return text, out
+    return _people_note(text, out, left), out
 
 
 async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -259,9 +282,10 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
 async def update_page(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
-    after = await _save(ctx, raw, args["markdown"], int(args["base_rev"]))
+    markdown, left = await _people(ctx, raw, args["markdown"])
+    after = await _save(ctx, raw, markdown, int(args["base_rev"]))
     out = await _result(ctx, after)
-    return f"Updated {out['url']} (revision {out['rev']}).", out
+    return _people_note(f"Updated {out['url']} (revision {out['rev']}).", out, left), out
 
 
 async def append_blocks(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -269,23 +293,26 @@ async def append_blocks(ctx: Context, args: dict) -> tuple[str, dict]:
     _editable_page(raw)
     if not (args.get("markdown") or "").strip():
         raise ToolError("Nothing to add.")
-    after = await _append(ctx, raw, args["markdown"])
+    markdown, left = await _people(ctx, raw, args["markdown"])
+    after = await _append(ctx, raw, markdown)
     out = await _result(ctx, after)
-    return f"Added to the end of {out['url']} (revision {out['rev']}).", out
+    return _people_note(f"Added to the end of {out['url']} (revision {out['rev']}).", out, left), out
 
 
 async def replace_section(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
     _lock_check(raw, ctx)
-    content = pages.replace_section(raw.get("content") or "", args["heading"], args["markdown"])
+    markdown, left = await _people(ctx, raw, args["markdown"])
+    content = pages.replace_section(raw.get("content") or "", args["heading"], markdown)
     if content is None:
         names = [t for _i, _l, t in pages.headings(raw.get("content") or "")][:40]
         raise ToolError(f"There's no heading {args['heading']!r} on that page."
                         + (f" Its headings: {', '.join(names)}." if names else " It has no headings."))
     after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
     out = await _result(ctx, after)
-    return f"Replaced the section {args['heading']!r} on {out['url']} (revision {out['rev']}).", out
+    return _people_note(f"Replaced the section {args['heading']!r} on {out['url']} (revision {out['rev']}).",
+                        out, left), out
 
 
 async def insert_embed(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -736,9 +763,80 @@ async def copy_page_asset(ctx: Context, args: dict) -> tuple[str, dict]:
             f"cover with set_page_properties cover=\"{out['asset']}\"."), out
 
 
+async def duplicate_page(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import page_copy
+
+    raw = await load_for(ctx, args["document"], "copy", "duplicate")
+    if raw.get("encrypted"):
+        raise ToolError(page_copy.ENCRYPTED)
+    if raw.get("kind") == "artifact":
+        raise ToolError("That's a file, not a page: only pages and Markdown documents can be duplicated.")
+    parent = args.get("parent")
+    if parent and (args.get("workspace") or args.get("folder")):
+        raise ToolError("A sub-page lives in its parent's workspace and folder: pass parent alone.")
+    parent_slug = ws_id = folder_id = None
+    if parent:
+        parent_slug = (await load_for(ctx, parent, "edit_content", "add pages to"))["slug"]
+    elif args.get("workspace") or args.get("folder"):
+        where = dict(args)
+        if not where.get("workspace"):
+            if not raw.get("workspace_id"):
+                raise ToolError("That page isn't in a workspace: pass workspace with folder.")
+            from app.services import workspace as ws_service
+
+            if await ws_service.role_for(ctx.db, raw["workspace_id"], ctx.user.id) is None:
+                raise ToolError("You aren't a member of the page's workspace: pass workspace (one of "
+                                "yours) with folder, or parent.")
+            where["workspace"] = raw["workspace_id"]
+        ws_id, folder_id = await precheck_workspace(ctx, where)
+    try:
+        res = await page_copy.duplicate(
+            ctx.db, raw, ctx.user, actor_of(ctx), _actx(ctx), title=args.get("title"), workspace=ws_id,
+            folder=folder_id, parent=parent_slug, include_subpages=bool(args.get("include_subpages")))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    copy = res["raw"]
+    parent_out = None
+    if copy.get("parent_id") is not None:
+        p = await ctx.db["documents"].find_one({"_id": copy["parent_id"]}, {"slug": 1})
+        parent_out = p["slug"] if p else None
+    out: dict[str, Any] = {
+        **await url_pair(ctx, copy), "slug": copy["slug"], "title": copy.get("title"), "source": raw["slug"],
+        "placed": res["placed"], "parent": parent_out, "workspace_id": copy.get("workspace_id"),
+        "access": "workspace" if copy.get("access_level") == "workspace" else (
+            "private" if copy.get("access_level") == "private" else "link"),
+        "pages": res["pages"], "images_copied": res["images_copied"], "images_missing": res["images_missing"],
+        "skipped_subpages": res["skipped_own_access"], "skipped_over_limit": res["skipped_over_limit"],
+        "failed_subpages": res["failed"], "workspace_error": res["workspace_error"],
+    }
+    where_text = {"parent": f" inside {parent_out}", "workspace": " in its workspace",
+                  "personal": " among the user's own pages"}[res["placed"]]
+    lines = [f"Duplicated {raw['slug']} as {out['title']!r}{where_text}: {out['url']}"]
+    if res["pages"] > 1:
+        lines.append(f"With {res['pages'] - 1} sub-page(s).")
+    if res["images_missing"]:
+        lines.append(f"{len(res['images_missing'])} image(s) couldn't be copied and show as missing in the copy: "
+                     + ", ".join(res["images_missing"][:10]) + ".")
+    if res["skipped_own_access"]:
+        lines.append("Sub-pages with access of their own weren't copied (their copies would follow the copy's "
+                     "access): " + ", ".join(res["skipped_own_access"][:10]) + ".")
+    if res["skipped_over_limit"]:
+        lines.append(f"A duplicate stops at {page_copy.MAX_PAGES} pages: {res['skipped_over_limit']} sub-page(s) "
+                     "weren't copied.")
+    if res["failed"]:
+        lines.append(f"{res['failed']} sub-page(s) couldn't be copied.")
+    if res["workspace_error"]:
+        lines.append(res["workspace_error"])
+    return "\n".join(lines), out
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
-_PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"}},
+_UNRESOLVED = {"type": "array", "items": {"type": "string"},
+               "description": "Names in :person[Name] (no id) that aren't exactly one member of the page's "
+                              "workspace: left as plain text. Only present when there are some."}
+_PAGE_RESULT = _out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
+                     "unresolved_people": _UNRESOLVED},
                     ["url", "markdrop_url", "slug", "rev"])
 _MARKDOWN = {"type": "string", "minLength": 1, "maxLength": settings.max_content_chars}
 # What AI apps may write in a page (the block editor round-trips all of it). Kept in one place;
@@ -765,7 +863,9 @@ PAGE_SYNTAX = (
     "mode=\"live|preview|card\"}'; mention: ':markdrop[Title]{src=\"<slug>\"}'. Sub-page link: "
     "'::page{src=\"<slug>\"}'; '::toc'; '::breadcrumb'. Bookmark: '::bookmark{url=\"https://…\" "
     "title=\"…\" description=\"…\"}'. Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): "
-    "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}'; date: ':date[YYYY-MM-DD]'; "
+    "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}' (ids from "
+    "list_workspace_members; ':person[Name]' alone is given the id when exactly one member of the page's "
+    "workspace has that name, else it stays plain text); date: ':date[YYYY-MM-DD]'; "
     "key: ':kbd[⌘ K]'. Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
     "font, locked, allow_export): use set_page_properties."
 )
@@ -810,7 +910,8 @@ PAGE_TOOLS: list[Tool] = [
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
                             "editor": {"type": "string"}, "parent": _NULLABLE_STR,
-                            "workspace_error": _NULLABLE_STR, "template_id": _NULLABLE_STR},
+                            "workspace_error": _NULLABLE_STR, "template_id": _NULLABLE_STR,
+                            "unresolved_people": _UNRESOLVED},
                            ["url", "markdrop_url", "slug", "title", "editor"]),
         annotations=_ann(False, False, False),
         handler=create_page,
@@ -1253,5 +1354,48 @@ PAGE_TOOLS: list[Tool] = [
         }, ["asset", "markdown", "id", "mime", "size", "slug", "from_slug", "from_asset"]),
         annotations=_ann(False, False, False),
         handler=copy_page_asset,
+    ),
+    Tool(
+        name="duplicate_page",
+        title="Duplicate a page",
+        description=("Copy a page: its Markdown, properties (icon, cover, front matter) and its images (the copy "
+                     "gets its own copies, shown to the copy's readers). Any page the user can read can be "
+                     "duplicated; the copy is the user's own, and a locked page gives an unlocked copy. It goes "
+                     "inside parent, or into workspace / folder (folder alone: the original's workspace), and "
+                     "otherwise next to the original (its parent page, else its workspace folder, else the "
+                     "user's own pages, private). The user must be able to add pages where it goes. title "
+                     "defaults to 'Copy of <title>'. include_subpages also copies the sub-pages the user can "
+                     "read (up to 50 pages; ones with access of their own are skipped and named). A Markdown "
+                     "document in the classic editor gives a classic copy. End-to-end encrypted pages can't be "
+                     "duplicated. Always give the user the returned url."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": {**_DOC_REF, "description": "The page to copy (slug or link)."},
+            "title": {"type": "string", "minLength": 1, "maxLength": 200,
+                      "description": "Optional: the copy's title. Default: 'Copy of <title>'."},
+            "workspace": {**_WORKSPACE_ARG, "description": "Optional: put the copy in this workspace (id, name "
+                                                            "or domain); the user must be a member or above."},
+            "folder": {**_FOLDER_ARG, "description": "Optional: an existing folder (path) of that workspace, or "
+                                                     "of the original's when workspace is left out."},
+            "parent": {**_DOC_REF, "description": "Optional: the page to put the copy inside (slug or link). "
+                                                  "The user must be able to edit it."},
+            "include_subpages": {"type": "boolean", "default": False,
+                                 "description": "Also copy the sub-pages (default false)."},
+        }, "required": ["document"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
+                            "source": {"type": "string"}, "placed": {"type": "string",
+                                                                     "enum": ["parent", "workspace", "personal"]},
+                            "parent": _NULLABLE_STR, "workspace_id": _NULLABLE_STR,
+                            "access": {"type": "string", "enum": ["link", "private", "workspace"]},
+                            "pages": {"type": "integer"}, "images_copied": {"type": "integer"},
+                            "images_missing": {"type": "array", "items": {"type": "string"}},
+                            "skipped_subpages": {"type": "array", "items": {"type": "string"}},
+                            "skipped_over_limit": {"type": "integer"}, "failed_subpages": {"type": "integer"},
+                            "workspace_error": _NULLABLE_STR},
+                           ["url", "markdrop_url", "slug", "title", "source", "placed", "access", "pages",
+                            "images_copied", "images_missing"]),
+        annotations=_ann(False, False, False),
+        handler=duplicate_page,
     ),
 ]

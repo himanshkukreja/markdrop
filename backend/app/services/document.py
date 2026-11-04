@@ -486,6 +486,12 @@ async def update_document(
         # Person names and item labels a reader couldn't see come back from the stored page.
         sets["content"] = data.content if raw.get("encrypted") else await pages.restore_refs(
             actor, ctx, pages.restore_people(data.content, raw.get("content")), raw.get("content"))
+        if not raw.get("encrypted"):
+            # ``:person[Name]`` without an id: a member of the page's workspace named uniquely
+            # gets their id (services/page_people.py).
+            from app.services import page_people
+
+            sets["content"], _left = await page_people.resolve(db, sets["content"], raw, actor.user_id)
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,

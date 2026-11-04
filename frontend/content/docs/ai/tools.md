@@ -3,10 +3,10 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-04
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 52 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 54 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -89,10 +89,15 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. Adding an image to a page works while someone is editing it; putting its Markdown in the page follows the same rules. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 A page's link is its slug: `markdrop.in/<slug>`, and on the workspace's own domain `/<folders>/<parent pages>/<slug>`. For example, `create_page` with `title`, `slug: "sl-template-prd"`, `workspace` and `folder: "product-hub/templates"` returns `https://docs.acme.com/product-hub/templates/sl-template-prd`. Change it later with `set_slug`; the old link redirects.
+| `duplicate_page` | write | Copies a page you can read: its Markdown, properties and images (as the copy's own). The copy is yours and never locked, called "Copy of Title" unless you give a `title`. It goes inside `parent`, in `workspace` / `folder` (`folder` alone means the original's workspace), or else next to the original; you must be able to add pages there. Sub-pages only with `include_subpages` (up to 50 pages). Returns the link. | `document`, `title`, `workspace`, `folder`, `parent`, `include_subpages` |
 
 While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 
 Readers who can't open an embedded or mentioned item see a locked placeholder with no title. In a page, people mentioned with `@` are named only to the page's owner and its workspace's members.
+
+To mention someone, write `:person[Name]{id="<id>"}` with an id from `list_workspace_members`, or just `:person[Name]`: when exactly one member of the page's workspace has that name (upper and lower case ignored), Markdrop adds the id as it saves. Names it can't match, or that more than one member has, stay plain text, and `create_page`, `update_page`, `replace_section` and `append_blocks` list them in `unresolved_people`. Names are looked up only when you're a member of the page's workspace.
+
+`duplicate_page` details: without a target, the copy goes in the original's parent page if you can add pages there, else in its workspace folder if you're a member, else among your own pages (private unless the original is public to anyone with the link). The copy has what you can read of the original, its own copies of the images, and the access of a new page where it lands. A sub-page with its own access isn't copied and is named in `skipped_subpages`; images that couldn't be copied are in `images_missing`. End-to-end encrypted pages and files can't be duplicated. See [Duplicate a page](/pages/overview#duplicate-a-page).
 
 ### Access
 
@@ -142,6 +147,7 @@ Your own views are never counted, and views by members of the document's workspa
 | `list_workspaces` | read | Your workspaces: id, name, your role, custom domains (and whether each is live) and the default access for new documents. | none |
 | `list_folders` | read | A workspace's folders as paths (`guides/setup`), with how many items you can open in each. | `workspace` |
 | `list_workspace_items` | read | Documents and files you can open in a workspace or one folder of it, newest first, with their links. | `workspace`, `folder`, `query`, `limit` (1–100, default 50), `cursor` |
+| `list_workspace_members` | read | The members of a workspace you belong to: name, account id and role (`owner`, `admin`, `member`, `viewer`), plus email addresses if you're an admin or the owner. Pending invitations aren't listed. Use the ids to mention people in pages. | `workspace` |
 | `add_to_workspace` | write | Files one of your own documents into a workspace (and folder). It keeps its link; its access changes only if you pass `access`. | `document`, `workspace`, `folder`, `access` (`link`, `private`, `workspace`) |
 | `remove_from_workspace` | write | Takes a document out of its workspace (its owner or a workspace admin). It keeps its markdrop.in link; a members-only document becomes private. | `document` |
 | `create_folder` | write | Creates a folder by path, with any missing parent folders. | `workspace`, `path` |

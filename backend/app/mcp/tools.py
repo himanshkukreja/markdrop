@@ -1439,6 +1439,41 @@ async def list_folders(ctx: Context, args: dict) -> tuple[str, dict]:
     return "Folders:\n" + "\n".join(f"- {f['path']} ({f['items']} item(s))" for f in folders), out
 
 
+async def list_workspace_members(ctx: Context, args: dict) -> tuple[str, dict]:
+    """The members of a workspace the user belongs to. Addresses only for its
+    admins and owner (the app's member list shows them to every member; an AI
+    app gets less). Pending invitations are not members and aren't listed."""
+    from bson import ObjectId as _Oid
+
+    from app.models.workspace import role_allows
+    from app.services import viewers
+    from app.services import workspace as ws_service
+
+    ws_id, ws, role = await resolve_workspace(ctx, args["workspace"])
+    admin = role_allows(role, "admin")
+    rows = await ws_service.list_members(ctx.db, ws_id)
+    oids = [_Oid(m.user_id) for m in rows if _Oid.is_valid(m.user_id)]
+    users = {str(u["_id"]): u for u in await ctx.db["users"].find(
+        {"_id": {"$in": oids}}, {"name": 1, "email": 1}).to_list(length=len(oids) or 1)}
+    members = []
+    for m in rows:
+        u = users.get(m.user_id)
+        if u is None:
+            continue  # the account is gone
+        row = {"name": viewers.display_name(type("U", (), {"name": u.get("name"), "email": u.get("email")})),
+               "id": m.user_id, "role": m.role}
+        if admin:
+            row["email"] = u.get("email") or m.email
+        members.append(row)
+    rank = {"owner": 0, "admin": 1, "member": 2, "viewer": 3}
+    members.sort(key=lambda r: (rank.get(r["role"], 9), r["name"].casefold()))
+    out = {"workspace_id": ws_id, "members": members}
+    lines = [f"- {r['name']} ({r['role']}, id {r['id']}" + (f", {r['email']}" if r.get("email") else "") + ")"
+             for r in members]
+    return (f"{len(members)} member(s) of {ws.name}:\n" + "\n".join(lines)
+            + "\nMention one in a page as :person[Name]{id=\"<id>\"}."), out
+
+
 async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
     from app.services import workspace_items
 
@@ -2683,6 +2718,24 @@ TOOLS += [
                             "root_items": {"type": "integer"}}),
         annotations=_ann(True, False, True),
         handler=list_folders,
+    ),
+    Tool(
+        name="list_workspace_members",
+        title="List a workspace's members",
+        description=("The members of a workspace the user belongs to: name, account id and role (owner, admin, "
+                     "member, viewer), and their email addresses when the user is an admin or the owner of "
+                     "the workspace. Pending invitations aren't listed. Use the id to mention someone in a page: "
+                     ":person[Name]{id=\"<id>\"} (a name without an id also works when exactly one member has "
+                     "it)."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
+        output_schema=_out({"workspace_id": {"type": "string"}, "members": {"type": "array", "items": _out({
+            "name": {"type": "string"}, "id": {"type": "string"},
+            "role": {"type": "string", "enum": ["owner", "admin", "member", "viewer"]},
+            "email": {"type": "string", "description": "Only for the workspace's admins and owner."},
+        }, ["name", "id", "role"])}}),
+        annotations=_ann(True, False, True),
+        handler=list_workspace_members,
     ),
     Tool(
         name="list_workspace_items",

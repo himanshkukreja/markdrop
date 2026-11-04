@@ -2,7 +2,7 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-04
-keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect]
+keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -93,6 +93,19 @@ The copy has the same blocks, icon, cover and page options, and its own copies o
 If an image can't be copied, the copy keeps the rest, shows that image as missing, and the message says which one. Upload it again in the copy.
 
 The copy starts with the access of the place it's in, like any new page. It doesn't copy the original's sharing, history, views or analytics.
+
+### Duplicate from an AI app
+
+An AI app connected to Markdrop duplicates a page with the `duplicate_page` tool, for example to start a new PRD from a locked template page:
+
+- Anyone who can read a page can duplicate it. The copy is theirs, and a [locked](#page-options) page gives an unlocked copy.
+- The copy is called "Copy of Title" unless the app gives a title. It goes where the app says: inside a page you can edit (`parent`), or in a workspace or folder where you can add pages (`workspace`, `folder`). Otherwise it goes next to the original: in the same parent page if you can add pages there, else in the same workspace folder if you're a member, else among your own pages, private unless the original is public to anyone with the link.
+- Images are copied too, so the copy's images show to the copy's readers, not the original's.
+- Sub-pages are copied only when the app asks for them (`include_subpages`), up to 50 pages in all. As with **Duplicate**, a sub-page with its own access isn't copied, and the reply names it.
+- The copy has what you can read: if you can't see a person's name or an item's title on the original, the copy doesn't have it either.
+- End-to-end encrypted pages can't be duplicated this way, because the server can't read them.
+
+See [MCP tools](/ai/tools#pages).
 
 To move a page somewhere else, see [Move a page](/pages/sub-pages#move-a-page).
 
