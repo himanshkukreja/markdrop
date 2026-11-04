@@ -356,6 +356,16 @@ class Forever(TrashWorld):
         self.assertIsNotNone(await self.db["slug_tombstones"].find_one({"slug": d["slug"]}))
         self.assertEqual((await self.restore(d["slug"], self.session("owner"))).status_code, 404)
 
+    async def test_trashed_files_still_count_toward_storage(self):
+        from app.services import file_versions
+
+        d = await self.mkdoc("UL", owner="owner", kind="artifact")
+        before = await file_versions.usage_bytes(self.db, self.uid["owner"])
+        await self.rest_delete(d["slug"], who="owner")
+        self.assertEqual(await file_versions.usage_bytes(self.db, self.uid["owner"]), before)
+        await self.http.delete(f"/api/v1/trash/{d['slug']}", headers=self.session("owner"))
+        self.assertEqual(await file_versions.usage_bytes(self.db, self.uid["owner"]), before - d["size_bytes"])
+
     async def test_purge_after_30_days(self):
         old = await self.mkdoc("UL", owner="owner", kind="artifact")
         fresh = await self.mkdoc("UL", owner="owner")
