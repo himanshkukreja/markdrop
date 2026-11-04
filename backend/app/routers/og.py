@@ -19,15 +19,17 @@ import time
 from collections import OrderedDict
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
 from app.limiter import limiter
 from app.services import access as access_service
 from app.services import artifact, og_render
+from app.services import branding as branding_service
+from app.services import folder_preview
 from app.services import domain as domain_service
 from app.services import workspace as ws_service
 
@@ -117,7 +119,8 @@ _rendered: "OrderedDict[str, tuple[float, bytes]]" = OrderedDict()
 
 def _card_key(card: og_render.Card) -> str:
     fields = {k: v for k, v in vars(card).items() if k != "poster"}
-    fields["brand"] = repr(card.brand)
+    b = card.brand
+    fields["brand"] = repr(b and {**vars(b), "logo": hashlib.sha256(b.logo).hexdigest() if b.logo else None})
     poster = hashlib.sha256(card.poster).hexdigest() if card.poster else None
     # The renderer's identity too: a different renderer (tests swap it) never
     # serves the old one's bytes.
@@ -325,3 +328,115 @@ async def og_image(
     # 1h cache: title/snippet edits and access changes propagate within the
     # hour without hammering the renderer on every crawler hit.
     return _png(png, max_age=300)
+
+
+# ── Workspaces and folders (markdrop.in/w/<ws>[/f/<folder>], markdrop.in/f/<share>) ──
+# Crawlers are never signed in, so these say only what a signed-out visitor
+# could already learn (services/folder_preview.py). The page's metadata reads
+# the JSON; the card is the PNG. Both answer from the same decision.
+
+_ID = re.compile(r"^[0-9a-f]{24}$")
+_SHARE = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
+
+
+def _items_label(n: int) -> str:
+    return f"{n} item" if n == 1 else f"{n} items"
+
+
+async def _logo_bytes(ws) -> bytes | None:
+    """The workspace's uploaded logo, read from our own bucket — only a key
+    services/branding.py wrote for this very workspace. Never a URL fetch."""
+    url = ws.branding.logo_url or ""
+    prefix = branding_service.public_url("")
+    if not url.startswith(prefix):
+        return None
+    key = url[len(prefix):]
+    if not re.fullmatch(rf"branding/{re.escape(ws.id)}/logo-[0-9a-f]{{16}}\.png", key):
+        return None
+    from app.services import r2
+
+    if not r2.is_configured():
+        return None
+    return await run_in_threadpool(r2.get_bytes, key, branding_service.MAX_UPLOAD_BYTES)
+
+
+async def _space_card(p: folder_preview.Preview | None, kind: str) -> og_render.Card:
+    if p is None or not p.visible:
+        return og_render.Card(kind=f"{kind}_private")
+    ws = p.workspace
+    b = ws.branding
+    brand = og_render.CardBrand(
+        site_name=p.workspace_name,
+        accent=og_render.parse_hex_color(b.accent_color),
+        footer=domain_service.clean_host(p.host) if p.host else None,
+        hide_markdrop_branding=b.hide_markdrop_branding,
+        logo=await _logo_bytes(ws),
+        logo_well=b.logo_well,
+    )
+    if kind == "workspace":
+        # The header already names the workspace; the title says it once more, big.
+        brand.site_name = None
+        return og_render.Card(kind="workspace", title=p.workspace_name or "",
+                              snippet="Documents and files", meta=_items_label(p.items), brand=brand)
+    return og_render.Card(kind="folder", title=p.folder_name or "",
+                          snippet=f"A folder in {p.workspace_name}", meta=_items_label(p.items), brand=brand)
+
+
+def _meta(p: folder_preview.Preview | None, kind: str) -> JSONResponse:
+    """What the page's <title>/og tags may say. 404 when it doesn't exist."""
+    if p is None:
+        return JSONResponse({"detail": "Not found"}, status_code=404,
+                            headers={"Cache-Control": "public, max-age=60"})
+    body: dict = {"visible": p.visible}
+    if p.visible:
+        body.update(workspace=p.workspace_name, items=p.items, host=p.host)
+        if kind == "folder":
+            body["folder"] = p.folder_name
+    return JSONResponse(body, headers={"Cache-Control": "public, max-age=60"})
+
+
+async def _space_png(p: folder_preview.Preview | None, kind: str) -> Response:
+    png = await _render(await _space_card(p, kind))
+    return _png(png, max_age=300)
+
+
+@router.get("/w/{workspace_id}.json", include_in_schema=False)
+@limiter.limit("120/minute")
+async def workspace_meta(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    if not _ID.match(workspace_id):
+        raise HTTPException(status_code=404, detail="Not found")
+    return _meta(await folder_preview.for_workspace(db, workspace_id), "workspace")
+
+
+@router.api_route("/w/{workspace_id}.png", methods=["GET", "HEAD"])
+@limiter.limit("120/minute")
+async def workspace_image(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db)):
+    p = await folder_preview.for_workspace(db, workspace_id) if _ID.match(workspace_id) else None
+    return await _space_png(p, "workspace")
+
+
+@router.get("/w/{workspace_id}/f/{folder_id}.json", include_in_schema=False)
+@limiter.limit("120/minute")
+async def folder_meta(request: Request, workspace_id: str, folder_id: str,
+                      db: AsyncIOMotorDatabase = Depends(get_db)):
+    if not (_ID.match(workspace_id) and _ID.match(folder_id)):
+        raise HTTPException(status_code=404, detail="Not found")
+    return _meta(await folder_preview.for_folder(db, workspace_id, folder_id), "folder")
+
+
+@router.api_route("/w/{workspace_id}/f/{folder_id}.png", methods=["GET", "HEAD"])
+@limiter.limit("120/minute")
+async def folder_image(request: Request, workspace_id: str, folder_id: str,
+                       db: AsyncIOMotorDatabase = Depends(get_db)):
+    ok = _ID.match(workspace_id) and _ID.match(folder_id)
+    p = await folder_preview.for_folder(db, workspace_id, folder_id) if ok else None
+    return await _space_png(p, "folder")
+
+
+@router.api_route("/f/{share_id}.png", methods=["GET", "HEAD"])
+@limiter.limit("120/minute")
+async def shared_folder_image(request: Request, share_id: str,
+                              path: str = Query("", max_length=1000),
+                              db: AsyncIOMotorDatabase = Depends(get_db)):
+    p = await folder_preview.for_share(db, share_id, path) if _SHARE.match(share_id) else None
+    return await _space_png(p, "folder")

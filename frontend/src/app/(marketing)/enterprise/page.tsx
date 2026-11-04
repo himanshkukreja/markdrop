@@ -4,6 +4,7 @@ import { SnapPage, SnapSection } from "@/components/marketing/snap/Snap";
 import { Feature, LoopShot, Mat, More, parts as p } from "@/components/marketing/snap/Parts";
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
+import { ogCard } from "@/lib/og";
 import { HeroSwap, SWAP_SCRIPT } from "./HeroSwap";
 import { WorkspaceCta } from "./WorkspaceCta";
 import s from "./enterprise.module.css";
@@ -13,15 +14,7 @@ export const metadata: Metadata = {
   description:
     "Serve your docs and files from your own domain with your own branding. Custom domains, white-label preview cards, a view-only mode, folders and team roles.",
   // Override the site-wide card from the root layout so this page previews as itself.
-  openGraph: {
-    title: "Custom domains & white-labelling — Markdrop",
-    description: "Serve your docs and files from your own domain with your own branding.",
-  },
-  twitter: {
-    card: "summary",
-    title: "Custom domains & white-labelling — Markdrop",
-    description: "Serve your docs and files from your own domain with your own branding.",
-  },
+  ...ogCard("Custom domains & white-labelling — Markdrop", "Serve your docs and files from your own domain with your own branding."),
 };
 
 /** D17: a markdrop.in address, shown as text. This one is the live reply-to of every Markdrop email
