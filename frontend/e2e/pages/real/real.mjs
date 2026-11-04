@@ -597,7 +597,9 @@ await step("tenant", async () => {
   await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
   log("after sign-in", p.url().replace(/#.*/, "#…"));
   await p.locator(".pb-embed__img").first().waitFor({ timeout: 30000 });
-  const body = await p.locator(".pb-page").innerText();
+  // A member on the domain may land in the editor (domain editing): the reader view or the editor.
+  await p.waitForTimeout(1500);
+  const body = await p.locator(".pb-page, .pb-live").first().innerText({ timeout: 30000 });
   for (const t of SECRET_TITLES) if (!body.includes(t)) fail(`tenant member doesn't see ${t}`);
   const embedCall = bodies.find((b) => b.url.includes("/embeds"));
   if (!embedCall || embedCall.status !== 200) fail(`embeds on the tenant host → ${embedCall?.status}`);
