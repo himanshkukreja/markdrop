@@ -544,9 +544,26 @@ await step("tenant-edit", async () => {
   await tenantSignIn(o.p, addr);
   await o.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await pageMenu(o.p);
-  await o.p.getByRole("menuitem", { name: /Manage access on markdrop\.in/ }).or(o.p.getByRole("link", { name: /Manage access on markdrop\.in/ })).waitFor({ timeout: 10000 });
+  await o.p.getByRole("menuitem", { name: /General access on markdrop\.in/ }).or(o.p.getByRole("link", { name: /General access on markdrop\.in/ })).waitFor({ timeout: 10000 });
   if (await o.p.getByRole("menuitem", { name: /^Delete page$/ }).count()) fail("Delete page is offered on the domain");
   await shot(o.p, "34-tenant-owner-menu", { wait: 500 });
+  await o.p.keyboard.press("Escape");
+  // Share with people right on the domain (2026-11-04): the dialog's people-only mode.
+  const shareCalls = captureApi(o.p);
+  await o.p.locator(".pb-bar, header").getByRole("button", { name: /^Share$/ }).first().click({ timeout: 10000 });
+  const dlg = o.p.getByRole("dialog");
+  await dlg.getByText(/Change general access on markdrop\.in/).waitFor({ timeout: 15000 });
+  if (await dlg.getByText("Who can open it").count()) fail("the access level is offered on the domain");
+  const who = `domain-share-${Date.now().toString(36)}@example.com`;
+  await dlg.getByPlaceholder("Add people by email").fill(who);
+  await dlg.getByRole("button", { name: /^Share$/ }).click();
+  await dlg.getByText(who).waitFor({ timeout: 15000 });
+  await shot(o.p, "35-tenant-share-people", { wait: 500 });
+  if (shareCalls.some((b) => b.status === 401 && /\/access/.test(new URL(b.url).pathname))) fail("a 401 on a sharing route on the domain");
+  const acc = await api("GET", `/api/v1/documents/${state.slug}/access`, T.owner);
+  if (!(acc.body?.grants || []).some((g) => g.email === who)) fail(`the person added on the domain has no grant: ${JSON.stringify(acc.body).slice(0, 300)}`);
+  if (acc.body?.level !== d.access_level && d.access_level) log(`(level ${d.access_level} → ${acc.body?.level})`);
+  await api("DELETE", `/api/v1/documents/${state.slug}/access/people/${encodeURIComponent(who)}`, T.owner);
   await o.c.close();
 });
 
