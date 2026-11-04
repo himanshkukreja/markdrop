@@ -437,7 +437,7 @@ function Breakdown({ title, tabs, onPick }: { title: string; tabs: Tab[]; onPick
             return (
               <li key={String(r.key)}>
                 <button type="button" onClick={() => pick(r)} aria-label={`Filter by ${tab.label.toLowerCase()}: ${r.key ?? tab.none ?? "none"}, ${compact(v)} ${tab.sessions ? "sessions" : "visitors"}`}
-                  className="md-focus group relative flex h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body hover:bg-surface-hover">
+                  className="md-focus group relative flex h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body hover:bg-surface-hover pointer-coarse:h-11">
                   <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-sm transition-[width] duration-(--duration-fast)"
                     style={{ width: `${(v / max) * 100}%`, background: C.wash }} />
                   <span className={`relative flex min-w-0 items-center gap-2 truncate text-text ${tab.mono ? "font-mono text-caption" : ""}`}>
@@ -667,7 +667,7 @@ function EventsCard({ data, get, params }: { data: EventsRes; get: Get; params: 
           {data.events.map((e) => (
             <li key={e.name}>
               <button type="button" aria-expanded={open === e.name} onClick={() => setOpen((o) => (o === e.name ? null : e.name))}
-                className="md-focus relative flex h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body hover:bg-surface-hover">
+                className="md-focus relative flex h-9 w-full items-center justify-between gap-3 rounded-md px-2 text-left text-body hover:bg-surface-hover pointer-coarse:h-11">
                 <span aria-hidden className="absolute inset-y-0.5 left-0 rounded-sm" style={{ width: `${(e.count / max) * 100}%`, background: C.wash }} />
                 <span className="relative truncate text-text">{EVENT_LABELS[e.name] ?? e.name}</span>
                 <span className="relative flex gap-4 text-caption tabular-nums">
