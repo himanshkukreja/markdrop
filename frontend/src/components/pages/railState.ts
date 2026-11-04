@@ -66,7 +66,8 @@ const wide = () => typeof window !== "undefined" && !!window.matchMedia?.(RAIL_W
 export function toggleRail() {
   load();
   if (wide()) set({ collapsed: !state.collapsed, peek: false, drawer: false });
-  else set({ drawer: !state.drawer, peek: false });
+  // Below 1280 px only a page's rail opens as a drawer (a classic document's sidebars have none).
+  else if (state.drawer || document.querySelector(".pb-shell--rail .pb-rail")) set({ drawer: !state.drawer, peek: false });
 }
 export const closeRailDrawer = () => set({ drawer: false });
 export const setRailPeek = (peek: boolean) => set({ peek });
