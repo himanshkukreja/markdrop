@@ -1633,29 +1633,44 @@ async def search(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
-    """AI search (services/search_ai.py): Claude Haiku 5.5 answers from the user's own readable
-    items, citing them. Counts towards the user's AI limits (feature search_ai)."""
-    from app.services import pages_ai, search_ai
+    """Ask Markdrop (services/ask_markdrop.py): Claude Haiku 5.5 answers from the user's own readable
+    meetings, documents, pages, files and Guides, citing them (a meeting's transcript moment as
+    [n-sK]); thread_id continues a conversation; intent catch_up / my_actions. Counts towards the
+    user's AI limits (feature search_ai)."""
+    from app.services import ask_markdrop, pages_ai
 
     ws, _owner = _search_scope(args.get("scope"))
-    gen = search_ai.ask(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), args["question"],
-                        scope=ws, via="mcp")
+    q = args.get("question") or ""
     try:
-        done = await search_ai.collect(gen)
+        done = await ask_markdrop.answer(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), q,
+                                         thread_id=args.get("thread_id"), intent=args.get("intent"), scope=ws,
+                                         via="mcp", save=True)
     except pages_ai.AIError as exc:
         raise ToolError(exc.detail)
 
     def ref(c: dict) -> dict:
-        url = c.get("url") or ""
-        slug = url.rstrip("/").rsplit("/", 1)[-1].split("#", 1)[0] if c.get("kind") in _FETCHABLE else None
-        return {"n": c.get("n"), "title": c.get("title") or "Untitled", "url": url, "kind": c.get("kind"),
-                "id": slug or url}
+        url = c.get("web_url") or c.get("url") or ""
+        slug = c.get("slug") if c.get("kind") in _FETCHABLE else None
+        out = {"n": c.get("n"), "title": c.get("title") or "Untitled", "url": url, "kind": c.get("kind"),
+               "id": slug or url}
+        if c.get("label"):
+            out["label"] = c["label"]
+        if c.get("moment"):
+            out["moment"] = c["moment"]
+        if c.get("task") or c.get("text"):
+            out["task"] = c.get("task") or c.get("text")
+        return out
 
     out = {"answer": done.get("answer") or "", "citations": [ref(c) for c in done.get("citations") or []],
-           "results": [ref(c) for c in done.get("ranked") or []]}
+           "results": [ref(c) for c in done.get("ranked") or []], "thread_id": done.get("thread_id"),
+           "intent": done.get("intent")}
     text = out["answer"]
     if out["citations"]:
-        text += "\n\nSources:\n" + "\n".join(f"[{c['n']}] {c['title']} — {c['url']}" for c in out["citations"])
+        text += "\n\nSources:\n" + "\n".join(
+            f"[{c.get('label') or c['n']}] {c['title']}{' · ' + c['moment'] if c.get('moment') else ''} — {c['url']}"
+            for c in out["citations"])
+    if out["thread_id"]:
+        text += f"\n\n(thread_id {out['thread_id']}: pass it to ask a follow-up)"
     return text, out
 
 
@@ -2833,25 +2848,37 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="ask_documents",
-        title="Ask about my documents (AI)",
-        description=("Ask a question in plain words; Claude Haiku 5.5 searches everything the user can open and "
-                     "answers briefly, citing the items it used as [n] with their links. Only text the user can "
-                     "read is sent to the model (to Anthropic); workspaces with AI turned off are left out. "
-                     "scope: all (default) or workspace:<id>. Counts towards the user's AI limits."),
+        title="Ask Markdrop (AI)",
+        description=("Ask a question in plain words; Claude Haiku 5.5 searches everything the user can open "
+                     "(meetings and their transcripts, documents, pages, files, Guides) and answers briefly, "
+                     "citing the items it used as [n] (a meeting's transcript moment as [n-sK]) with their links. "
+                     "Pass the returned thread_id to ask a follow-up in the same conversation. intent: ask "
+                     "(default), catch_up (what changed in the last 7 days) or my_actions (open tasks that "
+                     "@mention the user). Only text the user can read is sent to the model (to Anthropic); "
+                     "workspaces with AI turned off are left out. scope: all (default) or workspace:<id>. "
+                     "Counts towards the user's AI search limits."),
         scope=READ,
         input_schema={"type": "object", "properties": {
-            "question": {"type": "string", "minLength": 1, "maxLength": 500},
+            "question": {"type": "string", "maxLength": 500,
+                         "description": "The question (may be empty with intent catch_up or my_actions)."},
             "scope": {"type": "string", "maxLength": 40, "default": "all",
-                      "description": "all | workspace:<workspace id>"}},
+                      "description": "all | workspace:<workspace id>"},
+            "thread_id": {"type": "string", "maxLength": 40,
+                          "description": "Continue this conversation (from an earlier answer)."},
+            "intent": {"type": "string", "enum": ["ask", "catch_up", "my_actions"],
+                       "description": "ask (default; detected from the words when left out), catch_up or my_actions."}},
             "required": ["question"]},
         output_schema=_out({
             "answer": {"type": "string"},
             "citations": {"type": "array", "items": _out({
                 "n": {"type": "integer"}, "title": {"type": "string"}, "url": {"type": "string"},
-                "kind": {"type": "string"}, "id": {"type": "string"}}, ["n", "title", "url"])},
+                "kind": {"type": "string"}, "id": {"type": "string"}, "label": {"type": "string"},
+                "moment": {"type": "string"}, "task": {"type": "string"}}, ["n", "title", "url"])},
             "results": {"type": "array", "items": _out({
                 "n": {"type": "integer"}, "title": {"type": "string"}, "url": {"type": "string"},
-                "kind": {"type": "string"}, "id": {"type": "string"}}, ["n", "title", "url"])}}),
+                "kind": {"type": "string"}, "id": {"type": "string"}}, ["n", "title", "url"])},
+            "thread_id": _NULLABLE_STR,
+            "intent": {"type": "string"}}),
         annotations=_ann(True, False, False),
         handler=ask_documents,
     ),

@@ -263,6 +263,12 @@ async def connect() -> None:
         await _meetings.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] meetings indexes skipped: {exc}")
+    try:
+        from app.services import ask_markdrop as _ask
+
+        await _ask.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] ask indexes skipped: {exc}")
 
     # Private guide pages (services/docs_page_access.py): sign-in links, requests, audit.
     try:
