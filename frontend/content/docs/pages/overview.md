@@ -1,7 +1,7 @@
 ---
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
-updated: 2026-11-04
+updated: 2026-11-05
 keywords: [page, pages, top bar, sidebar, collapse sidebar, menu, more actions, use as template, version history, request edit access, admins, unlock, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
 ---
 
@@ -48,7 +48,7 @@ Select text to format it, add a link, or turn a line into another kind of block.
 
 A page's title sits above its content. Press **Enter** in the title to start writing.
 
-Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search by name) or an image you upload, and it shows in the browser tab. The cover is one of Markdrop's 44 built-in covers (in five groups: paper, duotone, lines, shapes and calm), an image you upload, or an image link. **Pick for me** in the cover picker chooses one for what the page is about. Hover the cover for **Change cover**, **Reposition** (drag the image up or down) and **Remove**.
+Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search by name) or an image you upload, and it shows in the browser tab. The cover is one of Markdrop's 44 built-in covers (in five groups: paper, duotone, lines, shapes and calm), an image you upload, or an image link. **Pick for me** in the cover picker chooses one for what the page is about. Hover the cover for **Change cover**, **Reposition** (drag the image up or down) and **Remove** (on a phone or tablet they're always there while you edit). The cover keeps its proportions as the screen narrows, so a tablet in portrait or a phone shows the whole cover, just smaller, never a cropped middle of it.
 
 ### Automatic covers
 

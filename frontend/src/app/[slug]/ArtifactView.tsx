@@ -672,7 +672,8 @@ export default function ArtifactView({
   const showLiveProgress = frameLoading && liveReload;
   const canOpen = !!artifactUrl && !locked;
 
-  const frame = frameSrc && (renderer === "image" ? (
+  // A picture fits the screen (an <img>); an SVG keeps its sandboxed frame (it may carry scripts).
+  const frame = frameSrc && (renderer === "image" && !/svg/i.test(mime) ? (
     <ImageStage
       key={reloadKey}
       src={frameSrc}
