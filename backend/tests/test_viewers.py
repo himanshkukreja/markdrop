@@ -133,7 +133,7 @@ class Viewers(AccessWorld):
         stranger = await self.open(d, "stranger")
         visitor = await self.open(d)
         await settle()
-        snap = visitor.presence()
+        snap = owner.presence()   # someone with a relationship sees the names
         self.assertTrue(snap["on"])
         self.assertEqual(snap["total"], 5)
         named = {v["name"] for v in snap["viewers"] if "name" in v}
@@ -143,6 +143,13 @@ class Viewers(AccessWorld):
         for v in anons:
             self.assertIn(v["animal"], viewers.ANIMALS)
             self.assertNotIn("pic", v)
+        # Anyone without one (a visitor, a stranger) sees every viewer as an animal (2026-11-04).
+        for ws in (visitor, stranger):
+            out = ws.presence()
+            self.assertEqual(out["total"], 5)
+            self.assertFalse([v for v in out["viewers"] if "name" in v or "pic" in v or "owner" in v])
+            for who in ("OWNER", "WM", "GV"):
+                self.assertNotIn(who, json.dumps(out))
             self.assertNotIn("owner", v)
         self.assertEqual([v.get("owner") for v in snap["viewers"] if v.get("name") == "OWNER"], [True])
         # The stranger is signed in, yet nobody (themselves included) gets their name, address or id.
@@ -223,7 +230,7 @@ class Viewers(AccessWorld):
 
     async def test_anonymous_me(self):
         d = await self.mkdoc("L", content=CONTENT)
-        watcher = await self.open(d)
+        watcher = await self.open(d, "owner")   # has a relationship: sees names
         gv = await self.open(d, "gv", anon=True)
         await settle()
         self.assertIn("animal", gv.presence()["me"])
@@ -332,7 +339,7 @@ class Viewers(AccessWorld):
     async def test_access_narrowing_removes_and_renames(self):
         d = await self.mkdoc("L", content=CONTENT)
         gv = await self.open(d, "gv")
-        other = await self.open(d)
+        other = await self.open(d, "owner")
         self.assertIn("GV", self.names(other.presence()))
         r = await self.http.delete(f"/api/v1/documents/{d['slug']}/access/people/{self.email['gv']}",
                                    headers=self.session("owner"))
@@ -466,17 +473,19 @@ class Viewers(AccessWorld):
             self.assertNotIn("owner", ed[0])
             self.assertNotIn("pic", ed[0])
             self.assertNotIn("OWNER", json.dumps(snap))
-            # The member, who isn't editing, is still named as presence names them.
-            self.assertIn("WM", self.names(snap))
+            # Nobody is named for them, the member who isn't editing included (2026-11-04).
+            self.assertNotIn("WM", self.names(snap))
         # The editor's own entry is theirs.
         self.assertEqual(owner.presence()["me"]["name"], "OWNER")
         self.assertTrue(owner.presence()["me"]["editing"])
-        # Released: nobody is editing, the owner is named again for everyone.
+        # Released: nobody is editing; the owner is named again for the document's people, and
+        # stays an animal for outsiders (2026-11-04: names are only for people with access).
         viewers.set_editor(d["slug"], None, 0)
         await settle()
         for ws in (owner, member, stranger, visitor):
             self.assertFalse(any(v.get("editing") for v in ws.presence()["viewers"]))
-        self.assertIn("OWNER", self.names(visitor.presence()))
+        self.assertIn("OWNER", self.names(member.presence()))
+        self.assertNotIn("OWNER", self.names(visitor.presence()))
 
     async def test_anonymous_minded_editor_is_an_animal_with_the_flag(self):
         d = await self.mkdoc("L", content=CONTENT)
