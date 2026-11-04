@@ -6,7 +6,9 @@
  *   List (default)  Finder / Notion-like rows: icon · name (· item count) · kind · owner · updated ·
  *                   who can open it · ⋯. Folders first, then items, in one list.
  *   Grid            compact tiles: icon, name, one quiet line (item count, or owner and date).
- *   Cards           larger cards: a tinted band with the icon, the name, owner and date.
+ *   Cards           larger cards: a preview of the item (CardPreview.tsx: a page's cover and first
+ *                   blocks, a document's start, a PDF's first page, an image, a video's poster, a
+ *                   sheet's first cells; an HTML file live on hover), the name, owner and date.
  *
  * The view is the person's choice, remembered on this device (`useListingView`, localStorage in
  * try/catch). Owners show as a small avatar and a name (names only reach members: the API serves
@@ -26,6 +28,7 @@ import { colorFor, viewerColor } from "@/lib/presence";
 import { kindLabel } from "@/lib/itemKind";
 import { openHref, type ItemOwner, type TreeFolder, type WorkspaceItem } from "@/lib/workspaces";
 import { useFolderDrop, useWorkspaceDrag, useWorkspaceDraggable, type DragData } from "../WorkspaceDnd";
+import { PreviewBand, useLiveHover } from "./CardPreview";
 import { ItemTile } from "./ItemRow";
 import { ACCESS_ICON, accessLabel, itemTitle } from "./items";
 import "./listing.css";
@@ -442,6 +445,7 @@ function ItemTileEntry(p: ItemEntryProps & { cards: boolean }) {
   const { item: it, menu, cards, showLocation } = p;
   const e = useItemEntry(p);
   const t = itemTitle(it);
+  const hover = useLiveHover(p.workspaceId, it);
   const link = (
     <a href={openHref(it.slug, it.url, it.encrypted)} target="_blank" rel="noopener noreferrer" draggable={false} className="wl-name md-focus ph-sensitive ph-mask" dir="auto" title={t}>
       {t}<span className="md-visually-hidden"> (opens in a new tab)</span>
@@ -450,11 +454,8 @@ function ItemTileEntry(p: ItemEntryProps & { cards: boolean }) {
   const act = <RowMenu portal items={menu} label={`Actions for ${t}`} />;
   if (cards) {
     return (
-      <li ref={e.ref} {...e.props} className="wl-tile" data-row-kind="item">
-        <span className="wl-card__band" style={{ "--tint": tintOf(it) } as React.CSSProperties}>
-          <ItemIcon it={it} />
-          <span className="wl-card__kind">{kindLabel(it)}</span>
-        </span>
+      <li ref={e.ref} {...e.props} {...(cards ? hover : {})} className="wl-tile" data-row-kind="item">
+        <PreviewBand workspaceId={p.workspaceId} it={it} title={t} tint={tintOf(it)} kind={kindLabel(it)} fallback={<ItemIcon it={it} />} />
         <span className="wl-card__body">
           <span className="flex min-w-0 items-center gap-2">{link}<Badges it={it} /></span>
           <span className="wl-card__foot">
