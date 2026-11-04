@@ -182,6 +182,22 @@ async def sweep_expired(db: AsyncIOMotorDatabase, user_id: str) -> int:
     return n
 
 
+async def sweep_all_expired(db: AsyncIOMotorDatabase, *, limit: int = 200) -> int:
+    """Abort every account's lapsed sessions, files and page images alike (the
+    background sweeper, services/background.py): an upload nobody comes back to
+    must not hold its parts in storage until that account uploads again."""
+    n = 0
+    async for sess in db[SESSIONS].find(
+        {"state": "uploading", "expires_at": {"$lt": _now()}}
+    ).limit(limit):
+        try:
+            await _expire(db, sess)
+            n += 1
+        except Exception:
+            log.warning("aborting lapsed upload %s failed", sess.get("_id"), exc_info=True)
+    return n
+
+
 async def _expire(db: AsyncIOMotorDatabase, sess: dict, state: str = "expired") -> None:
     res = await db[SESSIONS].update_one(
         {"_id": sess["_id"], "state": "uploading"}, {"$set": {"state": state, "ended_at": _now()}}
@@ -291,7 +307,7 @@ async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = No
     # The same upload asked for again (a retry, or URLs that lapsed): hand back
     # the open session with fresh URLs instead of starting a second one.
     same = await db[SESSIONS].find_one({
-        "user_id": user.id, "state": "uploading", "expires_at": {"$gt": now},
+        "user_id": user.id, "state": "uploading", "expires_at": {"$gt": now}, "purpose": None,
         "sha256": sha, "size_bytes": data.size_bytes, "file_name": data.file_name, "mime": mime,
         "target_slug": data.target_slug or None, "title": data.title, "access": level,
         "workspace": workspace, "folder_id": folder_id, "slug": custom_slug,
@@ -361,11 +377,29 @@ async def create(db: AsyncIOMotorDatabase, user, data, *, scope: str | None = No
 # ── Looking a session up ──────────────────────────────────────────────────────
 
 
-async def load(db: AsyncIOMotorDatabase, user_id: str, upload_id: str) -> dict:
-    """The caller's session. Someone else's is indistinguishable from none."""
+# What a session uploads: a file behind a link (no ``purpose``), or an image for
+# a page (``purpose: "page_image"``, services/page_asset_uploads.py). Each kind
+# is finished by its own call; the other kind's calls don't know it.
+PURPOSE_FILE = "file"
+PURPOSE_PAGE_IMAGE = "page_image"
+_FINISH_WITH = {PURPOSE_FILE: "complete_upload", PURPOSE_PAGE_IMAGE: "complete_page_image_upload"}
+
+
+def purpose_of(sess: dict) -> str:
+    return sess.get("purpose") or PURPOSE_FILE
+
+
+async def load(db: AsyncIOMotorDatabase, user_id: str, upload_id: str, *, purpose: str = PURPOSE_FILE) -> dict:
+    """The caller's session. Someone else's is indistinguishable from none; one
+    of the other kind (a page image for a file call, or the reverse) is a 409
+    naming the call that finishes it."""
     sess = await db[SESSIONS].find_one({"_id": upload_id})
     if not sess or sess.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Upload not found. It may have expired; start a new one.")
+    if purpose_of(sess) != purpose:
+        what = "an image for a page" if purpose_of(sess) == PURPOSE_PAGE_IMAGE else "a file upload"
+        raise HTTPException(status_code=409, detail=(
+            f"Upload {upload_id} is {what}: finish it with {_FINISH_WITH.get(purpose_of(sess), 'its own call')}."))
     if sess["state"] == "uploading" and _aware(sess["expires_at"]) <= _now():
         await _expire(db, sess)
         sess = await db[SESSIONS].find_one({"_id": upload_id})

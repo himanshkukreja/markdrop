@@ -1,7 +1,8 @@
 """MCP tools for pages (services/pages.py): create from a template, read with
 embeds and images resolved for the caller, edit (whole page, a section, or an
 append that works even while someone has the page open in the editor), embed
-or mention other Markdrop items, sub-pages, and page images.
+or mention other Markdrop items, sub-pages, and page images (base64, or a file
+sent straight to storage: services/page_asset_uploads.py; copied between pages).
 
 Every rule is the website's: ``access.can`` decides, ``doc_service.update_document``
 saves (and refuses with 423 while someone holds the page's edit lock), and
@@ -12,6 +13,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import re
 from typing import Any
 
 from fastapi import HTTPException
@@ -34,6 +36,7 @@ from app.mcp.tools import (
     _out,
     actor_of,
     http_message,
+    jsonable,
     load_for,
     precheck_workspace,
     resolve_doc,
@@ -41,7 +44,7 @@ from app.mcp.tools import (
     url_pair,
 )
 from app.services import access as access_service
-from app.services import live, page_assets, page_props, page_templates, pages, revalidate
+from app.services import live, page_asset_uploads, page_assets, page_props, page_templates, pages, revalidate
 
 settings = get_settings()
 
@@ -169,7 +172,8 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if args.get("properties"):
         props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
         if any(str(v or "").startswith("asset:") for v in props.values()):
-            raise ToolError("A new page has no images yet: create it, upload_page_image, then "
+            raise ToolError("A new page has no images yet: create it, add the image with "
+                            "create_page_image_upload (a file) or upload_page_image (base64), then "
                             "set_page_properties with icon or cover asset:<id>.")
         try:
             page_props.validate(props)
@@ -440,7 +444,9 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
         v = changes.get(k)
         if isinstance(v, str) and v.startswith("asset:"):
             if not await ctx.db["page_assets"].find_one({"_id": v[6:], "doc_id": str(raw["_id"])}, {"_id": 1}):
-                raise ToolError(f"{v} isn't an image of this page: upload it with upload_page_image first.")
+                raise ToolError(f"{v} isn't an image of this page. Upload it to this page first "
+                                "(create_page_image_upload, or upload_page_image), or copy it here from "
+                                "another page with copy_page_asset.")
     try:
         content = page_props.apply(raw.get("content") or "", changes)
     except ValueError as exc:
@@ -600,6 +606,133 @@ async def export_page(ctx: Context, args: dict) -> tuple[str, dict]:
                           "gives a .zip with the images."))
     return content, out
 
+def _alt_of(name: str | None, alt: str | None = None) -> str:
+    """Alt text for ![alt](asset:…): the one given, else the file's name
+    without its extension. Brackets would end the alt early."""
+    text = (alt or "").strip()
+    if not text:
+        base = (name or "image").replace("\\", "/").rsplit("/", 1)[-1]
+        text = base.rsplit(".", 1)[0] if "." in base else base
+    return " ".join(text.replace("[", " ").replace("]", " ").split())[:200] or "image"
+
+
+def _image_out(info: dict, slug: str, alt: str) -> dict:
+    asset = f"asset:{info['id']}"
+    return {"asset": asset, "markdown": f"![{alt}]({asset})", "id": info["id"], "mime": info["mime"],
+            "size": info["size"], "width": info.get("width"), "height": info.get("height"), "slug": slug}
+
+
+async def _image_page(ctx: Context, document: str) -> dict:
+    """A page the caller may add images to (edit_content, and its lock)."""
+    raw = await load_for(ctx, document, "edit_content", "add images to")
+    _editable_page(raw)
+    try:
+        await pages.check_page_lock(raw, actor_of(ctx), _actx(ctx))
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    return raw
+
+
+def page_image_instructions(file_name: str, upload_id: str, part_size: int, parts: list[dict]) -> str:
+    """The exact commands that send an image to its presigned URL(s): one curl
+    for a one-part image (any image up to 20 MB with the default part size),
+    else split + one curl per part, as create_upload's instructions."""
+    import shlex
+
+    url_ttl = settings.file_upload_url_ttl // 60
+    then = (f'Then call complete_page_image_upload with upload_id "{upload_id}" (parts are optional: '
+            "omitted, the parts storage received are used).")
+    lines = [f"FILE={shlex.quote(file_name)}   # use the file's full path"]
+    if len(parts) == 1:
+        lines.append(f"curl -sS --fail -X PUT --upload-file \"$FILE\" '{parts[0]['url']}' -D - -o /dev/null "
+                     "| grep -i '^etag'")
+        head = (f"Upload {file_name} with the shell commands below (one PUT straight to storage; it prints "
+                f"the part's ETag). {then}")
+    else:
+        prefix = f"/tmp/md-{upload_id}.part."
+        lines.append(f'split -b {part_size} -d -a 4 "$FILE" {prefix}')
+        for p in parts:
+            n = int(p["part_number"])
+            lines.append(f"printf '{n} '; curl -sS --fail -X PUT --upload-file {prefix}{n - 1:04d} "
+                         f"'{p['url']}' -D - -o /dev/null | grep -i '^etag'")
+        lines.append(f"rm -f {prefix}*")
+        head = (f"Upload {file_name} in {len(parts)} part(s) of {part_size:,} bytes with the shell commands "
+                f"below. Each curl prints the part number and its ETag. {then}")
+    head += (f" The URL(s) expire in {url_ttl} minutes; calling create_page_image_upload again with the "
+             "same arguments returns fresh ones for the same upload. Use curl --upload-file as shown: "
+             "storage needs the Content-Length, so never stream from stdin.")
+    return head + "\n\n" + "\n".join(lines)
+
+
+async def create_page_image_upload(ctx: Context, args: dict) -> tuple[str, dict]:
+    raw = await _image_page(ctx, args["document"])
+    name = (args.get("file_name") or args.get("filename") or "").strip().replace("\\", "/").rsplit("/", 1)[-1][:255]
+    if not name:
+        raise ToolError("Pass file_name: the image's name with its extension, e.g. 'architecture.png'.")
+    try:
+        sess = await page_asset_uploads.create(
+            ctx.db, ctx.user, raw, file_name=name, size_bytes=int(args["size_bytes"]), sha256=args["sha256"],
+            content_type=args.get("content_type"), alt=(args.get("alt") or "").strip() or None)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    out = jsonable(sess)
+    out["instructions"] = page_image_instructions(name, out["upload_id"], out["part_size"], out["parts"])
+    return out["instructions"], out
+
+
+async def complete_page_image_upload(ctx: Context, args: dict) -> tuple[str, dict]:
+    from pydantic import ValidationError
+
+    from app.schemas.files import UploadCompleteRequest
+
+    try:
+        parsed = UploadCompleteRequest(parts=args.get("parts") or None)
+    except ValidationError:
+        raise ToolError('parts must be a list of {"part_number": N, "etag": "..."}.')
+    parts = [p.model_dump() for p in parsed.parts] if parsed.parts else None
+    actor, actx = actor_of(ctx), _actx(ctx)
+
+    async def authorize(page: dict) -> None:
+        # Re-checked at complete: the caller may have lost the page since create.
+        d = await access_service.can(actor, page, "edit_content", actx)
+        if not d.allowed:
+            raise HTTPException(status_code=403, detail=(
+                f"You can no longer add images to {page['slug']}; the image was discarded."))
+        await pages.check_page_lock(page, actor, actx)
+
+    try:
+        info = await page_asset_uploads.complete(ctx.db, ctx.user.id, args["upload_id"], parts,
+                                                 authorize=authorize)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    alt = _alt_of(info.get("file_name"), info.get("alt"))
+    out = {"state": "done", "upload_id": args["upload_id"], **_image_out(info, info["slug"], alt)}
+    return (f"Uploaded the image to {info['slug']} (sha256 verified, {out['mime']}"
+            + (f", {out['width']}x{out['height']}" if out.get("width") else "")
+            + f"). Put this in the page where it belongs (update_page, replace_section or append_blocks): "
+            f"{out['markdown']} — or make it the cover with set_page_properties cover=\"{out['asset']}\"."), out
+
+
+async def copy_page_asset(ctx: Context, args: dict) -> tuple[str, dict]:
+    source = await load_for(ctx, args["from_document"], "read", "read")
+    if source.get("kind") == "artifact" or source.get("encrypted"):
+        raise ToolError(f"{source['slug']} has no page images to copy.")
+    target = await _image_page(ctx, args["to_document"])
+    ref = (args.get("asset") or "").strip()
+    m = re.search(r"asset:([A-Za-z0-9_-]{8,64})", ref) or re.fullmatch(r"([A-Za-z0-9_-]{8,64})", ref)
+    if not m:
+        raise ToolError("asset must be asset:<id> (as get_page lists the page's images) or the id alone.")
+    asset_id = m.group(1)
+    try:
+        info = await page_assets.copy(ctx.db, source, asset_id, target, user_id=ctx.user.id)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    out = {**_image_out(info, target["slug"], _alt_of(None, args.get("alt"))), "from_slug": source["slug"],
+           "from_asset": f"asset:{asset_id}"}
+    return (f"Copied asset:{asset_id} from {source['slug']} to {target['slug']} as {out['asset']}. Put this in "
+            f"that page (update_page, replace_section or append_blocks): {out['markdown']}, or make it its "
+            f"cover with set_page_properties cover=\"{out['asset']}\"."), out
+
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -625,7 +758,7 @@ PAGE_SYNTAX = (
     "'::::columns' then ':::column{width=\"40%\"}' … ':::' per column (2-5), closed by '::::' (an outer fence "
     "has more colons than the ones inside). Nesting: ':::indent' … ':::' after a block. A button that "
     "inserts its blocks when clicked (readers don't see it): ':::button{label=\"Add a task\"}' … ':::'. Image: "
-    "'![alt](asset:<id>)' (upload_page_image) or '![alt](https://… \"caption\")', optionally "
+    "'![alt](asset:<id>)' (create_page_image_upload or upload_page_image) or '![alt](https://… \"caption\")', optionally "
     "'{width=\"60%\" align=\"left\"}' after it. Markdrop item: '::markdrop{src=\"<slug>\" "
     "mode=\"live|preview|card\"}'; mention: ':markdrop[Title]{src=\"<slug>\"}'. Sub-page link: "
     "'::page{src=\"<slug>\"}'; '::toc'; '::breadcrumb'. Bookmark: '::bookmark{url=\"https://…\" "
@@ -862,12 +995,16 @@ PAGE_TOOLS: list[Tool] = [
     Tool(
         name="set_page_properties",
         title="Set a page's properties",
-        description=("Set a page's icon (an emoji, or asset:<id> of an image uploaded with upload_page_image), "
-                     "cover (asset:<id>, an https:// image, or gallery:<name>, a built-in cover: "
-                     f"{', '.join(page_props.GALLERY)}) and its focal point cover_y (0 top .. 100 bottom), "
+        description=("Set a page's icon (an emoji, or asset:<id> of an image of this page), "
+                     "cover (asset:<id> of an image of this page, an https:// image, or gallery:<name>, a "
+                     f"built-in cover: {', '.join(page_props.GALLERY)}) and its focal point cover_y "
+                     "(0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one) and allow_export (false: "
                      "readers can't export it; editors always can). Pass null to clear one. "
+                     "An asset:<id> must belong to this page: add an image file with create_page_image_upload "
+                     "then complete_page_image_upload (or base64 with upload_page_image), or copy one from "
+                     "another page with copy_page_asset; it then shows to exactly the page's readers. "
                      "They live in the page's front matter. Refused while someone is editing the page. "
                      "template: true turns the page into a workspace (or personal) template, false back."),
         scope=WRITE,
@@ -875,7 +1012,9 @@ PAGE_TOOLS: list[Tool] = [
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
             "icon": {"type": ["string", "null"], "maxLength": 80},
-            "cover": {"type": ["string", "null"], "maxLength": 80},
+            "cover": {"type": ["string", "null"], "maxLength": 80,
+                      "description": "asset:<id> (an image of this page), gallery:<name>, an https:// image, "
+                                     "or null."},
             "cover_y": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
             "full_width": {"type": ["boolean", "null"]},
             "small_text": {"type": ["boolean", "null"]},
@@ -899,7 +1038,10 @@ PAGE_TOOLS: list[Tool] = [
         title="Add an image to a page",
         description=("Upload a PNG, JPEG, GIF or WebP image (base64, up to 10 MB) to a page. Returns the "
                      "Markdown to put in the page: ![alt](asset:<id>). Anyone who can read the page sees it, "
-                     "nobody else."),
+                     "nobody else. For an image file on a machine you can run shell commands on, and for any "
+                     "image over a few hundred KB, use create_page_image_upload then "
+                     "complete_page_image_upload instead (no base64, up to 20 MB): base64 in an argument "
+                     "costs tokens and can be cut short."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -996,5 +1138,113 @@ PAGE_TOOLS: list[Tool] = [
         }, ["slug", "format", "filename", "download_url", "expires_at", "pages", "notes"]),
         annotations=_ann(True, False, True),
         handler=export_page,
+    ),
+    Tool(
+        name="create_page_image_upload",
+        title="Start a page image upload",
+        description=(
+            "Add an image file to a page without base64: from the machine you run shell commands on, a "
+            f"PNG, JPEG, GIF or WebP up to {page_asset_uploads.MAX_BYTES // (1024 * 1024)} MB. Give the "
+            "page, the file's name, exact size in bytes and sha256 (e.g. `wc -c < FILE` and "
+            "`shasum -a 256 FILE`). Returns presigned part URLs plus the exact shell command(s) (curl) "
+            "that send the bytes straight to storage; then call complete_page_image_upload, which "
+            "returns asset:<id> and the Markdown ![alt](asset:<id>) to put in the page, or to pass as "
+            "set_page_properties cover / icon. The image belongs to the page: anyone who can read the "
+            "page sees it, nobody else. Never put file contents in an argument. An upload not completed "
+            f"within {settings.page_image_upload_hours} hours is discarded."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": {**_DOC_REF, "description": "The page to add the image to (slug or link). The user "
+                                                    "must be able to edit it."},
+            "file_name": {"type": "string", "minLength": 1, "maxLength": 255,
+                          "description": "The image's name with its extension, e.g. 'architecture.png'. "
+                                         "Without alt, the name (minus the extension) is the alt text."},
+            "filename": {"type": "string", "minLength": 1, "maxLength": 255,
+                         "description": "Same as file_name (the name upload_page_image uses)."},
+            "size_bytes": {"type": "integer", "minimum": 1,
+                           "description": (f"Exact size in bytes (e.g. `wc -c < FILE`), at most "
+                                           f"{page_asset_uploads.MAX_BYTES:,} (20 MB).")},
+            "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$",
+                       "description": "Hex sha256 of the file; the upload is verified against it."},
+            "content_type": {"type": "string", "maxLength": 100,
+                             "description": "Optional: image/png, image/jpeg, image/gif or image/webp. The "
+                                            "extension decides when omitted; the bytes are checked either way."},
+            "alt": {"type": "string", "maxLength": 200,
+                    "description": "Optional alt text (what the image shows) for the returned Markdown."},
+        }, "required": ["document", "size_bytes", "sha256"]},
+        output_schema=_out({
+            "upload_id": {"type": "string"}, "part_size": {"type": "integer"},
+            "parts": {"type": "array", "items": _out({"part_number": {"type": "integer"},
+                                                       "url": {"type": "string"}})},
+            "expires_at": {"type": "string"}, "instructions": {"type": "string"}, "slug": {"type": "string"},
+        }),
+        annotations=_ann(False, False, False),
+        handler=create_page_image_upload,
+    ),
+    Tool(
+        name="complete_page_image_upload",
+        title="Finish a page image upload",
+        description=(
+            "Finish an upload started with create_page_image_upload, once the curl command(s) ran: "
+            "storage assembles the parts, Markdrop checks the size, the sha256 and that the bytes are a "
+            "PNG, JPEG, GIF or WebP image, then adds it to the page. Returns asset (asset:<id>) and "
+            "markdown (![alt](asset:<id>)): put the markdown in the page with update_page, "
+            "replace_section or append_blocks, or pass the asset to set_page_properties as cover or icon. "
+            "A mismatch discards the upload and changes nothing. Safe to call again (the same image)."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "upload_id": {"type": "string", "minLength": 1, "maxLength": 64, "pattern": "^up_[A-Za-z0-9_-]+$",
+                          "description": "The upload_id from create_page_image_upload."},
+            "parts": {
+                "type": "array", "maxItems": 10000,
+                "description": ("Each part's number and the ETag its upload returned. Optional: omitted, "
+                                "the parts storage received are used."),
+                "items": {"type": "object", "properties": {
+                    "part_number": {"type": "integer", "minimum": 1},
+                    "etag": {"type": "string", "minLength": 1}},
+                    "required": ["part_number", "etag"]},
+            },
+        }, "required": ["upload_id"]},
+        output_schema=_out({
+            "state": {"type": "string", "enum": ["done"]}, "upload_id": {"type": "string"},
+            "asset": {"type": "string"}, "markdown": {"type": "string"}, "id": {"type": "string"},
+            "mime": {"type": "string"}, "size": {"type": "integer"},
+            "width": {"type": ["integer", "null"]}, "height": {"type": ["integer", "null"]},
+            "slug": {"type": "string"},
+        }, ["state", "upload_id", "asset", "markdown", "id", "mime", "size", "slug"]),
+        annotations=_ann(False, False, True),
+        handler=complete_page_image_upload,
+    ),
+    Tool(
+        name="copy_page_asset",
+        title="Copy an image to another page",
+        description=(
+            "Copy an image of one page (asset:<id>, as get_page lists it) to another page, as a new image "
+            "of that page with its own asset:<id>: an asset only shows in its own page, so copying the "
+            "Markdown alone doesn't work. The user must be able to read the source page and edit the "
+            "target. Returns the new asset and the Markdown to put in the target page (or pass the asset "
+            "to set_page_properties as its cover or icon)."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "from_document": {**_DOC_REF, "description": "The page the image is on (slug or link)."},
+            "asset": {"type": "string", "minLength": 8, "maxLength": 80,
+                      "description": "The image: asset:<id>, or the id alone."},
+            "to_document": {**_DOC_REF, "description": "The page to copy it to (slug or link)."},
+            "alt": {"type": "string", "maxLength": 200, "description": "Optional alt text for the Markdown."},
+        }, "required": ["from_document", "asset", "to_document"]},
+        output_schema=_out({
+            "asset": {"type": "string"}, "markdown": {"type": "string"}, "id": {"type": "string"},
+            "mime": {"type": "string"}, "size": {"type": "integer"},
+            "width": {"type": ["integer", "null"]}, "height": {"type": ["integer", "null"]},
+            "slug": {"type": "string"}, "from_slug": {"type": "string"}, "from_asset": {"type": "string"},
+        }, ["asset", "markdown", "id", "mime", "size", "slug", "from_slug", "from_asset"]),
+        annotations=_ann(False, False, False),
+        handler=copy_page_asset,
     ),
 ]

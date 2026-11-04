@@ -188,10 +188,12 @@ async def connect() -> None:
     await db["file_versions"].create_index("poster_key", sparse=True)
     await db["documents"].create_index("blob_key", sparse=True)
     await db["documents"].create_index("poster_key", sparse=True)
-    # Multipart upload sessions (services/file_uploads.py): swept per user, and
-    # the rows themselves dropped a day after they expire.
+    # Multipart upload sessions (services/file_uploads.py; page images too): swept per user and by
+    # the background sweeper, and the rows themselves dropped a day after they expire.
     await db["file_uploads"].create_index([("user_id", 1), ("state", 1), ("expires_at", 1)])
     await db["file_uploads"].create_index("purge_at", expireAfterSeconds=0)
+    # The background sweeper's pass over every account's lapsed sessions.
+    await db["file_uploads"].create_index([("state", 1), ("expires_at", 1)])
     await db["file_events"].create_index([("user_id", 1), ("ts", -1)])
 
     # Access policy (services/access.py, lifecycle.py, revalidate.py).

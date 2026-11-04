@@ -88,6 +88,8 @@ class FakeR2:
         self.public_calls.append((key, public))
         if key in self.objects:
             self.objects[key]["public"] = public
+            if content_type is not None:  # r2.set_public rewrites the type too
+                self.objects[key]["content_type"] = content_type
             if epoch is not None:
                 self.objects[key]["ae"] = str(epoch)
         return True

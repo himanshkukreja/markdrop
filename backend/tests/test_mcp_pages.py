@@ -19,7 +19,8 @@ from app.services import live, viewers
 from tests.test_pages import png
 
 PAGE_TOOLS = {"create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
-              "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties"}
+              "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
+              "create_page_image_upload", "complete_page_image_upload", "copy_page_asset"}
 
 
 class McpPages(AccessWorld):

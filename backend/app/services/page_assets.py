@@ -17,6 +17,11 @@ anyone who can read the page sees them, nobody else.
   function (services/pages.py).
 
 Quota counts against the page's owner, like artifacts.
+
+Bytes arrive three ways: :func:`upload` (one request: the app, or base64 over
+MCP, up to ``MAX_BYTES``), :func:`adopt` (a file the client sent straight to
+storage, services/page_asset_uploads.py, up to ``FILE_MAX_BYTES``) and
+:func:`copy` (another page's image, as a new image of this page).
 """
 
 from __future__ import annotations
@@ -36,7 +41,8 @@ from app.services import publicity, r2
 log = logging.getLogger(__name__)
 
 COLL = "page_assets"
-MAX_BYTES = 10 * 1024 * 1024
+MAX_BYTES = 10 * 1024 * 1024          # one request (the app, base64 over MCP)
+FILE_MAX_BYTES = 20 * 1024 * 1024     # straight to storage (services/page_asset_uploads.py)
 MAX_PER_PAGE = 500
 PREFIX = "pa/"
 # Raster images only: an SVG is a document that can carry script.
@@ -99,33 +105,56 @@ async def is_public(db: AsyncIOMotorDatabase, page: dict) -> bool:
     return await publicity.doc_is_public(db, eff)
 
 
-async def upload(db: AsyncIOMotorDatabase, page: dict, data: bytes, *, user_id: str) -> dict:
-    """Store an image for ``page`` (the caller has checked can(edit_content))."""
+def kind_of(data: bytes) -> tuple[str, str]:
+    """(mime, extension) of an image a page may hold, or 415."""
+    kind = sniff(data)
+    if kind is None:
+        raise HTTPException(status_code=415, detail="Pages take PNG, JPEG, GIF or WebP images.")
+    return kind
+
+
+async def check_room(db: AsyncIOMotorDatabase, page: dict, size: int, *, user_id: str | None,
+                     max_bytes: int = MAX_BYTES) -> str:
+    """Whether ``page`` can take an image of ``size`` bytes: a page, storage
+    up, under the per-page count and the owner's quota. Returns the owner whose
+    quota it counts against."""
     from app.services import artifact as art_service
+    from app.services import pages
+
+    if not pages.is_page_capable(page):
+        raise HTTPException(status_code=422, detail="Images can be added to Markdown documents only.")
+    if size <= 0:
+        raise HTTPException(status_code=422, detail="That file is empty.")
+    if size > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Images in a page can be up to {max_bytes // (1024 * 1024)} MB.")
+    if not r2.is_configured():
+        raise HTTPException(status_code=503, detail="Image storage isn't available right now.")
+    if await db[COLL].count_documents({"doc_id": str(page["_id"])}) >= MAX_PER_PAGE:
+        raise HTTPException(status_code=429, detail=f"A page can hold at most {MAX_PER_PAGE} images.")
+    owner = page.get("owner_id") or user_id
+    if not owner:
+        raise HTTPException(status_code=401, detail="Sign in to add images to a page.")
+    allowed, _used = await art_service.check_quota(db, owner, size)
+    if not allowed:
+        raise HTTPException(status_code=413, detail="The page owner's Markdrop storage is full.")
+    return owner
+
+
+async def upload(db: AsyncIOMotorDatabase, page: dict, data: bytes, *, user_id: str,
+                 max_bytes: int = MAX_BYTES) -> dict:
+    """Store an image for ``page`` (the caller has checked can(edit_content))."""
     from app.services import pages
 
     if not pages.is_page_capable(page):
         raise HTTPException(status_code=422, detail="Images can be added to Markdown documents only.")
     if not data:
         raise HTTPException(status_code=422, detail="That file is empty.")
-    if len(data) > MAX_BYTES:
-        raise HTTPException(status_code=413, detail="Images in a page can be up to 10 MB.")
-    kind = sniff(data)
-    if kind is None:
-        raise HTTPException(status_code=415, detail="Pages take PNG, JPEG, GIF or WebP images.")
-    if not r2.is_configured():
-        raise HTTPException(status_code=503, detail="Image storage isn't available right now.")
-    doc_id = str(page["_id"])
-    if await db[COLL].count_documents({"doc_id": doc_id}) >= MAX_PER_PAGE:
-        raise HTTPException(status_code=429, detail=f"A page can hold at most {MAX_PER_PAGE} images.")
-    owner = page.get("owner_id") or user_id
-    if not owner:
-        raise HTTPException(status_code=401, detail="Sign in to add images to a page.")
-    allowed, _used = await art_service.check_quota(db, owner, len(data))
-    if not allowed:
-        raise HTTPException(status_code=413, detail="The page owner's Markdrop storage is full.")
-    mime, ext = kind
+    if len(data) > max_bytes:
+        raise HTTPException(status_code=413, detail=f"Images in a page can be up to {max_bytes // (1024 * 1024)} MB.")
+    mime, ext = kind_of(data)
+    owner = await check_room(db, page, len(data), user_id=user_id, max_bytes=max_bytes)
     width, height = await run_in_threadpool(_dimensions, data)
+    doc_id = str(page["_id"])
     asset_id = secrets.token_hex(12)
     key = key_for(doc_id, asset_id, ext)
     public = await is_public(db, page)
@@ -134,7 +163,48 @@ async def upload(db: AsyncIOMotorDatabase, page: dict, data: bytes, *, user_id: 
     if not public and publicity.epoch_of(page):
         # Bind it to the page's current access epoch from the start.
         await run_in_threadpool(r2.set_public, key, False, mime, publicity.epoch_of(page))
-    row = {"_id": asset_id, "doc_id": doc_id, "key": key, "mime": mime, "size": len(data),
+    return await _register(db, page, asset_id=asset_id, key=key, mime=mime, size=len(data), width=width,
+                           height=height, user_id=user_id, owner=owner, public=public)
+
+
+async def adopt(db: AsyncIOMotorDatabase, page: dict, *, asset_id: str, key: str, data: bytes,
+                user_id: str) -> dict:
+    """Make the object already stored at ``key`` (private, uploaded straight to
+    storage: services/page_asset_uploads.py) an image of ``page``. ``data`` is
+    its bytes, already checked against the declared size and sha256. The
+    caller deletes the object if this raises."""
+    mime, _ext = kind_of(data)
+    owner = await check_room(db, page, len(data), user_id=user_id, max_bytes=FILE_MAX_BYTES)
+    width, height = await run_in_threadpool(_dimensions, data)
+    public = await is_public(db, page)
+    # The object went up private with the type the client declared: give it the
+    # type its bytes have, the page's publicity and the page's access epoch.
+    if not await run_in_threadpool(r2.set_public, key, public, mime, publicity.epoch_of(page) or None):
+        raise HTTPException(status_code=502, detail="The image couldn't be stored. Try again.")
+    return await _register(db, page, asset_id=asset_id, key=key, mime=mime, size=len(data), width=width,
+                           height=height, user_id=user_id, owner=owner, public=public)
+
+
+async def copy(db: AsyncIOMotorDatabase, source: dict, asset_id: str, target: dict, *, user_id: str) -> dict:
+    """Copy an image of ``source`` to ``target`` as a new image of its own (the
+    caller has checked can(read) on the source and can(edit_content) on the
+    target). 404 when ``asset_id`` isn't one of the source's images."""
+    row = await db[COLL].find_one({"_id": asset_id, "doc_id": str(source["_id"])})
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"asset:{asset_id} isn't an image of {source['slug']}.")
+    await check_room(db, target, int(row.get("size") or 0) or 1, user_id=user_id, max_bytes=FILE_MAX_BYTES)
+    if not r2.is_configured():
+        raise HTTPException(status_code=503, detail="Image storage isn't available right now.")
+    data = await run_in_threadpool(r2.get_bytes, row["key"], FILE_MAX_BYTES + 1)
+    if not data:
+        raise HTTPException(status_code=502, detail="That image couldn't be read from storage. Try again.")
+    return await upload(db, target, data, user_id=user_id, max_bytes=FILE_MAX_BYTES)
+
+
+async def _register(db: AsyncIOMotorDatabase, page: dict, *, asset_id: str, key: str, mime: str, size: int,
+                    width: int | None, height: int | None, user_id: str, owner: str, public: bool) -> dict:
+    doc_id = str(page["_id"])
+    row = {"_id": asset_id, "doc_id": doc_id, "key": key, "mime": mime, "size": size,
            "width": width, "height": height, "created_by": user_id, "owner_id": owner,
            "created_at": now_utc()}
     await db[COLL].insert_one(row)
@@ -145,7 +215,7 @@ async def upload(db: AsyncIOMotorDatabase, page: dict, data: bytes, *, user_id: 
         raise HTTPException(status_code=404, detail="Document not found")
     if await is_public(db, fresh) != public or publicity.epoch_of(fresh) != publicity.epoch_of(page):
         await run_in_threadpool(r2.set_public, key, await is_public(db, fresh), mime, publicity.epoch_of(fresh))
-    return {"id": asset_id, "mime": mime, "size": len(data), "width": width, "height": height}
+    return {"id": asset_id, "mime": mime, "size": size, "width": width, "height": height}
 
 
 async def urls_for(db: AsyncIOMotorDatabase, page: dict, ids: list[str] | None = None) -> dict[str, dict]:

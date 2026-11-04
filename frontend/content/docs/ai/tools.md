@@ -4,6 +4,8 @@ nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-03
 keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates]
+updated: 2026-11-04
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, move_page, pages, sub-pages, scopes, reference]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 42 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
@@ -67,6 +69,12 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `list_page_templates` | read | Every template you can start a page from, each with its `id`: the built-in ones (feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank), your own, and those of each workspace you're a member of. With `workspace`, only that workspace's and the built-in ones. | `workspace` |
 | `save_page_as_template` | write | Saves a copy of a page, with its images and optionally the sub-pages you can open, as a template for your workspace (members and up) or for you alone. `{{title}}`, `{{date}}`, `{{author}}` and `{{folder}}` in it are filled in on each new page. Templates never appear in lists or search. | `document`, `name`, `description`, `icon`, `include_subpages`, `scope` (`workspace`, `personal`), `workspace` |
 | `set_folder_default_template` | write | Chooses the template New page starts from in a workspace folder (workspace admins): a built-in id or one of the workspace's templates, or `null` for blank. | `workspace`, `folder`, `template` |
+| `set_page_properties` | write | Sets a page's icon, cover and its focal point, full width, small text, font and lock. An image icon or cover is `asset:<id>` of an image of that page. | `document`, `icon`, `cover`, `cover_y`, `full_width`, `small_text`, `font`, `locked` |
+| `create_page_image_upload` | write | Starts adding an image file to a page without base64: a PNG, JPEG, GIF or WebP up to 20 MB, from a computer your assistant runs shell commands on. Returns a storage URL and the exact `curl` command that sends the file there. | `document`, `file_name`, `size_bytes`, `sha256`, `content_type`, `alt` |
+| `complete_page_image_upload` | write | Finishes it: checks the size, the sha256 and that the file really is an image, then adds it to the page. Returns `asset:<id>` and the Markdown `![alt](asset:<id>)` to put in the page, or to use as its cover or icon. | `upload_id`, `parts` |
+| `upload_page_image` | write | Uploads a small image sent as base64 (up to 10 MB) to a page and returns the Markdown that shows it. For an image file, `create_page_image_upload` is better: no base64, and up to 20 MB. | `document`, `filename`, `content_base64` |
+| `copy_page_asset` | write | Copies an image of one page to another page, as a new image of that page. You must be able to read the first page and edit the second. | `from_document`, `asset`, `to_document`, `alt` |
+| `list_page_templates` | read | The built-in templates: feature guide, customer how-to, QA test plan, product spec, meeting notes, runbook and blank. | none |
 | `list_subpages` | read | The pages inside a page that you can open. | `document` |
 | `move_page` | write | Puts a page inside another page of the same workspace, or at the top level. When that changes who can read it, the tool says how and needs `confirm_access_change`. | `document`, `parent`, `confirm_access_change` |
 | `translate_page` | write | Translates a page into another language as a new page next to it, titled "Title (Español)", with the same blocks, embeds, images and properties. Only the text is translated, and the original isn't changed. Uses Markdrop's AI. | `document`, `language` |
@@ -77,7 +85,7 @@ Pages are documents that open in the block editor, with sub-pages, embedded Mark
 | `restore_page_version` | write | Makes an earlier version the page again, as a new version; the page as it was is kept, so a restore can be undone. Refused while someone has the page open in the editor. | `document`, `version` |
 | `export_page` | read | Exports a page as portable Markdown or one HTML file, returned as text; with sub-pages (or `zip` for Markdown with images), a link to a `.zip` that works for 10 minutes. Items you can't open are written as "Locked item", and readers can export only when the page allows it. See [Export a page](/pages/export). | `document`, `format` (`markdown`, `html`), `include_subpages`, `zip` |
 
-While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties`, `upload_page_image` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
+While someone has a page open in the editor, `update_page`, `replace_section`, `set_page_properties` and `insert_embed` with `after_heading` are refused with who is editing; try again in a minute, or use `append_blocks`. Adding an image to a page works while someone is editing it; putting its Markdown in the page follows the same rules. A locked page can be changed only by its owner or a workspace admin. Web embeds (`::embed`) are accepted from YouTube, Vimeo, Loom, Figma, Google Maps and CodePen only.
 
 Readers who can't open an embedded or mentioned item see a locked placeholder with no title. In a page, people mentioned with `@` are named only to the page's owner and its workspace's members.
 
@@ -102,7 +110,7 @@ For files up to 2 GB that live on the machine where the assistant can run shell 
 | `list_file_versions` | read | The kept versions of one of your files, newest first, marking the current one. Up to five are kept. | `document` |
 | `restore_file_version` | write | Makes an earlier version current again, as a new version. Nothing is deleted. | `document`, `version` |
 
-Zipped websites can't be uploaded with `create_upload`; use [markdrop.in/upload](https://markdrop.in/upload).
+Zipped websites can't be uploaded with `create_upload`; use [markdrop.in/upload](https://markdrop.in/upload). An image that goes inside a page isn't a file of its own: add it with `create_page_image_upload` (see [Pages](#pages)).
 
 ### Analytics
 

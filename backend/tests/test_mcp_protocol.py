@@ -121,7 +121,8 @@ class Transport(McpTestCase):
             # A page's version history.
             "list_page_versions", "get_page_version", "restore_page_version",
             "export_page",
-            "save_page_as_template", "set_folder_default_template"})
+            "save_page_as_template", "set_folder_default_template",
+            "create_page_image_upload", "complete_page_image_upload", "copy_page_asset"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
