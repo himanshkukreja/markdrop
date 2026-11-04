@@ -459,6 +459,8 @@ class Incoming:
 
 def incoming_from(item: dict, origin: str) -> Incoming:
     """One request source ({name, text} or {name, data_b64}) → text. ValueError with a message."""
+    if item.get("origin") in ("paste", "upload"):
+        origin = item["origin"]
     name = str(item.get("name") or "").strip()[:200] or ("Pasted text" if origin == "paste" else "Meeting")
     if item.get("data_b64"):
         try:
@@ -574,10 +576,12 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     except HTTPException:
         await db[COLL].delete_one({"_id": row["_id"]})
         raise
-    await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"meeting_id": str(row["_id"]), "meeting_role": "page"}})
     await page_covers.opt_out(db, raw)
+    raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
     if (raw.get("access_level") or "link") != "workspace":
         raw = await access.set_level(db, raw, "workspace", actor, ctx)
+    # After the level change (transitions writes the row it read): the page is this meeting's.
+    await db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"meeting_id": str(row["_id"]), "meeting_role": "page"}})
     row["doc_id"] = raw["_id"]
     row["slug"] = raw["slug"]
     if m.segments:

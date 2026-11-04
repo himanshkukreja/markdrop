@@ -178,6 +178,9 @@ class DocumentResponse(BaseModel):
     # its way (the editor fades it in when it lands).
     cover_auto: bool = False
     cover_pending: bool = False
+    # Meetings (services/meetings.py): this page is a meeting ({id, role: page | transcript}); the
+    # reader mounts the meeting panel, which asks GET /meetings/{id} (decided again there).
+    meeting: dict | None = None
 
     model_config = {"from_attributes": True}
 

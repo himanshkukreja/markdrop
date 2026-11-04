@@ -85,7 +85,7 @@ export interface DetectedMeeting {
   sources: Array<{ name: string; kind: string; format: string; segments: number; speakers: string[] }>;
 }
 
-export interface SourceIn { name?: string; text?: string; data_b64?: string; google_file_id?: string }
+export interface SourceIn { name?: string; text?: string; data_b64?: string; google_file_id?: string; origin?: "paste" | "upload" }
 
 export const meetingsHref = (workspaceId: string) => `/meetings/${encodeURIComponent(workspaceId)}`;
 
@@ -227,9 +227,9 @@ export async function fileToSource(file: File): Promise<SourceIn> {
     const buf = new Uint8Array(await file.arrayBuffer());
     let bin = "";
     for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-    return { name, data_b64: btoa(bin) };
+    return { name, data_b64: btoa(bin), origin: "upload" };
   }
-  return { name, text: await file.text() };
+  return { name, text: await file.text(), origin: "upload" };
 }
 
 export const ACCEPT = ".txt,.vtt,.srt,.sbv,.docx,.md,text/plain,text/vtt";

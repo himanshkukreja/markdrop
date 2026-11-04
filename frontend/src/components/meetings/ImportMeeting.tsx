@@ -76,7 +76,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         setDetected(r.meetings);
         const one = r.meetings.length === 1 ? r.meetings[0] : null;
         if (one && !touched.current.title) setTitle(one.title || "");
-        if (one && !touched.current.date) setDate(one.date || "");
+        if (one && !touched.current.date) setDate(one.date || localToday());
         setError(null);
       }).catch((e: Error) => { if (live) { setDetected(null); setError(e.message); } })
         .finally(() => { if (live) setDetecting(false); });
@@ -274,6 +274,12 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
       {body}
     </Dialog>
   );
+}
+
+/** Today in the person's own time zone (a call without a date in it happened today, where they are). */
+function localToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 // ── The Google Picker ─────────────────────────────────────────────────────────

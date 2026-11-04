@@ -264,6 +264,10 @@ class Import(MeetingsWorld):
         self.assertEqual(page["editor"], "blocks")
         self.assertEqual(page["access_level"], "workspace")
         self.assertEqual(page["meeting_id"], m["id"])
+        r = await self.get(m["slug"], self.session("wm"))
+        self.assertEqual(r.json()["meeting"], {"id": m["id"], "role": "page"})
+        r = await self.get(m["transcript_slug"], self.session("wm"))
+        self.assertEqual(r.json()["meeting"], {"id": m["id"], "role": "transcript"})
         c = page["content"]
         self.assertIn("icon: 🎙️", c)
         self.assertIn('date: "2026-11-04"', c)

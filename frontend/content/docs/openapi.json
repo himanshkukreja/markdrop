@@ -15308,6 +15308,18 @@
             "title": "Cover Pending",
             "default": false
           },
+          "meeting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting"
+          },
           "edit_secret": {
             "type": "string",
             "title": "Edit Secret"
@@ -15807,6 +15819,18 @@
             "type": "boolean",
             "title": "Cover Pending",
             "default": false
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting"
           }
         },
         "type": "object",
@@ -18666,6 +18690,21 @@
               }
             ],
             "title": "Google File Id"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "paste",
+                  "upload"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
           }
         },
         "type": "object",

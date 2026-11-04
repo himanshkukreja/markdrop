@@ -23,7 +23,7 @@ allowlist). Every meeting read is decided on its page with ``access.can``: a res
 """
 
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.encoders import jsonable_encoder
@@ -62,6 +62,8 @@ class SourceIn(BaseModel):
     text: str | None = Field(None, max_length=meetings.MAX_PASTE_CHARS)
     data_b64: str | None = Field(None, max_length=meetings.MAX_SOURCE_BYTES * 4 // 3 + 16)
     google_file_id: str | None = Field(None, max_length=200)
+    # Where the text came from ("upload": a file the browser read), shown on the meeting's Sources.
+    origin: Literal["paste", "upload"] | None = None
 
 
 class PreviewBody(BaseModel):
