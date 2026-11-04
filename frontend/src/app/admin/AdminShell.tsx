@@ -38,7 +38,7 @@ export const SECTION_LABEL: Record<Section, string> = {
 };
 
 const ITEM =
-  "md-focus flex min-h-9 min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11";
+  "md-focus flex min-h-9 min-w-0 items-center gap-2.5 rounded-lg px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11 pointer-coarse:min-h-11";
 const ACTIVE = "bg-accent-soft font-medium text-accent-text hover:bg-accent-soft hover:text-accent-text";
 
 function RailNav({ section, counts, onSelect, idPrefix }: {

@@ -415,7 +415,7 @@
   }
   .chip {
     position: relative;
-    height: 36px;
+    height: 40px;
   }
   .chip::after {
     content: "";

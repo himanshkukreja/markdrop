@@ -60,7 +60,7 @@
   /* ── Rows: menus, tabs, segmented options ──────────────────────────── */
   .md-menu__item { min-height: 44px; }
   .md-menu__item--rich { min-height: 52px; }
-  .md-tab { min-height: 44px; }
+  .md-tab { min-height: 44px; min-width: 44px; justify-content: center; }
   .md-seg__opt, .md-seg--sm .md-seg__opt { height: auto; min-height: 44px; min-width: 44px; }
   .md-seg--icons .md-seg__opt, .md-seg--sm.md-seg--icons .md-seg__opt { min-width: 44px; }
 

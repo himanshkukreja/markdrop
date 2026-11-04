@@ -228,7 +228,7 @@ function measure({ checkTargets }) {
   const modal = [...document.querySelectorAll('[aria-modal="true"]')].filter(visible).pop();
   const scope = modal || document.body;
   // An open menu covers part of the page: while it's open, it is what a finger aims at.
-  const openMenu = [...document.querySelectorAll('[role=menu]')].filter(visible).pop();
+  const openMenu = [...document.querySelectorAll('[role=menu], [role=dialog]:not([aria-modal="true"])')].filter((m) => visible(m) && /fixed|absolute/.test(getComputedStyle(m).position)).pop();
   const targetScope = (openMenu && (!modal || modal.contains(openMenu))) ? openMenu : scope;
 
   // 2. off-screen controls and text
@@ -276,7 +276,8 @@ function measure({ checkTargets }) {
       if (cx < 0 || cy < 0 || cx >= vw || cy >= vh) continue;
       // Under something else at its own centre: obscured, not a target right now.
       const atCentre = document.elementFromPoint(Math.min(vw - 1, Math.max(0, cx)), Math.min(vh - 1, Math.max(0, cy)));
-      if (!atCentre || !(target === atCentre || target.contains(atCentre) || atCentre.contains(target))) continue;
+      // (An ancestor there means the target is clipped away by its own scroller at that point.)
+      if (!atCentre || !(target === atCentre || target.contains(atCentre))) continue;
       // The hit area along the centre lines, walked out 1 px at a time (a stretched link's ::after or
       // a larger invisible hit area counts; the screen's edge counts as reach).
       const owns = (x, y) => { const h = document.elementFromPoint(x, y); return !!h && (h === target || target.contains(h)); };
