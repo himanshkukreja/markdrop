@@ -24,7 +24,16 @@ What everyone sees
 ------------------
 ``{"type": "presence", "on": true, "total": N, "viewers": [...], "you": id,
 "me": {...}}`` — at most :data:`MAX_LISTED` entries (named people merged across
-their tabs, then anonymous tabs; active before away), plus the total. On an
+their tabs, then anonymous tabs; active before away), plus the total.
+
+Who is editing
+--------------
+A page's edit lock holder (services/pages.py → :func:`set_editor`) carries
+``editing: true``. Someone with a relationship to the document sees that
+person by name; anyone else (anonymous, or signed in without one) sees them as
+an anonymous animal with the flag and nothing more: who is changing a page is
+for the people it belongs to. A lock holder who chose "Show me as anonymous" is
+an animal with the flag for everyone. On an
 end-to-end encrypted document only ``{"count_only": true, "total": N}``: names
 and sections never, since its headings are content the server must not hold.
 With the owner's "Show who's viewing" off: ``{"on": false}`` and nothing else.
@@ -106,6 +115,7 @@ class Conn:
     joined: bool = False            # said hello
     user_id: str | None = None      # from a valid presence ticket only
     named: bool = False             # appears by name (relationship holds, not anon)
+    related: bool = False           # has a relationship (sees an editor by name), anon or not
     anon_pref: bool = False
     name: str | None = None
     picture: str | None = None
@@ -207,6 +217,7 @@ def _apply_identity(room: Room, conn: Conn, rel: dict | None) -> None:
     named = rel is not None and not conn.anon_pref
     was = (conn.named, conn.animal)
     conn.named = named
+    conn.related = rel is not None
     if named:
         conn.name, conn.picture, conn.owner = rel["name"], rel["picture"], rel["owner"]
         conn.animal = None
@@ -342,8 +353,11 @@ def _entries(r: Room) -> list[dict]:
                 if c.sec is not None and c.sec_at >= e["_sec_at"]:
                     e["sec"], e["_sec_at"] = c.sec, c.sec_at
         else:
-            out.append({"id": c.id, "animal": c.animal, "color": c.color, "state": c.state,
-                        "sec": c.sec, "_conns": {c.id}, "_at": c.at})
+            e = {"id": c.id, "animal": c.animal, "color": c.color, "state": c.state,
+                 "sec": c.sec, "_conns": {c.id}, "_at": c.at}
+            if editor and c.user_id == editor:
+                e["editing"] = True
+            out.append(e)
     out.sort(key=lambda e: (e["state"] != "active", "name" not in e, e["_at"]))
     return out
 
@@ -352,8 +366,18 @@ def _public(e: dict) -> dict:
     return {k: v for k, v in e.items() if not k.startswith("_")}
 
 
+def _unnamed(slug: str, e: dict) -> dict:
+    """An editor as someone without a relationship sees them: an animal, the flag."""
+    if not (e.get("editing") and "name" in e):
+        return e
+    animal = ANIMALS[_h("animal", slug, "editor", e["id"]) % len(ANIMALS)]
+    return {"id": e["id"], "animal": animal, "color": e["color"], "state": e["state"],
+            "sec": e["sec"], "editing": True}
+
+
 def snapshots(r: Room) -> dict[str, dict]:
-    """conn id → the snapshot that socket gets (they differ only in ``you``/``me``)."""
+    """conn id → the snapshot that socket gets (they differ in ``you``/``me``, and
+    someone without a relationship sees an editor as an animal)."""
     out: dict[str, dict] = {}
     joined = [c for c in r.conns.values() if c.joined]
     if not r.enabled:
@@ -367,24 +391,26 @@ def snapshots(r: Room) -> dict[str, dict]:
             out[c.id] = {"type": "presence", "on": True, "count_only": True, "total": total}
         return out
     listed = [_public(e) for e in entries[:MAX_LISTED]]
+    outside = [_unnamed(r.slug, e) for e in listed]
     by_conn = {cid: e for e in entries for cid in e["_conns"]}
     for c in joined:
         mine = by_conn.get(c.id)
-        out[c.id] = {"type": "presence", "on": True, "total": total, "viewers": listed,
+        out[c.id] = {"type": "presence", "on": True, "total": total, "viewers": listed if c.related else outside,
                      "you": mine["id"] if mine else None,
                      "me": _public(mine) if mine else None}
     return out
 
 
 def observe(slug: str, doc_id: str, *, enabled: bool, encrypted: bool,
-            user_id: str | None = None) -> dict:
+            user_id: str | None = None, related: bool = True) -> dict:
     """What a page on the document shows right now, for someone who isn't on it
     (the MCP ``get_viewers`` tool). Same rules as :func:`snapshots`, and it adds
     nobody to the room: ``{"on": False}``; ``{"on": True, "count_only": True,
     "total": N}``; or ``{"on": True, "total": N, "viewers": [...]}`` with the
     entries a page lists, each with ``you`` (one of ``user_id``'s own tabs).
     ``enabled`` and ``encrypted`` come from the document as just read, so a
-    switch flipped a moment ago applies even before the room hears of it."""
+    switch flipped a moment ago applies even before the room hears of it.
+    ``related``: the caller has a relationship; without one an editor is an animal."""
     if not enabled:
         return {"on": False}
     r = _rooms.get(slug)
@@ -395,7 +421,8 @@ def observe(slug: str, doc_id: str, *, enabled: bool, encrypted: bool,
     for e in entries[:MAX_LISTED]:
         mine = bool(user_id) and any(
             (c := r.conns.get(cid)) is not None and c.user_id == user_id for cid in e["_conns"])
-        listed.append({**_public(e), "you": mine})
+        pub = _public(e)
+        listed.append({**(pub if related or mine else _unnamed(slug, pub)), "you": mine})
     return {"on": True, "total": len(entries), "viewers": listed}
 
 
@@ -628,9 +655,9 @@ async def recheck(db, now: float | None = None) -> None:
         changed = False
         for c in due:
             c.checked_at = now
-            before = (c.named, c.name, c.picture, c.owner)
+            before = (c.named, c.related, c.name, c.picture, c.owner)
             _apply_identity(r, c, await relationship(db, raw, c.user_id))
-            if (c.named, c.name, c.picture, c.owner) != before:
+            if (c.named, c.related, c.name, c.picture, c.owner) != before:
                 changed = True
         if changed:
             _schedule(r)

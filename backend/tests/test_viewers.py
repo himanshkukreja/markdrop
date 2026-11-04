@@ -443,3 +443,66 @@ class Viewers(AccessWorld):
         await settle()
         self.assertIsNone(quiet.presence())
         self.assertEqual(loud.presence()["total"], 1)
+
+    # ── Who is editing ──
+
+    async def test_editor_is_named_only_for_people_with_a_relationship(self):
+        d = await self.mkdoc("L", content=CONTENT)   # link, filed in W1, granted to gv
+        owner = await self.open(d, "owner")
+        member = await self.open(d, "wm")
+        stranger = await self.open(d, "stranger")
+        visitor = await self.open(d)
+        viewers.set_editor(d["slug"], self.uid["owner"], 60)
+        await settle()
+        for ws in (owner, member):
+            ed = [v for v in ws.presence()["viewers"] if v.get("editing")]
+            self.assertEqual([v.get("name") for v in ed], ["OWNER"])
+        for ws in (stranger, visitor):
+            snap = ws.presence()
+            ed = [v for v in snap["viewers"] if v.get("editing")]
+            self.assertEqual(len(ed), 1)
+            self.assertIn(ed[0]["animal"], viewers.ANIMALS)
+            self.assertNotIn("name", ed[0])
+            self.assertNotIn("owner", ed[0])
+            self.assertNotIn("pic", ed[0])
+            self.assertNotIn("OWNER", json.dumps(snap))
+            # The member, who isn't editing, is still named as presence names them.
+            self.assertIn("WM", self.names(snap))
+        # The editor's own entry is theirs.
+        self.assertEqual(owner.presence()["me"]["name"], "OWNER")
+        self.assertTrue(owner.presence()["me"]["editing"])
+        # Released: nobody is editing, the owner is named again for everyone.
+        viewers.set_editor(d["slug"], None, 0)
+        await settle()
+        for ws in (owner, member, stranger, visitor):
+            self.assertFalse(any(v.get("editing") for v in ws.presence()["viewers"]))
+        self.assertIn("OWNER", self.names(visitor.presence()))
+
+    async def test_anonymous_minded_editor_is_an_animal_with_the_flag(self):
+        d = await self.mkdoc("L", content=CONTENT)
+        editor = await self.open(d, "owner", anon=True)
+        member = await self.open(d, "wm")
+        viewers.set_editor(d["slug"], self.uid["owner"], 60)
+        await settle()
+        ed = [v for v in member.presence()["viewers"] if v.get("editing")]
+        self.assertEqual(len(ed), 1)
+        self.assertNotIn("name", ed[0])
+        self.assertIn(ed[0]["animal"], viewers.ANIMALS)
+        self.assertTrue(editor.presence()["me"]["editing"])
+
+    async def test_observe_names_the_editor_only_for_related_callers(self):
+        d = await self.mkdoc("L", content=CONTENT)
+        await self.open(d, "owner")
+        viewers.set_editor(d["slug"], self.uid["owner"], 60)
+        await settle()
+        args = dict(enabled=True, encrypted=False)
+        inside = viewers.observe(d["slug"], str(d["_id"]), user_id=self.uid["wm"], related=True, **args)
+        outside = viewers.observe(d["slug"], str(d["_id"]), user_id=self.uid["stranger"], related=False, **args)
+        self.assertEqual([v.get("name") for v in inside["viewers"] if v.get("editing")], ["OWNER"])
+        ed = [v for v in outside["viewers"] if v.get("editing")]
+        self.assertEqual(len(ed), 1)
+        self.assertNotIn("name", ed[0])
+        self.assertNotIn("OWNER", json.dumps(outside))
+        # The editor asking about themselves still sees their own entry.
+        me = viewers.observe(d["slug"], str(d["_id"]), user_id=self.uid["owner"], related=False, **args)
+        self.assertEqual([v.get("name") for v in me["viewers"] if v.get("editing")], ["OWNER"])

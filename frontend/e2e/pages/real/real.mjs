@@ -393,8 +393,8 @@ await step("lock-mcp", async () => {
   await b.p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
   await b.p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
   await b.p.waitForTimeout(1500);
-  if (!(await b.p.getByText("Ada Owner is editing").count())) await b.p.locator(".pb-live .ProseMirror p").first().click();
-  await b.p.getByText("Ada Owner is editing").waitFor({ timeout: 20000 });
+  if (!(await b.p.locator(".pb-banner").getByText("Ada Owner is editing").count())) await b.p.locator(".pb-live .ProseMirror p").first().click();
+  await b.p.locator(".pb-banner").getByText("Ada Owner is editing").waitFor({ timeout: 20000 });
   if (!(await b.p.locator('.pb-live .ProseMirror[contenteditable="false"]').count())) fail("the second editor isn't read only");
   await shot(b.p, "20-locked-read-only", { wait: 1500 });
   // MCP update_page during the lock → refused (423 locked, as a tool error).

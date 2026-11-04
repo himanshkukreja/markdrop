@@ -11,6 +11,10 @@
  * where they are, and "Show me as anonymous" when the page offers it. A popover on desktop, a bottom
  * sheet on phones.
  *
+ * Editing (a page's edit lock holder, `editing` from the server): an accent ring and a pencil badge,
+ * first in the stack, the tooltip "<Name> is editing", and in a wide bar the words beside the
+ * stack. The server only marks named people (anonymous viewers never hold the lock by name).
+ *
  * Recording: names, photos and the list are masked (`ph-mask`) and never autocaptured
  * (`ph-no-capture`). A join is announced politely, at most once every 10 s.
  */
@@ -83,7 +87,7 @@ function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" 
   const style = { "--pc": viewerColor(v.color) } as CSSProperties;
   return (
     <span
-      className={[s.face, size === "md" ? s.faceMd : s.faceSm, ring && s.ring, v.state === "away" && s.away, "ph-mask"].filter(Boolean).join(" ")}
+      className={[s.face, size === "md" ? s.faceMd : s.faceSm, ring && s.ring, v.editing && s.editing, v.state === "away" && s.away, "ph-mask"].filter(Boolean).join(" ")}
       style={style}
       aria-hidden
     >
@@ -96,7 +100,13 @@ function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" 
         // Anonymous: the animal in the Markdrop icon style (.md-icon: 1.8 stroke, currentColor).
         <AnimalGlyph animal={v.animal} />
       )}
-      {v.state === "away" && <span className={s.awayDot} />}
+      {v.editing ? (
+        <span className={s.editBadge}>
+          <Icon name="edit" size={size === "md" ? 9 : 8} />
+        </span>
+      ) : v.state === "away" ? (
+        <span className={s.awayDot} />
+      ) : null}
     </span>
   );
 }
@@ -104,7 +114,8 @@ function Face({ v, size = "sm", ring = true }: { v: PresenceViewer; size?: "sm" 
 function tooltipText(v: PresenceViewer, you: boolean): string {
   const where = sectionText(v.sec);
   const name = you ? `${viewerName(v)} (you)` : viewerName(v);
-  return [name, v.editing ? "Editing" : where, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ");
+  if (v.editing) return [you ? "You're editing" : `${viewerName(v)} is editing`, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ");
+  return [name, where, v.state === "away" ? "Away" : null].filter(Boolean).join(" · ");
 }
 
 function Row({ v, you, onSelect }: { v: PresenceViewer; you: boolean; onSelect?: (v: PresenceViewer) => void }) {
@@ -191,7 +202,12 @@ export function PresenceStack(props: PresenceStackProps) {
     announce(arrived.length === 1 ? `${viewerName(arrived[0]!)} is viewing` : `${arrived.length} more people are viewing`);
   }, [viewers, me, countOnly]);
 
-  const others = useMemo(() => viewers.filter((v) => v.id !== me?.id), [viewers, me]);
+  // Whoever is editing comes first (the server's order otherwise).
+  const others = useMemo(() => {
+    const rest = viewers.filter((v) => v.id !== me?.id);
+    return [...rest.filter((v) => v.editing), ...rest.filter((v) => !v.editing)];
+  }, [viewers, me]);
+  const editor = others.find((v) => v.editing) ?? null;
   if (total <= 0 || (hideWhenAlone && total <= 1)) return null;
   const wrap = [s.stackWrap, variant === "float" && s.float, variant === "float" && (corner === "top-right" ? s.floatTr : s.floatBr), "no-print", className]
     .filter(Boolean).join(" ");
@@ -223,16 +239,16 @@ export function PresenceStack(props: PresenceStackProps) {
     >
       {shown.map((v, i) => (
         // Earlier faces sit on top of the ones after them, so every face's initials stay readable.
-        <span key={v.id} className={i >= 2 ? s.wideOnly : undefined} style={{ position: "relative", zIndex: 6 - i }}>
+        <span key={v.id} className={i >= 2 ? s.wideOnly : undefined} style={{ position: "relative", zIndex: 6 - i }} data-face="" data-editing={v.editing ? "" : undefined}>
           <Tooltip content={<span className="ph-mask">{tooltipText(v, false)}</span>} side="bottom">
             <Face v={v} />
           </Tooltip>
         </span>
       ))}
-      {moreWide > 0 && <span className={`${s.more} ${moreNarrow !== moreWide ? s.wideOnly : ""}`}>+{moreWide}</span>}
-      {moreNarrow > 0 && moreNarrow !== moreWide && <span className={`${s.more} ${s.narrowOnly}`}>+{moreNarrow}</span>}
+      {moreWide > 0 && <span className={`${s.more} ${moreNarrow !== moreWide ? s.wideOnly : ""}`} data-more="">+{moreWide}</span>}
+      {moreNarrow > 0 && moreNarrow !== moreWide && <span className={`${s.more} ${s.narrowOnly}`} data-more="">+{moreNarrow}</span>}
       {me && (
-        <span className={others.length ? s.self : undefined}>
+        <span className={others.length ? s.self : undefined} data-face="">
           <Tooltip content={<span className="ph-mask">{tooltipText(me, true)}</span>} side="bottom">
             <Face v={me} />
           </Tooltip>
@@ -240,6 +256,13 @@ export function PresenceStack(props: PresenceStackProps) {
       )}
     </button>
   );
+
+  // "Riya is editing" beside the stack, where the bar has room (presence.module.css).
+  const editingLabel = editor && variant === "bar" ? (
+    <span className={`ph-sensitive ph-mask ${s.editingLabel}`} dir="auto" aria-hidden>
+      {viewerName(editor)} is editing
+    </span>
+  ) : null;
 
   if (phone) {
     return (
@@ -264,6 +287,7 @@ export function PresenceStack(props: PresenceStackProps) {
       >
         {({ close }) => <List {...props} close={close} />}
       </Popover>
+      {editingLabel}
     </span>
   );
 }

@@ -50,7 +50,9 @@ Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search
 
 ## The top bar
 
-The bar at the top of a page stays in place as you scroll. On the left are the page's breadcrumbs, with each page's icon; when there are more than two pages above this one, the middle ones fold into **…**. On the right are [who's viewing](/sharing/see-whos-viewing), **Saving…** or **Saved**, **Share** (or **Copy link** if you can't share the page) and the **⋯** menu.
+A page has one bar at the top, and it stays in place as you scroll. On the left are the sidebar button, the logo (your workspace's logo on its own domain) and the breadcrumbs: the workspace and folder (if you're a member), the pages above this one, each with its icon, and this page. When there are more than three, the middle ones fold into **…**; on a phone everything above this page folds into **…**. On the right are [who's viewing](/sharing/see-whos-viewing), **Saving…** or **Saved**, **Share** (or **Copy link** if you can't share the page), the **⋯** menu, **Create** and your account menu (or **Sign in**). If you're signed out, the theme is in the **⋯** menu.
+
+The sidebar beside the page holds the page tree and the page's contents. To hide it, choose the sidebar button or press **⌘ \\** (**Ctrl \\** on Windows and Linux); your browser remembers the choice. While it's hidden, point at the left edge of the window to peek at it. On smaller screens the sidebar opens over the page from the same button.
 
 ## Page options
 

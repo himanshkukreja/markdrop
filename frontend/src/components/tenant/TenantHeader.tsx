@@ -43,7 +43,7 @@ const CHECKER: React.CSSProperties = {
  * particular background to read); with no choice it sits straight on the header, so a light
  * logo is not boxed in a stray white square.
  */
-export function TenantBrand({ tenant, className }: { tenant: TenantChrome; className?: string }) {
+export function TenantBrand({ tenant, className, compact }: { tenant: TenantChrome; className?: string; /** A page's top bar: a smaller logo, and on phones the logo alone. */ compact?: boolean }) {
   const [broken, setBroken] = useState(false);
   // Decided from the image itself once it loads: ≥ 2.2:1 is a wordmark.
   const [wordmark, setWordmark] = useState(false);
@@ -62,7 +62,8 @@ export function TenantBrand({ tenant, className }: { tenant: TenantChrome; class
     <Anchor
       href="/"
       className={cx(
-        "md-focus inline-flex min-h-11 min-w-0 items-center gap-2.5 rounded-md text-text no-underline",
+        "md-focus inline-flex min-w-0 items-center rounded-md text-text no-underline",
+        compact ? "min-h-9 gap-2" : "min-h-11 gap-2.5",
         className,
       )}
     >
@@ -70,7 +71,7 @@ export function TenantBrand({ tenant, className }: { tenant: TenantChrome; class
         <span
           className={cx(
             "inline-flex shrink-0 items-center justify-center",
-            tiled && "h-9 rounded-lg px-1.5 ring-1 ring-border",
+            tiled && (compact ? "h-7 rounded-md px-1 ring-1 ring-border" : "h-9 rounded-lg px-1.5 ring-1 ring-border"),
             tiled && wellClass(tenant.logoWell),
           )}
           style={tenant.logoWell === "checker" ? CHECKER : undefined}
@@ -80,7 +81,7 @@ export function TenantBrand({ tenant, className }: { tenant: TenantChrome; class
           <img
             src={tenant.logoUrl!}
             alt={showName ? "" : tenant.name}
-            className={cx("block w-auto object-contain", wordmark ? "h-7 max-w-44" : "h-7 max-w-7 rounded-md")}
+            className={cx("block w-auto object-contain", compact ? (wordmark ? "h-5 max-w-32" : "h-6 max-w-6 rounded-md") : wordmark ? "h-7 max-w-44" : "h-7 max-w-7 rounded-md")}
             referrerPolicy="no-referrer"
             ref={imgRef}
             onLoad={(e) => measure(e.currentTarget)}
@@ -89,11 +90,71 @@ export function TenantBrand({ tenant, className }: { tenant: TenantChrome; class
         </span>
       )}
       {showName && (
-        <span dir="auto" className="truncate text-[15px] font-semibold leading-6 text-text">
+        <span dir="auto" className={cx("truncate font-semibold text-text", compact ? "max-w-48 text-[14px] leading-5" : "text-[15px] leading-6", compact && showLogo && "max-sm:hidden")}>
           {tenant.name}
         </span>
       )}
     </Anchor>
+  );
+}
+
+/**
+ * The sign-in / account control on a workspace's own domain: "Sign in to read <name>" (the
+ * handoff through markdrop.in, `signInUrlFor`), or the reader's avatar with Sign out. Used by
+ * TenantHeader and by a page's top bar (components/pages/PageChrome), which replaces the header.
+ */
+export function TenantAccount({ tenant, returnPath, compact, className }: { tenant: TenantChrome; returnPath?: string; compact?: boolean; className?: string }) {
+  const { user, loading, signOut } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  const [path, setPath] = useState<string | null>(returnPath ?? null);
+
+  useEffect(() => {
+    setMounted(true);
+    if (!returnPath) setPath(window.location.pathname || "/");
+  }, [returnPath]);
+
+  const authPending = mounted && loading && !!getToken();
+  // On a customer's domain the API answers /me with the display name only (never the address).
+  const who = user ? user.name || user.email || "" : "";
+  const signInHref = signInUrlFor(tenant.host, returnPath ?? path ?? "/");
+
+  return (
+    <div className={cx("flex shrink-0 items-center", className)}>
+      {authPending ? (
+        <Skeleton variant="circle" width={compact ? 28 : 32} height={compact ? 28 : 32} />
+      ) : user ? (
+        <Dropdown
+          align="right"
+          aria-label="Account"
+          trigger={
+            <button
+              type="button"
+              aria-label={who ? `Signed in as ${who}` : "Signed in"}
+              className={cx("md-focus inline-flex items-center justify-center rounded-full", compact ? "size-9 max-sm:size-11" : "size-11")}
+            >
+              <Avatar name={who || "?"} size="sm" />
+            </button>
+          }
+          items={[
+            { header: <span className="block max-w-60 truncate">{who || "Signed in"}</span> },
+            { label: "Sign out", icon: "logOut", onClick: () => void signOut() },
+          ]}
+        />
+      ) : (
+        <Button
+          variant={compact ? "ghost" : "secondary"}
+          size={compact ? "sm" : undefined}
+          href={signInHref}
+          iconLeft="user"
+          className={cx("max-w-[min(22rem,60vw)]", compact ? "max-sm:h-11" : "max-md:h-11")}
+        >
+          <span className="sm:hidden">Sign in</span>
+          <span dir="auto" className="hidden truncate sm:inline">
+            Sign in to read {tenant.name}
+          </span>
+        </Button>
+      )}
+    </div>
   );
 }
 
@@ -106,20 +167,7 @@ export function TenantBrand({ tenant, className }: { tenant: TenantChrome; class
 export function TenantHeader({ tenant: override, returnPath, hideAuth, className }: TenantHeaderProps) {
   const fromContext = useTenant();
   const tenant = override === undefined ? fromContext : override;
-  const { user, loading, signOut } = useAuth();
-  const [mounted, setMounted] = useState(false);
-  const [path, setPath] = useState<string | null>(returnPath ?? null);
-
-  useEffect(() => {
-    setMounted(true);
-    if (!returnPath) setPath(window.location.pathname || "/");
-  }, [returnPath]);
-
   if (!tenant) return null;
-  const authPending = mounted && loading && !!getToken();
-  // On a customer's domain the API answers /me with the display name only (never the address).
-  const who = user ? user.name || user.email || "" : "";
-  const signInHref = signInUrlFor(tenant.host, returnPath ?? path ?? "/");
 
   return (
     <header
@@ -136,44 +184,7 @@ export function TenantHeader({ tenant: override, returnPath, hideAuth, className
       <div className="w-full">
         <div className="mx-auto flex h-14 min-w-0 max-w-marketing items-center gap-3 px-4 sm:px-6">
           <TenantBrand tenant={tenant} className="min-w-0" />
-
-          {!hideAuth && (
-            <div className="ml-auto flex shrink-0 items-center">
-              {authPending ? (
-                <Skeleton variant="circle" width={32} height={32} />
-              ) : user ? (
-                <Dropdown
-                  align="right"
-                  aria-label="Account"
-                  trigger={
-                    <button
-                      type="button"
-                      aria-label={who ? `Signed in as ${who}` : "Signed in"}
-                      className="md-focus inline-flex size-11 items-center justify-center rounded-full"
-                    >
-                      <Avatar name={who || "?"} size="sm" />
-                    </button>
-                  }
-                  items={[
-                    { header: <span className="block max-w-60 truncate">{who || "Signed in"}</span> },
-                    { label: "Sign out", icon: "logOut", onClick: () => void signOut() },
-                  ]}
-                />
-              ) : (
-                <Button
-                  variant="secondary"
-                  href={signInHref}
-                  iconLeft="user"
-                  className="max-w-[min(22rem,60vw)] max-md:h-11"
-                >
-                  <span className="sm:hidden">Sign in</span>
-                  <span dir="auto" className="hidden truncate sm:inline">
-                    Sign in to read {tenant.name}
-                  </span>
-                </Button>
-              )}
-            </div>
-          )}
+          {!hideAuth && <TenantAccount tenant={tenant} returnPath={returnPath} className="ml-auto" />}
         </div>
       </div>
     </header>
