@@ -2,7 +2,7 @@
 title: Use Markdrop from an AI app
 nav: Overview
 description: Connect Claude, ChatGPT, Cursor or VS Code to Markdrop so your assistant can publish, read and update documents and files as links.
-updated: 2026-11-03
+updated: 2026-11-04
 keywords: [ai, mcp, model context protocol, claude, chatgpt, cursor, copilot, assistant, agent, connector]
 ---
 
@@ -27,11 +27,14 @@ You can add both to the same app: the hosted server for documents, the local one
 
 - **Publish.** Markdown becomes a rendered document with diagrams and math; an HTML page, CSV, JSON, SVG or text file becomes a link that opens rendered. You can ask for a custom address, a password, an expiry or private access.
 - **Read and update.** Read documents you can open, replace a document's content and keep its link, list and search your documents.
-- **Build pages.** Create pages from templates, add or replace sections, embed other Markdrop items, add images and sub-pages. Adding to the end works even while someone is editing the page.
-- **Control access.** Change who can open a document, delete one, file it in a workspace folder.
+- **Build pages.** Create pages from templates, add or replace sections, embed other Markdrop items, add images, covers and sub-pages, duplicate pages and mention people by name. Adding to the end works even while someone is editing the page.
+- **Work with pages.** See and restore earlier versions, export a page as Markdown, HTML or PDF, save a page as a template, set typed properties like Status and Owner, summarize or translate a page, and read or sign the sign-off blocks named for you.
+- **Control access.** Change who can open a document, share it with people by email and notify them, ask an owner for edit access, answer the access requests sent to you, change a link, or file a document in a workspace folder.
+- **Delete and restore.** Deleting moves to Trash for 30 days; your assistant can list Trash and restore from it.
 - **Work with big files.** Upload a video, PDF or other file and later replace it behind the same link, with the last five versions kept.
 - **See how it's doing.** Views, readers, where people drop off in a video, how far they read.
-- **See who's viewing.** Who has a document open right now and where they're reading, by the same rules as the page.
+- **See who's viewing.** Who has a document open right now, who's editing it and where they're reading, by the same rules as the page.
+- **Stay on top of mentions.** Read and mark your notifications.
 - **Send files peer to peer.** From an app on your computer, share files as a markdrop.in/share link and download links people send you.
 
 Every tool is listed in [MCP tools](/ai/tools).
@@ -40,7 +43,7 @@ Every tool is listed in [MCP tools](/ai/tools).
 
 - It can't read or change end-to-end encrypted documents. Their key never reaches Markdrop.
 - It can't get past a password. A password-protected document has to be opened in a browser.
-- It only acts as you: it can open what you could open with the link yourself, and writes only to documents you own or can edit.
+- It only acts as you: it can open what you could open with the link yourself, writes only to documents you own or can edit, and can't sign a sign-off block named for someone else.
 - Nothing is published unless the assistant calls a publish tool. New links open for anyone with the link, like everything on Markdrop, unless you ask for private access or a password.
 
 ## Get started

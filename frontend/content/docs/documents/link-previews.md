@@ -1,8 +1,8 @@
 ---
 title: Link previews
-description: What the preview card shows when you paste a Markdrop link into Slack, WhatsApp, LinkedIn or X, and what it never shows.
-updated: 2026-10-30
-keywords: [og image, open graph, unfurl, preview card, slack, social card]
+description: What the preview card shows when you paste a Markdrop link to a document, file, folder or workspace into Slack, WhatsApp, LinkedIn or X, and what it never shows.
+updated: 2026-11-04
+keywords: [og image, open graph, unfurl, preview card, slack, whatsapp, social card, folder link, workspace link, folder preview]
 ---
 
 When you paste a Markdrop link into Slack, Teams, WhatsApp, LinkedIn, X or iMessage, the app shows a preview card. Markdrop draws that card for each document, and it shows only what a stranger opening the link could already see.
@@ -38,6 +38,19 @@ An encrypted document's title and text are ciphertext to Markdrop, so its card r
 :::note[Previews already posted]
 Chat apps store a card when the link is first posted. If you add a password or make a document private afterwards, Markdrop asks for a fresh card on future pastes, but a card already sitting in a conversation is kept by that app. Markdrop can't recall it.
 :::
+
+## Folders and workspaces
+
+Links to a workspace or a folder, like `markdrop.in/w/…/f/…`, and [folder share links](/workspaces/share-a-folder) (`markdrop.in/f/…`) get a card too. It shows the folder's name, "A folder in Acme" and how many items are in it, or, for a workspace, its name and how many items it holds, in the workspace's brand.
+
+A card names a folder or a workspace only when someone who isn't signed in could already see that name:
+
+- a folder shared with **Anyone with the link**, and the folders inside it that list something such a visitor can open;
+- a folder or workspace of a workspace with its own [domain](/workspaces/custom-domain), when the domain's index shows it to visitors.
+
+Every other folder or workspace gets a card that names nothing: "A folder in a Markdrop workspace" (or "A Markdrop workspace") and "Sign in to open it", with no folder, workspace or domain name.
+
+Any other markdrop.in address, like the home page or **New document**, shows a Markdrop card, so no link is pasted bare. A [Send files](/share/send-files) link gets a file-transfer card that says nothing about the files.
 
 ## Cards on your own domain
 

@@ -100,7 +100,7 @@
         "web"
       ],
       "summary": "A Mermaid block in a page or a guide now shows its diagram while you edit, just as readers see it. Click it to edit the code, with a live preview below; Esc shows the diagram again.",
-      "body": "- **The diagram, not the code.** In the page editor and the Markdrop Guides editor, a `mermaid` code block draws its diagram, the same one readers get.\n- **Click to edit.** Click the diagram, or press **Enter** on it, to edit its code. A preview under the code follows as you type. Press **Esc**, choose **Done** or click elsewhere to see the diagram again.\n- **Errors stay readable.** If the code has a mistake, the block shows the error and the code.\n- People who can only read the page, including on a locked page, always see the diagram.\n- Add one with **/** › **Mermaid diagram**.",
+      "body": "- **The diagram, not the code.** In the page editor and the Markdrop Guides editor, a `mermaid` code block draws its diagram, the same one readers get.\n- **Click to edit.** Click the diagram, or press **Enter** on it, to edit its code. A preview under the code follows as you type. Press **Esc**, choose **Done** or click elsewhere to see the diagram again.\n- **Errors stay readable.** If the code has a mistake, the block shows the error and the code.\n- People who can only read the page, including on a locked page, always see the diagram.\n- In a page, add one with **/** › **Mermaid diagram**; in a guide, set a code block's language to `mermaid`.",
       "docs": [
         "/pages/markdown-reference#code-and-diagrams",
         "/pages/keyboard-shortcuts",

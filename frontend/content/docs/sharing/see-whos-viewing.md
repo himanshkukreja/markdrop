@@ -6,7 +6,7 @@ prerequisites: [/sharing/who-can-open]
 keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, who's editing, editing, pencil, mcp, get_viewers, set_presence, ai]
 ---
 
-When other people have the same document or file open, their avatars appear at the top of the page, next to **Copy link**. Choose the avatars to see the list: everyone who's viewing and the section each of them is reading.
+When other people have the same document or file open, their avatars appear at the top of the page, next to **Copy link** (on a [page](/pages/overview#the-top-bar), in the top bar beside **Saved** and **Share**). Choose the avatars to see the list: everyone who's viewing and the section each of them is reading.
 
 Presence is live and lives only in memory: nothing about who viewed is stored, and it never appears in your analytics.
 

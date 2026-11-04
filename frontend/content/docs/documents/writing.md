@@ -1,8 +1,8 @@
 ---
 title: Write and format documents
 description: Markdrop renders GitHub-flavoured Markdown with tables, task lists, highlighted code, KaTeX math and Mermaid diagrams.
-updated: 2026-11-02
-keywords: [markdown, gfm, mermaid, katex, math, diagrams, tables, code, editor]
+updated: 2026-11-04
+keywords: [markdown, gfm, mermaid, katex, math, diagrams, tables, code, editor, preview, edit in preview, wysiwyg]
 ---
 
 A Markdrop document is Markdown. You write it at [markdrop.in/new](https://markdrop.in/new), paste it from an AI assistant, or publish it from VS Code, and readers get a formatted page. This page covers what the renderer supports and how the editor helps.
@@ -82,6 +82,12 @@ The **Title** field is optional. Without one, Markdrop uses the document's first
 ## Edit after publishing
 
 Open the document, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Edit**. The editor opens with the same views and toolbar, plus **Settings**, which opens **Document settings** for the password and expiry. Choose **Save changes**, or press :kbd[⌘ S].
+
+### Edit in Preview
+
+While you edit a published document, **Preview** is editable too: click into a heading, paragraph, list, checklist, quote, table, code block or equation and type, right where it renders. Type `/` on an empty line for the blocks a document can hold: text, headings, lists, a checklist, a quote, code, a table, math and a divider. Your changes carry across **Write**, **Split** and **Preview**.
+
+The Markdown stays the source. Blocks you don't touch keep their exact text, so opening **Preview** and saving changes nothing. Raw HTML and footnotes are read-only in **Preview**, marked "Kept exactly as written": change them in **Write** (their **Edit as Markdown** button switches to it). If the document goes over 500,000 characters, the status line says by how much, and **Save** tells you instead of saving.
 
 Readers who have the page open see the change appear, marked "Updated just now".
 
