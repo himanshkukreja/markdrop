@@ -897,9 +897,14 @@ class Shaper:
         if anchor:
             url = f"{url}#{anchor}"
         is_file = raw.get("kind") == "artifact"
+        title = c.title
+        if title is None and not raw.get("encrypted"):
+            # An untitled page: its first heading, as the listings show it.
+            hd = (texts.get(c.content_id) or {}).get("hd") or []
+            title = hd[0]["t"] if hd else None
         return {
             "key": c.key, "kind": c.kind, "group": c.kind, "slug": raw["slug"],
-            "title": c.title, "title_marks": marks_for(c.title, c.title_hits),
+            "title": title, "title_marks": marks_for(title, c.title_hits),
             "encrypted": bool(raw.get("encrypted")), "has_password": bool(raw.get("read_password_hash")),
             "icon": raw.get("page_icon"), "mime": raw.get("mime") if is_file else None,
             "type_label": art_service.label_for(raw.get("mime") or "") if is_file else None,
