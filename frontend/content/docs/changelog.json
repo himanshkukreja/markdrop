@@ -24,6 +24,123 @@
   "next": [],
   "entries": [
     {
+      "id": "link-previews-folders",
+      "date": "2026-11-04",
+      "title": "Folder and workspace links unfurl with a card, and every Markdrop link has one",
+      "kind": "improved",
+      "area": "Sharing",
+      "products": [
+        "web"
+      ],
+      "summary": "Paste a link to a workspace or a folder into Slack, WhatsApp or iMessage and it now unfurls with a card: its name, the workspace and how many items it holds. Every other markdrop.in link gets a Markdrop card too, and a private folder's card names nothing.",
+      "body": "- **Folders and workspaces.** Links to a workspace or a folder (`markdrop.in/w/…`) and folder share links (`markdrop.in/f/…`) unfurl with a card: the folder's name, \"A folder in Acme\" and how many items are in it, or the workspace's name and its item count, in the workspace's brand.\n- **Names only when a stranger could see them.** A card names a folder or workspace only when someone who isn't signed in could already see that name: a folder shared with anyone with the link, or a folder or workspace listed on the workspace's own domain. Every other one gets a card that says only \"A folder in a Markdrop workspace\" (or \"A Markdrop workspace\") and \"Sign in to open it\": no folder, workspace or domain name.\n- **A cover on every link.** Any markdrop.in address without a card of its own, like the home page, **New document** or the README builder, now shows a Markdrop card instead of a bare link. Send-files links (`markdrop.in/share/…`) get a file-transfer card.",
+      "docs": [
+        "/documents/link-previews",
+        "/workspaces/share-a-folder"
+      ]
+    },
+    {
+      "id": "page-top-bar",
+      "date": "2026-11-04",
+      "title": "Pages: one top bar, and a sidebar you can hide",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web"
+      ],
+      "summary": "A page now has a single bar at the top with everything in it: the app's header above it is gone. Hide the sidebar with ⌘ \\ and peek at it from the left edge, and long menus scroll instead of running off the screen.",
+      "body": "- **One bar.** On the left: the sidebar button, the logo (your workspace's logo on its own domain) and the breadcrumbs. On the right: who's viewing, **Saving…** or **Saved**, **Share**, **⋯**, **Create** and your avatar, or **Sign in**. It stays in place as you scroll, and on a phone the breadcrumbs fold to \"… / Title\". The theme switch moved to your avatar menu (to **⋯** when you're signed out).\n- **Hide the sidebar** with the sidebar button or **⌘ \\\\** (**Ctrl \\\\** on Windows and Linux). Your browser remembers it, with no flash when the next page opens. While it's hidden, point at the left edge of the window to peek at it.\n- **On smaller screens** the sidebar is a drawer that slides over the page from the same button.\n- **Long menus scroll.** A menu is never taller than the room it has: a page's long **⋯** menu scrolls inside instead of running off the bottom of the screen.",
+      "docs": [
+        "/pages/overview",
+        "/pages/keyboard-shortcuts"
+      ]
+    },
+    {
+      "id": "whos-editing",
+      "date": "2026-11-04",
+      "title": "Who's viewing: see who's editing a page, and names only for people with access",
+      "kind": "improved",
+      "area": "Sharing",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "The person editing a page now comes first in who's viewing, with a pencil on their avatar and \"Riya is editing\" in the bar. Viewers' names are now shown only to people who have access to the document: anyone else sees every viewer as an anonymous animal.",
+      "body": "- **Who's editing.** On a page, the person holding it for editing gets an accent ring and a pencil and comes first in the row, and the bar says **Riya is editing** where there's room. On a phone the bar shows just their avatar with the pencil. When they stop, the pencil goes for everyone at once.\n- **Names only for people with access.** You see viewers by name only if the document is yours, you're a member of its workspace who can open it, or it was shared with you. Anyone else, signed in or not, sees every viewer as an animal, your team included, and the editor as, say, **Anonymous Fox is editing**. Who's reading a team's page stays with the team.\n- Someone who turned on **Show me as anonymous** is an animal for everyone, also while editing.\n- Anonymous viewers have line-drawn animal avatars instead of emoji.\n- AI apps: `get_viewers` follows the same rules and marks who's editing.",
+      "docs": [
+        "/sharing/see-whos-viewing",
+        "/pages/overview"
+      ]
+    },
+    {
+      "id": "sidebar-navigation",
+      "date": "2026-11-04",
+      "title": "A faster, cleaner sidebar",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "The sidebar now loads each workspace in one request and keeps it, shows pages with their emoji and documents and files with their kind, keeps what you have open in view, and shows + and ⋯ only when you point at a row.",
+      "body": "- **One request per workspace.** A workspace's folders, pages, documents and files load in one go and stay loaded as you move around, so the sidebar no longer reloads or jumps when you open something. A folder shows up to 50 items, then \"12 more\".\n- **Easier to scan.** Pages show their emoji, documents and files their kind's icon, in compact rows with guide lines. A name that doesn't fit shows in full when you point at it.\n- **Where you are.** The page or folder you have open is highlighted and scrolled into view.\n- **Quieter rows.** **+** (add a page inside) and **⋯** appear only when you point at a row. In the phone drawer they're large enough to tap.\n- **Renames show at once.** Rename a page and the sidebar and page tree change straight away, in your other tabs too, without reloading.\n- The page tree beside a page has the same icons, highlights the page you're on, and has **+** to add a page inside.\n- API: `GET /api/v1/workspaces/{workspace_id}/nav` returns the outline the sidebar shows.",
+      "docs": [
+        "/get-started/tour",
+        "/workspaces/folders",
+        "/pages/sub-pages"
+      ]
+    },
+    {
+      "id": "mermaid-in-editor",
+      "date": "2026-11-04",
+      "title": "Mermaid diagrams show in the page editor and the Guides editor",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web"
+      ],
+      "summary": "A Mermaid block in a page or a guide now shows its diagram while you edit, just as readers see it. Click it to edit the code, with a live preview below; Esc shows the diagram again.",
+      "body": "- **The diagram, not the code.** In the page editor and the Markdrop Guides editor, a `mermaid` code block draws its diagram, the same one readers get.\n- **Click to edit.** Click the diagram, or press **Enter** on it, to edit its code. A preview under the code follows as you type. Press **Esc**, choose **Done** or click elsewhere to see the diagram again.\n- **Errors stay readable.** If the code has a mistake, the block shows the error and the code.\n- People who can only read the page, including on a locked page, always see the diagram.\n- Add one with **/** › **Mermaid diagram**.",
+      "docs": [
+        "/pages/markdown-reference#code-and-diagrams",
+        "/pages/keyboard-shortcuts",
+        "/guides/editor"
+      ]
+    },
+    {
+      "id": "classic-preview-editable",
+      "date": "2026-11-04",
+      "title": "Edit a document right in its Preview",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web"
+      ],
+      "summary": "When you edit a published Markdown document, the Preview tab is now editable: click into a heading, paragraph, list, table, code or math block and type. The Markdown stays the source, and blocks you don't touch keep their exact text.",
+      "body": "- **Type where it renders.** Headings, paragraphs, lists, checklists, quotes, tables, code and math are editable in **Preview**. **Write** and **Split** work as before, and your changes carry across all three.\n- **/** in Preview offers the blocks a document renders: text, headings, lists, checklist, quote, code, table, math and divider.\n- **Nothing changes on its own.** Opening Preview and saving leaves the Markdown exactly as it was.\n- Raw HTML and footnotes stay read-only in Preview: change them in **Write** (**Edit as Markdown** switches to it).\n- **⌘ S**, **Save**, **Esc** and **Cancel** act on what you just typed. Past the 500,000-character limit, the status line says how far over you are and **Save** says so plainly.",
+      "docs": [
+        "/documents/writing#edit-after-publishing"
+      ]
+    },
+    {
+      "id": "fixes-2026-11-04",
+      "date": "2026-11-04",
+      "title": "Fixes and polish: locked pages for admins, iPhone toolbar, templates and more",
+      "kind": "fixed",
+      "area": "Documents",
+      "products": [
+        "web"
+      ],
+      "summary": "Workspace admins can edit, lock and unlock locked pages, the page editor's phone toolbar works on iPhones, a page you leave is free for others at once, and a round of smaller fixes.",
+      "body": "- **Admins and locked pages.** A workspace admin can now edit a locked page in the editor, and lock or unlock it, as **Lock page** always said (\"Only you and workspace admins can edit\").\n- **The phone toolbar on iPhones.** The page editor's toolbar above the keyboard works on iPhones and iPads (its buttons did nothing). Its **+** adds a block with the block menu open, and **/** opens the block menu in the middle of a line.\n- **Leaving a page frees it.** Closing or leaving a page you were editing lets others edit it straight away, instead of two minutes later.\n- **No more \"Opening document\" forever** on a page that needs sign-in.\n- **Templates.** Renaming a template in **Manage templates** no longer also makes a blank page; double-clicking a template makes the page from that template; **Add a sub-page** offers your workspace's templates too; the note on a template page fits on phones.\n- **Change link…** keeps the slug you're typing in view, with the full address shown below it.\n- **Version history.** A restore that waits on someone's editing always says who; the selected version has a quieter outline, and a phone's version screen doesn't repeat the time.\n- **Exports.** An exported HTML file uses the app's reading width, with tables in a rounded box, and a PDF keeps a coloured block's colour. Downloads stay in the tab you're in, even with a pop-up blocker extension installed.\n- **A document that used to be a page** no longer shows its page settings as text at the top, and its owner and editors get the **Switch back to the page editor** banner.\n- **Quick search (⌘ K)** shows each item's kind and link before where it is, and a workspace's grid tiles and cards show each item's kind, so a page and a file with the same title are easy to tell apart.\n- **AI.** Clear messages when Markdrop's daily or monthly AI capacity is used up. On phones the AI sheet takes the focus and closes with **Esc**, and the AI button is its ✦. The workspace's **AI features** switch links to [AI in pages](/pages/ai) and says what's sent.\n- **Beta badges.** Pages carry a **Beta** label wherever they're introduced.\n- On a workspace's own domain, the **… on markdrop.in** links in a page's **⋯** menu no longer show a doubled arrow.",
+      "docs": [
+        "/pages/overview#page-options",
+        "/pages/templates",
+        "/pages/history",
+        "/pages/export"
+      ]
+    },
+    {
       "id": "page-export-and-editor-fixes",
       "date": "2026-11-04",
       "title": "Page exports look like the page, and a page stays a page",
@@ -54,7 +171,8 @@
       "docs": [
         "/workspaces/sign-in-on-your-domain",
         "/sharing/request-access",
-        "/workspaces/custom-domain"
+        "/workspaces/custom-domain",
+        "/sharing/share-with-people"
       ]
     },
     {
@@ -195,7 +313,7 @@
         "api"
       ],
       "summary": "Deleting a document, page, file or folder moves it to Trash for 30 days instead of deleting it at once. Undo right after, or restore it from Trash, and it comes back exactly where it was.",
-      "body": "- **Moved to Trash · Undo** right after every delete.\n- **Trash** in the sidebar lists what you deleted: what it is and its link, where it was, who deleted it, when, and the days left. **Restore** puts it back with the same link, folder, parent page, access and people; **Delete forever** removes it for good.\n- Deleting a **folder** moves it and everything inside to Trash; restoring brings the whole folder back. Workspace admins see and restore everything deleted from their workspace.\n- The delete dialog now names exactly what goes: \"Delete the page “Product Docs Playbook” (/EegpMKD)?\", with how many sub-pages go with it. Lists show each item's kind next to its link, so two items with the same title are easy to tell apart.\n- A deleted item's link stays reserved, and shows **This page is in the trash** (with **Restore**) to people who could edit it; everyone else gets the usual 404. Its files aren't served to anyone while it's in Trash.\n- AI apps: `delete_document` moves to Trash and returns `restore_until`; new `restore_document` and `list_trash`; `permanent: true` deletes forever (owners, and admins for their workspace's Trash).",
+      "body": "- **Moved to Trash · Undo** right after every delete.\n- **Trash** in the sidebar lists what you deleted: what it is and its link, where it was, who deleted it, when, and the days left. **Restore** puts it back with the same link, folder, parent page, access and people; **Delete forever** removes it for good.\n- Deleting a **folder** moves it and everything inside to Trash; restoring brings the whole folder back. Workspace admins see and restore everything deleted from their workspace.\n- The delete dialog now names exactly what goes: \"Delete the page “Product Docs Playbook” (/EegpMKD)?\", with how many sub-pages go with it. Lists show each item's kind next to its link, so two items with the same title are easy to tell apart.\n- A deleted item's link stays reserved, and shows **This page is in the trash** (with **Restore**) to people who could edit it; everyone else gets the usual 404. Its files aren't served to anyone while it's in Trash.\n- AI apps: `delete_document` moves to Trash and returns `restore_until`; new `restore_document` and `list_trash`; `permanent: true` deletes forever (owners, and admins for their workspace's Trash).\n- `delete_document` deletes exactly the item at the slug or link it's given, never another item with the same title, and its result lists every item it removed (sub-pages first) and any sub-pages it moved up a level instead.",
       "docs": [
         "/documents/trash",
         "/ai/tools",
