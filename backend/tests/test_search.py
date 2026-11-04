@@ -162,7 +162,7 @@ class Quality(SearchWorld):
         await self.db[search_index.COLL].drop_indexes()
         self.assertEqual((await self.slugs("owner", "reconcilation"))[0], "pricing")
         for _ in range(50):
-            if search._hints["ok"]:
+            if self.db.name not in search._hints_off:
                 break
             await asyncio.sleep(0.02)
         names = {i["name"] for i in await self.db[search_index.COLL].list_indexes().to_list(None)}

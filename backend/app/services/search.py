@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 import math
 import os
 import re
@@ -50,6 +51,8 @@ from rapidfuzz import fuzz, process
 
 from app.services import access, publicity, search_index, urls
 from app.services import search_text as st
+
+log = logging.getLogger(__name__)
 
 MAX_Q = 200
 DEBUG_TIMINGS = bool(os.environ.get("MARKDROP_SEARCH_TIMINGS"))
@@ -433,15 +436,23 @@ async def world_of(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
     return World(actor, ctx, mems, {w.id: w.name for w, _ in mems}, [w.id for w, _ in mems])
 
 
-_hints = {"ok": True}
+# Databases whose covering word indexes were found missing → when (monotonic). Their lookups run
+# unhinted until the indexes are back, or for HINTS_RETRY_S when putting them back failed.
+_hints_off: dict[str, float] = {}
+HINTS_RETRY_S = 60.0
+
+
+def _hints_ok(db: AsyncIOMotorDatabase) -> bool:
+    off = _hints_off.get(getattr(db, "name", ""))
+    return off is None or time.monotonic() - off > HINTS_RETRY_S
 
 
 async def _restore_indexes(db: AsyncIOMotorDatabase) -> None:
     try:
         await search_index.ensure_indexes(db)
-        _hints["ok"] = True
+        _hints_off.pop(getattr(db, "name", ""), None)
     except Exception:
-        pass
+        log.warning("search: could not recreate the word indexes", exc_info=True)
 
 
 CONTENT_LIMIT = 3000          # ids per (word, field) lookup: a word in thousands of bodies says little
@@ -471,14 +482,15 @@ async def _content_hits(db: AsyncIOMotorDatabase, terms: Terms, ids: list) -> di
         """Runs the lookups; returns, per query word, how many items it hit."""
         async def one(f: str, cond: dict) -> list:
             cur = coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).limit(CONTENT_LIMIT)
-            if _hints["ok"]:
+            if _hints_ok(db):
                 try:
                     return await cur.hint(f"{f}_id").to_list(length=CONTENT_LIMIT)
                 except OperationFailure:
                     # The covering index is missing (a dropped collection): answer without it, and
-                    # put the indexes back in the background.
-                    _hints["ok"] = False
-                    asyncio.get_running_loop().create_task(_restore_indexes(db))
+                    # put the indexes back in the background (once per database at a time).
+                    if _hints_ok(db):
+                        _hints_off[getattr(db, "name", "")] = time.monotonic()
+                        asyncio.get_running_loop().create_task(_restore_indexes(db))
                     cur = coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).limit(CONTENT_LIMIT)
             return await cur.to_list(length=CONTENT_LIMIT)
 
