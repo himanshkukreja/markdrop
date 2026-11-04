@@ -8,6 +8,7 @@
     small_text: true
     font: serif               # default | serif | mono
     locked: true              # only the owner and workspace admins may edit
+    allow_export: false       # readers can't export it (editors always can)
     ---
 
 The block is the first thing in the file, one ``key: value`` per line. Keys we
@@ -22,7 +23,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-KEYS = ("icon", "cover", "cover_y", "full_width", "small_text", "font", "locked")
+KEYS = ("icon", "cover", "cover_y", "full_width", "small_text", "font", "locked", "allow_export")
 FONTS = ("default", "serif", "mono")
 # The built-in covers, gallery:<name> (the app ships them: frontend/public/page-covers, whose
 # manifest.json lists the same names).
@@ -37,7 +38,7 @@ _LINE = re.compile(r"^([A-Za-z_][\w-]*)[ \t]*:[ \t]*(.*?)[ \t]*$")
 MAX_BLOCK_LINES = 60
 _HTTPS = re.compile(r"^https://[^\s\"'<>()]{1,2000}$")
 DEFAULTS: dict[str, Any] = {"icon": None, "cover": None, "cover_y": 50, "full_width": False,
-                            "small_text": False, "font": "default", "locked": False}
+                            "small_text": False, "font": "default", "locked": False, "allow_export": True}
 
 
 def split(markdown: str | None) -> tuple[list[str] | None, str]:
@@ -152,7 +153,7 @@ def validate(changes: dict) -> dict:
         if v is None:
             clean[k] = None
             continue
-        if k in ("full_width", "small_text", "locked"):
+        if k in ("full_width", "small_text", "locked", "allow_export"):
             if not isinstance(v, bool):
                 raise ValueError(f"{k} must be true or false.")
         elif k == "cover_y":

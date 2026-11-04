@@ -123,6 +123,8 @@ _TENANT_ALLOWED = (
     # Both check can(read); the writing features stay off this list (a tenant token can't edit).
     ("GET", re.compile(r"^/api/v1/ai/pages/status$")),
     ("POST", re.compile(r"^/api/v1/ai/pages/[^/]+/ask$")),
+    # Export a page (routers/page_export.py): can(read), then the page's allow_export.
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/export$")),
 )
 
 

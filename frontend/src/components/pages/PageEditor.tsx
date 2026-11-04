@@ -450,6 +450,7 @@ export function PageEditor({ slug, title: initialTitle, content: initialContent,
         <div className="pb-toggles">
           <Switch label="Small text" checked={props.smallText} disabled={readOnly} onChange={() => setProps({ smallText: !props.smallText })} />
           <Switch label="Full width" checked={props.fullWidth} disabled={readOnly} onChange={() => setProps({ fullWidth: !props.fullWidth })} />
+          <Switch label="Readers can export" checked={props.allowExport} disabled={readOnly} onChange={() => setProps({ allowExport: !props.allowExport })} />
         </div>
       ),
       separated: true,

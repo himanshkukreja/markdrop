@@ -3,7 +3,7 @@ title: Page Markdown reference
 description: Every block of a page as Markdown, for people who write it by hand and AI apps that read and write pages.
 updated: 2026-11-03
 prerequisites: [/pages/overview]
-keywords: [markdown, syntax, reference, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption]
+keywords: [markdown, syntax, reference, allow_export, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption]
 ---
 
 A page is stored as Markdown: GitHub-flavoured Markdown plus a few directives for the blocks Markdown doesn't have. The editor reads and writes exactly this, without changing what it doesn't touch, so a page written by hand, by VS Code or by an AI app opens in the block editor as it was written. AI apps use the same syntax with `get_page`, `update_page`, `append_blocks` and `create_page`.
@@ -21,6 +21,7 @@ full_width: true
 small_text: true
 font: serif              # default, serif or mono
 locked: true             # only the owner and workspace admins can edit
+allow_export: false      # readers can't export it; editors always can
 ---
 ```
 

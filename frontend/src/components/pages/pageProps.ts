@@ -10,6 +10,7 @@
  *   small_text: true
  *   font: serif              default | serif | mono
  *   locked: true             only the owner and workspace admins can edit
+ *   allow_export: false      readers can't export it (editors always can)
  *   ---
  *
  * Unknown keys are kept as written.
@@ -49,6 +50,8 @@ export interface PageProps {
   smallText: boolean;
   font: PageFont;
   locked: boolean;
+  /** Readers may export the page (Export in its ⋯ menu); editors always can. */
+  allowExport: boolean;
 }
 
 const yes = (v: unknown) => v === true || v === "true" || v === "yes" || v === 1;
@@ -65,6 +68,7 @@ export function readPageProps(markdown: string): PageProps {
     smallText: yes(d.small_text),
     font: font === "serif" || font === "mono" ? font : "default",
     locked: yes(d.locked),
+    allowExport: !/^(false|no|off|0)$/i.test(String(d.allow_export ?? "true").trim()),
   };
 }
 
