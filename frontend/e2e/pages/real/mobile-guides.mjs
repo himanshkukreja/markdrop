@@ -385,13 +385,17 @@ const STATES = [
   }],
   ["home-cardmenu", ["owner", "member"], () => `${G}/home`, (p) => p.getByRole("tabpanel").first(), async (p) => click(p, p.getByRole("button", { name: "More for Acme Docs" }))],
   ["home-preview", ["owner"], () => `${G}/home`, (p) => p.getByRole("tabpanel").first(), async (p) => {
-    await click(p, p.getByRole("button", { name: "Preview Acme Docs" }));
-    await dialog(p).waitFor({ timeout: 8000 });
-    await p.waitForTimeout(800);
+    await click(p, p.getByRole("link", { name: "Preview Acme Docs" }));
+    await p.waitForURL(/preview=1|page=/, { timeout: 15000 });
+    await p.waitForTimeout(2000);
   }],
   ["home-switch", ["owner"], () => site, (p) => p.getByRole("navigation", { name: "Guide" }), async (p) => click(p, p.getByRole("button", { name: /switch guide/i }))],
   ["members", ["owner", "member"], () => `${G}/members`, h1],
   ["new", ["owner"], () => `${G}/new`, h1],
+  ["new-template", ["owner"], () => `${G}/new`, h1, async (p) => {
+    await click(p, p.getByRole("radio", { name: /From a template/ }).or(p.getByRole("button", { name: /From a template/ })));
+    await p.waitForTimeout(600);
+  }],
   ["new-scrolled", ["owner"], () => `${G}/new`, h1, async (p) => {
     await p.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight / 2));
     await p.waitForTimeout(300);
@@ -419,7 +423,8 @@ const STATES = [
   }],
   ["editor-preview", ["owner"], () => `${site}?page=${M.long_page}&preview=1`, (p) => anyMain(p), async (p) => p.waitForTimeout(1500)],
   ["editor-slash", ["owner"], () => `${site}?page=${M.page}`, (p) => p.getByRole("textbox").first(), async (p, dev) => {
-    const ed = p.locator('[contenteditable="true"]').last();
+    const ed = p.getByRole("textbox", { name: /^Content of/ }).first();
+    await ed.scrollIntoViewIfNeeded();
     await ed.tap();
     await p.keyboard.press("Control+End").catch(() => {});
     await p.keyboard.press("Enter");
@@ -443,7 +448,7 @@ const STATES = [
     await p.waitForTimeout(500);
   }],
   ["changelog", ["owner"], () => `${site}/changelog`, h1],
-  ["design", ["owner"], () => `${site}/design`, h1, async (p) => p.waitForTimeout(1200)],
+  ["design", ["owner"], () => `${site}/design`, anyMain, async (p) => p.waitForTimeout(1200)],
   // The published guide (docs engine)
   ["site-home", ["anon"], () => `${DOCS}/`, (p) => p.locator("main").first()],
   ["site-page", ["anon"], () => `${DOCS}/sharing/request-access`, (p) => p.locator("main h1").first()],
