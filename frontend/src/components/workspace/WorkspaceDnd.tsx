@@ -57,6 +57,10 @@ const Ctx = createContext<{ active: DragData | null }>({ active: null });
 export const useWorkspaceDrag = () => useContext(Ctx);
 
 /** Pointer inside a target wins; otherwise the largest overlap (for a fast drop on a card edge). */
+const MOUSE = { activationConstraint: { distance: 6 } };
+const TOUCH = { activationConstraint: { delay: 300, tolerance: 8 } };
+const INSTRUCTIONS = { draggable: "To move this without dragging, open its menu and choose Move to." };
+
 const collision: CollisionDetection = (args) => {
   const within = pointerWithin(args);
   return within.length ? within : rectIntersection(args);
@@ -68,10 +72,10 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
   const mover = useMovePage();
   const movePageTo = mover.move;
   const [active, setActive] = useState<DragData | null>(null);
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } }),
-  );
+  // Constant options: useSensor memoises on the options object, and new sensors on every render
+  // gave dnd-kit new activators, a new internal context and so a re-render of every draggable rail
+  // row whenever the app shell rendered (each navigation).
+  const sensors = useSensors(useSensor(MouseSensor, MOUSE), useSensor(TouchSensor, TOUCH));
 
   const onStart = useCallback((e: DragStartEvent) => {
     setActive((e.active.data.current as DragData | undefined) ?? null);
@@ -170,6 +174,9 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
     },
     onDragCancel: () => "Move cancelled.",
   }), []);
+  const accessibility = useMemo(() => ({ announcements, screenReaderInstructions: INSTRUCTIONS }), [announcements]);
+  const onDragEnd = useCallback((e: DragEndEvent) => void onEnd(e), [onEnd]);
+  const onDragCancel = useCallback(() => setActive(null), []);
 
   // One value per drag state: a new object on every render re-rendered every rail row (a context
   // consumer skips React.memo) whenever the app shell did, e.g. on each navigation.
@@ -180,12 +187,9 @@ export function WorkspaceDndProvider({ children }: { children: React.ReactNode }
         sensors={sensors}
         collisionDetection={collision}
         onDragStart={onStart}
-        onDragEnd={(e) => void onEnd(e)}
-        onDragCancel={() => setActive(null)}
-        accessibility={{
-          announcements,
-          screenReaderInstructions: { draggable: "To move this without dragging, open its menu and choose Move to." },
-        }}
+        onDragEnd={onDragEnd}
+        onDragCancel={onDragCancel}
+        accessibility={accessibility}
       >
         {children}
         <DragOverlay dropAnimation={null}>
