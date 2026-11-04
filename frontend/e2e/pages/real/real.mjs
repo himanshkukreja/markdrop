@@ -557,8 +557,11 @@ await step("tenant-edit", async () => {
   if (await dlg.getByRole("radio", { name: /Anyone with the link/ }).count()) fail("the access level is offered on the domain");
   const who = `domain-share-${Date.now().toString(36)}@example.com`;
   await dlg.getByPlaceholder("Add people by email").fill(who);
-  await dlg.getByRole("button", { name: /^Share$/ }).click();
-  await dlg.getByText(who).waitFor({ timeout: 15000 });
+  await dlg.getByPlaceholder("Add people by email").press("Enter");   // a tag input: Enter adds it
+  const added = o.p.waitForResponse((r) => r.request().method() === "POST" && r.url().includes(`/documents/${state.slug}/access/people`), { timeout: 15000 });
+  await dlg.getByRole("button", { name: /^Share$/ }).click({ timeout: 10000 });
+  const res = await added;
+  if (res.status() !== 201) fail(`share on the domain → ${res.status()} ${await res.text()}`);
   await shot(o.p, "35-tenant-share-people", { wait: 500 });
   if (shareCalls.some((b) => b.status === 401 && /\/access/.test(new URL(b.url).pathname))) fail("a 401 on a sharing route on the domain");
   const acc = await api("GET", `/api/v1/documents/${state.slug}/access`, T.owner);
