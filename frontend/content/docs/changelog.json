@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "analytics-ai-insights",
+      "date": "2026-11-05",
+      "title": "✦ Insights: AI says why people stop, and what to change",
+      "kind": "new",
+      "area": "Analytics",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A link's Content, Pages, Video and Versions tabs get ✦ Insights: Claude Haiku 5.5 reads the numbers (and your own content) and comes back with three to five findings that point at the exact section, moment, page or version, with rewrites, chapters and a version verdict.",
+      "body": "- **Why did they stop?** On a document or page's **Content** tab: where readers leave and why, from section reach, time and the text of those sections, with a **suggested rewrite** to copy, or, on a page you can edit, **Apply in page**: it's offered over that section and nothing changes until you accept.\n- **Video and audio coach.** Up to six key moments where people drop, skip or rewatch, with a small frame of each, become timestamped suggestions: cuts, reorders, pacing and **suggested chapters** to copy. Choose a time to mark it on the **Who's still watching** chart.\n- **PDF coach.** The pages where readers stop or linger, with their text, and what to cut, move or summarise.\n- **Version verdict.** On **Versions**: which version works better, with a **High**, **Medium** or **Low** confidence that Markdrop computes from the sessions, not the AI.\n- Needs at least 20 sessions; analyses are saved per period, shared with your AI assistant, and marked out of date when you change the document (**Re-analyse**).\n- Only the numbers and your own content are sent, never anything about your readers; encrypted links never send content. Counts towards your AI limits; admins see it as **Analytics AI** with its own caps.\n- MCP: the new `analyze_document_engagement` tool (68 tools now). API: `GET` / `POST /api/v1/me/documents/{slug}/analytics/ai/{kind}`. See [AI insights for one link](/analytics/ai-insights).",
+      "docs": [
+        "/analytics/ai-insights",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "cli-0-6-1",
       "date": "2026-11-05",
       "title": "CLI 0.6.1: markdrop search looks inside your content",
