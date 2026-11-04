@@ -314,6 +314,11 @@ export function DiagramFrame({ code, caption, className, tools, viewSource = tru
 
   // The dialog shows its own copy: rename the ids so markers and scoped styles stay unique.
   const largeSvg = useMemo(() => (rendered ? rendered.svg.split(rendered.id).join(`${rendered.id}-lg`) : ""), [rendered]);
+  // Stable objects: React re-sets innerHTML whenever the object changes, even with the same SVG,
+  // which would swap the diagram's DOM on every re-render (in the editor, a click into the page; a
+  // click on the diagram itself would then land on a node that's gone).
+  const canvasHtml = useMemo(() => ({ __html: rendered?.svg ?? "" }), [rendered]);
+  const largeHtml = useMemo(() => ({ __html: largeSvg }), [largeSvg]);
 
   if (failed !== null) {
     return (
@@ -348,7 +353,7 @@ export function DiagramFrame({ code, caption, className, tools, viewSource = tru
           </div>
         </div>
         {rendered ? (
-          <div className="md-diagram__canvas" dangerouslySetInnerHTML={{ __html: rendered.svg }} />
+          <div className="md-diagram__canvas" dangerouslySetInnerHTML={canvasHtml} />
         ) : (
           <div className="md-diagram__loading">
             <Skeleton variant="rect" width="100%" height={180} />
@@ -362,7 +367,7 @@ export function DiagramFrame({ code, caption, className, tools, viewSource = tru
       {/* A portal, outside the blocked document body: the diagram is blocked and its title masked. */}
       <Dialog open={large} onClose={() => setLarge(false)} title={<span className="ph-sensitive ph-mask">{title ?? kind}</span>} size="xl" bodyClassName="ph-no-capture md-diagram-dialog">
         {largeSvg ? (
-          <div className="md-diagram__canvas md-diagram__canvas--large" dangerouslySetInnerHTML={{ __html: largeSvg }} />
+          <div className="md-diagram__canvas md-diagram__canvas--large" dangerouslySetInnerHTML={largeHtml} />
         ) : (
           <div className="md-diagram__loading">
             <Skeleton variant="rect" width="100%" height={240} />

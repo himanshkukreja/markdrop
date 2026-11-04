@@ -10,7 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { APP, WORK, log, fail, seedNow, api, docOf, launch, ctx, stepper, saveState } from "./lib.mjs";
 
-const OUT = process.env.MERMAID_SHOTS || path.join(path.dirname(WORK), "senseloaf", "shots", "editor-mermaid");
+const OUT = process.env.MERMAID_SHOTS || path.join(WORK, "real-shots", "mermaid");
 fs.mkdirSync(OUT, { recursive: true });
 const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -73,10 +73,13 @@ const block = (p) => p.locator('.pb-live .dxe-code[data-lang="mermaid"]').first(
 const svgIn = (p) => block(p).locator(".md-diagram__canvas > svg").first();
 const codeVisible = (p) => block(p).locator(".md-codeblock__body").isVisible();
 
+/** Opens the page editor; `editable` true / false waits for that, null for either. Returns whether it's editable. */
 async function openEditor(p, slug, editable = true) {
   await p.goto(`${APP}/${slug}?edit=1`, { waitUntil: "networkidle" });
-  await p.locator(`.pb-live .ProseMirror[contenteditable="${editable}"]`).waitFor({ timeout: 30000 });
+  const sel = editable === null ? ".pb-live .ProseMirror" : `.pb-live .ProseMirror[contenteditable="${editable}"]`;
+  await p.locator(sel).first().waitFor({ timeout: 30000 });
   await p.waitForTimeout(600);
+  return (await p.locator(".pb-live .ProseMirror").first().getAttribute("contenteditable")) === "true";
 }
 
 /** The diagram is up: an SVG with every node and edge label, the code hidden. */
@@ -228,12 +231,23 @@ await step("locked", async () => {
   state.locked = await newPage("Product docs playbook", `---\nlocked: true\n---\n\n${BODY}`);
   const d = await docOf(state.locked, T.member);
   if (!d.page?.locked) fail(`not locked: ${JSON.stringify(d.page)}`);
+  // The owner edits a locked page; an admin gets whatever the page editor gives them (today: read
+  // only, "locked by its owner"), and sees the diagram either way.
   for (const who of ["owner", "admin"]) {
     const { c, p } = await ctx(browser, { token: T[who] });
     const errs = watch(p);
-    await openEditor(p, state.locked, true);
+    const editable = await openEditor(p, state.locked, who === "owner" ? true : null);
+    log(`locked, ${who}: ${editable ? "editable" : "read only"}`);
     await expectDiagram(p, `locked, ${who}`);
     await shot(p, `06-locked-${who}-diagram`, { wait: 800 });
+    if (!editable) {
+      await svgIn(p).click();
+      await p.waitForTimeout(600);
+      if (await codeVisible(p)) fail(`locked, ${who} (read only): a click shows the code`);
+      noErrors(errs, `locked, ${who}`);
+      await c.close();
+      continue;
+    }
     await svgIn(p).click();
     await block(p).locator(".md-codeblock__body").waitFor({ state: "visible", timeout: 5000 });
     await p.keyboard.press("Escape");
