@@ -458,7 +458,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
 
 def _cite(c: search.Cand, shaped: dict) -> dict:
     item = shaped.get(c.key) or {}
-    return {"key": c.key, "title": item.get("title") or c.title, "url": item.get("url"), "kind": c.kind}
+    return {"key": c.key, "title": item.get("title") or c.title, "url": item.get("url"), "kind": c.kind,
+            "slug": item.get("slug")}
 
 
 def _ordered(sent: list[search.Cand], shaped: dict, ranked: list[int]) -> list[dict]:

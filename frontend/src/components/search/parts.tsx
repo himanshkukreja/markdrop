@@ -157,14 +157,14 @@ function Inline({ text, known, cite }: { text: string; known: number[]; cite: (n
 /** The answer card: streams in, cites the items it used, and says plainly when AI can't run. */
 export function AiAnswer({ state, onOpen, onRetry, compact }: {
   state: AiState;
-  onOpen: (item: { url: string | null; kind?: string; slug?: string }, newTab?: boolean) => void;
+  onOpen: (item: { url: string | null; kind?: string; slug?: string; encrypted?: boolean }, newTab?: boolean) => void;
   onRetry?: () => void;
   compact?: boolean;
 }) {
   if (state.status === "idle") return null;
-  const byN = new Map<number, { title: string; url: string | null; kind: string; where?: string }>();
-  for (const it of state.ranked) if (typeof it.n === "number") byN.set(it.n, { title: titleOf(it), url: it.url, kind: it.kind, where: whereOf(it) });
-  for (const c of state.citations) if (!byN.has(c.n)) byN.set(c.n, { title: c.title || "Untitled", url: c.url, kind: c.kind });
+  const byN = new Map<number, { title: string; url: string | null; kind: string; slug?: string; where?: string }>();
+  for (const it of state.ranked) if (typeof it.n === "number") byN.set(it.n, { title: titleOf(it), url: it.url, kind: it.kind, slug: it.slug, where: whereOf(it) });
+  for (const c of state.citations) if (!byN.has(c.n)) byN.set(c.n, { title: c.title || "Untitled", url: c.url, kind: c.kind, slug: c.slug ?? undefined });
   const known = [...byN.keys()];
   const order = new Map<number, number>();
   const body = state.answer || state.text;
@@ -173,7 +173,7 @@ export function AiAnswer({ state, onOpen, onRetry, compact }: {
     const ref = byN.get(n);
     return (
       <button type="button" className={s.cite} title={ref?.title} onMouseDown={(e) => e.preventDefault()}
-        onClick={(e) => ref?.url && onOpen({ url: ref.url, kind: ref.kind }, e.metaKey || e.ctrlKey)}>
+        onClick={(e) => ref?.url && onOpen({ url: ref.url, kind: ref.kind, slug: ref.slug }, e.metaKey || e.ctrlKey)}>
         {order.get(n) ?? n}
       </button>
     );
@@ -210,7 +210,7 @@ export function AiAnswer({ state, onOpen, onRetry, compact }: {
           {sources.map((src) => (
             <li key={src.n}>
               <button type="button" className={s.source} onMouseDown={(e) => e.preventDefault()}
-                onClick={(e) => src.url && onOpen({ url: src.url, kind: src.kind }, e.metaKey || e.ctrlKey)}>
+                onClick={(e) => src.url && onOpen({ url: src.url, kind: src.kind, slug: src.slug }, e.metaKey || e.ctrlKey)}>
                 <span className={s.sourceN}>{src.label}</span>
                 <span className={s.sourceTitle}>{src.title}</span>
                 {src.where && <span className={s.sourceWhere}>{src.where}</span>}

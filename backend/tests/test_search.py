@@ -10,6 +10,7 @@ call; backend/.env is never read), its limits and the ledger, and the MCP tools.
 
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import os
@@ -156,6 +157,17 @@ class Quality(SearchWorld):
 
     async def test_title_and_body_words_together(self):
         self.assertEqual((await self.slugs("owner", "onboarding contractors"))[0], "onboarding")
+
+    async def test_missing_word_indexes_fall_back(self):
+        await self.db[search_index.COLL].drop_indexes()
+        self.assertEqual((await self.slugs("owner", "reconcilation"))[0], "pricing")
+        for _ in range(50):
+            if search._hints["ok"]:
+                break
+            await asyncio.sleep(0.02)
+        names = {i["name"] for i in await self.db[search_index.COLL].list_indexes().to_list(None)}
+        self.assertIn("w_id", names)
+        self.assertEqual((await self.slugs("owner", "reconcilation"))[0], "pricing")
 
     async def test_noise_finds_nothing(self):
         self.assertEqual(await self.slugs("owner", "zzqxv"), [])
@@ -411,6 +423,21 @@ class Freshness(SearchWorld):
         self.assertGreaterEqual(n, 1)
         self.assertEqual(await self.slugs("owner", "charlie"), ["doc"])
         self.assertEqual(await search_index.reconcile(self.db), 0)
+
+    async def test_many_saves_in_a_burst_are_all_indexed(self):
+        from app import database
+
+        for i in range(6):
+            # Each request gets its own database handle (get_database()), as in the app.
+            db = database.get_database()
+            await db["documents"].insert_one({"slug": f"burst-{i}", "title": f"Burst {i}", "content": f"Kiwi{i} body",
+                                              "owner_id": self.uid["owner"], "access_level": "private",
+                                              "workspace_id": None, "expires_at": None, "updated_at": now()})
+            raw = await db["documents"].find_one({"slug": f"burst-{i}"})
+            search_index.touch(db, raw["_id"])
+        await search_index.drain()
+        for i in range(6):
+            self.assertEqual(await self.slugs("owner", f"kiwi{i}"), [f"burst-{i}"])
 
     async def test_new_document_through_the_api(self):
         r = await self.http.post("/api/v1/documents", headers=self.session("owner"),

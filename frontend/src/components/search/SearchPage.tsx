@@ -52,6 +52,9 @@ export default function SearchPage() {
   const toast = useToast();
   const locSearch = useLocationSearch();
   const initial = useMemo(() => readParams(locSearch), [locSearch]);
+  // The URL is only readable after mount (the server renders without it): take the query and
+  // filters from it once, then keep it in step with them.
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     if (authLoading || !mounted || user) return;
@@ -85,9 +88,20 @@ export default function SearchPage() {
     searchAiStatus().then(setAiStatus).catch(() => setAiStatus(null));
   }, [user]);
 
+  useEffect(() => {
+    if (!mounted || ready) return;
+    const r = readParams(window.location.search);
+    setQ(r.q);
+    setKind(r.kind);
+    setScope(r.scope);
+    setOwner(r.owner);
+    setUpdated(r.updated);
+    setReady(true);
+  }, [mounted, ready]);
+
   // The URL follows the query and filters (replace: typing isn't history).
   useEffect(() => {
-    if (!mounted) return;
+    if (!ready) return;
     const u = new URLSearchParams();
     if (term) u.set("q", term);
     if (kind !== "all") u.set("kind", kind);
@@ -96,14 +110,14 @@ export default function SearchPage() {
     if (updated !== "any") u.set("updated", updated);
     const next = `/search${u.toString() ? `?${u}` : ""}`;
     if (next !== window.location.pathname + window.location.search) window.history.replaceState(null, "", next);
-  }, [term, kind, scope, owner, updated, mounted]);
+  }, [term, kind, scope, owner, updated, ready]);
 
   const params = useMemo(() => ({
     q: term, kind: kind === "all" ? null : kind, scope: scope === "all" ? null : scope, owner, updated, limit: 20,
   }), [term, kind, scope, owner, updated]);
 
   useEffect(() => {
-    if (!user || term.length < 2) { setRes(null); setItems([]); setMore(false); return; }
+    if (!user || !ready || term.length < 2) { setRes(null); setItems([]); setMore(false); return; }
     const ctl = new AbortController();
     setLoading(true);
     const t = setTimeout(() => {
@@ -113,7 +127,7 @@ export default function SearchPage() {
         .finally(() => { if (!ctl.signal.aborted) setLoading(false); });
     }, 120);
     return () => { clearTimeout(t); ctl.abort(); };
-  }, [params, user, term.length, nonce]);
+  }, [params, user, ready, term.length, nonce]);
 
   const loadMore = useCallback(async () => {
     if (!res?.next_cursor) return;
@@ -139,10 +153,10 @@ export default function SearchPage() {
   }, [term, aiOn, runAi, scope]);
 
   useEffect(() => {
-    if (!user || !aiOn || !looksLikeQuestion(term) || autoAsked.current === term) return;
+    if (!user || !ready || !aiOn || !looksLikeQuestion(term) || autoAsked.current === term) return;
     const t = setTimeout(() => askAi(term), 650);
     return () => clearTimeout(t);
-  }, [term, user, aiOn, askAi]);
+  }, [term, user, ready, aiOn, askAi]);
 
   const askedFor = ai.state.question;
   const aiIdle = ai.state.status === "idle";
@@ -150,10 +164,10 @@ export default function SearchPage() {
     if (!aiIdle && askedFor && term !== askedFor && !looksLikeQuestion(term)) resetAi();
   }, [term, aiIdle, askedFor, resetAi]);
 
-  const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string }, newTab?: boolean) => {
+  const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string; encrypted?: boolean }, newTab?: boolean) => {
     if (!item.url) return;
     if (term.length >= 2) rememberSearch(term);
-    const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug });
+    const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug, encrypted: item.encrypted });
     if (external || newTab) window.open(href, "_blank", "noopener,noreferrer");
     else router.push(href);
   }, [router, term]);

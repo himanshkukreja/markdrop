@@ -150,10 +150,10 @@ export default function CommandPalette({
     if (!aiIdle && askedFor && term !== askedFor && !looksLikeQuestion(term)) resetAi();
   }, [q, aiIdle, askedFor, resetAi]);
 
-  const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string }, newTab?: boolean) => {
+  const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string; encrypted?: boolean }, newTab?: boolean) => {
     if (!item.url) return;
     if (q.trim().length >= MIN) setRecentQ(rememberSearch(q));
-    const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug });
+    const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug, encrypted: item.encrypted });
     onClose();
     if (external || newTab) window.open(href, "_blank", "noopener,noreferrer");
     else router.push(href);

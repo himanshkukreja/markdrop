@@ -45,6 +45,7 @@ from typing import Any
 
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.errors import OperationFailure
 from rapidfuzz import fuzz, process
 
 from app.services import access, publicity, search_index, urls
@@ -423,6 +424,17 @@ async def world_of(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
     return World(actor, ctx, mems, {w.id: w.name for w, _ in mems}, [w.id for w, _ in mems])
 
 
+_hints = {"ok": True}
+
+
+async def _restore_indexes(db: AsyncIOMotorDatabase) -> None:
+    try:
+        await search_index.ensure_indexes(db)
+        _hints["ok"] = True
+    except Exception:
+        pass
+
+
 CONTENT_LIMIT = 3000          # ids per (word, field) lookup: a word in thousands of bodies says little
 TYPO_IF_FEWER = 25            # look for typo variants of a word found in fewer items than this
 
@@ -449,8 +461,17 @@ async def _content_hits(db: AsyncIOMotorDatabase, terms: Terms, ids: list) -> di
     async def run(jobs: list[tuple[str, int, float, dict]]) -> dict[int, int]:
         """Runs the lookups; returns, per query word, how many items it hit."""
         async def one(f: str, cond: dict) -> list:
-            return await coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).hint(f"{f}_id").limit(
-                CONTENT_LIMIT).to_list(length=CONTENT_LIMIT)
+            cur = coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).limit(CONTENT_LIMIT)
+            if _hints["ok"]:
+                try:
+                    return await cur.hint(f"{f}_id").to_list(length=CONTENT_LIMIT)
+                except OperationFailure:
+                    # The covering index is missing (a dropped collection): answer without it, and
+                    # put the indexes back in the background.
+                    _hints["ok"] = False
+                    asyncio.get_running_loop().create_task(_restore_indexes(db))
+                    cur = coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).limit(CONTENT_LIMIT)
+            return await cur.to_list(length=CONTENT_LIMIT)
 
         results = await asyncio.gather(*(one(f, cond) for f, _i, _q, cond in jobs))
         found: dict[int, int] = {}

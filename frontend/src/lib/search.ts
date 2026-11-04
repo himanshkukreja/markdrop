@@ -9,7 +9,7 @@
  * the UI never filters for privacy. Kept out of lib/api.ts (that one loads on public pages).
  */
 import { API_BASE, getToken } from "@/lib/api";
-import { request } from "@/lib/workspaces";
+import { openHref, request } from "@/lib/workspaces";
 import { SseParser } from "@/lib/pages-ai/sse";
 import { pushRecent, RECENT_KEY } from "@/lib/searchCore.mjs";
 
@@ -121,7 +121,7 @@ export async function searchAiStatus(scope?: string | null): Promise<AiStatus> {
   return request<AiStatus>(`/api/v1/search/ai-status${q}`);
 }
 
-export interface Citation { n: number; key: string; title: string | null; url: string | null; kind: string }
+export interface Citation { n: number; key: string; title: string | null; url: string | null; kind: string; slug?: string | null }
 
 export type AskEvent =
   | { type: "status"; stage: "expanding" | "searching" | "answering"; terms?: string[] }
@@ -207,10 +207,18 @@ export function forgetSearches(): void {
   try { window.localStorage.removeItem(RECENT_KEY); } catch { /* private mode */ }
 }
 
-/** Opens a result: documents, pages and files in this tab via their address; app pages via the router. */
-export function hrefOf(item: Pick<SearchItem, "url" | "slug" | "kind">): { href: string; external: boolean } {
+/** Where a result opens. Documents, pages and files go where a click on their row goes (lib/workspaces
+ *  openHref): the workspace's own domain when it has one, else the in-app page, keeping a section's
+ *  #anchor. Folders, workspaces and Guides pages are app paths. `external`: another origin (new tab). */
+export function hrefOf(item: Pick<SearchItem, "url" | "slug" | "kind"> & { encrypted?: boolean | null }): { href: string; external: boolean } {
   const url = item.url || "/";
   if (url.startsWith("/")) return { href: url, external: false };
+  if (item.slug && (item.kind === "page" || item.kind === "doc" || item.kind === "file")) {
+    const hash = url.includes("#") ? url.slice(url.indexOf("#")) : "";
+    const href = openHref(item.slug, url.split("#")[0], item.encrypted);
+    if (href.startsWith("/")) return { href: `${href}${hash}`, external: false };
+    return { href: `${href}${hash}`, external: true };
+  }
   try {
     const u = new URL(url);
     if (typeof window !== "undefined" && u.host === window.location.host) return { href: `${u.pathname}${u.search}${u.hash}`, external: false };

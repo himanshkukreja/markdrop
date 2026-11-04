@@ -198,43 +198,39 @@ async def drop(db: AsyncIOMotorDatabase, doc_id: Any) -> None:
 
 # ── Async, coalesced hooks ────────────────────────────────────────────────────
 
-_pending: dict[str, tuple[str, Any]] = {}
+_pending: dict[tuple, tuple] = {}
 _task: asyncio.Task | None = None
-_db: AsyncIOMotorDatabase | None = None
 
 
 def touch(db: AsyncIOMotorDatabase, doc_id: Any) -> None:
     """A document's content changed: re-index it shortly, off the request. Never raises."""
-    _queue(db, f"d:{doc_id}", ("doc", doc_id))
+    _queue(db, "doc", doc_id)
 
 
 def touch_guide(db: AsyncIOMotorDatabase, page_id: Any) -> None:
-    _queue(db, f"g:{page_id}", ("guide", page_id))
+    _queue(db, "guide", page_id)
 
 
-def _queue(db: AsyncIOMotorDatabase, key: str, item: tuple[str, Any]) -> None:
-    global _task, _db
+def _queue(db: AsyncIOMotorDatabase, src: str, ident: Any) -> None:
+    global _task
     try:
-        if item[1] is None:
+        if ident is None:
             return
-        if _db is not None and _db is not db:
-            _pending.clear()   # another database (tests swap them): don't carry its ids across
-        _db = db
-        _pending[key] = item
+        # Keyed by database name: get_database() hands out a new handle per request.
+        _pending[(getattr(db, "name", ""), src, str(ident))] = (db, src, ident)
         if _task is None or _task.done():
             _task = asyncio.get_running_loop().create_task(_drain_loop())
     except Exception:
-        log.debug("search index: could not queue %s", key, exc_info=True)
+        log.debug("search index: could not queue %s %s", src, ident, exc_info=True)
 
 
 async def _drain_loop() -> None:
     await asyncio.sleep(DEBOUNCE_S)
     while _pending:
-        db = _db
         batch = list(_pending.items())[:100]
         for key, _ in batch:
             _pending.pop(key, None)
-        for key, (src, ident) in batch:
+        for key, (db, src, ident) in batch:
             try:
                 if src == "doc":
                     await index_doc(db, ident)
