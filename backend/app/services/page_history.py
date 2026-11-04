@@ -420,6 +420,9 @@ async def thin(db: AsyncIOMotorDatabase, now: datetime | None = None, *, dry_run
         oids = [ObjectId(d) for d in chunk if ObjectId.is_valid(d)]
         alive = {str(d["_id"]) for d in await db["documents"].find({"_id": {"$in": oids}}, {"_id": 1})
                  .to_list(length=len(oids))}
+        from app.services import trash
+
+        alive |= await trash.trashed_ids(db, oids)  # in the trash: its history comes back with it
         gone = [d for d in chunk if d not in alive]
         if gone:
             orphans += await db[COLL].count_documents({"doc_id": {"$in": gone}})
@@ -460,6 +463,13 @@ async def cleanup_images(db: AsyncIOMotorDatabase, now: datetime | None = None, 
         stats["assets"] += len(rows)
         page = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"content": 1, "encrypted": 1, "kind": 1}) \
             if ObjectId.is_valid(doc_id) else None
+        if page is None:
+            from app.services import trash
+
+            # In the trash: its images stay (closed) until it is restored or deleted forever.
+            if await trash.trashed_doc(db, doc_id, {"_id": 1}) is not None:
+                stats["kept_trashed"] = stats.get("kept_trashed", 0) + len(rows)
+                continue
         if page is not None and page.get("encrypted"):
             stats["kept_encrypted"] += len(rows)  # can't read it: never delete
             continue

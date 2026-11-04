@@ -18,6 +18,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, Awaitable, Callable
@@ -98,6 +99,38 @@ class Context:
     user: User
     client_id: str
     scopes: list[str]
+
+
+# ── Audit (protocol._audit) ──────────────────────────────────────────────────
+# What a call acted on, for the mcp_events row: the documents it resolved (slug
+# and id, never a title or content) and what it changed. Set per call by
+# protocol._call_tool; tools add to it through audit_target / audit_result.
+AUDIT: ContextVar[dict | None] = ContextVar("mcp_audit", default=None)
+MAX_AUDIT_TARGETS = 10
+
+
+def audit_target(raw: dict | None) -> None:
+    rec = AUDIT.get()
+    if rec is None or not raw or raw.get("_id") is None:
+        return
+    item = {"slug": raw.get("slug"), "doc_id": str(raw["_id"])}
+    targets = rec.setdefault("targets", [])
+    if item not in targets and len(targets) < MAX_AUDIT_TARGETS:
+        targets.append(item)
+
+
+def audit_result(**fields: Any) -> None:
+    rec = AUDIT.get()
+    if rec is not None:
+        rec.setdefault("result", {}).update(fields)
+
+
+def audit_items(raws: list[dict]) -> list[dict]:
+    """``[{slug, doc_id, kind}]`` of the items a call removed or brought back."""
+    from app.services import pages
+
+    return [{"slug": r.get("slug"), "doc_id": str(r["_id"]) if r.get("_id") is not None else None,
+             "kind": pages.deleted_item(r)["kind"]} for r in raws][:50]
 
 
 @dataclass
@@ -297,6 +330,7 @@ async def load_for(ctx: Context, value: str, perm: str, action: str) -> dict:
         rd = await access_service.can(actor_of(ctx), raw, "read",
                                       access_service.Ctx(ctx.db, workspace_scope=ref.scope))
         raise deny(rd if not rd.allowed else d, action)
+    audit_target(raw)
     return raw
 
 
@@ -1060,23 +1094,159 @@ async def set_access(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, out
 
 
+def _item_name(i: dict) -> str:
+    return f"{i['title']!r} ({i['slug']}, {i['kind']})" if i.get("title") else f"{i['slug']} ({i['kind']})"
+
+
+def _day(dt: datetime | None) -> str:
+    return dt.astimezone(timezone.utc).strftime("%-d %B %Y") if dt else "?"
+
+
+async def _trashed_ref(ctx: Context, value: str) -> dict | None:
+    """The trash item a reference names (a document's slug or link, or a
+    folder's id) when the caller may restore or delete it — else None, which
+    reads as "not found" for anything they couldn't delete."""
+    from app.services import trash
+
+    ref = await resolve_doc(ctx, value)
+    try:
+        root, rows, _scope = await trash._scope(ctx.db, actor_of(ctx), ref.slug, access_service.Ctx(ctx.db))
+    except HTTPException:
+        return None
+    for r in rows[:1]:
+        if trash.is_folder(r):
+            rec = AUDIT.get()
+            if rec is not None:
+                rec.setdefault("targets", []).append({"folder_id": str(r["_id"])})
+        else:
+            audit_target(r.get("doc"))
+    return {**root, "_rows": rows, "_key": trash.key_of(root)}
+
+
 async def delete_document(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import trash
+
+    permanent = bool(args.get("permanent"))
+    ref = await resolve_doc(ctx, args["document"])
+    live_row, _moved = await doc_service.find_for_read(ctx.db, ref.slug)
+    if live_row is None:
+        row = await _trashed_ref(ctx, args["document"])
+        if row is None:
+            raise ToolError(NOT_FOUND)
+        until = trash.restore_until(row)
+        if not permanent:
+            audit_result(already_in_trash=True)
+            raise ToolError(f"{row['_key']} is already in the trash (until {_day(until)}). Restore it with "
+                            "restore_document, or pass permanent: true to delete it forever.")
+        rows = row["_rows"]
+        try:
+            items = await trash.delete_forever(ctx.db, actor_of(ctx), ref.slug)
+        except HTTPException as exc:
+            raise ToolError(http_message(exc))
+        audit_result(permanent=True, from_trash=True,
+                     items=audit_items([r["doc"] for r in rows if not trash.is_folder(r)]))
+        text = (f"Deleted forever from the trash: {len(items)} item{'s' if len(items) != 1 else ''}"
+                + (": " + "; ".join(_item_name(i) for i in items) if items else "") + ". This can't be undone.")
+        return text, {"deleted": True, "trashed": False, "slug": row.get("slug") or row["_key"],
+                      "restore_until": None, "deleted_items": items, "lifted_items": []}
     raw = await load_for(ctx, args["document"], "delete", "delete")
     slug = raw["slug"]
+    kids = None
+    if args.get("children") == "delete":
+        from app.services import pages
+
+        kids = await pages.descendants(ctx.db, raw, projection={"slug": 1, "kind": 1, "editor": 1})
     try:
         res = await doc_service.delete_document(ctx.db, slug, actor_of(ctx), access_service.Ctx(ctx.db),
-                                                children=args.get("children"), expected_id=raw["_id"])
+                                                children=args.get("children"), expected_id=raw["_id"],
+                                                permanent=permanent)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     items, lifted = res["deleted"], res["lifted"]
-
-    def name(i: dict) -> str:
-        return f"{i['title']!r} ({i['slug']}, {i['kind']})" if i.get("title") else f"{i['slug']} ({i['kind']})"
-
-    text = f"Deleted {len(items)} item{'s' if len(items) != 1 else ''}: " + "; ".join(name(i) for i in items) + "."
+    gone = {i["slug"] for i in items}
+    audit_result(trashed=res["trashed"], permanent=permanent,
+                 items=audit_items([r for r in [*(kids or []), raw] if r.get("slug") in gone]),
+                 lifted=[i["slug"] for i in lifted])
+    n = f"{len(items)} item{'s' if len(items) != 1 else ''}"
+    if res["trashed"]:
+        text = (f"Moved {n} to the trash: " + "; ".join(_item_name(i) for i in items)
+                + f". It can be restored until {_day(res['restore_until'])} with restore_document "
+                  f"(or from Trash in Markdrop); after that it is deleted for good.")
+    else:
+        text = f"Deleted {n} forever: " + "; ".join(_item_name(i) for i in items) + ". This can't be undone."
     if lifted:
-        text += " Moved up a level (not deleted): " + "; ".join(name(i) for i in lifted) + "."
-    return text, {"deleted": True, "slug": slug, "deleted_items": items, "lifted_items": lifted}
+        text += " Moved up a level (not deleted): " + "; ".join(_item_name(i) for i in lifted) + "."
+    return text, {"deleted": True, "trashed": res["trashed"], "slug": slug,
+                  "restore_until": iso(res["restore_until"]), "deleted_items": items, "lifted_items": lifted}
+
+
+async def restore_document(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import trash
+
+    row = await _trashed_ref(ctx, args["document"])
+    if row is None:
+        ref = await resolve_doc(ctx, args["document"])
+        live_row, _moved = await doc_service.find_for_read(ctx.db, ref.slug)
+        if live_row is not None and (await access_service.can(actor_of(ctx), live_row, "read",
+                                                              access_service.Ctx(ctx.db))).allowed:
+            raise ToolError(f"{live_row['slug']} isn't in the trash: it is live at {public_url(live_row['slug'])}.")
+        raise ToolError("I couldn't find that in the trash (it may have been deleted forever after 30 days), "
+                        "or it isn't one you can restore. list_trash shows what can be.")
+    ref = await resolve_doc(ctx, args["document"])
+    try:
+        out = await trash.restore(ctx.db, actor_of(ctx), ref.slug)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    after = out.pop("row")
+    items = out["restored"]
+    audit_result(restored=[i["slug"] for i in items], kind=out["kind"])
+    if after:
+        urls = await url_pair(ctx, after)
+    elif out["slug"]:
+        urls = {"url": public_url(out["slug"]), "markdrop_url": public_url(out["slug"]), "workspace_url": None}
+    else:
+        urls = {"url": None, "markdrop_url": None, "workspace_url": None}
+    if out["kind"] == "folder":
+        text = (f"Restored the folder {out['title']!r} with {len(items)} item{'s' if len(items) != 1 else ''}"
+                + (f" and {out['folders'] - 1} folder(s) inside it" if out["folders"] > 1 else "") + ".")
+    else:
+        text = (f"Restored {len(items)} item{'s' if len(items) != 1 else ''}: "
+                + "; ".join(_item_name(i) for i in items) + f". Link: {urls['url']}.")
+    if out["notes"]:
+        text += " " + " ".join(out["notes"])
+    return text, {"restored": True, "slug": out["slug"] or out["key"], "kind": out["kind"], **urls,
+                  "restored_items": items, "notes": out["notes"]}
+
+
+async def list_trash(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import trash
+
+    ws_id = None
+    if args.get("workspace"):
+        ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
+    try:
+        rows = await trash.list_for(ctx.db, actor_of(ctx), workspace_id=ws_id)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    items = []
+    for r in rows:
+        w = r["where"]
+        items.append({
+            "slug": r["slug"] or r["key"], "title": r["title"], "kind": r["kind"], "url": r["url"],
+            "workspace": (w["workspace"] or {}).get("name") if w["workspace"] else None,
+            "folder": (w["folder"] or {}).get("path") or (w["folder"] or {}).get("name") if w["folder"] else None,
+            "parent": (w["parent"] or {}).get("slug") if w["parent"] else None,
+            "deleted_at": r["deleted_at"], "deleted_by": (r["deleted_by"] or {}).get("name") if r["deleted_by"] else None,
+            "restore_until": r["restore_until"], "days_left": r["days_left"], "sub_pages": r["sub_pages"],
+            "items_inside": (r.get("contents") or {}).get("items"),
+        })
+    if not items:
+        return "The trash is empty.", {"items": [], "days": trash.DAYS}
+    lines = [f"- {_item_name(i)}" + (f" with {i['sub_pages']} sub-page(s)" if i["sub_pages"] else "")
+             + (f" with {i['items_inside']} item(s) inside" if i["items_inside"] else "")
+             + f", deleted {i['deleted_at'][:10]}, {i['days_left']} day(s) left" for i in items]
+    return (f"{len(items)} item(s) in the trash (restore with restore_document; each is deleted for good "
+            f"{trash.DAYS} days after it was deleted):\n" + "\n".join(lines)), {"items": items, "days": trash.DAYS}
 
 
 async def get_document_stats(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -1539,6 +1709,7 @@ async def remove_from_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
     actx = access_service.Ctx(ctx.db, surface="mcp", workspace_scope=ref.scope)
     if raw is None:
         raise ToolError(NOT_FOUND)
+    audit_target(raw)
     if not raw.get("workspace_id"):
         rd = await access_service.can(actor, raw, "read", actx)
         raise ToolError("That document isn't in a workspace." if rd.allowed else NOT_FOUND)
@@ -2242,24 +2413,75 @@ TOOLS: list[Tool] = [
     Tool(
         name="delete_document",
         title="Delete a document",
-        description=("Permanently delete one of the user's documents, pages or files: exactly the one at the "
-                     "slug or link given (never matched by title, so another item with the same title is "
-                     "untouched). The link stops working and this can't be undone. A page with pages inside it "
-                     "needs children: 'delete' (they go too) or 'lift' (they move up a level). The result lists "
-                     "every item deleted in deleted_items ({slug, title, kind: file|page|document}, sub-pages "
-                     "first, the item itself last) and any sub-pages moved up in lifted_items."),
+        description=("Delete one of the user's documents, pages or files: exactly the one at the slug or link "
+                     "given (never matched by title, so another item with the same title is untouched). It goes "
+                     "to the trash: its link stops working at once, and for 30 days it can be brought back as it "
+                     "was with restore_document (or from Trash in Markdrop); then it is deleted for good. "
+                     "permanent: true deletes it forever at once (also for an item already in the trash); only "
+                     "its owner (or, for an item in the trash, an admin of its workspace) can, and only when the "
+                     "user explicitly asked for that. A page with pages inside it needs children: 'delete' (they "
+                     "go to the trash with it and come back with it) or 'lift' (they move up a level and stay). "
+                     "The result lists every item deleted in deleted_items ({slug, title, kind: "
+                     "file|page|document}, sub-pages first, the item itself last), any sub-pages moved up in "
+                     "lifted_items, trashed (false only for a permanent delete) and restore_until."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
             "children": {"type": "string", "enum": ["delete", "lift"],
                          "description": "Only for a page with sub-pages: delete them too, or move them up a level."},
+            "permanent": {"type": "boolean", "default": False,
+                          "description": "Delete forever instead of moving to the trash. Can't be undone; only "
+                                         "when the user asked for exactly that."},
         }, "required": ["document"]},
-        output_schema=_out({"deleted": {"type": "boolean"}, "slug": {"type": "string"},
+        output_schema=_out({"deleted": {"type": "boolean"}, "trashed": {"type": "boolean"},
+                            "slug": {"type": "string"}, "restore_until": _NULLABLE_STR,
                             "deleted_items": _DELETED_ITEMS, "lifted_items": _DELETED_ITEMS},
-                           ["deleted", "slug", "deleted_items", "lifted_items"]),
+                           ["deleted", "trashed", "slug", "restore_until", "deleted_items", "lifted_items"]),
         annotations=_ann(False, True, True),
         handler=delete_document,
+    ),
+    Tool(
+        name="restore_document",
+        title="Restore from the trash",
+        description=("Bring a deleted document, page, file or folder back from the trash (within 30 days of "
+                     "the delete): a page with the sub-pages deleted with it, a folder with its folders and "
+                     "everything in them. It returns where it was: the same link, page, workspace, folder, access "
+                     "and people. If the page or folder it was in is gone it goes to the top level (notes says "
+                     "so). document: the item's slug or link, or for a folder the id list_trash gives as its "
+                     "slug. list_trash shows what can be restored."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {"document": _DOC_REF}, "required": ["document"]},
+        output_schema=_out({"restored": {"type": "boolean"}, "slug": {"type": "string"},
+                            "kind": {"type": "string", "enum": ["file", "page", "document", "folder"]},
+                            "url": _NULLABLE_STR, "markdrop_url": _NULLABLE_STR, "workspace_url": _NULLABLE_STR,
+                            "restored_items": _DELETED_ITEMS, "notes": {"type": "array", "items": {"type": "string"}}},
+                           ["restored", "slug", "kind", "url", "restored_items", "notes"]),
+        annotations=_ann(False, False, True),
+        handler=restore_document,
+    ),
+    Tool(
+        name="list_trash",
+        title="List the trash",
+        description=("What the user can restore: their deleted documents, pages and files, and everything "
+                     "(folders too) deleted from workspaces they administer, newest first, with where each was, who deleted "
+                     "it, when, and how many days are left before it is deleted for good (30 days after the "
+                     "delete). Optionally only one workspace's."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "workspace": {**_WORKSPACE_ARG, "description": "Only items deleted from this workspace (id, name or domain)."},
+        }},
+        output_schema=_out({"items": {"type": "array", "items": {"type": "object", "properties": {
+            "slug": {"type": "string", "description": "A document's slug, or a folder's id."}, "title": _NULLABLE_STR,
+            "kind": {"type": "string", "enum": ["file", "page", "document", "folder"]}, "url": _NULLABLE_STR,
+            "workspace": _NULLABLE_STR, "folder": _NULLABLE_STR, "parent": _NULLABLE_STR,
+            "deleted_at": {"type": "string"}, "deleted_by": _NULLABLE_STR, "restore_until": {"type": "string"},
+            "days_left": {"type": "integer"}, "sub_pages": {"type": "integer"},
+            "items_inside": _NULLABLE_INT,
+        }}}, "days": {"type": "integer"}}),
+        annotations=_ann(True, False, True),
+        handler=list_trash,
     ),
     Tool(
         name="get_document_stats",

@@ -5,7 +5,7 @@ scoped to it, so a folder id from another tenant is indistinguishable from one
 that does not exist.
 """
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
@@ -125,12 +125,24 @@ async def update_folder(
 @limiter.limit("60/minute")
 async def delete_folder(
     request: Request, workspace_id: str, folder_id: str,
-    mode: str = Query("unfile", pattern="^(unfile|move_up)$"),
+    mode: str = Query("trash", pattern="^(trash|unfile|move_up)$"),
     db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user),
 ):
+    """``trash`` (the default): the folder, its folders and everything in them
+    go to the trash for 30 days (services/trash.py), restorable together.
+    ``unfile`` / ``move_up`` (the old behaviour): only the folder goes; what was
+    in it moves to the top of the workspace / into the parent folder."""
     # Deleting a container can unfile many documents at once, so admin.
     await ws_service.require_role(db, workspace_id, user.id, "admin")
     actor, ctx = access.actor_from_request(request, user), access.Ctx(db)
+    if actor.cred == "tenant":
+        raise HTTPException(status_code=401, detail="Sign in on markdrop.in to delete folders.")
+    if mode == "trash":
+        from app.services import trash
+
+        out = await trash.move_folder(db, workspace_id, folder_id, actor)
+        return FolderDeleteResponse(unfiled_documents=0, trashed_documents=out["documents"],
+                                    trashed_folders=out["folders"], trashed=True)
     async with revalidate.batch(db):  # B-R1
         inside = await folder_service.delete_folder(db, workspace_id, folder_id, mode,
                                                     actor=actor, ctx=ctx)

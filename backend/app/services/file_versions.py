@@ -314,6 +314,9 @@ async def _unreferenced(db: AsyncIOMotorDatabase, keys: set[str]) -> list[str]:
             continue
         if await db["documents"].count_documents({"$or": [{"blob_key": key}, {"poster_key": key}]}, limit=1):
             continue
+        # A document in the trash still holds its bytes (services/trash.py).
+        if await db["trash"].count_documents({"$or": [{"doc.blob_key": key}, {"doc.poster_key": key}]}, limit=1):
+            continue
         out.append(key)
     return out
 

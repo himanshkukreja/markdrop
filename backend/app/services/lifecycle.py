@@ -40,10 +40,15 @@ def _now() -> datetime:
 async def slug_unavailable(db: AsyncIOMotorDatabase, slug: str, owner_id: str | None,
                            doc_id=None) -> bool:
     """True when ``slug`` is reserved against this owner/document: a live
-    tombstone of someone else's (or an anonymous) deleted document, or another
-    document's former slug."""
+    tombstone of someone else's (or an anonymous) deleted document, another
+    document's former slug, or anything in the trash (for everyone, its owner
+    included: a restore must find its address free — services/trash.py)."""
     if not slug:
         return False
+    from app.services import trash
+
+    if await trash.holds_slug(db, slug):
+        return True
     tomb = await db[TOMBSTONES].find_one({"slug": slug})
     if tomb is not None:
         until = publicity.aware(tomb.get("until"))
@@ -95,18 +100,32 @@ async def _delete_objects(raw: dict) -> None:
                 pass
 
 
-async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete") -> bool:
+async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete",
+                  trashed: bool = False) -> bool:
     """Remove a document and everything that hangs off it. Returns False when
     the row was already gone (someone else got there first).
 
     Order: tell sockets and caches, close the bytes (so a failure to delete
     them never leaves them public), delete the row (CAS on _id), then the
     objects, old versions, posters and grants. Its slug and former slugs are
-    reserved for the same owner for 30 days."""
+    reserved for the same owner for 30 days.
+
+    ``trashed``: ``raw`` is a document in the trash (services/trash.py:
+    "Delete forever" and the 30-day purge); its trash row is what goes. One
+    whose id is live again in ``documents`` is never destroyed (only the
+    leftover trash row is dropped)."""
     from app.services import file_versions
 
     slug = raw.get("slug")
     doc_id = str(raw["_id"])
+    coll = "documents"
+    if trashed:
+        from app.services import trash
+
+        coll = trash.COLL
+        if await db["documents"].find_one({"_id": raw["_id"]}, {"_id": 1}):
+            await db[coll].delete_one({"_id": raw["_id"]})
+            return False
     if publicity._has_bytes(raw):
         if not await publicity.apply(raw, False, epoch=publicity.epoch_of(raw) + 1):
             log.warning("closing %s before %s failed", slug, reason)
@@ -119,7 +138,7 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
     from app.services import page_assets, pages
 
     await pages.lift_children(db, raw)
-    res = await db["documents"].delete_one({"_id": raw["_id"]})
+    res = await db[coll].delete_one({"_id": raw["_id"]})
     if res.deleted_count == 0:
         return False
     await page_assets.forget_document(db, doc_id)
@@ -571,12 +590,16 @@ async def reconcile_once(db: AsyncIOMotorDatabase, *, limit: int = 200, full: bo
                 async for raw in db["documents"].find({"folder_id": fid}).limit(limit):
                     await folder_service.unfile_if_folder_gone(db, raw)
                     fixed += 1
+        from app.services import trash
+
         doc_ids = await db["document_grants"].distinct("document_id")
         for doc_id in doc_ids:
             try:
                 present = await db["documents"].find_one({"_id": ObjectId(doc_id)}, {"_id": 1})
             except Exception:
                 present = None
+            if present is None and doc_id in await trash.trashed_ids(db, [doc_id]):
+                present = {"_id": doc_id}  # in the trash: its grants come back with it
             if present is None:
                 res = await db["document_grants"].delete_many({"document_id": doc_id})
                 orphans += res.deleted_count

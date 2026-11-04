@@ -286,6 +286,9 @@ class MyDocListItem(BaseModel):
     # Artifacts (kind="artifact"): the dashboard shows type + size instead of a
     # markdown preview, since `content_preview` is only a filename stand-in.
     kind: str = "markdown"
+    # "blocks" for a page (the block editor), so a list can say "Page" next to
+    # a file with the same title.
+    editor: str | None = None
     mime: str | None = None
     renderer: str | None = None
     type_label: str | None = None

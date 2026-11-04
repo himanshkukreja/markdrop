@@ -1182,15 +1182,20 @@ def deleted_item(raw: dict) -> dict:
 
 
 async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx,
-                      children: str | None) -> dict:
+                      children: str | None, *, permanent: bool = False) -> dict:
     """``DELETE /documents/{slug}``: a page with sub-pages needs
     ``children=delete`` (every page below goes too; the caller must be able to
     delete each of them) or ``children=lift`` (they move up one level).
 
+    It goes to the trash (services/trash.py) for 30 days — with
+    ``children=delete``, together with every page below it (one batch,
+    restored together) — unless ``permanent``, which destroys it at once.
+
     Exactly ``raw`` (by ``_id``) and, with ``children=delete``, the pages
     below it go; nothing is ever matched by title. Returns ``{deleted: [...],
-    lifted: [...]}`` (:func:`deleted_item` each), ``raw`` last in ``deleted``."""
-    from app.services import lifecycle
+    lifted: [...], trashed, restore_until}`` (:func:`deleted_item` each),
+    ``raw`` last in ``deleted``."""
+    from app.services import lifecycle, trash
 
     await access.require(actor, raw, "delete", ctx)
     kids = await children_rows(db, raw["_id"], projection={"_id": 1, "slug": 1, "title": 1, "kind": 1,
@@ -1199,6 +1204,7 @@ async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
         raise PageError(409, {"detail": "This page has pages inside it. Choose whether to delete them too "
                                         "(children=delete) or move them up a level (children=lift).",
                               "code": "has_children", "count": len(kids)})
+    below: list[dict] = []
     if kids and children == "delete":
         below = await descendants(db, raw)
         refused = 0
@@ -1211,6 +1217,18 @@ async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
                 "Move them up a level instead (children=lift)."))
     deleted: list[dict] = []
     lifted = [deleted_item(k) for k in kids] if kids and children == "lift" else []
+    if not permanent:
+        if kids and children == "lift":
+            # They move up now and stay there: only the page itself goes to the trash.
+            await lift_children(db, raw)
+        moved = await trash.move(db, [*reversed(below), raw], raw, actor)  # deepest first
+        if not any(m["_id"] == raw["_id"] for m in moved):
+            raise HTTPException(status_code=404, detail="Document not found")
+        deleted = [deleted_item(m) for m in moved]
+        until = now_utc() + timedelta(days=trash.DAYS)
+        exp = aware(raw.get("expires_at"))
+        return {"deleted": deleted, "lifted": lifted, "trashed": True,
+                "restore_until": exp if exp is not None and exp < until else until}
     if kids and children == "delete":
         for d in reversed(below):  # deepest first
             if await lifecycle.destroy(db, d):
@@ -1218,4 +1236,4 @@ async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
     if not await lifecycle.destroy(db, raw):
         raise HTTPException(status_code=404, detail="Document not found")
     deleted.append(deleted_item(raw))
-    return {"deleted": deleted, "lifted": lifted}
+    return {"deleted": deleted, "lifted": lifted, "trashed": False, "restore_until": None}
