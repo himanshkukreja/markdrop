@@ -219,6 +219,7 @@
         "/analytics/video-and-audio",
         "/analytics/documents-and-pdfs",
         "/analytics/live",
+        "/analytics/content-gaps",
         "/analytics/weekly-email"
       ]
     },

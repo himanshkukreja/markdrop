@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "analytics-ai-home",
+      "date": "2026-11-05",
+      "title": "Analytics tells you what changed, answers questions, and shows what people couldn't find",
+      "kind": "new",
+      "area": "Analytics",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "The analytics home has ✦ Insights: what changed in the period and the likely reason, a box to ask your analytics in plain words, and Write this next, which groups what people searched for and didn't find into pages worth writing.",
+      "body": "- **Insights** sums up the period in 3 to 5 sentences: what changed and the likely cause (a link, a site that sent people, a new version, devices or countries), each linking to where to look. Written once a day; **Refresh** writes it again. See [Insights and Ask](/analytics/overview#insights-and-ask).\n- **Ask your analytics**: type a question like \"Which link did best this month?\". The AI picks from a fixed set of queries Markdrop runs on your own links and answers with links.\n- **Write this next** (workspace owners and admins, and people with their own Guides): searches that found nothing or that nobody opened, and guide questions Ask AI couldn't answer, grouped into topics with an outline. **Create page from this outline** starts the page. See [What people couldn't find](/analytics/content-gaps).\n- Workspace searches are now kept without who searched, for 90 days, to power this. See [Privacy at Markdrop](/security/privacy#what-searching-a-workspace-records).\n- The weekly analytics email gets the same summary, once it starts sending.\n- New MCP tools: `analytics_story`, `ask_analytics` and `content_gaps`. All use Claude Haiku 5.5 and count towards your AI limits; only totals and your own titles are sent, never who visited."
+    },
+    {
       "id": "cli-0-6-1",
       "date": "2026-11-05",
       "title": "CLI 0.6.1: markdrop search looks inside your content",
