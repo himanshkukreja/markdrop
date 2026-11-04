@@ -4,7 +4,7 @@ nav: The editor
 description: "The page editor: blocks and the slash menu, drag and drop, Markdrop files and private sections, AI help, find and replace, checks, comments and locks."
 updated: 2026-11-04
 prerequisites: [/guides/create-a-site]
-keywords: [editor, visual editor, markdown, slash menu, blocks, drag and drop, reorder cards, markdrop file, embed, private section, video, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
+keywords: [editor, mermaid, diagram, visual editor, markdown, slash menu, blocks, drag and drop, reorder cards, markdrop file, embed, private section, video, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
 ---
 
 Open a guide and its **Pages** tab is the editor: the page tree on the left, the page in the middle, and the page panel on the right (**Checks**, **Page**, **Comments** and **History**). On a phone, **Pages** and **Page** in the bar open the tree and the panel.
@@ -140,6 +140,7 @@ Add an **Image** block, then **Upload an image**, drop one onto it, or paste an 
 | **Details** | A collapsible section, good for FAQs. |
 | **Image** | An image with a caption, alt text and an optional dark-theme version. |
 | **Code** | Code with a language, an optional title and a copy button. |
+| **Code** in `mermaid` | A flowchart, sequence or other [Mermaid](https://mermaid.js.org) diagram: a code block whose language is `mermaid`. The editor shows the diagram as readers see it: click it (or press :kbd[Enter] on it) to edit its code, with a preview below that follows as you type, and press :kbd[Esc] or click elsewhere to see the diagram again. If the code has an error, the block shows the error and the code. |
 | **Table** | Rows and columns, with a header row. |
 | **Bulleted list**, **Numbered list**, **Checklist** | Lists. |
 | **Quote**, **Divider**, **Keyboard key** | A quotation, a horizontal line, and keys like Ctrl K. |

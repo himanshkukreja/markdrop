@@ -340,6 +340,59 @@ async def site_members(db: AsyncIOMotorDatabase, site: dict) -> list[dict]:
     return out
 
 
+async def site_people(db: AsyncIOMotorDatabase, sites: list[dict], you: str | None,
+                      faces: int | None = None) -> dict[Any, dict]:
+    """Who works on each workspace site: the current workspace members with a Guides role there
+    (after the site's override), admins first. Keyed by site ``_id``: ``{"people": [...], "count": n}``,
+    each person ``{user_id, name, picture, role, source, you}`` (no email). ``faces`` keeps only the
+    first few (the home's avatar stack; ``count`` is still everyone). Personal sites are left out.
+
+    Batched for the listings: four queries whatever the number of sites (memberships, studio
+    grants, overrides, then the users actually returned). Shown only to callers who can open the
+    site, so already members of its workspace, who see the workspace's members anyway."""
+    ws_sites = [s for s in sites if s.get("workspace_id")]
+    if not ws_sites:
+        return {}
+    wids = list({s["workspace_id"] for s in ws_sites})
+    members: dict[str, list[dict]] = {}
+    for m in await db["memberships"].find(
+            {"workspace_id": {"$in": wids}},
+            {"workspace_id": 1, "user_id": 1, "role": 1, "created_at": 1, "name": 1, "email": 1}).to_list(length=None):
+        members.setdefault(m["workspace_id"], []).append(m)
+    grants = {(g["workspace_id"], g["user_id"]): g.get("role") for g in await db[STUDIO_MEMBERS].find(
+        {"workspace_id": {"$in": wids}}, {"workspace_id": 1, "user_id": 1, "role": 1}).to_list(length=None)}
+    overrides = {(o["site_id"], o["user_id"]): o.get("role") for o in await db[SITE_MEMBERS].find(
+        {"site_id": {"$in": [s["_id"] for s in ws_sites]}}, {"site_id": 1, "user_id": 1, "role": 1}).to_list(length=None)}
+
+    picked: dict[Any, tuple[list[tuple[dict, str, str]], int]] = {}
+    for s in ws_sites:
+        rows: list[tuple[dict, str, str]] = []
+        for m in members.get(s["workspace_id"], []):
+            lock = locked_source(m["role"])
+            if lock:
+                role, src = "admin", lock
+            elif (s["_id"], m["user_id"]) in overrides:
+                role, src = overrides[(s["_id"], m["user_id"])], SRC_SITE
+            else:
+                role, src = grants.get((s["workspace_id"], m["user_id"])), SRC_GRANT
+            if role in ROLES:
+                rows.append((m, role, src))
+        rows.sort(key=lambda r: (-ROLE_RANK[r[1]], 0 if r[0]["role"] == "owner" else 1,
+                                 _aware(r[0].get("created_at")) or now()))
+        picked[s["_id"]] = (rows if faces is None else rows[:faces], len(rows))
+
+    users = await _users(db, [m["user_id"] for shown, _n in picked.values() for m, _r, _s in shown])
+    out: dict[Any, dict] = {}
+    for sid, (shown, n) in picked.items():
+        people = []
+        for m, role, src in shown:
+            p = _person(m, users)
+            people.append({"user_id": p["user_id"], "name": p["name"], "picture": p["picture"],
+                           "role": role, "source": src, "you": m["user_id"] == you})
+        out[sid] = {"people": people, "count": n}
+    return out
+
+
 # ── Changes ───────────────────────────────────────────────────────────────────
 
 

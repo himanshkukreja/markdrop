@@ -506,6 +506,21 @@ export interface SiteSummary {
   address_state?: AddressState;
   /** address_state === "ready". */
   address_ready?: boolean;
+  /** A listed workspace guide: the first three people who work on it (admins first) and how many
+   * have a Guides role on it in all (the home's avatar stack). Absent for a personal guide. */
+  people?: GuidePerson[];
+  people_count?: number;
+}
+
+/** Someone with a Guides role on a guide: name and photo only (no email). */
+export interface GuidePerson {
+  user_id: string;
+  name: string;
+  picture?: string | null;
+  role: StudioRole;
+  source: RoleSource;
+  /** The caller. */
+  you: boolean;
 }
 
 export type AddressState = "ready" | "securing" | "pending";
@@ -1287,6 +1302,22 @@ export function getStudioHistory(workspaceId: string, limit = 50): Promise<{ eve
 /** Site › Settings › People: everyone in the workspace, with this site's overrides (site admins). */
 export function getSitePeople(siteId: string): Promise<SitePeopleResponse> {
   return request(`/${enc(siteId)}/members`);
+}
+
+/** GET …/team: who works on this guide, for anyone who can open it (names and photos, admins first). */
+export interface SiteTeamResponse {
+  site_id: string;
+  workspace_id: string | null;
+  personal: boolean;
+  your_role: DocsRole;
+  /** You may change roles here (Settings › People's editor). */
+  can_manage: boolean;
+  people: GuidePerson[];
+  count: number;
+}
+
+export function getSiteTeam(siteId: string): Promise<SiteTeamResponse> {
+  return request(`/${enc(siteId)}/team`);
 }
 
 /** This site's role for a workspace member, whatever their workspace-wide one ("none" hides it). */

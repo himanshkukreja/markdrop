@@ -62,8 +62,8 @@ Files in Trash still count toward your storage until they're deleted forever.
 
 ## From AI apps and the API
 
-- AI apps delete with `delete_document`, which also moves to Trash. `restore_document` brings an item back and `list_trash` lists what can be restored. Only when you ask for it does an app pass `permanent: true` to delete forever. See [MCP tools](/ai/tools).
-- The API's `DELETE /api/v1/documents/{slug}` moves to Trash too.
+- AI apps delete with `delete_document`, which also moves to Trash. It deletes exactly the item at the link or slug it's given, never another item with the same title, and its result lists every item it removed (sub-pages first) and any sub-pages it moved up a level instead. `restore_document` brings an item back and `list_trash` lists what can be restored. Only when you ask for it does an app pass `permanent: true` to delete forever. See [MCP tools](/ai/tools).
+- The API's `DELETE /api/v1/documents/{slug}` moves to Trash too, and `GET /api/v1/trash`, `POST /api/v1/trash/{slug}/restore` and `DELETE /api/v1/trash/{slug}` list, restore and delete forever. See the [API reference](/api/overview).
 
 :::note[What isn't in Trash]
 Old versions of a file you delete in **Versions** and page templates are deleted at once, as before.

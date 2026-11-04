@@ -14,15 +14,20 @@ export default function RowMenu({
   items,
   label = "More actions",
   align = "right",
+  portal = false,
 }: {
   items: MenuEntry[];
   label?: string;
   align?: "left" | "right";
+  /** Render the menu on top of the page (a body portal): for rows that sit in their own stacking
+   *  layers, whose neighbours would otherwise paint over it. Not inside a Dialog. */
+  portal?: boolean;
 }) {
   return (
     <Dropdown
       align={align}
       minWidth={240}
+      portal={portal}
       aria-label={label}
       trigger={<IconButton icon="more" label={label} size="sm" className="max-sm:size-11" />}
       items={items}

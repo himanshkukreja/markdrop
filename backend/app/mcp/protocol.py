@@ -98,7 +98,11 @@ INSTRUCTIONS = (
     "page gives an unlocked copy). list_workspace_members gives the account ids to mention people "
     "in a page (:person[Name]{id=\"<id>\"}). "
     "delete_document moves an item to the trash for 30 days (restore_document brings it back, list_trash "
-    "lists what can be); pass permanent: true only when the user explicitly asks to delete forever."
+    "lists what can be); pass permanent: true only when the user explicitly asks to delete forever. "
+    "Access requests: request_edit_access asks a page's owner to let the user edit a page they can only "
+    "read; list_access_requests shows requests to decide on (incoming) or the user's own (outgoing); "
+    "decide_access_request approves or declines one, and approving gives that person access, so confirm "
+    "with the user first."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000
@@ -368,6 +372,7 @@ AUDIT_ERROR_CHARS = 200
 AUDIT_ERROR_TEXT = frozenset({
     "delete_document", "restore_document", "set_access", "set_slug", "move_page", "move_to_folder",
     "add_to_workspace", "remove_from_workspace", "restore_file_version", "restore_page_version",
+    "request_edit_access", "decide_access_request",
 })
 
 
