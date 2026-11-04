@@ -453,9 +453,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-header__nav a:hover { color: var(--text); background: var(--surface-hover); }
 .md-header__nav a[aria-current="page"] { color: var(--text); background: var(--surface-active); }
 .md-header__actions { display: flex; align-items: center; gap: var(--space-2); }
-/* Create keeps its label down to 360; below that it's the plus alone (REVAMP_PLAN 4.4). */
-@media (max-width: 359px) {
-  .md-create { width: 36px; padding: 0; }
+/* Create keeps its label from 420 up; narrower phones get the plus alone so the bar fits (REVAMP_PLAN 4.4, fix/mobile-shell). */
+@media (max-width: 419px) {
+  .md-create { width: auto; aspect-ratio: 1 / 1; padding: 0; }
   .md-create > .md-icon:last-of-type { display: none; }
   .md-create__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }
