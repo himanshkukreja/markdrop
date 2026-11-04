@@ -25,7 +25,7 @@ allow_export: false      # readers can't export it; editors always can
 ---
 ```
 
-The built-in covers come in four sets: paper (`mist`, `linen`, `graphite`), duotone (`fold`, `halftone`, `dusk`), lines (`contour`, `blueprint`, `strata`) and calm (`dawn`, `sage`, `moonlit`). A page that uses a name from the first gallery (`aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` or `mint`) shows the closest of these. The page's title isn't in the front matter: it's the document's title.
+The 44 built-in covers come in five sets: paper (`mist`, `linen`, `graphite`, `terminal`, `ledger`, `seal`, `sheets`, `index`), duotone (`fold`, `halftone`, `dusk`, `prism`, `columns`, `signal`, `pillars`, `heatmap`, `vault`), lines (`contour`, `blueprint`, `strata`, `circuit`, `pulse`, `scatter`, `lattice`, `route`, `waypoints`), calm (`dawn`, `sage`, `moonlit`, `constellation`, `lanterns`, `beacon`, `tide`, `doorway`, `horizon`) and shapes (`facets`, `ascent`, `circles`, `orbit`, `swatches`, `bezier`, `gather`, `confetti`, `bubbles`). A new page without a cover gets one of them automatically ([automatic covers](/pages/overview#automatic-covers)). A page that uses a name from the first gallery (`aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` or `mint`) shows the closest of these. The page's title isn't in the front matter: it's the document's title.
 
 ## Text
 
