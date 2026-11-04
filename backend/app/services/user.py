@@ -46,6 +46,7 @@ def _user_from_mongo(raw: dict) -> User:
         last_login_at=raw.get("last_login_at"),
         google_refresh_token_enc=raw.get("google_refresh_token_enc"),
         analytics_digest="off" if raw.get("analytics_digest") == "off" else "weekly",
+        mention_emails=raw.get("mention_emails") is not False,
     )
 
 

@@ -537,7 +537,7 @@ _SHARE_ROLE = {
 
 def _share_html(
     *, document_title: str, url: str, sharer_name: str, role: str,
-    encrypted: bool, message: str | None,
+    encrypted: bool, message: str | None, noun: str = "document",
 ) -> str:
     # Free text chosen by one user, rendered into markup that lands in another
     # user's inbox. Unescaped, a document titled `</div><a href="http://evil">`
@@ -583,12 +583,12 @@ def _share_html(
 
     content = (
         _eyebrow("Shared with you")
-        + _heading(f"{sharer_name} shared a document with you")
+        + _heading(f"{sharer_name} shared a {noun} with you")
         + _p(f"You can {_strong(_SHARE_ROLE.get(role, 'read it'))}.")
         + note
         + doc_box
         + crypto
-        + _button(url_attr, "Open the document", margin="0 0 24px")
+        + _button(url_attr, f"Open the {noun}", margin="0 0 24px")
         + _rule()
         + _p(
             f"Sign in to Markdrop with {_strong('this email address')} to open it. You can "
@@ -612,6 +612,7 @@ def _share_html(
 async def send_document_share_email(
     *, to_email: str, document_title: str, slug: str,
     sharer_name: str, role: str, encrypted: bool, message: str | None = None,
+    noun: str = "document",
 ) -> None:
     """Tell someone a document was shared with them. Raises on failure.
 
@@ -638,7 +639,7 @@ async def send_document_share_email(
         "reply_to": settings.email_reply_to,
         "html": _share_html(
             document_title=document_title, url=url, sharer_name=sharer_name,
-            role=role, encrypted=encrypted, message=message,
+            role=role, encrypted=encrypted, message=message, noun=noun,
         ),
     })
 

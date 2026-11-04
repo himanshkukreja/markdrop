@@ -187,6 +187,25 @@
       ]
     },
     {
+      "id": "page-notifications",
+      "date": "2026-11-04",
+      "title": "Mentions that notify: a bell, emails and Notify people",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Mention someone on a page and they're told: a notification under the new bell at the top of Markdrop, and an email, both opening the page at the block that mentions them. Only people who can open the page are notified.",
+      "body": "- **The bell:** an unread badge, the list newest first with who, what, the page and when, **All** / **Unread** and **Mark all read**. Choosing one opens the page at the block and highlights it. A bottom sheet on phones.\n- **Who's told:** each person newly mentioned (or named on a sign-off block) who can open the page. Never you, never someone already mentioned before your change, never someone who can't open the page, and a page they lose access to later shows without its title.\n- **Email:** at most one per page every 10 minutes, with the mentions batched. Turn it off in **Settings › Account** (**Email me when someone mentions me**) or from the email's own link; the bell keeps working.\n- **Share › Notify people** (was **Email them**): the email with your message, plus a notification for people with an account.\n- **MCP:** pages an AI app writes notify the same way, and three new tools: `list_notifications`, `mark_notifications_read` and `share_with_people`. See [Mentions and notifications](/pages/mentions-and-notifications).",
+      "docs": [
+        "/pages/mentions-and-notifications",
+        "/sharing/share-with-people",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",

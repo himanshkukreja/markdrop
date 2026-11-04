@@ -72,7 +72,22 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "duplicate_page", scope: "write" },
     ],
   },
-  { title: "Access", icon: "lock", tools: [{ name: "set_access", scope: "write" }] },
+  {
+    title: "Access",
+    icon: "lock",
+    tools: [
+      { name: "set_access", scope: "write" },
+      { name: "share_with_people", scope: "write" },
+    ],
+  },
+  {
+    title: "Notifications",
+    icon: "bell",
+    tools: [
+      { name: "list_notifications", scope: "read" },
+      { name: "mark_notifications_read", scope: "write" },
+    ],
+  },
   {
     title: "Files and uploads",
     icon: "film",

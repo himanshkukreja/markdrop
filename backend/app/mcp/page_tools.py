@@ -139,6 +139,9 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
             from app.services import page_history
 
             await page_history.on_save(ctx.db, cur, after, actor_of(ctx))
+            from app.services import notifications
+
+            await notifications.on_page_saved(ctx.db, cur, after, actor_of(ctx))
             new_rev = int(after.get("rev") or 1)
             live.notify(after["slug"], {"type": "appended", "rev": new_rev, "markdown": block.strip("\n")})
             live.publish(after["slug"], new_rev)
@@ -220,6 +223,11 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         # Properties on a page made from a template (or a folder's default): written into what it got.
         after = await _save(ctx, raw, page_props.apply(raw.get("content") or "", props), None)
         raw = after or raw
+    elif content:
+        # People mentioned in the new page hear about it (content given: properties went into it).
+        from app.services import notifications
+
+        await notifications.on_page_saved(ctx.db, None, raw, actor_of(ctx))
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
            "editor": "blocks", "parent": parent_slug, "workspace_error": error,
            "template_id": raw.get("template_id")}
@@ -865,7 +873,9 @@ PAGE_SYNTAX = (
     "title=\"…\" description=\"…\"}'. Web embed (YouTube, Vimeo, Loom, Figma, Google Maps, CodePen only): "
     "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}' (ids from "
     "list_workspace_members; ':person[Name]' alone is given the id when exactly one member of the page's "
-    "workspace has that name, else it stays plain text); date: ':date[YYYY-MM-DD]'; "
+    "workspace has that name, else it stays plain text). A person newly mentioned is notified (in Markdrop, "
+    "and by email unless they turned that off) when they can open the page; put the mention in a block with "
+    "an anchor ('{#b-…}') so the notification links to it. Date: ':date[YYYY-MM-DD]'; "
     "key: ':kbd[⌘ K]'. Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
     "font, locked, allow_export): use set_page_properties."
 )

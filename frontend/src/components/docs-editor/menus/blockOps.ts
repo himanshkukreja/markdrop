@@ -117,6 +117,19 @@ export function ensureAnchor(editor: Editor, pos: number): string | null {
   return id;
 }
 
+/** The anchor of the innermost block around `pos` (an inline position), added when missing: a
+ *  person mention gets one so the notification it sends links straight to its block. */
+export function ensureAnchorAround(editor: Editor, pos: number): string | null {
+  const doc = editor.state.doc;
+  if (pos < 0 || pos > doc.content.size) return null;
+  const $pos = doc.resolve(pos);
+  for (let d = $pos.depth; d > 0; d--) {
+    const at = $pos.before(d);
+    if (anchorHolder(doc, at)) return ensureAnchor(editor, at);
+  }
+  return null;
+}
+
 /** The position of the block holding an anchor, or null. */
 export function findAnchor(doc: PMNode, id: string): number | null {
   let at: number | null = null;

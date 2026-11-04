@@ -18,3 +18,5 @@ class User:
     google_refresh_token_enc: str | None = None
     # Weekly analytics digest: "weekly" (the default) or "off".
     analytics_digest: str = "weekly"
+    # An email when someone mentions you or asks for your sign-off (services/notifications.py).
+    mention_emails: bool = True

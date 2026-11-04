@@ -205,24 +205,12 @@ async def add_person(
     """
     actor, ctx = _actor_ctx(request, db, user)
     raw = await _load(db, slug)
-    grant = await access_service.add_grant(db, raw, str(data.email), data.role, actor, ctx)
+    # The grant, then (``notify``, nothing for someone who already had access) the share
+    # email and, for an account, a notification under the bell (services/notifications.py).
+    from app.services import notifications
 
-    # Nothing was written for someone who already had access: no email either.
-    if data.notify and not grant.unchanged and mailer.is_configured():
-        try:
-            await mailer.send_document_share_email(
-                to_email=grant.email,
-                document_title=raw.get("title") or f"/{slug}",
-                slug=slug,
-                sharer_name=user.name or user.email or "Someone",
-                role=grant.role,
-                encrypted=bool(raw.get("encrypted")),
-                message=data.message,
-            )
-            await access_service.mark_notified(db, grant.id)
-            grant.notified = True
-        except Exception:
-            grant.notified = False
+    grant = await notifications.share_with(db, raw, str(data.email), data.role, actor, ctx,
+                                           notify_them=data.notify, message=data.message)
 
     return _to_grant(grant)
 

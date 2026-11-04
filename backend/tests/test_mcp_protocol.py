@@ -125,7 +125,9 @@ class Transport(McpTestCase):
             "create_page_image_upload", "complete_page_image_upload", "copy_page_asset",
             # A document's link (old links redirect).
             "set_slug",
-            "duplicate_page"})
+            "duplicate_page",
+            # Notifications, and sharing with named people.
+            "list_notifications", "mark_notifications_read", "share_with_people"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")

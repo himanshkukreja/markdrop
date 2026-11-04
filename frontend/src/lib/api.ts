@@ -634,6 +634,8 @@ export interface MeUser {
   created_at: string;
   /** The weekly analytics email (Settings → Account). Missing on older API responses = "weekly". */
   analytics_digest?: "weekly" | "off";
+  /** "Email me when someone mentions me" (and asks for my sign-off). Missing on older APIs = on. */
+  mention_emails?: boolean;
 }
 
 export function googleLoginUrl(next?: string): string {
@@ -723,7 +725,9 @@ export async function updateMyName(name: string): Promise<MeUser> {
   return res.json();
 }
 
-export async function updatePreferences(prefs: { analytics_digest: "weekly" | "off" }): Promise<{ analytics_digest: "weekly" | "off" }> {
+export async function updatePreferences(
+  prefs: { analytics_digest?: "weekly" | "off"; mention_emails?: boolean },
+): Promise<{ analytics_digest: "weekly" | "off"; mention_emails?: boolean }> {
   const res = await fetch(`${API_BASE}/api/v1/me/preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },

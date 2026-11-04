@@ -170,6 +170,8 @@ You can also write just the name, `:person[Ada Lovelace]`. When the page is save
 
 A person's name shows only to the page's owner and the members of its workspace. Everyone else, including the Markdown an AI app reads for them, gets `:person[]{id=…}`, shown as "a person".
 
+A person newly mentioned gets a notification, if they can open the page. See [Mentions and notifications](/pages/mentions-and-notifications).
+
 ## Keys
 
 ```markdown

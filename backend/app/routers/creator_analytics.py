@@ -211,12 +211,22 @@ async def update_preferences(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Account preferences: ``analytics_digest`` "weekly" | "off"."""
+    """Account preferences: ``analytics_digest`` "weekly" | "off", and
+    ``mention_emails`` (bool; services/notifications.py). Either or both."""
     if is_tenant_request(request):
         # A workspace domain's session reads documents; it doesn't change the account.
         raise HTTPException(status_code=403, detail="Change this on markdrop.in.")
-    await digest.set_preference(db, user.id, data.analytics_digest)
-    return {"analytics_digest": data.analytics_digest}
+    if data.analytics_digest is None and data.mention_emails is None:
+        raise HTTPException(status_code=422, detail="Nothing to change.")
+    from app.services import notifications
+
+    if data.analytics_digest is not None:
+        await digest.set_preference(db, user.id, data.analytics_digest)
+    if data.mention_emails is not None:
+        await notifications.set_preference(db, user.id, data.mention_emails)
+    row = await db["users"].find_one({"_id": ObjectId(user.id)}, {"analytics_digest": 1, "mention_emails": 1}) or {}
+    return {"analytics_digest": "off" if row.get("analytics_digest") == "off" else "weekly",
+            "mention_emails": row.get("mention_emails") is not False}
 
 
 _DIGEST_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",
