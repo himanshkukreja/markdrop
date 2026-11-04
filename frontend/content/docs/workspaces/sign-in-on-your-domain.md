@@ -23,7 +23,7 @@ Everyone else sees the sign-in steps below. That includes readers who are signed
 
 ::::steps
 ### Choose Sign in
-On your domain, the header shows **Sign in to read Acme**, with your workspace's site name, or the domain if it has none (on a phone, **Sign in**). In a Locked workspace, signed-out visitors see **Sign in to read Acme** in the middle of the page instead.
+On your domain, the bar at the top shows **Sign in to read Acme**, with your workspace's site name, or the domain if it has none (on a phone, **Sign in**). In a Locked workspace, signed-out visitors see **Sign in to read Acme** in the middle of the page instead.
 
 ![The header on docs.acme.com: Acme's logo and name on the left, Sign in to read Acme on the right.](/docs-assets/workspaces/sign-in-on-your-domain/tenant-sign-in.webp)
 
@@ -52,7 +52,7 @@ The sign-in Markdrop hands to your domain is deliberately small:
 
 Every document still runs its normal access check for that person. Signing in on a domain never opens anything the reader couldn't already open on markdrop.in.
 
-To sign out on your domain, a reader opens the avatar menu in the header and chooses **Sign out**.
+To sign out on your domain, a reader opens the avatar menu in the bar at the top and chooses **Sign out**.
 
 ## Edit on your domain
 

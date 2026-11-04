@@ -6,7 +6,7 @@ prerequisites: [/sharing/who-can-open]
 keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, who's editing, editing, pencil, mcp, get_viewers, set_presence, ai]
 ---
 
-When other people have the same document or file open, their avatars appear at the top of the page, next to **Copy link** (on a [page](/pages/overview#the-top-bar), in the top bar beside **Saved** and **Share**). Choose the avatars to see the list: everyone who's viewing and the section each of them is reading.
+When other people have the same document or file open, their avatars appear in the bar at the top, beside **Share** or **Copy link** (on a [page](/pages/overview#the-top-bar), also beside **Saved**). Choose the avatars to see the list: everyone who's viewing and the section each of them is reading.
 
 Presence is live and lives only in memory: nothing about who viewed is stored, and it never appears in your analytics.
 
@@ -23,7 +23,7 @@ Presence is live and lives only in memory: nothing about who viewed is stored, a
 
 On a PDF the list says which page each person is on, and on a video, roughly where they are. Readers in full screen see the avatars in the corner, beside **Show details**, whenever someone else is there too.
 
-On phones the row is shorter, and the list opens as a sheet. On a page, the bar on a phone shows only the person who's editing, with the pencil.
+On phones the row is shorter, and the list opens as a sheet. On a page or a document, the bar on a phone shows only the person who's editing, with the pencil.
 
 ## Who appears by name
 
