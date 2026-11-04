@@ -130,3 +130,9 @@
 @media (prefers-reduced-motion: reduce) {
   .wl-row, .wl-tile, .wl-hover { transition: none; }
 }
+
+/* Phones: two compact tiles a row. */
+@container (max-width: 520px) {
+  .wl-grid:not(.wl-cards) { gap: 10px; }
+  .wl-grid:not(.wl-cards) .wl-tile { min-height: 108px; padding: 12px; gap: 10px; }
+}
