@@ -165,6 +165,12 @@
   bottom: 32px; border-bottom: 1px solid rgba(15, 23, 42, .1); border-radius: var(--radius-md);
   -webkit-mask-image: none; mask-image: none;
 }
+/* …whose last lines fade into the paper itself (never into the band), so no line ends sliced. */
+:root:not([data-theme="light"]) .wl-pv__paper--light::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 22px; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0), #fff 85%);
+}
+:root:not([data-theme="light"]) .wl-tile:has(.wl-card__band:not([data-pv="icon"])) .wl-card__act { background: color-mix(in srgb, var(--surface) 38%, transparent); }
 :root:not([data-theme="light"]) .wl-pv__paper:not(.wl-pv__paper--light) { border-color: var(--border-strong); background: var(--surface-raised); }
 .wl-pv__paper--page { padding: 0; }
 .wl-pv__paper--page img { width: 100%; height: auto; }
