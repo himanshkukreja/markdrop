@@ -271,6 +271,15 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-code__wrap:focus-visible { outline: 2px solid var(--border-focus); }
 .dxe-code .md-codeblock__pre { min-height: 22px; }
 .dxe-code.dx-code--wrap .md-codeblock__pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A mermaid block: the diagram (the reader's DiagramFrame), its code only while it's edited. */
+.dxe-code > [hidden] { display: none !important; }
+.dxe-mermaid { border-radius: var(--radius-xl); }
+.dxe-mermaid .md-diagram-wrap, .dxe-mermaid .md-diagram-error { margin: 0; }
+.dxe-mermaid__view--edit { cursor: pointer; }
+.dxe-mermaid__view--live { padding: 0 12px 12px; }
+.dxe-mermaid__view--live .md-diagram { box-shadow: none; padding: 12px 16px 16px; }
+.dxe-mermaid__empty { padding: 20px 16px; border: 1px dashed var(--border); border-radius: var(--radius-lg); text-align: center; font-size: 13px; }
+.dxe-mermaid__view--live .dxe-mermaid__empty { border-style: solid; }
 
 .dxe-math { margin: 24px 0; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); overflow: hidden; }
 .dxe-math__head { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface-inset); font-size: 12px; font-weight: 600; color: var(--text-secondary); }

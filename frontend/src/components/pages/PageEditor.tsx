@@ -79,6 +79,8 @@ export interface PageEditorProps {
   addressing: PageAddressing;
   /** The owner (may lock and unlock the page). */
   isOwner?: boolean;
+  /** May edit (and lock / unlock) a locked page: its owner and the workspace's admins (server's `can.edit_locked`). */
+  mayEditLocked?: boolean;
   /** The page's address (Copy link). */
   url?: string;
   updatedAt?: string | null;
@@ -157,7 +159,7 @@ function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (
   );
 }
 
-export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings }: PageEditorProps) {
+export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
@@ -201,7 +203,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     subscribeLive,
   });
   const props = useMemo(() => readPageProps(content), [content]);
-  const lockedForMe = props.locked && !isOwner;
+  const lockedForMe = props.locked && !isOwner && !mayEditLocked;
   // Who's viewing already says someone else is editing: read only before anyone clicks.
   const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
   const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
@@ -456,8 +458,8 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       : ai?.off
         ? [{ label: "AI", icon: "sparkle", description: ai.off, disabled: true, separated: true, onClick: () => {} }]
         : []),
-    ...(isOwner ? [{ label: props.locked ? "Unlock page" : "Lock page", icon: "lock", description: props.locked ? "Anyone who can edit can change it again" : "Only you and workspace admins can edit", onClick: () => setProps({ locked: !props.locked }), separated: true }] : []),
-    { label: "Copy link", icon: "link", separated: !isOwner, onClick: () => void copyText(url ?? window.location.href.split("?")[0]).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
+    ...(isOwner || mayEditLocked ? [{ label: props.locked ? "Unlock page" : "Lock page", icon: "lock", description: props.locked ? "Anyone who can edit can change it again" : "Only you and workspace admins can edit", onClick: () => setProps({ locked: !props.locked }), separated: true }] : []),
+    { label: "Copy link", icon: "link", separated: !(isOwner || mayEditLocked), onClick: () => void copyText(url ?? window.location.href.split("?")[0]).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
     ...(onAddSubPage ? [{ label: "Add a sub-page", icon: "plus", onClick: onAddSubPage }] : []),
     ...(onMoveTo ? [{ label: "Move to…", icon: "arrowRight", onClick: onMoveTo }] : []),
     ...(onDuplicate ? [{ label: "Duplicate", icon: "copy", description: "A copy beside it, with its sub-pages", onClick: () => void session.flush().then(onDuplicate, onDuplicate) }] : []),

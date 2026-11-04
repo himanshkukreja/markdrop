@@ -770,6 +770,7 @@ export default function DocumentView(props: DocumentViewProps) {
               onDuplicate={canManagePage ? () => setPageAction({ kind: "duplicate", open: true }) : null}
               onDelete={!tenant && (isOwner || v.canEditSettings) ? () => setDeleting(true) : null}
               isOwner={isOwner || v.canEditSettings}
+              mayEditLocked={!!v.access?.can?.edit_locked}
               url={url}
               updatedAt={null}
               chrome={{

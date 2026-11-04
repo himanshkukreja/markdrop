@@ -58,6 +58,8 @@ export interface DocCan {
   share: boolean;
   move: boolean;
   unshare: boolean;
+  /** May edit (and lock / unlock) a page locked by its `locked` property: its owner and workspace admins. */
+  edit_locked?: boolean;
 }
 
 export interface AccessState {

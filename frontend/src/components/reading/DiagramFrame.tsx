@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { Alert, Button, Dialog, Skeleton } from "@/components/ui";
 import { useTheme } from "@/lib/theme";
 import { CodeBlock } from "./CodeBlock";
@@ -208,6 +208,12 @@ export function mermaidThemeVariables(el: Element): Record<string, string | bool
   };
 }
 
+/** A render error as text (mermaid throws Errors, and sometimes plain strings or objects). */
+function errorText(e: unknown): string {
+  const raw = e instanceof Error ? e.message : typeof e === "string" ? e : (e as { message?: unknown } | null)?.message;
+  return typeof raw === "string" ? raw.trim().slice(0, 2000) : "";
+}
+
 /* ── The frame ─────────────────────────────────────────────────────────────── */
 
 export interface DiagramFrameProps {
@@ -216,6 +222,14 @@ export interface DiagramFrameProps {
   /** Caption override (default: the diagram's own title, if any). */
   caption?: string;
   className?: string;
+  /** Extra toolbar buttons, before "Open larger" (the page editor's "Edit" / "Done"). */
+  tools?: ReactNode;
+  /** The "View source" toggle (default true; the editor shows its own code instead). */
+  viewSource?: boolean;
+  /** On a render error, show mermaid's message too (default false: the reader keeps it short). */
+  errorDetail?: boolean;
+  /** On a render error, show the source below the warning (default true). */
+  errorSource?: boolean;
 }
 
 type Rendered = { svg: string; id: string };
@@ -231,11 +245,12 @@ type Rendered = { svg: string; id: string };
  * resolved theme changes. Only this component re-renders: the surrounding markdown (and KaTeX)
  * is untouched. The previous SVG stays up until the new one is ready, so nothing jumps.
  */
-export function DiagramFrame({ code, caption, className }: DiagramFrameProps) {
+export function DiagramFrame({ code, caption, className, tools, viewSource = true, errorDetail = false, errorSource = true }: DiagramFrameProps) {
   const { resolved } = useTheme();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [rendered, setRendered] = useState<Rendered | null>(null);
-  const [failed, setFailed] = useState(false);
+  // null = rendered fine; a string = the render error's message.
+  const [failed, setFailed] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
   const [large, setLarge] = useState(false);
   const lastSig = useRef("");
@@ -273,13 +288,13 @@ export function DiagramFrame({ code, caption, className }: DiagramFrameProps) {
         .then(({ svg }) => {
           if (cancelled) return;
           lastSig.current = sig;
-          setFailed(false);
+          setFailed(null);
           setRendered({ svg, id });
         })
-        .catch(() => {
+        .catch((e: unknown) => {
           if (cancelled) return;
           lastSig.current = sig;
-          setFailed(true);
+          setFailed(errorText(e));
         });
     };
     // First paint renders at once; theme switches wait 100ms (the toggle's own frame settles first).
@@ -299,12 +314,20 @@ export function DiagramFrame({ code, caption, className }: DiagramFrameProps) {
 
   // The dialog shows its own copy: rename the ids so markers and scoped styles stay unique.
   const largeSvg = useMemo(() => (rendered ? rendered.svg.split(rendered.id).join(`${rendered.id}-lg`) : ""), [rendered]);
+  // Stable objects: React re-sets innerHTML whenever the object changes, even with the same SVG,
+  // which would swap the diagram's DOM on every re-render (in the editor, a click into the page; a
+  // click on the diagram itself would then land on a node that's gone).
+  const canvasHtml = useMemo(() => ({ __html: rendered?.svg ?? "" }), [rendered]);
+  const largeHtml = useMemo(() => ({ __html: largeSvg }), [largeSvg]);
 
-  if (failed) {
+  if (failed !== null) {
     return (
       <div ref={wrapRef} className={["md-diagram-error not-prose", className].filter(Boolean).join(" ")}>
-        <Alert tone="warning">This diagram has a syntax error, so it&apos;s shown as source.</Alert>
-        <CodeBlock code={code} language="mermaid" />
+        <Alert tone="warning">
+          {errorSource ? "This diagram has a syntax error, so it's shown as source." : "This diagram has a syntax error."}
+          {errorDetail && failed && <pre className="md-diagram-error__msg">{failed}</pre>}
+        </Alert>
+        {errorSource && <CodeBlock code={code} language="mermaid" />}
       </div>
     );
   }
@@ -318,16 +341,19 @@ export function DiagramFrame({ code, caption, className }: DiagramFrameProps) {
             {title && <span className="md-diagram__title">{title}</span>}
           </figcaption>
           <div className="md-diagram__tools no-print">
-            <Button variant="ghost" size="sm" iconLeft="code" aria-expanded={showSource} aria-controls={sourceId} onClick={() => setShowSource((s) => !s)}>
-              <span className="md-diagram__btn-label">{showSource ? "Hide source" : "View source"}</span>
-            </Button>
+            {tools}
+            {viewSource && (
+              <Button variant="ghost" size="sm" iconLeft="code" aria-expanded={showSource} aria-controls={sourceId} onClick={() => setShowSource((s) => !s)}>
+                <span className="md-diagram__btn-label">{showSource ? "Hide source" : "View source"}</span>
+              </Button>
+            )}
             <Button variant="ghost" size="sm" iconLeft="expand" aria-haspopup="dialog" onClick={() => setLarge(true)}>
               <span className="md-diagram__btn-label">Open larger</span>
             </Button>
           </div>
         </div>
         {rendered ? (
-          <div className="md-diagram__canvas" dangerouslySetInnerHTML={{ __html: rendered.svg }} />
+          <div className="md-diagram__canvas" dangerouslySetInnerHTML={canvasHtml} />
         ) : (
           <div className="md-diagram__loading">
             <Skeleton variant="rect" width="100%" height={180} />
@@ -341,7 +367,7 @@ export function DiagramFrame({ code, caption, className }: DiagramFrameProps) {
       {/* A portal, outside the blocked document body: the diagram is blocked and its title masked. */}
       <Dialog open={large} onClose={() => setLarge(false)} title={<span className="ph-sensitive ph-mask">{title ?? kind}</span>} size="xl" bodyClassName="ph-no-capture md-diagram-dialog">
         {largeSvg ? (
-          <div className="md-diagram__canvas md-diagram__canvas--large" dangerouslySetInnerHTML={{ __html: largeSvg }} />
+          <div className="md-diagram__canvas md-diagram__canvas--large" dangerouslySetInnerHTML={largeHtml} />
         ) : (
           <div className="md-diagram__loading">
             <Skeleton variant="rect" width="100%" height={240} />

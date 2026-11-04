@@ -338,6 +338,7 @@
 .md-diagram__source .md-codeblock { margin: 0; }
 .md-diagram-error { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
 .md-diagram-error .md-codeblock { margin: 0; }
+.md-diagram-error__msg { margin: 8px 0 0; max-height: 160px; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 18px; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 639px) {
   .md-diagram { padding: 12px 16px 16px; }
   /* Icon-only buttons on phones (MobileReading board); the label stays for assistive tech. */
