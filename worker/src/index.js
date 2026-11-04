@@ -1446,7 +1446,7 @@ function videoViewer(src, poster = null) {
     border:1px solid var(--border-strong);padding:2px 6px;border-radius:5px;font-variant-numeric:tabular-nums;
     font-size:11px;display:none;pointer-events:none;white-space:nowrap}
   .row{display:flex;align-items:center;gap:6px;margin-top:8px}
-  button{background:transparent;border:0;color:var(--text);cursor:pointer;padding:6px;border-radius:7px;
+  button{background:transparent;border:0;color:var(--text);cursor:pointer;padding:6px;border-radius:7px;font-size:13px;
     min-width:36px;min-height:36px;display:inline-flex;align-items:center;justify-content:center;line-height:0}
   button:hover{background:rgb(255 255 255 / .12)}
   button:focus-visible{outline:2px solid var(--border-focus);outline-offset:2px}
