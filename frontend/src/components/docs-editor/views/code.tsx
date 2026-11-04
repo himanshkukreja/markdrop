@@ -15,7 +15,7 @@ import { useHost } from "../host";
 import { cx } from "./shared";
 import { cleanAttrs } from "../core/attrs.mjs";
 
-export function CodeBlockView({ node, updateAttributes, editor, getPos, selectionInside }: ReactNodeViewProps) {
+export function CodeBlockView({ node, updateAttributes, editor, getPos, selectionInside, selected }: ReactNodeViewProps) {
   const host = useHost();
   const language = (node.attrs.language as string | null) ?? "";
   const meta = node.attrs.meta as string | null;
@@ -32,10 +32,11 @@ export function CodeBlockView({ node, updateAttributes, editor, getPos, selectio
   const editing = mermaid && !ro && (opening || (!!selectionInside && focused));
   useEffect(() => {
     if (!opening) return;
-    if (selectionInside && focused) return setOpening(false);
+    // The caret is in the code, or the block itself is selected (Esc): done opening.
+    if ((selectionInside && focused) || selected) return setOpening(false);
     const t = setTimeout(() => setOpening(false), 600);
     return () => clearTimeout(t);
-  }, [opening, selectionInside, focused]);
+  }, [opening, selectionInside, focused, selected]);
   const code = node.textContent;
   // While typing, the preview follows the code once it settles; otherwise it is the code itself.
   const settled = useSettled(code, editing ? 350 : 0);
@@ -44,7 +45,16 @@ export function CodeBlockView({ node, updateAttributes, editor, getPos, selectio
   const edit = () => {
     if (ro) return;
     setOpening(true);
-    requestAnimationFrame(() => openMermaid(editor, getPos()));
+    // A frame later (the click's own selection lands first). When the selection went elsewhere in
+    // that frame (Esc showed the diagram again, a click or a key moved on), that wins: pulling the
+    // caret back into the code here reopened it right after Esc (a busy main thread runs the frame late).
+    const at = editor.state.selection;
+    requestAnimationFrame(() => {
+      const pos = getPos();
+      const now = editor.state.selection;
+      if (now.eq(at)) openMermaid(editor, pos);
+      else if (!caretIn(editor, pos)) setOpening(false);
+    });
   };
   const done = () => closeMermaid(editor, getPos());
   // A click on the diagram edits it (not on its buttons, nor inside its "Open larger" dialog).
@@ -203,6 +213,14 @@ function useFocusWithin(editor: Editor, ref: React.RefObject<HTMLElement | null>
 }
 
 const isMermaid = (n: { type: { name: string }; attrs: Record<string, unknown> } | null | undefined) => n?.type.name === "codeBlock" && n.attrs.language === MERMAID;
+
+/** Whether the caret (a text selection) is in the code of the block at `pos`. */
+function caretIn(editor: Editor, pos: number | undefined): boolean {
+  if (typeof pos !== "number") return false;
+  const node = editor.state.doc.nodeAt(pos);
+  const sel = editor.state.selection;
+  return !!node && sel instanceof TextSelection && sel.from > pos && sel.to < pos + node.nodeSize;
+}
 
 /** Puts the caret at the end of the mermaid block at `pos` (its code shows). */
 function openMermaid(editor: Editor, pos: number | undefined): boolean {
