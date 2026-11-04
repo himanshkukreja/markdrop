@@ -12535,6 +12535,39 @@
         ],
         "title": "AccessResponse"
       },
+      "AccessSync": {
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "applying",
+              "done"
+            ],
+            "title": "State"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "default": 0
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total",
+            "default": 0
+          },
+          "want": {
+            "type": "boolean",
+            "title": "Want",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "state"
+        ],
+        "title": "AccessSync",
+        "description": "A sign-in change (Team/Open ⇄ Locked) still being carried through to\nstored files, page images and cached pages. The gate itself holds from the\nmoment the setting is saved; this is what the settings page shows as\n\"Applying to N items…\"."
+      },
       "ActionItemsBody": {
         "properties": {
           "text": {
@@ -18773,6 +18806,16 @@
             "type": "integer",
             "title": "Domain Count",
             "default": 0
+          },
+          "access_sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AccessSync"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",

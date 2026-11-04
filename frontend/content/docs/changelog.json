@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "locked-switch-applies-in-background",
+      "date": "2026-11-04",
+      "title": "Switching a workspace to Locked is instant, with progress for big workspaces",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Choosing Locked (or switching back to Team or Open) used to freeze the settings page while every item was updated, about a minute and a half for 300 items. Sign-in is now enforced the moment you choose it, and the stored files, page images and cached pages follow in the background, with a progress bar.",
+      "body": "- **Enforced at once.** The moment you choose **Locked**, every item in the workspace asks for sign-in on every address: a link someone already has stops opening it unless they sign in and can open it.\n- **The rest follows in the background.** Markdrop then locks the stored files (so direct links to a file or a video stop working too), the images on pages and the copies of pages kept for speed, several at a time. A small workspace is done before the switch finishes; a big one shows **Applying to 300 items…** in **Privacy** (and under the switch in **Advanced**) and counts down. The page stays usable, you can leave it, and it carries on even if Markdrop restarts.\n- **Changing your mind is fine.** Switch back to **Team** or **Open** while it's applying and Markdrop applies whichever you chose last.\n- **API.** `GET` and `PUT /api/v1/workspaces/{id}` return `access_sync` (`state`, `pending`, `total`, `want`) while a change is applying. See [Workspace privacy](/workspaces/privacy)."
+    },
+    {
       "id": "cli-0-6-0",
       "date": "2026-11-04",
       "title": "CLI 0.6.0: pages, exports, trash, access requests and search from the terminal",

@@ -1,9 +1,9 @@
 ---
 title: Workspace privacy
 description: Choose Open, Team or Locked for a workspace, and check what someone else would see with Preview as.
-updated: 2026-11-02
+updated: 2026-11-04
 prerequisites: [/workspaces/create, /sharing/who-can-open]
-keywords: [privacy, open, team, locked, custom, sign in, require sign-in, default access, preview as]
+keywords: [privacy, open, team, locked, custom, sign in, require sign-in, default access, preview as, applying, progress]
 ---
 
 Every item in a workspace has its own "Who can open it" setting: **Only people added**, **Acme team** or **Anyone with the link**. (Here the workspace is called Acme and its site name is Acme. The team choice uses the site name, or the workspace's name if it has no site name.) Workspace privacy sets two things on top of that: what new items start as, and whether visitors must sign in to open anything at all.
@@ -20,6 +20,12 @@ Admins choose privacy on the **People** tab of the workspace's settings.
 
 A new workspace starts as **Team**.
 
+What each one does:
+
+- **Open**: new items start as **Anyone with the link**, so a link you share works for whoever has it. Each item can still be narrowed to the team or to people added by name. Nobody is asked to sign in unless an item needs it.
+- **Team**: new items start as **Acme team**, so only signed-in members can open them. An item can still be opened to anyone with the link, one at a time, by whoever can change it.
+- **Locked**: new items start as **Acme team**, and visitors must sign in to open *anything*, whatever its own setting. Items set to **Anyone with the link** need sign-in too, so the only people who can open an item are members (for team items) and people added to it by name. There are no public links.
+
 ![The Privacy section at the top of the People tab in Acme's settings, with three presets: Open, Team (selected) and Locked, each with a one-line description.](/docs-assets/workspaces/privacy/privacy-presets.webp)
 
 Changing the preset never changes items that are already in the workspace, with one exception: Locked. When visitors must sign in, that applies to every item at once, including ones set to "Anyone with the link".
@@ -27,6 +33,14 @@ Changing the preset never changes items that are already in the workspace, with 
 :::warning[Locked applies everywhere]
 In a Locked workspace, sign-in is enforced on every address an item has, including its markdrop.in link, not only on your own domain. Someone who isn't a member and wasn't added by name can't open anything, even with the link.
 :::
+
+## Switching to Locked and back
+
+Locked takes effect the moment you choose it. From then on every item in the workspace asks for sign-in, on every address: a link someone already has stops opening the item unless they sign in and can open it.
+
+Markdrop then brings everything stored for those items in line: the files themselves (so a direct link to a file or a video stops working too), the images on pages and the copies of pages kept for speed. In a small workspace that's done before the switch finishes. In a big one it takes a few seconds, and the **Privacy** section shows **Applying to 300 items…** with a bar that counts down. You don't have to wait for it: the rest of the settings work as usual, and you can leave the page. It carries on until every item is done.
+
+Switching back to **Team** or **Open**, even while Locked is still applying, is fine: Markdrop applies whichever you chose last. Items set to **Anyone with the link** then open for anyone with the link again, at the same links. Everything else keeps its own setting.
 
 ## What each item setting means
 
