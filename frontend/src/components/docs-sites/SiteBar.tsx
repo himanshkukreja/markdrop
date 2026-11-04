@@ -129,7 +129,7 @@ function PublishControls({ preview }: { preview: boolean }) {
     return (
       <Anchor
         href={`${base}/publish`}
-        className="md-focus inline-flex h-[30px] shrink-0 items-center gap-2 rounded-full bg-accent-soft px-3 text-[12px] font-semibold text-accent-text no-underline"
+        className="md-focus md-touch-hit inline-flex h-[30px] shrink-0 items-center gap-2 rounded-full bg-accent-soft px-3 text-[12px] font-semibold text-accent-text no-underline"
         aria-label={`Publishing, ${pct}%. Show the progress`}
       >
         <Spinner size={12} /> Publishing… {pct}%
@@ -157,11 +157,12 @@ function PublishControls({ preview }: { preview: boolean }) {
           target="_blank"
           rel="noopener noreferrer"
           onClick={() => guideEvents.liveOpened("site_bar")}
-          className="md-focus inline-flex h-[30px] min-w-0 max-w-[340px] shrink items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-semibold text-success no-underline hover:underline"
+          className="md-focus md-touch-hit inline-flex h-[30px] min-w-0 max-w-[340px] shrink items-center gap-1.5 rounded-full bg-success-soft px-2.5 text-[12px] font-semibold text-success no-underline hover:underline"
           title={`Open ${host} in a new tab`}
         >
           <span className="size-[7px] shrink-0 rounded-full bg-success" aria-hidden />
-          <span className="min-w-0 truncate">Live · <span className="ph-sensitive ph-mask">{host}</span></span>
+          {/* Phones: "Live" alone (the address is in the title and read out), so the bar keeps to one row. */}
+          <span className="min-w-0 truncate">Live<span className="max-sm:sr-only"> · <span className="ph-sensitive ph-mask">{host}</span></span></span>
           <Icon name="external" size={12} className="shrink-0" />
           <span className="md-visually-hidden">(opens in a new tab)</span>
         </a>
@@ -193,7 +194,8 @@ function PublishControls({ preview }: { preview: boolean }) {
  * The site's bar under the studio header: the site tabs (Publish with a count of the changes
  * waiting), then whatever the screen adds (a breadcrumb, a status badge, its own actions), then the
  * guide's publish controls. The site itself (name, switcher, workspace) is in the studio header
- * above. Wraps on phones: the tabs get their own scrolling row.
+ * above. Wraps on phones: the tabs get their own scrolling row. Phones and short landscape screens
+ * let it scroll away with the page (it would take a third of the screen), keeping the 56 px header.
  *
  * `preview={false}`: the screen has its own Preview (the editor). `section={null}` (the import
  * screen): no publish controls.
@@ -225,7 +227,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
   }, [section]);
 
   return (
-    <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0", className)}>
+    <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0 max-sm:static [@media(max-height:500px)]:static", className)}>
       <nav aria-label="Guide" className="relative order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
         {TABS.map((t) => {
           const on = t.id === section;
@@ -236,13 +238,13 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
               href={`${base}${t.path}`}
               aria-current={on ? "page" : undefined}
               className={cx(
-                "md-focus relative inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-body no-underline transition-colors",
+                "md-focus relative inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-body no-underline transition-colors pointer-coarse:min-h-11",
                 on ? "bg-surface-active font-semibold text-text" : "text-text-secondary hover:bg-surface-hover hover:text-text",
               )}
             >
               {t.label}
               {badge > 0 && (
-                <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-accent px-[5px] text-[11px] font-bold leading-none text-on-accent">
+                <span className="grid h-[18px] min-w-[18px] place-items-center rounded-full bg-accent px-[5px] text-[12px] font-bold leading-none text-on-accent">
                   {badge > 99 ? "99+" : badge}
                   <span className="md-visually-hidden"> {t.id === "fixes" ? (badge === 1 ? "thing to fix" : "things to fix") : badge === 1 ? "change" : "changes"}{t.id === "fixes" ? "" : " to publish"}</span>
                 </span>

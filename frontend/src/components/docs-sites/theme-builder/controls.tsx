@@ -39,7 +39,7 @@ export function Group({ label, children, aside }: { label: string; children: Rea
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
-        <span className="flex-1 text-[11px] font-bold uppercase tracking-[0.08em] text-text-muted">{label}</span>
+        <span className="flex-1 text-[12px] font-bold uppercase tracking-[0.08em] text-text-muted">{label}</span>
         {aside}
       </div>
       {children}
@@ -83,9 +83,9 @@ export function ColorField({ label, value, fallback, onChange, warning, disabled
       </label>
       <div className="flex min-w-0 flex-1 flex-col">
         <label htmlFor={id} className="truncate text-[13px] font-medium leading-[18px] text-text">{label}</label>
-        {!value && !warning && <span className="text-[11px] leading-[14px] text-text-muted">Theme default</span>}
+        {!value && !warning && <span className="text-[12px] leading-[14px] text-text-muted">Theme default</span>}
         {warning && (
-          <span className="flex items-center gap-1 text-[11.5px] text-warning">
+          <span className="flex items-center gap-1 text-[12px] text-warning">
             <Icon name="alert" size={12} /> {warning.ratio.toFixed(1)}:1, below 4.5:1
             <button type="button" className="md-focus ml-1 rounded font-semibold text-accent-text underline" onClick={warning.onFix} disabled={disabled}>
               Fix
@@ -186,8 +186,8 @@ export function SliderField({ label, value, fallback, min, max, step, unit = "",
     <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2">
         <label htmlFor={id} className="flex-1 text-[13px] font-medium text-text">{label}</label>
-        {value === null ? <span className="text-[11px] text-text-muted">Theme default</span> : (
-          <button type="button" className="md-focus rounded text-[11.5px] font-medium text-accent-text hover:underline" onClick={() => onChange(null)} disabled={disabled}>
+        {value === null ? <span className="text-[12px] text-text-muted">Theme default</span> : (
+          <button type="button" className="md-focus rounded text-[12px] font-medium text-accent-text hover:underline" onClick={() => onChange(null)} disabled={disabled}>
             Use default
           </button>
         )}

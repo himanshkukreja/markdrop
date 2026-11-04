@@ -25,7 +25,7 @@ import { StudioSignInFailed, useHandoffStuck } from "./StudioSignIn";
  */
 export function StudioWordmark({ size = 26, compact, className }: { size?: number; compact?: boolean; className?: string }) {
   return (
-    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline", className)} aria-label="Markdrop Guides home">
+    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline pointer-coarse:min-h-11", className)} aria-label="Markdrop Guides home">
       <MarkdropMark size={size} className="sm:hidden" />
       <span className={cx("docs-studio__word text-[17px] leading-none", compact && "max-sm:hidden")} aria-hidden>
         <em>Guides</em>
@@ -84,7 +84,7 @@ function SiteSwitcher() {
       trigger={
         <button
           type="button"
-          className="ph-no-capture md-focus flex min-w-0 max-w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover"
+          className="ph-no-capture md-focus flex min-w-0 max-w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover pointer-coarse:min-h-11"
           aria-label={`${current.name}: switch guide`}
         >
           {listed ? <SwitcherMark site={listed} size={22} /> : <SiteTile site={current} size={22} />}

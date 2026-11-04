@@ -86,6 +86,12 @@ if os.environ.get("PB_FAKE_SEARCH_AI"):
     _client = NS(messages=_Messages())
     search_ai.docs_agent = NS(get_client=lambda: _client, configured=lambda: True)
 
+# PB_FAKE_DOCS_ASK=1: Ask AI on a guide shows its composer (mobile-guides.mjs measures it against the
+# on-screen keyboard). Only the status says "configured": no question is sent, and no key is needed.
+if os.environ.get("PB_FAKE_DOCS_ASK"):
+    from app.services import docs_agent
+    docs_agent.configured = lambda: True
+
 # PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
 # real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).
 _lat = float(os.environ.get("PB_R2_LATENCY_MS") or 0) / 1000

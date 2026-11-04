@@ -399,7 +399,7 @@ export function PageTree({
                   <>
                     <span className="inline-flex shrink-0 text-text-muted"><Icon name="folder" size={13} /></span>
                     <span className="min-w-0 flex-1 truncate text-[12px] font-semibold">{dragging.group}</span>
-                    <span className="shrink-0 text-[11px] text-text-muted">{countLabel(navLike.find((x) => x.group === dragging.group)?.pages.length ?? 0)}</span>
+                    <span className="shrink-0 text-[12px] text-text-muted">{countLabel(navLike.find((x) => x.group === dragging.group)?.pages.length ?? 0)}</span>
                   </>
                 )}
               </div>
@@ -409,7 +409,7 @@ export function PageTree({
       ) : tree}
       <p className="md-visually-hidden" aria-live="assertive" aria-atomic="true">{said}</p>
       {anyDot && (
-        <p className="sticky bottom-0 -mx-2.5 mt-auto flex items-center gap-2 border-t border-border bg-surface px-4 py-2.5 text-[11px] text-text-muted">
+        <p className="sticky bottom-0 -mx-2.5 mt-auto flex items-center gap-2 border-t border-border bg-surface px-4 py-2.5 text-[12px] text-text-muted">
           <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-accent" />
           New or changed since the last publish
         </p>
@@ -537,14 +537,14 @@ function PageRow({
           </span>
         )}
         {lockedByOther && (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-warning" title={`${p.lock!.name} is editing`}>
+          <span className="inline-flex shrink-0 items-center gap-1 text-[12px] font-medium text-warning" title={`${p.lock!.name} is editing`}>
             <Icon name="lock" size={11} />
             {firstName(p.lock!.name)}
             <span className="md-visually-hidden"> is editing</span>
           </span>
         )}
         {talk > 0 && (
-          <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-text-muted" title={`${talk} open ${talk === 1 ? "comment" : "comments"}`}>
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-[12px] text-text-muted" title={`${talk} open ${talk === 1 ? "comment" : "comments"}`}>
             <Icon name="message" size={11} />{talk}
             <span className="md-visually-hidden"> open comments</span>
           </span>

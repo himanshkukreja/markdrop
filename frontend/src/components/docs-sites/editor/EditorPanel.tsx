@@ -330,7 +330,7 @@ export function EditorPanel({
             >
               {t.label}
               {t.count !== undefined && (
-                <span className={cx("grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold leading-none", t.warn ? "bg-warning-soft text-warning" : "bg-surface-inset text-text-secondary")}>
+                <span className={cx("grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[12px] font-bold leading-none", t.warn ? "bg-warning-soft text-warning" : "bg-surface-inset text-text-secondary")}>
                   {t.count > 99 ? "99+" : t.count}
                   <span className="md-visually-hidden"> {t.warn ? "to look at" : "open"}</span>
                 </span>

@@ -102,7 +102,7 @@ export function RolesExplainer({ className }: { className?: string }) {
           <tr>
             <th scope="col" className="pb-2 text-left font-normal text-text-muted"><span className="md-visually-hidden">Can</span></th>
             {COLS.map((r) => (
-              <th key={r} scope="col" className="w-[54px] pb-2 text-center text-[11px] font-semibold text-text-secondary">{roleLabel(r)}</th>
+              <th key={r} scope="col" className="w-[54px] pb-2 text-center text-[12px] font-semibold text-text-secondary">{roleLabel(r)}</th>
             ))}
           </tr>
         </thead>

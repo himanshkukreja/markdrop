@@ -236,7 +236,7 @@ export default function CompareScreen() {
                   <span className={cx("size-2 shrink-0 rounded-full", DOT[p.change])} aria-hidden />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <strong className="ph-sensitive ph-mask truncate font-semibold" dir="auto">{p.title}</strong>
-                    <span className="ph-sensitive ph-mask truncate font-mono text-[11px] text-text-muted">{p.path}</span>
+                    <span className="ph-sensitive ph-mask truncate font-mono text-[12px] text-text-muted">{p.path}</span>
                   </span>
                   <span className="shrink-0 text-[12px] text-text-muted">
                     {delta}<span className="md-visually-hidden">{p.change === "edited" ? ` lines, edited` : ""}</span>
@@ -298,7 +298,7 @@ export default function CompareScreen() {
                 <span className={cx("size-2 shrink-0 rounded-full", DOT[c.change as keyof typeof DOT] ?? "bg-border-strong")} aria-hidden />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <strong className="ph-sensitive ph-mask truncate font-semibold text-text" dir="auto">{c.title}</strong>
-                  <span className="ph-sensitive ph-mask truncate font-mono text-[11px] text-text-muted">/changelog/{c.slug} · {c.date}</span>
+                  <span className="ph-sensitive ph-mask truncate font-mono text-[12px] text-text-muted">/changelog/{c.slug} · {c.date}</span>
                 </span>
                 <span className="shrink-0 text-[12px] text-text-muted">{c.change === "added" ? "new" : c.change}</span>
                 {c.change !== "removed" && to === "drafts" && (

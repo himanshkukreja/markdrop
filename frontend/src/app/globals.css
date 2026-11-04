@@ -9,6 +9,8 @@
 @import "../styles/prose.css";
 @import "../styles/print.css";
 @import "../styles/legacy.css";
+/* Touch sizes for Guides, Analytics and published guides (phones and tablets only). */
+@import "../styles/touch.css";
 
 /* During the migration both theme markers are set by the head script: data-theme (tokens) and
    .dark (legacy dark: variants). Once no dark: class remains, this becomes [data-theme=dark]. */

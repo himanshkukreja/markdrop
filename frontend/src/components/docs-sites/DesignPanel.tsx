@@ -327,14 +327,14 @@ export default function DesignPanel() {
                       aria-checked={on}
                       disabled={locked}
                       onClick={() => setBrand({ accent: hex, enabled: true })}
-                      className="md-focus flex flex-col items-center gap-1 rounded-md text-[11px] text-text-muted"
+                      className="md-focus flex flex-col items-center gap-1 rounded-md text-[12px] text-text-muted"
                     >
                       <span className={cx("size-9 rounded-lg border", on ? "border-2 border-text" : "border-border")} style={{ background: hex }} />
                       <code className="font-mono">{hex}</code>
                     </button>
                   );
                 })}
-                <label className="flex flex-col items-center gap-1 text-[11px] text-text-muted">
+                <label className="flex flex-col items-center gap-1 text-[12px] text-text-muted">
                   <span className="relative grid size-9 cursor-pointer place-items-center rounded-lg border border-dashed border-border-strong text-text-secondary has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-border-focus">
                     <Icon name="plus" size={16} />
                     <input

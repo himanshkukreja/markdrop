@@ -47,7 +47,7 @@ export function ThemePreview({ theme, dark, name, logo }: { theme: ThemeInput; d
           : { margin: "0 -8px", padding: "4px 8px", fontWeight: 600, borderRadius: L.sidebarStyle === "pills" ? md : p.r, background: p.soft, color: p.accentText };
   const group = (label: string, items: Array<[string, boolean?]>, first = false) => (
     <>
-      <span className={first ? "text-[11px] font-bold uppercase tracking-[.08em]" : "mt-2 text-[11px] font-bold uppercase tracking-[.08em]"} style={{ color: p.muted }}>{label}</span>
+      <span className={first ? "text-[12px] font-bold uppercase tracking-[.08em]" : "mt-2 text-[12px] font-bold uppercase tracking-[.08em]"} style={{ color: p.muted }}>{label}</span>
       <span className="flex flex-col gap-1.5" style={L.sidebarStyle === "lines" ? { marginLeft: 2, borderLeft: `1px solid ${p.line}`, gap: 0 } : undefined}>
         {items.map(([t, current]) => (
           <span key={t} className={L.sidebarStyle === "lines" ? "py-1" : undefined} style={navItem(!!current)} aria-current={current ? "page" : undefined}>{t}</span>
