@@ -1,0 +1,13 @@
+import { chromium, webkit } from "@playwright/test";
+import fs from "node:fs"; import path from "node:path";
+import { APP, STACK } from "./lib.mjs";
+const L = JSON.parse(fs.readFileSync(path.join(STACK, "seed-listing.json"), "utf8"));
+const [w,h] = (process.env.VP||"360x780").split("x").map(Number);
+const b = await (process.env.BROWSER==="webkit"?webkit:chromium).launch();
+const c = await b.newContext({ viewport:{width:w,height:h}, isMobile:true, hasTouch:true, deviceScaleFactor:2 });
+await c.addInitScript(t=>{localStorage.setItem("markdrop_token",t);localStorage.setItem("md_consent","denied");localStorage.setItem("md_install_dismissed","1")}, L.users[process.env.ROLE||"owner"].token);
+const p = await c.newPage();
+await p.goto(APP+(process.env.U||"/dashboard")); await p.waitForTimeout(3000);
+console.log(await p.evaluate(()=>{const vw=document.documentElement.clientWidth;const o=[`iw ${innerWidth} ih ${innerHeight} cw ${vw} sw ${document.documentElement.scrollWidth}`];
+for(const el of document.querySelectorAll("body *")){const r=el.getBoundingClientRect();if(r.right>362&&r.width>0){let par=el.parentElement;if(par&&par.getBoundingClientRect().right>362)continue;let ch=[];for(let a=el;a&&a!==document.body;a=a.parentElement){const rr=a.getBoundingClientRect();ch.push(a.tagName+"."+String(a.className?.baseVal??a.className).slice(0,50)+"["+Math.round(rr.left)+","+Math.round(rr.right)+" "+getComputedStyle(a).position+" ov:"+getComputedStyle(a).overflowX+"]")}o.push(ch.join("\n   < "));o.push(el.tagName+" "+(el.className?.baseVal??el.className)+" "+Math.round(r.left)+"→"+Math.round(r.right)+" "+getComputedStyle(el).position+" "+(el.getAttribute("aria-label")||el.textContent.slice(0,40)))}}return o.join("\n")}));
+await b.close();

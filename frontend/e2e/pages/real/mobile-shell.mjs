@@ -98,14 +98,15 @@ async function seedExtra(L) {
   const trashed = ok(await api("POST", "/api/v1/documents", T.owner, { title: "Old launch checklist", content: "# Old\n", expires_in: "never" }), "trash doc");
   const del = await api("DELETE", `/api/v1/documents/${trashed.slug}`, T.owner, undefined, trashed.edit_token ? { "X-Edit-Token": trashed.edit_token } : {});
   if (del.status >= 300) log("trash: delete →", del.status);
-  // Shares: Ada → Ben (Ben's Shared with me + bell), Ben → Ada (Ada's).
-  const share = async (slug, token, email) => {
-    const r = await api("POST", `/api/v1/documents/${slug}/access/people`, token, { email, role: "viewer", notify: true });
-    if (r.status >= 300) log("share", slug, "→", r.status, JSON.stringify(r.body).slice(0, 200));
-  };
-  await share(mine[1].slug, T.owner, L.users.member.email);
+  // Shares: Ada → Ben (Ben's Shared with me + bell), Ben → Ada (Ada's). Straight to the db: the seed's
+  // people have reserved @*.test addresses, which the sharing route's email check refuses.
   const benDoc = ok(await api("POST", "/api/v1/documents", T.member, { title: "Ben's backend notes", content: "# Notes\n", expires_in: "never", access_level: "private" }), "ben doc");
-  await share(benDoc.slug, T.member, L.users.owner.email);
+  const who = (k) => ({ id: L.users[k].id ?? L.users[k].user_id, email: L.users[k].email, name: L.users[k].name });
+  const [ada, ben] = [who("owner"), who("member")];
+  execFileSync(PY, [path.join(HERE, "seed_mobile_shell.py"), JSON.stringify([
+    { slug: mine[1].slug, from: ada.id, from_email: ada.email, from_name: ada.name, to: ben.id, to_email: ben.email },
+    { slug: benDoc.slug, from: ben.id, from_email: ben.email, from_name: ben.name, to: ada.id, to_email: ada.email },
+  ])], { stdio: "pipe", env: { ...process.env, STACK_ID: String(STACK_ID) } });
   // Cy asks Ada for access to her private letter.
   const req = await api("POST", `/api/v1/documents/${mine[0].slug}/access-requests`, T.stranger, { message: "Could I read this before Thursday's call?", role: "viewer" });
   if (req.status >= 300) log("access request →", req.status, JSON.stringify(req.body).slice(0, 200));
@@ -472,8 +473,8 @@ const STATES = [
   ["p2p-send", ["owner", "anon"], () => `${APP}/share`, (p) => p.locator("h1").first()],
   ["p2p-receive", ["anon"], () => `${APP}/share/abcd-efgh-ijkl`, (p) => p.locator("h1, h2").first()],
   ["admin-login", ["anon"], () => `${APP}/admin`, (p) => p.locator("input").first()],
-  ["admin", ["admin"], () => `${APP}/admin`, (p) => p.locator("main, nav").first()],
-  ["admin-users", ["admin"], () => `${APP}/admin?tab=users`, (p) => p.locator("main, nav").first()],
+  ["admin", ["admin"], () => `${APP}/admin`, (p) => p.locator("h1").first()],
+  ["admin-users", ["admin"], () => `${APP}/admin?tab=users`, (p) => p.locator("h1").first()],
 ];
 
 /* ── Run ──────────────────────────────────────────────────────────────── */
