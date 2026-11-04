@@ -15,6 +15,7 @@ export const DOCS_PAGES = {
   readmeBuilder: "/documents/readme-builder",
   // Pages (the block editor)
   pagesOverview: "/pages/overview",
+  pagesAi: "/pages/ai",
   // Files
   supportedTypes: "/files/supported-types",
   fileLimits: "/files/limits",
