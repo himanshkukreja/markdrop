@@ -269,8 +269,8 @@ export function GuideRow({ site, where, insights, canManagePeople, onDelete }: G
         </div>
         <Address site={site} />
       </div>
-      <Meta site={site} where={where} className="w-[250px] shrink-0 max-xl:hidden" />
-      <div className="flex w-[290px] min-w-0 shrink-0 items-center max-lg:hidden">
+      <Meta site={site} where={where} className="w-[230px] shrink-0 max-xl:hidden" />
+      <div className="flex w-[240px] min-w-0 shrink-0 items-center max-lg:hidden">
         {showNumbers ? <Numbers ins={insights} /> : <Note text={note ?? "Live"} icon={isSecuring(site) ? "lock" : undefined} />}
       </div>
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
