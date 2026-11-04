@@ -39,7 +39,7 @@ Math and Mermaid diagrams are drawn when the file is opened with an internet con
 
 ### PDF
 
-**Print to PDF…** lays the page out for paper in the light theme, without Markdrop's menus or sidebar. The cover sits at the top of the first sheet, each top-level heading starts a new sheet, and blocks such as callouts, code, tables and images aren't split across two sheets. Toggles print open.
+**Print to PDF…** lays the page out for paper in the light theme, without Markdrop's menus or sidebar. The cover sits at the top of the first sheet, each top-level heading starts a new sheet, and blocks such as callouts, code, tables and images aren't split across two sheets. Toggles print open. Videos and other web embeds can't be printed, so they're left out of the PDF.
 
 In the print dialog, choose **Save as PDF** as the destination. To keep the cover and background colours, turn on **Background graphics** in the dialog's options.
 

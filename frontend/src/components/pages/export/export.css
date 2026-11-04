@@ -5,7 +5,7 @@
  */
 
 /* ── The dialog ─────────────────────────────────────────────────────────────────────────── */
-.pbx-dialog { width: min(600px, calc(100vw - 32px)); }
+.md-dialog.pbx-dialog { width: min(620px, calc(100vw - 32px)); max-width: min(620px, calc(100vw - 32px)); }
 .pbx-desc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 44ch; }
 .pbx { display: flex; flex-direction: column; gap: 16px; }
 
@@ -54,6 +54,7 @@
   .pbx-formats { grid-template-columns: 1fr; gap: 8px; }
   .pbx-card { display: grid; grid-template-columns: 36px 1fr; column-gap: 12px; row-gap: 0; min-height: 0; align-items: center; padding: 12px; }
   .pbx-card__tile { grid-row: span 2; margin: 0; }
+  .pbx-card { padding-right: 40px; }
   .pbx-card__check { top: 50%; margin-top: -9px; right: 12px; }
   .pbx-card:hover:not(:disabled) { transform: none; }
   .pbx-option__hint { padding-left: 0; }
@@ -90,9 +91,9 @@
   html.pbx-printing .pbx-print :is(.pb-callout, .md-alert, .pb-code, pre, .md-diagram, .pb-figure, figure, table, tr, .pb-embed, .pb-card, .pb-bookmark, .pb-webembed, .pb-locked, .pb-columns, blockquote, .katex-display) { break-inside: avoid; }
   html.pbx-printing .pbx-print p { orphans: 3; widows: 3; }
 
-  /* Toggles print open; an embedded live frame becomes its link. */
-  html.pbx-printing .pbx-print details > :not(summary) { display: block !important; }
+  /* Toggles print open (PrintPages opens them); web embeds (live frames) don't print. */
   html.pbx-printing .pbx-print iframe { display: none !important; }
+  html.pbx-printing .pbx-print .pb-webembed { aspect-ratio: auto !important; height: auto !important; min-height: 0 !important; padding: 0 !important; border: 0 !important; }
 
   /* The app's print layer turns everything black on white; the page keeps its colours. */
   html.pbx-printing .pbx-print [data-color] { color: var(--pb-fg) !important; }

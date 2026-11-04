@@ -34,6 +34,10 @@ const MAX_WAIT_MS = 12_000;
 /** Every image eager, and whether they've all finished (loaded or failed). */
 function imagesSettled(root: HTMLElement): boolean {
   let ok = true;
+  // Toggles print open.
+  root.querySelectorAll("details").forEach((d) => {
+    if (!d.open) d.open = true;
+  });
   root.querySelectorAll("img").forEach((img) => {
     if (img.loading === "lazy") img.loading = "eager";
     if (!img.complete) ok = false;

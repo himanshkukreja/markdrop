@@ -27,9 +27,9 @@ const PrintPages = dynamic(() => import("./PrintPages").then((m) => m.PrintPages
 export type ExportFormat = "markdown" | "html" | "pdf";
 
 const FORMATS: Array<{ id: ExportFormat; name: string; ext: string; icon: string; blurb: string }> = [
-  { id: "markdown", name: "Markdown", ext: ".md", icon: "doc", blurb: "For any Markdown app, Git or another wiki" },
-  { id: "html", name: "HTML", ext: ".html", icon: "globe", blurb: "One file that opens in any browser" },
-  { id: "pdf", name: "PDF", ext: ".pdf", icon: "printer", blurb: "Print-ready, saved from your browser" },
+  { id: "markdown", name: "Markdown", ext: ".md", icon: "doc", blurb: "Any Markdown app, Git or wiki" },
+  { id: "html", name: "HTML", ext: ".html", icon: "globe", blurb: "One file for any browser" },
+  { id: "pdf", name: "PDF", ext: ".pdf", icon: "printer", blurb: "Print-ready, from your browser" },
 ];
 
 const MAX_PDF_PAGES = 50;

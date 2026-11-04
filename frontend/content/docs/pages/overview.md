@@ -56,10 +56,10 @@ The bar at the top of a page stays in place as you scroll. On the left are the p
 
 The **⋯** menu in the top bar has:
 
-- The font: **Default**, **Serif** or **Mono**, then the **Small text** and **Full width** switches.
+- The font: **Default**, **Serif** or **Mono**, then the **Small text**, **Full width** and **Readers can export** switches.
 - **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
 - **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
-- **Export PDF** and **Details** (published, views and who can open it).
+- **Export…** (Markdown, HTML or PDF; see [Export a page](/pages/export)) and **Details** (published, views and who can open it).
 - The word count.
 
 These options are saved in the page's Markdown, so they travel with it. See [Page Markdown reference](/pages/markdown-reference).
@@ -102,4 +102,5 @@ People who can open the page see it as you laid it out, with the same blocks. Em
 - [Sub-pages and access inheritance](/pages/sub-pages)
 - [Images in pages](/pages/images)
 - [Paste into a page](/pages/paste)
+- [Export a page](/pages/export)
 - [Page Markdown reference](/pages/markdown-reference)

@@ -1023,7 +1023,7 @@ body{margin:0;color:var(--text);background:#fff;font:16px/1.65 Manrope,ui-sans-s
 .page.small{font-size:14px}
 .page.serif{font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif}
 .page.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
-.cover{display:block;width:100%;height:240px;object-fit:cover;margin:0 0 -36px;border-radius:0}
+.cover{display:block;width:100%;height:240px;margin:0 0 -36px;background:var(--soft) center/cover no-repeat}
 .cover-wrap{max-width:none;margin:0 -24px}
 .head{padding-top:56px;margin-bottom:12px}
 .cover-wrap+.head{padding-top:0}
@@ -1036,6 +1036,8 @@ h1.title{font-size:40px;line-height:1.2;font-weight:800;letter-spacing:-.025em;m
 .body h4,.body h5,.body h6{font-size:16px;font-weight:700;margin:18px 0 2px}
 .body p{margin:6px 0}
 .body a{color:var(--accent);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+.body a.card,.body a.chip{text-decoration:none}
+.body a.card strong{color:var(--accent)}
 .body ul,.body ol{margin:6px 0;padding-left:26px}
 .body li{margin:2px 0}
 .body li>p{margin:2px 0}
@@ -1162,8 +1164,9 @@ def html_document(body: str, pc: PageCtx, *, exported_at: datetime | None = None
     y = props.get("cover_y", 50)
     head = ""
     if cover:
-        head += (f'<div class="cover-wrap"><img class="cover" src="{esc(cover)}" alt="" '
-                 f'style="object-position:50% {esc(y)}%"></div>')
+        # A background, so a cover that can't load (offline, a blocked address) is a calm band, not a broken image.
+        head += (f'<div class="cover-wrap"><div class="cover" role="img" aria-label="Cover" '
+                 f'style="background-image:url(&quot;{esc(cover)}&quot;);background-position:50% {esc(y)}%"></div></div>')
     icon = props.get("icon") or ""
     icon_html = ""
     if icon.startswith("asset:"):
