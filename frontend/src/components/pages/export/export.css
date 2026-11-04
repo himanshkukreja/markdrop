@@ -112,6 +112,8 @@
   html.pbx-printing .pbx-print .md-alert--danger { background: #fcefee !important; }
   html.pbx-printing .pbx-print :is(.md-alert, [data-bg], .pb-code, pre, th, .pb-mention, .pb-locked) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html.pbx-printing .pbx-print .pb-mention { background: #f1f3f5 !important; }
+  /* print.css paints every box white: what sits inside a tinted block keeps the block's colour. */
+  html.pbx-printing .pbx-print :is(.md-alert, [data-bg]) :not(code, pre, .pb-mention, img, svg *) { background: transparent !important; }
   html.pbx-printing .pbx-print a { color: #1d4ed8 !important; }
   html.pbx-printing .pbx-print .md-diagram svg { max-width: 100%; height: auto; }
 }

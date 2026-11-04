@@ -405,6 +405,9 @@ await step("head", async () => {
     await p.emulateMedia({ media: "print" });
     await p.waitForTimeout(400);
     checkHead("pdf", name, await box(p, ".pbx-print .pb-title"), await box(p, ".pbx-print .pb-cover-img"), await box(p, ".pbx-print .pb-head__icon"));
+    // What prints is the layer alone (not the editor behind it).
+    const printing = await p.evaluate(() => ({ cls: document.documentElement.classList.contains("pbx-printing"), host: !!document.querySelector(".pbx-print-host .pbx-print"), editorShown: [...document.querySelectorAll(".pb-live")].some((e) => e.getBoundingClientRect().height > 0) }));
+    if (!printing.cls || !printing.host || printing.editorShown) fail(`pdf ${name}: the print layer isn't what prints ${JSON.stringify(printing)}`);
     await p.screenshot({ path: keep(`head-${name}-3-pdf-layout.png`), fullPage: true });
     if (BROWSER === "chromium") await p.pdf({ path: keep(`head-${name}-3.pdf`), format: "A4", printBackground: true });
     await p.emulateMedia({ media: "screen" });

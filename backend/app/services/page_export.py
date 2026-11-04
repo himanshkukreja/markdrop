@@ -1018,7 +1018,7 @@ CSS = """
 *{box-sizing:border-box}
 html{background:#fff}
 body{margin:0;color:var(--text);background:#fff;font:16px/1.65 Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
-.page{max-width:720px;margin:0 auto;padding:0 24px 64px}
+.page{max-width:768px;margin:0 auto;padding:0 24px 64px}
 .page.wide{max-width:none;padding:0 48px 64px}
 .page.small{font-size:14px}
 .page.serif{font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif}
@@ -1056,9 +1056,10 @@ h1.title{position:relative;font-size:40px;line-height:1.2;font-weight:800;letter
 pre.mermaid{margin:12px 0;padding:14px 16px;background:#f7f8fa;border:1px solid var(--border);border-radius:8px;white-space:pre-wrap;font:13px/1.5 "JetBrains Mono",ui-monospace,monospace;text-align:center}
 pre.mermaid[data-processed]{background:none;border:0}
 .caption{margin:-4px 0 12px;font-size:14px;color:var(--muted);text-align:center}
-.table{margin:12px 0;overflow-x:auto}
+.table{margin:12px 0;overflow-x:auto;border:1px solid var(--border);border-radius:10px}
 table{border-collapse:collapse;min-width:100%;font-size:15px}
 th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+.table table{border-style:hidden}
 th{background:var(--soft);font-weight:600}
 .figure{--w:100%;width:min(var(--w),100%);margin:20px auto;display:flex;flex-direction:column}
 .figure[data-align=left]{margin-left:0}
