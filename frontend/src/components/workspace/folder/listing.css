@@ -80,7 +80,7 @@
   .wl-c-kind { display: none; }
 }
 @container (max-width: 700px) {
-  .wl-list { --wl-cols: minmax(0, 1fr) 40px 88px 40px 72px; }
+  .wl-list { --wl-cols: minmax(0, 1fr) 56px 88px 40px 72px; }
   .wl-list .wl-person__name, .wl-list .wl-access-words, .wl-head .wl-c-owner, .wl-head .wl-c-access { display: none; }
   .wl-list .wl-more { display: none; }
 }
@@ -275,6 +275,6 @@
 }
 @media (pointer: coarse) {
   @container (max-width: 700px) {
-    .wl-list { --wl-cols: minmax(0, 1fr) 40px 88px 48px 52px; }
+    .wl-list { --wl-cols: minmax(0, 1fr) 56px 88px 48px 52px; }
   }
 }

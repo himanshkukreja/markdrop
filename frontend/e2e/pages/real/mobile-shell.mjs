@@ -272,6 +272,8 @@ function measure({ checkTargets }) {
       }
       if (r.width >= 43.5 && r.height >= 43.5) continue;
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      // Scrolled partly out of view (a board column past the edge): aimed at once it's scrolled in.
+      if (cx < 0 || cy < 0 || cx >= vw || cy >= vh) continue;
       // Under something else at its own centre: obscured, not a target right now.
       const atCentre = document.elementFromPoint(Math.min(vw - 1, Math.max(0, cx)), Math.min(vh - 1, Math.max(0, cy)));
       if (!atCentre || !(target === atCentre || target.contains(atCentre) || atCentre.contains(target))) continue;
@@ -407,7 +409,7 @@ const openPalette = async (p) => {
   await p.waitForTimeout(300);
 };
 const openBrowse = async (p, dev) => {
-  if (dev.w >= 1024 && dev.kind === "tablet" && dev.w !== 1024) return "skip"; // the rail is on screen
+  if (dev.w >= 1024) return "skip"; // the rail is on screen (lg)
   const b = await visibleFirst(p, [p.getByRole("button", { name: "Browse" }), p.getByRole("button", { name: "Menu" })]);
   if (!b) return "skip";
   await b.tap().catch(() => b.click());
