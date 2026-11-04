@@ -27,7 +27,7 @@ function seedListing() {
   });
   return JSON.parse(fs.readFileSync(path.join(STACK, "seed-listing.json"), "utf8"));
 }
-if (!process.env.NO_RESEED) reseed();
+const S0 = process.env.NO_RESEED ? seedNow() : reseed();
 const L = process.env.NO_RESEED && fs.existsSync(path.join(STACK, "seed-listing.json"))
   ? JSON.parse(fs.readFileSync(path.join(STACK, "seed-listing.json"), "utf8"))
   : seedListing();
@@ -212,6 +212,52 @@ await step("privacy", async () => {
   await p.getByText(/isn't available/).waitFor({ timeout: 20000 });
   const text = await p.locator("#main").innerText();
   for (const n of ["Ada Owner", "Ben Member", "Wes Admin"]) if (text.includes(n)) fail(`outsider page shows ${n}`);
+  await c.close();
+});
+
+/* ── In-place folder navigation ─────────────────────────────────────── */
+
+await step("nav", async () => {
+  const { c, p } = await ctx(browser, { token: T.member });
+  const h1 = () => p.locator("#main h1").first().innerText();
+  const want = async (name, pathEnd) => {
+    await p.waitForFunction((n) => document.querySelector("#main h1")?.textContent === n, name, { timeout: 10000 });
+    await p.waitForURL((u) => u.pathname.endsWith(pathEnd), { timeout: 15000 });
+  };
+  await p.goto(wsUrl, { waitUntil: "networkidle" });
+  const opened = p.url();
+  // A row, then a subfolder, then back and forward.
+  await p.locator(`#main a[href$="/f/${L.folders.Product}"]`).first().click();
+  if ((await h1()) !== "Product") fail(`the folder didn't switch at once: ${await h1()}`);
+  await want("Product", `/f/${L.folders.Product}`);
+  await p.locator(`#main a[href$="/f/${L.nested.Specs}"]`).first().click();
+  await want("Specs", `/f/${L.nested.Specs}`);
+  await p.goBack();
+  await want("Product", `/f/${L.folders.Product}`);
+  await p.goBack();
+  await want("Senseloaf", `/w/${WS}`);
+  await p.goForward();
+  await want("Product", `/f/${L.folders.Product}`);
+  // The rail switches in place too; so does the breadcrumb.
+  await p.getByRole("treeitem", { name: "Design" }).first().click();
+  if ((await h1()) !== "Design") fail("the rail click didn't switch at once");
+  await want("Design", `/f/${L.folders.Design}`);
+  await p.locator("#main nav[aria-label=Breadcrumb] a", { hasText: "Senseloaf" }).click();
+  await want("Senseloaf", `/w/${WS}`);
+  // A search in the URL, then a folder: the search clears.
+  await p.goto(`${wsUrl}?q=Roadmap`, { waitUntil: "networkidle" });
+  await p.getByText(/Results for/).first().waitFor({ timeout: 15000 });
+  await p.getByRole("treeitem", { name: "Legal" }).first().click();
+  await want("Legal", `/f/${L.folders.Legal}`);
+  if (await p.getByText(/Results for/).count()) fail("the search stayed after opening a folder");
+  // A modified click opens a new tab and leaves this one alone.
+  const [tab] = await Promise.all([c.waitForEvent("page"), p.locator(`#main a[href$="/f/${L.nested.Specs}"]`).count().then(() => p.locator(`#main nav[aria-label=Breadcrumb] a`).first().click({ modifiers: [process.platform === "darwin" ? "Meta" : "Control"] }))]);
+  await tab.close();
+  if (!(await h1()).includes("Legal")) fail("a modified click switched this tab");
+  // Another workspace is an ordinary navigation.
+  await p.getByRole("treeitem", { name: "Acme" }).first().click();
+  await want("Acme", `/w/${S0.ws}`);
+  void opened;
   await c.close();
 });
 
