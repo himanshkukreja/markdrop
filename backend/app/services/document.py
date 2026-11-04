@@ -499,6 +499,10 @@ async def update_document(
 
             sets["content"], signoffs_removed = await signoffs.guard(db, raw, sets["content"], actor, ctx)
             cas.update(signoffs.cas(raw))
+            # Typed page properties (services/page_db.py): changed values must fit the folder's schema.
+            from app.services import page_db
+
+            await page_db.check_save(db, raw, sets["content"], actor, ctx)
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,

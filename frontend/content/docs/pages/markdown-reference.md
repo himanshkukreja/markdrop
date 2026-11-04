@@ -3,7 +3,7 @@ title: Page Markdown reference
 description: Every block of a page as Markdown, for people who write it by hand and AI apps that read and write pages.
 updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [markdown, syntax, reference, allow_export, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption, person, people, mention by name, sign-off, signoff, approval]
+keywords: [markdown, syntax, reference, allow_export, blocks, directive, front matter, mcp, ai, embed, mention, callout, toggle, bookmark, colour, columns, indent, button, anchor, caption, person, people, mention by name, sign-off, signoff, approval, props, properties]
 ---
 
 A page is stored as Markdown: GitHub-flavoured Markdown plus a few directives for the blocks Markdown doesn't have. The editor reads and writes exactly this, without changing what it doesn't touch, so a page written by hand, by VS Code or by an AI app opens in the block editor as it was written. AI apps use the same syntax with `get_page`, `update_page`, `append_blocks` and `create_page`.
@@ -22,8 +22,11 @@ small_text: true
 font: serif              # default, serif or mono
 locked: true             # only the owner and workspace admins can edit
 allow_export: false      # readers can't export it; editors always can
+props: {status: "In build", owner: "<user id>", target_date: "2026-11-20"}
 ---
 ```
+
+`props` holds the values of the folder's typed properties, by key, on one line. See [Properties and views](/pages/properties-and-views).
 
 The built-in covers come in four sets: paper (`mist`, `linen`, `graphite`), duotone (`fold`, `halftone`, `dusk`), lines (`contour`, `blueprint`, `strata`) and calm (`dawn`, `sage`, `moonlit`). A page that uses a name from the first gallery (`aurora`, `sunset`, `ocean`, `forest`, `peach`, `sand`, `slate` or `mint`) shows the closest of these. The page's title isn't in the front matter: it's the document's title.
 

@@ -68,6 +68,8 @@ const PageTopBar = dynamic(() => import("@/components/pages/PageChrome").then((m
 const PageRailHead = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageRailHead), { loading: () => null });
 const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.SubPages), { loading: () => null });
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
+// Typed page properties (components/pages/props): loads only for a page in a folder with a schema.
+const PropertiesPanel = dynamic(() => import("@/components/pages/props/PropertiesPanel").then((m) => m.PropertiesPanel), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
 const TemplateNotice = dynamic(() => import("@/components/pages/templates/TemplateNotice").then((m) => m.TemplateNotice), { loading: () => null });
 const DeletePageDialog = dynamic(() => import("@/components/pages/DeletePageDialog").then((m) => m.DeletePageDialog), { loading: () => null });
@@ -642,6 +644,8 @@ export default function DocumentView(props: DocumentViewProps) {
   const otherEditor = snap?.viewers.find((x) => x.editing && x.id !== snap.you && x.id !== snap.me?.id && !(snap.you == null && !!user?.name && x.name === user.name)) ?? null;
   const othersEditing = otherEditor ? otherEditor.name || (otherEditor.animal ? `Anonymous ${otherEditor.animal}` : "Someone") : null;
   const pageBacklinks = !tenant ? <Backlinks key={user?.id ?? "anon"} slug={slug} addressing={addressing} /> : null;
+  const propsHref = tenant ? undefined : (s: string) => `/${encodeURIComponent(s)}`;
+  const readerProps = page?.page_properties ? <PropertiesPanel info={page.page_properties} workspaceId={page.workspace_id ?? null} pageHref={propsHref} /> : null;
   const pageFooter = isPage ? (
     <>
       <SubPages
@@ -715,7 +719,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 menu={readerPageMenu}
               />
             }
-            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{pageBacklinks}</>} />}
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{pageBacklinks}</>} />}
             footer={pageFooter}
           >
             {notices}
@@ -783,6 +787,8 @@ export default function DocumentView(props: DocumentViewProps) {
                 onCopied: copyLinkEvent,
                 menu: editorDocMenu,
                 below: pageBacklinks,
+                properties: page?.page_properties ?? null,
+                propertiesHref: propsHref,
                 footer: pageFooter,
                 notices,
               }}

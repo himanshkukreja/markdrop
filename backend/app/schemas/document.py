@@ -168,6 +168,9 @@ class DocumentResponse(BaseModel):
     # Page properties from the content's front matter (services/page_props.py):
     # {icon, icon_url, cover, cover_url, cover_y, full_width, small_text, font, locked}.
     page: dict | None = None
+    # Typed properties (services/page_db.py), for a page filed in a folder that has a property
+    # schema: {folder, mode, properties, rev, values, people, people_hidden, links, can_edit_schema}.
+    page_properties: dict | None = None
     # The page images its content references (``asset:<id>``), as links for
     # this reader: {id: {url, expires_at}} (expires_at null when public).
     assets: dict = {}

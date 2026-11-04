@@ -60,6 +60,8 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "list_page_templates", scope: "read" },
       { name: "save_page_as_template", scope: "write" },
       { name: "set_folder_default_template", scope: "write" },
+      { name: "set_folder_properties", scope: "write" },
+      { name: "list_folder_pages", scope: "read" },
       { name: "list_subpages", scope: "read" },
       { name: "move_page", scope: "write" },
       { name: "translate_page", scope: "write" },

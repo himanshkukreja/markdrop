@@ -3067,4 +3067,9 @@ from app.mcp.signoff_tools import SIGNOFF_TOOLS  # noqa: E402
 
 TOOLS += SIGNOFF_TOOLS
 
+# Typed page properties and folder databases: app/mcp/props_tools.py.
+from app.mcp.props_tools import PROPS_TOOLS  # noqa: E402
+
+TOOLS += PROPS_TOOLS
+
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

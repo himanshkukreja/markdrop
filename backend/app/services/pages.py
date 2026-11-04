@@ -884,6 +884,11 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
             props[f"{key}_url"] = hit["url"] if hit else (v if v.startswith("https://") else None)
     else:
         props["icon_url"] = props["cover_url"] = None
+    # Typed properties (services/page_db.py): a block page filed in a folder with a schema.
+    if raw.get("editor") == "blocks" and raw.get("workspace_id"):
+        from app.services import page_db
+
+        out["page_properties"] = await page_db.panel(db, raw, actor, ctx)
     return out
 
 

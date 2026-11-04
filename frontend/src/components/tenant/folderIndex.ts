@@ -43,6 +43,8 @@ export interface TenantFolderDocument {
   updated_at?: string | null;
   poster_url?: string | null;
   size_bytes?: number | null;
+  /** A folder with typed page properties: this page's values as text, read only (services/page_db.py). */
+  props?: Array<{ name: string; type: string; text: string; color?: string | null }> | null;
 }
 
 export interface TenantFolderListing {

@@ -225,6 +225,24 @@
       ]
     },
     {
+      "id": "page-properties",
+      "date": "2026-11-04",
+      "title": "Page properties, and folders as tables and boards",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Give a folder's pages typed properties such as Status, Owner and Target date. They show under each page's title, and the folder opens as a table or a board: drag a card to change its status.",
+      "body": "- **Properties under the title:** Select and Multi-select with coloured options, Person (a workspace member, with their picture), Date with a calendar, Text, Link (an address or a page), Number and Checkbox. Anyone who can edit the page changes them in place; readers see the ones that are set.\n- **A folder is the database:** add a property once and every page in the folder has it. Members and admins add, rename and remove properties. Removing one never deletes a page's value.\n- **Table and board views** in the folder: a sticky header, resizable columns, filter, sort and group, and cells you edit in place. On the board, drag a card between columns to change its value. Members save up to 20 views per folder.\n- **Only what you can open:** views list just the pages you can read, and a linked page's title shows only to people who can open it.\n- **For AI apps:** `set_folder_properties` and `list_folder_pages` are new, `set_page_properties` and `create_page` take `properties`, and `get_page` returns them. See [Properties and views](/pages/properties-and-views).",
+      "docs": [
+        "/pages/properties-and-views",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",
