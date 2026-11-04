@@ -271,7 +271,11 @@ const STATES = [
     await p.getByRole("dialog").first().waitFor({ timeout: 6000 });
   }],
   ["page-share", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
-    await tap(p, p.getByRole("button", { name: /^Share/ }));
+    // Phones: Share is in the ⋯ sheet (the bar has no room for it).
+    if (!(await p.getByRole("button", { name: /^Share/ }).first().isVisible())) {
+      await openPageMenu(p);
+      await tap(p, p.getByRole("menuitem", { name: /^Share/ }));
+    } else await tap(p, p.getByRole("button", { name: /^Share/ }));
     await p.getByRole("dialog").first().waitFor({ timeout: 6000 });
   }],
   ["page-props", ["owner"], () => pageUrl(X.prop), editorReady],
@@ -292,7 +296,7 @@ const STATES = [
   ["classic-edit", ["owner"], () => `${pageUrl(X.mine)}?edit=1`, (p) => p.locator("textarea, .ProseMirror, [contenteditable=true], .cm-editor").first()],
   ["classic-gate", ["anon"], () => pageUrl(X.gated), (p) => p.locator("input[type=password]").first()],
   // File viewers (the viewer body is the Worker's page in an iframe).
-  ["file-image", ["owner"], () => pageUrl(X.files.image), (p) => p.locator("iframe, main img").first()],
+  ["file-image", ["owner"], () => pageUrl(X.files.image), (p) => p.locator('iframe, img[title="Show at full size"]').first()],
   ["file-pdf", ["owner"], () => pageUrl(X.files.pdf), (p) => p.locator("iframe").first(), async (p) => p.waitForTimeout(2500)],
   ["file-html", ["owner"], () => pageUrl(X.files.html), (p) => p.locator("iframe").first()],
   ["file-video", ["owner"], () => pageUrl(X.files.video), (p) => p.locator("iframe, video").first(), async (p) => p.waitForTimeout(1500)],

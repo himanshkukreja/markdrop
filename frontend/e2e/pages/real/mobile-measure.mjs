@@ -93,6 +93,8 @@ export function measure({ checkTargets }) {
     const cs = getComputedStyle(el);
     if (cs.position !== "fixed" && cs.position !== "absolute") continue;
     if (el.getAttribute("role") === "listbox" && el.closest("[role=dialog], .dxe-slash, .dxe-people")) continue;
+    // Anchored in the document (it scrolls with its table): above the screen only while scrolled past.
+    if (cs.position === "absolute" && el.matches(".dxe-tablebar, .dxe-tb") && !el.closest("[style*=fixed]")) { const r0 = el.getBoundingClientRect(); if (r0.bottom < 0 || r0.top > vh) continue; }
     const r = el.getBoundingClientRect();
     if (r.left < -1 || r.right > vw + 1 || r.top < -1 || r.bottom > vh + 1) push("popup", el, `${Math.round(r.left)},${Math.round(r.top)} → ${Math.round(r.right)},${Math.round(r.bottom)} in ${vw}×${vh}`);
   }
