@@ -148,7 +148,8 @@ await step("ask", async () => {
   await chip.click();
   await p.waitForURL((u) => u.pathname === `/${meeting.transcript_slug}`, { timeout: 20000 });
   const anchor = href.split("#")[1];
-  await p.locator(`[id="${anchor}"]`).first().waitFor({ timeout: 15000 });
+  // Blocks carry their anchor as data-bid (anchors.ts scrolls to it and flashes it).
+  await p.locator(`[data-bid="${anchor}"]`).first().waitFor({ timeout: 15000 });
   await snap(p, "transcript-at-moment-light");
   // Details tab.
   await p.goto(`${APP}/${meeting.slug}`);
