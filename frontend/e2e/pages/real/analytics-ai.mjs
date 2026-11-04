@@ -63,7 +63,7 @@ await step("story", async () => {
   if ((await bullets.count()) !== 3) fail(`bullets: ${await bullets.count()}`);
   const first = await bullets.first().innerText();
   if (!/Launch notes/.test(first)) fail(`first bullet: ${first}`);
-  if (/Member secret plan/.test(await p.locator("#ah-ai").locator("..").innerText())) fail("another person's doc on the card");
+  if (/Member secret plan/.test(await p.locator('section[aria-labelledby="ah-ai"]').innerText())) fail("another person's doc on the card");
   // Refresh writes it again (a second ledger row), and the link opens the doc's Audience tab.
   const r1 = await api("GET", "/api/v1/me/analytics/ai/story?range=7d", T.owner);
   if (!r1.body.cached) fail("story wasn't kept for the day");
