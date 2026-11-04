@@ -79,7 +79,7 @@ func (e *cliEnv) run(args ...string) (stdout, stderr string, err error) {
 	root.SetOut(&out)
 	root.SetErr(&errb)
 	root.SetIn(strings.NewReader(""))
-	root.SetArgs(append(args, "--server", e.fake.URL))
+	root.SetArgs(withServer(args, e.fake.URL))
 	err = root.ExecuteContext(context.Background())
 	return out.String(), errb.String(), err
 }

@@ -25,9 +25,19 @@ func (e *cliEnv) runIn(stdin string, args ...string) (stdout, stderr string, err
 	root.SetOut(&out)
 	root.SetErr(&errb)
 	root.SetIn(strings.NewReader(stdin))
-	root.SetArgs(append(args, "--server", e.fake.URL))
+	root.SetArgs(withServer(args, e.fake.URL))
 	err = root.ExecuteContext(context.Background())
 	return out.String(), errb.String(), err
+}
+
+// withServer adds --server before a "--" (after it, it would be an argument).
+func withServer(args []string, url string) []string {
+	for i, a := range args {
+		if a == "--" {
+			return append(append(append([]string{}, args[:i]...), "--server", url), args[i:]...)
+		}
+	}
+	return append(args, "--server", url)
 }
 
 func writeTemp(t *testing.T, name, content string) string {
@@ -227,6 +237,15 @@ func TestPageAppendMergesAConcurrentSave(t *testing.T) {
 	mustErr(t, err, "editing this page")
 	_, _, err = e.run("page", "append", "log")
 	mustErr(t, err, "nothing to add")
+	_, _, err = e.run("page", "append", "log", "- a list item")
+	mustErr(t, err, "goes after --")
+	e.fake.SetEditing("log", "")
+	if _, _, err := e.run("page", "append", "log", "--", "- a list item"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasSuffix(e.fake.Page("log").Content, "\n\n- a list item\n") {
+		t.Errorf("-- append %q", e.fake.Page("log").Content)
+	}
 }
 
 func TestPageProps(t *testing.T) {

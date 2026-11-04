@@ -411,8 +411,12 @@ func newPageAppendCmd() *cobra.Command {
 added to the page as it is then); refused while someone else has the page open
 in the editor.
 
+  Markdown that starts with "-" (a list item) goes after --, so it isn't read
+  as a flag.
+
 Examples:
-  markdrop page append standup "- Shipped the CLI update"
+  markdrop page append standup -- "- Shipped the CLI update"
+  markdrop page append standup "**Blocked:** waiting on review"
   git log --oneline -5 | markdrop page append changelog --from-file -`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -445,6 +449,12 @@ Examples:
 	}
 	ff.register(c)
 	c.Flags().StringVar(&from, "from-file", "", "the Markdown to add: a file, or - for stdin")
+	c.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		if strings.Contains(err.Error(), "shorthand flag") {
+			return fmt.Errorf("%w\n  Markdown that starts with \"-\" goes after --: markdrop page append <page> -- \"- item\"", err)
+		}
+		return err
+	})
 	return c
 }
 
