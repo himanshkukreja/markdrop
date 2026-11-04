@@ -28,6 +28,8 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "update_document", scope: "write" },
       { name: "set_slug", scope: "write" },
       { name: "delete_document", scope: "write" },
+      { name: "restore_document", scope: "write" },
+      { name: "list_trash", scope: "read" },
     ],
   },
   {
