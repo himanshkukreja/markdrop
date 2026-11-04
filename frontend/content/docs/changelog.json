@@ -24,6 +24,28 @@
   "next": [],
   "entries": [
     {
+      "id": "cli-0-6-0",
+      "date": "2026-11-04",
+      "title": "CLI 0.6.0: pages, exports, trash, access requests and search from the terminal",
+      "kind": "new",
+      "area": "CLI",
+      "products": [
+        "cli",
+        "mcp"
+      ],
+      "versions": {
+        "cli": "0.6.0"
+      },
+      "summary": "markdrop page creates, reads, edits and restores pages, with images from your disk; markdrop export saves them as files; and link set, trash, access and search bring the rest of your account to the terminal. The local MCP server gets two page tools.",
+      "body": "- **`markdrop page`**: `new` (blank, from a template, or from a Markdown file or standard input, in a workspace and folder or inside another page, with its own slug), `get` (the Markdown with its front matter, or `--info`), `update` (with `--base-rev` so you never overwrite someone's newer save), `append`, `props` (icon, cover, layout, lock, export, and a folder's typed properties), `templates`, `image add` (an image file as inline Markdown, the cover or the icon), and `versions` / `version` / `restore` for the page's history.\n- **`markdrop link set`** changes a page's, document's or file's link; the old link keeps redirecting. `--check` tells you whether a slug is free.\n- **`markdrop export`** saves a page as Markdown, one HTML file or a zip with its images, with `--subpages` for its sub-pages. It never overwrites a file without `--force`.\n- **`markdrop trash`** lists, restores and deletes: `rm` moves an item to the trash, `rm --permanent` deletes it forever after asking.\n- **`markdrop access`** asks for edit access, lists the requests on your documents, and approves or declines them, with the same emails as the app.\n- **`markdrop search`** finds the pages, documents, files, folders and workspaces you can open.\n- Every new command takes `--json` and prints one JSON object.\n- **Local MCP server**: `upload_page_image` puts an image file from your computer into a page, and `export_page` saves a page as a file. The local server now has 13 tools.",
+      "docs": [
+        "/cli/pages",
+        "/cli/search-trash-access",
+        "/cli/reference",
+        "/ai/local-mcp"
+      ]
+    },
+    {
       "id": "mcp-access-requests",
       "date": "2026-11-04",
       "title": "AI apps can ask for edit access, and answer access requests",
