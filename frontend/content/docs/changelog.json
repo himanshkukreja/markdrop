@@ -24,6 +24,26 @@
   "next": [],
   "entries": [
     {
+      "id": "trash",
+      "date": "2026-11-04",
+      "title": "Trash: everything you delete can be restored for 30 days",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Deleting a document, page, file or folder moves it to Trash for 30 days instead of deleting it at once. Undo right after, or restore it from Trash, and it comes back exactly where it was.",
+      "body": "- **Moved to Trash · Undo** right after every delete.\n- **Trash** in the sidebar lists what you deleted: what it is and its link, where it was, who deleted it, when, and the days left. **Restore** puts it back with the same link, folder, parent page, access and people; **Delete forever** removes it for good.\n- Deleting a **folder** moves it and everything inside to Trash; restoring brings the whole folder back. Workspace admins see and restore everything deleted from their workspace.\n- The delete dialog now names exactly what goes: \"Delete the page “Product Docs Playbook” (/EegpMKD)?\", with how many sub-pages go with it. Lists show each item's kind next to its link, so two items with the same title are easy to tell apart.\n- A deleted item's link stays reserved, and shows **This page is in the trash** (with **Restore**) to people who could edit it; everyone else gets the usual 404. Its files aren't served to anyone while it's in Trash.\n- AI apps: `delete_document` moves to Trash and returns `restore_until`; new `restore_document` and `list_trash`; `permanent: true` deletes forever (owners, and admins for their workspace's Trash).",
+      "docs": [
+        "/documents/trash",
+        "/ai/tools",
+        "/pages/sub-pages",
+        "/workspaces/folders"
+      ]
+    },
+    {
       "id": "page-ai",
       "date": "2026-11-04",
       "title": "AI in pages: rewrite, draft, summarize, translate, and ask a page questions",

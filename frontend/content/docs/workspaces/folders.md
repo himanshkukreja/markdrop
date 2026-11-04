@@ -1,7 +1,7 @@
 ---
 title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
-updated: 2026-10-30
+updated: 2026-11-04
 prerequisites: [/workspaces/create]
 keywords: [folder, subfolder, move, rename, organize, path, address]
 ---
@@ -37,13 +37,13 @@ Admins and the owner manage folders. Open the folder and choose **More folder ac
 - **Rename folder…** shows the new address as you type. Links to documents inside it that use the old name redirect to the new address. The folder's own page moves, and its old address stops working.
 - **Move folder to…** moves it with everything inside. The move is refused if it would nest anything deeper than 8 levels.
 - **New items start as…** sets who can open new items filed into the folder. See [Workspace privacy](/workspaces/privacy).
-- **Delete folder…** removes only the folder. What's inside stays in the workspace, and nobody loses access. If the folder is inside another one, you choose whether everything moves up one level or the items move to the top of the workspace.
+- **Delete folder…** moves the folder, the folders inside it and everything filed in them to [Trash](/documents/trash) for 30 days. The dialog says how much goes with it. Restoring the folder from Trash brings it all back, in place.
 
 ::clip{src="/docs-assets/workspaces/folders/folder-rename" alt="Opening More folder actions on the Releases folder, choosing Rename folder…, and typing Release notes while the address below changes to docs.acme.com/release-notes/; then Cancel."}
 
 The same menu has **Workspace settings** and, when the workspace has its own domain, an item like **Copy docs.acme.com address** that copies the folder's address there. At the top level of the workspace it's called **More workspace actions**, and the folder actions aren't there.
 
-markdrop.in links never change when you rename, move or delete a folder. Only addresses on your own domain include folders.
+markdrop.in links never change when you rename or move a folder. Only addresses on your own domain include folders.
 
 ## Take something out of the workspace
 

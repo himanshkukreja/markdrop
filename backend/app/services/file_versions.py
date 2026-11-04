@@ -127,6 +127,14 @@ async def usage_bytes(db: AsyncIOMotorDatabase, user_id: str) -> int:
         total += int(d.get("size_bytes") or 0)
         if d.get("blob_key"):
             current.add(d["blob_key"])
+    # Files in the trash keep their bytes, so they still count (services/trash.py).
+    async for t in db["trash"].find(
+        {"owner_id": user_id, "doc.kind": "artifact"}, {"doc.size_bytes": 1, "doc.blob_key": 1}
+    ):
+        d = t.get("doc") or {}
+        total += int(d.get("size_bytes") or 0)
+        if d.get("blob_key"):
+            current.add(d["blob_key"])
     rows = await db[VERSIONS].aggregate([
         {"$match": {"user_id": user_id}},
         {"$group": {"_id": "$blob_key", "size": {"$max": "$size_bytes"}}},
