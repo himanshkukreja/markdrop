@@ -154,7 +154,7 @@ If someone saved a newer version anyway (from the classic editor, VS Code or an 
 
 ## On a phone
 
-Pages work the same on a phone. While you edit, a toolbar above the keyboard adds blocks, formats text and undoes, and menus open as sheets from the bottom of the screen. See [On a phone](/pages/blocks-and-layout#on-a-phone).
+Pages work the same on a phone or tablet. While you edit, a toolbar above the keyboard adds blocks, formats text and undoes, and on a phone menus open as sheets from the bottom of the screen. See [On a phone or tablet](/pages/blocks-and-layout#on-a-phone-or-tablet).
 
 ## AI in pages
 
