@@ -79,7 +79,8 @@ export default function RequestReview({ id }: { id: string }) {
       const s = errorStatus(e);
       setError(
         s === 409 ? "This request was already answered another way. Reload to see what was decided."
-          : s === 404 ? "Only the file's owner can answer this request."
+          : s === 404 ? "Only the file's owner (or, when the owner can't be reached, a workspace admin) can answer this request."
+            : s === 422 && e instanceof Error && e.message ? e.message
             : e instanceof Error && e.message ? e.message : "That didn't go through. Try again.",
       );
     } finally {
@@ -113,6 +114,8 @@ export default function RequestReview({ id }: { id: string }) {
   }
 
   const who = requesterName(req);
+  // "Request edit access": someone who already reads it asks to edit it (this page only).
+  const editRequest = req.role_requested === "editor";
   const first = (req.requester.name || req.requester.email.split("@")[0] || "them").split(/\s+/)[0];
   const title = requestTitle(req);
   const decided = req.status !== "pending";
@@ -124,7 +127,7 @@ export default function RequestReview({ id }: { id: string }) {
     <div className="flex min-w-0 flex-col gap-5">
       <div>
         <p className="text-eyebrow uppercase text-text-muted">Access request</p>
-        <h1 className="mt-1 text-h2 text-text [overflow-wrap:anywhere]" dir="auto"><span className="ph-sensitive ph-mask">{who}</span> asked to open “<span className="ph-sensitive ph-mask">{title}</span>”</h1>
+        <h1 className="mt-1 text-h2 text-text [overflow-wrap:anywhere]" dir="auto"><span className="ph-sensitive ph-mask">{who}</span> asked to {editRequest ? "edit" : "open"} “<span className="ph-sensitive ph-mask">{title}</span>”</h1>
       </div>
 
       <section aria-label="The request" className="flex min-w-0 flex-col gap-4 rounded-2xl border border-border bg-surface p-6 shadow-sm">
@@ -158,18 +161,27 @@ export default function RequestReview({ id }: { id: string }) {
           </div>
         ) : (
           <>
-            {action && (
+            {action && !(editRequest && action === "view") && (
               <p className="text-caption text-text-secondary">
-                From your email: <Badge size="sm">{LABEL[action]}</Badge> Press it to confirm.
+                From your email: <Badge size="sm">{editRequest && action === "edit" ? "Approve" : LABEL[action]}</Badge> Press it to confirm.
               </p>
             )}
+            {editRequest ? (
+              <div className="flex flex-wrap gap-2">
+                <Button ref={action === "edit" ? chosenRef : undefined} variant={action === "decline" ? "secondary" : "primary"} iconLeft="edit" loading={busy === "edit"} disabled={!!busy && busy !== "edit"} onClick={() => void decide("edit")}>Approve: let them edit</Button>
+                <Button ref={action === "decline" ? chosenRef : undefined} variant={action === "decline" ? "primary" : "ghost"} loading={busy === "decline"} disabled={!!busy && busy !== "decline"} onClick={() => void decide("decline")}>Decline</Button>
+              </div>
+            ) : (
             <div className="flex flex-wrap gap-2">
               <Button ref={action === "view" ? chosenRef : undefined} variant={action && action !== "view" ? "secondary" : "primary"} iconLeft="eye" loading={busy === "view"} disabled={!!busy && busy !== "view"} onClick={() => void decide("view")}>Let them view</Button>
               <Button ref={action === "edit" ? chosenRef : undefined} variant={action === "edit" ? "primary" : "secondary"} iconLeft="edit" loading={busy === "edit"} disabled={!!busy && busy !== "edit"} onClick={() => void decide("edit")}>Let them edit</Button>
               <Button ref={action === "decline" ? chosenRef : undefined} variant={action === "decline" ? "secondary" : "ghost"} loading={busy === "decline"} disabled={!!busy && busy !== "decline"} onClick={() => void decide("decline")}>Decline</Button>
             </div>
+            )}
             <p className="text-caption text-text-muted">
-              This shares only this item with <span className="ph-sensitive ph-mask">{first}</span>. It doesn&apos;t add them to a workspace.
+              {editRequest
+                ? <>They can already read it. Approving lets <span className="ph-sensitive ph-mask">{first}</span> edit this page only, not the pages inside it.{req.as_admin ? " It came to you as a workspace admin: the page's owner can't be reached." : ""}</>
+                : <>This shares only this item with <span className="ph-sensitive ph-mask">{first}</span>. It doesn&apos;t add them to a workspace.</>}
             </p>
           </>
         )}

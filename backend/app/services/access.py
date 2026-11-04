@@ -71,8 +71,13 @@ ACTIONS = frozenset({
     "move_in_workspace", "unshare", "view_stats", "copy", "claim", "sync", "gdocs_export",
     "subscribe", "beacon",
 })
-# §2.2 step 4: what a tenant token may ever do.
-TENANT_ACTIONS = frozenset({"read", "list", "beacon", "subscribe"})
+# §2.2 step 4: what a tenant token may ever do. Reading, and (domain editing, 2026-11-04) editing a
+# page's content: its text and title, its images, its sub-pages, its version history. Never its
+# settings, access, link, deletion or anything account-wide: those stay on markdrop.in. The
+# workspace pin above this check (``scope``) is what keeps every one of these inside the token's
+# own workspace; this set only says *which* actions, never *where*.
+TENANT_ACTIONS = frozenset({"read", "list", "beacon", "subscribe",
+                            "edit_content", "list_versions", "restore_version"})
 # Actions that change something (MCP needs documents:write for these).
 WRITE_ACTIONS = ACTIONS - frozenset({
     "read", "list", "see_grants", "view_stats", "list_versions", "subscribe", "beacon",
@@ -114,6 +119,10 @@ class Actor:
     edit_secret: str | None = None
     read_password: str | None = None
     site_admin: bool = False
+    # The request's Origin host (browser requests only). Used for one thing: an edit-link holder
+    # (no account, the edit secret) on a workspace's own domain is held to that domain's workspace
+    # and to what a tenant token may do there (`can`, below).
+    origin_host: str | None = None
 
     @property
     def user_id(self) -> str | None:
@@ -146,8 +155,30 @@ def actor_from_request(request, user, *, edit_secret: str | None = None,
         cred = "api_token"
     else:
         cred = "session"
+    origin_host = None
+    if request is not None:
+        raw_origin = request.headers.get("origin")
+        if raw_origin and raw_origin != "null":
+            from app.services.domain import clean_host
+
+            origin_host = clean_host(raw_origin) or None
     return Actor(user=user, cred=cred, tenant_ws=tenant_ws, edit_secret=edit_secret or None,
-                 read_password=read_password if read_password not in (None, "") else None)
+                 read_password=read_password if read_password not in (None, "") else None,
+                 origin_host=origin_host)
+
+
+async def _domain_workspace(ctx: "Ctx", host: str) -> str | None:
+    """The workspace whose live custom domain ``host`` is, else None (cached per request)."""
+    key = ("domain_ws", host)
+    if key not in ctx._facts:
+        from app.services import domain as domain_service
+
+        try:
+            row = await domain_service.live_app_domain(ctx.db, host)
+        except Exception:
+            row = None
+        ctx._facts[key] = (row or {}).get("workspace_id")
+    return ctx._facts[key]
 
 
 @dataclass
@@ -167,6 +198,7 @@ class Ctx:
     _grants: dict = field(default_factory=dict, repr=False)
     _facts: dict = field(default_factory=dict, repr=False)
     _inherit: dict = field(default_factory=dict, repr=False)
+    _grants_sub: dict = field(default_factory=dict, repr=False)
 
     async def workspace(self, workspace_id: str | None):
         if not workspace_id:
@@ -196,15 +228,30 @@ class Ctx:
             rows = await self.db["document_grants"].find(
                 {"email": email},
                 {"document_id": 1, "role": 1, "parent_grant_id": 1, "granted_via": 1,
-                 "granted_by_user_id": 1}).to_list(length=20_000)
+                 "granted_by_user_id": 1, "sub_role": 1}).to_list(length=20_000)
             graph = await GrantGraph.load(self.db, rows)
             out: dict[str, str] = {}
+            sub: dict[str, str] = {}
             for r in rows:
                 role = graph.role(str(r["_id"]))
                 if role is not None:
                     out[r["document_id"]] = role
+                    # What the grant gives the sub-pages that inherit from its page: the same, or
+                    # (a page-only grant, e.g. an approved "Request edit access") ``sub_role``.
+                    below = _min_role(role, r["sub_role"]) if "sub_role" in r else role
+                    if below is not None:
+                        sub[r["document_id"]] = below
             self._grants[email] = out
+            self._grants_sub[email] = sub
         return self._grants[email]
+
+    async def inherited_grants_for(self, email: str) -> dict[str, str]:
+        """document_id → the role a grant on that page gives its *inheriting sub-pages*. The
+        same as :meth:`grants_for` except for page-only grants (``sub_role``)."""
+        if not email:
+            return {}
+        await self.grants_for(email)
+        return self._grants_sub.get(email, {})
 
     def forget(self, doc: dict | None = None) -> None:
         """Drop cached facts (after a write changed them)."""
@@ -212,6 +259,7 @@ class Ctx:
             self._facts.clear()
             self._roles.clear()
             self._grants.clear()
+            self._grants_sub.clear()
             self._ws.clear()
             self._inherit.clear()
         else:
@@ -403,8 +451,10 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
         if inh is not None:
             # An inheriting sub-page is open to everyone the pages above it are
             # shared with, and to the people who own those pages (as editors).
+            # A page-only grant (``sub_role``) gives the sub-pages less, or nothing.
+            below = await ctx.inherited_grants_for(actor.email)
             for p in inh.chain:
-                grant_role = _max_role(grant_role, mine.get(str(p["_id"])))
+                grant_role = _max_role(grant_role, below.get(str(p["_id"])))
                 if p.get("owner_id") and p.get("owner_id") == uid:
                     grant_role = _max_role(grant_role, "editor")
     role = "owner" if is_owner else _max_role(grant_role, member_doc_role)
@@ -579,11 +629,24 @@ async def can(actor: Actor, doc: dict | None, action: str, ctx: Ctx) -> Decision
         return not_found()
     f = await facts(actor, doc, ctx)
     scope = actor.tenant_ws or ctx.workspace_scope
+    # An edit-link holder with no account, on a workspace's own domain (the request's Origin is that
+    # live domain): the same two fences as a tenant token there — that workspace's documents only,
+    # and only what a tenant token may do. The secret already names one page; this keeps a secret
+    # of a page elsewhere from being used through this domain, and delete / settings / access /
+    # link on markdrop.in. (A script can leave the Origin out; it then gets what the secret gives
+    # anywhere, as before. This is the browser path being consistent, not a new boundary.)
+    on_domain = False
+    if actor.cred == "none" and actor.edit_secret and actor.origin_host:
+        dom_ws = await _domain_workspace(ctx, actor.origin_host)
+        if dom_ws is not None:
+            if scope is not None and scope != dom_ws:
+                return not_found()
+            scope, on_domain = dom_ws, True
     if scope is not None and f.ws_id != scope:
         return not_found()
-    if actor.cred == "tenant" and action not in TENANT_ACTIONS:
-        return Decision(False, 401, "This session only works for reading documents on that "
-                                    "workspace's domain.", code="credential")
+    if (actor.cred == "tenant" or on_domain) and action not in TENANT_ACTIONS:
+        return Decision(False, 401, "That isn't available on the workspace's own domain. Open this "
+                                    "page on markdrop.in to do it.", code="credential")
     if actor.cred == "mcp" and action in WRITE_ACTIONS and MCP_WRITE not in actor.scopes:
         return Decision(False, 403, "insufficient_scope", code="scope")
     # Owners and workspace admins can always take a document out of the
@@ -1080,7 +1143,7 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
             "created_at": now, "notified": False,
         }
         result = await db["document_grants"].find_one_and_update(
-            {"document_id": document_id, "email": email}, {"$set": row},
+            {"document_id": document_id, "email": email}, {"$set": row, "$unset": {"sub_role": ""}},
             upsert=True, return_document=True,
         )
         if existing is not None and existing.get("role") != role:
@@ -1098,9 +1161,11 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
         # *that* came from (C2): validity is the chain, read at read time.
         granted_via = None
         parent_grant_id = None
+        page_only: Any = _UNSET
         if grant_role_allows(f.grant_role, role):
             own = await db["document_grants"].find_one(
-                {"document_id": document_id, "email": actor.email}, {"_id": 1, "granted_via": 1})
+                {"document_id": document_id, "email": actor.email},
+                {"_id": 1, "granted_via": 1, "sub_role": 1})
             if own is None:
                 # C-N4: the grant this rests on is gone (revoked meanwhile).
                 ctx.forget()
@@ -1113,6 +1178,9 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
                                            "Ask its owner to share it.")
             parent_grant_id = str(own["_id"])
             granted_via = own.get("granted_via")
+            # Re-shared from a page-only grant: the new one is page-only to the same extent.
+            if "sub_role" in own:
+                page_only = _min_role(role, own.get("sub_role"))
         elif f.ws_id is not None and grant_role_allows(f.member_doc_role, role):
             granted_via = f.ws_id
         else:
@@ -1124,6 +1192,8 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
             "granted_via": granted_via, "parent_grant_id": parent_grant_id,
             "created_at": now, "notified": False,
         }
+        if page_only is not _UNSET:
+            row["sub_role"] = page_only
         try:
             res = await db["document_grants"].insert_one(row)
         except DuplicateKeyError:

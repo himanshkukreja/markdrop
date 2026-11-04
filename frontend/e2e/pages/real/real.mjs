@@ -468,6 +468,88 @@ await step("tenant", async () => {
   await c.close();
 });
 
+/* ── 6b. editing on the custom domain: a member edits and saves there; a reader there sees the change
+   and can ask to edit; management stays on markdrop.in (owner decision 2026-11-04) ── */
+async function tenantSignIn(p, addr) {
+  await fetch(`${APP}/api/revalidate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag: "host:acme.localhost" }) });
+  await p.goto(`${APP}/robots.txt`);
+  await p.goto(addr, { waitUntil: "networkidle" });
+  const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
+    .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
+  await signIn.first().click({ timeout: 20000 });
+  await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
+  await p.waitForLoadState("networkidle");
+}
+/** The page's ⋯ menu (reader or editor). */
+const pageMenu = (p) => p.getByRole("button", { name: /Page options|More options|^More$/ }).last().click({ timeout: 10000 });
+await step("tenant-edit", async () => {
+  const d = await docOf(state.slug, T.owner);
+  const addr = `${TENANT}/${[...(d.folder_path || []), state.slug].join("/")}`;
+  const marker = `Edited on acme.localhost ${Date.now().toString(36)}`;
+  // Ben (a member) on the workspace's domain: the page opens in the editor, he types, it saves.
+  const m = await ctx(browser, { token: T.member });
+  const calls = captureApi(m.p);
+  await tenantSignIn(m.p, addr);
+  await m.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  if (await m.p.getByText("only works for documents on that workspace").count()) fail("the domain session was refused");
+  await m.p.locator(".pb-live .ProseMirror > p").last().click();
+  await m.p.keyboard.press("End");
+  await m.p.keyboard.press("Enter");
+  await m.p.keyboard.type(marker);
+  await waitSaved(m.p);
+  await shot(m.p, "29-tenant-member-editing", { wait: 1200 });
+  const md = await content(state.slug);
+  if (!md.includes(marker)) fail("the edit made on the domain didn't reach the page");
+  const put = calls.find((b) => b.url.endsWith(`/api/v1/documents/${state.slug}`) && b.status === 200 && b.body.includes(marker));
+  if (!put) log("(no PUT seen in the capture; the content check above passed)");
+  const lock = calls.find((b) => b.url.includes(`/documents/${state.slug}/lock`));
+  if (!lock || lock.status !== 200) fail(`lock on the domain → ${lock?.status}`);
+  if (calls.some((b) => b.status === 401 && /documents\/[^/]+(\/lock|\/assets)?$/.test(new URL(b.url).pathname))) fail("a 401 on an editing route on the domain");
+  // Leaving the page lets go of the lock (the close beacon carries the domain's session).
+  await m.p.goto(`${TENANT}/robots.txt`);
+  await m.p.waitForTimeout(1500);
+  const free = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (free.status !== 200) fail(`the lock outlived leaving the domain page → ${free.status} ${JSON.stringify(free.body)}`);
+  await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  await m.c.close();
+
+  // Vic (a workspace viewer) on the domain: reads the new text, may ask to edit.
+  const r = await ctx(browser, { token: T.reader });
+  await tenantSignIn(r.p, addr);
+  await r.p.locator(".pb-page").getByText(marker).waitFor({ timeout: 30000 });
+  if (await r.p.locator('.pb-live .ProseMirror[contenteditable="true"]').count()) fail("a viewer got the editor on the domain");
+  await shot(r.p, "30-tenant-reader-sees-edit", { wait: 1000 });
+  await pageMenu(r.p);
+  await r.p.getByRole("menuitem", { name: /Request edit access/ }).click({ timeout: 10000 });
+  await r.p.getByRole("dialog").getByLabel(/Message/).fill("I'd like to fix the rollout dates.");
+  await shot(r.p, "31-tenant-request-edit-dialog", { wait: 500 });
+  await r.p.getByRole("dialog").getByRole("button", { name: "Send request" }).click();
+  await r.p.getByText(/Request sent/).first().waitFor({ timeout: 15000 });
+  await shot(r.p, "32-tenant-request-sent", { wait: 300 });
+  await r.c.close();
+  const reqs = await api("GET", "/api/v1/me/access-requests", T.owner);
+  const mine = (reqs.body?.requests || []).find((x) => x.document?.slug === state.slug && x.role_requested === "editor");
+  if (!mine) fail(`the owner has no edit request: ${JSON.stringify(reqs.body).slice(0, 300)}`);
+  // The owner approves on markdrop.in; Vic edits on the domain after that.
+  const ok = await api("POST", `/api/v1/access-requests/${mine.id}/decision`, T.owner, { decision: "edit" });
+  if (ok.status !== 200 || ok.body.role_granted !== "editor") fail(`approve → ${ok.status} ${JSON.stringify(ok.body)}`);
+  const r2 = await ctx(browser, { token: T.reader });
+  await tenantSignIn(r2.p, addr);
+  await r2.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await shot(r2.p, "33-tenant-reader-approved-editor", { wait: 1200 });
+  await r2.c.close();
+
+  // The owner on the domain: delete / access / link open markdrop.in.
+  const o = await ctx(browser, { token: T.owner });
+  await tenantSignIn(o.p, addr);
+  await o.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  await pageMenu(o.p);
+  await o.p.getByRole("menuitem", { name: /Manage access on markdrop\.in/ }).or(o.p.getByRole("link", { name: /Manage access on markdrop\.in/ })).waitFor({ timeout: 10000 });
+  if (await o.p.getByRole("menuitem", { name: /^Delete page$/ }).count()) fail("Delete page is offered on the domain");
+  await shot(o.p, "34-tenant-owner-menu", { wait: 500 });
+  await o.c.close();
+});
+
 /* ── 7. page properties: icon, cover upload + reposition, full width, font, lock ── */
 await step("properties", async () => {
   const mk = await api("POST", "/api/v1/pages", T.owner, { title: "Properties", workspace: WS, folder: FOLDER });

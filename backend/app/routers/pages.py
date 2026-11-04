@@ -38,15 +38,35 @@ async def create_page(
     ``parent`` (the slug of a page you can edit) puts it inside that page, in
     its workspace and folder, inheriting its access. ``slug`` gives it its link
     (publish's custom-slug rules; 409 when taken, nothing is created)."""
+    from app.routers.auth import is_tenant_request
     from app.routers.documents import _ctx, _full_response
 
     actor = access.actor_from_request(request, user)
     ctx = _ctx(db, request)
+    tenant = is_tenant_request(request)
+    if tenant:
+        # On a workspace's own domain: a sub-page of a page this person can edit, and nothing else.
+        # The parent's can(edit_content) is pinned to the token's workspace (access.can), and a
+        # sub-page always lives in its parent's workspace — so the new page is in that workspace
+        # too. No top-level pages, no filing into a workspace or folder by id, no workspace or
+        # personal template (those are read by id from anywhere); a built-in template is fine.
+        if not data.parent:
+            raise HTTPException(status_code=403, detail="On the workspace's own domain you can add pages "
+                                                        "inside a page you can edit. Create other pages on "
+                                                        "markdrop.in.")
+        if data.workspace or data.folder:
+            raise HTTPException(status_code=422, detail="A sub-page lives in its parent's workspace and "
+                                                        "folder; leave workspace and folder out.")
+        if data.template and page_templates.get(data.template) is None:
+            raise HTTPException(status_code=403, detail="Workspace templates are available on markdrop.in.")
     raw, secret, error = await pages.create_page(
         db, user, actor, ctx, title=data.title, workspace=data.workspace, folder=data.folder,
         parent=data.parent, template=data.template, content=data.content, slug=data.slug)
     body = await _full_response(db, raw, actor, access.Ctx(db, surface="rest"))
-    return PageCreateResponse(document=DocumentResponse(**body), edit_secret=secret, workspace_error=error)
+    # The new page's edit secret is a key to all of it (settings, delete, anywhere): never handed to
+    # a workspace's domain. Its creator is signed in and owns it, so they don't need it.
+    return PageCreateResponse(document=DocumentResponse(**body), edit_secret=None if tenant else secret,
+                              workspace_error=error)
 
 
 @router.get("/page-templates")

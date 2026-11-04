@@ -398,10 +398,17 @@ class Tenants(AccessWorld):
     async def test_c121_tenant_origin_mismatch(self):
         self.skipTest("#121 Origin == claim host lives in routers/auth.py _tenant_scope_ok (tenant workstream)")
 
-    async def test_c122_tenant_cannot_write(self):
+    async def test_c122_tenant_writes_content_only(self):
+        # Domain editing (2026-11-04): the text and title, never the settings.
         d = await self.mkdoc("W")
         r = await self.http.put(f"/api/v1/documents/{d['slug']}", json={"title": "x", "content": "y"},
                                 headers=self.tenant("wm", "W1"))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}",
+                                json={"title": "x", "content": "y", "read_password": "pw"},
+                                headers=self.tenant("wm", "W1"))
+        self.assertEqual(r.status_code, 401)
+        r = await self.http.delete(f"/api/v1/documents/{d['slug']}", headers=self.tenant("owner", "W1"))
         self.assertEqual(r.status_code, 401)
 
     async def test_c123_tenant_cannot_list_me(self):

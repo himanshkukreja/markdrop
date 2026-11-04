@@ -84,6 +84,10 @@ export type RequestDecision = "view" | "edit" | "decline";
 export interface AccessRequest {
   id: string;
   status: RequestStatus;
+  /** "editor": "Request edit access" (someone who reads it asks to edit it). Older servers: absent. */
+  role_requested?: "viewer" | "editor";
+  /** It came to the workspace's admins: the page has no reachable owner. */
+  as_admin?: boolean;
   message: string | null;
   created_at: string;
   decided_at: string | null;
@@ -100,15 +104,18 @@ export interface MyRequestState {
   request: { id: string; status: RequestStatus; created_at: string; decided_at: string | null } | null;
 }
 
-export const myAccessRequest = (slug: string) =>
-  request<MyRequestState>(`/api/v1/documents/${encodeURIComponent(slug)}/access-requests/mine`);
+export const myAccessRequest = (slug: string, role: "viewer" | "editor" = "viewer") =>
+  request<MyRequestState>(`/api/v1/documents/${encodeURIComponent(slug)}/access-requests/mine${role === "editor" ? "?role=editor" : ""}`);
 
 /** `POST /documents/{slug}/access-requests` — signed in, and only when the read was denied.
  *  409: already pending (or now readable); 403: a password gate; 404: like a missing document. */
-export const requestAccess = (slug: string, message?: string) =>
+export const requestAccess = (slug: string, message?: string, role: "viewer" | "editor" = "viewer") =>
   request<{ id: string; status: RequestStatus }>(`/api/v1/documents/${encodeURIComponent(slug)}/access-requests`, {
     method: "POST",
-    body: JSON.stringify(message?.trim() ? { message: message.trim().slice(0, 500) } : {}),
+    body: JSON.stringify({
+      ...(message?.trim() ? { message: message.trim().slice(0, 500) } : {}),
+      ...(role === "editor" ? { role } : {}),
+    }),
   });
 
 /** `GET /me/access-requests?status=` — requests on documents the caller owns. */
