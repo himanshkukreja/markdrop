@@ -279,7 +279,7 @@ await step("views", async () => {
   await p.goto(wsUrl, { waitUntil: "networkidle" });
   const sw = p.getByRole("radiogroup", { name: "View" });
   await sw.waitFor({ timeout: 20000 });
-  if ((await p.locator("#main [data-view]").first().getAttribute("data-view")) !== "list") fail("the default view isn't List");
+  if ((await p.locator("#main [data-view]").first().getAttribute("data-view")) !== "cards") fail("the default view isn't Cards");
   // Keyboard: arrows move the choice (a radio group).
   await sw.getByRole("radio", { name: "List" }).focus();
   await p.keyboard.press("ArrowRight");
@@ -424,8 +424,14 @@ await step("cards", async () => {
     if (after <= first) fail(`scrolling asked for no more previews (${first} → ${after})`);
     log(`lazy: ${first} previews on the first screen, ${after} after scrolling (of 60)`);
     await c2.close();
-    // List (the default) and Grid never ask.
+    // Cards is the default for someone who never picked a view.
+    const { c: c5, p: p5 } = await ctx(browser, { token: T.member, width: 1440, height: 900 });
+    await p5.goto(fUrl(L.folders.Gallery), { waitUntil: "load" });
+    await p5.locator("#main [data-view=cards]").first().waitFor({ timeout: 20000 });
+    await c5.close();
+    // List and Grid never ask.
     const { c: c4, p: p4 } = await ctx(browser, { token: T.member, width: 1440, height: 900 });
+    await c4.addInitScript(() => { try { localStorage.setItem("md_ws_view", "list"); } catch {} });
     const asked3 = watchPreviews(p4);
     await p4.goto(fUrl(L.folders.Gallery), { waitUntil: "load" });
     await p4.locator("#main [data-view=list]").first().waitFor({ timeout: 20000 });

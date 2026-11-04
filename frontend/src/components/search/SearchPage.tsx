@@ -14,7 +14,7 @@ import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
 import { listWorkspaces } from "@/lib/workspaces";
 import {
-  hrefOf, rememberSearch, search, searchAiStatus, type AiStatus, type SearchItem, type SearchKind,
+  hrefOf, newSearchSid, rememberSearch, search, searchAiStatus, searchClicked, type AiStatus, type SearchItem, type SearchKind,
   type SearchResponse, type TrashHit,
 } from "@/lib/search";
 import { looksLikeQuestion } from "@/lib/searchCore.mjs";
@@ -77,6 +77,7 @@ export default function SearchPage() {
   const [nonce, setNonce] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const autoAsked = useRef("");
+  const sid = useRef(typeof window === "undefined" ? "" : newSearchSid());
   const ai = useAiSearch();
   const { run: runAi, reset: resetAi } = ai;
   const term = q.trim();
@@ -121,7 +122,7 @@ export default function SearchPage() {
     const ctl = new AbortController();
     setLoading(true);
     const t = setTimeout(() => {
-      search(params, ctl.signal)
+      search({ ...params, sid: sid.current }, ctl.signal)
         .then((r) => { setRes(r); setItems(r.items); setMore(!!r.next_cursor); setError(""); })
         .catch((e) => { if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : "Search isn't available right now."); })
         .finally(() => { if (!ctl.signal.aborted) setLoading(false); });
@@ -167,10 +168,11 @@ export default function SearchPage() {
   const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string; encrypted?: boolean }, newTab?: boolean) => {
     if (!item.url) return;
     if (term.length >= 2) rememberSearch(term);
+    if (res && res.query === term) searchClicked(res.log_id);
     const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug, encrypted: item.encrypted });
     if (external || newTab) window.open(href, "_blank", "noopener,noreferrer");
     else router.push(href);
-  }, [router, term]);
+  }, [router, term, res]);
 
   const restore = useCallback(async (t: TrashHit) => {
     setRestoring(t.key);

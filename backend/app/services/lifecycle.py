@@ -165,6 +165,9 @@ async def destroy(db: AsyncIOMotorDatabase, raw: dict, *, reason: str = "delete"
 
     await db[engage.COLL].delete_many({"doc_id": doc_id})
     engage.forget_doc(doc_id)
+    from app.services import analytics_ai_doc
+
+    await analytics_ai_doc.forget_document(db, doc_id)
     presence.forget_doc(doc_id)
     try:
         await _delete_objects(raw)

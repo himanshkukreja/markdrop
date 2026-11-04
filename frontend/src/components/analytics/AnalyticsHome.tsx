@@ -13,6 +13,7 @@ import { RANGES, downloadHomeCsv, getHome, isRange, type AnalyticsRange, type Ho
 import { Sparkline, trendWords } from "./charts";
 import { docHref, num, prettyHeadingId } from "./format";
 import { KpiGrid, KpiTile, LoadError, Panel, PanelSkeleton, Quiet, RangePicker, useAnalyticsGate, useLoad, useParams } from "./parts";
+import AnalyticsAI from "./AnalyticsAI";
 
 
 function LinkIcon({ l }: { l: HomeLink }) {
@@ -73,6 +74,7 @@ export default function AnalyticsHome() {
       ) : (
         <>
           <KpiGrid>{h.kpis.map((k) => <KpiTile key={k.key} kpi={k} range={range} />)}</KpiGrid>
+          <AnalyticsAI range={range} />
 
           <div className="flex flex-wrap items-start gap-4">
             <Panel id="ah-links" title="Your links" className="flex-[999_1_560px]">

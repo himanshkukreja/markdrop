@@ -7,6 +7,7 @@ import { PageBars } from "./charts";
 import { RANGE_WORDS, num, pagesLabel, pct, secs } from "./format";
 import { TrackingNote } from "./OverviewTab";
 import { LoadError, Panel, PanelSkeleton, Quiet, useLoad } from "./parts";
+import InsightsPanel from "./InsightsPanel";
 
 export default function PagesTab({ slug, ov, range, internal }: { slug: string; ov: Overview; range: AnalyticsRange; internal: boolean }) {
   const pages = useLoad(ov.has_engagement ? `pages:${slug}:${range}:${internal}` : null, () => getPages(slug, { range, internal }));
@@ -37,6 +38,7 @@ export default function PagesTab({ slug, ov, range, internal }: { slug: string; 
 
   return (
     <div className="flex flex-col gap-4 sm:gap-5">
+      <InsightsPanel slug={slug} kind="pages" range={range} internal={internal} />
       <Quiet>{pagesLabel(p.npages)} · {num(p.sessions)} {p.sessions === 1 ? "reader" : "readers"} · {RANGE_WORDS[range]}</Quiet>
       <div className="flex flex-wrap gap-4">
         <Panel id="pg-reach" title="Viewers who reached each page" className="flex-[1_1_420px]">

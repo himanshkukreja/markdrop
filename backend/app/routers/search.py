@@ -1,14 +1,18 @@
 """Global search (services/search.py) and AI search (services/search_ai.py).
 
     GET  /api/v1/search?q=&scope=all|workspace:<id>&kind=&owner=me|anyone&updated=any|week|month
-                       &current=<workspace id>&cursor=&limit=
+                       &current=<workspace id>&cursor=&limit=&sid=
          → {query, items, groups: [{key, label, items, more}], trash, next_cursor, total, took_ms,
-            ai_suggested}
+            ai_suggested, log_id}
+    POST /api/v1/search/click            {log_id}: a result was opened from that search
     GET  /api/v1/search/ai-status?scope=        {enabled, reason, message, model}
     POST /api/v1/search/ask              SSE   {question, scope?, current?}
          events: status {stage}, results {items}, delta {text},
                  done {request_id, usage, answer, citations, ranked}, limit {reason, message},
                  error {detail, code}
+
+The first page of a search in a workspace is logged without who ran it (services/search_log.py:
+query text, workspace, result count, clicked, time; 90 days), for content gaps.
 
 Signed-in only (``require_user``; a workspace's own-domain session isn't on the tenant allowlist,
 so it gets 401). Every result is something the caller can open now (services/search.py, "three
@@ -26,7 +30,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.pages_ai import sse
-from app.services import access, search, search_ai
+from app.services import access, search, search_ai, search_log
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/search", tags=["search"])
@@ -66,6 +70,7 @@ async def search_everything(
     cursor: str | None = Query(None, max_length=200),
     limit: int = Query(20, ge=1, le=search.MAX_LIMIT),
     trash: bool = Query(True),
+    sid: str | None = Query(None, max_length=40),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
@@ -76,7 +81,37 @@ async def search_everything(
                              limit=limit, trash=trash)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc))
-    return jsonable_encoder(await search.run(db, actor, ctx, query))
+    out = await search.run(db, actor, ctx, query)
+    log_id = None
+    ws = query.scope or query.current
+    if query.offset == 0 and ws and ws in await _member_ws(db, user.id):
+        total = out.get("total")
+        try:
+            log_id = await search_log.record(db, q=q, ws=ws, sid=sid,
+                                             results=total if total is not None else len(out.get("items") or []))
+        except Exception:  # logging never fails a search
+            log_id = None
+    return jsonable_encoder({**out, "log_id": log_id})
+
+
+async def _member_ws(db: AsyncIOMotorDatabase, user_id: str) -> set[str]:
+    """Workspaces the caller is a member of: a search is only logged against one of them."""
+    return {m["workspace_id"] async for m in db["memberships"].find({"user_id": user_id}, {"workspace_id": 1})}
+
+
+class ClickBody(BaseModel):
+    log_id: str = Field(..., min_length=1, max_length=40)
+
+
+@router.post("/click", status_code=204)
+@limiter.limit("240/minute")
+async def search_click(request: Request, body: ClickBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    """A result was opened from the search ``log_id`` (no content: nothing to learn from it)."""
+    from fastapi import Response
+
+    await search_log.clicked(db, body.log_id)
+    return Response(status_code=204)
 
 
 @router.get("/ai-status")

@@ -342,8 +342,13 @@ async def compose(db: AsyncIOMotorDatabase, user: Any, now: datetime | None = No
     off = off_url(user_id)
     sub = f"{_days(w)} · your own views aren't counted"
     subject = mailer._one_line(head.replace("Your week:", "Your Markdrop week:", 1), 150)
-    return Digest(subject=subject, html=_html(head, sub, kpis, top, tips, analytics_url, off),
-                  text=_text(head, sub, kpis, top, tips, analytics_url, off), week=week_key(now))
+    # Analytics AI's story of the week (services/analytics_ai_home.py): once per person per week,
+    # cached; no section when it can't run (thin data, a limit, AI off, a failure).
+    from app.services import analytics_ai_home
+
+    story = await analytics_ai_home.story_for_digest(db, user_id, w, week_key(now))
+    return Digest(subject=subject, html=_html(head, sub, kpis, top, tips, analytics_url, off, story),
+                  text=_text(head, sub, kpis, top, tips, analytics_url, off, story), week=week_key(now))
 
 
 async def render_digest(db: AsyncIOMotorDatabase, user: Any,
@@ -357,8 +362,30 @@ def _e(s: Any) -> str:
     return html.escape(str(s), quote=True)
 
 
+def _story_html(story: dict | None) -> str:
+    """The AI story section: its bullets, each linking to where to look (plain text otherwise)."""
+    if not story or not story.get("bullets"):
+        return ""
+    S, M, INK, BODY = mailer._SANS, mailer._MUTED, mailer._INK, mailer._BODY
+    base = settings.frontend_url.rstrip("/")
+    items = []
+    for b in story["bullets"][:5]:
+        text = _e(b.get("text") or "")
+        href = b.get("href") or ""
+        if href.startswith("/dashboard/analytics"):
+            text += (f' <a href="{_e(base + href)}" style="color:{BODY};white-space:nowrap">'
+                     f"Look&nbsp;&rarr;</a>")
+        items.append(f'<li style="font-family:{S};font-size:13px;line-height:20px;color:{BODY};'
+                     f'margin:0 0 8px">{text}</li>')
+    return (f'<h2 style="font-family:{S};font-size:15px;line-height:22px;font-weight:600;color:{INK};'
+            f'margin:0 0 6px;padding:0">&#10022; {_e(story.get("headline") or "What changed")}</h2>'
+            f'<div style="font-family:{S};font-size:12px;line-height:16px;color:{M};margin:0 0 8px">'
+            "Written by AI from your numbers</div>"
+            f'<ul style="margin:0 0 22px;padding:0 0 0 18px">{"".join(items)}</ul>')
+
+
 def _html(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tips: list[dict],
-          analytics_url: str, off: str) -> str:
+          analytics_url: str, off: str, story: dict | None = None) -> str:
     S, M, INK, BODY, LINE, INSET, ACC = (mailer._SANS, mailer._MUTED, mailer._INK, mailer._BODY,
                                          mailer._LINE, mailer._INSET, mailer._ACCENT)
     cells = "".join(
@@ -417,6 +444,7 @@ def _html(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tip
         mailer._heading(_e(head))
         + mailer._p(_e(sub), size=14, color=M, margin="-4px 0 20px")
         + kpi_row
+        + _story_html(story)
         + links_html
         + tip_html
         + mailer._button(_e(analytics_url), "Open analytics", margin="14px 0 20px")
@@ -428,9 +456,12 @@ def _html(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tip
 
 
 def _text(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tips: list[dict],
-          analytics_url: str, off: str) -> str:
+          analytics_url: str, off: str, story: dict | None = None) -> str:
     out = [head, sub, ""]
     out += [f"{label}: {value}" for label, value in kpis]
+    if story and story.get("bullets"):
+        out += ["", f"{story.get('headline') or 'What changed'} (written by AI from your numbers)"]
+        out += [f"- {b.get('text')}" for b in story["bullets"][:5]]
     if top:
         out += ["", "Top links"]
         for t in top:

@@ -66,6 +66,10 @@ A page counts as current when it's about a third of the way down the reader's sc
 Markdrop's PDF viewer shows the first 50 pages and offers the rest as a download. Page analytics cover the pages the viewer shows, so a longer PDF reads "50+ pages", and reaching page 50 counts as reaching the end.
 :::
 
+## Ask AI why
+
+At the top of the **Content** and **Pages** tabs, **✦ Insights** asks AI where and why readers stop, and suggests what to change, including a rewrite of a section you can copy or apply to a page. See [AI insights for one link](/analytics/ai-insights).
+
 ## Other files
 
 For files that aren't documents, PDFs, video or audio, like a spreadsheet or a web page, the overview shows **Median time** and **Returning** (people who came back on another day).

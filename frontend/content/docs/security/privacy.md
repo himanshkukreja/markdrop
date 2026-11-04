@@ -1,8 +1,8 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-11-04
-keywords: [privacy, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
+updated: 2026-11-05
+keywords: [privacy, search log, content gaps, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 
 This page explains, in plain terms, what Markdrop keeps and why. The [privacy policy](https://markdrop.in/privacy) is the formal version.
@@ -26,6 +26,12 @@ There's no delete button in Settings yet. To delete your account and everything 
 When someone opens your link, Markdrop counts the view for your analytics. It stores a salted hash of their IP address, never the address itself, and the approximate location looked up from it. You see totals and countries, never who someone is. Your own views aren't counted.
 
 Reading and watching sessions are deleted after 395 days. [What gets counted](/analytics/what-gets-counted) has the full list.
+
+## What searching a workspace records
+
+When you search inside a workspace, Markdrop keeps the words you searched for, which workspace, how many results there were, and whether you opened one. It doesn't keep who searched: no account, no IP address. Typing a longer version of the same search updates one record instead of adding one per keystroke. Searches that look like an email address or a long number aren't kept, and neither are searches outside a workspace. Records are deleted after 90 days.
+
+The workspace's owners and admins see these searches only as totals, in [What people couldn't find](/analytics/content-gaps).
 
 ## How Markdrop measures its own site
 
@@ -66,7 +72,7 @@ Files go straight from your device to the other person's and are never stored on
 - MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the peer-to-peer relay).
 - Resend (sign-in and notification email).
 - PostHog and Google (analytics, as above).
-- Anthropic (the AI in pages and in Markdrop Guides): only the text a request needs, when someone uses AI. Markdrop keeps usage counts, never the text. See [AI in pages](/pages/ai#whats-sent-to-anthropic).
+- Anthropic (the AI in pages, search, analytics and Markdrop Guides): only the text a request needs, when someone uses AI. For analytics that's totals and your own titles, never who visited. Markdrop keeps usage counts, never the text. See [AI in pages](/pages/ai#whats-sent-to-anthropic).
 
 Markdrop doesn't sell personal data, and doesn't use it for advertising.
 

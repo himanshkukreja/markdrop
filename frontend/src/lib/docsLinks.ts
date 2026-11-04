@@ -47,6 +47,7 @@ export const DOCS_PAGES = {
   analytics: "/analytics/overview",
   documentAnalytics: "/analytics/documents-and-pdfs",
   videoAnalytics: "/analytics/video-and-audio",
+  analyticsAi: "/analytics/ai-insights",
   liveViewers: "/analytics/live",
   weeklyEmail: "/analytics/weekly-email",
   whatGetsCounted: "/analytics/what-gets-counted",
