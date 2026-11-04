@@ -12,7 +12,7 @@ import {
   type Invitation, type ItemAccess, type Member, type Role,
 } from "@/lib/workspaces";
 import { relativeDays } from "../../../settings-shared";
-import { Locked, lockProps, type WsTabProps } from "../ws-shared";
+import { AccessSyncNote, Locked, lockProps, type WsTabProps } from "../ws-shared";
 
 type InviteRole = Exclude<Role, "owner">;
 type Privacy = "open" | "team" | "locked";
@@ -156,6 +156,7 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
             ]}
           />
         </Locked>
+        <AccessSyncNote sync={ws.access_sync} />
         {!privacy && (
           <p className="text-caption text-text-muted">
             Custom: the switches in Advanced don&apos;t match a preset. Pick one to replace them.

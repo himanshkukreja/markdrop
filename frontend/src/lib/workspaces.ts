@@ -116,6 +116,19 @@ export interface Workspace {
   /** Simpler UI (read-only): the Privacy preset the settings amount to. Saving a preset writes
    *  `require_auth_to_view` + `default_access`. */
   privacy?: "open" | "team" | "locked" | "custom";
+  /** A sign-in change (Locked on or off) still being carried through to stored files, page images
+   *  and cached pages. The gate holds from the moment it is saved; this is the settings page's
+   *  "Applying to N items…" (absent on older backends, null when nothing ever applied). */
+  access_sync?: AccessSync | null;
+}
+
+export interface AccessSync {
+  state: "applying" | "done";
+  /** Items still to go, and how many the change touched. */
+  pending: number;
+  total: number;
+  /** The `require_auth_to_view` being applied. */
+  want: boolean;
 }
 
 export interface Member {

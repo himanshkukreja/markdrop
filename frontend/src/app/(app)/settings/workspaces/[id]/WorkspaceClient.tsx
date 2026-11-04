@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Alert, Anchor, Breadcrumb, Button, EmptyState, Icon, Tabs } from "@/components/ui";
+import { Alert, Anchor, Breadcrumb, Button, EmptyState, Icon, Tabs, useToast } from "@/components/ui";
 import { useLocationSearch } from "@/components/shell/useLocation";
 import { WorkspaceTile } from "@/components/shell/SideNav";
 import { useAuth } from "@/contexts/AuthContext";
@@ -104,6 +104,37 @@ export default function WorkspaceClient({ id }: { id: string }) {
   useEffect(() => {
     if (ready) loadWs();
   }, [ready, loadWs]);
+
+  // A sign-in change (Locked on or off) applying in the background: poll its progress, without
+  // blocking anything on the page, and say so once it is done.
+  const toast = useToast();
+  const applying = ws?.access_sync?.state === "applying";
+  const applyingWant = ws?.access_sync?.want;
+  useEffect(() => {
+    if (!applying) return;
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      try {
+        const w = await getWorkspace(id);
+        if (stop) return;
+        // Keep counts the PUT response leaves out; take the rest (settings, progress) as served.
+        setWs((prev) => (prev ? { ...prev, ...w } : w));
+        if (w.access_sync?.state !== "applying") {
+          toast.success(w.access_sync?.want
+            ? "Locked everywhere: every item now needs sign-in, files and images included."
+            : "Done: items open to anyone with the link work again.");
+          return;
+        }
+      } catch {
+        // A blip: try again on the next tick.
+      }
+      if (!stop) timer = setTimeout(tick, 1500);
+    };
+    timer = setTimeout(tick, 1000);
+    return () => { stop = true; if (timer) clearTimeout(timer); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- restart only when applying starts/stops or flips direction
+  }, [applying, applyingWant, id]);
 
   useEffect(() => {
     if (!ws) return;

@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactElement } from "react";
-import { Tooltip } from "@/components/ui";
-import type { Domain, Invitation, Member, Workspace } from "@/lib/workspaces";
+import { Progress, Tooltip } from "@/components/ui";
+import type { AccessSync, Domain, Invitation, Member, Workspace } from "@/lib/workspaces";
 
 /** Mirrors MAX_DEPTH in services/folder.py. The UI stops offering a parent at
  *  the limit rather than letting the server refuse the create. */
@@ -76,6 +76,37 @@ export function lockSelectProps(locked: boolean) {
 export function Locked({ locked, reason = ADMINS_ONLY, className, children }: { locked: boolean; reason?: string; className?: string; children: ReactElement }) {
   if (!locked) return children;
   return <Tooltip content={reason} className={className}>{children}</Tooltip>;
+}
+
+const items = (n: number) => `${n.toLocaleString()} ${n === 1 ? "item" : "items"}`;
+
+/**
+ * A sign-in change still applying (`ws.access_sync`, polled by the page): the gate already holds,
+ * so this only reports the files, images and cached pages being brought in line. Nothing on the
+ * page waits for it; switching back is allowed and simply applies the newer choice.
+ */
+export function AccessSyncNote({ sync, id }: { sync: AccessSync | null | undefined; id?: string }) {
+  if (!sync || sync.state !== "applying") return null;
+  const total = Math.max(sync.total, sync.pending);
+  const done = Math.max(0, total - sync.pending);
+  return (
+    <div id={id} role="status" aria-live="polite" className="flex min-w-0 flex-col gap-1.5" data-testid="access-sync">
+      <Progress
+        size="sm"
+        value={done}
+        max={total || 1}
+        indeterminate={total === 0}
+        label={total ? `Applying to ${items(total)}…` : "Applying…"}
+        meta={total ? `${sync.pending.toLocaleString()} left` : undefined}
+        valueText={`${done} of ${total}`}
+      />
+      <p className="text-caption text-text-muted">
+        {sync.want
+          ? "Opening anything here already needs sign-in. Stored files, images and cached copies are being locked down too. You can keep working."
+          : "Stored files, images and cached copies are being reopened. You can keep working."}
+      </p>
+    </div>
+  );
 }
 
 /** URL-safe folder segment (one implementation, `lib/folderSlug.ts`, mirroring the server). */
