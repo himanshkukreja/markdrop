@@ -2,12 +2,8 @@
 title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
-updated: 2026-11-03
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates]
 updated: 2026-11-04
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, move_page, pages, sub-pages, scopes, reference]
-updated: 2026-11-04
-keywords: [mcp tools, publish_document, publish_page, set_slug, change link, custom link, slug, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, pages, sub-pages, scopes, reference]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 52 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
