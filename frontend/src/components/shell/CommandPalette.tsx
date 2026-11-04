@@ -20,7 +20,7 @@ import { Dialog, Icon, Kbd, Spinner, useToast } from "@/components/ui";
 import { AiAnswer, ResultBody, TrashBody, useAiSearch } from "@/components/search/parts";
 import { listRecent, type PersonalItem } from "@/lib/me";
 import {
-  forgetSearches, hrefOf, recentSearches, rememberSearch, search, searchAiStatus,
+  forgetSearches, hrefOf, newSearchSid, recentSearches, rememberSearch, search, searchAiStatus, searchClicked,
   type AiStatus, type SearchItem, type SearchKind, type SearchResponse, type TrashHit,
 } from "@/lib/search";
 import { looksLikeQuestion } from "@/lib/searchCore.mjs";
@@ -86,6 +86,7 @@ export default function CommandPalette({
   const [nonce, setNonce] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const autoAsked = useRef<string>("");
+  const sid = useRef<string>("");
   const ai = useAiSearch();
   const { reset: resetAi, run: runAi } = ai;
   const uid = useId();
@@ -103,6 +104,7 @@ export default function CommandPalette({
     setHere(false);
     resetAi();
     autoAsked.current = "";
+    sid.current = newSearchSid();
     setRecentQ(recentSearches());
     let live = true;
     listRecent().then((r) => live && setRecentItems(r.slice(0, 5))).catch(() => live && setRecentItems([]));
@@ -117,7 +119,7 @@ export default function CommandPalette({
     const ctl = new AbortController();
     setLoading(true);
     const t = setTimeout(() => {
-      search({ q: term, kind, scope, current: workspace?.id ?? null, limit: 8 }, ctl.signal)
+      search({ q: term, kind, scope, current: workspace?.id ?? null, limit: 8, sid: sid.current }, ctl.signal)
         .then((r) => { setResults(r); setResultsFor(term); setFailed(false); })
         .catch(() => { if (!ctl.signal.aborted) { setFailed(true); setResults(null); } })
         .finally(() => { if (!ctl.signal.aborted) setLoading(false); });
@@ -153,11 +155,12 @@ export default function CommandPalette({
   const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string; encrypted?: boolean }, newTab?: boolean) => {
     if (!item.url) return;
     if (q.trim().length >= MIN) setRecentQ(rememberSearch(q));
+    if (results && resultsFor === q.trim()) searchClicked(results.log_id);
     const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug, encrypted: item.encrypted });
     onClose();
     if (external || newTab) window.open(href, "_blank", "noopener,noreferrer");
     else router.push(href);
-  }, [q, onClose, router]);
+  }, [q, onClose, router, results, resultsFor]);
 
   const restore = useCallback(async (t: TrashHit) => {
     setRestoring(t.key);

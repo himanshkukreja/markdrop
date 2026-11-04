@@ -1,9 +1,9 @@
 ---
 title: Weekly analytics email
 description: A short Monday email with last week's views, your top links and what's worth a look. Turn it on or off in Settings.
-updated: 2026-10-30
+updated: 2026-11-05
 prerequisites: [/analytics/overview]
-keywords: [email, digest, weekly report, unsubscribe, notifications]
+keywords: [email, digest, weekly report, unsubscribe, notifications, ai summary]
 ---
 
 The weekly analytics email is a short summary of last week, sent on Mondays, so you don't have to open the dashboard to know how your links did.
@@ -16,6 +16,7 @@ Markdrop isn't sending the weekly email yet. You can already choose whether you 
 
 - **Views** for last week, and the change on the week before.
 - **People**, **Watch time** and **Read to the end**.
+- **What changed** (marked with ✦): the same AI summary as [Insights](/analytics/overview#insights-and-ask) on the dashboard, for last week, with a link to look closer after each sentence. It's written once per week and only when there's enough data and AI is on; otherwise the email simply doesn't have it.
 - **Top links**: your three busiest links, each with a one-line note, like how much of a video people watched and where the biggest drop was.
 - **Worth a look**: up to two things that stand out.
 - An **Open analytics** button that takes you to your dashboard.

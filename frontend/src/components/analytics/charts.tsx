@@ -293,10 +293,12 @@ export function ReadersLineChart({ daily, height = 200, today }: {
 
 export interface RetentionMark { t: number; label: string }
 
-export function RetentionChart({ points, dur, marks = [], height = 240, compact, noun = "watching" }: {
+export function RetentionChart({ points, dur, marks = [], height = 240, compact, noun = "watching", highlight = null }: {
   points: { t: number; pct: number }[];
   dur: number;
   marks?: RetentionMark[];
+  /** A moment to point at (✦ Insights' timestamp chips): an accent line with its time and share. */
+  highlight?: number | null;
   height?: number;
   compact?: boolean;
   /** "watching" or "listening". */
@@ -355,6 +357,15 @@ export function RetentionChart({ points, dur, marks = [], height = 240, compact,
                 <circle cx={x(m.t)} cy={y(at(m.t))} r={5} fill={SERIES} stroke="var(--surface)" strokeWidth={2} />
               </g>
             ))}
+            {highlight != null && n > 0 && (
+              <g aria-hidden data-highlight={highlight}>
+                <line x1={x(highlight)} x2={x(highlight)} y1={PADT} y2={y(0)} stroke="var(--accent)" strokeWidth={2} />
+                <circle cx={x(highlight)} cy={y(at(highlight))} r={6} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />
+                <text x={Math.min(Math.max(x(highlight), PADL + 40), W - PADR - 40)} y={PADT + 12} textAnchor="middle" fontSize={11} fontWeight={600} fill="var(--accent-text)">
+                  {clock(highlight)} · {pct(at(highlight))}
+                </text>
+              </g>
+            )}
             {h != null && (
               <g aria-hidden>
                 <line x1={x(points[h]!.t)} x2={x(points[h]!.t)} y1={PADT} y2={y(0)} stroke={CROSS} />
@@ -376,7 +387,7 @@ export function RetentionChart({ points, dur, marks = [], height = 240, compact,
             <span className="text-text-muted">at {clock(points[h]!.t)}</span>
           </Tip>
         )}
-        <Live text={h != null ? `${clock(points[h]!.t)}: ${pct(points[h]!.pct)} still ${noun}` : ""} />
+        <Live text={h != null ? `${clock(points[h]!.t)}: ${pct(points[h]!.pct)} still ${noun}` : highlight != null && n ? `Marked ${clock(highlight)}: ${pct(at(highlight))} still ${noun}` : ""} />
       </div>
       <HiddenTable caption={`Share still ${noun}`} head={["Time", `Still ${noun}`]}
         rows={points.filter((_, i) => i % every === 0 || i === n - 1).map((p) => [clock(p.t), pct(p.pct)])} />

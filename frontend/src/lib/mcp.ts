@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 67 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 71 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -114,6 +114,10 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     tools: [
       { name: "get_document_stats", scope: "read" },
       { name: "get_document_analytics", scope: "read" },
+      { name: "analytics_story", scope: "read" },
+      { name: "ask_analytics", scope: "read" },
+      { name: "content_gaps", scope: "read" },
+      { name: "analyze_document_engagement", scope: "read" },
     ],
   },
   {

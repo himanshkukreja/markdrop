@@ -75,6 +75,8 @@ export interface SearchResponse {
   total: number | null;
   took_ms: number;
   ai_suggested: boolean;
+  /** This search's anonymous log row (first page in a workspace), for searchClicked; else null. */
+  log_id?: string | null;
 }
 
 export interface SearchParams {
@@ -89,6 +91,9 @@ export interface SearchParams {
   cursor?: string | null;
   limit?: number;
   trash?: boolean;
+  /** A random id for this search box's session (newSearchSid): a refinement of the last query
+   *  overwrites its log row instead of adding one per keystroke. Never tied to the person. */
+  sid?: string | null;
 }
 
 export function searchQuery(p: SearchParams): string {
@@ -103,6 +108,7 @@ export function searchQuery(p: SearchParams): string {
   if (p.cursor) u.set("cursor", p.cursor);
   if (p.limit) u.set("limit", String(p.limit));
   if (p.trash === false) u.set("trash", "false");
+  if (p.sid) u.set("sid", p.sid);
   return u.toString();
 }
 
@@ -111,7 +117,21 @@ export async function search(p: SearchParams, signal?: AbortSignal): Promise<Sea
   return {
     query: r.query ?? p.q, items: r.items ?? [], groups: r.groups ?? [], trash: r.trash ?? [],
     next_cursor: r.next_cursor ?? null, total: r.total ?? null, took_ms: r.took_ms ?? 0, ai_suggested: !!r.ai_suggested,
+    log_id: r.log_id ?? null,
   };
+}
+
+/** A random id for one search-box session (content gaps' log: services/search_log.py). */
+export function newSearchSid(): string {
+  const a = new Uint8Array(12);
+  try { crypto.getRandomValues(a); } catch { for (let i = 0; i < a.length; i++) a[i] = Math.floor(Math.random() * 256); }
+  return Array.from(a, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** A result was opened from the search logged as `logId` (fire and forget). */
+export function searchClicked(logId: string | null | undefined): void {
+  if (!logId) return;
+  void request("/api/v1/search/click", { method: "POST", body: JSON.stringify({ log_id: logId }), keepalive: true }).catch(() => {});
 }
 
 export interface AiStatus { enabled: boolean; reason: string | null; message: string | null }

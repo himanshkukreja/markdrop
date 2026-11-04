@@ -254,7 +254,7 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
     async def test_budgets_defaults(self):
         b = await self.get("/budgets")
         caps = {c["key"]: c for c in b["caps"]}
-        self.assertEqual(list(caps), ["*", "docs_ask", "docs_editor", "pages_ai", "search_ai"])
+        self.assertEqual(list(caps), ["*", "docs_ask", "docs_editor", "pages_ai", "search_ai", "analytics_ai"])
         # AI search's own caps (owner decision 2026-11-04): $2 a day, $20 a month, editable here.
         self.assertEqual((caps["search_ai"]["default_daily_usd"], caps["search_ai"]["effective_monthly_usd"]),
                          (2.0, 20.0))

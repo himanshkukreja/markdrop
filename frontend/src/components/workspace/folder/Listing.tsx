@@ -10,7 +10,7 @@
  *                   blocks, a document's start, a PDF's first page, an image, a video's poster, a
  *                   sheet's first cells; an HTML file live on hover), the name, owner and date.
  *
- * The view is the person's choice, remembered on this device (`useListingView`, localStorage in
+ * The view is the person's choice, remembered on this device (Cards until they pick one) (`useListingView`, localStorage in
  * try/catch). Owners show as a small avatar and a name (names only reach members: the API serves
  * this listing to workspace members alone). Folders are drop targets (items, desktop files) and,
  * for admins, draggable; items are draggable when they can move. Phones get one list of 60 px rows
@@ -49,7 +49,7 @@ function readView(): ListingView {
   } catch {
     /* storage blocked: the default */
   }
-  return "list";
+  return "cards";
 }
 
 function subscribeView(cb: () => void) {
@@ -59,9 +59,9 @@ function subscribeView(cb: () => void) {
   return () => { viewListeners.delete(cb); window.removeEventListener("storage", onStorage); };
 }
 
-/** The person's listing view on this device ("list" until they pick another), and a setter. */
+/** The person's listing view on this device ("cards", with live previews, until they pick another), and a setter. */
 export function useListingView(): [ListingView, (v: ListingView) => void] {
-  const view = useSyncExternalStore(subscribeView, readView, () => "list" as ListingView);
+  const view = useSyncExternalStore(subscribeView, readView, () => "cards" as ListingView);
   const set = (v: ListingView) => {
     memory = v;
     try {

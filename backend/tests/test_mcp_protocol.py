@@ -106,8 +106,12 @@ class Transport(McpTestCase):
         self.assertEqual(set(tools), {
             "publish_document", "publish_page", "update_document", "get_document", "list_documents",
             "set_access", "delete_document", "restore_document", "list_trash", "get_document_stats", "get_document_analytics", "search", "fetch",
+            # Analytics AI per document (services/analytics_ai_doc.py).
+            "analyze_document_engagement",
             # Global search's AI mode (services/search_ai.py).
             "ask_documents",
+            # Analytics AI on the analytics home (services/analytics_ai_home.py).
+            "analytics_story", "ask_analytics", "content_gaps",
             "list_shares", "get_share_status", "create_upload", "complete_upload", "get_upload_status",
             "get_file_info", "list_file_versions", "restore_file_version",
             # Who's viewing (live presence).
@@ -186,7 +190,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 67)
+        self.assertEqual(len(r.json()["result"]["tools"]), 71)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

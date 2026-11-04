@@ -7179,6 +7179,394 @@
         }
       }
     },
+    "/api/v1/me/analytics/ai/status": {
+      "get": {
+        "tags": [
+          "analytics-ai"
+        ],
+        "summary": "Ai Status",
+        "description": "Can Analytics AI run for the caller now, and where they may see content gaps.",
+        "operationId": "ai_status_api_v1_me_analytics_ai_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/analytics/ai/story": {
+      "get": {
+        "tags": [
+          "analytics-ai"
+        ],
+        "summary": "Ai Story",
+        "description": "What changed in the range and why, in 3-5 bullets (cached for the day; ``fresh=1`` refreshes).",
+        "operationId": "ai_story_api_v1_me_analytics_ai_story_get",
+        "parameters": [
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d)$",
+              "default": "7d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Fresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/analytics/ai/ask": {
+      "post": {
+        "tags": [
+          "analytics-ai"
+        ],
+        "summary": "Ai Ask",
+        "description": "Ask your analytics (SSE). The model picks from a fixed set of queries; ours run them.",
+        "operationId": "ai_ask_api_v1_me_analytics_ai_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__analytics_ai_home__AskBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/analytics/ai/gaps": {
+      "get": {
+        "tags": [
+          "analytics-ai"
+        ],
+        "summary": "Ai Gaps",
+        "description": "What people searched for or asked and didn't find, grouped into pages worth writing.",
+        "operationId": "ai_gaps_api_v1_me_analytics_ai_gaps_get",
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "title": "Scope"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Fresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/ai/{kind}": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Ai Get",
+        "description": "The cached analysis of this kind, or whether one can be made (never calls the model).",
+        "operationId": "analytics_ai_get_api_v1_me_documents__slug__analytics_ai__kind__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(content|media|pages|versions)$",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Internal"
+            }
+          },
+          {
+            "name": "ver",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ver"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Ai Run",
+        "description": "Analyse (Claude Haiku 5.5) unless a cached analysis exists; ``{\"refresh\": true}`` in the\nbody re-analyses. Below 20 sessions with data the model isn't called (``state: thin``).",
+        "operationId": "analytics_ai_run_api_v1_me_documents__slug__analytics_ai__kind__post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^(content|media|pages|versions)$",
+              "title": "Kind"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Internal"
+            }
+          },
+          {
+            "name": "ver",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ver"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/notifications": {
       "get": {
         "tags": [
@@ -12296,6 +12684,23 @@
               "default": true,
               "title": "Trash"
             }
+          },
+          {
+            "name": "sid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sid"
+            }
           }
         ],
         "responses": {
@@ -12306,6 +12711,47 @@
                 "schema": {}
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/search/click": {
+      "post": {
+        "tags": [
+          "search"
+        ],
+        "summary": "Search Click",
+        "description": "A result was opened from the search ``log_id`` (no content: nothing to learn from it).",
+        "operationId": "search_click_api_v1_search_click_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClickBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
           },
           "422": {
             "description": "Validation Error",
@@ -14026,6 +14472,21 @@
         "type": "object",
         "title": "BrandingPayload",
         "description": "Every field optional — an unset workspace looks exactly like Markdrop."
+      },
+      "ClickBody": {
+        "properties": {
+          "log_id": {
+            "type": "string",
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Log Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "log_id"
+        ],
+        "title": "ClickBody"
       },
       "ContactItem": {
         "properties": {
@@ -19304,6 +19765,38 @@
           "prompt"
         ],
         "title": "WriteBody"
+      },
+      "app__routers__analytics_ai_home__AskBody": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "range": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^(7d|30d|90d|all)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Range"
+          },
+          "fresh": {
+            "type": "boolean",
+            "title": "Fresh",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskBody"
       },
       "app__routers__docs_ai__AskBody": {
         "properties": {
