@@ -45,7 +45,16 @@ function cspReportOnly(): string {
   ].join("; ");
 }
 
+/**
+ * This build's id, for the service worker (app/sw.js, lib/pwa.ts): a deploy that changes it is a
+ * new worker, and open apps offer "Reload". Set once per build in process.env so the static
+ * generation workers, which load this config again, see the same value.
+ */
+process.env.MARKDROP_BUILD_ID ||=
+  (process.env.MARKDROP_DOCS_BUILD_ID || process.env.VERCEL_DEPLOYMENT_ID || process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 12) || `local-${Date.now().toString(36)}`).replace(/[^\w.-]/g, "");
+
 const nextConfig: NextConfig = {
+  env: { NEXT_PUBLIC_BUILD_ID: process.env.MARKDROP_BUILD_ID },
   // Lets a dev server (NEXT_DIST_DIR=.next-dev) run alongside `next build` without the two
   // overwriting each other's output. Vercel builds use the default.
   distDir: process.env.NEXT_DIST_DIR || ".next",

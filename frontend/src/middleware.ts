@@ -33,8 +33,9 @@ import { STUDIO_ROBOTS, isStudioHost, studioRouting, type StudioRouting } from "
 const TENANT_ROBOTS = "User-agent: *\nAllow: /\n";
 
 /** Markdrop's own icons and app metadata, which must not appear on a customer's domain. */
-const ICON_PATHS = new Set(["/favicon.ico", "/icon.svg", "/apple-icon"]);
-const MARKDROP_ONLY_PATHS = new Set(["/manifest.webmanifest", "/sitemap.xml"]);
+const ICON_PATHS = new Set(["/favicon.ico", "/icon.svg", "/apple-icon", "/apple-icon.png"]);
+/** Markdrop's app files (manifests, service worker, offline page: lib/pwa.ts), never a customer's. */
+const MARKDROP_ONLY_PATHS = new Set(["/manifest.webmanifest", "/studio.webmanifest", "/sw.js", "/offline.html", "/sitemap.xml"]);
 
 function notFound(): NextResponse {
   return new NextResponse("Not found", {
@@ -93,6 +94,12 @@ export function middleware(request: NextRequest) {
   // the rest of Markdrop (redirected to the app's host). Never a tenant, never the docs tree.
   if (isStudioHost(host)) {
     if (pathname.startsWith("/h/") || pathname === DOCS_INTERNAL || pathname.startsWith(`${DOCS_INTERNAL}/`)) return notFound();
+    // The studio installs as its own app, "Markdrop Guides" (lib/pwaManifest.ts).
+    if (pathname === "/manifest.webmanifest") {
+      const url = request.nextUrl.clone();
+      url.pathname = "/studio.webmanifest";
+      return NextResponse.rewrite(url);
+    }
     const r = studioRouting(host, pathname, request.nextUrl.search, request.nextUrl.port);
     return applyStudio(request, r, true) ?? NextResponse.next();
   }

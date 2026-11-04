@@ -1,7 +1,9 @@
-import type { MetadataRoute } from "next";
+import { appManifest, manifestResponse } from "@/lib/pwaManifest";
 
 /**
- * Web app manifest (REVAMP_BUILD R40): name, the system mark, and theme colours for both themes.
+ * Markdrop's web app manifest (lib/pwaManifest.ts): installable as an app that opens on the
+ * dashboard. On the Guides studio host the middleware answers this address with
+ * app/studio.webmanifest instead.
  *
  * A route rather than the file convention (app/manifest.ts): a file-based manifest is linked from
  * every page under the root, and its static metadata wins over a layout's `manifest: null`, so
@@ -11,24 +13,6 @@ import type { MetadataRoute } from "next";
  */
 export const dynamic = "force-static";
 
-function manifest(): MetadataRoute.Manifest {
-  return {
-    name: "Markdrop",
-    short_name: "Markdrop",
-    description: "Docs and files as links that render",
-    start_url: "/",
-    display: "browser",
-    background_color: "#030712",
-    theme_color: "#030712",
-    icons: [
-      { src: "/icon.svg", type: "image/svg+xml", sizes: "any" },
-      { src: "/apple-icon", type: "image/png", sizes: "180x180" },
-    ],
-  };
-}
-
 export function GET(): Response {
-  return new Response(JSON.stringify(manifest()), {
-    headers: { "Content-Type": "application/manifest+json", "Cache-Control": "public, max-age=0, must-revalidate" },
-  });
+  return manifestResponse(appManifest());
 }
