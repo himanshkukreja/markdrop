@@ -55,6 +55,7 @@ def _to_list_item(doc) -> MyDocListItem:
         vscode_synced=doc.vscode_synced,
         encrypted=doc.encrypted,
         kind=doc.kind,
+        editor=getattr(doc, "editor", None),
         mime=doc.mime,
         renderer=art_service.renderer_for(doc.mime or "") if doc.kind == "artifact" else None,
         type_label=art_service.label_for(doc.mime or "") if doc.kind == "artifact" else None,

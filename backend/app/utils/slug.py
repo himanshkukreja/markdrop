@@ -47,6 +47,8 @@ RESERVED_SLUGS = frozenset(
         "guides", "docs-studio",
         # A guide's public domain check page (/d/check/<host>).
         "d",
+        # Trash (/trash, services/trash.py). Same lists as above.
+        "trash",
     }
 )
 
@@ -54,7 +56,7 @@ RESERVED_SLUGS = frozenset(
 # rewrites every path to its documents and folders and serves none of these app
 # pages, so a top-level *folder* called "Shared", "Recent" or "Guides" (common
 # names) shadows nothing and stays allowed.
-APP_ONLY_SLUGS = frozenset({"shared", "recent", "requests", "guides"})
+APP_ONLY_SLUGS = frozenset({"shared", "recent", "requests", "guides", "trash"})
 
 _SLUG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
 

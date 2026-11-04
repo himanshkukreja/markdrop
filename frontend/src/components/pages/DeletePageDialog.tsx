@@ -1,49 +1,37 @@
 "use client";
 
-import { useState } from "react";
-import { Alert, Button, Dialog, Radio } from "@/components/ui";
+import { DeleteItemDialog, type DeletedInfo } from "@/components/trash/DeleteItemDialog";
+import type { RestoreResult } from "@/lib/trash";
 
 /**
- * Delete a page. With sub-pages, say what happens to them: deleted too, or moved up a level
- * (`?children=delete|lift`).
+ * Delete a page (the page's ⋯ menu): the shared trash dialog. It names the page and its link, asks
+ * what happens to its sub-pages (moved up a level, or to Trash with it: `?children=lift|delete`),
+ * moves it to Trash for 30 days and toasts Undo.
  */
-export function DeletePageDialog({ open, onClose, count, onDelete }: { open: boolean; onClose: () => void; count: number; onDelete: (children?: "delete" | "lift") => Promise<void> }) {
-  const [mode, setMode] = useState<"lift" | "delete">("lift");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function go() {
-    setBusy(true);
-    setError("");
-    try {
-      await onDelete(count ? mode : undefined);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't delete the page. Try again.");
-      setBusy(false);
-    }
-  }
+export function DeletePageDialog({
+  open, onClose, slug, title, count, secret, workspaceId, onDeleted, onRestored,
+}: {
+  open: boolean;
+  onClose: () => void;
+  slug: string;
+  title: string | null;
+  /** Direct sub-pages, when known (the dialog asks the API otherwise). */
+  count?: number | null;
+  /** The edit secret, for an anonymous page (the delete and its Undo both need it). */
+  secret?: string | null;
+  workspaceId?: string | null;
+  onDeleted: (info: DeletedInfo) => void;
+  /** After Undo put it back (go back to the page). */
+  onRestored?: (r: RestoreResult) => void;
+}) {
   return (
-    <Dialog
-      open={open}
-      onClose={() => !busy && onClose()}
-      tone="danger"
-      title="Delete this page?"
-      description="Its link stops working for everyone. This can't be undone."
-      footer={
-        <>
-          <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="danger" onClick={() => void go()} loading={busy}>Delete page</Button>
-        </>
-      }
-    >
-      {count > 0 && (
-        <fieldset className="flex flex-col gap-2 border-0 p-0 m-0">
-          <legend className="mb-2 text-body-strong text-text">It has {count === 1 ? "1 sub-page" : `${count} sub-pages`}</legend>
-          <Radio name="pb-del" checked={mode === "lift"} onChange={() => setMode("lift")} label="Keep them: move them up a level" />
-          <Radio name="pb-del" checked={mode === "delete"} onChange={() => setMode("delete")} label={count === 1 ? "Delete the sub-page too" : `Delete all ${count} sub-pages too`} />
-        </fieldset>
-      )}
-      {error && <Alert tone="danger" className="mt-3">{error}</Alert>}
-    </Dialog>
+    <DeleteItemDialog
+      item={open ? { slug, title, kind: "page", subPages: count ?? null, workspaceId } : null}
+      onClose={onClose}
+      secret={secret}
+      onDeleted={onDeleted}
+      onRestored={onRestored}
+    />
   );
 }
 

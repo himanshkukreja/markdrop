@@ -9,11 +9,15 @@ It never writes: only find / aggregate / count on the production database.
 Uses MONGODB_URI / MONGODB_DB from the environment, else the app's settings
 (backend/.env on the server). Prints:
 
-  A. Each --slug: its row (or the row that renamed away from it), its slug
-     tombstone (written by lifecycle.destroy the moment a delete/expiry took
-     it, so tombstone.created_at = when it was deleted), every other item the
-     same owner lost within 10 s of that, and the owner's MCP calls (tool
-     names and times only; arguments are never stored) around it.
+  A. Each --slug: its row (or the row that renamed away from it), its trash
+     row (services/trash.py: a delete since the trash shipped moves the row
+     there for 30 days: who deleted it, when, how, the batch it went with),
+     its slug tombstone (written by lifecycle.destroy the moment a delete
+     forever/expiry/purge took it, so tombstone.created_at = when it was
+     destroyed), every other item the same owner lost within 10 s of that,
+     the owner's MCP calls around it (tool, time, and for write tools the
+     target {slug, doc_id} and result; arguments and content are never
+     stored), and every MCP call whose target was this slug.
   B. Rows in a bad state:
      1. sub-pages whose parent row is gone (they read as private + unfiled:
         invisible to everyone but their owner, missing from folder listings);
@@ -89,6 +93,27 @@ def incident(db, slugs: list[str]) -> None:
             print("renamed to:     ", show(moved))
         tomb = db["slug_tombstones"].find_one({"slug": slug})
         print("tombstone:      ", tomb and {k: tomb.get(k) for k in ("owner_id", "created_at", "until")})
+        trashed = db["trash"].find_one({"$or": [{"slug": slug}, {"old_slugs": slug}]},
+                                       {"doc.content": 0, "doc.edit_secret_hash": 0, "doc.read_password_hash": 0})
+        if trashed:
+            print("in the trash:   ", show(trashed.get("doc")))
+            print("    deleted_at=%s deleted_by=%s via=%s purge_at=%s batch=%s root=%s depth=%s" % (
+                trashed.get("deleted_at"), trashed.get("deleted_by"), trashed.get("via"), trashed.get("purge_at"),
+                trashed.get("batch"), trashed.get("root"), trashed.get("depth")))
+            mates = list(db["trash"].find({"batch": trashed.get("batch"), "_id": {"$ne": trashed["_id"]}},
+                                          {"slug": 1, "depth": 1}))
+            if mates:
+                print("    deleted with it:", [(m["slug"], m.get("depth")) for m in mates])
+        else:
+            print("in the trash:    -")
+        hits = list(db["mcp_events"].find(
+            {"$or": [{"target.slug": slug}, {"targets.slug": slug}, {"result.slug": slug},
+                     {"result.items.slug": slug}]},
+            {"tool": 1, "ok": 1, "ts": 1, "client_id": 1, "user_id": 1, "target": 1, "result": 1}).sort("ts", 1))
+        print(f"MCP calls that targeted it ({len(hits)}):")
+        for c in hits:
+            print(f"    {c['ts'].isoformat()} {c.get('tool')} ok={c.get('ok')} user={c.get('user_id')} "
+                  f"client={c.get('client_id')} target={c.get('target')} result={c.get('result')}")
         if raw is not None:
             parent = db["documents"].find_one({"_id": oid(raw.get("parent_id"))}, ROW) if raw.get("parent_id") else None
             if raw.get("parent_id"):
@@ -115,13 +140,36 @@ def incident(db, slugs: list[str]) -> None:
             for t in same:
                 print("   ", t["created_at"].isoformat(), t["slug"])
             if owner_id:
-                calls = list(db["mcp_events"].find(
-                    {"user_id": owner_id, "ts": {"$gte": at - timedelta(minutes=30), "$lte": at + timedelta(minutes=30)}},
-                    {"tool": 1, "ok": 1, "ts": 1, "client_id": 1}).sort("ts", 1))
-                print(f"owner's MCP calls ±30 min ({len(calls)}):")
-                for c in calls:
-                    mark = "  <-- delete" if c.get("tool") == "delete_document" else ""
-                    print(f"    {c['ts'].isoformat()} {c.get('tool')} ok={c.get('ok')} client={c.get('client_id')}{mark}")
+                print_calls(db, owner_id, at)
+        elif trashed and trashed.get("deleted_by") and trashed.get("deleted_at"):
+            print_calls(db, trashed["deleted_by"], aware(trashed["deleted_at"]))
+
+
+def print_calls(db, user_id: str, at) -> None:
+    """The user's MCP calls within 30 minutes of ``at``; write tools with their target and result."""
+    calls = list(db["mcp_events"].find(
+        {"user_id": user_id, "ts": {"$gte": at - timedelta(minutes=30), "$lte": at + timedelta(minutes=30)}},
+        {"tool": 1, "ok": 1, "ts": 1, "client_id": 1, "target": 1, "result": 1}).sort("ts", 1))
+    print(f"their MCP calls ±30 min ({len(calls)}):")
+    for c in calls:
+        mark = "  <-- delete" if c.get("tool") == "delete_document" else ""
+        extra = ""
+        if "target" in c or "result" in c:
+            extra = f" target={c.get('target')} result={c.get('result')}"
+        print(f"    {c['ts'].isoformat()} {c.get('tool')} ok={c.get('ok')} client={c.get('client_id')}{extra}{mark}")
+
+
+def trash_summary(db, days: int, limit: int) -> None:
+    print("\n== C. The trash ==")
+    n = db["trash"].count_documents({})
+    print(f"rows in the trash: {n} ({db['trash'].count_documents({'root': True})} deletes)")
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    for t in db["trash"].find({"root": True, "deleted_at": {"$gte": since}},
+                              {"slug": 1, "owner_id": 1, "deleted_by": 1, "via": 1, "deleted_at": 1, "batch": 1,
+                               "doc.kind": 1, "doc.editor": 1}).sort("deleted_at", -1).limit(limit):
+        subs = db["trash"].count_documents({"batch": t.get("batch"), "root": False})
+        print(f"    {t['deleted_at'].isoformat()} {t['slug']} kind={(t.get('doc') or {}).get('kind')} "
+              f"by={t.get('deleted_by')} via={t.get('via')} sub_pages={subs}")
 
 
 def bad_rows(db, days: int, limit: int) -> None:
@@ -208,6 +256,7 @@ def main() -> None:
     db = connect()
     incident(db, args.slug or ["EegpMKD", "sl-product-docs-playbook"])
     bad_rows(db, args.days, args.limit)
+    trash_summary(db, args.days, args.limit)
 
 
 if __name__ == "__main__":

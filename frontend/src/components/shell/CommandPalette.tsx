@@ -16,6 +16,7 @@ import { Dialog, FileIcon, Icon, Kbd, Spinner } from "@/components/ui";
 import { listRecent, quickSearch, type PersonalItem, type QuickResults } from "@/lib/me";
 import { ancestry, peekTree } from "@/lib/workspaceStore";
 import { openHref } from "@/lib/workspaces";
+import { kindLabel } from "@/lib/itemKind";
 import s from "./CommandPalette.module.css";
 
 export interface PaletteAction {
@@ -45,6 +46,12 @@ function fileIcon(f: { kind?: string; mime?: string | null; title?: string | nul
   return f.kind === "artifact"
     ? <FileIcon name={f.title || f.slug} mime={f.mime || ""} size={18} />
     : <Icon name="doc" size={18} />;
+}
+
+/** A file row's second column: its kind and link first (two items can share a title: a page and the
+ *  HTML file it was made from), then where it is. The place truncates first. */
+function fileWhere(f: { slug: string; kind?: string | null; editor?: string | null; type_label?: string | null; encrypted?: boolean }, place: string): string {
+  return [kindLabel(f), f.encrypted ? null : `/${f.slug}`, place].filter(Boolean).join(" · ");
 }
 
 function folderWhere(wsId: string, wsName: string, folderId: string): string {
@@ -113,7 +120,7 @@ export default function CommandPalette({
           rows: results.files.map((f) => ({
             id: `file:${f.slug}`,
             label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
-            where: f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : f.source === "shared" ? "Shared with me" : "My files",
+            where: fileWhere(f, f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : f.source === "shared" ? "Shared with me" : "My files"),
             icon: fileIcon(f),
             run: () => openFile(openHref(f.slug, f.url, f.encrypted)),
           })),
@@ -149,7 +156,7 @@ export default function CommandPalette({
         rows: recent.map((f) => ({
           id: `recent:${f.slug}`,
           label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
-          where: f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : "My files",
+          where: fileWhere(f, f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : "My files"),
           icon: fileIcon(f),
           run: () => openFile(openHref(f.slug, f.url, f.encrypted)),
         })),

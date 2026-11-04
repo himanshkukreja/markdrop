@@ -27,7 +27,6 @@ function tenantPathOf(url: string): string {
 import {
   ApiError,
   changeSlug,
-  deleteDocument,
   getDocument,
   recordEvent,
   replaceArtifactFile,
@@ -37,6 +36,7 @@ import {
 } from "@/lib/api";
 import { ArtifactBar } from "./artifact/ArtifactBar";
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
+import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import { ArtifactVersions } from "./artifact/ArtifactVersions";
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
@@ -598,10 +598,8 @@ export default function ArtifactView({
     }
   }
 
-  async function handleDelete() {
-    await deleteDocument(slug);
-    // The cached anonymous render would keep serving the deleted file for a minute.
-    purgeDocument(slug);
+  // The delete dialog moved it to Trash (and purged the cached render); it toasts Undo.
+  function handleDeleted() {
     setShowDelete(false);
     router.push("/dashboard");
   }
@@ -880,13 +878,11 @@ export default function ArtifactView({
         />
       )}
 
-      <ConfirmDialog
-        open={showDelete}
+      <DeleteItemDialog
+        item={showDelete ? { slug, title: title || originalFilename || null, kind: "file", typeLabel, url } : null}
         onClose={() => setShowDelete(false)}
-        onConfirm={handleDelete}
-        title="Delete this artifact?"
-        body="The file and its link are removed for good, and the space comes back to your storage. This can't be undone."
-        confirmLabel="Delete artifact"
+        onDeleted={handleDeleted}
+        onRestored={() => router.push(`/${encodeURIComponent(slug)}`)}
       />
 
       <ConfirmDialog

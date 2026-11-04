@@ -53,6 +53,10 @@ export interface QuickFile {
   title: string | null;
   kind: "markdown" | "artifact" | string;
   mime?: string | null;
+  /** "blocks" on a page. */
+  editor?: string | null;
+  /** A file's type in words ("HTML file", "PDF"). */
+  type_label?: string | null;
   url?: string | null;
   access?: ItemAccess;
   workspace?: { id: string; name: string } | null;

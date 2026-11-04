@@ -995,6 +995,15 @@ class GrantGraph:
             for d in await db["documents"].find(
                     {"_id": {"$in": oids}}, {"owner_id": 1, "workspace_id": 1}).to_list(length=len(oids)):
                 docs[str(d["_id"])] = d
+            missing = [o for o in oids if str(o) not in docs]
+            if missing:
+                # In the trash (services/trash.py): the grants still rest on its
+                # owner and workspace, so housekeeping doesn't drop them and a
+                # restore brings them back as they were.
+                for t in await db["trash"].find(
+                        {"_id": {"$in": missing}}, {"doc.owner_id": 1, "doc.workspace_id": 1}).to_list(
+                        length=len(missing)):
+                    docs[str(t["_id"])] = {"_id": t["_id"], **(t.get("doc") or {})}
         pairs = {(r.get("granted_via"), r.get("granted_by_user_id")) for r in by_id.values()
                  if r.get("granted_via") and not r.get("parent_grant_id") and r.get("granted_by_user_id")}
         roles: dict[tuple, str] = {}
@@ -1218,7 +1227,13 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
         result = {**row, "_id": res.inserted_id}
     # Race with a delete (§3.8): a grant must never outlive its document.
     if not await db["documents"].find_one({"_id": raw_doc["_id"]}, {"_id": 1}):
-        await db["document_grants"].delete_many({"document_id": document_id})
+        if await db["trash"].find_one({"_id": raw_doc["_id"]}, {"_id": 1}):
+            # Moved to the trash meanwhile (services/trash.py): its own grants
+            # wait there with it; only a new one goes.
+            if existing is None:
+                await db["document_grants"].delete_one({"_id": result["_id"]})
+        else:
+            await db["document_grants"].delete_many({"document_id": document_id})
         raise HTTPException(status_code=404, detail="Document not found")
     # Race with the granter losing the authority it rests on (C7, C-N4): read
     # back what the new grant gives *after* it was written. Worthless ⇒ gone.

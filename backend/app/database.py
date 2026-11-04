@@ -141,6 +141,11 @@ async def connect() -> None:
 
     await _pages.ensure_indexes(db)
 
+    # Trash (services/trash.py): slugs held, per-owner / per-workspace lists, the purge.
+    from app.services import trash as _trash
+
+    await _trash.ensure_indexes(db)
+
     # Email campaigns + opt-out lookups for building an audience
     await db["campaigns"].create_index([("created_at", -1)])
     await db["users"].create_index("unsubscribed_at", sparse=True)
@@ -178,6 +183,9 @@ async def connect() -> None:
     # Tool-call audit (no content), kept 90 days.
     await db["mcp_events"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
     await db["mcp_events"].create_index([("user_id", 1), ("ts", -1)])
+    # A write tool's target (protocol._audit): "which calls touched this item".
+    await db["mcp_events"].create_index("target.slug", sparse=True)
+    await db["mcp_events"].create_index("target.doc_id", sparse=True)
 
     # File versions (services/file_versions.py). One row per version; blob and
     # poster keys are looked up to decide whether an object is still referenced

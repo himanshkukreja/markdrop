@@ -6,6 +6,7 @@ import {
   type FileRenderer, type MenuEntry, type Tone,
 } from "@/components/ui";
 import type { MyDocListItem } from "@/lib/api";
+import { kindLabel } from "@/lib/itemKind";
 import RowMenu from "./RowMenu";
 import { expiresLabel, plural, relativeTime, fullDate } from "./format";
 import styles from "./dashboard.module.css";
@@ -166,6 +167,9 @@ export function DocRow({
             </span>
           )}
           <span className="min-w-0 truncate">
+            {/* The kind first: a page and the HTML file it came from can share a title. */}
+            <span>{kindLabel(d)}</span>
+            <span aria-hidden> · </span>
             {d.encrypted ? (
               <span>Encrypted</span>
             ) : (

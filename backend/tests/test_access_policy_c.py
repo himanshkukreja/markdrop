@@ -670,6 +670,10 @@ class Concurrency(AccessWorld):
                            json={"email": "z@example.com", "notify": False}),
             self.http.delete(f"/api/v1/documents/{d['slug']}", headers=self.session("owner")))
         await lifecycle.reconcile_once(self.db, full=True)
+        # In the trash a grant made before the move waits with it; deleted forever, none is left.
+        self.assertLessEqual(await self.db["document_grants"].count_documents({"document_id": str(d["_id"])}), 1)
+        await self.http.delete(f"/api/v1/trash/{d['slug']}", headers=self.session("owner"))
+        await lifecycle.reconcile_once(self.db, full=True)
         self.assertEqual(await self.db["document_grants"].count_documents({"document_id": str(d["_id"])}), 0)
 
     async def test_c245_replace_racing_delete(self):
@@ -688,7 +692,8 @@ class Concurrency(AccessWorld):
         await asyncio.gather(
             self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/items/move", json={"slugs": [d["slug"]], "folder_id": f.id},
                            headers=self.session("wm")),
-            self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/folders/{f.id}", headers=self.session("wa")))
+            self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/folders/{f.id}", params={"mode": "unfile"},
+                             headers=self.session("wa")))
         raw = await self.doc(d["slug"])
         if raw.get("folder_id"):
             self.assertIsNotNone(await self.db["folders"].find_one({"_id": ObjectId(raw["folder_id"])}))

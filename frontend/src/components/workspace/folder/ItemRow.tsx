@@ -14,6 +14,7 @@ import {
 import RowMenu from "@/components/dashboard/RowMenu";
 import { plural, relativeTime, fullDate } from "@/components/dashboard/format";
 import type { ItemAccess } from "@/lib/workspaces";
+import { kindLabel } from "@/lib/itemKind";
 import { ACCESS_ICON, accessLabel } from "./items";
 
 const RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "text", "video", "audio", "html", "image", "zip"]);
@@ -24,6 +25,9 @@ export interface RowFile {
   mime?: string | null;
   renderer?: string | null;
   original_filename?: string | null;
+  /** "blocks" on a page; with `type_label`, the row's kind word ("Page", "Doc", "HTML file"). */
+  editor?: string | null;
+  type_label?: string | null;
 }
 
 /** The file's icon in its category colour (markdown documents are "document"). */
@@ -88,6 +92,8 @@ export function ItemRow({
   const words = accessLabel(access, team);
   const icon = ACCESS_ICON[access];
   const updated = when ? relativeTime(when) : null;
+  // The kind first in the meta line: a page and the HTML file it came from can share a title.
+  const kind = kindLabel(file);
 
   if (phone) {
     return (
@@ -100,7 +106,7 @@ export function ItemRow({
           </Anchor>
           <span className="flex min-w-0 items-center gap-1 text-caption text-text-muted">
             <Icon name={icon} size={12} className="shrink-0" />
-            <span className="truncate">{words}{hasPassword && access === "link" ? " · password" : ""}</span>
+            <span className="truncate">{kind} · {words}{hasPassword && access === "link" ? " · password" : ""}</span>
           </span>
         </div>
         {onSheet ? (
@@ -128,8 +134,9 @@ export function ItemRow({
         <div className="flex min-w-0 items-center gap-1.5 text-caption text-text-muted">
           {chip}
           <span className="min-w-0 truncate">
-            {address && <span className="font-mono">{address}</span>}
-            {views != null && <>{address && <span aria-hidden> · </span>}<span>{plural(views, "view")}</span></>}
+            <span>{kind}</span>
+            {address && <><span aria-hidden> · </span><span className="font-mono">{address}</span></>}
+            {views != null && <><span aria-hidden> · </span><span>{plural(views, "view")}</span></>}
             {by && <><span aria-hidden> · </span><span>{by}</span></>}
             {updated && when && (
               <>

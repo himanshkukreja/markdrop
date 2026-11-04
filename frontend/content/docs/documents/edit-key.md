@@ -1,7 +1,7 @@
 ---
 title: Edit with your edit secret
 description: Every document gets an edit secret starting with sk_. Use it to edit or delete a document you published without an account.
-updated: 2026-10-30
+updated: 2026-11-04
 keywords: [edit secret, sk_, anonymous, claim, save to my account, X-Edit-Secret]
 ---
 
@@ -74,7 +74,7 @@ curl -X PUT https://api.markdrop.in/api/v1/documents/q3-plan \
   -d '{"title": "Q3 plan", "content": "# Q3 plan\n\nUpdated."}'
 ```
 
-`DELETE` on the same address deletes the document, and `PATCH …/slug` with `{"new_slug": "q3-plan-final"}` changes its link.
+`DELETE` on the same address moves the document to [Trash](/documents/trash) (`POST /api/v1/trash/q3-plan/restore` with the same header brings it back within 30 days), and `PATCH …/slug` with `{"new_slug": "q3-plan-final"}` changes its link.
 
 ## If the secret leaks
 

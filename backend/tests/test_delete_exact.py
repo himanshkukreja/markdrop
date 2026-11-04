@@ -94,7 +94,10 @@ class DeleteExact(AccessWorld):
         page = await self.page("wm")
         self.assertEqual(await self.listed(), {"sl-product-docs-playbook", page["slug"]})
         out = await self.ok("wm", "delete_document", {"document": "sl-product-docs-playbook"})
-        self.assertEqual(out, {"deleted": True, "slug": "sl-product-docs-playbook", "lifted_items": [],
+        until = out.pop("restore_until")  # the trash (tests/test_trash.py)
+        self.assertTrue(until.endswith("Z"))
+        self.assertEqual(out, {"deleted": True, "trashed": True, "slug": "sl-product-docs-playbook",
+                               "lifted_items": [],
                                "deleted_items": [{"slug": "sl-product-docs-playbook", "title": TITLE,
                                                   "kind": "file"}]})
         await self.assert_gone("sl-product-docs-playbook")

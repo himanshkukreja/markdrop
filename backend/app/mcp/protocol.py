@@ -96,7 +96,9 @@ INSTRUCTIONS = (
     "move_page manage sub-pages; when a move changes who can read a page, confirm with the user "
     "before passing confirm_access_change. duplicate_page copies a page with its images (a locked "
     "page gives an unlocked copy). list_workspace_members gives the account ids to mention people "
-    "in a page (:person[Name]{id=\"<id>\"})."
+    "in a page (:person[Name]{id=\"<id>\"}). "
+    "delete_document moves an item to the trash for 30 days (restore_document brings it back, list_trash "
+    "lists what can be); pass permanent: true only when the user explicitly asks to delete forever."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000
@@ -320,6 +322,9 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
     if args is None:
         args = {}
     ok = False
+    error: str | None = None
+    rec: dict = {}
+    token = tools.AUDIT.set(rec)
     try:
         if not isinstance(args, dict):
             raise tools.ToolError("arguments must be an object.")
@@ -339,30 +344,63 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
         text, structured = await tool.handler(ctx, args)
         ok = True
         result = _tool_result(text, structured, False, modern)
+        if isinstance(structured, dict) and isinstance(structured.get("slug"), str):
+            tools.audit_result(slug=structured["slug"])
     except tools.ToolError as exc:
+        error = str(exc)
         result = _tool_result(str(exc), None, True, modern)
     except Exception:
         log.exception("MCP tool %s failed", tool.name)
+        error = "internal error"
         result = _tool_result("Something went wrong on Markdrop's side. Try again in a moment.",
                               None, True, modern)
-    await _audit(principal, tool.name, ok, int((time.monotonic() - started) * 1000))
+    finally:
+        tools.AUDIT.reset(token)
+    await _audit(principal, tool.name, ok, int((time.monotonic() - started) * 1000),
+                 writes=tool.writes, rec=rec, error=error)
     return _result(request_id, result)
 
 
-async def _audit(principal: Principal, tool_name: str, ok: bool, ms: int) -> None:
+AUDIT_ERROR_CHARS = 200
+# Tools whose refusals are fixed sentences about access, placement and links
+# (slugs at most): their text is kept in the audit. Any other tool's could
+# quote the content it was given (a heading, a section), so only "error".
+AUDIT_ERROR_TEXT = frozenset({
+    "delete_document", "restore_document", "set_access", "set_slug", "move_page", "move_to_folder",
+    "add_to_workspace", "remove_from_workspace", "restore_file_version", "restore_page_version",
+})
+
+
+async def _audit(principal: Principal, tool_name: str, ok: bool, ms: int, *, writes: bool = False,
+                 rec: dict | None = None, error: str | None = None) -> None:
     """One row per call: who, through which app, which tool, whether it
-    worked and how long it took. Never arguments or content."""
+    worked and how long it took. A write tool's row also records what it acted
+    on (``target``: the slug and id of the document it resolved first,
+    ``targets`` when it resolved more than one) and what came of it
+    (``result``: the slug after, the items a delete or restore moved as
+    ``{slug, doc_id, kind}``, or the error the model was given). Never
+    arguments, titles, content or secrets."""
     now = datetime.now(timezone.utc)
     db = get_database()
+    row: dict = {
+        "user_id": principal.user.id,
+        "client_id": principal.client_id,
+        "tool": tool_name,
+        "ok": ok,
+        "ms": ms,
+        "ts": now,
+    }
+    if writes and rec is not None:
+        targets = rec.get("targets") or []
+        row["target"] = targets[0] if targets else None
+        if len(targets) > 1:
+            row["targets"] = targets
+        result = dict(rec.get("result") or {})
+        if error:
+            result["error"] = error[:AUDIT_ERROR_CHARS] if tool_name in AUDIT_ERROR_TEXT else "error"
+        row["result"] = result
     try:
-        await db["mcp_events"].insert_one({
-            "user_id": principal.user.id,
-            "client_id": principal.client_id,
-            "tool": tool_name,
-            "ok": ok,
-            "ms": ms,
-            "ts": now,
-        })
+        await db["mcp_events"].insert_one(row)
         # Adoption in the admin Analytics tab. A per-user pseudonymous visitor id
         # so "visitors" counts people, not calls; no slug or document anywhere.
         vid = "mcp-" + hashlib.sha256(f"{settings.ip_hash_salt}:{principal.user.id}".encode()).hexdigest()[:16]

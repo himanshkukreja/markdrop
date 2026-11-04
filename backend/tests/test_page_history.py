@@ -179,6 +179,10 @@ class Snapshots(HistoryWorld):
         await self.save(p["slug"], "owner", "# x")
         r = await self.http.delete(f"/api/v1/documents/{p['slug']}", headers=self.session("owner"))
         self.assertEqual(r.status_code, 204)
+        kept = await self.db[V].count_documents({"doc_id": str(p["_id"])})
+        self.assertGreater(kept, 0)  # in the trash: kept for a restore
+        r = await self.http.delete(f"/api/v1/trash/{p['slug']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(await self.db[V].count_documents({"doc_id": str(p["_id"])}), 0)
 
     async def test_cap_on_insert(self):

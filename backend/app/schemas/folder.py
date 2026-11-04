@@ -35,6 +35,10 @@ class FolderListResponse(BaseModel):
 
 class FolderDeleteResponse(BaseModel):
     unfiled_documents: int
+    # mode=trash (the default): what went to the trash with it (services/trash.py).
+    trashed: bool = False
+    trashed_documents: int = 0
+    trashed_folders: int = 0
 
 
 class DocumentMoveRequest(BaseModel):

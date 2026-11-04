@@ -762,6 +762,8 @@ export interface MyDocListItem {
   /** End-to-end encrypted: `title` and `content_preview` come back empty. */
   encrypted?: boolean;
   kind?: DocKind;
+  /** "blocks" on a page (the block editor); null on a markdown document. */
+  editor?: "blocks" | null;
   mime?: string | null;
   renderer?: ArtifactRenderer | null;
   type_label?: string | null;

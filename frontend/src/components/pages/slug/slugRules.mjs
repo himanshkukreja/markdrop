@@ -14,6 +14,8 @@ export const RESERVED = new Set([
   "upload", "builder", "h", "enterprise", "invite", "extension", "dev-preview", "dev-kit-frames",
   "dev-kit-publish", "dev-reading", "fonts", "email", "mcp", "oauth", "f", "w", "mdp", "shared",
   "recent", "requests", "guides", "docs-studio", "d",
+  // The Trash page (/trash).
+  "trash",
 ]);
 
 /** What's wrong with `value` as a link, in a sentence; null when the API should be asked. */

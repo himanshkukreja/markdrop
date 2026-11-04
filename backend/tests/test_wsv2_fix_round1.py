@@ -389,8 +389,9 @@ class B5DocAndFolderAddresses(AccessWorld):
         top = await self.folder("Top")
         await self.folder("Reports")
         await self.mkdoc("W", slug="reports", folder_id=top.id, folder_path=[top.slug])
+        # mode=unfile: the items move up (the default trash takes them along, nothing moves).
         r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/folders/{top.id}",
-                                   headers=self.session("wa"))
+                                   params={"mode": "unfile"}, headers=self.session("wa"))
         self.assertEqual(r.status_code, 409, r.text)
         self.assertIsNotNone(await self.db["folders"].find_one({"_id": ObjectId(top.id)}))
 

@@ -1,7 +1,7 @@
 ---
 title: Frequently asked questions
 description: Short answers about accounts, sharing, encryption, workspaces, domains, analytics, peer-to-peer transfers and your data.
-updated: 2026-11-01
+updated: 2026-11-04
 keywords: [faq, questions, help, account, free, delete account, who can see, encryption, lost link, forgot password]
 ---
 
@@ -13,6 +13,10 @@ Not to write and publish a document. You need a free account to upload files, us
 
 :::details[How do I sign in?]
 With Google, or with your email: Markdrop emails you a code each time, with no password. Your first sign-in creates the account.
+:::
+
+:::details[I deleted something by mistake. Can I get it back?]
+Yes, for 30 days. Choose **Undo** right after the delete, or open **Trash** in the sidebar and choose **Restore**. It comes back with the same link, in the same place, with the same access. See [Trash and restoring](/documents/trash).
 :::
 
 :::details[How do I delete my account?]

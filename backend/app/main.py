@@ -18,6 +18,7 @@ from app.middleware.internal import InternalRequestMiddleware
 from app.middleware.public_cors import PublicCORSMiddleware
 from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
+from app.routers.trash import router as trash_router
 from app.routers.admin_ai import router as admin_ai_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_email import router as admin_email_router
@@ -206,6 +207,7 @@ app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(InternalRequestMiddleware)
 
 # Routers
+app.include_router(trash_router)  # before documents: /documents/{slug}/delete-preview
 app.include_router(documents_router)
 app.include_router(pages_router)
 # Page AI (routers/pages_ai.py), and its Guides page editor endpoints.

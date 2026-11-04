@@ -1,7 +1,7 @@
 ---
 title: Sub-pages and access inheritance
 description: Nest pages inside pages. A sub-page lives with its parent and follows who can read it, until you set its own access.
-updated: 2026-11-03
+updated: 2026-11-04
 prerequisites: [/pages/overview]
 keywords: [sub-page, subpage, child page, nested, parent, breadcrumbs, inherit, access, move, move to, drag, reorder, page tree, delete]
 ---
@@ -67,10 +67,12 @@ AI apps move pages with `move_page`, and confirm the same way.
 
 ## Delete a page with sub-pages
 
-When you delete a page that has sub-pages, Markdrop asks what to do with them:
+When you delete a page that has sub-pages, Markdrop says how many there are and asks what to do with them:
 
-- **Keep them: move them up a level**. Each sub-page takes the deleted page's place under its parent.
-- **Delete the sub-pages too**.
+- **Keep them: move them up a level**. Each sub-page takes the deleted page's place under its parent. Only the page goes to Trash.
+- **Delete the sub-pages too**. They go to [Trash](/documents/trash) with the page, and restoring the page brings them all back in place.
+
+Either way, the page waits in Trash for 30 days before it's deleted for good.
 
 ## Related
 

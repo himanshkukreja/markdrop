@@ -841,13 +841,17 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         workspaceId={workspaceId}
         folder={deleteFor}
         tree={tree}
+        host={host}
         onClose={() => setDeleteFor(null)}
         onDeleted={(f) => {
+          // The dialog toasts "Moved to Trash" with Undo.
           setDeleteFor(null);
           changed();
-          toast.success(`Deleted “${f.name}”. Nothing in it was deleted.`);
+          documentsChanged();
           if (f.id === folderId) router.replace(f.parent_id ? folderHref(workspaceId, f.parent_id) : wsHref(workspaceId));
         }}
+        // Undo from inside the folder that was deleted: back into it.
+        onRestored={(r) => { if (r.key && r.key === folderId) router.push(folderHref(workspaceId, r.key)); }}
       />
 
       <MoveToDialog
@@ -895,7 +899,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       <DeleteDocDialog
         doc={deleteItem ? toDocRow(deleteItem, workspaceId) : null}
         onClose={() => setDeleteItem(null)}
-        onDeleted={() => { setDeleteItem(null); changed(); documentsChanged(); toast.success("Deleted"); }}
+        onDeleted={() => { setDeleteItem(null); changed(); documentsChanged(); }}
       />
 
       {sheetFor && (
@@ -1066,7 +1070,7 @@ function WorkspaceItemRow({
 
   return (
     <ItemRow
-      file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename }}
+      file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename, editor: it.editor, type_label: it.type_label }}
       title={t}
       href={openHref(it.slug, it.url, it.encrypted)}
       address={it.encrypted ? "Encrypted" : displayAddress(it.url)}
