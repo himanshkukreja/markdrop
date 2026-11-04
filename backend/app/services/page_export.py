@@ -1018,18 +1018,20 @@ CSS = """
 *{box-sizing:border-box}
 html{background:#fff}
 body{margin:0;color:var(--text);background:#fff;font:16px/1.65 Manrope,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
-.page{max-width:720px;margin:0 auto;padding:0 24px 64px}
+.page{max-width:768px;margin:0 auto;padding:0 24px 64px}
 .page.wide{max-width:none;padding:0 48px 64px}
 .page.small{font-size:14px}
 .page.serif{font-family:"Iowan Old Style","Palatino Linotype",Georgia,serif}
 .page.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
-.cover{display:block;width:100%;height:240px;margin:0 0 -36px;background:var(--soft) center/cover no-repeat}
-.cover-wrap{max-width:none;margin:0 -24px}
-.head{padding-top:56px;margin-bottom:12px}
-.cover-wrap+.head{padding-top:0}
-.icon{display:block;font-size:64px;line-height:1;margin:0 0 12px;position:relative}
+.cover{display:block;width:100%;height:clamp(150px,30vh,280px);background:var(--soft) center/cover no-repeat}
+.head{padding-top:64px}
+.has-cover .head{padding-top:12px}
+.icon-box{position:relative;display:grid;place-items:center;width:84px;height:84px;margin:0 0 0 -6px}
+.has-cover .icon-box{margin-top:-54px}
+.icon{display:block;font-size:65px;line-height:1}
 img.icon{width:72px;height:72px;object-fit:cover;border-radius:8px}
-h1.title{font-size:40px;line-height:1.2;font-weight:800;letter-spacing:-.025em;margin:0 0 8px}
+h1.title{position:relative;font-size:40px;line-height:1.2;font-weight:800;letter-spacing:-.025em;margin:34px 0 6px;padding:2px 0;overflow-wrap:anywhere}
+.body{padding-top:6px}
 .body h1{font-size:30px;line-height:1.3;font-weight:700;letter-spacing:-.01em;margin:32px 0 6px}
 .body h2{font-size:24px;line-height:1.35;font-weight:700;letter-spacing:-.01em;margin:28px 0 4px}
 .body h3{font-size:20px;line-height:1.4;font-weight:700;letter-spacing:-.01em;margin:22px 0 2px}
@@ -1054,9 +1056,10 @@ h1.title{font-size:40px;line-height:1.2;font-weight:800;letter-spacing:-.025em;m
 pre.mermaid{margin:12px 0;padding:14px 16px;background:#f7f8fa;border:1px solid var(--border);border-radius:8px;white-space:pre-wrap;font:13px/1.5 "JetBrains Mono",ui-monospace,monospace;text-align:center}
 pre.mermaid[data-processed]{background:none;border:0}
 .caption{margin:-4px 0 12px;font-size:14px;color:var(--muted);text-align:center}
-.table{margin:12px 0;overflow-x:auto}
+.table{margin:12px 0;overflow-x:auto;border:1px solid var(--border);border-radius:10px}
 table{border-collapse:collapse;min-width:100%;font-size:15px}
 th,td{border:1px solid var(--border);padding:7px 10px;text-align:left;vertical-align:top}
+.table table{border-style:hidden}
 th{background:var(--soft);font-weight:600}
 .figure{--w:100%;width:min(var(--w),100%);margin:20px auto;display:flex;flex-direction:column}
 .figure[data-align=left]{margin-left:0}
@@ -1124,14 +1127,19 @@ span[data-bg]{padding:0 2px}
 .subpages h2{font-size:14px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin:0 0 8px}
 .colophon{margin-top:48px;padding-top:12px;border-top:1px solid var(--border);font-size:12px;color:var(--faint)}
 .colophon a{color:inherit}
-@media (max-width:600px){.page{padding:0 16px 48px}.columns{flex-direction:column;gap:0}h1.title{font-size:32px}}
+@media (max-width:600px){.page{padding:0 16px 48px}.columns{flex-direction:column;gap:0}.cover{height:180px}
+ .head{padding-top:28px}.has-cover .head{padding-top:12px}.icon-box{width:72px;height:72px}.has-cover .icon-box{margin-top:-44px}
+ h1.title{font-size:32px}}
 @media print{
  @page{margin:16mm 16mm 18mm}
  body{font-size:11pt}
  .page,.page.wide{max-width:none;padding:0}
- .cover-wrap{margin:0}
- .cover{height:150px;margin:0 0 -28px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+ .cover{height:150px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
  .head{padding-top:0}
+ .has-cover .head{padding-top:8px}
+ .icon-box{width:72px;height:72px}
+ .has-cover .icon-box{margin-top:-44px}
+ h1.title{font-size:28pt;margin-top:12px}
  .body h1{break-before:page}
  .body>h1:first-child{break-before:auto}
  h1,h2,h3,h4,summary{break-after:avoid}
@@ -1162,11 +1170,14 @@ def html_document(body: str, pc: PageCtx, *, exported_at: datetime | None = None
         classes.append(props["font"])
     cover = _cover_src(pc, "html")
     y = props.get("cover_y", 50)
-    head = ""
+    # Laid out like the page in the app (components/pages/PageHead): the cover across the whole
+    # paper, the icon over the cover's bottom edge, then the title below both, never on the cover.
+    cover_html = ""
     if cover:
+        classes.append("has-cover")
         # A background, so a cover that can't load (offline, a blocked address) is a calm band, not a broken image.
-        head += (f'<div class="cover-wrap"><div class="cover" role="img" aria-label="Cover" '
-                 f'style="background-image:url(&quot;{esc(cover)}&quot;);background-position:50% {esc(y)}%"></div></div>')
+        cover_html = (f'<div class="cover" role="img" aria-label="Cover" '
+                      f'style="background-image:url(&quot;{esc(cover)}&quot;);background-position:50% {esc(y)}%"></div>\n')
     icon = props.get("icon") or ""
     icon_html = ""
     if icon.startswith("asset:"):
@@ -1174,10 +1185,10 @@ def html_document(body: str, pc: PageCtx, *, exported_at: datetime | None = None
         src = (img.path if pc.mode == "zip" and img and img.path else (img.data_uri if img else None)) \
             or (pc.public_urls.get(icon[6:]) if pc.public else None)
         if src:
-            icon_html = f'<img class="icon" src="{esc(src)}" alt="">'
+            icon_html = f'<div class="icon-box"><img class="icon" src="{esc(src)}" alt=""></div>'
     elif icon:
-        icon_html = f'<span class="icon" aria-hidden="true">{esc(icon)}</span>'
-    head += f'<header class="head">{icon_html}<h1 class="title">{esc(pc.title)}</h1></header>'
+        icon_html = f'<div class="icon-box"><span class="icon" aria-hidden="true">{esc(icon)}</span></div>'
+    head = f'<header class="head">{icon_html}<h1 class="title">{esc(pc.title)}</h1></header>'
     kids = ""
     if pc.children:
         kids = ('<section class="subpages"><h2>Pages inside</h2>' + "".join(
@@ -1204,7 +1215,7 @@ def html_document(body: str, pc: PageCtx, *, exported_at: datetime | None = None
         f'<meta http-equiv="Content-Security-Policy" content="{esc(csp)}">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
         '<meta name="generator" content="Markdrop">\n'
-        f"<title>{esc(pc.title)}</title>\n<style>{CSS}</style>\n{extra_head}\n</head>\n<body>\n"
+        f"<title>{esc(pc.title)}</title>\n<style>{CSS}</style>\n{extra_head}\n</head>\n<body>\n{cover_html}"
         f'<article class="{" ".join(classes)}">\n{head}\n<div class="body">\n{body}\n</div>\n{kids}\n{colophon}\n'
         f"</article>\n{script}\n</body>\n</html>\n"
     )

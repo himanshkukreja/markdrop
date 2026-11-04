@@ -242,9 +242,13 @@ class HtmlExport(PageWorld):
         self.assertNotIn("Top secret", out)
         self.assertIn('<figure class="figure" style="--w:60%" data-align="left"><img src="data:image/png;base64,iVBORw0K"', out)
         self.assertIn("<figcaption>Cap</figcaption>", out)
-        self.assertIn('class="page wide serif"', out)
         self.assertIn("/page-covers/dawn.webp", out)
-        self.assertIn('<span class="icon" aria-hidden="true">🚀</span><h1 class="title">Launch plan</h1>', out)
+        self.assertIn('<div class="icon-box"><span class="icon" aria-hidden="true">🚀</span></div>'
+                      '<h1 class="title">Launch plan</h1>', out)
+        # The cover spans the paper above the column; the title is below it, never pulled onto it.
+        self.assertIn('class="page wide serif has-cover"', out)
+        self.assertLess(out.index('<div class="cover"'), out.index('<article'))
+        self.assertNotIn("margin:0 0 -", out)
         self.assertIn("@media print", out)
 
 
@@ -464,6 +468,36 @@ class ExportMcp(PageWorld):
         path = res["structuredContent"]["download_url"].removeprefix("https://api.markdrop.in")
         await self.set_level(page["slug"], "private")
         self.assertEqual((await self.http.get(path)).status_code, 404)
+
+    async def test_link_opened_in_a_browser(self):
+        """A link clicked in an AI app opens a tab: the file downloads there, and a link that no longer
+        works is a short page saying so (never raw JSON); API clients still get the JSON."""
+        page = await self.create(title="Clicked", content="x")
+        token = await self.mcp_token("owner", write=False)
+        _s, res = await self.mcp_call(token, "export_page", {"document": page["slug"]})
+        path = res["structuredContent"]["download_url"].removeprefix("https://api.markdrop.in")
+        nav = {"Accept": "text/html,application/xhtml+xml,*/*;q=0.8", "Sec-Fetch-Dest": "document"}
+        ok = await self.http.get(path, headers=nav)
+        self.assertEqual(ok.status_code, 200, ok.text)
+        self.assertIn("attachment;", ok.headers["content-disposition"])
+        gone = await self.http.get(path + "x", headers=nav)
+        self.assertEqual(gone.status_code, 404)
+        self.assertTrue(gone.headers["content-type"].startswith("text/html"))
+        self.assertIn("This download link has expired", gone.text)
+        self.assertIn("default-src 'none'", gone.headers["content-security-policy"])
+        api = await self.http.get(path + "x")
+        self.assertEqual(api.status_code, 404)
+        self.assertEqual(api.json()["detail"], "This download link has expired. Export the page again.")
+        # A refusal after the link was made (readers can't export any more) reads the same way.
+        stranger = await self.mcp_token("stranger", write=False)
+        _s, res = await self.mcp_call(stranger, "export_page", {"document": page["slug"]})
+        path = res["structuredContent"]["download_url"].removeprefix("https://api.markdrop.in")
+        raw = await self.doc(page["slug"])
+        await self.db["documents"].update_one({"_id": raw["_id"]}, {"$set": {"content": "---\nallow_export: false\n---\nx"}})
+        off = await self.http.get(path, headers=nav)
+        self.assertEqual(off.status_code, 403)
+        self.assertIn("turned off exporting", off.text)
+        self.assertIn("<h1>This page can&#x27;t be exported</h1>", off.text.replace("&#39;", "&#x27;"))
 
     async def test_refusals(self):
         page = await self.create(content="---\nallow_export: false\n---\nx")

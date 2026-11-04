@@ -6,7 +6,7 @@ prerequisites: [/pages/overview]
 keywords: [export, download, markdown, md, html, pdf, print, zip, sub-pages, images, portable, backup, export_page, allow_export, readers can export]
 ---
 
-You can take a page out of Markdrop as a file: portable Markdown, one HTML file, or a PDF. Open the page's **⋯** menu and choose **Export…**, pick a format, and select **Download** or **Print to PDF…**.
+You can take a page out of Markdrop as a file: portable Markdown, one HTML file, or a PDF. Open the page's **⋯** menu and choose **Export…**, pick a format, and select **Download** or **Print to PDF…**. The file downloads where you are; if Markdrop can't make it (for example, the page's editors have just turned off exports for readers), the dialog says why.
 
 ## Formats
 
@@ -33,13 +33,13 @@ Images uploaded to the page go in the `.zip`. If you download a single `.md` ins
 
 ### HTML
 
-The HTML file looks like the page: the cover, icon and title, callouts, toggles (open), columns, coloured text and backgrounds, tables and code. Embedded Markdrop items become cards that link to them, and locked ones say **Locked item**. Images are inside the file, up to 25 MB of them; larger ones are left out.
+The HTML file looks like the page: the cover across the top, the icon over the cover's bottom edge and the title below them, then callouts, toggles (open), columns, coloured text and backgrounds, tables and code. Embedded Markdrop items become cards that link to them, and locked ones say **Locked item**. Images are inside the file, up to 25 MB of them; larger ones are left out.
 
 Math and Mermaid diagrams are drawn when the file is opened with an internet connection. Offline, you see their source. Nothing else in the file runs: any HTML or script written in the page shows as text.
 
 ### PDF
 
-**Print to PDF…** lays the page out for paper in the light theme, without Markdrop's menus or sidebar. The cover sits at the top of the first sheet, each top-level heading starts a new sheet, and blocks such as callouts, code, tables and images aren't split across two sheets. Toggles print open. Videos and other web embeds can't be printed, so they're left out of the PDF.
+**Print to PDF…** lays the page out for paper in the light theme, without Markdrop's menus or sidebar, in this tab: no other page opens. The cover sits at the top of the first sheet, with the icon on its edge and the title below, each top-level heading starts a new sheet, and blocks such as callouts, code, tables and images aren't split across two sheets. Toggles print open. Videos and other web embeds can't be printed, so they're left out of the PDF.
 
 In the print dialog, choose **Save as PDF** as the destination. To keep the cover and background colours, turn on **Background graphics** in the dialog's options.
 
@@ -64,7 +64,7 @@ An [end-to-end encrypted](/sharing/end-to-end-encryption) document can't be expo
 
 ## From an AI app
 
-AI apps connected to Markdrop export with the `export_page` tool. It returns the Markdown or HTML as text, or, with `include_subpages` (or `zip` for Markdown with images), a link to the `.zip` that works for 10 minutes. It follows the same rules as the website: locked items stay locked, and readers can export only when the page allows it. See [MCP tools](/ai/tools).
+AI apps connected to Markdrop export with the `export_page` tool. It returns the Markdown or HTML as text, or, with `include_subpages` (or `zip` for Markdown with images), a link to the `.zip` that works for 10 minutes. Opening the link downloads the file; once it has expired, it opens a short page saying so: ask the AI app to export the page again. It follows the same rules as the website: locked items stay locked, and readers can export only when the page allows it. See [MCP tools](/ai/tools).
 
 The setting is the page property `allow_export: false` in its front matter, which `set_page_properties` sets. See the [Page Markdown reference](/pages/markdown-reference).
 

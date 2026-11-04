@@ -76,11 +76,19 @@
   html.pbx-printing .pbx-print__page + .pbx-print__page { break-before: page; }
   html.pbx-printing .pbx-print .pb-frame { min-height: 0 !important; padding: 0 !important; background: #fff !important; }
   html.pbx-printing .pbx-print .pb-col { width: auto !important; max-width: none !important; margin: 0 !important; padding: 0 !important; }
+  /* The head as in the app (PageHead), and as the HTML export prints: the cover across the sheet,
+     the icon over its bottom edge, the title below both. (.pb-col's padding is zeroed above, so the
+     head's own spacing is set here; print.css paints every box white, so the icon's box is cleared.) */
   html.pbx-printing .pbx-print .pb-head { padding-top: 0 !important; }
-  html.pbx-printing .pbx-print .pb-head--cover .pb-cover-img { height: 140px !important; margin: 0 0 8px !important; border-radius: 6px; overflow: hidden; }
+  html.pbx-printing .pbx-print .pb-head--cover .pb-cover-img { height: 150px !important; margin: 0 !important; overflow: hidden; }
   html.pbx-printing .pbx-print .pb-cover-img__img { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html.pbx-printing .pbx-print .pb-head__add, html.pbx-printing .pbx-print .pb-cover-img__tools { display: none !important; }
-  html.pbx-printing .pbx-print .pb-title { font-size: 28pt !important; line-height: 1.15 !important; margin-bottom: 10pt !important; }
+  html.pbx-printing .pbx-print .pb-head__body { padding-top: 0 !important; }
+  html.pbx-printing .pbx-print .pb-head--cover .pb-head__body { padding-top: 8px !important; }
+  html.pbx-printing .pbx-print :is(.pb-head__icon, .pb-head__iconbtn) { background: transparent !important; }
+  html.pbx-printing .pbx-print .pb-head__iconbtn { width: 72px; height: 72px; }
+  html.pbx-printing .pbx-print .pb-head--cover .pb-head__icon { margin-top: -44px !important; }
+  html.pbx-printing .pbx-print .pb-title { position: relative; font-size: 28pt !important; line-height: 1.15 !important; margin: 12px 0 10pt !important; }
   html.pbx-printing .pbx-print .pb-body { font-size: 11pt; }
 
   /* Sheets: a new one before each top heading (not the first), never inside a block. */
@@ -104,6 +112,8 @@
   html.pbx-printing .pbx-print .md-alert--danger { background: #fcefee !important; }
   html.pbx-printing .pbx-print :is(.md-alert, [data-bg], .pb-code, pre, th, .pb-mention, .pb-locked) { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html.pbx-printing .pbx-print .pb-mention { background: #f1f3f5 !important; }
+  /* print.css paints every box white: what sits inside a tinted block keeps the block's colour. */
+  html.pbx-printing .pbx-print :is(.md-alert, [data-bg]) :not(code, pre, .pb-mention, img, svg *) { background: transparent !important; }
   html.pbx-printing .pbx-print a { color: #1d4ed8 !important; }
   html.pbx-printing .pbx-print .md-diagram svg { max-width: 100%; height: auto; }
 }

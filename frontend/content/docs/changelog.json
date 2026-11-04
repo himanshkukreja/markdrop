@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "page-export-and-editor-fixes",
+      "date": "2026-11-04",
+      "title": "Page exports look like the page, and a page stays a page",
+      "kind": "fixed",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "Exported HTML and PDFs no longer draw a page's title over its cover, exports always download or print where you are, and a page can no longer get stuck as a Markdown document.",
+      "body": "- **Exports look like the page.** In the HTML file and the PDF, the cover runs across the top, the icon sits on the cover's bottom edge and the title is below them, never on the cover.\n- **Exports stay where you are.** The file downloads in the tab you're in (or the print dialog opens there for a PDF), and if Markdrop refuses an export, the dialog says why. An AI app's export link that has expired opens a short page saying so, instead of an error.\n- **A page stays a page.** **Open in the classic editor** is gone from a page's menus. **Edit as Markdown** shows the page's source only for now, with **Edit with blocks** on screen to go back; a reload always opens blocks again.\n- **Switch back to the page editor.** A page that was switched to the classic editor shows its owner and editors a banner and a **More actions** item to make it a page again, on markdrop.in and on your workspace's own domain.",
+      "docs": [
+        "/pages/export",
+        "/pages/overview"
+      ]
+    },
+    {
       "id": "domain-editing",
       "date": "2026-11-04",
       "title": "Edit pages on your workspace's own domain, and Request edit access",
