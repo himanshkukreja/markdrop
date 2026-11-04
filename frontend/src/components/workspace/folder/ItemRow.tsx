@@ -132,7 +132,7 @@ export function ItemRow({
           {badges}
         </div>
         <div className="flex min-w-0 items-center gap-1.5 text-caption text-text-muted">
-          {chip && <span className="md-lift inline-flex min-w-0">{chip}</span>}
+          {chip}
           <span className="min-w-0 truncate">
             <span>{kind}</span>
             {address && <><span aria-hidden> · </span><span className="font-mono">{address}</span></>}

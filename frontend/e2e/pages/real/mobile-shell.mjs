@@ -227,6 +227,9 @@ function measure({ checkTargets }) {
   const INTERACTIVE = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=link], [role=menuitem], [role=menuitemradio], [role=menuitemcheckbox], [role=tab], [role=option], [role=switch], [role=checkbox], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"])';
   const modal = [...document.querySelectorAll('[aria-modal="true"]')].filter(visible).pop();
   const scope = modal || document.body;
+  // An open menu covers part of the page: while it's open, it is what a finger aims at.
+  const openMenu = [...document.querySelectorAll('[role=menu]')].filter(visible).pop();
+  const targetScope = (openMenu && (!modal || modal.contains(openMenu))) ? openMenu : scope;
 
   // 2. off-screen controls and text
   for (const el of scope.querySelectorAll(`${INTERACTIVE}, h1, h2, h3, p, label, li, td, th`)) {
@@ -250,7 +253,7 @@ function measure({ checkTargets }) {
 
   // 4. touch targets
   if (checkTargets) {
-    for (const el of scope.querySelectorAll(INTERACTIVE)) {
+    for (const el of targetScope.querySelectorAll(INTERACTIVE)) {
       if (el.disabled || el.getAttribute("aria-disabled") === "true") continue;
       if (el.matches("[role=listbox], [role=menu], [role=dialog], [role=grid], [role=tabpanel], [role=region], [role=group], ul, ol, main, section, form, div[tabindex='0'][class*='scroll']")) continue;
       if (el.matches("input[type=checkbox], input[type=radio]") && el.closest("label")) continue; // the label is the target
@@ -262,7 +265,7 @@ function measure({ checkTargets }) {
       }
       const r = target.getBoundingClientRect();
       // Inline links inside running text are exempt (WCAG 2.5.8's inline exception).
-      if (el.tagName === "A" && getComputedStyle(el).display === "inline") {
+      if (el.tagName === "A" && getComputedStyle(el).display.startsWith("inline")) {
         const block = el.parentElement;
         const t = (block?.innerText || "").trim().length;
         if (t > (el.innerText || "").trim().length + 12) continue;

@@ -345,6 +345,6 @@
    and the text input fills its height so a tap anywhere on the field lands in it. */
 @media (pointer: coarse) {
   .comboField { min-height: 44px; }
-  .comboInput { font-size: 16px; height: 42px; margin-block: -5px; }
+  .comboInput { font-size: 16px; height: 44px; margin-block: -6px; }
   .chipsEyebrow, .keyDemoNote, .keyDemoNoteKey, .previewLabel, .dtpGrid th, .secretEyebrow { font-size: 12px; }
 }

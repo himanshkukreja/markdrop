@@ -267,4 +267,14 @@
   .wl-name { -webkit-touch-callout: none; }
   .wl-row, .wl-prow, .wl-tile { -webkit-user-select: none; user-select: none; }
   .wl-card__kind { font-size: 12px; }
+  /* List rows: Copy link is in the row's menu, so the row keeps two finger-sized controls (who can
+     open it, ⋯) with room between them. */
+  .wl-list .wl-copy { display: none; }
+  .wl-row { min-height: 52px; }
+  .wl-access { min-height: 44px; min-width: 44px; justify-content: center; }
+}
+@media (pointer: coarse) {
+  @container (max-width: 700px) {
+    .wl-list { --wl-cols: minmax(0, 1fr) 40px 88px 48px 52px; }
+  }
 }

@@ -405,29 +405,36 @@
   }
 }
 
-/* Touch screens: 44 px targets. The chips keep their look; a hit area around each fills the filter
-   row's padding (inside its scroller, so it isn't clipped). No keyboard, no keyboard hints. */
+/* Touch screens: 44 px targets. The chips are 36 px tall with a hit area that fills the filter row's
+   4 px padding (inside its scroller, so it isn't clipped). No keyboard, so no keyboard hints: the close
+   button is an ×, not Esc. */
 @media (pointer: coarse) {
   .filters {
-    padding-top: 9px;
-    padding-bottom: 9px;
-    margin-top: -9px;
+    padding-top: 4px;
+    padding-bottom: 4px;
   }
   .chip {
     position: relative;
+    height: 36px;
   }
   .chip::after {
     content: "";
     position: absolute;
-    inset: -10px -4px;
+    inset: -4px -4px;
+  }
+  .escKey {
+    display: none;
   }
   .input {
     min-height: 44px;
     font-size: max(16px, 1em);
   }
   .closeIcon {
+    display: flex;
     width: 44px;
     height: 44px;
+    align-items: center;
+    justify-content: center;
   }
   .askBtn {
     min-width: 44px;

@@ -36,7 +36,7 @@
   .md-btn--link { min-height: 44px; }
   /* Small text links and text buttons (Read more, How sharing works, Back to …): the same hit area. */
   .md-crumbs a { position: relative; }
-  .md-hit::after, .md-crumbs a::after {
+  .md-hit::after, .md-crumbs a::after, .md-tip[tabindex]::after {
     content: "";
     position: absolute;
     top: min(0px, calc((100% - 44px) / 2));
@@ -49,6 +49,9 @@
      link, inside a positioned row), and the row's own controls sit above it (.md-lift). */
   .md-stretch::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
   .md-lift { position: relative; z-index: 1; }
+  /* A row's location chip ("Acme › Roadmap") is too small to tap beside the title; on a touch screen
+     a tap there opens the row's item like the rest of the row. */
+  .md-row-chip { pointer-events: none; }
 
   /* ── Form fields: 16 px text (no iOS zoom on focus) and 44 px tall ─── */
   .md-input, .md-textarea, .md-select { font-size: 16px; line-height: 22px; }

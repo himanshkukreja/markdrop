@@ -277,7 +277,7 @@ export default function ShareDialog({
       {state && canChangeLocation && !locOpen && !peopleOnly && (
         <>
           <span aria-hidden>·</span>
-          <button type="button" className="md-focus cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text hover:underline" onClick={() => setLocOpen(true)}>
+          <button type="button" className="md-focus md-hit cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text hover:underline" onClick={() => setLocOpen(true)}>
             {wsId ? "Move" : "Add to a workspace"}
           </button>
         </>
@@ -413,7 +413,7 @@ export default function ShareDialog({
                   aria-expanded={moreOpen}
                   aria-controls="md-share-more"
                   onClick={() => setMoreOpen((o) => !o)}
-                  className="md-focus md-hit flex cursor-pointer items-center gap-2 self-start rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text"
+                  className="md-focus md-hit flex cursor-pointer items-center gap-2 self-start pointer-coarse:min-h-11 rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text"
                 >
                   <Icon name={moreOpen ? "chevronDown" : "chevronRight"} size={14} />
                   More options: password and expiry
