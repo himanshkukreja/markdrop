@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { getToken } from "@/lib/api";
 import { HeaderAuthSlot } from "./AccountMenu";
 import { MobileNav } from "./MobileNav";
+import { NotificationBell } from "./NotificationBell";
 import { NAV_LINKS } from "./links";
 import { useMounted } from "./useLocation";
 
@@ -18,7 +19,7 @@ export type SiteHeaderVariant = "default" | "marketing" | "minimal";
 export interface SiteHeaderProps {
   /**
    * - "default" (tools, app, 404, framed viewer): 56px, sticky, on bg with a hairline.
-   *   Right: ThemeToggle · CreateMenu · Sign in / AccountMenu.
+   *   Right: ThemeToggle · CreateMenu · NotificationBell (signed in) · Sign in / AccountMenu.
    * - "marketing" (/, /enterprise; Landing.dc.html, REVAMP_BUILD O11): 56px, transparent over the hero
    *   until 8px of scroll, then bg at 85% with a 12px backdrop blur and the hairline. Nav Enterprise ·
    *   VS Code extension ↗ · GitHub ↗; right: ThemeToggle · Create (secondary) · Sign in / AccountMenu.
@@ -158,6 +159,8 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
                 )}
                 <ThemeToggle className="hidden md:inline-flex" />
                 <CreateMenu variant={create} className="max-md:[&_.md-create]:h-11" />
+                {/* Mentions, sign-off requests and shares (signed in; never on a workspace's domain). */}
+                {user && <NotificationBell />}
                 <HeaderAuthSlot signInClassName="max-md:px-2" />
                 {showPhoneMenu && <MobileNav className="md:hidden" />}
               </>

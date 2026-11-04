@@ -76,6 +76,7 @@ DENIED = (
     "/api/v1/sync",           # the VS Code extension's sync protocol
     "/api/v1/oauth/",         # the MCP consent screen
     "/api/v1/me/digest/",     # the digest's unsubscribe link
+    "/api/v1/me/mentions/",   # the mention emails' turn-off link
     "/api/v1/unsubscribe",
     "/api/v1/beat",
     "/api/v1/host",

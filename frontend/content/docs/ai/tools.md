@@ -3,7 +3,7 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-04
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions]
+keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions, notifications, list_notifications, mark_notifications_read, share_with_people, notify]
 ---
 
 Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 54 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
@@ -97,6 +97,8 @@ Readers who can't open an embedded or mentioned item see a locked placeholder wi
 
 To mention someone, write `:person[Name]{id="<id>"}` with an id from `list_workspace_members`, or just `:person[Name]`: when exactly one member of the page's workspace has that name (upper and lower case ignored), Markdrop adds the id as it saves. Names it can't match, or that more than one member has, stay plain text, and `create_page`, `update_page`, `replace_section` and `append_blocks` list them in `unresolved_people`. Names are looked up only when you're a member of the page's workspace.
 
+Everyone a tool newly mentions on a page (or names on a sign-off block) is notified in your name, as when you edit the page yourself, if they can open it. Put the mention in a block with an anchor (`{#b-…}`) and the notification links straight to it. See [Mentions and notifications](/pages/mentions-and-notifications).
+
 `duplicate_page` details: without a target, the copy goes in the original's parent page if you can add pages there, else in its workspace folder if you're a member, else among your own pages (private unless the original is public to anyone with the link). The copy has what you can read of the original, its own copies of the images, and the access of a new page where it lands. A sub-page with its own access isn't copied and is named in `skipped_subpages`; images that couldn't be copied are in `images_missing`. End-to-end encrypted pages and files can't be duplicated. See [Duplicate a page](/pages/overview#duplicate-a-page).
 
 ### Access
@@ -105,7 +107,18 @@ To mention someone, write `:person[Name]{id="<id>"}` with an id from `list_works
 |---|---|---|---|
 | `set_access` | write | Changes who can open a document you own: `link`, `private`, `password` or `workspace`. A document has one access level at every address, so `link` on a workspace document makes it public on markdrop.in and on the workspace's domain alike. | `document`, `access`, `password`, `remove_password`, `expires` |
 
+| `share_with_people` | write | Shares a page, document or file with people by email, like **Share › Add people** in the app: `viewer` (can view, the default) or `editor` (can edit). With `notify` (default `true`) each person gets an email with the link and your `message`, and people with a Markdrop account get a notification. Someone who already had that access gets nothing. The website's rules apply: you must be allowed to share it, can't give more access than you have, and only the owner changes someone's role. Each address's result is listed, with the reason when it wasn't shared. | `document`, `emails` (1–20), `role`, `notify`, `message` (up to 500 characters) |
+
 With `access: "link"`, a password the document already has is kept and applies again unless `remove_password` is `true`.
+
+### Notifications
+
+| Tool | Permission | What it does | Main inputs |
+|---|---|---|---|
+| `list_notifications` | read | Your notifications, newest first, as the bell shows them: someone mentioned you (`mention`), asked for your sign-off (`signoff_requested`) or shared a page with you (`shared`). Each has a sentence, who did it, the page, a `url` to the block, an excerpt and whether it's read. A page you can no longer open comes back with `available: false` and no title, link or excerpt. | `unread_only`, `limit` (1–100, default 20), `cursor` |
+| `mark_notifications_read` | write | Marks your notifications read: the `ids` from `list_notifications`, or `all: true`. Returns how many changed and how many are still unread. | `ids` or `all` |
+
+Notifications are kept for 90 days. See [Mentions and notifications](/pages/mentions-and-notifications).
 
 ### Files and uploads
 

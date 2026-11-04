@@ -277,12 +277,13 @@ class Endpoints(DigestWorld):
         self.assertEqual(r.status_code, 422)
         r = await self.http.patch("/api/v1/me/preferences", json={"analytics_digest": "off"},
                                   headers=self.session("owner"))
-        self.assertEqual((r.status_code, r.json()), (200, {"analytics_digest": "off"}))
+        # The response also carries mention_emails (services/notifications.py), unchanged here.
+        self.assertEqual((r.status_code, r.json()), (200, {"analytics_digest": "off", "mention_emails": True}))
         me = await self.http.get("/api/v1/auth/me", headers=self.session("owner"))
         self.assertEqual(me.json()["analytics_digest"], "off")
         r = await self.http.patch("/api/v1/me/preferences", json={"analytics_digest": "weekly"},
                                   headers=self.session("owner"))
-        self.assertEqual(r.json(), {"analytics_digest": "weekly"})
+        self.assertEqual(r.json(), {"analytics_digest": "weekly", "mention_emails": True})
         self.assertEqual((await self.user("owner"))["analytics_digest"], "weekly")
         # A workspace domain's session can't change account settings.
         r = await self.http.patch("/api/v1/me/preferences", json={"analytics_digest": "off"},

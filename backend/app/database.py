@@ -244,6 +244,13 @@ async def connect() -> None:
         await _digest.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] digest indexes skipped: {exc}")
+    # Notifications (services/notifications.py): 90-day TTL; the 10-minute email log.
+    try:
+        from app.services import notifications as _notifications
+
+        await _notifications.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] notification indexes skipped: {exc}")
 
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])

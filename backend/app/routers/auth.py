@@ -270,6 +270,7 @@ def _to_user_response(user: User) -> UserResponse:
         providers=user.providers,
         created_at=user.created_at,
         analytics_digest=user.analytics_digest,
+        mention_emails=user.mention_emails,
     )
 
 

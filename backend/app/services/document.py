@@ -516,6 +516,10 @@ async def update_document(
     from app.services import page_history
 
     await page_history.on_save(db, raw, after, actor, **(history or {}))
+    # People newly mentioned (or named on a sign-off) hear about it (services/notifications.py).
+    from app.services import notifications
+
+    await notifications.on_page_saved(db, raw, after, actor)
     return after
 
 

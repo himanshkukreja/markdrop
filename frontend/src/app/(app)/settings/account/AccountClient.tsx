@@ -29,6 +29,7 @@ export default function AccountClient() {
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [savingDigest, setSavingDigest] = useState(false);
+  const [savingMentions, setSavingMentions] = useState(false);
 
   // Seed the field once the user is known (and again if another tab renames them).
   const current = user?.name ?? "";
@@ -69,6 +70,20 @@ export default function AccountClient() {
       toast.error("Couldn't save that. Check your connection and try again.");
     } finally {
       setSavingDigest(false);
+    }
+  }
+
+  async function setMentionEmails(on: boolean) {
+    if (!user) return;
+    setSavingMentions(true);
+    try {
+      const res = await updatePreferences({ mention_emails: on });
+      updateUser({ ...user, mention_emails: res.mention_emails ?? on });
+      toast.info(on ? "Mention emails on." : "Mention emails off. You'll still see mentions under the bell.");
+    } catch {
+      toast.error("Couldn't save that. Check your connection and try again.");
+    } finally {
+      setSavingMentions(false);
     }
   }
 
@@ -159,7 +174,16 @@ export default function AccountClient() {
         </div>
       </Card>
 
-      <Card title="Email">
+      <Card title="Email" id="email">
+        <SwitchRow
+          id="mention-emails"
+          label="Email me when someone mentions me"
+          hint="Also when someone asks for your sign-off. At most one email per page every 10 minutes; you always see them under the bell."
+          checked={user.mention_emails !== false}
+          disabled={savingMentions}
+          onChange={setMentionEmails}
+        />
+        <div className="my-4 border-t border-border" />
         <SwitchRow
           id="analytics-digest"
           label="Weekly analytics email"

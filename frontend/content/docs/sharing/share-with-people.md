@@ -1,9 +1,9 @@
 ---
 title: Share with specific people
 description: Add people by email with Can view or Can edit, email them a note, let them share it on, and remove them later.
-updated: 2026-11-01
+updated: 2026-11-04
 prerequisites: [/get-started/accounts]
-keywords: [share, invite, email, grant, collaborator, can view, can edit, reshare]
+keywords: [share, invite, email, grant, collaborator, can view, can edit, reshare, notify people, notification, message]
 ---
 
 Add people by email when a document or file is for them and not for everyone with the link. They sign in with that address and it opens. You can give each person **Can view** or **Can edit**, and take it back whenever you like.
@@ -24,11 +24,11 @@ Under **People with access**, type an address in **Add people by email** and pre
 ### Choose their access
 Pick **Can view** or **Can edit** for the people you're adding.
 
-### Decide whether to email them
-Once you've typed an address, an **Email them** checkbox appears, ticked. Choose **Add a message** to include a note of up to 500 characters, like "Here's the Q3 plan for Thursday." Untick **Email them** to add people quietly.
+### Decide whether to notify them
+Once you've typed an address, a **Notify people** checkbox appears, ticked. Each person gets an email with the link and, if they have a Markdrop account, a notification under the bell in the app. Choose **Add a message** to include a note of up to 500 characters, like "Here's the Q3 plan for Thursday." It goes in both. Untick **Notify people** to add people quietly.
 
 ### Choose Share
-Markdrop confirms what happened, for example "Shared with alice@acme.com and emailed them."
+Markdrop confirms what happened, for example "Shared with alice@acme.com and notified them."
 ::::
 
 If the email couldn't be sent, they still have access, and the toast says "the email didn't send". Send them the link yourself.
@@ -64,7 +64,7 @@ When an editor opens the editor, Markdrop tells them: "You can edit the text. It
 - **Everyone in {workspace}** and how many people that is, when the document is in a workspace and isn't set to **Only people added** (**Members can edit**);
 - each person you added, with **Can view** or **Can edit**.
 
-A person marked "Added without an email" was added with **Email them** off. One marked "No longer active: whoever shared it lost access" was added by someone who no longer has access themselves, so their access went with it.
+A person marked "Added without an email" was added with **Notify people** off. One marked "No longer active: whoever shared it lost access" was added by someone who no longer has access themselves, so their access went with it.
 
 To remove someone, open the `⋯` menu on their row and choose **Remove**. They lose access straight away.
 
