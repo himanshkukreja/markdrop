@@ -15,8 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 42 tools, grouped as the docs group them (docs: ai/tools "Hosted server
- * The hosted server's 40 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 51 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [

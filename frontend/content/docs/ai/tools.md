@@ -8,7 +8,7 @@ updated: 2026-11-04
 keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, move_page, pages, sub-pages, scopes, reference]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 42 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 51 tools; the local server, `markdrop mcp` in the CLI, has 11. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
