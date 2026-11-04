@@ -127,7 +127,7 @@ export function DocRow({
 
   return (
     <li ref={rowRef} {...rowProps} className={cx("ph-no-capture md-docrow", styles.row, riseDelay != null && styles.rise, "min-w-0", className)} style={style}>
-      {leading && <span className={cx("flex shrink-0", styles.lift)}>{leading}</span>}
+      {leading && <span className="md-lift flex shrink-0">{leading}</span>}
       <RowTile d={d} />
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-2">
@@ -135,7 +135,7 @@ export function DocRow({
             href={href}
             target={external ? "_blank" : undefined}
             rel={external ? "noopener noreferrer" : undefined}
-            className={cx("md-focus min-w-0 truncate rounded-sm text-body-strong text-text hover:underline hover:underline-offset-3", styles.link)}
+            className="md-focus md-stretch min-w-0 truncate rounded-sm text-body-strong text-text hover:underline hover:underline-offset-3"
             dir="auto"
             title={title}
           >
@@ -151,10 +151,11 @@ export function DocRow({
           )}
         </div>
         <div className="flex min-w-0 items-center gap-1.5 text-caption text-text-muted">
-          {chip && <span className={cx("inline-flex min-w-0 shrink-0", styles.lift)}>{chip}</span>}
+          {/* The chip is its own link and sits above the row's stretched link (relative z-[1]). */}
+          {chip}
           {d.vscode_synced && (
             <Tooltip content="Synced with VS Code" focusable>
-              <span className={cx("inline-flex shrink-0 items-center", styles.lift)} aria-label="Synced with VS Code" role="img">
+              <span className="md-lift inline-flex shrink-0 items-center" aria-label="Synced with VS Code" role="img">
                 <VSCodeIcon size={12} />
               </span>
             </Tooltip>
@@ -188,7 +189,7 @@ export function DocRow({
         </div>
       </div>
 
-      <div className={cx("flex shrink-0 items-center gap-1", styles.lift)}>
+      <div className="md-lift flex shrink-0 items-center gap-1">
         {!phone && (
           onAccess ? (
             <Button

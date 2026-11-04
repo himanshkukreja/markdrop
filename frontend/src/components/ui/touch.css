@@ -44,6 +44,10 @@
     right: min(0px, calc((100% - 44px) / 2));
   }
   .md-logo { min-height: 44px; }
+  /* A row whose title link opens it: on a touch screen the whole row is the link (.md-stretch on the
+     link, inside a positioned row), and the row's own controls sit above it (.md-lift). */
+  .md-stretch::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+  .md-lift { position: relative; z-index: 1; }
 
   /* ── Form fields: 16 px text (no iOS zoom on focus) and 44 px tall ─── */
   .md-input, .md-textarea, .md-select { font-size: 16px; line-height: 22px; }

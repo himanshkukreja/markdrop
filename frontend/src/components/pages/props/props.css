@@ -260,6 +260,8 @@ button.pp-td:focus-visible { outline: 2px solid var(--border-focus); outline-off
   .pp-col { width: min(82vw, 300px); }
   .pp-board { scroll-snap-type: x mandatory; gap: 10px; }
   .pp-tool__label { display: none; }
+  /* The views scroll sideways: the last one fades at the edge, so it reads as "more this way". */
+  .pp-tabs { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); padding-right: 16px; }
   .pp-tablewrap { max-height: none; }
   .pp-table thead th { top: 0; }
 }

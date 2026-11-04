@@ -97,11 +97,11 @@ export function ItemRow({
 
   if (phone) {
     return (
-      <li ref={rowRef} {...rowProps} className={cx("ph-no-capture flex min-w-0 items-center gap-3 rounded-xl border border-border bg-surface py-3 pr-1.5 pl-3.5", className)}>
-        {leading}
+      <li ref={rowRef} {...rowProps} className={cx("ph-no-capture relative flex min-w-0 items-center gap-3 rounded-xl border border-border bg-surface py-3 pr-1.5 pl-3.5", className)}>
+        {leading && <span className="md-lift flex shrink-0">{leading}</span>}
         <ItemTile file={file} bare />
         <div className="flex min-w-0 flex-1 flex-col">
-          <Anchor href={href} target="_blank" rel="noopener noreferrer" className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline" dir="auto">
+          <Anchor href={href} target="_blank" rel="noopener noreferrer" className="md-focus md-stretch min-w-0 truncate rounded-sm text-body-strong text-text no-underline" dir="auto">
             {title}<span className="md-visually-hidden"> (opens in a new tab)</span>
           </Anchor>
           <span className="flex min-w-0 items-center gap-1 text-caption text-text-muted">
@@ -110,7 +110,7 @@ export function ItemRow({
           </span>
         </div>
         {onSheet ? (
-          <IconButton icon="more" label={menuLabel} className="size-11" onClick={onSheet} aria-haspopup="dialog" />
+          <IconButton icon="more" label={menuLabel} className="md-lift size-11" onClick={onSheet} aria-haspopup="dialog" />
         ) : (
           <RowMenu portal items={menu} label={menuLabel} />
         )}
@@ -120,11 +120,11 @@ export function ItemRow({
 
   return (
     <li ref={rowRef} {...rowProps} className={cx("ph-no-capture relative flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-border bg-surface px-3.5 py-3 transition-colors duration-(--duration-fast) hover:border-border-strong", className)}>
-      {leading}
+      {leading && <span className="md-lift flex shrink-0">{leading}</span>}
       <ItemTile file={file} />
       <div className="flex min-w-0 flex-[1_1_260px] flex-col">
         <div className="flex min-w-0 items-center gap-2">
-          <Anchor href={href} target="_blank" rel="noopener noreferrer" className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline hover:underline hover:underline-offset-3" dir="auto" title={title}>
+          <Anchor href={href} target="_blank" rel="noopener noreferrer" className="md-focus md-stretch min-w-0 truncate rounded-sm text-body-strong text-text no-underline hover:underline hover:underline-offset-3" dir="auto" title={title}>
             {title}<span className="md-visually-hidden"> (opens in a new tab)</span>
           </Anchor>
           {encrypted && <Badge size="sm" tone="info" icon="key" upper title="Encrypted in the browser. The key is in the link.">E2E</Badge>}
@@ -132,7 +132,7 @@ export function ItemRow({
           {badges}
         </div>
         <div className="flex min-w-0 items-center gap-1.5 text-caption text-text-muted">
-          {chip}
+          {chip && <span className="md-lift inline-flex min-w-0">{chip}</span>}
           <span className="min-w-0 truncate">
             <span>{kind}</span>
             {address && <><span aria-hidden> · </span><span className="font-mono">{address}</span></>}
@@ -147,7 +147,7 @@ export function ItemRow({
           </span>
         </div>
       </div>
-      <div className="ml-auto flex shrink-0 items-center gap-1.5">
+      <div className="md-lift ml-auto flex shrink-0 items-center gap-1.5">
         {onAccess ? (
           <Button
             variant="ghost"
