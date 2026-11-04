@@ -16,7 +16,7 @@
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
-    { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics"] },
+    { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
   ],
   "hide": {
@@ -1098,6 +1098,34 @@
       "description": "People reading or watching your documents right now.",
       "guide": { "label": "Live now", "href": "/analytics/live" }
     },
+    "GET /api/v1/me/analytics/ai/status": {
+      "title": "Check Analytics AI availability",
+      "description": "Whether Insights, Ask and Write this next can run now. When they can't, `enabled` is `false`, `reason` says why (`off`, `not_configured`, `blocked`, `burst`, `user_daily`, `daily` or `monthly`) and `message` says it in words. `gap_scopes` lists where you may see content gaps: each workspace you own or admin (`workspace:<id>`) and `personal` when you have Guides of your own.",
+      "guide": { "label": "Insights and Ask", "href": "/analytics/overview#insights-and-ask" }
+    },
+    "GET /api/v1/me/analytics/ai/story": {
+      "title": "What changed (AI)",
+      "description": "Insights for the analytics home: a `headline` and 3 to 5 `bullets`, each a sentence on what changed against the period before and the likely cause, with an `href` to the analytics page to look at (and `doc` when it's about one of your links). Claude Haiku 5.5 writes it from totals and your own titles only. Kept for the day (`cached: true`); `fresh=1` writes it again. `status` is `thin` when there are fewer than 20 views to go on, `limit` when an AI limit stops it (with `reason` and `message`), or `error`. Counts towards your AI limits.",
+      "params": { "range": "7d" },
+      "paramNotes": { "range": "`7d` (the default), `30d` or `90d`.", "fresh": "`1` writes it again instead of using today's copy." },
+      "mcp": "analytics_story",
+      "guide": { "label": "Insights and Ask", "href": "/analytics/overview#insights-and-ask" }
+    },
+    "POST /api/v1/me/analytics/ai/ask": {
+      "title": "Ask your analytics (AI)",
+      "description": "Answers a question about your own analytics with Claude Haiku 5.5, which picks from a fixed set of queries that Markdrop runs on the documents you own (totals, top links, a link's numbers, referrers, channels, devices, countries, views by day, period comparisons, file versions). Streams server-sent events: `status` (what it's checking), `delta` (answer text; `reset: true` clears what was shown), then `done` with `answer` and `links` (only analytics pages the queries returned); or `limit`, or `error`. The same question the same day is answered from the copy kept (`cached: true`) unless `fresh` is `true`. Counts towards your AI limits.",
+      "returns": "text/event-stream",
+      "example": { "question": "Which link did best this month?", "range": "30d" },
+      "mcp": "ask_analytics",
+      "guide": { "label": "Insights and Ask", "href": "/analytics/overview#insights-and-ask" }
+    },
+    "GET /api/v1/me/analytics/ai/gaps": {
+      "title": "What people couldn't find (AI)",
+      "description": "Content gaps for a workspace you own or admin (`scope=workspace:<id>`, else `403`) or your own Guides (`scope=personal`): searches that found nothing or that nobody opened, and guide questions Ask AI couldn't answer, over the last 30 days, grouped by Claude Haiku 5.5 into up to 5 `gaps`. Each has `topic`, `count` (counted by Markdrop), `why`, `outline`, `examples` and `markdown` ready to create a page in `create.workspace`. `status` is `thin` under 5 searches and questions. Counts towards your AI limits.",
+      "paramNotes": { "scope": "`workspace:<workspace id>` or `personal`.", "fresh": "`1` groups them again instead of using today's copy." },
+      "mcp": "content_gaps",
+      "guide": { "label": "What people couldn't find", "href": "/analytics/content-gaps" }
+    },
     "GET /api/v1/me/analytics.csv": {
       "title": "Export all analytics",
       "description": "Your analytics across every document, as CSV.",
@@ -1197,7 +1225,7 @@
     },
     "GET /api/v1/search": {
       "title": "Search everything",
-      "description": "Fuzzy search over everything you can open: titles, headings, the text of pages and documents, the text of HTML files and PDFs, folders, workspaces, the Guides pages you have a role on and, at the end, your Trash. Typos, partial words and any word order match. `items` is the ranked page of results; `groups` holds the first few of each kind, for a grouped list; `trash` lists matching items you can restore. Each result has its `kind`, `title`, `workspace`, `folder`, `owner` (named only when you're related to the item), `updated_at`, a `snippet` with the matched words' ranges in `marks`, `match` (`title`, `heading` or `body`), `url` (what the app opens) and `web_url` (always a full link). Encrypted and password-protected items match by title only and never have a snippet. Pass `next_cursor` back as `cursor` for more. `ai_suggested` is `true` when `q` reads like a question.",
+      "description": "Fuzzy search over everything you can open: titles, headings, the text of pages and documents, the text of HTML files and PDFs, folders, workspaces, the Guides pages you have a role on and, at the end, your Trash. Typos, partial words and any word order match. `items` is the ranked page of results; `groups` holds the first few of each kind, for a grouped list; `trash` lists matching items you can restore. Each result has its `kind`, `title`, `workspace`, `folder`, `owner` (named only when you're related to the item), `updated_at`, a `snippet` with the matched words' ranges in `marks`, `match` (`title`, `heading` or `body`), `url` (what the app opens) and `web_url` (always a full link). Encrypted and password-protected items match by title only and never have a snippet. Pass `next_cursor` back as `cursor` for more. `ai_suggested` is `true` when `q` reads like a question. The first page of a search in a workspace (a `scope` or `current` you're a member of) is recorded without who ran it, for What people couldn't find; `log_id` names that record (else `null`).",
       "params": { "q": "onbording plyabook" },
       "paramNotes": {
         "q": "What to look for.",
@@ -1208,7 +1236,8 @@
         "current": "The id of the workspace you're in: its items rank a little higher.",
         "cursor": "The `next_cursor` of the previous answer.",
         "limit": "Results per answer, up to 50.",
-        "trash": "`false` leaves out the Trash matches."
+        "trash": "`false` leaves out the Trash matches.",
+        "sid": "A random id for this search box's session. A longer version of the last search in the same session updates its record instead of adding one. Never tied to you."
       },
       "cli": "markdrop search \"onbording plyabook\"",
       "mcp": "search",
@@ -1226,6 +1255,12 @@
       "example": { "question": "How do we onboard contractors?" },
       "mcp": "ask_documents",
       "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
+    },
+    "POST /api/v1/search/click": {
+      "title": "Record an opened result",
+      "description": "Marks the search `log_id` (from `GET /api/v1/search`) as having had a result opened, for What people couldn't find. Nothing else is recorded. Answers `204`.",
+      "example": { "log_id": "3f0c2a9b7d1e4c5f8a6b2d9e0f1a2b3c" },
+      "guide": { "label": "What people couldn't find", "href": "/analytics/content-gaps" }
     },
     "GET /api/v1/search/quick": {
       "title": "Quick search",
