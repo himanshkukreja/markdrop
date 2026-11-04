@@ -5,9 +5,13 @@
  *
  *   PageFrame    the page on its paper surface: the sticky top bar, the head (cover, icon, title),
  *                the 720 px column (or full width) and what goes under the body;
- *   PageTopBar   44 px, sticky and translucent: breadcrumbs (icons, the middle folded into "…"),
- *                then who's viewing, Saved / Saving…, Share and the ⋯ menu; a hairline once the
- *                page has scrolled; a calm banner under it when someone else is editing;
+ *   PageTopBar   the page's one bar (no app header above it), 48 px, sticky and translucent: the
+ *                rail toggle (⌘\), the logo (Markdrop's, or the workspace's on its domain), the
+ *                breadcrumbs (workspace › folders › ancestors › this page, the middle folded into
+ *                "…"; "… / Title" on phones), then who's viewing, Saved / Saving…, Share, ⋯, and
+ *                search, Create and the avatar menu (or Sign in); a hairline once the page has
+ *                scrolled; a calm banner under it when someone else is editing;
+ *   PageRailHead the rail's top row (the logo, level with the bar) while the rail is open;
  *   PageMenu     the ⋯ menu: a dropdown, a bottom sheet with drag-to-dismiss on phones (PageSheet);
  *   SubPages     "Pages inside" (with "Add a sub-page"), Backlinks ("N backlinks").
  *
@@ -16,17 +20,54 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { Anchor, Button, CopyButton, Dropdown, Icon, IconButton, Skeleton, Spinner, cx, type MenuEntry } from "@/components/ui";
+import { usePathname } from "next/navigation";
+import { Anchor, Button, CopyButton, Dropdown, Icon, IconButton, Skeleton, SkipLink, Spinner, cx, type MenuEntry } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
+import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
+import { useAuth } from "@/contexts/AuthContext";
+import { LIGHT_ENABLED } from "@/lib/theme";
+import { useWorkspaceTree } from "@/lib/workspaceStore";
 import { listBacklinks, listChildren, type ChildPage, type Crumb } from "@/lib/pages";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import type { SaveState } from "./usePageEditSession";
+import { PageAccount, PageBrand } from "./PageBarEnds";
+import { RAIL_SCRIPT, RAIL_WIDE, closeRailDrawer, setRailPeek, toggleRail, useRail, useRailControls } from "./railState";
 import "./pages.css";
 
 export interface PageAddressing {
   /** A workspace's own domain: pages live under their folders and ancestors. */
   tenant: boolean;
   folderPath: string[];
+  /** The page's workspace: its name and folders lead the breadcrumbs for members (markdrop.in). */
+  workspaceId?: string | null;
+}
+
+/** A breadcrumb before the pages: the workspace, then its folders. */
+interface PlaceCrumb {
+  key: string;
+  title: string;
+  href: string;
+  icon: "users" | "folder";
+}
+
+/**
+ * The workspace and folders above a page, for someone who can see the workspace's tree (members,
+ * on markdrop.in). Everyone else gets the pages alone; on a workspace's own domain its logo is
+ * the way home.
+ */
+function usePlaceCrumbs(a: PageAddressing): PlaceCrumb[] {
+  const { user } = useAuth();
+  const id = !a.tenant && user && a.workspaceId ? a.workspaceId : null;
+  const { tree } = useWorkspaceTree(id);
+  if (!id || !tree) return [];
+  const out: PlaceCrumb[] = [{ key: `ws:${id}`, title: tree.workspace.name, href: `/w/${encodeURIComponent(id)}`, icon: "users" }];
+  for (let i = 1; i <= a.folderPath.length; i++) {
+    const path = a.folderPath.slice(0, i).join("/");
+    const f = tree.folders.find((x) => x.path === path);
+    if (!f) break;
+    out.push({ key: `f:${f.id}`, title: f.name, href: `/w/${encodeURIComponent(id)}/f/${encodeURIComponent(f.id)}`, icon: "folder" });
+  }
+  return out;
 }
 
 const hrefFor = (slug: string, ancestors: string[], a: PageAddressing) => pagePath(slug, { tenant: a.tenant, folderPath: a.folderPath, ancestors });
@@ -67,8 +108,8 @@ export function usePhone(): boolean {
 }
 
 /**
- * Breadcrumbs: every readable ancestor, then this page. More than two ancestors fold the middle
- * into "…" (a menu); on phones only the parent and this page show.
+ * Breadcrumbs: the workspace and folders (members), every readable ancestor, then this page. More
+ * than three before this page fold the middle into "…" (a menu); on phones it's "… / this page".
  */
 export function PageBreadcrumbs({
   crumbs,
@@ -76,6 +117,7 @@ export function PageBreadcrumbs({
   icon,
   resolve,
   addressing,
+  place = [],
   className,
 }: {
   crumbs: Crumb[];
@@ -84,18 +126,32 @@ export function PageBreadcrumbs({
   icon?: string | null;
   resolve?: (src: string) => string;
   addressing: PageAddressing;
+  /** The workspace and folders before the pages. */
+  place?: PlaceCrumb[];
   className?: string;
 }) {
-  const n = crumbs.length;
-  const link = (c: Crumb, i: number, cls?: string) => (
-    <li key={c.slug} className={cx("pb-crumb", cls)}>
-      <Anchor href={hrefFor(c.slug, crumbs.slice(0, i).map((x) => x.slug), addressing)} className="pb-crumb__link md-focus">
-        <CrumbIcon icon={c.icon} resolve={resolve} />
-        <span className="pb-crumb__text ph-sensitive ph-mask" dir="auto">{c.title || "Untitled"}</span>
-      </Anchor>
-      <span className="pb-crumb__sep" aria-hidden>/</span>
-    </li>
-  );
+  const steps = [
+    ...place.map((p) => ({ key: p.key, title: p.title, href: p.href, tile: <Icon name={p.icon} size={15} className="pb-crumb__glyph" aria-hidden /> })),
+    ...crumbs.map((c, i) => ({
+      key: c.slug,
+      title: c.title || "Untitled",
+      href: hrefFor(c.slug, crumbs.slice(0, i).map((x) => x.slug), addressing),
+      tile: <CrumbIcon icon={c.icon} resolve={resolve} />,
+    })),
+  ];
+  const n = steps.length;
+  const link = (i: number, cls?: string) => {
+    const st = steps[i]!;
+    return (
+      <li key={st.key} className={cx("pb-crumb", cls)}>
+        <Anchor href={st.href} className="pb-crumb__link md-focus">
+          {st.tile}
+          <span className="pb-crumb__text ph-sensitive ph-mask" dir="auto">{st.title}</span>
+        </Anchor>
+        <span className="pb-crumb__sep" aria-hidden>/</span>
+      </li>
+    );
+  };
   const folded = (from: number, to: number, cls: string) => (
     <li key={`fold-${cls}`} className={cx("pb-crumb", cls)}>
       <Dropdown
@@ -103,10 +159,10 @@ export function PageBreadcrumbs({
         align="left"
         minWidth={220}
         trigger={<button type="button" className="pb-crumb__link pb-crumb__more md-focus" aria-label="Show the pages above">…</button>}
-        items={crumbs.slice(from, to).map((c, k) => ({
-          label: <span className="ph-sensitive ph-mask" dir="auto">{c.title || "Untitled"}</span>,
-          tile: <CrumbIcon icon={c.icon} resolve={resolve} />,
-          href: hrefFor(c.slug, crumbs.slice(0, from + k).map((x) => x.slug), addressing),
+        items={steps.slice(from, to).map((st) => ({
+          label: <span className="ph-sensitive ph-mask" dir="auto">{st.title}</span>,
+          tile: st.tile,
+          href: st.href,
         }))}
         menuClassName="ph-no-capture"
       />
@@ -115,11 +171,10 @@ export function PageBreadcrumbs({
   );
   const items: ReactNode[] = [];
   if (n) {
-    // The top page: hidden on phones when there's more than the parent.
-    items.push(link(crumbs[0]!, 0, n > 1 ? "pb-crumb--wide" : undefined));
-    if (n > 2) items.push(folded(1, n - 1, "pb-crumb--wide"));
-    if (n > 1) items.push(folded(0, n - 1, "pb-crumb--narrow"));
-    if (n > 1) items.push(link(crumbs[n - 1]!, n - 1));
+    // Wide: the first, "…" for the middle, the last; phones: "…" for all of them.
+    if (n <= 3) for (let i = 0; i < n; i++) items.push(link(i, "pb-crumb--wide"));
+    else items.push(link(0, "pb-crumb--wide"), folded(1, n - 1, "pb-crumb--wide"), link(n - 1, "pb-crumb--wide"));
+    items.push(folded(0, n, "pb-crumb--narrow"));
   }
   return (
     <nav aria-label="Breadcrumb" className={cx("pb-crumbs-nav no-print", className)}>
@@ -361,7 +416,58 @@ export function PageMenu({ items, label = "Page options" }: { items: MenuEntry[]
   return <Dropdown aria-label={label} align="right" minWidth={280} portal trigger={<IconButton icon="more" label={label} size="sm" variant="ghost" className="pb-bar__btn" />} items={items} menuClassName="pb-menu" />;
 }
 
-/** The sticky top bar. */
+/**
+ * The rail's top row while it is open (≥ 1280 px): the logo, level with the bar beside it (the
+ * bar shows the logo itself while the rail is collapsed or a drawer).
+ */
+export function PageRailHead() {
+  return (
+    <div className="pb-railhead no-print">
+      <PageBrand wordmark />
+    </div>
+  );
+}
+
+/** The left edge that peeks a collapsed rail, and the scrim behind the rail's drawer (< 1280 px). */
+function RailLayers() {
+  const rail = useRail();
+  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  // A link in the drawer (or the peek) took the reader elsewhere: put it away.
+  useEffect(() => {
+    closeRailDrawer();
+    setRailPeek(false);
+  }, [pathname]);
+  // The peek stays while the pointer is over the rail; it goes a moment after it leaves.
+  useEffect(() => {
+    if (!rail.peek) return;
+    const el = document.querySelector<HTMLElement>(".pb-rail");
+    if (!el) return;
+    let t = 0;
+    const leave = () => {
+      t = window.setTimeout(() => setRailPeek(false), 180);
+    };
+    const enter = () => window.clearTimeout(t);
+    el.addEventListener("pointerleave", leave);
+    el.addEventListener("pointerenter", enter);
+    return () => {
+      window.clearTimeout(t);
+      el.removeEventListener("pointerleave", leave);
+      el.removeEventListener("pointerenter", enter);
+    };
+  }, [rail.peek]);
+  if (!mounted) return null;
+  return createPortal(
+    <>
+      <div className="pb-railedge" aria-hidden onPointerOver={(e) => e.pointerType === "mouse" && setRailPeek(true)} onMouseOver={() => setRailPeek(true)} />
+      {rail.drawer && <div className="pb-railscrim" aria-hidden onClick={closeRailDrawer} />}
+    </>,
+    document.body,
+  );
+}
+
+/** The sticky top bar: the page's only bar (the app header is folded into it). */
 export function PageTopBar({
   crumbs,
   title,
@@ -393,26 +499,71 @@ export function PageTopBar({
   banner?: ReactNode;
 }) {
   const scrolled = useScrolled();
+  const phone = usePhone();
+  const { user } = useAuth();
+  const rail = useRail();
+  const place = usePlaceCrumbs(addressing);
+  const pathname = usePathname();
+  useRailControls();
+  const wide = useMediaQuery(RAIL_WIDE);
+  // What the app header had that has no room in the bar: Create on phones, and the theme for
+  // someone signed out (signed in, it's in the avatar menu).
+  const extra: MenuEntry[] = [
+    ...(phone && !addressing.tenant
+      ? [
+          { label: "New page", icon: "layers", href: "/pages/new", separated: true },
+          { label: "New document", icon: "lines", href: "/new" },
+        ]
+      : []),
+    ...(!user && LIGHT_ENABLED && !addressing.tenant
+      ? [{
+          custom: (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-body text-text-secondary" aria-hidden>Theme</span>
+              <ThemeSegmented size="sm" iconOnly label="Theme" />
+            </div>
+          ),
+          separated: true,
+        }]
+      : []),
+  ];
+  const railOpen = rail.drawer || (wide && !rail.collapsed);
+  // Phones: Share leads the ⋯ menu (the bar keeps its room for the title).
+  const items = [...(phone && onShare ? [{ label: "Share", icon: "share", onClick: onShare }] : []), ...menu, ...extra];
   return (
-    <div className="pb-barwrap no-print" data-scrolled={scrolled ? "" : undefined}>
-      <div className="pb-bar" role="banner" aria-label="Page">
-        <PageBreadcrumbs crumbs={crumbs} title={title} icon={icon} resolve={resolve} addressing={addressing} className="pb-bar__crumbs" />
+    <header className="pb-barwrap no-print" data-scrolled={scrolled ? "" : undefined}>
+      <SkipLink />
+      {/* A collapsed rail stays collapsed from the first paint (railState). */}
+      <script dangerouslySetInnerHTML={{ __html: RAIL_SCRIPT }} />
+      <div className="pb-bar" aria-label="Page">
+        <IconButton
+          icon="sidebar"
+          label={railOpen ? "Hide the sidebar" : "Show the sidebar"}
+          size="sm"
+          variant="ghost"
+          className="pb-bar__btn pb-bar__rail"
+          aria-keyshortcuts="Meta+Backslash Control+Backslash"
+          aria-expanded={railOpen}
+          onClick={toggleRail}
+        />
+        <PageBrand className="pb-bar__brandslot" />
+        <PageBreadcrumbs crumbs={crumbs} title={title} icon={icon} resolve={resolve} addressing={addressing} place={place} className="pb-bar__crumbs" />
         <div className="pb-bar__actions">
           {presence && <span className="pb-bar__presence">{presence}</span>}
           {status}
           {onShare ? (
-            <>
-              <Button variant="ghost" size="sm" className="pb-bar__btn pb-bar__share" onClick={onShare}>Share</Button>
-              <IconButton icon="share" label="Share" size="sm" variant="ghost" className="pb-bar__btn pb-bar__share-icon" onClick={onShare} />
-            </>
+            <Button variant="ghost" size="sm" className="pb-bar__btn pb-bar__share" onClick={onShare}>Share</Button>
           ) : shareUrl ? (
             <CopyButton text={shareUrl} label="Copy link" size="sm" variant="ghost" iconOnly className="pb-bar__btn" onCopy={onCopied} />
           ) : null}
-          <PageMenu items={menu} />
+          <PageMenu items={items} />
+          <span className="pb-bar__div" aria-hidden />
+          <PageAccount returnPath={addressing.tenant ? pathname || undefined : undefined} />
         </div>
       </div>
       {banner}
-    </div>
+      <RailLayers />
+    </header>
   );
 }
 

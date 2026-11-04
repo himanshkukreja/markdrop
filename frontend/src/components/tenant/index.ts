@@ -4,7 +4,7 @@
  * `TenantStyle`; client components below it read the tenant with `useTenant()`.
  */
 export { TenantProvider, useTenant } from "./TenantProvider";
-export { TenantHeader, TenantBrand, type TenantHeaderProps } from "./TenantHeader";
+export { TenantHeader, TenantBrand, TenantAccount, type TenantHeaderProps } from "./TenantHeader";
 export { TenantFooter } from "./TenantFooter";
 export { TenantNotFound } from "./TenantNotFound";
 export { TenantError } from "./TenantError";

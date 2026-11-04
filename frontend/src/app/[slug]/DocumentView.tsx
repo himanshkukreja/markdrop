@@ -61,6 +61,7 @@ const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery
 // page: a classic document's reader never loads them. Still rendered on the server for a page.
 const PageFrame = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageFrame), { loading: () => null });
 const PageTopBar = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageTopBar), { loading: () => null });
+const PageRailHead = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.PageRailHead), { loading: () => null });
 const SubPages = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.SubPages), { loading: () => null });
 const Backlinks = dynamic(() => import("@/components/pages/PageChrome").then((m) => m.Backlinks), { loading: () => null });
 const PageHead = dynamic(() => import("@/components/pages/PageHead").then((m) => m.PageHead), { loading: () => null });
@@ -165,7 +166,7 @@ export default function DocumentView(props: DocumentViewProps) {
   // A page: a document in the block editor (never an encrypted one).
   const page = v.page;
   const isPage = !encrypted && page?.editor === "blocks";
-  const addressing = { tenant: !!tenant, folderPath: page?.folder_path ?? [] };
+  const addressing = { tenant: !!tenant, folderPath: page?.folder_path ?? [], workspaceId: page?.workspace_id ?? null };
   const crumbs = isPage ? page?.breadcrumbs ?? [] : [];
   // Sub-pages are made by signed-in editors on markdrop.in (a workspace's domain is read-only).
   const canAddSubPage = isPage && !!user && v.secretUnlocked && !tenant;
@@ -597,11 +598,9 @@ export default function DocumentView(props: DocumentViewProps) {
   );
 
   // ── A page: one frame for readers and editors (components/pages/PageChrome) ──────────
-  // The app header scrolls away; the page's own bar sticks. The rail (≥1280 px) keeps the page
-  // tree (and a reader's contents); the paper beside it carries the page.
-  const pageHeader = tenant
-    ? <TenantHeader returnPath={pathname || undefined} className="pb-appheader" />
-    : <SiteHeader className="pb-appheader" />;
+  // No app header: the page's own bar (PageTopBar) is the only one, with the logo and the account
+  // in it. The rail (≥1280 px, a drawer below) keeps the page tree (and a reader's contents); the
+  // paper beside it carries the page.
   const pageLayoutClass = pageProps
     ? [pageProps.smallText && "pb-small", pageProps.font !== "default" && `pb-font-${pageProps.font}`].filter(Boolean).join(" ")
     : "";
@@ -651,6 +650,7 @@ export default function DocumentView(props: DocumentViewProps) {
       {pageRail && (
         <aside className="pb-rail no-print" aria-label="Pages">
           <div className="pb-rail__in">
+            <PageRailHead />
             <PageTree
               key={`${crumbs[0]?.slug ?? slug}:${treeKey}:${user?.id ?? "anon"}`}
               slug={slug}
@@ -775,7 +775,7 @@ export default function DocumentView(props: DocumentViewProps) {
   return (
     // data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page.
     <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
-      {pageScreen ? pageHeader : framed && header}
+      {!pageScreen && framed && header}
 
       <main id="main" tabIndex={-1} className={pageScreen ? "pb-screen outline-none" : "flex min-w-0 flex-1 flex-col outline-none"}>
         {pageScreen ? pageMain : <>

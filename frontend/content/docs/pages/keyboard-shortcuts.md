@@ -3,7 +3,7 @@ title: Keyboard shortcuts
 description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks.
 updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j]
+keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j, sidebar, collapse, cmd backslash]
 ---
 
 On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** where it says **⌥**.
@@ -12,6 +12,7 @@ On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** wher
 
 | Shortcut | What it does |
 | --- | --- |
+| **⌘ \\** | Hide or show the sidebar (the page tree and contents). With it hidden, point at the left edge of the window to peek at it |
 | `/` | Open the block menu |
 | `:` and a name | Insert an emoji (`:rocket` gives 🚀) |
 | **⌘ Z** / **⌘ ⇧ Z** | Undo / redo |
