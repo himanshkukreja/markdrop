@@ -12,6 +12,7 @@ import {
 import { firstName, plural, timeAgo } from "../format";
 import { studioMembers } from "../routes";
 import { useSite } from "../SiteContext";
+import { useStudio } from "../studio/StudioContext";
 import { aRole, LockedAdmin, RoleBadge, RoleHistory, RoleSelect } from "./roles";
 
 function Person({ p, you, children, meta }: { p: SitePerson; you: boolean; children?: React.ReactNode; meta?: React.ReactNode }) {
@@ -38,6 +39,7 @@ function Person({ p, you, children, meta }: { p: SitePerson; you: boolean; child
  */
 export function SitePeople() {
   const { site, wsId } = useSite();
+  const { reloadAll } = useStudio();
   const toast = useToast();
   const uid = useId();
   const [data, setData] = useState<SitePeopleResponse | null>(null);
@@ -67,6 +69,7 @@ export function SitePeople() {
 
   function replace(row: SitePerson) {
     setData((d) => d && { ...d, members: d.members.map((x) => (x.user_id === row.user_id ? row : x)) });
+    void reloadAll(); // the faces on the site bar and the home
     void getSitePeopleHistory(site.id, 20).then((h) => setHistory(h.events)).catch(() => {});
   }
 

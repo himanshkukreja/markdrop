@@ -168,6 +168,75 @@ class Resolution(StudioRolesCase):
         await self.override(mine["id"], "reviewer", "editor", by="gadmin", expect=422)
 
 
+class PeopleAtAGlance(StudioRolesCase):
+    """The home's avatar stack (``people`` / ``people_count`` on each listed workspace guide) and
+    Settings › People for those who can't change roles (GET …/team): who works on a guide, names
+    and photos only, for anyone who can open it."""
+
+    # Everyone with a role on A / B (see the module docstring), admins first.
+    ON_B = {"owner", "admin", "gadmin", "reviewer", "editor", "viewer", "downed"}
+
+    def team_of(self, on: dict) -> set:
+        return {self.uid[w] for w, r in on.items() if r}
+
+    async def test_listings_carry_the_first_three_and_the_count(self):
+        for who in ("owner", "viewer", "upped", "downed"):
+            for params in ({"scope": "all"}, {"workspace_id": self.ws}):
+                sites = {s["slug"]: s for s in (await self.get("", who, params=params))["sites"]}
+                for slug, s in sites.items():
+                    want = self.team_of(ON_A) if slug == "site-a" else {self.uid[w] for w in self.ON_B}
+                    self.assertEqual(s["people_count"], len(want), (who, slug))
+                    self.assertEqual(len(s["people"]), 3, (who, slug))
+                    self.assertTrue({p["user_id"] for p in s["people"]} <= want, (who, slug))
+                    # Admins first, the workspace owner leading; no emails.
+                    self.assertEqual(s["people"][0]["user_id"], self.uid["owner"])
+                    self.assertEqual([p["role"] for p in s["people"]], ["admin"] * 3)
+                    for p in s["people"]:
+                        self.assertEqual(set(p), {"user_id", "name", "picture", "role", "source", "you"})
+                        self.assertEqual(p["you"], p["user_id"] == self.uid[who])
+                        self.assertNotIn("@", p["name"])
+        # Someone who left isn't counted anywhere; a personal guide has no stack.
+        b = next(s for s in (await self.get("", "owner", params={"scope": "all"}))["sites"] if s["slug"] == "site-b")
+        self.assertNotIn(self.uid["left"], {p["user_id"] for p in b["people"]})
+        mine = await self.create("gadmins-own", "gadmin", workspace=False)
+        own = next(s for s in (await self.get("", "gadmin", params={"scope": "all"}))["sites"] if s["id"] == mine["id"])
+        self.assertNotIn("people", own)
+
+    async def test_the_count_follows_role_changes(self):
+        async def count():
+            out = await self.get("", "owner", params={"scope": "all"})
+            return next(s for s in out["sites"] if s["slug"] == "site-a")["people_count"]
+
+        before = await count()
+        await self.override(self.a["id"], "nobody", "viewer")
+        self.assertEqual(await count(), before + 1)
+        await self.override(self.a["id"], "editor", "none")
+        self.assertEqual(await count(), before)
+
+    async def test_team_for_anyone_who_can_open_the_guide(self):
+        for who in ON_A:
+            limiter.reset()
+            r = await self.http.get(f"{BASE}/{self.a['id']}/team", headers=self.h[who])
+            if ON_A[who] is None:
+                self.assertEqual(r.status_code, 404, who)
+                continue
+            self.assertEqual(r.status_code, 200, r.text)
+            out = r.json()
+            self.assertEqual(out["count"], len(out["people"]))
+            self.assertEqual({p["user_id"] for p in out["people"]}, self.team_of(ON_A), who)
+            self.assertEqual(out["can_manage"], ON_A[who] == "admin", who)
+            ranks = [RANK[p["role"]] for p in out["people"]]
+            self.assertEqual(ranks, sorted(ranks, reverse=True))
+            self.assertNotIn("email", out["people"][0])
+            self.assertEqual([p["user_id"] for p in out["people"] if p["you"]], [self.uid[who]])
+        upped = next(p for p in (await self.get(f"/{self.a['id']}/team", "viewer"))["people"] if p["user_id"] == self.uid["upped"])
+        self.assertEqual((upped["role"], upped["source"]), ("admin", "site"))
+        mine = await self.create("gadmins-own", "gadmin", workspace=False)
+        team = await self.get(f"/{mine['id']}/team", "gadmin")
+        self.assertEqual((team["personal"], team["count"], team["people"][0]["you"]), (True, 1, True))
+        await self.get(f"/{mine['id']}/team", "owner", expect=404)
+
+
 class Matrix(StudioRolesCase):
     """Every docs-sites endpoint × every person: no role → 404, too little → 403, else through."""
 
@@ -208,7 +277,7 @@ class Matrix(StudioRolesCase):
         for name, path in (("site", ""), ("pages", "/pages"), ("page", f"/pages/{pid}"),
                            ("versions", f"/pages/{pid}/versions"), ("version", f"/pages/{pid}/versions/1"),
                            ("changes", "/changes"), ("reviews", "/reviews"), ("builds", "/builds"),
-                           ("job", f"/jobs/{ObjectId()}")):
+                           ("job", f"/jobs/{ObjectId()}"), ("team", "/team")):
             await self.check("viewer", name, self.req("GET", path))
 
     async def test_editor_endpoints(self):

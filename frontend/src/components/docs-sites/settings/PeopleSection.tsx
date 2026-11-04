@@ -5,6 +5,7 @@ import { ReadMore } from "@/components/ReadMore";
 import { roleLabel, roleSourceLabel } from "@/lib/docsSites";
 import { aRole, RoleBadge } from "../people/roles";
 import SitePeople from "../people/SitePeople";
+import SiteTeam from "../people/SiteTeam";
 import { useSite } from "../SiteContext";
 import { LockedNote, SectionHeader, SettingsCard, SwitchRow, useWorkspaceName } from "./SettingsShell";
 import { blurbOf } from "./sections";
@@ -12,7 +13,8 @@ import usePatch from "./usePatch";
 
 /**
  * Settings › People and reviews: roles on this guide (admins give someone a different role here;
- * everyone else sees their own and where it comes from), and whether changes need a review.
+ * everyone else sees their own, where it comes from, and who works on the guide), and whether
+ * changes need a review.
  */
 export default function PeopleSection() {
   const { site, canManagePeople, role } = useSite();
@@ -36,13 +38,14 @@ export default function PeopleSection() {
           <SitePeople />
         </SettingsCard>
       ) : (
-        <SettingsCard id="people" title="Your role" aside={<RoleBadge role={role} size="md" />}>
+        <SettingsCard id="people" title={site.workspace_id ? "People" : "Your role"} aside={<RoleBadge role={role} size="md" title="Your role" />}>
           <p className="text-body text-text-secondary">
             {site.your_role_source === "site"
               ? `You're ${aRole(role)} on this guide only.`
               : `You're ${aRole(role)} on ${ws ?? "this workspace"}'s guides.`}{" "}
             A Guides admin gives people their roles.
           </p>
+          {site.workspace_id && <SiteTeam />}
         </SettingsCard>
       )}
 

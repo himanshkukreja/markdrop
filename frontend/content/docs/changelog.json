@@ -429,6 +429,21 @@
       ]
     },
     {
+      "id": "guides-people-at-a-glance",
+      "date": "2026-11-04",
+      "title": "See who works on each guide, and reach People in one click",
+      "kind": "improved",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "Every guide on the Markdrop Guides home and in its bar now shows the faces of the people who work on it. Click them to open the guide's People. Members has its own button on the home.",
+      "body": "- **Faces on every guide.** Cards and rows on the home show up to three people with a role on the guide (admins first) and **+n** for the rest; hover over a face for the name and role. Click the faces to open the guide's **Settings › People**.\n- **In the guide too.** The guide's bar shows the same faces on every screen, one click from People.\n- **People in every ⋯ menu.** Each workspace guide's **⋯** menu, in the cards and the list view, has **People**, and **Workspace members** for Guides admins.\n- **Members on the home.** Guides admins find **Members** beside **New guide** at the top of the home.\n- **Everyone can see who's there.** People who can't change roles now see who works on a guide, and their roles, under **Settings › People** (names only, no email addresses).",
+      "docs": [
+        "/guides/members-and-roles"
+      ]
+    },
+    {
       "id": "pages-block-editor",
       "date": "2026-11-03",
       "title": "Pages: write with blocks, embed your files, nest pages inside pages",
