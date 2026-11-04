@@ -98,28 +98,37 @@ class McpViewers(AccessWorld):
         page = visitor.presence()
         before = len(viewers.room(d["slug"]).conns)
 
-        # A stranger's AI app (signed in, no relationship): exactly what a page shows, minus nothing.
+        # A stranger's AI app (signed in, no relationship): exactly what the page shows them, and
+        # since 2026-11-04 that is every viewer as an anonymous animal (names only for the doc's people).
         res = await self.viewers_as("stranger", d["slug"])
         out = self.ok(res)
         self.assertEqual((out["presence"], out["total"]), ("on", 6))
         self.assertEqual([v["name"] for v in out["viewers"]], self.labels(page))
-        self.assertEqual({v["name"] for v in out["viewers"] if not v["anonymous"]}, {"OWNER", "WM", "GV"})
-        self.assertEqual(sum(v["anonymous"] for v in out["viewers"]), 3)
+        self.assertEqual(sum(v["anonymous"] for v in out["viewers"]), 6)
         for v in out["viewers"]:
             self.assertEqual(set(v), {"name", "anonymous", "owner", "state", "section", "you", "editing"})
-            if v["anonymous"]:
-                self.assertIn(v["name"].removeprefix("Anonymous "), viewers.ANIMALS)
-                self.assertFalse(v["owner"])
-        owner_row = next(v for v in out["viewers"] if v["name"] == "OWNER")
-        self.assertEqual((owner_row["owner"], owner_row["section"], owner_row["you"]), (True, "Install", False))
-        self.assertEqual(next(v for v in out["viewers"] if v["name"] == "GV")["state"], "away")
+            self.assertIn(v["name"].removeprefix("Anonymous "), viewers.ANIMALS)
+            self.assertFalse(v["owner"])
         # The caller's own tab is marked, and it stays anonymous to them as to everyone.
         mine = [v for v in out["viewers"] if v["you"]]
         self.assertEqual(len(mine), 1)
         self.assertEqual(mine[0]["name"], f"Anonymous {stranger.presence()['me']['animal']}")
         self.assert_no_identity(res, "stranger", "wv", "owner", "wm", "gv")
-        self.assertNotIn("WV", json.dumps(res))
+        for who in ("WV", "OWNER", "WM", "GV"):
+            self.assertNotIn(who, json.dumps(res))
         self.assertIn("6 people are viewing", res["content"][0]["text"])
+
+        # A member's AI app (a relationship): the names, the owner and where they're reading, as the
+        # page shows a member; the member who asked to be anonymous stays an animal.
+        res = await self.viewers_as("wm", d["slug"])
+        out = self.ok(res)
+        self.assertEqual((out["presence"], out["total"]), ("on", 6))
+        self.assertEqual({v["name"] for v in out["viewers"] if not v["anonymous"]}, {"OWNER", "WM", "GV"})
+        self.assertEqual(sum(v["anonymous"] for v in out["viewers"]), 3)
+        owner_row = next(v for v in out["viewers"] if v["name"] == "OWNER")
+        self.assertEqual((owner_row["owner"], owner_row["section"], owner_row["you"]), (True, "Install", False))
+        self.assertEqual(next(v for v in out["viewers"] if v["name"] == "GV")["state"], "away")
+        self.assertNotIn("WV", json.dumps(res))
         self.assertIn("OWNER (owner): Install", res["content"][0]["text"])
 
         # Asking added nobody and told nobody.
