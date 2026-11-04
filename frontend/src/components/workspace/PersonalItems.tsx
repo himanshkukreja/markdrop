@@ -139,7 +139,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
                 <Avatar name={requesterName(r)} size="md" />
                 <div className="min-w-0 flex-[1_1_240px]">
                   <div className="truncate text-body-strong text-text" dir="auto">
-                    {requesterName(r)} asked to open “{requestTitle(r)}”
+                    {requesterName(r)} asked to {r.role_requested === "editor" ? "edit" : "open"} “{requestTitle(r)}”
                   </div>
                   <div className="truncate text-caption text-text-muted">{r.requester.email} · {relativeTime(r.created_at)}</div>
                 </div>

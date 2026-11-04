@@ -1,9 +1,9 @@
 ---
 title: Sign-in on your domain
-description: How readers sign in on a workspace's own domain, what the domain's owner can see, and how long the sign-in lasts.
-updated: 2026-11-03
+description: How readers sign in on a workspace's own domain, what they can read and edit there, what the domain's owner can see, and how long the sign-in lasts.
+updated: 2026-11-04
 prerequisites: [/workspaces/custom-domain, /workspaces/privacy]
-keywords: [sign in, login, sso, custom domain, handoff, consent, locked]
+keywords: [sign in, login, sso, custom domain, handoff, consent, locked, edit on your domain, request edit access]
 ---
 
 Readers sign in to Markdrop on markdrop.in. A browser keeps sign-ins separate for each site, so on `docs.acme.com` a reader looks signed out, however recently they signed in on markdrop.in. Markdrop carries the sign-in across for them, with their say-so.
@@ -46,13 +46,34 @@ Members of the workspace skip the question: it's their own site.
 The sign-in Markdrop hands to your domain is deliberately small:
 
 - It works only on that one domain, and only for that workspace's documents.
-- It can only read. It can't edit, share or delete anything, or touch the reader's own documents, other workspaces or account.
+- It reads, and it edits pages the person may edit (see [Edit on your domain](#edit-on-your-domain)). It can't delete anything, change who can open a page or its link, change workspace settings, or touch the reader's own documents, other workspaces or account.
 - It lasts 12 hours. After that, Markdrop renews it in the background the next time the reader opens a page that needs it, in the cases described in [Already signed in on markdrop.in](#already-signed-in-on-markdropin). Otherwise the reader chooses **Sign in** again.
 - It doesn't contain the reader's email address.
 
 Every document still runs its normal access check for that person. Signing in on a domain never opens anything the reader couldn't already open on markdrop.in.
 
 To sign out on your domain, a reader opens the avatar menu in the header and chooses **Sign out**.
+
+## Edit on your domain
+
+Anyone who may edit a page can edit it right on your domain, exactly as on markdrop.in. That's a member of the workspace (on a page that isn't private), someone the page is shared with as **Can edit**, the page's owner, and anyone with the page's edit link. Signed in on `docs.acme.com`, they open the page and it's already in the editor.
+
+On your domain they can:
+
+- write the page and its title (**Saving…** then **Saved** in the top bar, and the other people on the page see the change)
+- add images, add sub-pages, and set the page's properties (icon, cover, width, font)
+- use the AI writing tools, and see and restore **Version history**
+- see who else is on the page, and who is editing it
+
+Some things stay on markdrop.in. In the page's **⋯** menu on your domain, the owner sees them as links that open the same page on markdrop.in:
+
+- **Manage access on markdrop.in ↗**: sharing, who can open it, the password and expiry
+- **Change link on markdrop.in ↗**
+- **Delete on markdrop.in ↗**
+
+Moving a page, duplicating it, using it as a template and translating it are on markdrop.in too, as are workspace settings, API tokens and your account.
+
+Someone who can read a page but not edit it sees **Request edit access** in its **⋯** menu, on your domain and on markdrop.in. See [Request edit access](/sharing/request-access#request-edit-access).
 
 :::note[If the domain changes hands]
 A reader's "Don't ask again" answer belongs to the workspace that owned the domain when they gave it. If the domain is removed, or another workspace verifies it later, readers are asked again.

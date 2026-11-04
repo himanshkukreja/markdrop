@@ -117,6 +117,9 @@ export function useDocumentViewer({
 
   // Google Docs sync state — populated once we confirm the viewer owns this doc
   const [isOwner, setIsOwner] = useState(false);
+  // What the signed-in read said this reader may do (`can`, §7). On a workspace's own domain it is
+  // the only source (the sharing state lives on markdrop.in), and it is what unlocks the editor there.
+  const [docCan, setDocCan] = useState<import("@/lib/access").DocCan | null>(null);
   // The signed-in user the ownership check below has answered for. Engagement waits for it, so the
   // owner never sends a beacon in the moment before we know it's them.
   const [ownerCheckedFor, setOwnerCheckedFor] = useState<string | null>(null);
@@ -871,6 +874,7 @@ export function useDocumentViewer({
       setGoogleDocUrl(null);
       setGoogleDocStale(false);
       setPresenceTicket(null);
+      setDocCan(null);
       return;
     }
     let cancelled = false;
@@ -880,6 +884,7 @@ export function useDocumentViewer({
         if (cancelled) return;
         if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
         if (doc.is_owned || doc.is_owner) setDocOwned(true);
+        setDocCan(doc.can ?? null);
         // A signed-in read: its page fields (breadcrumbs, page images) are this reader's.
         if (doc.kind !== "artifact" && !doc.encrypted) setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
         // …and so is a page's Markdown: the anonymous server render leaves out the names of the
@@ -1445,7 +1450,11 @@ export function useDocumentViewer({
   // resharers as well as owners (REVAMP_PLAN 7.6). Signed-in readers only; the
   // server decides `can_share`, a refusal just hides the card.
   const [access, setAccess] = useState<AccessState | null>(null);
+  // A workspace's own domain: who can open it, and sharing, are managed on markdrop.in (its tenant
+  // session can't read the sharing state); `docCan` (the read's flags) answers what's needed there.
+  const onTenantHost = typeof window !== "undefined" && !isPrimaryHost(window.location.host);
   const loadAccess = useCallback(() => {
+    if (typeof window !== "undefined" && !isPrimaryHost(window.location.host)) { setAccess(null); return; }
     getAccess(slug).then(setAccess).catch(() => setAccess(null));
   }, [slug]);
   useEffect(() => {
@@ -1457,12 +1466,15 @@ export function useDocumentViewer({
   // P3: members (on a non-private document in their workspace) and editor grantees edit with
   // their session, no edit secret. The server says so as `your_role: "editor"` and enforces it on
   // save. Re-applied after Cancel (which re-locks secret-only sessions).
-  const sessionEditor = !!user && (access?.can ? access.can.edit && !access.can.settings : access?.your_role === "editor");
+  const sessionEditor = !!user && (access?.can
+    ? access.can.edit && !access.can.settings
+    : access?.your_role === "editor" || (onTenantHost && !!docCan?.edit && !isOwner));
   useEffect(() => {
     if (sessionEditor && !secretUnlocked) setSecretUnlocked(true);
   }, [sessionEditor, secretUnlocked]);
-  // Password, expiry, key rotation and delete stay with the owner (or the edit secret's holder).
-  const canEditSettings = isOwner || !!secretInput.trim();
+  // Password, expiry, key rotation and delete stay with the owner (or the edit secret's holder) —
+  // on markdrop.in only: a workspace's own domain edits the text, never the settings.
+  const canEditSettings = (isOwner || !!secretInput.trim()) && !onTenantHost;
 
   // `F` returns to full screen from the framed reader (REVAMP_PLAN 7.6 "Keys").
   // Single-key shortcuts never fire while typing or while a dialog is open, nor when they're
@@ -1529,6 +1541,8 @@ export function useDocumentViewer({
     canShare,
     canEditSettings,
     sessionEditor,
+    docCan,
+    onTenantHost,
     live,
     liveUpdate,
     toggleImmersive,

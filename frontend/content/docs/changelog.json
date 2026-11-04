@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "domain-editing",
+      "date": "2026-11-04",
+      "title": "Edit pages on your workspace's own domain, and Request edit access",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "Anyone who may edit a page can now edit it right on the workspace's own domain, like docs.acme.com, instead of going back to markdrop.in. Readers who can't edit a page can ask for edit access from its ⋯ menu.",
+      "body": "- **Edit on your domain.** Signed in on the workspace's domain, a member, someone the page is shared with as **Can edit**, the owner or anyone with the edit link opens the page straight into the editor: text and title, images, sub-pages, page properties, AI writing tools and **Version history**, with **Saving…/Saved** and who's on the page.\n- Deleting a page, sharing and who can open it, its link, and workspace settings stay on markdrop.in: on the domain the owner's **⋯** menu opens the same page there (**Manage access on markdrop.in ↗**, **Change link on markdrop.in ↗**, **Delete on markdrop.in ↗**).\n- The sign-in on your domain still works only there and only for that workspace's pages, and every page still runs its normal access check.\n- **Request edit access.** Someone who can read a page but not edit it asks from the page's **⋯** menu, with an optional note, on markdrop.in or on the domain. The page's owner gets an email with **Approve** and **Decline** (the workspace's admins, when the page has no owner who can be reached) and an entry under **Access requests**. Approving lets them edit that page only; they get an email either way.",
+      "docs": [
+        "/workspaces/sign-in-on-your-domain",
+        "/sharing/request-access",
+        "/workspaces/custom-domain"
+      ]
+    },
+    {
       "id": "page-ai",
       "date": "2026-11-04",
       "title": "AI in pages: rewrite, draft, summarize, translate, and ask a page questions",
