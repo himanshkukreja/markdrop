@@ -35,6 +35,7 @@ from __future__ import annotations
 import base64
 import json
 import math
+import os
 import re
 import time
 import unicodedata
@@ -50,6 +51,7 @@ from app.services import access, publicity, search_index, urls
 from app.services import search_text as st
 
 MAX_Q = 200
+DEBUG_TIMINGS = bool(os.environ.get("MARKDROP_SEARCH_TIMINGS"))
 MAX_TOKENS = 8
 MAX_SCAN = 20_000             # documents considered per search (most recently updated first)
 MAX_GRANT_DESCENDANTS = 5_000
@@ -447,8 +449,8 @@ async def _content_hits(db: AsyncIOMotorDatabase, terms: Terms, ids: list) -> di
     async def run(jobs: list[tuple[str, int, float, dict]]) -> dict[int, int]:
         """Runs the lookups; returns, per query word, how many items it hit."""
         async def one(f: str, cond: dict) -> list:
-            return await coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).limit(CONTENT_LIMIT).to_list(
-                length=CONTENT_LIMIT)
+            return await coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).hint(f"{f}_id").limit(
+                CONTENT_LIMIT).to_list(length=CONTENT_LIMIT)
 
         results = await asyncio.gather(*(one(f, cond) for f, _i, _q, cond in jobs))
         found: dict[int, int] = {}
@@ -674,6 +676,14 @@ async def _trash_cands(db: AsyncIOMotorDatabase, w: World, terms: Terms, q: Quer
 async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q: Query) -> dict:
     """The search. Returns ``{query, items, groups, trash, next_cursor, took_ms, ai_suggested}``."""
     t0 = time.perf_counter()
+    stages: dict[str, int] = {}
+    last = [t0]
+
+    def _mark(name: str) -> None:
+        t = time.perf_counter()
+        stages[name] = int((t - last[0]) * 1000)
+        last[0] = t
+
     text = q.text
     terms = terms_of(text)
     empty = {"query": text, "items": [], "groups": [], "trash": [], "next_cursor": None,
@@ -681,23 +691,37 @@ async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q:
     if not terms.tokens or not actor.user_id:
         return empty
     w = await world_of(db, actor, ctx)
+    _mark("world")
     want = q.kinds or frozenset(KINDS)
-    cands: list[Cand] = []
-    if want & DOC_KINDS:
+
+    async def docs() -> list[Cand]:
+        if not want & DOC_KINDS:
+            return []
         filt = await doc_filter(db, actor, ctx, w.member_ws, q)
-        if filt is not None:
-            rows = await db["documents"].find(filt, _DOC_PROJECTION).sort("updated_at", -1).limit(
-                MAX_SCAN).to_list(length=MAX_SCAN)
-            cands += [_doc_cand(r, actor.user_id) for r in rows]
-    if "folder" in want and q.owner != "me" and q.updated == "any":
-        cands += await _folder_cands(db, w, q)
+        if filt is None:
+            return []
+        rows = await db["documents"].find(filt, _DOC_PROJECTION).sort("updated_at", -1).limit(
+            MAX_SCAN).to_list(length=MAX_SCAN)
+        return [_doc_cand(r, actor.user_id) for r in rows]
+
+    async def folders() -> list[Cand]:
+        return await _folder_cands(db, w, q) if ("folder" in want and q.owner != "me" and q.updated == "any") else []
+
+    async def guides() -> list[Cand]:
+        return await _guide_cands(db, w, q) if ("guide" in want and q.owner != "me") else []
+
+    import asyncio
+
+    parts = await asyncio.gather(docs(), folders(), guides())
+    _mark("candidates")
+    cands: list[Cand] = [c for part in parts for c in part]
     if "workspace" in want and q.owner != "me" and q.updated == "any":
         cands += _workspace_cands(w, q)
-    if "guide" in want and q.owner != "me":
-        cands += await _guide_cands(db, w, q)
     content_ids = [c.content_id for c in cands if c.content_id is not None]
     content = await _content_hits(db, terms, content_ids)
+    _mark("content")
     ranked = _rank(cands, terms, content, q, ctx.now)
+    _mark("rank")
     # Whole-title similarity for the front of the list (catches joined / split words).
     for c in ranked[:300]:
         if c.title:
@@ -726,6 +750,7 @@ async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q:
             group_take.append(c)
     page = shown[q.offset:q.offset + q.limit]
     more = len(shown) > q.offset + q.limit
+    _mark("allowed")
     shaper = Shaper(db, w)
     keyed = {c.key: c for c in page + group_take}
     shaped = await shaper.shape(list(keyed.values()), terms, snippets=q.snippets)
@@ -736,7 +761,9 @@ async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q:
         if g_items:
             groups.append({"key": key, "label": label, "items": g_items,
                            "more": sum(1 for c in shown if c.kind == key) > len(g_items)})
+    _mark("shape")
     trash_items = await _trash_cands(db, w, terms, q) if (q.trash and q.offset == 0) else []
+    _mark("trash")
     return {
         "query": text,
         "items": items,
@@ -746,6 +773,7 @@ async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q:
         "total": len(shown) if not more else None,
         "took_ms": int((time.perf_counter() - t0) * 1000),
         "ai_suggested": st.looks_like_question(text),
+        **({"stages": stages} if DEBUG_TIMINGS else {}),
     }
 
 

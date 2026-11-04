@@ -73,8 +73,10 @@ def _aware(dt: Any) -> datetime | None:
 
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
-    await db[COLL].create_index("w")
-    await db[COLL].create_index("hw")
+    # Word lookups return ids only and are answered from these indexes alone (covered: a row's big
+    # text is never read to say whether it holds a word). services/search.py hints them by name.
+    await db[COLL].create_index([("w", 1), ("_id", 1)], name="w_id")
+    await db[COLL].create_index([("hw", 1), ("_id", 1)], name="hw_id")
     await db[COLL].create_index("site", sparse=True)
     await db[COLL].create_index("fx", sparse=True)
     # The reconciler's "what changed since" scans.

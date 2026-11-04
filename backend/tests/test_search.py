@@ -551,12 +551,21 @@ class Performance(SearchWorld):
                    "zulu", "travel polcy", "handbook marketing", "desig", "rev", "alpha bravo", "papa quebec",
                    "partner sales", "india juliet kilo", "xyzzy"]
         server, wall = [], []
+        per_q: dict[str, int] = {}
+        import gc
+
+        # As the app's lifespan does at startup (app/main.py): the heap built so far is permanent.
+        gc.collect()
+        gc.freeze()
+        self.addCleanup(gc.unfreeze)
         for rnd_i in range(3):
             for q in queries:
                 t = time.perf_counter()
                 res = await self.find("owner", q)
                 wall.append((time.perf_counter() - t) * 1000)
                 server.append(res["took_ms"])
+                if rnd_i:
+                    per_q[q] = max(per_q.get(q, 0), res["took_ms"])
         server_sorted = sorted(server[len(queries):])     # first pass warms the caches
         wall_sorted = sorted(wall[len(queries):])
         p = lambda xs, k: xs[min(len(xs) - 1, int(round(k * (len(xs) - 1))))]
@@ -564,7 +573,7 @@ class Performance(SearchWorld):
                   "backfill_s": round(backfill_s, 2), "backfill_ms_per_doc": round(backfill_s * 1000 / 8000, 3),
                   "server_p50_ms": p(server_sorted, 0.5), "server_p95_ms": p(server_sorted, 0.95),
                   "server_max_ms": server_sorted[-1], "wall_p50_ms": round(p(wall_sorted, 0.5), 1),
-                  "wall_p95_ms": round(p(wall_sorted, 0.95), 1)}
+                  "wall_p95_ms": round(p(wall_sorted, 0.95), 1), "slowest": sorted(per_q.items(), key=lambda kv: -kv[1])[:5]}
         print("\nSEARCH PERF", json.dumps(report))
         out = os.environ.get("SEARCH_PERF_OUT")
         if out:

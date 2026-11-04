@@ -101,6 +101,14 @@ async def lifespan(app: FastAPI):
     # Weekly analytics digest: off unless MARKDROP_ANALYTICS_DIGEST_ENABLED
     # (and background workers) are on; a lease + per-user claims, never twice.
     analytics_digest.start(get_database)
+    # Everything loaded at startup lives as long as the process: move it out of the collector's
+    # reach, so a full collection doesn't walk it on every request that allocates a lot (global
+    # search builds thousands of candidates per keystroke; a gen-2 pass over the startup heap
+    # was its p95, 2026-11-04).
+    import gc
+
+    gc.collect()
+    gc.freeze()
     yield
     await analytics_digest.stop()
     await docs_dispatch.stop()
