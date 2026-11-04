@@ -2,28 +2,65 @@
 
 /**
  * Code-like blocks: fenced code (language, title and wrap edit the fence's meta, nothing else in
- * it), math with a live KaTeX preview, inline math, and raw blocks (Markdown the visual editor
- * keeps verbatim).
+ * it; a ```mermaid fence shows its diagram unless it's being edited), math with a live KaTeX
+ * preview, inline math, and raw blocks (Markdown the visual editor keeps verbatim).
  */
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import type { Editor } from "@tiptap/core";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { NodeViewContent, NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
-import { Badge, Button, Icon } from "@/components/ui";
+import { Badge, Button, Icon, Skeleton } from "@/components/ui";
 import { readMeta, setMetaTitle, setMetaWrap } from "../core/fence.mjs";
 import { useHost } from "../host";
 import { cx } from "./shared";
 import { cleanAttrs } from "../core/attrs.mjs";
 
-export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
+export function CodeBlockView({ node, updateAttributes, editor, getPos, selectionInside }: ReactNodeViewProps) {
   const host = useHost();
   const language = (node.attrs.language as string | null) ?? "";
   const meta = node.attrs.meta as string | null;
   const { title, wrap } = readMeta(meta);
-  const ro = host.readOnly;
+  const ro = host.readOnly || !editor.isEditable;
   const battrs = node.attrs.battrs as Record<string, string> | null;
   const caption = battrs?.caption ?? "";
+  // A ```mermaid fence (the reader's test, PageRenderer `Pre`): the diagram, and the code only while
+  // it's being edited (the caret is in it and the editor has focus). Read only: always the diagram.
+  const mermaid = language === MERMAID;
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const focused = useFocusWithin(editor, wrapRef, mermaid && !ro);
+  const [opening, setOpening] = useState(false);
+  const editing = mermaid && !ro && (opening || (!!selectionInside && focused));
+  useEffect(() => {
+    if (!opening) return;
+    if (selectionInside && focused) return setOpening(false);
+    const t = setTimeout(() => setOpening(false), 600);
+    return () => clearTimeout(t);
+  }, [opening, selectionInside, focused]);
+  const code = node.textContent;
+  // While typing, the preview follows the code once it settles; otherwise it is the code itself.
+  const settled = useSettled(code, editing ? 350 : 0);
+  const showDiagram = mermaid && !editing;
+
+  const edit = () => {
+    if (ro) return;
+    setOpening(true);
+    requestAnimationFrame(() => openMermaid(editor, getPos()));
+  };
+  const done = () => closeMermaid(editor, getPos());
+  // A click on the diagram edits it (not on its buttons, nor inside its "Open larger" dialog).
+  const onDiagramClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    const t = e.target as Element;
+    if (ro || !e.currentTarget.contains(t) || t.closest("button, a, input, [role=dialog]")) return;
+    edit();
+  };
+
   return (
-    <NodeViewWrapper className={cx("md-codeblock not-prose dxe-code", title && "dx-code--titled", wrap && "dx-code--wrap")} data-lang={language || undefined}>
-      <div contentEditable={false} className="md-codeblock__head dxe-code__head">
+    <NodeViewWrapper
+      ref={wrapRef}
+      className={cx(showDiagram ? "not-prose dxe-code dxe-mermaid" : "md-codeblock not-prose dxe-code", mermaid && editing && "dxe-mermaid--editing", title && "dx-code--titled", wrap && "dx-code--wrap")}
+      data-lang={language || undefined}
+    >
+      <div contentEditable={false} className="md-codeblock__head dxe-code__head" hidden={showDiagram}>
         <input
           className="dxe-code__title"
           value={title}
@@ -47,11 +84,45 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
           <span className="dxe-sr">Wrap long lines</span>
         </button>
       </div>
-      <div className="md-codeblock__body">
+      <div className="md-codeblock__body" hidden={showDiagram}>
         <pre className="md-codeblock__pre">
           <NodeViewContent<"code"> as="code" className={language ? `language-${language}` : undefined} />
         </pre>
       </div>
+      {mermaid && (
+        <div
+          contentEditable={false}
+          className={cx("dxe-mermaid__view", editing && "dxe-mermaid__view--live", showDiagram && !ro && "dxe-mermaid__view--edit")}
+          onClick={showDiagram ? onDiagramClick : undefined}
+          title={showDiagram && !ro ? "Click to edit the diagram" : undefined}
+        >
+          {!settled.trim() ? (
+            <div className="dxe-mermaid__empty dxe-muted">{editing ? "Type a Mermaid diagram, e.g. graph TD then A --> B" : ro ? "An empty Mermaid diagram" : "An empty Mermaid diagram. Click to write it."}</div>
+          ) : (
+            <Suspense fallback={<DiagramLoading />}>
+              <LazyDiagram
+                code={settled}
+                // The same frame (renderer, config, theme) as the reader. Read only, it's the reader's
+                // exactly; editing, the code is right above it, so no "View source".
+                viewSource={ro}
+                errorDetail={!ro}
+                errorSource={!editing}
+                tools={
+                  ro ? undefined : editing ? (
+                    <Button variant="ghost" size="sm" iconLeft="check" onClick={done} title="Show the diagram (Esc)">
+                      <span className="md-diagram__btn-label">Done</span>
+                    </Button>
+                  ) : (
+                    <Button variant="ghost" size="sm" iconLeft="edit" onClick={edit}>
+                      <span className="md-diagram__btn-label">Edit diagram</span>
+                    </Button>
+                  )
+                }
+              />
+            </Suspense>
+          )}
+        </div>
+      )}
       {host.pages && (!ro || caption) && (
         // A page's code caption (`{caption="…"}` on the line after the fence).
         <input
@@ -67,6 +138,108 @@ export function CodeBlockView({ node, updateAttributes }: ReactNodeViewProps) {
     </NodeViewWrapper>
   );
 }
+
+/* ── mermaid ─────────────────────────────────────────────────────────────── */
+
+const MERMAID = "mermaid";
+
+// The reader's DiagramFrame (lazy mermaid inside): its own chunk, loaded only when a page has a
+// mermaid block, so neither it nor mermaid is in the editor's first load.
+const LazyDiagram = lazy(() => import("@/components/reading/DiagramFrame").then((m) => ({ default: m.DiagramFrame })));
+
+function DiagramLoading() {
+  return (
+    <div className="md-diagram__loading">
+      <Skeleton variant="rect" width="100%" height={180} />
+      <span className="md-diagram__loading-text">Rendering diagram</span>
+    </div>
+  );
+}
+
+/** `value`, or with `ms` > 0 the value once it has stopped changing for `ms`. */
+function useSettled<T>(value: T, ms: number): T {
+  const [settled, setSettled] = useState(value);
+  useEffect(() => {
+    if (!ms) return setSettled(value);
+    const t = setTimeout(() => setSettled(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return ms ? settled : value;
+}
+
+/**
+ * Whether the editor (or a field inside this node view, like the code's title) has focus. Only
+ * listens while `on`, and only re-renders when the answer changes (not on keystrokes).
+ */
+function useFocusWithin(editor: Editor, ref: React.RefObject<HTMLElement | null>, on: boolean): boolean {
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!on) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const update = () => {
+      const active = document.activeElement;
+      setFocused(editor.view.hasFocus() || !!(active && ref.current?.contains(active)));
+    };
+    // On blur, activeElement is the body until the next element takes focus.
+    const later = () => {
+      clearTimeout(t);
+      t = setTimeout(update, 0);
+    };
+    update();
+    const el = ref.current;
+    editor.on("focus", update);
+    editor.on("blur", later);
+    el?.addEventListener("focusin", update);
+    el?.addEventListener("focusout", later);
+    return () => {
+      clearTimeout(t);
+      editor.off("focus", update);
+      editor.off("blur", later);
+      el?.removeEventListener("focusin", update);
+      el?.removeEventListener("focusout", later);
+    };
+  }, [editor, ref, on]);
+  return on && focused;
+}
+
+const isMermaid = (n: { type: { name: string }; attrs: Record<string, unknown> } | null | undefined) => n?.type.name === "codeBlock" && n.attrs.language === MERMAID;
+
+/** Puts the caret at the end of the mermaid block at `pos` (its code shows). */
+function openMermaid(editor: Editor, pos: number | undefined): boolean {
+  if (typeof pos !== "number" || !editor.isEditable) return false;
+  const node = editor.state.doc.nodeAt(pos);
+  if (!isMermaid(node)) return false;
+  const tr = editor.state.tr.setSelection(TextSelection.create(editor.state.doc, pos + node!.nodeSize - 1)).scrollIntoView();
+  editor.view.dispatch(tr);
+  editor.view.focus();
+  return true;
+}
+
+/** Selects the mermaid block at `pos` as a block (its diagram shows; Enter edits it again). */
+function closeMermaid(editor: Editor, pos: number | undefined): boolean {
+  if (typeof pos !== "number") return false;
+  if (!isMermaid(editor.state.doc.nodeAt(pos))) return false;
+  editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
+  editor.view.focus();
+  return true;
+}
+
+/**
+ * Mermaid keys (ahead of the page's own Escape): Esc in a mermaid block's code shows the diagram
+ * (the block stays selected); Enter on a selected mermaid block edits it again.
+ */
+export const mermaidKeys = (editor: Editor): Record<string, () => boolean> => ({
+  Escape: () => {
+    const { selection } = editor.state;
+    if (!(selection instanceof TextSelection) || !isMermaid(selection.$from.parent) || selection.$from.parent !== selection.$to.parent) return false;
+    return closeMermaid(editor, selection.$from.before());
+  },
+  Enter: () => {
+    const { selection } = editor.state;
+    if (!(selection instanceof NodeSelection) || !isMermaid(selection.node)) return false;
+    return openMermaid(editor, selection.from);
+  },
+});
 
 /** The language list offered by the code block's language field (any value is allowed). */
 export const CODE_LANGS = ["bash", "shell", "powershell", "json", "yaml", "toml", "javascript", "typescript", "jsx", "tsx", "python", "go", "rust", "java", "kotlin", "swift", "ruby", "php", "c", "cpp", "csharp", "sql", "html", "css", "markdown", "diff", "http", "graphql", "mermaid", "text"];

@@ -11,7 +11,7 @@ import { columnResizing } from "@tiptap/pm/tables";
 import { baseExtensions, withOverrides } from "./core/schema.mjs";
 import { CalloutView, CardView, CardsView, DetailsView, PrivateView, StepsView, TabsView } from "./views/containers";
 import { FigureView, LeafView } from "./views/media";
-import { CodeBlockView, InlineMathView, MathBlockView, RawBlockView } from "./views/code";
+import { CodeBlockView, InlineMathView, MathBlockView, RawBlockView, mermaidKeys } from "./views/code";
 import { MentionView } from "./views/pageItems";
 import { itemsFor } from "./blocks";
 import { EmojiCommand, PageKeys } from "./pageKeys";
@@ -178,6 +178,15 @@ function viewOverrides() {
   };
 }
 
+/** Esc in a mermaid block's code shows its diagram, Enter edits it again (views/code.tsx); ahead of the page's Esc. */
+const MermaidKeys = Extension.create({
+  name: "mermaidKeys",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return mermaidKeys(this.editor);
+  },
+});
+
 export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }: {
   slash: SlashStore;
   listboxId: string;
@@ -210,6 +219,7 @@ export function buildExtensions({ slash, listboxId, placeholder, blocks, emoji }
     }),
     SlashCommand(slash, listboxId, itemsFor(blocks)),
     ...(emoji ? [PageKeys, EmojiCommand(emoji.store, emoji.listboxId)] : []),
+    MermaidKeys,
     MoveBlockKeys,
     BlockDnd,
     DocsKeys,
