@@ -241,13 +241,18 @@ class Create(PageWorld):
                                 headers=self.session("owner"))
         self.assertEqual(r.status_code, 422)
 
-    async def test_tenant_token_cannot_create_or_switch(self):
+    async def test_tenant_token_switches_and_adds_sub_pages_only(self):
+        # Domain editing (2026-11-04): a member edits on the workspace's own domain — the editor
+        # switch is content-level — but creates only sub-pages there (tests/test_tenant_edit.py).
         d = await self.mkdoc("W")
         r = await self.http.put(f"/api/v1/documents/{d['slug']}/editor", json={"editor": "blocks"},
                                 headers=self.tenant("wm", "W1"))
-        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.put(f"/api/v1/documents/{d['slug']}/editor", json={"editor": "blocks"},
+                                headers=self.tenant("wm2", "W2"))
+        self.assertEqual(r.status_code, 404)
         r = await self.http.post("/api/v1/pages", json={"title": "x"}, headers=self.tenant("wm", "W1"))
-        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.status_code, 403)
 
 
 # ── Inherited access: the read matrix ─────────────────────────────────────────
@@ -784,7 +789,8 @@ class Assets(PageWorld):
         self.assertEqual((await self.upload(slug, self.session("gv"))).status_code, 403)
         self.assertEqual((await self.upload(slug, self.session("stranger"))).status_code, 404)
         self.assertEqual((await self.upload(slug, {})).status_code, 401)
-        self.assertEqual((await self.upload(slug, self.tenant("wm", "W1"))).status_code, 401)
+        # An unfiled page is outside every workspace domain's scope.
+        self.assertEqual((await self.upload(slug, self.tenant("wm", "W1"))).status_code, 404)
         self.assertEqual((await self.upload(slug, self.session("owner"), b"<svg onload=alert(1)>", "x.svg")).status_code, 415)
         self.assertEqual((await self.upload(slug, self.session("owner"), b"<html></html>", "x.png")).status_code, 415)
         big = b"\x89PNG\r\n\x1a\n" + b"0" * (page_assets.MAX_BYTES + 1)
@@ -1426,8 +1432,11 @@ class Lock(PageWorld):
         self.assertEqual((await self.lock(page["slug"], "stranger")).status_code, 404)
         self.assertEqual((await self.http.post(f"/api/v1/documents/{page['slug']}/lock")).status_code, 401)
         w = await self.mkdoc("W")
+        # On the workspace's own domain a member takes it (domain editing); another domain can't.
+        r = await self.http.post(f"/api/v1/documents/{w['slug']}/lock", headers=self.tenant("wm2", "W2"))
+        self.assertEqual(r.status_code, 404)
         r = await self.http.post(f"/api/v1/documents/{w['slug']}/lock", headers=self.tenant("wm", "W1"))
-        self.assertEqual(r.status_code, 401)
+        self.assertEqual(r.status_code, 200, r.text)
         # Releasing someone else's lock does nothing.
         await self.lock(page["slug"], "ge")
         await self.http.delete(f"/api/v1/documents/{page['slug']}/lock", headers=self.session("owner"))

@@ -602,11 +602,15 @@ async def release_page_lock_on_close(
     """``DELETE …/lock`` for a page that is closing. The browser sends it with
     ``navigator.sendBeacon``: a keepalive DELETE needs a CORS preflight that
     browsers don't make while a page unloads, and a beacon can't carry an
-    Authorization header, so the markdrop.in session token is the text/plain
-    body. Anything else (no token, a tenant or API token, someone else's lock)
-    is ignored; the answer is always 204."""
+    Authorization header, so the session token is the text/plain body: the
+    markdrop.in session, or a workspace domain's tenant token sent from that
+    domain (its Origin must be the token's host, the host must still be live,
+    and the page must be in the token's workspace — the same three checks as
+    any tenant request). Anything else (no token, an API token, someone else's
+    lock) is ignored; the answer is always 204."""
     import jwt
 
+    from app.routers import auth as auth_router
     from app.services import user as user_service
     from app.utils.auth import decode_access_token
 
@@ -615,14 +619,21 @@ async def release_page_lock_on_close(
         payload = decode_access_token(token)
     except jwt.InvalidTokenError:
         return
+    actor_kw: dict = {"cred": "session"}
     if payload.get("typ") == "tenant":
-        return
+        claim = auth_router.domain_service.clean_host(payload.get("host"))
+        if not claim or auth_router._origin_host(request) != claim:
+            return
+        if not await auth_router._tenant_host_live(payload):
+            return
+        actor_kw = {"cred": "tenant", "tenant_ws": payload.get("ws")}
     user = await user_service.get_user_by_id(db, payload.get("sub", ""))
     raw = await db["documents"].find_one({"slug": slug}) if user else None
     if raw is None:
         return
     try:
-        await pages.release_lock(db, raw, access.Actor(user=user, cred="session"), _ctx(db, request))
+        # release_lock checks can(read) — pinned to the tenant workspace for a tenant token.
+        await pages.release_lock(db, raw, access.Actor(user=user, **actor_kw), _ctx(db, request))
     except HTTPException:
         return
 

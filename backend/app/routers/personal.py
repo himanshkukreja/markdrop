@@ -3,14 +3,15 @@
     GET  /api/v1/me/shared?cursor=&limit=          Shared with me (+ new_count)
     GET  /api/v1/me/recent                          last 30 opened, re-checked now
     GET  /api/v1/search/quick?q=&limit=8            ⌘K: files, folders, workspaces
-    POST /api/v1/documents/{slug}/access-requests  {message?}  → 201 {id, status}
-    GET  /api/v1/documents/{slug}/access-requests/mine         gate state
+    POST /api/v1/documents/{slug}/access-requests  {message?, role?}  → 201 {id, status}
+    GET  /api/v1/documents/{slug}/access-requests/mine?role=   gate state
     GET  /api/v1/me/access-requests?status=pending  requests on docs I own
     GET  /api/v1/access-requests/{id}               one of them (owner only)
     POST /api/v1/access-requests/{id}/decision      {decision: view|edit|decline}
 
-All signed-in only (``require_user``); a tenant token is refused (not on its
-allowlist). Every document decision is ``access.can`` / ``readable_filter``.
+All signed-in only (``require_user``). A tenant token (a workspace's own domain) may use only
+the two document routes, and only for ``role: "editor"`` ("Request edit access" on a page it can
+read; services/access_requests.py). Every document decision is ``access.can`` / ``readable_filter``.
 """
 
 from typing import Literal
@@ -43,6 +44,9 @@ def _ac(request: Request, db, user: User):
 
 class AccessRequestCreate(BaseModel):
     message: str | None = Field(None, max_length=requests_service.MAX_MESSAGE)
+    # "viewer": asking to open it (the denied gate). "editor": "Request edit access", from someone
+    # who can read it but not edit it.
+    role: Literal["viewer", "editor"] = "viewer"
 
 
 class AccessRequestDecision(BaseModel):
@@ -85,17 +89,18 @@ async def request_access(request: Request, slug: str, data: AccessRequestCreate,
                          db: AsyncIOMotorDatabase = Depends(get_db),
                          user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    row = await requests_service.create(db, actor, ctx, slug, data.message)
+    row = await requests_service.create(db, actor, ctx, slug, data.message, data.role)
     return {"id": str(row["_id"]), "status": row["status"]}
 
 
 @router.get("/api/v1/documents/{slug}/access-requests/mine")
 @limiter.limit("120/minute")
 async def my_access_request(request: Request, slug: str,
+                            role: Literal["viewer", "editor"] = Query("viewer"),
                             db: AsyncIOMotorDatabase = Depends(get_db),
                             user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await requests_service.mine(db, actor, ctx, slug))
+    return jsonable_encoder(await requests_service.mine(db, actor, ctx, slug, role))
 
 
 @router.get("/api/v1/me/access-requests")

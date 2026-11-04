@@ -19,6 +19,20 @@ owner's own session — and only while they own it. Approving goes through the
 normal ``access.add_grant`` owner path (an owner-made root grant, which
 survives every membership change, I9). Deciding twice the same way is a
 no-op; a different second decision is a 409.
+
+Edit requests (``role: "editor"``, "Request edit access", 2026-11-04): from
+someone who can already *read* the page but not edit it (a workspace viewer, a
+viewer grant, a reader of a link page) — on markdrop.in or on the workspace's
+own domain (a tenant token may make only this kind, for a page of its own
+workspace: every check is ``access.can`` with the token's workspace pinned).
+They go to the page's owner. Only when the page has no reachable owner (the
+account is gone, has no address, or left the page's workspace) do they go to
+that workspace's admins instead (``admin_workspace_id`` on the row), who may
+then decide on it while the page is still in that workspace. Approving gives
+editor on **that page only**: the grant carries ``sub_role`` (what the
+sub-pages that inherit from it get: nothing new, or the viewer access the
+person already had there). Only "edit" or "decline" answer an edit request. A
+declined edit request can't be asked again for a day (``DECLINED_COOLDOWN``).
 """
 
 from __future__ import annotations
@@ -38,6 +52,14 @@ COLL = "access_requests"
 MAX_MESSAGE = 500
 PER_USER_PER_HOUR = 10
 ROLE_FOR = {"view": "viewer", "edit": "editor"}
+# A declined edit request: the same person can't ask the same page again for this long.
+DECLINED_COOLDOWN = timedelta(hours=24)
+MAX_ADMIN_EMAILS = 20
+
+
+def requested_role(row: dict | None) -> str:
+    """``viewer`` (asking to open it; every row before edit requests) or ``editor``."""
+    return "editor" if (row or {}).get("role_requested") == "editor" else "viewer"
 
 
 def _now() -> datetime:
@@ -105,18 +127,58 @@ async def eligibility(db: AsyncIOMotorDatabase, actor: access.Actor, raw: dict |
     return "eligible" if anon.gate == "signin" else "not_found"
 
 
+async def edit_eligibility(db: AsyncIOMotorDatabase, actor: access.Actor, raw: dict | None,
+                           ctx: access.Ctx) -> str:
+    """For an edit request: ``eligible`` (reads it, may not edit it), ``editable`` (already
+    may), ``unreadable`` (a gate: password, sign-in), ``nobody`` (no owner and no workspace to
+    ask), or ``not_found`` (answer exactly like a missing document)."""
+    d = await access.can(actor, raw, "read", ctx)
+    if not d.allowed:
+        return "not_found" if d.status == 404 else "unreadable"
+    e = await access.can(actor, raw, "edit_content", ctx)
+    if e.allowed:
+        return "editable"
+    if e.status != 403:
+        return "unreadable"
+    if not raw.get("owner_id") and not raw.get("workspace_id"):
+        return "nobody"
+    return "eligible"
+
+
 async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, slug: str,
-                 message: str | None) -> dict:
+                 message: str | None, role: str = "viewer") -> dict:
     user = actor.user
+    if actor.cred == "tenant" and role != "editor":
+        # A workspace's domain asks only for edit access to a page it can already read; asking to
+        # open something goes through markdrop.in (no existence oracle on a customer's domain).
+        raise HTTPException(status_code=401, detail="Ask for access on markdrop.in.")
     raw = await _load_for_read(db, slug)
-    state = await eligibility(db, actor, raw, ctx)
-    if state == "not_found":
-        raise not_found()
-    if state == "readable":
-        raise HTTPException(status_code=409, detail="You can already open this.")
-    if state == "gated":
-        raise HTTPException(status_code=403,
-                            detail="This one is protected by a password. Ask its owner for it.")
+    if role == "editor":
+        state = await edit_eligibility(db, actor, raw, ctx)
+        if state == "not_found":
+            raise not_found()
+        if state == "editable":
+            raise HTTPException(status_code=409, detail="You can already edit this.")
+        if state == "unreadable":
+            raise HTTPException(status_code=403, detail="Open it first, then ask to edit it.")
+        if state == "nobody":
+            raise HTTPException(status_code=409, detail="Nobody can approve edits to this one.")
+        declined = await db[COLL].find_one(
+            {"doc_id": str(raw["_id"]), "requester_user_id": user.id, "role_requested": "editor",
+             "status": "declined", "decided_at": {"$gt": _now() - DECLINED_COOLDOWN}}, {"_id": 1})
+        if declined is not None:
+            raise HTTPException(status_code=429,
+                                detail="They declined your last request. You can ask again tomorrow.",
+                                headers={"Retry-After": str(int(DECLINED_COOLDOWN.total_seconds()))})
+    else:
+        state = await eligibility(db, actor, raw, ctx)
+        if state == "not_found":
+            raise not_found()
+        if state == "readable":
+            raise HTTPException(status_code=409, detail="You can already open this.")
+        if state == "gated":
+            raise HTTPException(status_code=403,
+                                detail="This one is protected by a password. Ask its owner for it.")
     doc_id = str(raw["_id"])
     existing = await db[COLL].find_one(
         {"doc_id": doc_id, "requester_user_id": user.id, "status": "pending"}, {"_id": 1})
@@ -131,20 +193,89 @@ async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                             headers={"Retry-After": "3600"})
     message = (message or "").strip()[:MAX_MESSAGE] or None
     row = {
-        "doc_id": doc_id, "slug": raw["slug"], "owner_id": raw["owner_id"],
+        "doc_id": doc_id, "slug": raw["slug"], "owner_id": raw.get("owner_id"),
         "requester_user_id": user.id, "requester_email": actor.email,
         "requester_name": user.name or None, "message": message, "status": "pending",
         "role_granted": None, "created_at": _now(), "decided_at": None, "decided_by": None,
         "notified": False,
     }
+    owner = None
+    if role == "editor":
+        row["role_requested"] = "editor"
+        owner = await reachable_owner(db, raw)
+        if owner is None:
+            # No reachable owner: the page's workspace admins answer instead.
+            if not raw.get("workspace_id"):
+                raise HTTPException(status_code=409, detail="Nobody can approve edits to this one.")
+            row["admin_workspace_id"] = raw["workspace_id"]
     try:
         res = await db[COLL].insert_one(row)
     except DuplicateKeyError:
         raise HTTPException(status_code=409,
                             detail="You've already asked. You'll get an email when they decide.")
     row["_id"] = res.inserted_id
-    await _notify_owner(db, raw, row, actor)
+    if role == "editor":
+        await _notify_edit_request(db, raw, row, actor, owner)
+    else:
+        await _notify_owner(db, raw, row, actor)
     return row
+
+
+async def reachable_owner(db: AsyncIOMotorDatabase, raw: dict) -> dict | None:
+    """The page owner's user row when an edit request can go to them: the account exists and has
+    an address, and (for a page in a workspace) they are still a member of it. Else None."""
+    oid = _oid(raw.get("owner_id") or "")
+    owner = await db["users"].find_one({"_id": oid}, {"email": 1, "name": 1}) if oid else None
+    if not owner or not owner.get("email"):
+        return None
+    if raw.get("workspace_id"):
+        member = await db["memberships"].find_one(
+            {"workspace_id": raw["workspace_id"], "user_id": raw["owner_id"]}, {"_id": 1})
+        if member is None:
+            return None
+    return owner
+
+
+async def _admin_rows(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dict]:
+    return await db["memberships"].find(
+        {"workspace_id": workspace_id, "role": {"$in": ["admin", "owner"]}},
+        {"user_id": 1}).to_list(length=MAX_ADMIN_EMAILS * 2)
+
+
+async def _notify_edit_request(db: AsyncIOMotorDatabase, raw: dict, row: dict, actor: access.Actor,
+                               owner: dict | None) -> None:
+    if not mailer.is_configured():
+        return
+    to: list[str] = []
+    if owner is not None:
+        to = [owner["email"]]
+    else:
+        ids = [_oid(m["user_id"]) for m in await _admin_rows(db, row["admin_workspace_id"])]
+        users = await db["users"].find({"_id": {"$in": [i for i in ids if i]}}, {"email": 1}).to_list(
+            length=MAX_ADMIN_EMAILS * 2)
+        to = sorted({u["email"] for u in users if u.get("email")})[:MAX_ADMIN_EMAILS]
+    workspace_name = None
+    if raw.get("workspace_id"):
+        ws = await access.Ctx(db).workspace(raw["workspace_id"])
+        workspace_name = getattr(ws, "name", None)
+    sent = False
+    for email in to:
+        try:
+            await mailer.send_edit_request_email(
+                to_email=email,
+                requester_name=actor.user.name or actor.email,
+                requester_email=actor.email,
+                document_title=_mail_title(raw),
+                message=row.get("message"),
+                request_id=str(row["_id"]),
+                as_admin=owner is None,
+                workspace_name=workspace_name,
+            )
+            sent = True
+        except Exception:
+            pass  # the in-app list has it either way
+    if sent:
+        await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"notified": True}})
 
 
 async def _notify_owner(db: AsyncIOMotorDatabase, raw: dict, row: dict, actor: access.Actor) -> None:
@@ -174,9 +305,29 @@ async def _notify_owner(db: AsyncIOMotorDatabase, raw: dict, row: dict, actor: a
         pass  # the in-app list has it either way
 
 
-async def mine(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, slug: str) -> dict:
-    """What the gate page needs: may this caller ask, and is a request open."""
+async def mine(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, slug: str,
+               role: str = "viewer") -> dict:
+    """What the gate page needs: may this caller ask, and is a request open. ``role="editor"``:
+    the same for "Request edit access" (a reader of the page who may not edit it)."""
     raw = await _load_for_read(db, slug)
+    if role == "editor":
+        state = await edit_eligibility(db, actor, raw, ctx)
+        if state == "not_found":
+            raise not_found()
+        out = {"can_request_access": state == "eligible", "request_pending": False, "request": None}
+        if state != "eligible":
+            return out
+        latest = await db[COLL].find_one(
+            {"doc_id": str(raw["_id"]), "requester_user_id": actor.user_id, "role_requested": "editor"},
+            sort=[("created_at", -1)])
+        if latest is not None:
+            out["request_pending"] = latest.get("status") == "pending"
+            out["request"] = {"id": str(latest["_id"]), "status": latest.get("status"),
+                              "created_at": latest.get("created_at"),
+                              "decided_at": latest.get("decided_at")}
+        return out
+    if actor.cred == "tenant":
+        raise HTTPException(status_code=401, detail="Ask for access on markdrop.in.")
     state = await eligibility(db, actor, raw, ctx)
     if state == "not_found":
         raise not_found()
@@ -199,21 +350,41 @@ async def mine(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, s
 
 async def _owned_doc(db: AsyncIOMotorDatabase, row: dict, actor: access.Actor,
                      ctx: access.Ctx) -> dict | None:
-    """The request's document when the caller may decide on it (its owner,
-    now), else None. Expired/deleted ⇒ None."""
+    """The request's document when the caller may decide on it, else None. Its owner, now; or,
+    for an edit request that went to the workspace's admins (no reachable owner), an admin of
+    that workspace while the page is still in it. Expired/deleted ⇒ None."""
     oid = _oid(row.get("doc_id") or "")
     raw = await db["documents"].find_one({"_id": oid}) if oid else None
     if raw is None or publicity.is_expired(raw):
         return None
-    if not (await access.can(actor, raw, "change_access", ctx)).allowed:
-        return None
-    return raw
+    if (await access.can(actor, raw, "change_access", ctx)).allowed:
+        return raw
+    if await _admin_decides(db, row, raw, actor, ctx):
+        return raw
+    return None
+
+
+async def _admin_decides(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Actor,
+                         ctx: access.Ctx) -> bool:
+    """An edit request routed to the admins, decided by one of them."""
+    ws_id = row.get("admin_workspace_id")
+    if requested_role(row) != "editor" or not ws_id or not actor.user_id:
+        return False
+    if actor.cred not in ("session", "api_token"):
+        return False
+    if raw.get("workspace_id") != ws_id:
+        return False
+    from app.models.workspace import role_allows
+
+    return role_allows(await ctx.role(ws_id, actor.user_id), "admin")
 
 
 async def _shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, hosts: urls.HostCache) -> dict:
     return {
         "id": str(row["_id"]),
         "status": row.get("status"),
+        "role_requested": requested_role(row),
+        "as_admin": bool(row.get("admin_workspace_id")),
         "message": row.get("message"),
         "created_at": row.get("created_at"),
         "decided_at": row.get("decided_at"),
@@ -228,7 +399,14 @@ async def _shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, hosts: urls.Hos
 
 async def list_for_owner(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                          status: str = "pending", limit: int = 50) -> dict:
-    query: dict = {"owner_id": actor.user_id}
+    # Their own pages, plus edit requests that went to a workspace they administer.
+    admin_ws = [m["workspace_id"] for m in await db["memberships"].find(
+        {"user_id": actor.user_id, "role": {"$in": ["admin", "owner"]}}, {"workspace_id": 1}).to_list(
+        length=500)] if actor.user_id else []
+    who: dict = {"owner_id": actor.user_id}
+    if admin_ws:
+        who = {"$or": [who, {"admin_workspace_id": {"$in": admin_ws}, "role_requested": "editor"}]}
+    query: dict = dict(who)
     if status != "all":
         query["status"] = status
     rows = await db[COLL].find(query).sort([("created_at", -1), ("_id", -1)]).limit(
@@ -243,8 +421,9 @@ async def list_for_owner(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
         if len(out) >= limit:
             break
     pending = 0
-    for row in await db[COLL].find({"owner_id": actor.user_id, "status": "pending"},
-                                   {"doc_id": 1}).to_list(length=500):
+    for row in await db[COLL].find({**who, "status": "pending"},
+                                   {"doc_id": 1, "role_requested": 1, "admin_workspace_id": 1}).to_list(
+            length=500):
         if await _owned_doc(db, row, actor, ctx) is not None:
             pending += 1
     return {"requests": out, "pending_count": pending}
@@ -274,6 +453,9 @@ async def decide(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
         raise request_not_found()
     status = "declined" if decision == "decline" else "approved"
     role = ROLE_FOR.get(decision)
+    editing = requested_role(row) == "editor"
+    if editing and decision == "view":
+        raise HTTPException(status_code=422, detail="They can already view it. Let them edit, or decline.")
 
     def answer(r: dict) -> dict:
         return {"id": str(r["_id"]), "status": r.get("status"), "role_granted": r.get("role_granted"),
@@ -297,7 +479,10 @@ async def decide(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
 
     if role is not None:
         try:
-            await _grant(db, raw, row["requester_email"], role, actor, ctx)
+            if editing:
+                await _grant_page_edit(db, raw, row, actor, ctx)
+            else:
+                await _grant(db, raw, row["requester_email"], role, actor, ctx)
         except HTTPException:
             # Nothing was shared: the request is open again.
             await db[COLL].update_one(
@@ -305,8 +490,76 @@ async def decide(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 {"$set": {"status": "pending", "role_granted": None, "decided_at": None,
                           "decided_by": None}})
             raise
-    await _notify_requester(db, raw, claimed, actor, approved=role is not None, role=role)
+    await _notify_requester(db, raw, claimed, actor, approved=role is not None, role=role,
+                            edit_request=editing)
     return answer(claimed)
+
+
+async def _grant_page_edit(db: AsyncIOMotorDatabase, raw: dict, row: dict, actor: access.Actor,
+                           ctx: access.Ctx) -> None:
+    """Editor on this page only (an approved edit request). The sub-pages that inherit from it get
+    what this person's grant gave them before (``sub_role``), never more.
+
+    The owner approves through ``access.add_grant`` (an owner-made root grant). An admin approves
+    on the workspace's authority (``granted_via``: valid while the page is in the workspace and
+    they are still an admin there, like any member's grant) — written here because a filed page
+    can't be re-shared through ``add_grant`` by anyone but its owner."""
+    email = access.normalize_email(row["requester_email"])
+    doc_id = str(raw["_id"])
+    existing = await db["document_grants"].find_one({"document_id": doc_id, "email": email})
+    before = None
+    if existing is not None:
+        before = existing["sub_role"] if "sub_role" in existing else existing.get("role")
+        effective = (await ctx.grants_for(email)).get(doc_id)
+        if effective is not None and grant_role_allows(effective, "editor"):
+            return  # already an editor here
+        before = access._min_role(before, effective) if effective is not None else None
+    if (await access.can(actor, raw, "change_access", ctx)).allowed:
+        grant = await access.add_grant(db, raw, email, "editor", actor, ctx)
+        await db["document_grants"].update_one({"_id": _oid(grant.id)}, {"$set": {"sub_role": before}})
+        ctx.forget()
+        try:
+            await access.mark_notified(db, grant.id)
+        except Exception:
+            pass
+        return
+    # An admin (checked by the caller, _owned_doc → _admin_decides).
+    ws_id = row["admin_workspace_id"]
+    owner_email = None
+    if raw.get("owner_id"):
+        o = await db["users"].find_one({"_id": _oid(raw["owner_id"])}, {"email": 1})
+        owner_email = access.normalize_email((o or {}).get("email"))
+    if email == owner_email:
+        raise HTTPException(status_code=409, detail="That's the owner of this document.")
+    if email == actor.email:
+        raise HTTPException(status_code=403, detail="You can't share a document with yourself.")
+    sets = {"role": "editor", "sub_role": before, "granted_by_email": actor.email or None,
+            "granted_by_user_id": actor.user_id, "granted_via": ws_id, "parent_grant_id": None,
+            "notified": True}
+    if existing is not None:
+        await db["document_grants"].update_one({"_id": existing["_id"]}, {"$set": sets})
+    else:
+        if await db["document_grants"].count_documents({"document_id": doc_id}) >= access.MAX_GRANTS_PER_DOCUMENT:
+            raise HTTPException(status_code=429, detail=f"A document can be shared with at most "
+                                                        f"{access.MAX_GRANTS_PER_DOCUMENT} people.")
+        try:
+            await db["document_grants"].insert_one(
+                {"document_id": doc_id, "email": email, "created_at": _now(), **sets})
+        except DuplicateKeyError:
+            raise HTTPException(status_code=409, detail="That changed meanwhile. Try again.")
+    ctx.forget()
+    # Read back what it gives (the admin may have lost the role meanwhile): worthless ⇒ undone.
+    if not grant_role_allows((await ctx.grants_for(email)).get(doc_id), "editor"):
+        if existing is not None:
+            await db["document_grants"].replace_one({"_id": existing["_id"]}, existing)
+        else:
+            await db["document_grants"].delete_one({"document_id": doc_id, "email": email,
+                                                    "granted_by_user_id": actor.user_id})
+        ctx.forget()
+        raise HTTPException(status_code=403, detail="You can't give someone more access than you have.")
+    from app.services import live
+
+    live.access_changed(raw.get("slug"))
 
 
 async def _grant(db: AsyncIOMotorDatabase, raw: dict, email: str, role: str, actor: access.Actor,
@@ -327,7 +580,7 @@ async def _grant(db: AsyncIOMotorDatabase, raw: dict, email: str, role: str, act
 
 
 async def _notify_requester(db: AsyncIOMotorDatabase, raw: dict, row: dict, actor: access.Actor, *,
-                            approved: bool, role: str | None) -> None:
+                            approved: bool, role: str | None, edit_request: bool = False) -> None:
     if not mailer.is_configured() or not row.get("requester_email"):
         return
     try:
@@ -338,6 +591,7 @@ async def _notify_requester(db: AsyncIOMotorDatabase, raw: dict, row: dict, acto
             slug=raw["slug"],
             approved=approved,
             role=role,
+            edit_request=edit_request,
         )
     except Exception:
         pass

@@ -325,9 +325,14 @@ class Permissions(HistoryWorld):
             # The edit secret isn't a person: no history through it.
             r = await getattr(self.http, method)(self.url(p, tail), headers={"X-Edit-Secret": ES_SECRET})
             self.assertEqual(r.status_code, 401, ("edit secret", tail))
-        # A tenant token (a workspace's own domain) is read-only: never history.
+        # A tenant token (a workspace's own domain): its editors see history there (domain
+        # editing); its readers don't; another workspace's domain learns nothing.
         r = await self.http.get(self.url(p), headers=self.tenant("wm", "W1"))
-        self.assertIn(r.status_code, (401, 403))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.get(self.url(p), headers=self.tenant("wv", "W1"))
+        self.assertEqual(r.status_code, 403)
+        r = await self.http.get(self.url(p), headers=self.tenant("wm2", "W2"))
+        self.assertEqual(r.status_code, 404)
         # Only the owner's and ge's restores happened.
         restores = [v for v in await self.versions(p) if v["author_kind"] == "restore"]
         self.assertEqual(sorted(v["author_id"] for v in restores), sorted([self.uid["owner"], self.uid["ge"]]))
