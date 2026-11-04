@@ -2,7 +2,7 @@
 title: Search, trash and access requests from the terminal
 nav: Search, trash and access
 description: Find anything you can open with markdrop search, delete and restore with markdrop trash, and ask for or answer access requests with markdrop access.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/cli/install, /cli/login-and-tokens]
 since: CLI 0.6.0
 keywords: [markdrop search, fuzzy search, search inside documents, snippet, markdrop trash, trash ls, trash restore, trash rm, delete forever, permanent, markdrop access, request edit access, approve, decline, access requests, json]
@@ -33,7 +33,7 @@ Searches everything you can open, the same way as the search box in the app: tit
 | `--limit` | How many results: 20 by default, at most 50. |
 
 :::note
-CLI 0.6.0 searches titles, addresses and file names only, up to 20 results per kind, and has no `guide` kind. Later versions search inside the text as above. They fall back to the titles-only search when the server doesn't have the full one yet.
+CLI 0.6.0 searched titles, addresses and file names only, up to 20 results per kind, with no `guide` kind. From 0.6.1 it searches inside the text as above (run `brew upgrade markdrop` or reinstall). It falls back to the titles-only search when the server doesn't have the full one yet.
 :::
 
 ## Trash

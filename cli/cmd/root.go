@@ -21,7 +21,7 @@ const defaultOrigin = "https://www.markdrop.in"
 // version is the CLI version. Release builds set it from the git tag via
 // -ldflags "-X github.com/markdrop/cli/cmd.version=<ver>"; this default is what
 // a plain `go build` / `go install` reports.
-var version = "0.6.0"
+var version = "0.6.1"
 
 var rootCmd = &cobra.Command{
 	Use:   "markdrop",
