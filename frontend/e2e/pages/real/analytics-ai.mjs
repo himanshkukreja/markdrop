@@ -210,7 +210,9 @@ await step("stale", async () => {
   await snap(p, "content-stale-light-1440");
   const before = fs.readFileSync(CALLS, "utf8").trim().split("\n").length;
   await panel(p).getByRole("button", { name: "Re-analyse" }).click();
-  await p.waitForFunction(() => !document.querySelector("section.an-ai")?.textContent?.includes("since this analysis"), null, { timeout: 30000 });
+  await p.locator('section.an-ai[data-state="running"]').waitFor({ timeout: 5000 });
+  await p.locator('section.an-ai[data-state="ready"]').waitFor({ timeout: 30000 });
+  if (await panel(p).getByText("since this analysis", { exact: false }).count()) fail("still stale after Re-analyse");
   if (fs.readFileSync(CALLS, "utf8").trim().split("\n").length !== before + 1) fail("Re-analyse didn't call the model once");
 });
 

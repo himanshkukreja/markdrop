@@ -56,8 +56,9 @@ function ago(iso: string | null): string {
   return d === 1 ? "yesterday" : `${d} days ago`;
 }
 
+/** The ✦ mark (the AI sparkle icon, so it looks the same in every browser). */
 function Sparkle({ className }: { className?: string }) {
-  return <span aria-hidden className={cx("an-ai__spark", className)}>✦</span>;
+  return <Icon name="sparkle" size={18} aria-hidden className={cx("an-ai__spark", className)} />;
 }
 
 export interface InsightsPanelProps {

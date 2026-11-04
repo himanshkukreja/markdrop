@@ -1,6 +1,6 @@
 /* ✦ Insights (components/analytics/InsightsPanel.tsx): light and dark through the theme tokens. */
 .an-ai { position: relative; }
-.an-ai__spark { color: var(--accent-text); font-size: 1.05em; line-height: 1; }
+.an-ai__spark { color: var(--accent-text); flex-shrink: 0; }
 .an-ai__spark--busy { animation: an-ai-pulse 1.4s ease-in-out infinite; }
 @keyframes an-ai-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.1); } }
 @media (prefers-reduced-motion: reduce) { .an-ai__spark--busy { animation: none; } }
