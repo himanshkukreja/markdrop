@@ -312,6 +312,20 @@ await step("move", async () => {
   if (r.status !== 200 || r.body.parent) fail(`to top level → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
 });
 
+const TRASH_SHOTS = process.env.TRASH_SHOTS || "";
+if (TRASH_SHOTS) fs.mkdirSync(TRASH_SHOTS, { recursive: true });
+async function tshot(p, name, opts = {}) {
+  await shot(p, name, opts);
+  if (TRASH_SHOTS) fs.copyFileSync(path.join(SHOTS, `${name}.png`), path.join(TRASH_SHOTS, `${BROWSER}-${name}.png`));
+}
+const waitStatus = async (slug, want, token = T.owner) => {
+  for (let i = 0; i < 60; i++) {
+    if ((await api("GET", `/api/v1/documents/${slug}`, token)).status === want) return;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  fail(`${slug} never answered ${want}`);
+};
+
 await step("delete-children", async () => {
   // A parent with two children and a grandchild; delete it lifting them, then another deleting them.
   const mk = async (title, parent) => (await api("POST", "/api/v1/pages", T.owner, { title, workspace: parent ? undefined : WS, folder: parent ? undefined : FOLDER, parent })).body.document.slug;
@@ -329,7 +343,7 @@ await step("delete-children", async () => {
   const dlg = p.getByRole("dialog");
   await dlg.getByText("It has 2 sub-pages").waitFor();
   await dlg.getByText(/30 days/).first().waitFor();
-  await shot(p, "25-delete-with-children");
+  await tshot(p, "25-delete-with-children");
   await dlg.getByRole("button", { name: "Move to Trash" }).click();
   await p.waitForURL((u) => !u.pathname.endsWith(top), { timeout: 20000 });
   log("after delete →", p.url());
@@ -362,21 +376,7 @@ await step("delete-children", async () => {
 });
 
 /* ── 3b. trash: delete → toast Undo; delete → Trash page → Restore; the trashed link ── */
-const TRASH_SHOTS = process.env.TRASH_SHOTS || "";
-async function tshot(p, name, opts = {}) {
-  await shot(p, name, opts);
-  if (TRASH_SHOTS) fs.copyFileSync(path.join(SHOTS, `${name}.png`), path.join(TRASH_SHOTS, `${BROWSER}-${name}.png`));
-}
-const waitStatus = async (slug, want, token = T.owner) => {
-  for (let i = 0; i < 60; i++) {
-    if ((await api("GET", `/api/v1/documents/${slug}`, token)).status === want) return;
-    await new Promise((r) => setTimeout(r, 250));
-  }
-  fail(`${slug} never answered ${want}`);
-};
-
 await step("trash", async () => {
-  if (TRASH_SHOTS) fs.mkdirSync(TRASH_SHOTS, { recursive: true });
   // Two items with the same title in one folder: a page and an HTML file (the Senseloaf incident).
   const title = "Product Docs Playbook";
   const page = (await api("POST", "/api/v1/pages", T.owner, { title, workspace: WS, folder: FOLDER })).body.document.slug;
@@ -464,6 +464,29 @@ await step("trash", async () => {
   await dk.c.close();
   const r = await mcp(adaMcp, "restore_document", { document: page });
   if (r.isError) fail(`restore_document: ${r.text}`);
+
+  // A folder with a page in it: the dialog counts what goes; Trash lists the folder; Restore brings both back.
+  const fr = await api("POST", `/api/v1/workspaces/${WS}/folders`, T.owner, { name: "Old handbook", parent_id: FOLDER });
+  if (fr.status !== 201) fail(`create folder → ${fr.status} ${JSON.stringify(fr.body)}`);
+  const sub = fr.body.id;
+  const inner = (await api("POST", "/api/v1/pages", T.owner, { title: "Handbook intro", workspace: WS, folder: sub })).body.document.slug;
+  await p.goto(`${APP}/w/${WS}/f/${sub}`, { waitUntil: "networkidle" });
+  await p.getByText("Handbook intro").first().waitFor({ timeout: 20000 });
+  await p.getByRole("button", { name: "More actions" }).first().click();
+  await p.getByRole("menuitem", { name: /Delete folder/ }).click();
+  await dlg.getByText(/1 item/).first().waitFor({ timeout: 10000 });
+  await tshot(p, "t10-delete-folder-dialog");
+  await dlg.getByRole("button", { name: /Move to Trash/ }).click();
+  await p.locator(".md-toast", { hasText: /to Trash/ }).first().waitFor({ timeout: 10000 });
+  await waitStatus(inner, 404);
+  await p.goto(`${APP}/trash`, { waitUntil: "networkidle" });
+  const frow = p.locator("li", { hasText: "Old handbook" }).first();
+  await frow.waitFor({ timeout: 20000 });
+  await tshot(p, "t11-trash-folder", { full: true });
+  await frow.getByRole("button", { name: /^Restore/ }).click();
+  await waitStatus(inner, 200);
+  const fb = await docOf(inner, T.owner);
+  if (fb.folder_id !== sub && fb.folder?.id !== sub) log("restored folder item placement", JSON.stringify({ f: fb.folder_id, folder: fb.folder }));
   await c.close();
 });
 
