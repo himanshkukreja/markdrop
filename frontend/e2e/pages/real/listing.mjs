@@ -1,9 +1,9 @@
 /**
  * The in-app workspace listing on the REAL stack (fix/ws-listing): folder-click timing under
- * throttling, the owner on every row (and the privacy matrix), the List / Grid / Cards switch, and
- * screenshots. Seeds the busy "Senseloaf" workspace (seed_listing.py) on top of seed.py.
+ * throttling, the owner on every row (and the privacy matrix), the List / Grid / Cards switch, renames
+ * made in another tab or by someone else showing without a reload, and screenshots. Seeds the busy "Senseloaf" workspace (seed_listing.py) on top of seed.py.
  *
- *   PB_STACK_ID=12 [ONLY=timing,owner,views,privacy,shots] [PROFILES=4g,3g] [RUNS=3] node listing.mjs
+ *   PB_STACK_ID=12 [ONLY=timing,owner,views,privacy,nav,renames,shots] [PROFILES=4g,3g] [RUNS=3] node listing.mjs
  *
  * `timing` is selector-agnostic (it clicks folder links by href and watches the page), so it also
  * measures an older build: LABEL=before writes timing-before.json, LABEL=after timing-after.json.
@@ -292,6 +292,69 @@ await step("views", async () => {
   if ((await p2.locator("#main [data-view]").first().getAttribute("data-view")) !== "grid") fail("the switch fails without storage");
   await c2.close();
   await c.close();
+});
+
+/* ── Renames elsewhere show without a reload (fix/followups) ─────────── */
+
+await step("renames", async () => {
+  // Archive: the busy folder (60 items, so pages of Ben's and documents of Ada's on its first page).
+  const archive = L.folders.Archive;
+  const rows = (await api("GET", `/api/v1/workspaces/${WS}/items?folder=${archive}&limit=50`, T.member)).body.items;
+  const mine = rows.find((i) => i.editor === "blocks" && i.owner?.name === "Ben Member" && i.can.edit);
+  const adas = rows.filter((i) => !i.editor && i.kind === "markdown" && i.owner?.name === "Ada Owner");
+  if (!mine || adas.length < 2) fail(`seed: no page of Ben's or two documents of Ada's in Archive (${rows.length} rows)`);
+  const renameDoc = async (slug, title) => {
+    const d = (await api("GET", `/api/v1/documents/${slug}`, T.owner)).body;
+    const r = await api("PUT", `/api/v1/documents/${slug}`, T.owner, { title, content: d.content });
+    if (r.status !== 200) fail(`rename ${slug} → ${r.status}`);
+  };
+  const renameFolder = async (id, name) => {
+    const r = await api("PATCH", `/api/v1/workspaces/${WS}/folders/${id}`, T.owner, { name });
+    if (r.status >= 300) fail(`rename folder → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+  };
+  const { c, p } = await ctx(browser, { token: T.member });
+  const shows = (t, timeout, focus = false) =>
+    p.waitForFunction(
+      ([t, focus]) => {
+        // "Coming back to the window": the event a tab switch or a click into the window fires.
+        if (focus) window.dispatchEvent(new Event("focus"));
+        return document.querySelector("#main")?.innerText.includes(t);
+      },
+      [t, focus],
+      { timeout, polling: 250 },
+    );
+  try {
+    await p.goto(fUrl(archive), { waitUntil: "networkidle" });
+    await p.locator("#main [data-row-kind=item]").first().waitFor({ timeout: 20000 });
+    // 1. Ben renames his page in another tab: this tab's row follows at once (the save's event, no poll).
+    const tab = await c.newPage();
+    await tab.goto(`${APP}/${mine.slug}`, { waitUntil: "networkidle" });
+    const title = tab.getByLabel("Page title");
+    await title.waitFor({ timeout: 20000 });
+    const saved = tab.waitForResponse((r) => r.request().method() === "PUT" && r.url().endsWith(`/api/v1/documents/${mine.slug}`) && r.ok(), { timeout: 20000 });
+    await title.fill(`${mine.title} (renamed in a tab)`);
+    await saved;
+    const t0 = Date.now();
+    await shows(`${mine.title} (renamed in a tab)`, 8000);
+    log(`another tab's rename: on screen ${Date.now() - t0} ms after its save`);
+    await tab.close();
+    // 2. Ada renames a document and this folder: they show with no reload and no focus (the poll).
+    await renameDoc(adas[0].slug, `${adas[0].title} (renamed by Ada)`);
+    await renameFolder(archive, "Archive (renamed)");
+    const t1 = Date.now();
+    await shows(`${adas[0].title} (renamed by Ada)`, 45000);
+    await shows("Archive (renamed)", 45000);
+    log(`someone else's renames: on screen in ${Date.now() - t1} ms (no focus)`);
+    // 3. Coming back to the window picks one up sooner than the poll would.
+    await renameDoc(adas[1].slug, `${adas[1].title} (renamed again)`);
+    const t2 = Date.now();
+    await shows(`${adas[1].title} (renamed again)`, 15000, true);
+    log(`a rename picked up on focus in ${Date.now() - t2} ms`);
+    if (Date.now() - t2 > 12000) fail(`focus took ${Date.now() - t2} ms`);
+  } finally {
+    await renameFolder(archive, "Archive").catch(() => {});
+    await c.close();
+  }
 });
 
 /* ── Screenshots ────────────────────────────────────────────────────── */
