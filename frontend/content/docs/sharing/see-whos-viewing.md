@@ -1,6 +1,6 @@
 ---
 title: See who's viewing
-description: Avatars on a document or file show who has it open right now and where they're reading. People with access see each other by name; everyone else sees anonymous animals.
+description: Avatars show who has a document or file open and where they're reading. People with access see each other by name; everyone else sees animals.
 updated: 2026-11-04
 prerequisites: [/sharing/who-can-open]
 keywords: [presence, who's viewing, live, avatars, anonymous, viewers, readers, online, Anonymous Otter, who's editing, editing, pencil, mcp, get_viewers, set_presence, ai]
