@@ -38,6 +38,7 @@ import { ArtifactBar } from "./artifact/ArtifactBar";
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
 import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import { ArtifactVersions } from "./artifact/ArtifactVersions";
+import { ImageStage } from "./artifact/ImageStage";
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, themedFrameSrc } from "./artifact/frame";
@@ -671,7 +672,17 @@ export default function ArtifactView({
   const showLiveProgress = frameLoading && liveReload;
   const canOpen = !!artifactUrl && !locked;
 
-  const frame = frameSrc && (
+  const frame = frameSrc && (renderer === "image" ? (
+    <ImageStage
+      key={reloadKey}
+      src={frameSrc}
+      alt={title || originalFilename || slug}
+      onDone={() => {
+        setFrameLoading(false);
+        setLiveReload(false);
+      }}
+    />
+  ) : (
     <iframe
       key={reloadKey}
       ref={frameRef}
@@ -690,7 +701,7 @@ export default function ArtifactView({
       // ph-no-capture: the file itself is never part of a session recording.
       className={cx("ph-no-capture block h-full w-full border-0", paper ? "bg-(--qr-ground)" : "bg-bg")}
     />
-  );
+  ));
 
   const liveProgress = showLiveProgress && (
     <Progress indeterminate size="sm" aria-label="Updating to the latest version" className="absolute inset-x-0 top-0 z-20" />

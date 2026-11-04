@@ -285,8 +285,8 @@ const STATES = [
   ["page-anon", ["anon"], () => pageUrl(X.open), pageReady],
   ["page-anon-gate", ["anon"], () => pageUrl(X.page), (p) => p.locator("main, h1").first()],
   // Classic Markdown.
-  ["classic-view", ["anon", "owner"], () => pageUrl(X.classic), (p) => p.locator("h1").first()],
-  ["classic-view-body", ["anon"], () => pageUrl(X.classic), (p) => p.locator("h1").first(), async (p) => {
+  ["classic-view", ["anon", "owner"], () => pageUrl(X.classic), (p) => p.locator("h1:visible").first()],
+  ["classic-view-body", ["anon"], () => pageUrl(X.classic), (p) => p.locator("h1:visible").first(), async (p) => {
     await p.locator("table").first().scrollIntoViewIfNeeded();
   }],
   ["classic-edit", ["owner"], () => `${pageUrl(X.mine)}?edit=1`, (p) => p.locator("textarea, .ProseMirror, [contenteditable=true], .cm-editor").first()],
@@ -304,9 +304,11 @@ async function measureFrames(p) {
   const res = [];
   for (const f of p.frames()) {
     if (f === p.mainFrame()) continue;
+    // A user's own HTML file is theirs: only sideways scroll counts there (the frame sizing is ours).
+    const user = /\/r\//.test(f.url());
     try {
       const r = await f.evaluate(measure, { checkTargets: true });
-      for (const x of r) if (["hscroll", "target", "text", "input", "zoom", "image"].includes(x.rule)) res.push({ ...x, who: `frame:${x.who}` });
+      for (const x of r) if ((user ? ["hscroll"] : ["hscroll", "target", "text", "input", "zoom", "image"]).includes(x.rule)) res.push({ ...x, who: `frame:${x.who}` });
     } catch {}
   }
   return res;
@@ -331,8 +333,10 @@ async function newContext(dev, theme, role) {
   // SHARED_CSS=<file>: inject another branch's shared touch layer (fix/mobile-shell's ui/touch.css) to
   // audit this area as it will be once both land.
   if (SHARED) await c.addInitScript((css) => {
-    const add = () => { const s = document.createElement("style"); s.dataset.shared = ""; s.textContent = css; document.head.appendChild(s); };
-    if (document.head) add(); else document.addEventListener("DOMContentLoaded", add);
+    // Outside <head> and <body>: React owns those and would drop a stranger on hydration.
+    const add = () => { if (document.querySelector("style[data-shared]")) return; const s = document.createElement("style"); s.dataset.shared = ""; s.textContent = css; document.documentElement.appendChild(s); };
+    document.addEventListener("DOMContentLoaded", add);
+    window.addEventListener("load", add);
   }, SHARED);
   await c.addInitScript(([t, th]) => {
     try {

@@ -118,6 +118,9 @@ export function measure({ checkTargets }) {
       }
       if (el.matches(".pb-mention, .dxe-mention, [data-pb=mention], [data-pb=mention] *")) continue; // an inline chip in running text
       if (r.width >= 43.5 && r.height >= 43.5) continue;
+      // A text field as wide as a line of text (a callout's title, a code block's caption): the whole
+      // line is the target, so 24 px tall is enough (WCAG 2.5.8); a short one still needs 44.
+      if (el.matches("input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=button]):not([type=submit]), textarea") && r.width >= 120 && r.height >= 19.5) continue;
       const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
       const atCentre = document.elementFromPoint(Math.min(vw - 1, Math.max(0, cx)), Math.min(vh - 1, Math.max(0, cy)));
       if (!atCentre || !(target === atCentre || target.contains(atCentre) || atCentre.contains(target))) continue;
@@ -144,7 +147,8 @@ export function measure({ checkTargets }) {
   for (let n = walker.nextNode(); n; n = walker.nextNode()) {
     if (!n.nodeValue.trim()) continue;
     const el = n.parentElement;
-    if (!el || el.closest("script, style, noscript, svg, .katex, [data-audit-skip]")) continue;
+    // .textLayer: pdf.js's invisible copy of a PDF page's text (it's drawn on the canvas below it).
+    if (!el || el.closest("script, style, noscript, svg, .katex, .textLayer, [data-audit-skip]")) continue;
     const f = parseFloat(getComputedStyle(el).fontSize);
     if (f >= 11.95) continue;
     if (!visible(el)) continue;
@@ -157,7 +161,7 @@ export function measure({ checkTargets }) {
     const cs = getComputedStyle(el);
     if (cs.position !== "fixed" && cs.position !== "sticky") continue;
     if (!visible(el) || cs.pointerEvents === "none") continue;
-    if (el.closest('[aria-modal="true"], [role=menu], [role=listbox], [role=tooltip], .md-popover, .md-scrim, .md-drawer-scrim, .md-skiplink, .pb-railscrim, [data-audit-skip]')) continue;
+    if (el.closest('[aria-modal="true"], [role=menu], [role=listbox], [role=tooltip], .md-popover, .md-scrim, .md-drawer-scrim, .md-skiplink, .pb-railscrim, .dxe-pop, .dxe-slash, .dxe-people, [data-audit-skip]')) continue;
     if (el.matches('[aria-modal="true"], .md-scrim, .md-drawer-scrim, .pb-railscrim')) continue;
     const r = el.getBoundingClientRect();
     if (r.width * r.height >= vw * vh * 0.9) continue;

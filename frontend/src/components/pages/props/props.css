@@ -268,3 +268,8 @@ button.pp-td:focus-visible { outline: 2px solid var(--border-focus); outline-off
   .pp-pop, .pp-sheet, .pp-sheet-backdrop, .pp-check--on { animation: none; }
   .pp-card, .pp-group__head svg, .pp-swatch, .pp-col { transition: none; }
 }
+
+/* A finger (fix/mobile-content): nothing under 12 px. */
+@media (pointer: coarse) {
+  .pp-avatar, .pp-avatar--lg, .pp-cal__dow { font-size: 12px; }
+}

@@ -785,6 +785,8 @@ function pdfViewer(src, theme) {
   const css = `
   .wrap{background:var(--surface-inset)}
   .pdf{display:flex;flex-direction:column;align-items:center;gap:16px;padding:16px;min-width:min-content}
+  /* Two fingers zoom the pages (the script), not the page around the frame; one finger scrolls. */
+  #scroller{touch-action:pan-x pan-y}
   .page{position:relative;flex:none;border-radius:2px;overflow:hidden;background:var(--paper);box-shadow:var(--shadow-page)}
   .page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
   /* pdf.js 4.x text layer: invisible text sitting exactly over the drawn glyphs. */
@@ -988,6 +990,40 @@ try {
     lastW = scroller.clientWidth;
     if (fit) layout();
   }).observe(scroller);
+  // Pinch to zoom on a touch screen: the pages scale under the fingers (a CSS transform, live), then
+  // re-draw sharp at the new zoom, keeping the point between the fingers where it was. Without this a
+  // pinch zoomed the whole app around the frame, blurry, and the toolbar went off-screen.
+  let pinch = null;
+  const spread = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  scroller.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 2) return;
+    const r = scroller.getBoundingClientRect();
+    const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left;
+    const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top;
+    pinch = { d: spread(e.touches) || 1, z: zoomNow(), k: 1, cx, cy, x: scroller.scrollLeft + cx, y: scroller.scrollTop + cy };
+    out.style.transformOrigin = (pinch.x - out.offsetLeft) + 'px ' + (pinch.y - out.offsetTop) + 'px';
+  }, { passive: true });
+  scroller.addEventListener('touchmove', (e) => {
+    if (!pinch || e.touches.length !== 2) return;
+    e.preventDefault();
+    pinch.k = Math.max(STEPS[0] / pinch.z, Math.min(STEPS[STEPS.length - 1] / pinch.z, spread(e.touches) / pinch.d));
+    out.style.transform = 'scale(' + pinch.k + ')';
+  }, { passive: false });
+  const endPinch = () => {
+    if (!pinch) return;
+    const p = pinch;
+    pinch = null;
+    out.style.transform = '';
+    if (Math.abs(p.k - 1) < 0.02) return;
+    fit = false;
+    zoom = p.z * p.k;
+    layout();
+    scroller.scrollLeft = p.x * p.k - p.cx;
+    scroller.scrollTop = p.y * p.k - p.cy;
+    say('Zoom ' + Math.round(zoom * 100) + '%');
+  };
+  scroller.addEventListener('touchend', (e) => { if (e.touches.length < 2) endPinch(); });
+  scroller.addEventListener('touchcancel', endPinch);
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === '+' || e.key === '=') { e.preventDefault(); step(1); }
@@ -1042,7 +1078,9 @@ function sheetViewer(src, theme) {
     color:var(--text-muted);font-size:11px;font-weight:600;letter-spacing:.02em}
   .grid th.rn{position:sticky;left:0;z-index:1;min-width:44px;padding:0 8px;text-align:center;
     background:var(--surface-inset);color:var(--text-muted);font-size:11px;font-weight:500}
-  .grid thead th.rn{z-index:3}`;
+  .grid thead th.rn{z-index:3}
+  /* A finger: the column letters and row numbers at 12 px. */
+  @media (pointer:coarse){.grid thead th,.grid th.rn{font-size:12px}}`;
   const body = `<header class="bar" id="bar">
 <div id="tabs" class="pills" role="tablist" aria-label="Sheets" hidden></div>
 <span class="grow"></span>
@@ -1422,6 +1460,14 @@ function videoViewer(src, poster = null) {
     border-radius:9px;padding:4px;display:none;min-width:104px;box-shadow:0 8px 28px rgb(0 0 0 / .5)}
   .menu.open>div{display:block}
   .menu div button{width:100%;justify-content:space-between;font-size:12px;padding:6px 9px;line-height:1.4}
+  /* A finger: 44 px buttons, a taller scrubber with its knob always there (no hover to show it). */
+  @media (pointer:coarse){
+    button{min-width:44px;min-height:44px}
+    .menu div button{font-size:14px;min-height:44px}
+    .menu>div{bottom:50px}
+    .bar{height:28px}
+    .knob{transform:translateY(-50%) scale(1)}
+  }
   .menu div button[aria-checked=true]{color:var(--accent-text)}
   #big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
     background:transparent;border:0;cursor:pointer;padding:0}

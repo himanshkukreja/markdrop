@@ -582,7 +582,7 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-bar__auth > button, .pb-bar__auth .md-dropdown > button { width: 44px; height: 44px; }
   .pb-bar__create .md-create { width: 44px; height: 44px; }
   .pb-bar__brand .md-logo { min-width: 44px; min-height: 44px; justify-content: center; }
-  .pb-crumb__link { height: 44px; }
+  .pb-crumb__link { height: 44px; min-width: 44px; }
   .pb-crumb__more { min-width: 44px; }
   .pb-save { font-size: 12px; }
 
@@ -606,7 +606,11 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 
   /* The editor's own controls inside a block: callout type, toggle arrow, labels and captions. */
   .pb-frame .dxe-callout__kindbtn { min-width: 44px; min-height: 44px; margin: -14px; }
-  .pb-frame .dxe-details__toggle { padding: 12px; margin: -10px; }
+  .pb-frame .dxe-details__toggle { padding: 14px; margin: -12px; }
+  .pb-frame .dxe-code__wrap { padding: 14px; margin: -10px; }
+  .dxe-pembed__tools .md-seg__opt { min-width: 44px; }
+  .pb-colors__head { font-size: 12px; }
+  .pb-bar__auth .md-avatar { font-size: 12px; }
   .pb-frame :is(.dxe-label, .dxe-code__title, .dxe-code__lang, .dxe-codecap, .pb-date-input) { font-size: 16px; }
   .pb-frame .dxe-handle--touch .dxe-handle__btn { width: 44px; height: 44px; }
   .pb-frame :is(.md-diagram__kind, .md-codeblock__lang, .md-table th) { font-size: 12px; }

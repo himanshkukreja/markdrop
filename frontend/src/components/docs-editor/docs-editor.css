@@ -614,7 +614,9 @@ body.dxe-sidedrop .dxe-dropline { opacity: 0; }
 @media (pointer: coarse) {
   .dxe-tb { max-width: calc(100vw - 16px); flex-wrap: wrap; }
   .dxe-tb__btn { min-width: 44px; height: 44px; }
+  .dxe-tablebar { flex-wrap: wrap; max-width: calc(100vw - 48px); }
   .dxe-tablebar .md-btn, .dxe-tablebar .dxe-tb__btn { min-width: 44px; min-height: 44px; }
+  .dxe-tb__itemhint, .dxe-private__kicker { font-size: 12px; }
   .dxe-slash__head { font-size: 12px; line-height: 16px; }
   .dxe-slash__kbd { display: none; }
   .dxe-selbar__btn { height: 44px; }
