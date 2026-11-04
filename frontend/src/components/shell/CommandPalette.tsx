@@ -1,22 +1,31 @@
 "use client";
 
 /**
- * ⌘K quick search (CommandK board). ⌘K / Ctrl+K (or the header's search field) opens it; it searches
- * titles of the caller's files, the workspaces they're in and what's shared with them
- * (`GET /search/quick`, debounced), and offers actions for the folder in view (Upload to…, Share…,
- * Invite people to…, New folder). Results come from the server already filtered to what the caller
- * can open.
+ * ⌘K global search. ⌘K / Ctrl+K (or the header's search field) opens it. It searches everything the
+ * person can open (`GET /api/v1/search`, debounced 120 ms, results kept on screen while the next ones
+ * load): pages, documents and files by title, headings, text and file contents, with typos, partial
+ * words and any word order; folders, workspaces and Guides pages; and their Trash at the bottom
+ * ("In Trash · Restore"). The current workspace ranks higher; a chip narrows to it.
  *
- * ARIA: a combobox input that owns a listbox (aria-activedescendant); groups are labelled; ↑ ↓ move,
- * ↵ opens, Esc closes (the DS Dialog's layer), focus returns to whatever opened it.
+ * AI: "Ask AI ✦" (⌘↵) asks Claude Haiku 5.5 about the person's documents (`POST /search/ask`, SSE);
+ * it also runs on its own once a query reads like a question or a description. The answer streams
+ * into a card above the results, citing the items it used.
+ *
+ * Keyboard: ↑ ↓ move, ↵ opens, ⇧↵ opens in a new tab, ⌘↵ asks AI, Tab reaches the filters, Esc closes.
+ * ARIA: a combobox input owning a grouped listbox (aria-activedescendant).
  */
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Dialog, FileIcon, Icon, Kbd, Spinner } from "@/components/ui";
-import { listRecent, quickSearch, type PersonalItem, type QuickResults } from "@/lib/me";
-import { ancestry, peekTree } from "@/lib/workspaceStore";
+import { Dialog, Icon, Kbd, Spinner, useToast } from "@/components/ui";
+import { AiAnswer, ResultBody, TrashBody, useAiSearch } from "@/components/search/parts";
+import { listRecent, type PersonalItem } from "@/lib/me";
+import {
+  forgetSearches, hrefOf, recentSearches, rememberSearch, search, searchAiStatus,
+  type AiStatus, type SearchItem, type SearchKind, type SearchResponse, type TrashHit,
+} from "@/lib/search";
+import { looksLikeQuestion } from "@/lib/searchCore.mjs";
+import { restoreFromTrash } from "@/lib/trash";
 import { openHref } from "@/lib/workspaces";
-import { kindLabel } from "@/lib/itemKind";
 import s from "./CommandPalette.module.css";
 
 export interface PaletteAction {
@@ -27,13 +36,10 @@ export interface PaletteAction {
   run: () => void;
 }
 
-interface Row {
-  id: string;
-  label: string;
-  where: string;
-  icon: React.ReactNode;
-  run: () => void;
-}
+type Row =
+  | { id: string; type: "item"; item: SearchItem; run: (newTab?: boolean) => void }
+  | { id: string; type: "trash"; item: TrashHit; run: (newTab?: boolean) => void }
+  | { id: string; type: "plain"; label: string; where?: string; icon: string; run: (newTab?: boolean) => void };
 
 interface Group {
   name: string;
@@ -41,184 +47,230 @@ interface Group {
 }
 
 const MIN = 2;
+const DEBOUNCE_MS = 120;
+const AUTO_AI_MS = 650;
 
-function fileIcon(f: { kind?: string; mime?: string | null; title?: string | null; slug: string }) {
-  return f.kind === "artifact"
-    ? <FileIcon name={f.title || f.slug} mime={f.mime || ""} size={18} />
-    : <Icon name="doc" size={18} />;
-}
-
-/** A file row's second column: its kind and link first (two items can share a title: a page and the
- *  HTML file it was made from), then where it is. The place truncates first. */
-function fileWhere(f: { slug: string; kind?: string | null; editor?: string | null; type_label?: string | null; encrypted?: boolean }, place: string): string {
-  return [kindLabel(f), f.encrypted ? null : `/${f.slug}`, place].filter(Boolean).join(" · ");
-}
-
-function folderWhere(wsId: string, wsName: string, folderId: string): string {
-  const tree = peekTree(wsId);
-  const parents = tree ? ancestry(tree.folders, folderId).slice(0, -1).map((f) => f.name) : [];
-  return [wsName, ...parents].join(" › ");
-}
+const KIND_CHIPS: Array<{ value: SearchKind | null; label: string }> = [
+  { value: null, label: "All" },
+  { value: "page", label: "Pages" },
+  { value: "doc", label: "Documents" },
+  { value: "file", label: "Files" },
+  { value: "folder", label: "Folders" },
+  { value: "guide", label: "Guides" },
+];
 
 export default function CommandPalette({
-  open, onClose, actions,
+  open, onClose, actions, workspace,
 }: {
   open: boolean;
   onClose: () => void;
   /** Local actions for the folder in view ("Upload to Guides", …). */
   actions: PaletteAction[];
+  /** The workspace the person is in: ranked higher, and a chip narrows the search to it. */
+  workspace?: { id: string; name: string } | null;
 }) {
   const router = useRouter();
+  const toast = useToast();
   const [q, setQ] = useState("");
-  const [results, setResults] = useState<QuickResults | null>(null);
-  const [recent, setRecent] = useState<PersonalItem[] | null>(null);
+  const [kind, setKind] = useState<SearchKind | null>(null);
+  const [here, setHere] = useState(false);
+  const [results, setResults] = useState<SearchResponse | null>(null);
+  const [resultsFor, setResultsFor] = useState("");
+  const [recentQ, setRecentQ] = useState<string[]>([]);
+  const [recentItems, setRecentItems] = useState<PersonalItem[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
   const [active, setActive] = useState(0);
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
+  const autoAsked = useRef<string>("");
+  const ai = useAiSearch();
+  const { reset: resetAi, run: runAi } = ai;
   const uid = useId();
+  const scope = here && workspace ? workspace.id : null;
 
   // Fresh each time it opens.
   useEffect(() => {
     if (!open) return;
     setQ("");
     setResults(null);
+    setResultsFor("");
     setFailed(false);
     setActive(0);
+    setKind(null);
+    setHere(false);
+    resetAi();
+    autoAsked.current = "";
+    setRecentQ(recentSearches());
     let live = true;
-    listRecent().then((r) => live && setRecent(r.slice(0, 5))).catch(() => live && setRecent([]));
+    listRecent().then((r) => live && setRecentItems(r.slice(0, 5))).catch(() => live && setRecentItems([]));
+    searchAiStatus().then((st) => live && setAiStatus(st)).catch(() => live && setAiStatus(null));
     return () => { live = false; };
-  }, [open]);
+  }, [open, resetAi]);
 
-  // Debounced search.
+  // Debounced search; what is on screen stays until the next answer lands (no flicker).
   useEffect(() => {
     const term = q.trim();
-    if (!open || term.length < MIN) { setResults(null); setLoading(false); return; }
+    if (!open || term.length < MIN) { setResults(null); setResultsFor(""); setLoading(false); return; }
     const ctl = new AbortController();
     setLoading(true);
     const t = setTimeout(() => {
-      quickSearch(term, 8, ctl.signal)
-        .then((r) => { setResults(r); setFailed(false); })
-        .catch((e) => { if (!ctl.signal.aborted) { setFailed(true); setResults(null); void e; } })
+      search({ q: term, kind, scope, current: workspace?.id ?? null, limit: 8 }, ctl.signal)
+        .then((r) => { setResults(r); setResultsFor(term); setFailed(false); })
+        .catch(() => { if (!ctl.signal.aborted) { setFailed(true); setResults(null); } })
         .finally(() => { if (!ctl.signal.aborted) setLoading(false); });
-    }, 160);
+    }, DEBOUNCE_MS);
     return () => { clearTimeout(t); ctl.abort(); };
-  }, [q, open]);
+  }, [q, kind, scope, open, workspace?.id, nonce]);
 
-  const go = useCallback((href: string) => { onClose(); router.push(href); }, [onClose, router]);
-  /** Files open in a new tab, like a click on their row. */
-  const openFile = useCallback((href: string) => { onClose(); window.open(href, "_blank", "noopener,noreferrer"); }, [onClose]);
+  const aiOn = aiStatus?.enabled !== false;
+  const askAi = useCallback((question?: string) => {
+    const term = (question ?? q).trim();
+    if (term.length < MIN || !aiOn) return;
+    autoAsked.current = term;
+    setRecentQ(rememberSearch(term));
+    runAi(term, scope, workspace?.id ?? null);
+  }, [q, aiOn, runAi, scope, workspace?.id]);
 
+  // AI runs on its own for a question or a description, once the person stops typing.
+  useEffect(() => {
+    const term = q.trim();
+    if (!open || !aiOn || !looksLikeQuestion(term) || autoAsked.current === term) return;
+    const t = setTimeout(() => askAi(term), AUTO_AI_MS);
+    return () => clearTimeout(t);
+  }, [q, open, aiOn, askAi]);
+
+  // Typing something else (not another question) puts the last answer away.
+  const askedFor = ai.state.question;
+  const aiIdle = ai.state.status === "idle";
+  useEffect(() => {
+    const term = q.trim();
+    if (!aiIdle && askedFor && term !== askedFor && !looksLikeQuestion(term)) resetAi();
+  }, [q, aiIdle, askedFor, resetAi]);
+
+  const openItem = useCallback((item: { url: string | null; kind?: string; slug?: string }, newTab?: boolean) => {
+    if (!item.url) return;
+    if (q.trim().length >= MIN) setRecentQ(rememberSearch(q));
+    const { href, external } = hrefOf({ url: item.url, kind: (item.kind as SearchKind) || "doc", slug: item.slug });
+    onClose();
+    if (external || newTab) window.open(href, "_blank", "noopener,noreferrer");
+    else router.push(href);
+  }, [q, onClose, router]);
+
+  const restore = useCallback(async (t: TrashHit) => {
+    setRestoring(t.key);
+    try {
+      await restoreFromTrash(t.key);
+      toast.success(`Restored “${t.title}”`);
+      setNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't restore it. Try again from Trash.");
+    } finally {
+      setRestoring(null);
+    }
+  }, [toast]);
+
+  const term = q.trim();
   const groups = useMemo<Group[]>(() => {
     const out: Group[] = [];
-    const term = q.trim();
     if (term.length >= MIN && results) {
-      if (results.files.length) {
+      for (const g of results.groups) {
         out.push({
-          name: "Files",
-          rows: results.files.map((f) => ({
-            id: `file:${f.slug}`,
+          name: g.label,
+          rows: g.items.map((item) => ({ id: `r:${item.key}`, type: "item" as const, item, run: (nt?: boolean) => openItem(item, nt) })),
+        });
+      }
+      if (results.trash.length) {
+        out.push({
+          name: "In Trash",
+          rows: results.trash.map((t) => ({ id: `t:${t.key}`, type: "trash" as const, item: t, run: () => { onClose(); router.push("/trash"); } })),
+        });
+      }
+      const all = results.groups.reduce((n, g) => n + g.items.length, 0);
+      if (all) {
+        const qs = new URLSearchParams({ q: term });
+        if (scope) qs.set("scope", scope);
+        if (kind) qs.set("kind", kind);
+        out.push({
+          name: "More",
+          rows: [{ id: "see-all", type: "plain", icon: "search", label: `See all results for “${term}”`, where: "Filters, more results",
+            run: () => { rememberSearch(term); onClose(); router.push(`/search?${qs}`); } }],
+        });
+      }
+    } else if (term.length < MIN) {
+      if (recentQ.length) {
+        out.push({
+          name: "Recent searches",
+          rows: recentQ.slice(0, 5).map((r) => ({ id: `rq:${r}`, type: "plain" as const, icon: "history", label: r, run: () => { setQ(r); inputRef.current?.focus(); } })),
+        });
+      }
+      if (recentItems?.length) {
+        out.push({
+          name: "Recently opened",
+          rows: recentItems.map((f) => ({
+            id: `recent:${f.slug}`, type: "plain" as const, icon: f.kind === "artifact" ? "archive" : f.editor === "blocks" ? "lines" : "doc",
             label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
-            where: fileWhere(f, f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : f.source === "shared" ? "Shared with me" : "My files"),
-            icon: fileIcon(f),
-            run: () => openFile(openHref(f.slug, f.url, f.encrypted)),
+            where: f.workspace?.name ?? "My files",
+            run: (nt?: boolean) => {
+              onClose();
+              const href = openHref(f.slug, f.url, f.encrypted);
+              if (nt) window.open(href, "_blank", "noopener,noreferrer");
+              else window.location.assign(href);
+            },
           })),
         });
       }
-      if (results.folders.length) {
-        out.push({
-          name: "Folders",
-          rows: results.folders.map((f) => ({
-            id: `folder:${f.id}`,
-            label: f.name,
-            where: folderWhere(f.workspace.id, f.workspace.name, f.id),
-            icon: <Icon name="folder" size={18} />,
-            run: () => go(`/w/${encodeURIComponent(f.workspace.id)}/f/${encodeURIComponent(f.id)}`),
-          })),
-        });
-      }
-      if (results.workspaces.length) {
-        out.push({
-          name: "Workspaces",
-          rows: results.workspaces.map((w) => ({
-            id: `ws:${w.id}`,
-            label: w.name,
-            where: "Workspace",
-            icon: <Icon name="users" size={18} />,
-            run: () => go(`/w/${encodeURIComponent(w.id)}`),
-          })),
-        });
-      }
-    } else if (term.length < MIN && recent && recent.length) {
-      out.push({
-        name: "Recent",
-        rows: recent.map((f) => ({
-          id: `recent:${f.slug}`,
-          label: (f.encrypted ? f.slug : f.title?.trim()) || f.slug,
-          where: fileWhere(f, f.workspace ? [f.workspace.name, ...(f.folder ? [f.folder.name] : [])].join(" › ") : "My files"),
-          icon: fileIcon(f),
-          run: () => openFile(openHref(f.slug, f.url, f.encrypted)),
-        })),
-      });
     }
-    // The folder's actions stay on offer whatever is typed (CommandK board): they're about where you are.
-    const acts = actions;
+    // The folder's actions stay on offer (CommandK board): they're about where you are.
+    const acts = term.length >= MIN ? actions.filter((a) => a.label.toLowerCase().includes(term.toLowerCase())) : actions;
     if (acts.length) {
       out.push({
         name: "Actions",
-        rows: acts.map((a) => ({
-          id: `act:${a.id}`,
-          label: a.label,
-          where: a.where,
-          icon: <Icon name={a.icon} size={18} />,
-          run: () => { onClose(); a.run(); },
-        })),
+        rows: acts.map((a) => ({ id: `act:${a.id}`, type: "plain" as const, icon: a.icon, label: a.label, where: a.where, run: () => { onClose(); a.run(); } })),
       });
     }
     return out;
-  }, [q, results, recent, actions, go, openFile, onClose]);
+  }, [term, results, recentQ, recentItems, actions, openItem, onClose, router, scope, kind]);
 
   const flat = useMemo(() => groups.flatMap((g) => g.rows), [groups]);
-  useEffect(() => { setActive(0); }, [flat.length, q]);
+  useEffect(() => { setActive(0); }, [resultsFor, kind, scope]);
   const current = flat[Math.min(active, flat.length - 1)];
   const optId = (r: Row) => `${uid}-opt-${r.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-  // Keep the active option in view.
+  const currentId = current ? optId(current) : null;
   useEffect(() => {
-    if (!current) return;
-    document.getElementById(optId(current))?.scrollIntoView({ block: "nearest" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id]);
+    if (currentId) document.getElementById(currentId)?.scrollIntoView({ block: "nearest" });
+  }, [currentId]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (e.key === "ArrowDown") { e.preventDefault(); setActive((i) => (flat.length ? (i + 1) % flat.length : 0)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setActive((i) => (flat.length ? (i - 1 + flat.length) % flat.length : 0)); }
-    else if (e.key === "Home" && flat.length) { e.preventDefault(); setActive(0); }
-    else if (e.key === "End" && flat.length) { e.preventDefault(); setActive(flat.length - 1); }
-    else if (e.key === "Enter") { if (current) { e.preventDefault(); current.run(); } }
+    else if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); askAi(); }
+    else if (e.key === "Enter") { if (current) { e.preventDefault(); current.run(e.shiftKey); } }
   }
 
-  const term = q.trim();
   const listId = `${uid}-list`;
+  const nResults = results ? results.groups.reduce((n, g) => n + g.items.length, 0) + results.trash.length : 0;
   const statusText = term.length < MIN
     ? ""
-    : loading ? "Searching…" : failed ? "Search isn't available right now." : flat.length ? `${flat.length} results` : `No matches for “${term}”`;
+    : loading && !results ? "Searching…" : failed ? "Search isn't available right now." : nResults ? `${nResults} results` : `No matches for “${term}”`;
+  const stale = loading && !!results && resultsFor !== term;
 
   return (
-    <Dialog open={open} onClose={onClose} title="Quick search" className={s.palette} initialFocus={inputRef}>
-      {/* Replays: the field is blocked (its aria-activedescendant carries a file's slug), and so are
-          the results (titles, folders, workspaces) and the status that echoes the query. */}
-      <label className={`ph-no-capture ${s.field}`}>
-        {loading ? <Spinner size={18} /> : <Icon name="search" size={18} />}
+    <Dialog open={open} onClose={onClose} title="Search" className={s.palette} initialFocus={inputRef}>
+      {/* Replays: the field, results and status echo titles and the query: blocked or masked. */}
+      <div className={`ph-no-capture ${s.field}`}>
+        <span className={s.fieldIcon} aria-hidden>{loading ? <Spinner size={18} /> : <Icon name="search" size={18} />}</span>
         <input
           ref={inputRef}
           className={s.input}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Search or jump to"
-          aria-label="Search or jump to"
+          placeholder={workspace && here ? `Search ${workspace.name}, or ask a question` : "Search everything, or ask a question"}
+          aria-label="Search everything, or ask a question"
           role="combobox"
           aria-expanded={flat.length > 0}
           aria-controls={listId}
@@ -226,53 +278,106 @@ export default function CommandPalette({
           aria-activedescendant={current ? optId(current) : undefined}
           autoComplete="off"
           spellCheck={false}
-          maxLength={120}
+          maxLength={200}
+          data-testid="search-input"
         />
-        <Kbd>Esc</Kbd>
-      </label>
+        <button
+          type="button"
+          className={s.askBtn}
+          onClick={() => askAi()}
+          disabled={term.length < MIN || !aiOn}
+          title={!aiOn ? aiStatus?.message ?? "AI search isn't available" : "Ask AI about your documents (⌘↵)"}
+          data-testid="ask-ai"
+        >
+          <Icon name="sparkle" size={14} /> <span className={s.askLabel}>Ask AI</span>
+        </button>
+        <button type="button" className={s.closeBtn} onClick={onClose} aria-label="Close search"><Kbd>Esc</Kbd></button>
+      </div>
+      <div className={s.filters} role="toolbar" aria-label="Filters">
+        {KIND_CHIPS.map((c) => (
+          <button key={c.label} type="button" className={s.chip} aria-pressed={kind === c.value}
+            onClick={() => { setKind(c.value); inputRef.current?.focus(); }}>
+            {c.label}
+          </button>
+        ))}
+        {workspace && (
+          <button type="button" className={`${s.chip} ${s.scopeChip}`} aria-pressed={here}
+            onClick={() => { setHere((h) => !h); inputRef.current?.focus(); }}
+            title={here ? "Searching only this workspace" : "Search only this workspace"}>
+            <Icon name="users" size={12} /> {here ? workspace.name : `Only ${workspace.name}`}
+          </button>
+        )}
+      </div>
       <span className="ph-sensitive ph-mask md-visually-hidden" role="status" aria-live="polite">{statusText}</span>
 
-      <ul ref={listRef} id={listId} role="listbox" aria-label="Results" className={`ph-no-capture ${s.list}`}>
-        {groups.map((g) => (
-          <li key={g.name} role="presentation">
-            <p className={s.group} aria-hidden>{g.name}</p>
-            <ul role="group" aria-label={g.name} className="m-0 flex list-none flex-col gap-0.5 p-0">
-              {g.rows.map((r) => {
-                const on = current?.id === r.id;
-                return (
-                  <li
-                    key={r.id}
-                    id={optId(r)}
-                    role="option"
-                    aria-selected={on}
-                    className={s.option}
-                    onMouseMove={() => { const i = flat.indexOf(r); if (i !== active) setActive(i); }}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => r.run()}
-                  >
-                    <span className={s.icon} aria-hidden>{r.icon}</span>
-                    <span className="min-w-0 flex-1 truncate" dir="auto">{r.label}</span>
-                    <span className={s.where}>{r.where}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          </li>
-        ))}
-        {term.length >= MIN && !loading && !flat.length && (
-          <li role="presentation" className="px-3 py-6 text-center text-body text-text-muted">
-            {failed ? "Search isn't available right now. Try again in a moment." : <>Nothing matches “{term}”.</>}
-          </li>
+      <div className={`ph-no-capture ${s.scroll}`}>
+        {ai.state.status !== "idle" && (
+          <AiAnswer compact state={ai.state} onOpen={openItem} onRetry={() => askAi(ai.state.question)} />
         )}
-        {term.length < MIN && !flat.length && (
-          <li role="presentation" className="px-3 py-6 text-center text-body text-text-muted">Type at least two letters to search.</li>
+        <ul id={listId} role="listbox" aria-label="Results" className={`${s.list} ${stale ? s.stale : ""}`}>
+          {groups.map((g) => (
+            <li key={g.name} role="presentation">
+              <p className={s.group} aria-hidden>{g.name}</p>
+              <ul role="group" aria-label={g.name} className={s.rows}>
+                {g.rows.map((r) => {
+                  const on = current?.id === r.id;
+                  return (
+                    <li
+                      key={r.id}
+                      id={optId(r)}
+                      role="option"
+                      aria-selected={on}
+                      className={`${s.option} ${r.type === "plain" ? s.optionPlain : ""}`}
+                      data-kind={r.type === "item" ? r.item.kind : r.type}
+                      onMouseMove={() => { const i = flat.indexOf(r); if (i !== active) setActive(i); }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={(e) => r.run(e.metaKey || e.ctrlKey || e.shiftKey)}
+                    >
+                      {r.type === "item" ? <ResultBody item={r.item} compact />
+                        : r.type === "trash" ? <TrashBody item={r.item} restoring={restoring === r.item.key} onRestore={() => void restore(r.item)} />
+                          : (
+                            <>
+                              <span className={s.plainIcon} aria-hidden><Icon name={r.icon} size={16} /></span>
+                              <span className={s.plainLabel} dir="auto">{r.label}</span>
+                              {r.where && <span className={s.where}>{r.where}</span>}
+                            </>
+                          )}
+                      {on && r.type !== "trash" && <span className={s.enter} aria-hidden>↵</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </li>
+          ))}
+          {term.length >= MIN && !loading && !flat.length && (
+            <li role="presentation" className={s.empty}>
+              {failed ? "Search isn't available right now. Try again in a moment." : (
+                <>
+                  <span className={s.emptyTitle}>Nothing matches “{term}”</span>
+                  <span>Try fewer words, another spelling, or {aiOn ? <button type="button" className={s.inlineBtn} onClick={() => askAi()}>ask AI ✦</button> : "a different filter"}.</span>
+                </>
+              )}
+            </li>
+          )}
+          {term.length < MIN && !recentQ.length && !recentItems?.length && (
+            <li role="presentation" className={s.empty}>
+              <span className={s.emptyTitle}>Search everything you can open</span>
+              <span>Pages, documents, files and what&apos;s inside them, folders, workspaces and guides.</span>
+              <span className={s.tips}>Typos are fine · word order doesn&apos;t matter · ask a question for an AI answer</span>
+            </li>
+          )}
+        </ul>
+        {term.length < MIN && recentQ.length > 0 && (
+          <button type="button" className={s.clearRecent} onClick={() => { forgetSearches(); setRecentQ([]); }}>Clear recent searches</button>
         )}
-      </ul>
+      </div>
 
       <div className={s.foot}>
-        <span className="flex items-center gap-1"><Kbd>↑</Kbd><Kbd>↓</Kbd> to move</span>
-        <span className="flex items-center gap-1"><Kbd>↵</Kbd> to open</span>
-        <span className={`ml-auto ${s.hideSm}`}>Searches your files, workspaces and folders</span>
+        <span className={s.keys}><Kbd>↑</Kbd><Kbd>↓</Kbd> move</span>
+        <span className={s.keys}><Kbd>↵</Kbd> open</span>
+        <span className={`${s.keys} ${s.hideSm}`}><Kbd>⌘</Kbd><Kbd>↵</Kbd> ask AI</span>
+        <span className={`${s.keys} ${s.hideSm}`}><Kbd>Tab</Kbd> filters</span>
+        <span className={`${s.took} ${s.hideSm}`}>{results && term.length >= MIN && !loading ? `${results.took_ms} ms` : ""}</span>
       </div>
     </Dialog>
   );

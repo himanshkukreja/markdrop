@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "global-search",
+      "date": "2026-11-04",
+      "title": "Search everything, with typos, and ask AI",
+      "kind": "new",
+      "area": "Search",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "⌘K now searches everything you can open: titles, headings, text and file contents, across your files, workspaces, shares, Guides and Trash. It forgives typos, and Ask AI answers a question from your documents with sources.",
+      "body": "- **Everything you can open.** Your own pages, documents and files (private ones too), every workspace you're in, what's shared with you, folders, workspaces, Guides pages, and your Trash at the bottom with **Restore**.\n- **Fuzzy and instant.** Typos, partial words and any word order: `onbording plyabook` finds **Onboarding Playbook**. Results update as you type, with the matching words highlighted in the title and a snippet.\n- **Inside the text and files.** Headings and page text, plus the text of HTML pages, PDFs and text files. A match in a heading opens at that section.\n- **Ask AI ✦.** Ask a question, or type one, and Claude Haiku 5.5 answers from your items, citing each source. Only text you can open is sent; encrypted items never are.\n- **A full results page.** **See all results** opens /search with filters for kind, workspace, owner and date.\n- **For AI apps.** The MCP `search` tool uses the new search, and the new `ask_documents` tool asks a question (64 tools now).",
+      "docs": [
+        "/workspaces/search",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "page-export-and-editor-fixes",
       "date": "2026-11-04",
       "title": "Page exports look like the page, and a page stays a page",
