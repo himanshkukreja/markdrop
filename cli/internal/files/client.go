@@ -47,6 +47,8 @@ type APIError struct {
 	Status int
 	Detail string // the server's "detail", or the body
 	Op     string // what we were doing, e.g. "start the upload"
+	Code   string // the server's machine-readable "code", when it sent one
+	Header http.Header
 }
 
 func (e *APIError) Error() string {
@@ -351,18 +353,37 @@ func parseInfo(raw json.RawMessage) (*FileInfo, error) {
 	return &fi, nil
 }
 
-// do sends one API request, retrying transient failures (network errors,
+// do sends one JSON API request, retrying transient failures (network errors,
 // 429, 502, 503, 504) with backoff. It returns the HTTP status.
 func (c *Client) do(ctx context.Context, method, path string, body, out any, op string) (int, error) {
-	if strings.TrimSpace(c.Token) == "" {
-		return 0, ErrNoToken
-	}
 	var payload []byte
 	if body != nil {
 		var err error
 		if payload, err = json.Marshal(body); err != nil {
 			return 0, err
 		}
+	}
+	return c.send(ctx, apiRequest{method: method, path: path, payload: payload, out: out, op: op, retry: true})
+}
+
+// apiRequest is one call to the API.
+type apiRequest struct {
+	method, path string
+	payload      []byte // nil: no body
+	contentType  string // default application/json when there is a payload
+	out          any    // JSON target; *json.RawMessage keeps the bytes
+	op           string // what we were doing, for errors
+	// retry: retry network errors and 429/502/503/504 (requests that are safe
+	// to repeat). false: retry only a 429 (the server did nothing), so a
+	// create is never sent twice.
+	retry bool
+	// header receives the response headers (may be nil).
+	header *http.Header
+}
+
+func (c *Client) send(ctx context.Context, r apiRequest) (int, error) {
+	if strings.TrimSpace(c.Token) == "" {
+		return 0, ErrNoToken
 	}
 	attempts := c.Attempts
 	if attempts <= 0 {
@@ -384,7 +405,7 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any, op 
 				return 0, err
 			}
 		}
-		status, err := c.once(ctx, method, path, payload, out, op)
+		status, err := c.once(ctx, r)
 		if err == nil {
 			return status, nil
 		}
@@ -392,29 +413,41 @@ func (c *Client) do(ctx context.Context, method, path string, body, out any, op 
 		if ctx.Err() != nil {
 			return 0, ctx.Err()
 		}
-		if !retryableAPI(err) {
+		if r.retry && !retryableAPI(err) || !r.retry && !IsStatus(err, http.StatusTooManyRequests) {
 			return status, err
 		}
 	}
 	return 0, lastErr
 }
 
-func (c *Client) once(ctx context.Context, method, path string, payload []byte, out any, op string) (int, error) {
-	var rd io.Reader
-	if payload != nil {
-		rd = bytes.NewReader(payload)
+func (c *Client) newRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.Base, "/")+path, body)
+	if err != nil {
+		return nil, err
 	}
-	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(c.Base, "/")+path, rd)
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.Token))
+	if c.UserAgent != "" {
+		req.Header.Set("User-Agent", c.UserAgent)
+	}
+	return req, nil
+}
+
+func (c *Client) once(ctx context.Context, r apiRequest) (int, error) {
+	var rd io.Reader
+	if r.payload != nil {
+		rd = bytes.NewReader(r.payload)
+	}
+	req, err := c.newRequest(ctx, r.method, r.path, rd)
 	if err != nil {
 		return 0, err
 	}
-	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(c.Token))
 	req.Header.Set("Accept", "application/json")
-	if payload != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-	if c.UserAgent != "" {
-		req.Header.Set("User-Agent", c.UserAgent)
+	if r.payload != nil {
+		ct := r.contentType
+		if ct == "" {
+			ct = "application/json"
+		}
+		req.Header.Set("Content-Type", ct)
 	}
 	hc := c.HTTP
 	if hc == nil {
@@ -422,21 +455,25 @@ func (c *Client) once(ctx context.Context, method, path string, payload []byte, 
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
-		return 0, &netError{op: op, err: err}
+		return 0, &netError{op: r.op, err: err}
 	}
 	defer resp.Body.Close()
+	if r.header != nil {
+		*r.header = resp.Header
+	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
-		return resp.StatusCode, &netError{op: op, err: err}
+		return resp.StatusCode, &netError{op: r.op, err: err}
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return resp.StatusCode, &APIError{Status: resp.StatusCode, Detail: detailOf(data), Op: op}
+		return resp.StatusCode, &APIError{Status: resp.StatusCode, Detail: detailOf(data), Op: r.op,
+			Code: codeOf(data), Header: resp.Header}
 	}
-	if out != nil && len(bytes.TrimSpace(data)) > 0 {
-		if raw, ok := out.(*json.RawMessage); ok {
+	if r.out != nil && len(bytes.TrimSpace(data)) > 0 {
+		if raw, ok := r.out.(*json.RawMessage); ok {
 			*raw = append((*raw)[:0], data...)
-		} else if err := json.Unmarshal(data, out); err != nil {
-			return resp.StatusCode, fmt.Errorf("could not %s: unexpected answer from the server: %w", op, err)
+		} else if err := json.Unmarshal(data, r.out); err != nil {
+			return resp.StatusCode, fmt.Errorf("could not %s: unexpected answer from the server: %w", r.op, err)
 		}
 	}
 	return resp.StatusCode, nil
@@ -476,6 +513,27 @@ func detailOf(body []byte) string {
 		}
 	}
 	return truncate(strings.TrimSpace(string(body)), 300)
+}
+
+// codeOf extracts a machine-readable "code" (top level, or inside "detail").
+func codeOf(body []byte) string {
+	var env struct {
+		Code   string          `json:"code"`
+		Detail json.RawMessage `json:"detail"`
+	}
+	if json.Unmarshal(body, &env) != nil {
+		return ""
+	}
+	if env.Code != "" {
+		return env.Code
+	}
+	var inner struct {
+		Code string `json:"code"`
+	}
+	if json.Unmarshal(env.Detail, &inner) == nil {
+		return inner.Code
+	}
+	return ""
 }
 
 // rawText renders a JSON string, a list of {msg} objects, or any JSON.
