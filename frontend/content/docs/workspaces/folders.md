@@ -22,7 +22,31 @@ Choose how the list looks with the switch above it. Markdrop remembers your choi
 | --- | --- |
 | **List** (the default) | One row each: the name, its kind, its owner, when it last changed, who can open it, and a **⋯** menu. Folders show how many items you can open in them. |
 | **Grid** | Tiles with the name, and the owner and date (or, for a folder, how many items). |
-| **Cards** | Larger cards with the item's icon, its name, its owner, when it changed and who can open it. |
+| **Cards** | Larger cards with a preview of each item, its name, its owner, when it changed and who can open it. |
+
+### Previews in Cards
+
+In **Cards**, the top of each card shows what's inside:
+
+| Item | Its card shows |
+| --- | --- |
+| Page | Its cover, icon, title and first blocks |
+| Markdown document | The start of the document |
+| HTML file | Its opening text. Point at the card for a moment to see the real page, live and scaled down. |
+| PDF | The first page |
+| Image | The image |
+| Video | Its poster frame and length |
+| Spreadsheet or CSV | The first cells |
+| Text or JSON file | The first lines |
+| Word document | The first paragraphs |
+
+Audio, zip files and older Excel files keep their icon.
+
+Previews load only for the cards on your screen, after the folder has opened, so folders still open straight away. A new PDF, image or video can take a moment to show its picture the first time anyone in the workspace looks at it.
+
+**Previews follow access.** A card shows a preview only when you could open the item yourself. An end-to-end encrypted document shows a lock: Markdrop can't read it, so there is nothing to preview. Mentions of other items in a preview don't show their titles.
+
+A live HTML preview runs the file the same way its own page does: on Markdrop's separate files address, sandboxed, never on markdrop.in. Live previews work with a mouse, a few at a time. They're off on phones and when your browser asks to save data.
 
 **Who owns what.** Every item shows its owner's photo (or first initial) and name, and **You** for your own. A folder shows the people whose items are inside it. The item's menu on a phone shows its owner too. Only members of the workspace see the workspace's list, so only they see who owns what. Someone who opens an item from a public link never sees names.
 
