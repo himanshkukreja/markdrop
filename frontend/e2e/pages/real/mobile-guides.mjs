@@ -223,6 +223,10 @@ function measure({ checkTargets, skip }) {
         const hit = document.elementFromPoint(x, y);
         const over = hit && hit.closest(POPUP);
         if (over && over !== targetPopup && !over.contains(target)) continue;
+        // Nor is a sticky or fixed bar the page scrolls under (the control is only partly scrolled into view).
+        let bar = hit;
+        while (bar && bar !== document.body && !["fixed", "sticky"].includes(getComputedStyle(bar).position)) bar = bar.parentElement;
+        if (bar && bar !== document.body && !bar.contains(target)) continue;
         if (!hit || !(hit === target || target.contains(hit))) { ok = false; break; }
       }
       if (!ok) push("target", el, `${Math.round(r.width)}×${Math.round(r.height)}`);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Anchor, Badge, Button, Icon, Spinner, cx } from "@/components/ui";
 import { guideEvents } from "@/lib/guidesEvents";
@@ -68,6 +68,33 @@ const TABS: Array<{ id: SiteSection; label: string; path: string }> = [
 export const SITE_BAR_H = 52;
 /** Studio header (56) + site bar: the top of anything sticky under both. */
 export const STUDIO_CHROME_H = 56 + SITE_BAR_H;
+/**
+ * The same, as the site bar measures it (--studio-chrome on <html>): on touch tablets under xl its
+ * 44 px tabs and buttons take two rows. Use it for sticky tops and heights under the bar.
+ */
+export const STUDIO_CHROME = `var(--studio-chrome, ${STUDIO_CHROME_H}px)`;
+
+/** Keeps --studio-chrome at the bottom of the sticky header and site bar (56 px when the bar scrolls away). */
+function useChromeVar(bar: React.RefObject<HTMLDivElement | null>) {
+  useLayoutEffect(() => {
+    const el = bar.current;
+    if (!el) return;
+    const root = document.documentElement;
+    const up = () => {
+      const h = getComputedStyle(el).position === "sticky" ? 56 + Math.round(el.getBoundingClientRect().height) : 56;
+      root.style.setProperty("--studio-chrome", `${h}px`);
+    };
+    up();
+    const ro = new ResizeObserver(up);
+    ro.observe(el);
+    window.addEventListener("resize", up);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", up);
+      root.style.removeProperty("--studio-chrome");
+    };
+  }, [bar]);
+}
 
 /** The Fix list's open count per guide, shared by every tab's site bar (re-read at most every 30 s). */
 const fixCounts = new Map<string, { n: number; at: number }>();
@@ -215,6 +242,8 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
   const path = usePathname() ?? "";
   const people = section === "settings" && path.endsWith("/settings/people");
   const fixes = useFixCount(site.id, site.settings.insights?.enabled !== false && (site.status === "live" || !!site.last_published_at));
+  const barRef = useRef<HTMLDivElement>(null);
+  useChromeVar(barRef);
 
   useEffect(() => {
     if (section !== "insights") return;
@@ -229,7 +258,8 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
   }, [section]);
 
   return (
-    <div className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 lg:h-[52px] lg:flex-nowrap lg:py-0 max-sm:static [@media(max-height:500px)]:static", className)}>
+    // One 52 px row from lg with a mouse; touch screens (44 px tabs and buttons) wrap to two rows until xl.
+    <div ref={barRef} className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 pointer-fine:lg:h-[52px] pointer-fine:lg:flex-nowrap pointer-fine:lg:py-0 xl:h-[52px] xl:flex-nowrap xl:py-0 max-sm:static [@media(max-height:500px)]:static", className)}>
       <nav aria-label="Guide" className="relative order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
         {TABS.map((t) => {
           const on = t.id === section;
@@ -258,7 +288,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
       {crumb && <span className="ph-sensitive ph-mask hidden min-w-0 truncate text-body text-text-muted lg:inline" dir="auto" title={typeof crumb === "string" ? crumb : undefined}>{crumb}</span>}
       {status}
       {role === "viewer" && <Badge size="sm" icon="eye">View only</Badge>}
-      <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 lg:flex-nowrap">
+      <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 pointer-fine:lg:flex-nowrap xl:flex-nowrap">
         {actions}
         <BarPeople on={people} />
         {section !== null && <PublishControls preview={preview} />}

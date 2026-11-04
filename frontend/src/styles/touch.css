@@ -72,6 +72,7 @@
   /* A long press's block handle (at the block's right edge): a 44 px grip, still inside the block. */
   html[data-studio] .dxe-handle--touch .dxe-handle__btn { width: 44px; height: 44px; }
   html[data-studio] .dxe-handle--touch { margin-left: -20px; }
+  html[data-studio] .dxe-touchbar__btn { height: 44px; }
 }
 /* The mouse's block handle follows the pointer (and a tap's emulated mouse move) into the gutter
    with two 24 px buttons; a finger has the touch bar (+ Block, the block menu) and the long press. */

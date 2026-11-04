@@ -891,7 +891,7 @@ html.dx-modal-open { overflow: hidden; }
   /* The wide header's row is 44 px tall here (12 + 44 + 12 + its border): the docked Ask AI panel,
      the sticky side columns and linked headings start under it. */
   .dx-root { --dx-header-h: 69px; }
-  .dx-tabsnav__item { display: inline-flex; align-items: center; min-height: 44px; box-sizing: border-box; }
+  .dx-tabsnav__item { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; box-sizing: border-box; }
   .dx-searchbox { height: 44px; }
   .dx-nav__item { min-height: 44px; box-sizing: border-box; }
   .dx-split__main, .dx-split__more { height: 44px; }

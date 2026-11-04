@@ -30,7 +30,7 @@ import { markdropHost } from "@/lib/docsEmbeds";
 import { fixApplied, getFix, type FixDraft } from "@/lib/guideFixes";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
-import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
+import SiteBar, { STUDIO_CHROME, STUDIO_CHROME_H } from "../SiteBar";
 import { useSite } from "../SiteContext";
 import { HEADER_SLOT_ID } from "../studio/StudioShell";
 import { CommentsTab, usePageComments } from "./CommentsTab";
@@ -960,7 +960,7 @@ export default function EditorPage() {
   );
 
   const problems = checks.filter((c) => c.kind !== "ok").length;
-  const sideH = { top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` };
+  const sideH = { top: STUDIO_CHROME, height: `calc(100dvh - ${STUDIO_CHROME})` };
 
   return (
     <>
@@ -1008,7 +1008,7 @@ export default function EditorPage() {
           {treeEl}
         </aside>
 
-        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none" style={{ minHeight: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}>
+        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none" style={{ minHeight: `calc(100dvh - ${STUDIO_CHROME})` }}>
           <div className="flex flex-1 justify-center px-4 pb-20 pt-6 sm:px-8 sm:pt-11 xl:px-10">
             <div className="flex w-full min-w-0 max-w-[756px] flex-col gap-4">
               {session.loadError && (
