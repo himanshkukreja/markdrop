@@ -103,10 +103,10 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
         "no-print sticky top-0 z-[calc(var(--z-sticky)+1)] w-full shrink-0 border-b",
         marketing
           ? cx(
-              "h-14 transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
+              "h-[calc(3.5rem+var(--safe-top))] pt-(--safe-top) transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
               scrolled ? "border-border bg-bg/85 backdrop-blur-md" : "border-transparent bg-transparent",
             )
-          : "h-14 border-border bg-bg",
+          : "h-[calc(3.5rem+var(--safe-top))] pt-(--safe-top) border-border bg-bg",
         className,
       )}
     >

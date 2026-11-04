@@ -277,7 +277,7 @@ function StatusBar({ words, onFind, onShortcuts, onEmbed, ai }: {
 }) {
   const mins = readMinutes(words);
   return (
-    <div className="sticky bottom-0 z-10 mt-auto flex h-[34px] shrink-0 items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5">
+    <div className="sticky bottom-0 z-10 mt-auto flex h-[calc(34px+var(--safe-bottom))] shrink-0 pb-(--safe-bottom) items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5">
       <span aria-live="off">{words.toLocaleString("en")} {words === 1 ? "word" : "words"}{mins ? ` · ${mins} min read` : ""}</span>
       <span className="flex-1" />
       {ai && (

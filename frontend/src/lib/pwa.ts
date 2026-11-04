@@ -93,3 +93,17 @@ export function installPathFor(ua: string, maxTouchPoints = 0, hasPrompt = false
   if (/Macintosh/.test(ua) && /Version\/(1[7-9]|[2-9]\d)\b/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg\/|Firefox|OPR\//.test(ua)) return "mac-safari";
   return null;
 }
+
+/**
+ * The inline <head> script (root layout), before anything renders. Static, so ISR-safe.
+ *   - Keeps the browser's install prompt for the account menu's "Install app" (and keeps Android's
+ *     mini-infobar off the landing page and documents): `beforeinstallprompt` can fire before
+ *     React hydrates, so it is caught here (PwaProvider takes it from window.__mdInstallPrompt).
+ *   - The installed Markdrop app never shows the landing page: launched (or navigated) to "/" in
+ *     a standalone window on markdrop.in, it goes to the dashboard, which sends a signed-out
+ *     person through sign-in and back.
+ */
+export function pwaBootScript(): string {
+  const hosts = ["markdrop.in", "www.markdrop.in", "localhost", "127.0.0.1", PRIMARY_HOST].filter(Boolean);
+  return `(function(){try{addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__mdInstallPrompt=e;dispatchEvent(new Event('md:installprompt'))});var s=navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;if(s&&location.pathname==='/'&&${JSON.stringify(hosts)}.indexOf(location.hostname)>=0)location.replace('/dashboard'+location.search);}catch(e){}})();`;
+}

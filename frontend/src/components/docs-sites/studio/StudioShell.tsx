@@ -146,7 +146,7 @@ export const HEADER_SLOT_ID = "guides-header-slot";
 export function StudioHeader() {
   const { current } = useStudio();
   return (
-    <header className="sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 sm:gap-3 sm:px-5">
+    <header className="sticky top-0 z-40 flex h-[calc(3.5rem+var(--safe-top))] shrink-0 pt-(--safe-top) items-center gap-2 border-b border-border bg-surface px-3 sm:gap-3 sm:px-5">
       <MarkdropLogo size={26} wordmark={!current} href={appHref("/")} className="md-focus shrink-0 max-sm:hidden" />
       <span aria-hidden className="h-[22px] w-px shrink-0 bg-border-strong max-sm:hidden" />
       <StudioWordmark compact={!!current} />
