@@ -124,6 +124,7 @@ When you use AI, Markdrop sends Anthropic only what that request needs:
 - the text of Markdrop items the page embeds, but only items the person asking can open;
 - for alt text, the image;
 - for a page's cover, its title and its first 1,500 characters or so, with the list of Markdrop's covers. The answer is just the cover's name.
+- for [AI search](/workspaces/search#ask-ai), your question and short excerpts of the matching items you can open (never an encrypted item, and only the title of a password-protected one).
 
 Markdrop keeps a usage record for each request (who, which feature, the number of tokens and the cost), never the page's text, your prompt, the question or the answer. Anthropic doesn't use data sent through its commercial API to train its models by default; see [Anthropic's commercial terms](https://www.anthropic.com/legal/commercial-terms). The [privacy page](/security/privacy) has the rest of what Markdrop keeps.
 

@@ -247,7 +247,7 @@ export function BudgetsTab({ token, onGo }: { token: string; onGo: (t: "users") 
   );
 }
 
-const AUDIT_FEATURE: Record<string, string> = { "*": "All AI", docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI" };
+const AUDIT_FEATURE: Record<string, string> = { "*": "All AI", docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI", search_ai: "AI search" };
 
 function describe(v: unknown, money: boolean): string {
   if (v === null || v === undefined) return "default";

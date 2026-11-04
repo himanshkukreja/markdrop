@@ -252,6 +252,10 @@ async def swap(
         return None
     version = current_version(before) + 1
     after = {**before, **sets, "rev": int(before.get("rev", 1)) + 1, "file_version": version}
+    # Global search: the new file's contents are extracted again (services/search_index.py).
+    from app.services import search_index
+
+    search_index.touch(db, raw["_id"])
     await _upsert_row(db, {
         "doc_id": str(raw["_id"]),
         "slug": after.get("slug"),

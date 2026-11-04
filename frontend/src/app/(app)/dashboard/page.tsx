@@ -381,9 +381,12 @@ export default function DashboardPage() {
         onChange={(e) => { typing.current = true; setQInput(e.target.value); }}
         onKeyDown={(e) => {
           if (e.key === "Escape" && qInput) { e.preventDefault(); clearSearch(); }
+          // ↵ takes the words to global search: every workspace, the text inside, typos and all.
+          if (e.key === "Enter" && qInput.trim().length >= 2) { e.preventDefault(); router.push(`/search?q=${encodeURIComponent(qInput.trim())}`); }
         }}
         placeholder="Search by title or link"
-        aria-label="Search by title or link"
+        aria-label="Search by title or link (Enter searches everywhere)"
+        title="Enter searches everywhere, including the text inside"
         aria-keyshortcuts={slashOn ? "/" : undefined}
         maxLength={200}
         className="w-full"
@@ -465,8 +468,11 @@ export default function DashboardPage() {
         <EmptyState
           icon="search"
           title={<>Nothing matches “<span className="ph-sensitive ph-mask">{scope.q}</span>”</>}
-          description="Search looks at titles and links."
-          actions={<Button variant="secondary" onClick={clearSearch}>Clear search</Button>}
+          description="This list looks at titles and links. Search everywhere also reads the text inside, every workspace and what's shared with you."
+          actions={<>
+            <Button variant="primary" iconLeft="search" onClick={() => router.push(`/search?q=${encodeURIComponent(scope.q)}`)}>Search everywhere</Button>
+            <Button variant="secondary" onClick={clearSearch}>Clear search</Button>
+          </>}
         />
       ) : scope.kind === "artifact" ? (
         <EmptyState

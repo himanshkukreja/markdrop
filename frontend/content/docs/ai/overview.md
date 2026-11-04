@@ -19,7 +19,7 @@ There are two Markdrop servers. Which one you add depends on where your AI app r
 | Works with | claude.ai and the Claude apps, ChatGPT, Claude Code, Cursor, VS Code, Windsurf and other apps that add remote servers | Claude Code, Claude Desktop, Cursor, VS Code and other apps that start local servers |
 | Signs in with | Markdrop's approval screen (OAuth). No key to paste. | An API token (`MARKDROP_TOKEN` or `markdrop login`) for publishing |
 | Best for | Publishing what the assistant writes, reading and updating your documents, access, analytics, workspaces | Publishing and replacing files from your disk (videos up to 2 GB), sending and receiving files peer to peer |
-| Tools | 66 | 11 |
+| Tools | 67 | 13 |
 
 You can add both to the same app: the hosted server for documents, the local one for files on your disk.
 

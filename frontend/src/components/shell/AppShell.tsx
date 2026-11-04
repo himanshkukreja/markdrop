@@ -280,7 +280,11 @@ function Palette({ activeWs, folderId, data }: { activeWs: string | null; folder
     return out;
   }, [onFolderPage, activeWs, tree, folderId, data.workspaces, uploads, router]);
 
-  return <CommandPalette open={open} onClose={() => setOpen(false)} actions={actions} />;
+  // The workspace the person is in ranks higher in search, and a chip narrows the search to it.
+  const wsRow = activeWs ? data.workspaces?.find((w) => w.id === activeWs) : null;
+  const workspace = activeWs && (wsRow?.name || tree?.workspace.name)
+    ? { id: activeWs, name: (wsRow?.name || tree?.workspace.name) as string } : null;
+  return <CommandPalette open={open} onClose={() => setOpen(false)} actions={actions} workspace={workspace} />;
 }
 
 export default AppShell;

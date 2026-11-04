@@ -136,6 +136,8 @@ func (s *Server) servePages(w http.ResponseWriter, r *http.Request, user string)
 		s.listTrash(w, user)
 	case m == http.MethodGet && p == "/api/v1/me/access-requests":
 		s.listRequests(w, r, user)
+	case m == http.MethodGet && p == "/api/v1/search" && !s.NoSearchV1:
+		s.search(w, r, user)
 	case m == http.MethodGet && p == "/api/v1/search/quick":
 		s.quickSearch(w, r, user)
 	case reCover.MatchString(p) && m == http.MethodPost:
@@ -1058,6 +1060,133 @@ func (s *Server) decide(w http.ResponseWriter, r *http.Request, user, id string)
 }
 
 // ── Search ──────────────────────────────────────────────────────────────────
+
+// folderNames is a folder's path as names, from the workspace's root to it.
+func folderNames(wsp *Workspace, f Folder) []string {
+	names := []string{f.Name}
+	for parent, guard := f.ParentID, 0; parent != "" && guard < 12; guard++ {
+		found := false
+		for _, p := range wsp.Folders {
+			if p.ID == parent {
+				names, parent, found = append([]string{p.Name}, names...), p.ParentID, true
+				break
+			}
+		}
+		if !found {
+			break
+		}
+	}
+	return names
+}
+
+// search is GET /api/v1/search: substring matches on titles, slugs, page text,
+// folder and workspace names (the real one is fuzzy), in its response shape.
+func (s *Server) search(w http.ResponseWriter, r *http.Request, user string) {
+	qv := r.URL.Query()
+	q := strings.ToLower(strings.TrimSpace(qv.Get("q")))
+	limit, _ := strconv.Atoi(qv.Get("limit"))
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 50 {
+		detail(w, 422, "limit: Input should be less than or equal to 50")
+		return
+	}
+	kind := qv.Get("kind")
+	if kind != "" && !strings.Contains(" page doc file folder workspace guide ", " "+kind+" ") {
+		detail(w, 422, "kind must be page, doc, file, folder, workspace or guide")
+		return
+	}
+	wsID := strings.TrimPrefix(qv.Get("scope"), "workspace:")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	items := []map[string]any{}
+	if len(q) < 2 {
+		writeJSON(w, 200, map[string]any{"query": q, "items": items, "groups": []any{}, "trash": []any{}})
+		return
+	}
+	want := func(k, ws string) bool {
+		return (kind == "" || kind == k) && (wsID == "" || wsID == ws) && len(items) < limit
+	}
+	var slugs []string
+	for slug, d := range s.docs {
+		if !d.Trashed && d.canRead(user) {
+			slugs = append(slugs, slug)
+		}
+	}
+	sort.Strings(slugs)
+	for _, slug := range slugs {
+		d := s.docs[slug]
+		k := "doc"
+		switch {
+		case d.Kind == "artifact":
+			k = "file"
+		case d.Editor == "blocks":
+			k = "page"
+		}
+		if !want(k, d.Workspace) {
+			continue
+		}
+		match, snippet := "", any(nil)
+		switch {
+		case strings.Contains(strings.ToLower(d.Title), q) || strings.Contains(slug, q):
+			match = "title"
+		case !d.Encrypted && strings.Contains(strings.ToLower(d.Content), q):
+			match = "body"
+			snippet = map[string]any{"text": strings.TrimSpace(d.Content), "marks": []any{}}
+		default:
+			continue
+		}
+		markdropURL, wsURL := s.docURLs(d)
+		url := markdropURL
+		if wsURL != nil {
+			url = wsURL.(string)
+		}
+		var ws, label, folder any
+		if wsp := s.workspace(d.Workspace); wsp != nil {
+			ws = map[string]any{"id": wsp.ID, "name": wsp.Name}
+		}
+		if d.Kind == "artifact" {
+			label = "File"
+		}
+		if wsp := s.workspace(d.Workspace); wsp != nil && d.FolderPath != "" {
+			for _, f := range wsp.Folders {
+				if f.Path == d.FolderPath {
+					folder = map[string]any{"id": f.ID, "name": f.Name, "path": folderNames(wsp, f)}
+				}
+			}
+		}
+		var title any = d.Title
+		if d.Title == "" {
+			title = nil
+		}
+		items = append(items, map[string]any{"key": "d:" + slug, "kind": k, "slug": slug, "title": title,
+			"url": url, "web_url": url, "workspace": ws, "folder": folder, "type_label": label,
+			"updated_at": iso(d.Updated), "match": match, "snippet": snippet})
+	}
+	for _, wsp := range s.workspaces {
+		if wsp.Members[user] == "" {
+			continue
+		}
+		for _, f := range wsp.Folders {
+			if strings.Contains(strings.ToLower(f.Name), q) && want("folder", wsp.ID) {
+				parts := folderNames(wsp, f)
+				link := "/w/" + wsp.ID + "/f/" + f.ID
+				ws := map[string]any{"id": wsp.ID, "name": wsp.Name}
+				items = append(items, map[string]any{"key": "f:" + f.ID, "kind": "folder", "id": f.ID,
+					"title": f.Name, "folder": map[string]any{"path": parts[:len(parts)-1]}, "workspace": ws,
+					"url": link, "web_url": s.WebBase + link, "match": "title"})
+			}
+		}
+		if strings.Contains(strings.ToLower(wsp.Name), q) && want("workspace", wsp.ID) {
+			items = append(items, map[string]any{"key": "w:" + wsp.ID, "kind": "workspace", "id": wsp.ID,
+				"title": wsp.Name, "role": wsp.Members[user], "url": "/w/" + wsp.ID,
+				"web_url": s.WebBase + "/w/" + wsp.ID, "match": "title"})
+		}
+	}
+	writeJSON(w, 200, map[string]any{"query": q, "items": items, "groups": []any{}, "trash": []any{},
+		"next_cursor": nil})
+}
 
 func (s *Server) quickSearch(w http.ResponseWriter, r *http.Request, user string) {
 	q := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))

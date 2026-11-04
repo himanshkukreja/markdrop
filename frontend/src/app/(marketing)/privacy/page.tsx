@@ -103,7 +103,7 @@ export default function PrivacyPage() {
         <Li>MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the Share relay).</Li>
         <Li>Resend (sign-in and notification email).</Li>
         <Li>PostHog and Google (analytics, as above).</Li>
-        <Li>Anthropic (AI in pages and guides): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer; we keep only usage counts (tokens, cost, which feature), never the text.</Li>
+        <Li>Anthropic (AI in pages, guides and search): when you use an AI feature, the text it needs is sent to Anthropic&rsquo;s API to answer. For AI search, that is your question and short excerpts of the matching items you can open (never encrypted items, and only the title of a password-protected one). We keep only usage counts (tokens, cost, which feature), never the text.</Li>
       </ul>
       <P>We don&rsquo;t sell personal data, and we don&rsquo;t use it for advertising.</P>
 

@@ -184,10 +184,10 @@ Guide: [Search, trash and access requests from the terminal](/cli/search-trash-a
 ### search
 
 ```text
-markdrop search <query…> [--kind page|document|file|folder|workspace] [--workspace W] [--limit N]
+markdrop search <query…> [--kind page|document|file|folder|workspace|guide] [--workspace W] [--limit N]
 ```
 
-Searches titles, addresses and file names of what you can open, and folder and workspace names. At least 2 characters; up to 20 results per kind.
+Searches everything you can open, like the app's search: titles, headings, text and file contents, folders, workspaces and Guides pages, forgiving typos. At least 2 characters; 20 results by default, at most 50. (CLI 0.6.0: titles, addresses and names only, up to 20 per kind.)
 
 ### trash
 

@@ -235,6 +235,15 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] access-request / recent indexes skipped: {exc}")
 
+    # Global search (services/search_index.py): the content index's word sets, its Guides rows and
+    # pending file extractions, and documents.updated_at for its reconciler.
+    try:
+        from app.services import search_index as _search_index
+
+        await _search_index.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] search indexes skipped: {exc}")
+
     # Private guide pages (services/docs_page_access.py): sign-in links, requests, audit.
     try:
         from app.services import docs_page_access as _page_access
