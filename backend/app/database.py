@@ -87,6 +87,10 @@ async def connect() -> None:
         partialFilterExpression={"slug": {"$exists": True}},
     )
     await db["documents"].create_index([("workspace_id", 1), ("folder_id", 1)], sparse=True)
+    # The folder view (GET /workspaces/{id}/items?folder=…): one folder's rows, newest edit first,
+    # cursor-paged on (updated_at, _id) — served from the index, no in-memory sort.
+    await db["documents"].create_index(
+        [("workspace_id", 1), ("folder_id", 1), ("updated_at", -1), ("_id", -1)], sparse=True)
     # The shared library lists by workspace, newest edit first.
     await db["documents"].create_index([("workspace_id", 1), ("updated_at", -1)], sparse=True)
 

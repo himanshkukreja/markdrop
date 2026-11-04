@@ -160,8 +160,8 @@ Your own views are never counted, and views by members of the document's workspa
 | Tool | Permission | What it does | Main inputs |
 |---|---|---|---|
 | `list_workspaces` | read | Your workspaces: id, name, your role, custom domains (and whether each is live) and the default access for new documents. | none |
-| `list_folders` | read | A workspace's folders as paths (`guides/setup`), with how many items you can open in each. | `workspace` |
-| `list_workspace_items` | read | Documents and files you can open in a workspace or one folder of it, newest first, with their links. | `workspace`, `folder`, `query`, `limit` (1–100, default 50), `cursor` |
+| `list_folders` | read | A workspace's folders as paths (`guides/setup`), with how many items you can open in each, when something in each last changed and whose items are in it. | `workspace` |
+| `list_workspace_items` | read | Documents and files you can open in a workspace or one folder of it, newest first, with their links and who owns each. | `workspace`, `folder`, `query`, `limit` (1–100, default 50), `cursor` |
 | `list_workspace_members` | read | The members of a workspace you belong to: name, account id and role (`owner`, `admin`, `member`, `viewer`), plus email addresses if you're an admin or the owner. Pending invitations aren't listed. Use the ids to mention people in pages. | `workspace` |
 | `add_to_workspace` | write | Files one of your own documents into a workspace (and folder). It keeps its link; its access changes only if you pass `access`. | `document`, `workspace`, `folder`, `access` (`link`, `private`, `workspace`) |
 | `remove_from_workspace` | write | Takes a document out of its workspace (its owner or a workspace admin). It keeps its markdrop.in link; a members-only document becomes private. | `document` |

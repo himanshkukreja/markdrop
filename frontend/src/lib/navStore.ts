@@ -14,12 +14,17 @@
  * shows at once and is refreshed in the background when it is older than the caller allows, when
  * the window regains focus after a minute, and whenever something changed it:
  * `workspaceChanged(id)` (lib/workspaceStore) and the page events lib/pages fires after a page is
- * created, moved or deleted. A save (and a change the reading view sees live) patches the page's
+ * created, moved or deleted.
+ *
+ * - the first page of a folder view's rows (`GET /workspaces/{id}/items`), per workspace, place
+ *   (folder id, "root" or "all"), search and kind: a folder you've seen opens at once, and hover /
+ *   focus on a folder link (lib/folderNav) fetches its rows before the click. A save (and a change the reading view sees live) patches the page's
  * title and icon in place (`patchPage`), with no request. The person's other tabs get the same
  * events (lib/navBus). A refresh never empties what is on screen.
  */
 import { useEffect, useSyncExternalStore } from "react";
-import { getWorkspaceNav, type WorkspaceNav } from "@/lib/workspaces";
+import { getWorkspaceNav, listWorkspaceItems, type ItemsPage, type WorkspaceNav } from "@/lib/workspaces";
+import { setFolderWarmer } from "@/lib/folderNav";
 import { listChildren, PagesApiError, type ChildPage } from "@/lib/pages";
 import { getToken } from "@/lib/api";
 import { listenRemote } from "@/lib/navBus";
@@ -44,7 +49,14 @@ class Cache<T> {
   private active = new Map<string, number>();
   version = 0;
 
-  constructor(private fetcher: (key: string) => Promise<T>) {}
+  /** `cap`: at most this many entries; the least recently loaded ones nobody shows go first. */
+  constructor(private fetcher: (key: string) => Promise<T>, private cap = Infinity) {}
+
+  private trim() {
+    if (this.entries.size <= this.cap) return;
+    const idle = [...this.entries].filter(([k]) => !this.active.has(k) && !this.inflight.has(k)).sort((a, b) => a[1].at - b[1].at);
+    for (const [k] of idle.slice(0, this.entries.size - this.cap)) this.entries.delete(k);
+  }
 
   peek(key: string): Entry<T> | undefined {
     return this.entries.get(key);
@@ -59,6 +71,7 @@ class Cache<T> {
     const p = this.fetcher(key)
       .then((data) => {
         this.entries.set(key, { data, error: false, at: Date.now(), stale: false });
+        this.trim();
         return data;
       })
       .catch((err) => {
@@ -151,10 +164,24 @@ const kidsCache = new Cache<ChildPage[]>((key) =>
   }),
 );
 
+/** Rows per folder-view page (FolderView asks for more with the cursor). */
+export const ITEMS_PAGE = 50;
+const PART = "\u0001";
+const itemsCache = new Cache<ItemsPage>((key) => {
+  const [ws, folder, q, kind] = idOf(key).split(PART);
+  return listWorkspaceItems(ws!, { folder: folder!, q: q || undefined, kind: kind || undefined, limit: ITEMS_PAGE });
+}, 80);
+const itemsWs = (key: string) => idOf(key).split(PART)[0];
+
+/** The cache key of a folder view's first page: `folder` is a folder id, "root" or "all". */
+export const itemsKey = (ws: string, folder: string, q = "", kind = "") => keyOf([ws, folder, q, kind].join(PART));
+
 let wired = false;
 function wire() {
   if (wired || typeof window === "undefined") return;
   wired = true;
+  // Hover / focus on a folder link anywhere warms its rows (lib/folderNav; 30 s is fresh enough).
+  setFolderWarmer((t) => { void itemsCache.load(itemsKey(t.workspaceId, t.folderId ?? "root"), 30_000).catch(() => {}); });
   // What the person's other tabs change arrives as the same events (lib/navBus).
   listenRemote();
   window.addEventListener(WS_CHANGE_EVENT, (e) => {
@@ -164,6 +191,8 @@ function wire() {
     // workspaceChanged already did that).
     if (d?.remote && id) refreshTree(id, 0);
     navCache.invalidate((k) => !id || idOf(k) === id);
+    // Folder views on screen reload; the others are marked stale (shown, then refreshed).
+    itemsCache.invalidate((k) => !id || itemsWs(k) === id);
     // Sub-pages aren't keyed by workspace: a move or delete anywhere may touch any of them.
     kidsCache.invalidate();
   });
@@ -176,12 +205,14 @@ function wire() {
     }
     // Anything else refreshes what's shown; "soft" only marks stale.
     navCache.invalidate(undefined, !!d.soft);
+    itemsCache.invalidate(undefined, !!d.soft);
     kidsCache.invalidate(undefined, !!d.soft);
   });
   const refresh = () => {
     if (document.visibilityState === "hidden") return;
     navCache.refreshActive(FOCUS_MAX_AGE);
     kidsCache.refreshActive(FOCUS_MAX_AGE);
+    itemsCache.refreshActive(FOCUS_MAX_AGE);
   };
   window.addEventListener("focus", refresh);
   document.addEventListener("visibilitychange", refresh);
@@ -285,4 +316,49 @@ export function useNavVersion(): number {
 export function fetchChildren(slug: string, maxAge = 5_000): Promise<ChildPage[]> {
   wire();
   return kidsCache.load(keyOf(slug), maxAge);
+}
+
+/* ── Folder views ──────────────────────────────────────────────────────── */
+
+export interface ItemsSlot {
+  /** The first page, as cached (possibly being refreshed); null before it ever loaded. */
+  data: ItemsPage | null;
+  /** The last request failed (what's cached, if anything, still shows). */
+  error: unknown;
+  /** A request is running. */
+  loading: boolean;
+}
+
+const EMPTY_ITEMS: ItemsSlot = { data: null, error: null, loading: false };
+const itemSlots = new Map<string, ItemsSlot>();
+/** One stable object per key while nothing about it changed (useSyncExternalStore needs that). */
+function itemsSlotOf(key: string | null): ItemsSlot {
+  if (!key) return EMPTY_ITEMS;
+  const e = itemsCache.peek(key);
+  const loading = itemsCache.loading(key);
+  const data = e?.data ?? null;
+  const error = e?.error && !loading ? e.error : null;
+  const prev = itemSlots.get(key);
+  if (prev && prev.data === data && prev.error === error && prev.loading === loading) return prev;
+  const next = { data, error, loading };
+  itemSlots.set(key, next);
+  if (itemSlots.size > 200) itemSlots.clear();
+  return next;
+}
+
+/**
+ * The first page of a folder view's rows (`key` from `itemsKey`; null = nothing): what's cached
+ * shows at once and is refreshed in the background when older than `maxAge`; kept fresh while
+ * mounted (workspace changes, focus). `reload()` asks the API again.
+ */
+export function useFolderItems(key: string | null, maxAge = 15_000): ItemsSlot & { reload: () => Promise<unknown> } {
+  const slot = useSyncExternalStore(subscribe, () => itemsSlotOf(key), () => EMPTY_ITEMS);
+  useEffect(() => (key ? itemsCache.retain([key], maxAge) : undefined), [key, maxAge]);
+  return { ...slot, reload: () => (key ? itemsCache.load(key, 0).catch(() => {}) : Promise.resolve()) };
+}
+
+/** Fetch a folder's first page ahead of time (hover, focus, an in-place switch). */
+export function prefetchFolderItems(ws: string, folder: string, maxAge = 30_000): void {
+  wire();
+  void itemsCache.load(itemsKey(ws, folder), maxAge).catch(() => {});
 }

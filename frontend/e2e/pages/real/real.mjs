@@ -387,9 +387,12 @@ await step("trash", async () => {
   log("page", page, "file", file, html.isError ? html.text : "");
   const { c, p } = await ctx(browser, { token: T.owner });
 
-  // Lists tell them apart: kind + link on each row.
+  // Lists tell them apart: each row says its kind (the List view's Kind column; Grid and Cards say it too).
   await p.goto(`${APP}/w/${WS}/f/${FOLDER}`, { waitUntil: "networkidle" });
-  await p.getByText(page, { exact: false }).first().waitFor({ timeout: 20000 });
+  const same = p.locator("#main [data-row-kind=item]", { hasText: title });
+  await same.nth(1).waitFor({ timeout: 20000 });
+  const kinds = (await same.allInnerTexts()).map((t) => (/HTML/.test(t) ? "file" : /\bPage\b/.test(t) ? "page" : "?")).sort();
+  if (kinds.join() !== "file,page") fail(`same-title rows don't say their kind: ${JSON.stringify(await same.allInnerTexts())}`);
   await tshot(p, "t0-same-title-in-folder");
 
   // 1. The page's ⋯ menu: the dialog names exactly what goes; the toast's Undo brings it back.

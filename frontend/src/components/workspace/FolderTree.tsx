@@ -439,6 +439,10 @@ const TreeItem = memo(function TreeItem({ v, mode, open, isCurrent, isSelected, 
           {...shared}
           ref={ref as React.Ref<HTMLAnchorElement>}
           href={node.href}
+          // No viewport prefetch: a rail can hold hundreds of rows, and prefetching each page (and
+          // the viewer's code with it) used to fill slow connections ahead of the click
+          // (fix/ws-listing). Folder links warm their rows on hover instead (lib/folderNav).
+          prefetch={false}
           draggable={false}
           aria-current={isCurrent ? "page" : undefined}
           onClick={() => h.navigate()}

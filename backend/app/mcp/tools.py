@@ -1604,7 +1604,9 @@ async def list_folders(ctx: Context, args: dict) -> tuple[str, dict]:
     tree = await workspace_items.tree(ctx.db, access_service.Actor.of(ctx.user),
                                       access_service.Ctx(ctx.db), ws_id, role)
     folders = [{"id": f["id"], "name": f["name"], "path": f["path"], "depth": f["depth"],
-                "items": f["total_count"]} for f in tree["folders"]]
+                "items": f["total_count"], "updated_at": iso(f.get("updated_at")),
+                "people": ["you" if p["is_you"] else p["name"] for p in f.get("people") or [] if p.get("name") or p["is_you"]]}
+               for f in tree["folders"]]
     out = {"workspace_id": ws_id, "folders": folders, "root_items": tree["unfiled_count"]}
     if not folders:
         return "No folders yet (create one with create_folder).", out
@@ -1671,7 +1673,7 @@ async def list_workspace_items(ctx: Context, args: dict) -> tuple[str, dict]:
     if not items:
         return "Nothing here that the user can open.", out
     return f"{len(items)} item(s):\n" + "\n".join(
-        f"- {i['title'] or i['slug']}: {i['url']}" for i in items), out
+        f"- {i['title'] or i['slug']} (by {i['owner']}): {i['url']}" for i in items), out
 
 
 async def add_to_workspace(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2935,7 +2937,8 @@ TOOLS += [
     Tool(
         name="list_folders",
         title="List a workspace's folders",
-        description="The folders of a workspace as paths (e.g. 'guides/setup'), with how many items the user can open in each.",
+        description=("The folders of a workspace as paths (e.g. 'guides/setup'), with how many items the user can open "
+                     "in each, when something in each last changed, and whose items are in it (up to three people)."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folders": {"type": "array"},
@@ -2965,7 +2968,7 @@ TOOLS += [
         name="list_workspace_items",
         title="List a workspace's documents",
         description=("Documents and files in a workspace (or one folder of it) that the user can open, "
-                     "newest first, with their canonical links (custom domain when live)."),
+                     "newest first, with their canonical links (custom domain when live) and who owns each."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
