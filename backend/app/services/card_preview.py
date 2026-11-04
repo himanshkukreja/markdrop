@@ -54,7 +54,7 @@ from app.services import access, publicity
 log = logging.getLogger(__name__)
 
 COLL = "card_previews"
-SPEC = 1                       # bump to remake every cached file preview
+SPEC = 2                       # bump to remake every cached file preview
 MAX_SLUGS = 12                 # per request
 KEEP = timedelta(days=14)      # a cached file preview
 KEEP_FAILED = timedelta(hours=1)
@@ -347,6 +347,10 @@ class _HtmlText(html.parser.HTMLParser):
              "dt", "dd", "figcaption", "br", "hr", "nav", "form", "label", "button"}
     KINDS = {"h1": "h1", "h2": "h2", "h3": "h3", "h4": "h3", "h5": "h3", "h6": "h3", "li": "li",
              "blockquote": "quote", "pre": "code"}
+    # Tags that sit inside a sentence. Any other tag may be laid out as its own box by the page's
+    # CSS (a <b> or <span> styled as a block, a card of divs), so its edges separate words.
+    INLINE = {"a", "em", "i", "u", "s", "code", "sub", "sup", "mark", "small", "abbr", "q", "cite",
+              "kbd", "var", "wbr", "span", "font"}
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -358,7 +362,7 @@ class _HtmlText(html.parser.HTMLParser):
         self.open: list[str] = []
 
     def flush(self):
-        x = "".join(self.buf)
+        x = re.sub(r"[ \t]+([.,;:!?)])", r"\1", "".join(self.buf))  # "export ." → "export."
         self.buf = []
         if not x.strip():
             return
@@ -371,6 +375,8 @@ class _HtmlText(html.parser.HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag == "title" and not self.title:
             self.in_title = True
+        if tag not in self.INLINE and self.buf:
+            self.buf.append(" ")
         if tag in self.SKIP:
             self.skip += 1
         elif tag in self.BLOCK and not self.skip:
@@ -385,6 +391,8 @@ class _HtmlText(html.parser.HTMLParser):
     def handle_endtag(self, tag):
         if tag == "title":
             self.in_title = False
+        if tag not in self.INLINE and self.buf:
+            self.buf.append(" ")
         if tag in self.SKIP:
             self.skip = max(0, self.skip - 1)
         elif tag in self.BLOCK and not self.skip:

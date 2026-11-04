@@ -151,16 +151,23 @@
   border: 1px solid var(--border); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0;
   background: var(--surface); color: var(--text-secondary); box-shadow: var(--shadow-sm);
   font-size: 8.5px; line-height: 1.45; text-align: start;
-  -webkit-mask-image: linear-gradient(to bottom, #000 72%, transparent);
-          mask-image: linear-gradient(to bottom, #000 72%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, #000 58%, transparent 90%);
+          mask-image: linear-gradient(to bottom, #000 58%, transparent 90%);
 }
+/* A column of lines that runs past the sheet: nothing may shrink (overflow: hidden would let a
+   line's height fall to zero and squash its text). */
+.wl-pv__paper > * { flex-shrink: 0; }
 .wl-pv__paper--light { background: #fff; color: #3d4148; border-color: rgba(15, 23, 42, .1); --pv-strong: #15171a; --pv-line: rgba(15, 23, 42, .1); --pv-soft: #f3f4f6; }
-:root:not([data-theme="light"]) .wl-pv__paper--light { box-shadow: 0 1px 2px rgba(0, 0, 0, .4); filter: brightness(.94); }
+:root:not([data-theme="light"]) .wl-pv__paper--light {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .4); filter: brightness(.94);
+  /* White fading into a dark band reads as grey smudge: the sheet just runs off the edge. */
+  -webkit-mask-image: none; mask-image: none;
+}
 .wl-pv__paper--page { padding: 0; }
 .wl-pv__paper--page img { width: 100%; height: auto; }
 .wl-pv__paper--word { font-family: Georgia, "Times New Roman", serif; }
 .wl-pv__paper--cover { padding-top: 0; }
-.wl-pv__cover { flex: none; display: block; height: 40px; margin: 0 -14px 0; width: calc(100% + 28px); object-fit: cover; background: var(--surface-inset); }
+.wl-pv__cover { flex: none; display: block; height: 40px; margin: 0 -14px; width: calc(100% + 28px); max-width: none; object-fit: cover; background: var(--surface-inset); }
 .wl-pv__cover--empty { background: color-mix(in srgb, var(--tint) 18%, var(--surface-inset)); }
 .wl-pv__icon { font-size: 17px; line-height: 1; margin-top: 2px; }
 .wl-pv__paper--cover .wl-pv__icon { margin-top: -10px; text-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
@@ -215,17 +222,24 @@
 .wl-pv--lock { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--text-muted); font-size: 12px; }
 .wl-pv__lockdisc { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 999px; background: var(--surface); box-shadow: var(--shadow-sm); color: var(--text-secondary); }
 /* The live render of an HTML file (hover, a few at a time). */
-.wl-pv__live { position: absolute; inset: 0; overflow: hidden; background: #fff; opacity: 0; transition: opacity var(--duration-dialog); pointer-events: none; }
+.wl-pv__live {
+  position: absolute; left: 16px; right: 16px; top: 14px; bottom: 0; overflow: hidden; background: #fff;
+  border: 1px solid rgba(15, 23, 42, .1); border-bottom: 0; border-radius: var(--radius-md) var(--radius-md) 0 0; box-shadow: var(--shadow-sm);
+  opacity: 0; transition: opacity var(--duration-dialog); pointer-events: none;
+}
 .wl-card__band[data-live="true"] .wl-pv__live { opacity: 1; }
 .wl-pv__live iframe { position: absolute; left: 0; top: 0; border: 0; transform-origin: 0 0; pointer-events: none; color-scheme: light; }
 .wl-pv__livechip {
-  position: absolute; left: 10px; top: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px 1px 6px;
+  position: absolute; right: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 5px; padding: 1px 7px 1px 6px;
   border-radius: 999px; font-size: 11px; font-weight: 600; color: #fff; background: rgba(15, 17, 20, .62);
 }
 .wl-pv__dot { width: 6px; height: 6px; border-radius: 999px; background: #34d399; box-shadow: 0 0 0 2px rgba(52, 211, 153, .3); }
 /* Over a picture the kind label and the ⋯ need their own backing. */
 .wl-card__band:not([data-pv="icon"]) .wl-card__kind { background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent); }
-.wl-tile:has(.wl-card__band:not([data-pv="icon"])) .wl-card__act { border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: var(--shadow-sm); }
+.wl-tile:has(.wl-card__band:not([data-pv="icon"])) .wl-card__act {
+  border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 72%, transparent);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
 
 @media (prefers-reduced-motion: reduce) {
   .wl-row, .wl-tile, .wl-hover { transition: none; }

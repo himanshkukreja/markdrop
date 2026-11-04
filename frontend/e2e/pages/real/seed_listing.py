@@ -210,7 +210,7 @@ gdoc("md", "API rate limits", "# API rate limits\n\nEvery key gets **600 request
 gdoc("md2", "Onboarding guide", "# Onboarding guide\n\nWelcome to the team! This guide walks you through your first week.\n\n## Day one\n\n"
      "- Get your laptop from IT\n- Join #general and #eng\n- Set up 2FA\n\n## Day two\n\nPair with your buddy on a small fix and ship it.\n")
 gdoc("pw", "Board memo (password)", "# Board memo\n\nConfidential numbers for the board.\n", access="link", read_password="hunter22")
-gdoc("enc", None, "U2FsdGVkX19ciphertextciphertextciphertext==", encrypted=True)
+gdoc("enc", None, "mdx2.c2FsdHNhbHRzYWx0c2FsdA.Y2lwaGVydGV4dGNpcGhlcnRleHQ", encrypted=True)
 gdoc("private", "Ada's private draft", "# Not for you\n\nOnly Ada can read this.\n", access="private")
 upload_bytes("pdf", "Q3 board deck", "q3-board-deck.pdf", (FIX / "q3-board-deck-v1.pdf").read_bytes(), "application/pdf")
 upload_bytes("photo", "Team offsite", "team-photo.png", (FIX / "team-photo.png").read_bytes(), "image/png")
