@@ -65,9 +65,11 @@ On your domain they can:
 - use the AI writing tools, and see and restore **Version history**
 - see who else is on the page, and who is editing it
 
-Some things stay on markdrop.in. In the page's **⋯** menu on your domain, the owner sees them as links that open the same page on markdrop.in:
+**Share** works on your domain too, for people: anyone who may share the page on markdrop.in can, on your domain, see who has access, add people by email as **Can view** or **Can edit** (with **Notify people** and a message), remove them, and copy the link.
 
-- **Manage access on markdrop.in ↗**: sharing, who can open it, the password and expiry
+Some things stay on markdrop.in, so a domain can never make a private page public. In the page's **⋯** menu on your domain, the owner sees them as links that open the same page on markdrop.in:
+
+- **General access on markdrop.in ↗**: who can open it in general (only people added, the team, anyone with the link), the password and expiry
 - **Change link on markdrop.in ↗**
 - **Delete on markdrop.in ↗**
 

@@ -484,7 +484,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ...(editReq?.canRequest ? [{ label: editReq.pending ? "Edit access requested" : "Request edit access", icon: "edit", description: editReq.pending ? "You'll get an email when they decide" : "Ask the owner to let you edit", disabled: editReq.pending, onClick: () => setRequestingEdit(true) }] : []),
     ...(domainOwner ? [
       // (An external link: the menu draws the ↗ itself.)
-      { label: "Manage access on markdrop.in", icon: "users", href: onMarkdrop, external: true, separated: true },
+      { label: "General access on markdrop.in", icon: "globe", href: onMarkdrop, external: true, separated: true },
       ...(isPage ? [{ label: "Change link on markdrop.in", icon: "link", href: onMarkdrop, external: true }] : []),
       { label: "Delete on markdrop.in", icon: "trash", href: onMarkdrop, external: true },
     ] : []),
@@ -521,7 +521,7 @@ export default function DocumentView(props: DocumentViewProps) {
       vscodeSynced={vscodeSynced}
       live={v.live}
       access={v.access}
-      canShare={v.canShare && !pwdLocked && !tenant}
+      canShare={v.canShare && !pwdLocked}
       onShare={() => { setDetailsOpen(false); setShowShare(true); }}
       google={google}
       onReport={!secretUnlocked && !pwdLocked ? () => { setDetailsOpen(false); openReport(); } : undefined}
@@ -622,7 +622,7 @@ export default function DocumentView(props: DocumentViewProps) {
     ? [pageProps.smallText && "pb-small", pageProps.font !== "default" && `pb-font-${pageProps.font}`].filter(Boolean).join(" ")
     : "";
   const pagePresence = readable ? <DocPresence presence={presence} signedIn={!!user} /> : null;
-  const pageShare = v.canShare && !pwdLocked && !tenant ? () => setShowShare(true) : null;
+  const pageShare = v.canShare && !pwdLocked ? () => setShowShare(true) : null;
   const detailsItem: MenuEntry = { label: "Details", icon: "info", description: "Published, views, who can open it", onClick: () => setDetailsOpen(true) };
   const copyItem: MenuEntry = { label: "Copy link", icon: "link", onClick: () => void navigator.clipboard?.writeText(shareUrl).then(() => { copyLinkEvent(); toast.success("Link copied"); }, () => toast.error("Couldn't copy")) };
   // A reader's ⋯: the document's menu, with Details (and Copy link when Share takes the bar).
@@ -808,7 +808,7 @@ export default function DocumentView(props: DocumentViewProps) {
             onProtection={encrypted && readable ? () => v.setShowProtection(true) : null}
             onCopyLink={copyLinkEvent}
             onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
-            onShare={v.canShare && !pwdLocked && !tenant ? () => setShowShare(true) : null}
+            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
             onFullScreen={canFullScreen ? () => v.toggleImmersive(true) : null}
             onDetails={() => setDetailsOpen(true)}
             menu={menu}
@@ -1012,7 +1012,7 @@ export default function DocumentView(props: DocumentViewProps) {
             shareUrl={shareUrl}
             onCopyLink={copyLinkEvent}
             onContents={tocEntries.length ? () => setContentsOpen(true) : null}
-            onShare={v.canShare && !pwdLocked && !tenant ? () => setShowShare(true) : null}
+            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
             onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
             menu={menu}
             copyVariant={showPanel ? "secondary" : "primary"}
@@ -1080,6 +1080,7 @@ export default function DocumentView(props: DocumentViewProps) {
           shareUrl={shareUrl}
           onClose={() => setShowShare(false)}
           onChanged={v.loadAccess}
+          peopleOnly={tenant ? onMarkdrop : undefined}
         />
       )}
 

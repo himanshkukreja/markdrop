@@ -1450,11 +1450,11 @@ export function useDocumentViewer({
   // resharers as well as owners (REVAMP_PLAN 7.6). Signed-in readers only; the
   // server decides `can_share`, a refusal just hides the card.
   const [access, setAccess] = useState<AccessState | null>(null);
-  // A workspace's own domain: who can open it, and sharing, are managed on markdrop.in (its tenant
-  // session can't read the sharing state); `docCan` (the read's flags) answers what's needed there.
+  // A workspace's own domain (2026-11-04): its tenant session reads the sharing state and shares
+  // with specific people (the Share dialog's people-only mode); who can open it in general is still
+  // managed on markdrop.in. `docCan` (the read's flags) answers the rest there.
   const onTenantHost = typeof window !== "undefined" && !isPrimaryHost(window.location.host);
   const loadAccess = useCallback(() => {
-    if (typeof window !== "undefined" && !isPrimaryHost(window.location.host)) { setAccess(null); return; }
     getAccess(slug).then(setAccess).catch(() => setAccess(null));
   }, [slug]);
   useEffect(() => {

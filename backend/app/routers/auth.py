@@ -162,6 +162,18 @@ _TENANT_ALLOWED = (
     # may only ask to *edit* a page it can already read (pinned like every read).
     ("POST", re.compile(r"^/api/v1/documents/[^/]+/access-requests$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/access-requests/mine$")),
+    # ── Sharing with specific people on the workspace's own domain (owner, 2026-11-04) ──
+    #
+    # Who has access, adding a person by email (viewer or editor, optional notify + message) and
+    # removing one. Each decides with `access.can` on the pinned actor (see above), so another
+    # workspace's document is a 404, and the usual sharing rules still apply (`share`: the owner,
+    # or a viewer/editor when resharing is on; `see_grants`: editors; `revoke_grant`: the service's
+    # own rules). NOT allowed here, on purpose: the general access level (public / link / private /
+    # workspace / password), resharing and presence settings, the link (slug) — a hijacked domain
+    # must not be able to publish a private page. Those stay on markdrop.in.
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/access$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/access/people$")),
+    ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/access/people/[^/]+$")),
 )
 
 
