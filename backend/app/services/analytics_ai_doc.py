@@ -291,9 +291,24 @@ async def build_content(db, raw: dict, w: ca.Window, internal: bool) -> Built:
             "readers": rep["sessions"], "read_to_end_pct": rep["read_all_pct"],
             "median_active_s": rep["median_active_s"], "prints": rep["prints"],
             "sections": [{k: v for k, v in r.items() if k != "id"} for r in rows]}
+    # For "Apply in page": the editor replaces a section from its heading to the next heading of the
+    # same or a higher level, so the suggestion is the heading line, the rewrite, then the section's
+    # own sub-sections unchanged.
+    order = [h["id"] for h in hs]
+    frame: dict[str, tuple[str, str]] = {}
+    for i, h in enumerate(hs):
+        text = texts.get(h["id"]) or ""
+        body = body_of(text)
+        head = text[:len(text) - len(body)].rstrip() if body and text.endswith(body) else text.split("\n", 1)[0]
+        subs = []
+        for later in order[i + 1:]:
+            if by_id[later]["depth"] <= h["depth"]:
+                break
+            subs.append(texts.get(later) or "")
+        frame[h["id"]] = (head, "\n\n".join(t for t in subs if t))
     refs = {"sections": {r["n"]: {"n": r["n"], "id": r["id"], "title": r["title"], "depth": r["depth"],
                                   "reached_pct": r["reached_pct"], "lost_before_pct": r["lost_before_pct"],
-                                  "text": bool(r.get("text_attached"))} for r in rows}}
+                                  "text": bool(r.get("text_attached")), "frame": frame.get(r["id"])} for r in rows}}
     return Built(data=data, content=blocks, refs=refs)
 
 
@@ -697,6 +712,9 @@ def validate(kind: str, data: dict, built: Built) -> dict:
                     rw = _TAGS.sub("", rw.replace("\x00", "")).strip()
                     if len(rw) <= LEN["rewrite"]:
                         out["rewrite"] = rw
+                        if sec.get("frame"):
+                            head, subs = sec["frame"]
+                            out["apply_markdown"] = "\n\n".join(x for x in (head, rw, subs) if x)
         elif kind == "media":
             dur = built.refs["duration"] or 0
             t = _num(f.get("t"))

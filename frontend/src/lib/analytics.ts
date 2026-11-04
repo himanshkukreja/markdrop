@@ -344,6 +344,8 @@ export interface AiFinding {
   section?: { n: number; id: string; title: string; depth: number; reached_pct: number; lost_before_pct: number } | null;
   /** content: new Markdown for that section's body (never applied by itself). */
   rewrite?: string | null;
+  /** content: what "Apply in page" offers over the section: its heading, the rewrite, its sub-sections. */
+  apply_markdown?: string | null;
   /** media: seconds (and an optional end). */
   t?: number | null;
   end?: number | null;

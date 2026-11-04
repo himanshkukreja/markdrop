@@ -276,7 +276,8 @@ function Rewrite({ slug, f, canApply }: { slug: string; f: AiFinding; canApply: 
   const [open, setOpen] = useState(false);
   const section = f.section!;
   function apply() {
-    const ok = storeRewrite({ slug, heading: section.title, level: section.depth, markdown: f.rewrite!, title: `Suggested rewrite of “${section.title}”` });
+    const markdown = f.apply_markdown || `${"#".repeat(section.depth)} ${section.title}\n\n${f.rewrite}`;
+    const ok = storeRewrite({ slug, heading: section.title, level: section.depth, markdown, title: `Suggested rewrite of “${section.title}”` });
     if (ok) window.location.assign(applyHref(slug));
   }
   return (

@@ -280,6 +280,9 @@ class Cache(AIWorld):
         self.assertEqual((f0["section"]["n"], f0["section"]["title"], f0["section"]["depth"]),
                          (3, "Configure the long and winding settings", 2))
         self.assertIn("**region**", f0["rewrite"])
+        # Apply in page: the heading, then the rewrite (the editor replaces heading to next heading).
+        self.assertTrue(f0["apply_markdown"].startswith(
+            "## Configure the long and winding settings\n\nThree options matter"))
         self.assertNotIn("section", res["findings"][1])
         # Cached: neither GET nor POST call again.
         self.assertEqual((await self.get(d, "content"))["result"], res)
