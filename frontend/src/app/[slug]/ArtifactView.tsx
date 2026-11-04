@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { ConfirmDialog, ImmersiveExit, MarkdropLoader, Progress, Spinner, cx, useToast, type MenuEntry } from "@/components/ui";
 import { TenantFooter, TenantHandoff, useTenant } from "@/components/tenant";
 import { PublishedPanel, type PublishedAccess } from "@/components/kit/PublishedPanel";
@@ -34,7 +35,14 @@ import {
   liveSocketUrl,
 } from "@/lib/api";
 import { ArtifactDock } from "./artifact/ArtifactBar";
-import { ArtifactTopBar } from "./artifact/ArtifactTopBar";
+// The framed view's one bar is a page's bar (components/pages/PageChrome and its stylesheet). It
+// loads as its own chunk, still rendered on the server, so the /[slug] route a classic document's
+// reader loads (it lists this view too) doesn't carry the page chrome: a document's bar loads on
+// demand (DocumentView), and the opening of a gated document from a listing keeps its timing.
+// Files open full screen, where the bar is hidden; the placeholder holds its 48 px meanwhile.
+const ArtifactTopBar = dynamic(() => import("./artifact/ArtifactTopBar").then((m) => m.ArtifactTopBar), {
+  loading: () => <div aria-hidden className="h-12 shrink-0" />,
+});
 import { ArtifactSettingsDrawer, type ArtifactSettingsState } from "./artifact/ArtifactSettingsDrawer";
 import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import { ArtifactVersions } from "./artifact/ArtifactVersions";
