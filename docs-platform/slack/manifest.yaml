@@ -1,0 +1,69 @@
+# Markdrop for Slack: app manifest (docs-platform/slack/SETUP.md says how to use it).
+#
+# Paste this at https://api.slack.com/apps → Create New App → From an app manifest → (your
+# workspace) → YAML. It describes the production app: api.markdrop.in for Slack's requests and
+# www.markdrop.in for the browser round trips. For a staging app, replace those two hosts.
+#
+# Nothing secret is in here. The Client ID, Client Secret and Signing Secret that Slack shows after
+# creating the app go to the API server's .env (SETUP.md, step 3), never into git.
+display_information:
+  name: Markdrop
+  description: Search, ask and share your Markdrop docs and meetings from Slack.
+  background_color: "#16161a"
+  long_description: >-
+    Markdrop for Slack brings your team's Markdrop documents, files, pages and meetings into Slack.
+    Meeting summaries, decisions and action items are posted to the channel you choose, and each
+    action item has a Done button that ticks it on the Markdrop page. Type /markdrop search or
+    /markdrop ask to find things or get an answer with sources, shown only to you and built only
+    from what you can open in Markdrop. Markdrop links unfurl with a preview when the whole channel
+    may see them. Mentions, sign-off requests, shares and access requests arrive as direct messages,
+    and access requests can be approved or declined right there.
+features:
+  app_home:
+    home_tab_enabled: false
+    messages_tab_enabled: true
+    messages_tab_read_only_enabled: true
+  bot_user:
+    display_name: Markdrop
+    always_online: true
+  slash_commands:
+    - command: /markdrop
+      url: https://api.markdrop.in/api/v1/slack/commands
+      description: Search or ask your Markdrop docs and meetings
+      usage_hint: "search <words> | ask <question> | link | help"
+      should_escape: false
+  unfurl_domains:
+    - markdrop.in
+    - www.markdrop.in
+oauth_config:
+  redirect_urls:
+    # Installing the app (Workspace settings › Integrations › Slack › Add to Slack) and linking a
+    # person's Slack account (Link my Slack account) both come back here.
+    - https://www.markdrop.in/integrations/slack/callback
+  scopes:
+    # Linking a person's account uses Sign in with Slack (OpenID Connect): Markdrop reads who they
+    # are once and keeps no user token.
+    user:
+      - openid
+    bot:
+      - commands          # /markdrop
+      - chat:write        # meeting posts, answers, direct messages
+      - chat:write.public # post meeting summaries in a public channel without being invited first
+      - links:read        # see markdrop.in links posted in messages
+      - links:write       # unfurl them
+      - im:write          # open the direct message for notifications
+      - channels:read     # list public channels for the meetings-channel picker; spot Slack Connect channels
+      - groups:read       # private channels the app was invited to, for the same picker
+settings:
+  event_subscriptions:
+    request_url: https://api.markdrop.in/api/v1/slack/events
+    bot_events:
+      - link_shared
+      - app_uninstalled
+      - tokens_revoked
+  interactivity:
+    is_enabled: true
+    request_url: https://api.markdrop.in/api/v1/slack/interactivity
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
