@@ -325,6 +325,12 @@ button.pb-mention--date { cursor: pointer; }
 @media (max-width: 639px) { .md-docbar__contents, .md-docbar .pb-bar__copy { display: none !important; } }
 /* A file's bar (app/[slug]/artifact/ArtifactTopBar): on phones the title keeps the room its type badge took. */
 @media (max-width: 639px) { .md-artbar .pb-bar__badge { display: none; } .md-artbar .pb-bar__crumbs { flex: 1 1 auto; } }
+/* A file has no editor, so its phone bar shows who else is viewing (up to two faces and "+N"; not
+   you, whose avatar is beside it), where a page's shows only the person editing. */
+@media (max-width: 639px) {
+  .md-artbar .pb-bar__presence:is(:has([data-face] ~ [data-face]), :has([data-more])) { display: inline-flex; margin-right: 0; }
+  .md-artbar .pb-bar__presence [data-face]:not(:last-child), .md-artbar .pb-bar__presence [data-more] { display: revert-layer !important; }
+}
 
 /* Saved / Saving… : cross-faded in one slot (no width jump). */
 .pb-save { display: inline-grid; align-items: center; justify-items: end; margin: 0 8px 0 4px; color: var(--text-muted); font: 500 12px/1 var(--font-mono); white-space: nowrap; }

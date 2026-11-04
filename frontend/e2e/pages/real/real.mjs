@@ -1095,6 +1095,12 @@ await step("artifact-onebar", async () => {
   const locked = await uploadFile(T.owner, { bytes: html, filename: "locked.html", mime: "text/html", title: "Locked page", read_password: "open sesame" });
   const g = await ctx(browser);
   await g.p.goto(`${APP}/${locked.slug}`, { waitUntil: "networkidle" });
+  await g.p.getByLabel(/Password/).first().waitFor({ timeout: 20000 });
+  {
+    // The gate has the same one bar (/slug, Password), and no app header over it.
+    const l = await fileLayout(g.p);
+    if (l.bars.length !== 1 || l.headers.length !== 1) fail(`password gate: ${l.bars.length} top bars, headers ${l.headers.join(", ")}`);
+  }
   await g.p.getByLabel(/Password/).first().fill("open sesame");
   await g.p.keyboard.press("Enter");
   await details(g.p);
