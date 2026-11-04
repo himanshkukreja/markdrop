@@ -96,7 +96,9 @@ INSTRUCTIONS = (
     "move_page manage sub-pages; when a move changes who can read a page, confirm with the user "
     "before passing confirm_access_change. duplicate_page copies a page with its images (a locked "
     "page gives an unlocked copy). list_workspace_members gives the account ids to mention people "
-    "in a page (:person[Name]{id=\"<id>\"})."
+    "in a page (:person[Name]{id=\"<id>\"}). "
+    "delete_document moves an item to the trash for 30 days (restore_document brings it back, list_trash "
+    "lists what can be); pass permanent: true only when the user explicitly asks to delete forever."
 )
 # How long a client may reuse discovery and list results (envelope era).
 LIST_TTL_MS = 5 * 60 * 1000
