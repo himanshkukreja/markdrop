@@ -553,6 +553,16 @@ func TestTrash(t *testing.T) {
 	mustErr(t, err, "isn't in your trash")
 	_, _, err = e.run("trash", "restore", "nothing")
 	mustErr(t, err, "isn't in your trash")
+	_, _, err = e.run("trash", "rm", "book-gone")
+	mustErr(t, err, "markdrop trash ls")
+	_, _, err = e.run("versions", "book-gone-too")
+	if err == nil {
+		t.Error("versions of a missing file")
+	}
+	e.fake.AddPage("a-page", fakeapi.Token, "A page", "x\n")
+	e.fake.AddDoc("a-doc", fakeapi.Token, "markdown", []byte("x"), "text/markdown")
+	_, _, err = e.run("versions", "a-doc")
+	mustErr(t, err, "markdrop page versions a-doc")
 	_, _, err = e.run("trash", "rm", "x", "--children", "keep")
 	mustErr(t, err, "delete or lift")
 }

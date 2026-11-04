@@ -379,6 +379,8 @@ working at once, and it can be brought back for 30 days (markdrop trash restore)
 				return err
 			case files.IsStatus(err, http.StatusNotFound) && permanent:
 				// Already in the trash: delete it forever from there.
+			case files.IsStatus(err, http.StatusNotFound):
+				return fmt.Errorf("%w\n  If you deleted it already, it is in the trash: markdrop trash ls", err)
 			default:
 				return err
 			}
