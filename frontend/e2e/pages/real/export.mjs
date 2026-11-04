@@ -334,7 +334,7 @@ await step("exports-mcp", async () => {
   const url = r.data?.download_url;
   if (!url) fail(`export_page: ${r.text}`);
   const { c, p } = await ctx(browser, {});
-  await p.setContent(`<a id=l href="${url}" target=_blank>Download</a><a id=x href="${url}x" target=_blank>Old link</a>`);
+  await p.setContent(`<a id=l href="${url}" target=_blank>Download</a>`);
   // The browser reports the download on the page that opened the link, or on the new tab.
   const anyDownload = new Promise((ok) => {
     p.once("download", ok);
@@ -342,8 +342,9 @@ await step("exports-mcp", async () => {
   });
   const [dl] = await Promise.all([Promise.race([anyDownload, new Promise((_, no) => setTimeout(() => no(new Error("no download from the MCP link")), 15000))]), p.click("#l")]);
   if (!/\.html$/.test(dl.suggestedFilename())) fail(`mcp link: ${dl.suggestedFilename()}`);
-  const [np] = await Promise.all([c.waitForEvent("page"), p.click("#x")]);
-  await np.waitForLoadState();
+  // The expired one, opened like a browser opens a link (a navigation in a tab of its own).
+  const np = await c.newPage();
+  await np.goto(`${url}x`);
   const body = await np.locator("body").innerText();
   if (!/This download link has expired/.test(body) || /^\s*\{/.test(body)) fail(`expired link page: ${body.slice(0, 200)}`);
   await np.screenshot({ path: OWNER_SHOTS ? keep("bug1-mcp-expired-link.png") : path.join(SHOTS, "export-mcp-expired.png") });
@@ -352,7 +353,8 @@ await step("exports-mcp", async () => {
 
 // ── The exported HTML and the PDF: the title never sits on the cover (cover+icon, cover, icon, none) ──
 const overlap = (a, b) => !!a && !!b && a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
-const box = (p, sel) => p.locator(sel).first().boundingBox().catch(() => null);
+// (No waiting for an element a variant doesn't have: a 30 s wait would outlast the print layer's minute.)
+const box = async (p, sel) => ((await p.locator(sel).count()) ? p.locator(sel).first().boundingBox() : null);
 function checkHead(where, name, t, cov, ic) {
   if (!t) fail(`${where} ${name}: no title`);
   if (overlap(t, cov)) fail(`${where} ${name}: the title overlaps the cover ${JSON.stringify({ t, cov })}`);
