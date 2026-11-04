@@ -608,6 +608,7 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-frame :is(.dxe-code__lang, .dxe-code__title) { min-height: 44px; }
   .pb-tg .md-btn { min-height: 44px; }
   .dxe-pembed__tools .md-seg__opt { min-width: 44px; }
+  .dxe-pembed__tools :is(.md-btn, .md-iconbtn) { min-height: 44px; min-width: 44px; }
   .pb-colors__head { font-size: 12px; }
   .pb-bar__auth .md-avatar { font-size: 12px; }
   .pb-frame :is(.dxe-label, .dxe-code__title, .dxe-code__lang, .dxe-codecap, .pb-date-input) { font-size: 16px; }
@@ -627,9 +628,9 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 .pb-phonebar__btn { flex: 1 0 44px; min-width: 44px; }
 .pb-phonebar__btn--wide { position: sticky; right: 0; background: color-mix(in srgb, var(--surface-raised) 96%, transparent); }
 /* A short screen (a phone turned sideways): the icon and cover pickers sit in the middle of the
-   screen, scrolling inside, not hanging off its bottom edge. */
+   screen below the page's bar (48 px), scrolling inside, not hanging off its bottom edge. */
 @media (max-height: 520px) {
-  .pb-emojipick, .pb-coverpick, .pb-cover-img .pb-coverpick { position: fixed; top: 8px; bottom: auto; left: 0; right: 0; margin-inline: auto; max-height: calc(100dvh - 16px); overflow-y: auto; overscroll-behavior: contain; }
+  .pb-emojipick, .pb-coverpick, .pb-cover-img .pb-coverpick { position: fixed; top: 56px; bottom: auto; left: 0; right: 0; margin-inline: auto; max-height: calc(100dvh - 64px); overflow-y: auto; overscroll-behavior: contain; }
   .pb-emojipick__grid { max-height: none; }
 }
 /* Tablets: the bottom toolbar (format, blocks, undo; on the keyboard) as a centred bar, and the
