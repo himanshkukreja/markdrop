@@ -130,6 +130,26 @@ await step("apply", async () => {
   if (await p.getByText("Suggested rewrite of “Configuration”").count()) fail("the suggestion stayed after Discard");
   const doc1 = (await api("GET", `/api/v1/documents/${S.page}`, T)).body;
   if (doc1.content !== doc0.content) fail("Discard changed the page");
+  // Again, and Accept: the section is rewritten under its own heading; the rest stays.
+  await open(p, S.page, "content");
+  const again = findings(p).first();
+  await again.getByRole("button", { name: "Show a suggested rewrite" }).click();
+  await again.getByRole("button", { name: "Apply in page" }).click();
+  await p.getByText("Suggested rewrite of “Configuration”").waitFor({ timeout: 30000 });
+  await p.getByRole("button", { name: /^Accept/ }).first().click();
+  let saved = null;
+  for (let i = 0; i < 30 && !saved; i++) {
+    await p.waitForTimeout(500);
+    const d = (await api("GET", `/api/v1/documents/${S.page}`, T)).body;
+    if (d.content.includes("Set your **API key** first")) saved = d.content;
+  }
+  if (!saved) fail("Accept didn't save the rewrite");
+  if (!/## Configuration\s+Set your \*\*API key\*\* first/.test(saved)) fail("the heading wasn't kept above the rewrite");
+  if (saved.includes("Every option is explained")) fail("the old section text stayed");
+  for (const keep of ["## Install", "## Your first report", "## Troubleshooting", "npm install -g acme-cli"]) {
+    if (!saved.includes(keep)) fail(`Accept lost ${keep}`);
+  }
+  await snap(p, "apply-accepted-light-1440");
 });
 
 await step("media", async () => {
