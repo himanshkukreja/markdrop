@@ -94,7 +94,8 @@ export async function duplicatePage(src: DuplicateSource, onStep: (s: Step) => v
       title = copyTitle(title, taken);
     }
     onStep({ text: top ? "Creating the copy…" : `Copying sub-pages… ${budget.pages} copied` });
-    const created = await createPage({ title, content: content.trim() ? content : null, ...place });
+    // The copy keeps the original's cover, or its lack of one: no auto cover.
+    const created = await createPage({ title, content: content.trim() ? content : null, ...place, autoCover: false });
     rememberSecret(created);
     budget.pages++;
     const newSlug = created.document.slug;

@@ -82,6 +82,8 @@ export interface WorkspaceSettings {
   default_access?: ItemAccess;
   /** Page AI on this workspace's pages (Ask AI, summaries, suggestions). Absent on older backends (= true). */
   ai_enabled?: boolean;
+  /** Auto covers: new pages get a cover picked for what they're about. Absent on older backends (= true). */
+  auto_covers?: boolean;
 }
 
 /** v2 `GET /workspaces` item domain summary. */

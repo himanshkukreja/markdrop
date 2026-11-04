@@ -326,6 +326,14 @@ button.pb-mention--date { cursor: pointer; }
 .pb-head { position: relative; }
 .pb-cover-img { position: relative; height: clamp(150px, 30vh, 280px); background-position: center; background-size: cover; background-repeat: no-repeat; }
 .pb-cover-img__img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; pointer-events: none; will-change: object-position; }
+/* Auto covers: the cover's place while one is picked, and the cover fading in when it lands. */
+.pb-cover-img--pending { overflow: hidden; background: var(--surface-raised); }
+.pb-cover-img--pending::before { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 20%, color-mix(in srgb, var(--surface) 55%, transparent) 50%, transparent 80%); transform: translateX(-100%); animation: pb-cover-shimmer 1.6s var(--ease-out) infinite; }
+@keyframes pb-cover-shimmer { to { transform: translateX(100%); } }
+.pb-cover-img__img[data-fade] { opacity: 0; transform: scale(1.015); transition: opacity 520ms var(--ease-out), transform 900ms var(--ease-out); }
+.pb-cover-img__img[data-fade][data-loaded] { opacity: 1; transform: none; }
+.pb-headbtn--note { cursor: default; color: var(--text-muted); }
+.pb-headbtn--note:hover { background: color-mix(in srgb, var(--surface-raised) 86%, transparent); color: var(--text-muted); }
 .pb-cover-img--moving { cursor: grab; touch-action: none; outline: none; }
 .pb-cover-img--moving:active { cursor: grabbing; }
 .pb-cover-img--moving::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--border-focus); pointer-events: none; }
@@ -337,7 +345,8 @@ button.pb-mention--date { cursor: pointer; }
 .pb-headbtn:hover { background: var(--surface-raised); color: var(--text); }
 .pb-headbtn--quiet { background: none; box-shadow: none; color: var(--text-muted); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .pb-headbtn--quiet:hover { background: var(--surface-hover); }
-.pb-cover-img .pb-coverpick { top: auto; bottom: 48px; left: auto; right: max(12px, calc((100% - var(--pb-w)) / 2)); }
+/* From the cover: it opens below the cover tools, over the page (44 covers make it too tall to open upward). */
+.pb-cover-img .pb-coverpick { top: calc(100% - 6px); bottom: auto; left: auto; right: max(12px, calc((100% - var(--pb-w)) / 2)); }
 
 .pb-head__body { position: relative; padding-top: 64px; }
 .pb-head--cover .pb-head__body { padding-top: 12px; }
@@ -500,6 +509,8 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 @keyframes pb-sheet-down { to { transform: translate3d(0, 100%, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
+  .pb-cover-img--pending::before { animation: none; transform: none; opacity: 0; }
+  .pb-cover-img__img[data-fade] { transition: none; transform: none; }
   .pb-frame *, .pb-frame *::before, .pb-frame *::after, .pb-barwrap, .pb-sheet-layer *, .pb-phonebar, .pb-phonebar *, .pb-rail, .pb-railscrim { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
 }
 

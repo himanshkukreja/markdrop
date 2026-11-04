@@ -337,7 +337,7 @@ class McpPages(AccessWorld):
         await self.ok("wm", "append_blocks", {"document": page["slug"], "markdown": "member note"})
 
     async def test_create_page_with_properties(self):
-        out = await self.ok("owner", "create_page", {"title": "P", "template": "prd",
+        out = await self.ok("owner", "create_page", {"title": "P", "template": "prd", "auto_cover": False,
                                                      "properties": {"icon": "📘", "full_width": True}})
         raw = await self.doc(out["slug"])
         self.assertTrue(raw["content"].startswith("---\nicon: 📘\nfull_width: true\n---\n:::note"))

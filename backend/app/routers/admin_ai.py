@@ -1140,5 +1140,50 @@ async def budgets_audit(
     emails = await _emails(db, {r["target"] for r in rows if r.get("kind") == "user"})
     return {"items": [{"id": str(r["_id"]), "ts": _iso(r.get("ts")), "admin": r.get("admin"), "kind": r.get("kind"),
                        "target": r.get("target"),
-                       "target_label": emails.get(r.get("target")) if r.get("kind") == "user" else "Budgets",
+                       "target_label": emails.get(r.get("target")) if r.get("kind") == "user" else
+                       ("Cover backfill" if r.get("kind") == "covers" else "Budgets"),
                        "before": r.get("before"), "after": r.get("after")} for r in rows]}
+
+
+# ── Auto covers: the one-time backfill (services/page_covers.py) ──────────────
+# It starts on its own after deploy (no approval); admins watch it and can pause and resume it.
+
+
+def _cover_view(state: dict) -> dict:
+    out = dict(state)
+    for k in ("started_at", "finished_at", "last_tick", "paused_at", "resumed_at"):
+        if isinstance(out.get(k), datetime):
+            out[k] = _iso(out[k])
+    scan = dict(out.pop("scan", None) or {}) or None
+    if scan and isinstance(scan.get("at"), datetime):
+        scan["at"] = _iso(scan["at"])
+    return {"state": out, "scan": scan}
+
+
+@router.get("/covers/backfill")
+async def cover_backfill(db: AsyncIOMotorDatabase = Depends(get_db), _: dict = Depends(require_admin)):
+    """The backfill's progress and the counts it started with (``state.status``: not_started,
+    running, paused, done)."""
+    from app.services import page_covers
+
+    return _cover_view(await page_covers.backfill_state(db))
+
+
+@router.post("/covers/backfill/pause")
+async def cover_backfill_pause(db: AsyncIOMotorDatabase = Depends(get_db), admin: dict = Depends(require_admin)):
+    """Pause after the page in hand. Covers already added stay."""
+    from app.services import page_covers
+
+    state = await page_covers.backfill_pause(db, admin.get("sub") or "admin")
+    await _audit(db, admin, "covers", "backfill", {"status": "running"}, {"status": state.get("status")})
+    return _cover_view(state)
+
+
+@router.post("/covers/backfill/resume")
+async def cover_backfill_resume(db: AsyncIOMotorDatabase = Depends(get_db), admin: dict = Depends(require_admin)):
+    """Carry on from where it paused."""
+    from app.services import page_covers
+
+    state = await page_covers.backfill_resume(db, admin.get("sub") or "admin")
+    await _audit(db, admin, "covers", "backfill", {"status": "paused"}, {"status": state.get("status")})
+    return _cover_view(state)

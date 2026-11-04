@@ -95,6 +95,10 @@ export interface PageDocument extends DocumentResponse {
   template_id?: string | null;
   /** Page images referenced in the content, per viewer: `asset:<id>` → URL. */
   assets?: Record<string, AssetUrl>;
+  /** Auto covers: the cover was picked for the page automatically. */
+  cover_auto?: boolean;
+  /** Auto covers: one is being picked right now (the editor fades it in when it lands). */
+  cover_pending?: boolean;
 }
 
 export interface PageTemplate {
@@ -169,10 +173,29 @@ function changed<T>(p: Promise<T>, saved?: { slug: string; title: string | null;
 }
 
 /** `POST /pages`: a new page (signed in). `parent` is a page's slug; the new page inherits its access. */
-export function createPage(input: { title: string; workspace?: string | null; folder?: string | null; parent?: string | null; template?: string | null; content?: string | null; after?: string | null }) {
+export function createPage(input: { title: string; workspace?: string | null; folder?: string | null; parent?: string | null; template?: string | null; content?: string | null; after?: string | null; autoCover?: boolean }) {
   const body: Record<string, unknown> = { title: input.title };
   for (const k of ["workspace", "folder", "parent", "template", "content", "after"] as const) if (input[k]) body[k] = input[k];
+  // A cover is picked for a new page unless it has one; a duplicate keeps its source's (none included).
+  if (input.autoCover === false) body.auto_cover = false;
   return changed(call<CreatedPage>("/api/v1/pages", { method: "POST", body: JSON.stringify(body) }));
+}
+
+export interface CoverStatus {
+  cover: string | null;
+  cover_auto: boolean;
+  cover_pending: boolean;
+  rev: number;
+}
+
+/** `GET /pages/{slug}/cover`: the page's cover now (an editor waiting on its auto cover polls this). */
+export function getCoverStatus(slug: string, secret?: string | null) {
+  return call<CoverStatus>(`/api/v1/pages/${enc(slug)}/cover`, { secret });
+}
+
+/** `POST /pages/{slug}/cover/suggest`: a cover picked for the page like an auto cover, not saved ("Pick for me"). */
+export function suggestCover(slug: string, secret?: string | null) {
+  return call<{ cover: string; how: "ai" | "keywords" }>(`/api/v1/pages/${enc(slug)}/cover/suggest`, { method: "POST", secret });
 }
 
 /** A page as this person reads it (GET /documents/{slug}, with their session). */

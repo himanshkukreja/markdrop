@@ -471,8 +471,14 @@ async def update_document(
     # key — over a newer version (an undone key rotation). Checked here for a
     # clear answer and again in the write itself (cas) for the race.
     cas: dict = {"slug": slug}
+    from app.services import page_covers
+
     if data.base_rev is not None:
         current = raw.get("rev", 1)
+        # The one write since the editor's read was an auto cover: not a conflict, the cover is
+        # merged into what it saves (services/page_covers.py).
+        if data.base_rev != current and page_covers.merge_on_save(raw, data):
+            data.base_rev = current
         if data.base_rev != current:
             raise StaleRevision(current)
         if "rev" in raw:
@@ -504,6 +510,10 @@ async def update_document(
 
             await page_db.check_save(db, raw, sets["content"], actor, ctx)
 
+    # Auto covers (services/page_covers.py): a save that removes the cover is remembered (it is
+    # never auto-added again); one that changes it makes the cover the person's own.
+    cover_unset = page_covers.on_save(raw, sets.get("content"), sets)
+
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,
         expires_in=data.expires_in, custom_expires_at=data.custom_expires_at, now=now)
@@ -514,7 +524,7 @@ async def update_document(
     try:
         after = await transitions.change(
             db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
-            cas=cas,
+            cas=cas, unset=cover_unset or None,
         )
     except HTTPException as exc:
         if exc.status_code == 409 and "rev" in cas:
@@ -541,6 +551,9 @@ async def update_document(
     from app.services import notifications
 
     await notifications.on_page_saved(db, raw, after, actor)
+    # A new page waiting for its auto cover gets it once it says what it's about.
+    if after.get("cover_pick") == "waiting":
+        await page_covers.after_save(db, after)
     return after
 
 

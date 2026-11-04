@@ -45,6 +45,8 @@ class SettingsPayload(BaseModel):
     default_access: Literal["link", "workspace", "private"] = "workspace"
     # Page AI on this workspace's pages (default on; admins change it).
     ai_enabled: bool = True
+    # New pages get a cover picked for them (services/page_covers.py). Default on.
+    auto_covers: bool = True
 
 
 class DomainSummary(BaseModel):

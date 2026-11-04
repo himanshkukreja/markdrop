@@ -2,7 +2,7 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-04
-keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
+keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -46,7 +46,19 @@ Select text to format it, add a link, or turn a line into another kind of block.
 
 A page's title sits above its content. Press **Enter** in the title to start writing.
 
-Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search by name) or an image you upload, and it shows in the browser tab. The cover is one of Markdrop's built-in covers (paper, duotone, lines and calm), an image you upload, or an image link. A new page has no cover until you add one. Hover the cover for **Change cover**, **Reposition** (drag the image up or down) and **Remove**.
+Hover the title for **Add icon** and **Add cover**. The icon is an emoji (search by name) or an image you upload, and it shows in the browser tab. The cover is one of Markdrop's 44 built-in covers (in five groups: paper, duotone, lines, shapes and calm), an image you upload, or an image link. **Pick for me** in the cover picker chooses one for what the page is about. Hover the cover for **Change cover**, **Reposition** (drag the image up or down) and **Remove**.
+
+### Automatic covers
+
+A new page gets a cover by itself: one of Markdrop's own covers, picked for what the page is about. A roadmap gets a route, meeting notes get overlapping circles, a runbook gets a calm pulse line. It fades in a moment after the page opens.
+
+- **How it's picked.** With [AI](/pages/ai) on, AI reads the page's title and its first lines (about 1,500 characters) and picks from the covers' themes. With AI off, over its limit, or when it can't answer, the cover is matched on the title's and the text's words instead. Either way, nothing about the page changes but its cover.
+- **When.** Right away for a page that has a title, a template or text. A page made as **Untitled** with nothing in it gets its cover once you've named it and started writing.
+- **Which pages.** Pages made in the editor, from a template, from notes or by an AI app. A duplicate keeps its original's cover (or its lack of one). Templates, end-to-end encrypted pages and pages that already have a cover never get one.
+- **Change or remove it.** Hover the cover: an automatic cover says **Auto**. **Change cover** picks another, and **Remove** takes it away in one click. A cover you remove is never added back, and neither is one on a page you made without a cover.
+- **Turn it off.** Workspace admins can turn **Auto covers** off on the **Advanced** tab of the workspace's settings, next to **AI features**. New pages there then start without a cover; pages that have one keep it. Pages outside a workspace always get one.
+
+Pages made before automatic covers existed got a cover the same way, once, unless they're encrypted, templates or someone had removed their cover.
 
 ## The top bar
 

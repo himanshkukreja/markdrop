@@ -55,6 +55,9 @@ export interface PageFields {
   template?: { id?: string; description?: string; icon?: string | null; scope?: "workspace" | "personal"; part_of?: boolean } | null;
   /** Typed properties (a page filed in a folder with a schema): components/pages/props. */
   page_properties?: PagePropertiesInfo | null;
+  /** Auto covers: the cover was picked automatically / one is on its way (the editor fades it in). */
+  cover_auto?: boolean;
+  cover_pending?: boolean;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -76,6 +79,8 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     props: d.page && typeof d.page === "object" ? (d.page as PageFields["props"]) : null,
     template: d.template && typeof d.template === "object" ? d.template : null,
     page_properties: d.page_properties && typeof d.page_properties === "object" && Array.isArray((d.page_properties as PagePropertiesInfo).properties) ? (d.page_properties as PagePropertiesInfo) : null,
+    cover_auto: d.cover_auto === true,
+    cover_pending: d.cover_pending === true,
   };
 }
 

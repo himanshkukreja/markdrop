@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDocument } from "@/lib/api";
 import { lockHolder, lockPage, pagesErrorStatus, savePage, unlockPage, PagesApiError, type PageDocument } from "@/lib/pages";
+import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
+import { readPageProps } from "./pageProps";
+import { writePageProps } from "./pagePropsWrite";
 
 const pageLocked = (e: unknown) => e instanceof PagesApiError && e.info.code === "page_locked";
 
@@ -53,7 +56,10 @@ export interface Conflict {
  *   app's append_blocks), the addition is merged in and the save retried; otherwise "This page
  *   changed", with Load the latest / Keep mine;
  * - a live `appended` event goes straight into the editor at the end (`onAppend`); while the lock
- *   isn't ours, any change is shown as it lands (unless this editor has text on its way).
+ *   isn't ours, any change is shown as it lands (unless this editor has text on its way);
+ * - an auto cover (live `cover`, or `remoteCover` from a poll) goes into the page's front matter
+ *   (`onCover`) without counting as an edit; a 409 whose only difference is that cover is merged
+ *   too, so the page never loses it to a save that started before it landed.
  */
 export function usePageEditSession({
   slug,
@@ -63,6 +69,7 @@ export function usePageEditSession({
   onAppend,
   onRemote,
   subscribeLive,
+  onCover,
 }: {
   slug: string;
   secret: string | null;
@@ -73,6 +80,8 @@ export function usePageEditSession({
   /** A whole new version to show (someone else's edit while read only, Load the latest). */
   onRemote: (doc: { title: string; content: string; rev: number | null }) => void;
   subscribeLive?: (fn: (msg: Record<string, unknown>) => void) => () => void;
+  /** An auto cover landed (`gallery:<id>`): put it in the page's front matter. */
+  onCover?: (cover: string) => void;
 }) {
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
   const [lock, setLockState] = useState<LockState>({ kind: "idle" });
@@ -93,8 +102,8 @@ export function usePageEditSession({
   /** The last key, click or change here (for letting go of an idle lock). */
   const lastActive = useRef(0);
   const acquiring = useRef<Promise<boolean> | null>(null);
-  const cbs = useRef({ onSaved, onAppend, onRemote });
-  cbs.current = { onSaved, onAppend, onRemote };
+  const cbs = useRef({ onSaved, onAppend, onRemote, onCover });
+  cbs.current = { onSaved, onAppend, onRemote, onCover };
 
   const clearTimer = () => {
     if (timer.current) window.clearTimeout(timer.current);
@@ -127,6 +136,16 @@ export function usePageEditSession({
       const doc = await savePage(slug, { title: sent.title, content: sent.content, baseRev: baseRev.current }, secret);
       baseRev.current = typeof doc.rev === "number" ? doc.rev : baseRev.current;
       base.current = sent;
+      // An auto cover that landed before this save, merged in by the server: take it, so the next
+      // save doesn't drop it (which would count as removing it).
+      const merged = doc.cover_auto ? readPageProps(doc.content ?? "").cover : null;
+      if (merged && !readPageProps(sent.content).cover) {
+        base.current = { ...sent, content: doc.content ?? sent.content };
+        if (!readPageProps(fields.current.content).cover) {
+          fields.current = { ...fields.current, content: writePageProps(fields.current.content, { cover: merged, coverY: 50 }) };
+        }
+        cbs.current.onCover?.(merged);
+      }
       cbs.current.onSaved?.(doc);
       setSave(dirty.current ? { state: "dirty" } : { state: "saved", at: Date.now() });
     } catch (e) {
@@ -143,6 +162,17 @@ export function usePageEditSession({
         // append_blocks), take the addition and save on top; anything else is the author's call.
         try {
           const latest = await fetchLatest();
+          // Only an auto cover landed since our base: take it into what we're saving and retry.
+          const cover = coverOnlyChange(base.current.content, latest.content ?? "");
+          if (cover && (latest.title ?? "") === base.current.title) {
+            base.current = { title: latest.title ?? "", content: latest.content ?? "" };
+            baseRev.current = typeof latest.rev === "number" ? latest.rev : baseRev.current;
+            fields.current = { ...fields.current, content: writePageProps(fields.current.content, { cover, coverY: 50 }) };
+            cbs.current.onCover?.(cover);
+            setSave({ state: "dirty" });
+            timer.current = window.setTimeout(() => void doSave(), 300);
+            return;
+          }
           const was = base.current.content.replace(/\s+$/, "");
           const now = (latest.content ?? "").replace(/\s+$/, "");
           // Whole new blocks only: text added to the end of our last line (another tab, another
@@ -288,11 +318,30 @@ export function usePageEditSession({
     return () => window.clearInterval(id);
   }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock, release]);
 
+  /**
+   * An auto cover the server wrote at `rev` (a live `cover` event or a poll): into the editor, as part
+   * of what the server holds (so it isn't an edit). When more than the cover changed since our base,
+   * the next save meets a 409 and the merge above takes it.
+   */
+  const remoteCover = useCallback((cover: string, rev: number | null) => {
+    if (rev !== null && baseRev.current !== null && rev <= baseRev.current) return;
+    if (readPageProps(fields.current.content).cover) return; // someone chose one here meanwhile
+    if (rev !== null && baseRev.current !== null && rev === baseRev.current + 1 && !saving.current) {
+      base.current = { ...base.current, content: writePageProps(base.current.content, { cover, coverY: 50 }) };
+      baseRev.current = rev;
+    }
+    cbs.current.onCover?.(cover);
+  }, []);
+
   // Live: appended blocks go in at the end; anyone else's change is shown while the lock isn't ours.
   useEffect(() => {
     if (!subscribeLive) return;
     return subscribeLive((msg) => {
       const rev = typeof msg.rev === "number" ? msg.rev : null;
+      if (msg.type === "cover" && typeof msg.cover === "string") {
+        remoteCover(msg.cover, rev);
+        return;
+      }
       if (msg.type === "appended" && typeof msg.markdown === "string") {
         if (lockRef.current.kind === "mine") {
           // Only appends can land while we hold the lock: the server now has what we last saved
@@ -318,7 +367,7 @@ export function usePageEditSession({
         if (lockRef.current.kind !== "mine" && !dirty.current) void fetchLatest().then(adopt).catch(() => {});
       }
     });
-  }, [subscribeLive, fetchLatest, adopt]);
+  }, [subscribeLive, fetchLatest, adopt, remoteCover]);
 
   // A restore from this tab's version history: load it now (the live socket may be down).
   useEffect(() => {
@@ -396,5 +445,14 @@ export function usePageEditSession({
     else void doSave();
   }, [doSave, acquire]);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry, activity };
+  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover };
+}
+
+/** The cover `latest` added when that is all that differs from `base` (else null). */
+export function coverOnlyChange(base: string, latest: string): string | null {
+  const a = readPageProps(base), b = readPageProps(latest);
+  if (a.cover || !b.cover) return null;
+  if (splitFrontmatter(base).body !== splitFrontmatter(latest).body) return null;
+  const rest = (p: ReturnType<typeof readPageProps>) => JSON.stringify({ ...p, cover: null, coverY: 50 });
+  return rest(a) === rest(b) ? b.cover : null;
 }

@@ -1,9 +1,10 @@
 "use client";
 
 /**
- * The cover picker: Markdrop's own covers by category (Paper, Duotone, Lines, Calm), an upload,
- * or an image link. Opens on the category of the page's current cover. Closes on Escape or a
- * click outside. The covers themselves: public/page-covers (pageProps COVER_GALLERY).
+ * The cover picker: Markdrop's own covers by category (Paper, Duotone, Lines, Shapes, Calm), an
+ * upload, or an image link, and "Pick for me" (the same pick new pages get: auto covers). Opens on
+ * the category of the page's current cover. Closes on Escape or a click outside. The covers
+ * themselves: public/page-covers (pageProps COVER_GALLERY).
  */
 import { useEffect, useRef, useState } from "react";
 import { Button, Icon, Input, cx } from "@/components/ui";
@@ -17,11 +18,13 @@ export interface CoverGalleryProps {
   current?: string | null;
   onPick: (cover: string) => void;
   onUpload?: (f: File) => void;
+  /** "Pick for me": a cover chosen for the page (`gallery:<id>`), or null when it couldn't. */
+  onSuggest?: () => Promise<string | null>;
   onClose: () => void;
   className?: string;
 }
 
-export function CoverGallery({ current, onPick, onUpload, onClose, className }: CoverGalleryProps) {
+export function CoverGallery({ current, onPick, onUpload, onSuggest, onClose, className }: CoverGalleryProps) {
   const ref = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const chosen = galleryCover(current ?? null);
@@ -30,6 +33,23 @@ export function CoverGallery({ current, onPick, onUpload, onClose, className }: 
   const [url, setUrl] = useState(current && /^https:\/\//.test(current) ? current : "");
   const [bad, setBad] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestFailed, setSuggestFailed] = useState(false);
+
+  const suggest = async () => {
+    if (!onSuggest || suggesting) return;
+    setSuggesting(true);
+    setSuggestFailed(false);
+    try {
+      const c = await onSuggest();
+      if (c) onPick(c);
+      else setSuggestFailed(true);
+    } catch {
+      setSuggestFailed(true);
+    } finally {
+      setSuggesting(false);
+    }
+  };
 
   useEffect(() => {
     const down = (e: MouseEvent) => {
@@ -91,7 +111,7 @@ export function CoverGallery({ current, onPick, onUpload, onClose, className }: 
 
       <div className="pb-covergal__panel" role="tabpanel" aria-label={tab}>
         <div className="pb-covergal__grid pb-covergal__sizer" aria-hidden>
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <span key={i} className="pb-covergal__item">
               <span className="pb-covergal__thumb" />
               <span className="pb-covergal__name">&nbsp;</span>
@@ -158,6 +178,22 @@ export function CoverGallery({ current, onPick, onUpload, onClose, className }: 
           </div>
         )}
       </div>
+      {onSuggest && (
+        <div className="pb-covergal__foot">
+          <button
+            type="button"
+            className={cx("pb-covergal__auto md-focus", suggesting && "pb-covergal__auto--busy")}
+            onClick={() => void suggest()}
+            disabled={suggesting}
+          >
+            <Icon name="sparkle" size={14} aria-hidden />
+            {suggesting ? "Picking…" : "Pick for me"}
+          </button>
+          <span className={cx("pb-covergal__foothint", suggestFailed && "pb-covergal__foothint--bad")} aria-live="polite">
+            {suggestFailed ? "Couldn't pick one right now. Try again." : "A cover for what this page is about"}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

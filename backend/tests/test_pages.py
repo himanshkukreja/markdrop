@@ -1095,7 +1095,7 @@ class Props(PageWorld):
     def test_gallery_covers(self):
         from app.services import page_props
 
-        self.assertEqual(len(page_props.GALLERY), 12)
+        self.assertEqual(len(page_props.GALLERY), 44)  # the first 12 and the themed ones (auto covers)
         for name in page_props.GALLERY:
             self.assertEqual(page_props.parse(f"---\ncover: gallery:{name}\n---\n")["cover"], f"gallery:{name}")
             self.assertEqual(page_props.apply("", {"cover": f"gallery:{name}"}), f"---\ncover: gallery:{name}\n---\n")
@@ -1132,6 +1132,11 @@ class Props(PageWorld):
         manifest = json.loads((root / "manifest.json").read_text())
         self.assertEqual(tuple(c["id"] for c in manifest["covers"]), page_props.GALLERY)
         self.assertEqual(manifest["aliases"], page_props.GALLERY_ALIASES)
+        # The backend's copy (page_covers.json): the same tint and tags for every cover.
+        from app.services import page_covers
+
+        self.assertEqual([{"id": c["id"], "tint": c["tint"], "tags": c["tags"]} for c in manifest["covers"]],
+                         page_covers.CATALOG)
         for name in page_props.GALLERY:
             self.assertTrue((root / f"{name}.webp").is_file(), name)
             self.assertLessEqual((root / f"{name}.webp").stat().st_size, 60_000, name)

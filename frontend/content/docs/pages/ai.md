@@ -4,7 +4,7 @@ nav: AI in pages
 description: Rewrite, draft, summarize and translate pages with AI, turn notes into a page, and let readers ask a page questions. Who can use it, what's sent, the limits.
 updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [ai, claude, anthropic, ask ai, ask this page, summarize, summary, translate, translation, action items, to-do, notes, alt text, title, icon, /ai, cmd j, ctrl j, workspace ai, privacy, training, limits]
+keywords: [ai, claude, anthropic, ask ai, ask this page, summarize, summary, translate, translation, action items, to-do, notes, alt text, title, icon, /ai, cmd j, ctrl j, workspace ai, privacy, training, limits, cover, auto cover, automatic cover]
 ---
 
 Pages have AI built in. If you can edit a page, you can rewrite a passage, draft a section, summarize the page, find its action items, translate it and get alt text for its images. If you can only read a page, you can ask it questions. Every AI result is a suggestion: nothing changes on the page until you accept it.
@@ -24,6 +24,7 @@ Markdrop's AI uses Anthropic's Claude. Pages are in beta, and so is AI in pages.
 | [Title and icon](#suggest-a-title-description-and-icon) | Editors | **⋯** menu |
 | [Translate a page](#translate-a-page) | Editors | **⋯** menu |
 | [Alt text](#alt-text-for-images) | Editors | Adding an image |
+| [Cover](#pick-a-cover) | Anyone making a page | Automatic, and **Pick for me** |
 
 ## Rewrite a selection
 
@@ -88,6 +89,10 @@ A long page can take a minute. You can translate into 31 languages.
 
 When you upload an image to a page, AI describes it and fills in its alt text, marked **Alt text suggested**. Keep it or edit it: the mark goes once you change it. Alt text is what screen readers read out, and what shows when the image can't load.
 
+## Pick a cover
+
+A new page gets one of Markdrop's covers, chosen for what it's about: see [Automatic covers](/pages/overview#automatic-covers). AI makes that choice when it's on for the page, from the page's title and its first lines; **Pick for me** in the cover picker asks the same question again. When AI is off for the workspace, over a limit or unavailable, the cover is matched on the page's words, and nothing is sent.
+
 ## Keyboard shortcuts
 
 | Shortcut | What it does |
@@ -117,7 +122,8 @@ When you use AI, Markdrop sends Anthropic only what that request needs:
 
 - the text you selected, or the page's text (for a long page, only the sections nearest what you're doing), and your prompt or question;
 - the text of Markdrop items the page embeds, but only items the person asking can open;
-- for alt text, the image.
+- for alt text, the image;
+- for a page's cover, its title and its first 1,500 characters or so, with the list of Markdrop's covers. The answer is just the cover's name.
 
 Markdrop keeps a usage record for each request (who, which feature, the number of tokens and the cost), never the page's text, your prompt, the question or the answer. Anthropic doesn't use data sent through its commercial API to train its models by default; see [Anthropic's commercial terms](https://www.anthropic.com/legal/commercial-terms). The [privacy page](/security/privacy) has the rest of what Markdrop keeps.
 
