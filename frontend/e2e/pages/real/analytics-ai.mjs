@@ -47,9 +47,9 @@ seed("views", U.owner.id, "launch-notes:30:https://news.ycombinator.com/item?id=
 seed("views", U.member.id, "member-secret:12");
 seed("gaps", WS, U.owner.id);
 
-const board = async (p) => {
+const board = async (p, testid = "ai-story") => {
   await p.goto(`${APP}/dashboard/analytics?range=7d`, { waitUntil: "networkidle" });
-  await p.getByTestId("ai-story").waitFor({ timeout: 20000 });
+  await p.getByTestId(testid).waitFor({ timeout: 20000 });
 };
 
 // ── Steps ────────────────────────────────────────────────────────────────────
@@ -100,7 +100,8 @@ await step("gaps", async () => {
   if (st.body.gap_scopes.length) fail("member has gap scopes");
   {
     const { p } = await ctx(browser, { token: T.member });
-    await board(p);
+    await board(p, "ai-ask-input");   // the member has too few views for a story: the card says so
+    if (!/Not enough views yet/.test(await p.locator('section[aria-labelledby="ah-ai"]').innerText())) fail("member: no thin note");
     if (await p.locator("#ah-gaps").count()) fail("member sees Write this next");
   }
   const { p } = await ctx(browser, { token: T.owner });
