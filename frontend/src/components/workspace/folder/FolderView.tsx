@@ -773,6 +773,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
                 </div>
                 {r.can.unshare && (
                   <RowMenu
+                    portal
                     label={`Actions for the private item by ${r.owner.name || "a member"}`}
                     items={[{ label: "Remove from workspace", icon: "x", danger: true, onClick: () => setRemoveHidden(r) }]}
                   />

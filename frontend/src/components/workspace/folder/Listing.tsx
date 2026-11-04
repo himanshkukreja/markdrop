@@ -321,7 +321,7 @@ function FolderRow(p: FolderEntryProps) {
       <span className="wl-cell"><When iso={f.updated_at} /></span>
       <span className="wl-cell wl-c-access" />
       <span className="wl-cell wl-cell--act">
-        {menu && menu.length > 0 && <span className="wl-lift wl-hover"><RowMenu items={menu} label={`Actions for the folder ${f.name}`} /></span>}
+        {menu && menu.length > 0 && <span className="wl-lift wl-hover"><RowMenu portal items={menu} label={`Actions for the folder ${f.name}`} /></span>}
       </span>
     </li>
   );
@@ -356,7 +356,7 @@ function ItemListRow(p: ItemEntryProps) {
             <CopyButton text={it.url} label="Copy link" iconOnly variant="ghost" size="sm" announceText="Link copied" />
           </span>
         )}
-        <span className="wl-lift"><RowMenu items={menu} label={`Actions for ${t}`} /></span>
+        <span className="wl-lift"><RowMenu portal items={menu} label={`Actions for ${t}`} /></span>
       </span>
     </li>
   );
@@ -409,7 +409,7 @@ function ItemPhoneRow(p: ItemEntryProps) {
 function FolderTile(p: FolderEntryProps & { cards: boolean }) {
   const { folder: f, href, menu, cards } = p;
   const e = useFolderEntry(p);
-  const act = menu && menu.length > 0 ? <RowMenu items={menu} label={`Actions for the folder ${f.name}`} /> : null;
+  const act = menu && menu.length > 0 ? <RowMenu portal items={menu} label={`Actions for the folder ${f.name}`} /> : null;
   const name = <Anchor href={href} draggable={false} className="wl-name ph-sensitive ph-mask" dir="auto">{f.name}</Anchor>;
   if (cards) {
     return (
@@ -447,7 +447,7 @@ function ItemTileEntry(p: ItemEntryProps & { cards: boolean }) {
       {t}<span className="md-visually-hidden"> (opens in a new tab)</span>
     </a>
   );
-  const act = <RowMenu items={menu} label={`Actions for ${t}`} />;
+  const act = <RowMenu portal items={menu} label={`Actions for ${t}`} />;
   if (cards) {
     return (
       <li ref={e.ref} {...e.props} className="wl-tile" data-row-kind="item">
