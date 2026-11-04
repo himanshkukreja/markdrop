@@ -1,6 +1,6 @@
 ---
 title: Link previews
-description: What the preview card shows when you paste a Markdrop link to a document, file, folder or workspace into Slack, WhatsApp, LinkedIn or X, and what it never shows.
+description: What the preview card shows when you paste a link to a Markdrop document, file, folder or workspace into Slack, WhatsApp or X, and what it never shows.
 updated: 2026-11-04
 keywords: [og image, open graph, unfurl, preview card, slack, whatsapp, social card, folder link, workspace link, folder preview]
 ---
