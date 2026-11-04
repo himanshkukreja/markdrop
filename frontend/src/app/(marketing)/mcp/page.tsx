@@ -5,6 +5,7 @@ import { SnapPage } from "@/components/marketing/snap/Snap";
 import { FaqList, Feature, LoopShot, Mat, More, parts as p, type Faq } from "@/components/marketing/snap/Parts";
 import { docsUrl } from "@/components/shell/links";
 import { DOCS_PAGES } from "@/lib/docsLinks";
+import { ogCard } from "@/lib/og";
 import { MCP_LOCAL_MIN_CLI, MCP_LOCAL_SERVER, MCP_LOCAL_TOOL_GROUPS, MCP_SERVER_URL, MCP_TOOL_COUNT, MCP_TOOL_GROUPS } from "@/lib/mcp";
 import { ConnectTabs } from "./ConnectTabs";
 import m from "./mcp.module.css";
@@ -17,8 +18,7 @@ export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
   alternates: { canonical: "/mcp" },
-  openGraph: { title: "Markdrop for AI assistants", description: DESCRIPTION, url: "/mcp", type: "website", siteName: "Markdrop" },
-  twitter: { card: "summary", title: "Markdrop for AI assistants", description: DESCRIPTION },
+  ...ogCard("Markdrop for AI assistants", DESCRIPTION, undefined, { url: "/mcp", type: "website", siteName: "Markdrop" }),
 };
 
 const docs = (k: keyof typeof DOCS_PAGES) => docsUrl(DOCS_PAGES[k]);

@@ -83,10 +83,15 @@ class CardBrand:
     accent: tuple[int, int, int] | None = None
     footer: str | None = None          # a validated host; never caller text
     hide_markdrop_branding: bool = False
+    # A workspace logo's PNG bytes, read from our own bucket (never a URL): the
+    # re-encoded upload of services/branding.py. Drawn in the header tile.
+    logo: bytes | None = None
+    logo_well: str | None = None       # "light" | "dark" | "checker" | None
 
 
 # Which card to draw. The content-free kinds ignore title/snippet entirely.
-CARD_KINDS = ("document", "artifact", "password", "encrypted", "private", "generic")
+CARD_KINDS = ("document", "artifact", "password", "encrypted", "private", "generic",
+              "folder", "workspace", "folder_private", "workspace_private")
 
 
 @dataclass
@@ -454,6 +459,8 @@ _ICON_PATHS = {
     "table": "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18",
     "music": "M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm12-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
     "code": "m16 18 6-6-6-6M8 6l-6 6 6 6",
+    "folder": "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z",
+    "users": "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
 }
 
 # Backend renderer → (FileIcon glyph, category colour), matching FILE_KINDS /
@@ -694,14 +701,49 @@ _FOOT_MONO = _Style("mono", 500, 26)
 _FOOT_META = _Style("sans", 500, 26)
 
 
+_LOGO_MAX_PIXELS = 4_000_000
+
+
+def _logo_tile(data: bytes, well: str | None, size: int = 64) -> Image.Image | None:
+    """A workspace logo centred in a rounded tile, or None if the bytes aren't
+    an image we can (safely) decode. The tile is light for a logo drawn for a
+    light background, else the mark's navy ground."""
+    try:
+        src = Image.open(BytesIO(data))
+        if src.width * src.height > _LOGO_MAX_PIXELS:
+            return None
+        src = src.convert("RGBA")
+    except Exception:
+        return None
+    ss = 4
+    big = Image.new("RGBA", (size * ss, size * ss), (0, 0, 0, 0))
+    d = ImageDraw.Draw(big)
+    ground = (248, 250, 252) if well == "light" else _LOGO_GROUND
+    edge = (226, 232, 240) if well == "light" else _LOGO_EDGE
+    d.rounded_rectangle([0, 0, size * ss - 1, size * ss - 1], radius=16 * ss, fill=ground,
+                        outline=edge, width=ss)
+    tile = big.resize((size, size), Image.LANCZOS)
+    inner = size - 16
+    scale = min(inner / src.width, inner / src.height)
+    w, h = max(1, round(src.width * scale)), max(1, round(src.height * scale))
+    logo = src.resize((w, h), Image.LANCZOS)
+    tile.alpha_composite(logo, ((size - w) // 2, (size - h) // 2))
+    return tile
+
+
 def _draw_header(img: Image.Image, draw: ImageDraw.ImageDraw, brand: CardBrand | None) -> None:
     show_markdrop = not (brand and brand.hide_markdrop_branding)
-    if show_markdrop:
+    tile = _logo_tile(brand.logo, brand.logo_well) if brand and brand.logo else None
+    if tile is not None:
+        # The workspace's own logo takes the mark's slot; the footer still says
+        # where the link goes.
+        img.paste(tile, (_M, _M), tile)
+    elif show_markdrop:
         mark = _mark(64)
         img.paste(mark, (_M, _M), mark)
 
     if brand and brand.site_name:
-        x = 144 if show_markdrop else _M
+        x = 144 if (show_markdrop or tile is not None) else _M
         name = _fit(brand.site_name.strip(), _WORDMARK, _RIGHT - x)
         rtl = _base_rtl(name)
         w = _measure(name, _WORDMARK)
@@ -711,8 +753,8 @@ def _draw_header(img: Image.Image, draw: ImageDraw.ImageDraw, brand: CardBrand |
         draw.rectangle([x, 122, x + w, 127], fill=underline)
         return
 
-    if not show_markdrop:
-        return  # asked for no Markdrop and named nothing: leave the slot empty
+    if not show_markdrop or tile is not None:
+        return  # no Markdrop asked for, or the logo alone stands for the workspace
     tracking = -0.03 * _WORDMARK.size
     w = _draw_tracked(draw, 144, _HEADER_BASELINE, "mark", _WORDMARK, _TEXT, tracking)
     _draw_tracked(draw, 144 + w + tracking, _HEADER_BASELINE, "drop", _WORDMARK, _DOC_BLUE, tracking)
@@ -791,6 +833,14 @@ _PROTECTED_COPY = {
 }
 
 
+_PRIVATE_SPACE_COPY = {
+    "folder_private": ("folder", "Folder", "A folder in a Markdrop workspace",
+                       "Sign in to open it."),
+    "workspace_private": ("users", "Workspace", "A Markdrop workspace",
+                          "Sign in to open it."),
+}
+
+
 # A video's poster, framed on the right of the artifact card (16:9, 512 wide).
 _POSTER_W, _POSTER_H = 512, 288
 _POSTER_X = _RIGHT - _POSTER_W
@@ -840,6 +890,8 @@ def render_og_png(card: Card) -> bytes:
     """Render ``card`` to PNG bytes (1200×630)."""
     if card.kind not in CARD_KINDS:
         card = Card(kind="generic")
+    if card.kind in _PRIVATE_SPACE_COPY:
+        card = Card(kind=card.kind)  # nothing the caller passed reaches a content-free card
     brand = card.brand
     radial = brand.accent if brand and brand.accent else _RADIAL
     img = _ground(radial).copy()
@@ -887,6 +939,32 @@ def render_og_png(card: Card) -> bytes:
         _draw_eyebrow(draw, _M, _fit(eyebrow.upper(), _EYEBROW, text_w), _ARTIFACT_ORANGE)
         _title_and_snippet(draw, card.title.strip() or card.slug, card.snippet.strip(), text_w)
         _draw_footer(draw, card, footer_colour, card.meta)
+
+    elif card.kind in ("folder", "workspace"):
+        # Named: only ever drawn for a folder / workspace a signed-out visitor
+        # can already see (services/folder_preview.py decides).
+        accent = brand.accent if brand and brand.accent and contrast(brand.accent, _BG) >= 3 else _DOC_BLUE
+        glyph = "folder" if card.kind == "folder" else "users"
+        _paste_icon(img, glyph, 280, (856, 190), accent, opacity=0.14)
+        _paste_icon(img, glyph, 26, (_M, 192), accent)
+        eyebrow = "Folder" if card.kind == "folder" else "Workspace"
+        _draw_eyebrow(draw, _M + 40, eyebrow, accent)
+        _title_and_snippet(draw, card.title.strip() or eyebrow, card.snippet.strip(), _ARTIFACT_TEXT_W)
+        _draw_footer(draw, card, footer_colour, card.meta)
+
+    elif card.kind in _PRIVATE_SPACE_COPY:
+        # Content-free: no folder, workspace or host name, whatever the caller passed.
+        glyph, eyebrow, title, line = _PRIVATE_SPACE_COPY[card.kind]
+        _paste_icon(img, glyph, 280, (856, 190), _DOC_BLUE, opacity=0.10)
+        _paste_icon(img, "lock", 28, (_M, 190), _DOC_BLUE)
+        _draw_eyebrow(draw, 104, eyebrow, _DOC_BLUE)
+        for i, ln in enumerate(_wrap(title, _TITLE, _ARTIFACT_TEXT_W, max_lines=2)):
+            _draw_line(draw, ln, _TITLE, x=_M, baseline=_TITLE_BASELINE + i * _TITLE_LINE,
+                       width=_ARTIFACT_TEXT_W, fill=_TEXT)
+        n = len(_wrap(title, _TITLE, _ARTIFACT_TEXT_W, max_lines=2))
+        y = _TITLE_BASELINE + (n - 1) * _TITLE_LINE + _SNIPPET_GAP + _SNIPPET_LINE
+        _draw_line(draw, line, _SNIPPET, x=_M, baseline=y, width=_ARTIFACT_TEXT_W, fill=_TEXT_SECONDARY)
+        _draw_footer(draw, Card(kind="generic"), _DOC_BLUE, "")
 
     else:  # document
         _draw_eyebrow(draw, _M, "Document", _DOC_BLUE)

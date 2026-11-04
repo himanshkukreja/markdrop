@@ -10,11 +10,14 @@ import SiteTracker from "@/components/SiteTracker";
 import ThirdPartyAnalytics from "@/components/analytics/ThirdPartyAnalytics";
 import { AppTrackers } from "@/docs/client/AppTrackers";
 import { themeScript } from "@/lib/themeScript";
+import { DEFAULT_OG_IMAGE, SITE_ORIGIN } from "@/lib/og";
 
 const SITE_DESCRIPTION =
   "Publish markdown and AI docs with no account, upload HTML, PDFs, sheets, Word docs and video, or build a help center or product guide with Markdrop Guides. Links that open in any browser.";
 
 export const metadata: Metadata = {
+  // Relative og:image / canonical URLs resolve here: link-preview crawlers need an absolute https URL.
+  metadataBase: new URL(SITE_ORIGIN),
   title: "Markdrop — Docs and files as links that render",
   description: SITE_DESCRIPTION,
   // app/manifest.webmanifest/route.ts (a route, so the docs layout's `manifest: null` can drop it).
@@ -24,11 +27,15 @@ export const metadata: Metadata = {
     description: SITE_DESCRIPTION,
     siteName: "Markdrop",
     type: "website",
+    // The site-wide card: every URL without one of its own (dashboard, settings, /new, /builder…)
+    // still unfurls with a cover. A page that sets `openGraph` must set its own `images` (lib/og.ts).
+    images: [DEFAULT_OG_IMAGE],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "Drop it. It renders.",
     description: SITE_DESCRIPTION,
+    images: [DEFAULT_OG_IMAGE.url],
   },
 };
 
