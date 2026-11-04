@@ -345,6 +345,7 @@ export default function EditorPage() {
   const [mode, setModeState] = useState<EditorMode>("visual");
   const [treeOpen, setTreeOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const treeFocus = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<PanelTab>("checks");
   const [preview, setPreview] = useState(false);
   // The preview's light/dark: the guide's own default (a dark-first or dark-only design opens dark).
@@ -1096,8 +1097,9 @@ export default function EditorPage() {
         </aside>
       </div>
 
-      <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={<span className="ph-sensitive ph-mask">{site.name}</span>}>
-        {treeEl}
+      {/* Focus lands on the list, not its search box: on a phone that would raise the keyboard over the pages. */}
+      <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={<span className="ph-sensitive ph-mask">{site.name}</span>} initialFocus={treeFocus}>
+        <div ref={treeFocus} tabIndex={-1} className="outline-none">{treeEl}</div>
       </Drawer>
       <Drawer open={panelOpen && !panelWide} onClose={() => setPanelOpen(false)} title={<span className="ph-sensitive ph-mask">{title || "Page"}</span>} width={360}>
         <div className="-mx-5 -my-4 flex min-h-full flex-col">{!panelWide && panel}</div>
