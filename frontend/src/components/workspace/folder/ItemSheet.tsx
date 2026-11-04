@@ -17,12 +17,14 @@ export interface SheetAction {
 }
 
 export default function ItemSheet({
-  open, onClose, title, address, actions,
+  open, onClose, title, address, details, actions,
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   address?: string | null;
+  /** A quiet line under the title: who owns it, when it changed. */
+  details?: React.ReactNode;
   actions: SheetAction[];
 }) {
   return (
@@ -31,7 +33,12 @@ export default function ItemSheet({
       onClose={onClose}
       side="bottom"
       title={<span className="ph-sensitive ph-mask block truncate" dir="auto">{title}</span>}
-      description={address ? <span className="ph-sensitive ph-mask block truncate font-mono">{address}</span> : undefined}
+      description={address || details ? (
+        <span className="flex min-w-0 flex-col gap-1.5">
+          {address && <span className="ph-sensitive ph-mask block truncate font-mono">{address}</span>}
+          {details && <span className="flex min-w-0 items-center gap-1.5 text-caption text-text-muted">{details}</span>}
+        </span>
+      ) : undefined}
       bodyClassName="px-2 pt-1 pb-6"
     >
       <ul className="m-0 flex list-none flex-col p-0">

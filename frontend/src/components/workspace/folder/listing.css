@@ -1,0 +1,132 @@
+/* The workspace listing (Listing.tsx): List (default), Grid and Cards. Calm and quiet: one surface,
+   hairlines, hover tint, 2 px focus ring, motion on transform/opacity/colour only. Tokens only, so
+   light and dark follow the theme. Columns drop as the listing narrows (container queries). */
+
+.wl { container-type: inline-size; min-width: 0; }
+
+/* ── Avatars ─────────────────────────────────────────────────────────── */
+.wl-av {
+  --av: var(--accent);
+  position: relative; display: inline-grid; place-items: center; flex: none; overflow: hidden;
+  width: 20px; height: 20px; border-radius: 999px;
+  background: color-mix(in srgb, var(--av) 16%, var(--surface));
+  color: color-mix(in srgb, var(--av) 82%, var(--text));
+  font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: .01em; user-select: none;
+}
+.wl-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.wl-av--sm { width: 18px; height: 18px; font-size: 8px; }
+.wl-av--lg { width: 24px; height: 24px; font-size: 10px; }
+.wl-people { display: inline-flex; align-items: center; min-width: 0; }
+.wl-people .wl-av { box-shadow: 0 0 0 2px var(--surface); }
+.wl-people .wl-av + .wl-av { margin-left: -5px; }
+.wl-more { margin-left: 6px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+.wl-person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-secondary); font-size: 13px; }
+.wl-person__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── The bar above the listing ───────────────────────────────────────── */
+.wl-bar { display: flex; align-items: center; gap: 12px; min-width: 0; margin-bottom: 10px; }
+.wl-bar__label { flex: 1; min-width: 0; font-size: 13px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── List ────────────────────────────────────────────────────────────── */
+.wl-list {
+  --wl-cols: minmax(0, 1fr) 96px 172px 104px 168px 72px;
+  margin: 0; padding: 0; list-style: none;
+  border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface);
+}
+.wl-head, .wl-row {
+  display: grid; grid-template-columns: var(--wl-cols); align-items: center; column-gap: 12px;
+  padding: 0 8px 0 14px; min-width: 0;
+}
+.wl-head {
+  position: relative; height: 36px; font-size: 12px; font-weight: 500; color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+}
+.wl-row {
+  position: relative; min-height: 48px;
+  transition: background-color var(--duration-fast);
+}
+.wl-row + .wl-row { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--border) 70%, transparent); }
+.wl-row:hover, .wl-row:focus-within { background: var(--surface-hover); }
+.wl-row:last-child { border-radius: 0 0 calc(var(--radius-xl) - 1px) calc(var(--radius-xl) - 1px); }
+.wl-row[data-selected="true"] { background: color-mix(in srgb, var(--accent-soft) 70%, transparent); }
+.wl-row[data-over="true"] { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); border-radius: var(--radius-lg); }
+.wl-row[data-candidate="true"] { box-shadow: inset 0 0 0 1px var(--border-strong); }
+.wl-row[data-dragging="true"] { opacity: .5; }
+.wl-cell { min-width: 0; font-size: 13px; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl-cell--name { display: flex; align-items: center; gap: 10px; color: var(--text); }
+.wl-cell--act { display: flex; justify-content: flex-end; align-items: center; gap: 2px; overflow: visible; }
+.wl-name {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 14px; font-weight: 600; color: var(--text); text-decoration: none; border-radius: var(--radius-sm);
+}
+.wl-name::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.wl-name:focus-visible { outline: none; }
+.wl-name:focus-visible::after { outline: 2px solid var(--border-focus); outline-offset: -2px; border-radius: var(--radius-lg); }
+.wl-count { flex: none; font-size: 12px; color: var(--text-muted); }
+.wl-lift { position: relative; z-index: 1; }
+.wl-icon { display: inline-grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: var(--radius-md); font-size: 16px; line-height: 1; }
+.wl-icon--folder { color: var(--accent-text); background: var(--accent-soft); }
+.wl-hover { opacity: 0; transition: opacity var(--duration-fast); }
+.wl-row:hover .wl-hover, .wl-row:focus-within .wl-hover,
+.wl-tile:hover .wl-hover, .wl-tile:focus-within .wl-hover { opacity: 1; }
+@media (hover: none) { .wl-hover { opacity: 1; } }
+.wl-gutter { position: absolute; top: 50%; left: -30px; transform: translateY(-50%); }
+
+/* Narrower listings drop columns: Kind, then Access words, then the owner's name. */
+@container (max-width: 860px) {
+  .wl-list { --wl-cols: minmax(0, 1fr) 164px 96px 152px 72px; }
+  .wl-c-kind { display: none; }
+}
+@container (max-width: 700px) {
+  .wl-list { --wl-cols: minmax(0, 1fr) 40px 88px 40px 72px; }
+  .wl-person__name, .wl-access-words, .wl-head .wl-c-owner, .wl-head .wl-c-access { display: none; }
+  .wl-more { display: none; }
+}
+
+/* Phones: one line of title, one of meta, a ⋯ (bottom sheet). */
+.wl-plist { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--border); }
+.wl-prow { position: relative; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 0 8px 2px; border-bottom: 1px solid var(--border); min-width: 0; }
+.wl-prow:active { background: var(--surface-hover); }
+.wl-prow__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.wl-prow__meta { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.wl-prow__meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Grid ────────────────────────────────────────────────────────────── */
+.wl-grid { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); }
+.wl-tile {
+  position: relative; display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 124px; padding: 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface);
+  transition: border-color var(--duration-fast), box-shadow var(--duration-fast), transform var(--duration-fast);
+}
+.wl-tile:hover { border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
+.wl-tile[data-over="true"] { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 2px var(--accent); }
+.wl-tile[data-candidate="true"] { border-style: dashed; border-color: var(--border-strong); }
+.wl-tile[data-dragging="true"] { opacity: .5; }
+.wl-tile__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.wl-tile .wl-icon { width: 36px; height: 36px; font-size: 20px; border-radius: var(--radius-lg); }
+.wl-tile .wl-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 20px; overflow-wrap: anywhere; }
+.wl-tile__meta { margin-top: auto; display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 12px; color: var(--text-muted); white-space: nowrap; overflow: hidden; }
+.wl-tile__meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wl-tile__act { margin: -6px -6px 0 0; }
+
+/* ── Cards ───────────────────────────────────────────────────────────── */
+.wl-cards { grid-template-columns: repeat(auto-fill, minmax(236px, 1fr)); gap: 16px; }
+.wl-cards .wl-tile { padding: 0; gap: 0; min-height: 0; }
+.wl-card__band {
+  --tint: var(--accent);
+  display: grid; place-items: center; height: 104px;
+  border-bottom: 1px solid var(--border); border-radius: calc(var(--radius-xl) - 1px) calc(var(--radius-xl) - 1px) 0 0;
+  background:
+    radial-gradient(120% 90% at 0% 0%, color-mix(in srgb, var(--tint) 14%, transparent), transparent 70%),
+    color-mix(in srgb, var(--tint) 6%, var(--surface));
+  color: var(--tint);
+}
+.wl-card__band .wl-icon { width: 48px; height: 48px; font-size: 26px; border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+.wl-card__body { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; min-width: 0; }
+.wl-card__foot { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--text-muted); }
+.wl-card__foot .wl-person { font-size: 12px; }
+.wl-card__act { position: absolute; top: 8px; right: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wl-row, .wl-tile, .wl-hover { transition: none; }
+}

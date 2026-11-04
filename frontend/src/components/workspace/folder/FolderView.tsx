@@ -18,9 +18,9 @@
  * (A1/D2): other people's private documents aren't hidden by this page; the server never sends them.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  Alert, Anchor, Badge, Breadcrumb, Button, Checkbox, ConfirmDialog, Dropdown, EmptyState, Icon, IconButton,
+  Alert, Badge, Breadcrumb, Button, ConfirmDialog, Dropdown, EmptyState, Icon, IconButton,
   Skeleton, copyText, cx, useToast, type MenuEntry,
 } from "@/components/ui";
 import { WorkspaceTile } from "@/components/shell/SideNav";
@@ -29,23 +29,24 @@ import { openCommandPalette, useFolderCommands, type FolderCommand, openBrowse }
 import ShareDialog from "@/components/access/ShareDialog";
 import RowMenu from "@/components/dashboard/RowMenu";
 import { ListSkeleton } from "@/components/dashboard/ListParts";
-import { plural } from "@/components/dashboard/format";
+import { plural, relativeTime } from "@/components/dashboard/format";
 import { usePhone } from "@/components/dashboard/hooks";
 import { DeleteDocDialog, NewFolderDialog } from "@/components/dashboard/DocDialogs";
 import { hasFiles, useUploads, type UploadTarget } from "@/components/workspace/uploads/UploadProvider";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   can, errorStatus, getWorkspace, listWorkspaceItems, openHref, removeItems, WORKSPACES_EVENT,
-  type Folder, type ItemAccess, type PreviewAs, type RedactedItem, type TreeFolder, type Workspace, type WorkspaceItem,
+  type Folder, type ItemAccess, type ItemsPage, type PreviewAs, type RedactedItem, type TreeFolder, type Workspace, type WorkspaceItem,
 } from "@/lib/workspaces";
 import {
-  ancestry, childrenMap, descendants, documentsChanged, useWorkspaceChanged, useWorkspaceTree, workspaceChanged,
+  ancestry, childrenMap, descendants, documentsChanged, useWorkspaceTree, workspaceChanged,
 } from "@/lib/workspaceStore";
-import { useFolderDrop, useWorkspaceDraggable, useWorkspaceDrag, type DragData } from "../WorkspaceDnd";
+import { ITEMS_PAGE, itemsKey, prefetchFolderItems, useFolderItems } from "@/lib/navStore";
+import { parseFolderHref, registerListing, type FolderTarget } from "@/lib/folderNav";
+import { Listing, Person, ViewSwitch, useListingView, type FolderEntryProps, type ItemEntryProps } from "./Listing";
 import { AddExistingDialog, DeleteFolderDialog, MAX_FOLDER_DEPTH, MoveToDialog, RenameFolderDialog, type MoveTarget } from "./FolderDialogs";
 import ShareFolderDialog, { type ShareFolderTab } from "./ShareFolderDialog";
 import { ExposureBar, FolderDefaultDialog, exposureOf } from "./ExposureBar";
-import { ItemRow } from "./ItemRow";
 import ItemSheet, { type SheetAction } from "./ItemSheet";
 import PreviewMode from "./PreviewMode";
 import dynamic from "next/dynamic";
@@ -55,11 +56,10 @@ const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery
 import RenameItemDialog, { type RenameTarget } from "./RenameItemDialog";
 import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
-import { accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
+import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
 import { docHref } from "@/components/analytics/format";
 
 type Kind = "" | "markdown" | "artifact";
-const PAGE = 50;
 
 /** A workspace, folder or item name inside chrome: replays show it as asterisks. */
 const Masked = ({ children }: { children: React.ReactNode }) => <span className="ph-sensitive ph-mask">{children}</span>;
@@ -164,16 +164,49 @@ function usePageFileDrop(target: UploadTarget | null, onFiles: (files: File[]) =
   return over;
 }
 
-export default function FolderView({ workspaceId, folderId }: { workspaceId: string; folderId: string | null }) {
+export default function FolderView({ workspaceId }: { workspaceId: string }) {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const toast = useToast();
   const phone = usePhone();
   const mounted = useMounted();
-  const search = useLocationSearch();
-  const urlReady = mounted && typeof window !== "undefined" && search === window.location.search;
-  const query = useMemo(() => readQuery(search), [search]);
   const uploads = useUploads();
+
+  /* ── Which folder (fix/ws-listing) ────────────────────────────────── */
+  // The URL says which folder; a click on a folder link switches at once (`pending`, from what's
+  // cached) and the router catches the URL up in the background. The layout keeps this mounted.
+  const pathname = usePathname();
+  const rawSearch = useLocationSearch();
+  const routeFolder = useMemo(() => parseFolderHref(pathname || "")?.folderId ?? null, [pathname]);
+  const [pending, setPending] = useState<{ folder: string | null } | null>(null);
+  useEffect(() => {
+    if (pending && pending.folder === routeFolder && !rawSearch) setPending(null);
+  }, [pending, routeFolder, rawSearch]);
+  useEffect(() => {
+    // Back / forward: the URL is the truth again.
+    const pop = () => setPending(null);
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+  }, []);
+  const folderId = pending ? pending.folder : routeFolder;
+  const search = pending ? "" : rawSearch;
+  const urlReady = mounted && typeof window !== "undefined" && (!!pending || rawSearch === window.location.search);
+  const query = useMemo(() => readQuery(search), [search]);
+  const [view, setView] = useListingView();
+
+  const here$ = useRef<string | null>(folderId);
+  here$.current = folderId;
+  const go = useCallback((t: FolderTarget, href: string) => {
+    if (t.folderId === here$.current && !window.location.search && !pending) {
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    prefetchFolderItems(t.workspaceId, t.folderId ?? "root");
+    setPending({ folder: t.folderId });
+    window.scrollTo({ top: 0 });
+    router.push(href, { scroll: false });
+  }, [router, pending]);
+  useEffect(() => registerListing({ workspaceId, go }), [workspaceId, go]);
 
   // Signed out: to sign-in, then straight back here.
   useEffect(() => {
@@ -216,48 +249,39 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   }, [router]);
 
   /* ── Items ────────────────────────────────────────────────────────── */
-  const [items, setItems] = useState<WorkspaceItem[]>([]);
-  const [redacted, setRedacted] = useState<RedactedItem[]>([]);
-  const [cursor, setCursor] = useState<string | null>(null);
-  const [state, setState] = useState<"loading" | "ok" | "error">("loading");
-  const [more, setMore] = useState(false);
-  const [itemsError, setItemsError] = useState("");
-  const seq = useRef(0);
+  // The first page comes from the shared cache (lib/navStore): a folder seen before, or hovered on
+  // the way here, shows at once and refreshes in the background; anything that changes this
+  // workspace (here, in the rail, in a dialog, an upload) refreshes it. "Load more" pages are
+  // this view's own, dropped whenever the first page changes.
   // A search looks across the whole workspace; otherwise the folder (or the top level).
   const scope = query.q ? "all" : folderId ?? "root";
-
-  const load = useCallback(async (quiet = false) => {
-    if (!user || !urlReady) return;
-    const id = ++seq.current;
-    if (!quiet) setState("loading");
-    try {
-      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, limit: PAGE });
-      if (id !== seq.current) return;
-      setItems(r.items);
-      setRedacted(r.redacted);
-      setCursor(r.next_cursor);
-      setState("ok");
-      setItemsError("");
-    } catch (e) {
-      if (id !== seq.current) return;
-      setItemsError(e instanceof Error ? e.message : "");
-      setState("error");
-    }
-  }, [user, urlReady, workspaceId, scope, query.q, query.kind]);
-
-  useEffect(() => { void load(); }, [load]);
-  // Anything that changes this workspace (here, in the rail, in a dialog, an upload) reloads quietly.
-  const quietReload = useCallback(() => { void load(true); }, [load]);
-  useWorkspaceChanged(workspaceId, quietReload);
+  const key = user && urlReady ? itemsKey(workspaceId, scope, query.q, query.kind) : null;
+  const first = useFolderItems(key);
+  const [extra, setExtra] = useState<{ key: string; base: ItemsPage; items: WorkspaceItem[]; redacted: RedactedItem[]; cursor: string | null } | null>(null);
+  const [more, setMore] = useState(false);
+  const pageOne = first.data;
+  const ext = extra && pageOne && extra.key === key && extra.base === pageOne ? extra : null;
+  const items = useMemo(() => (pageOne ? (ext ? [...pageOne.items, ...ext.items] : pageOne.items) : []), [pageOne, ext]);
+  const redacted = useMemo(() => (pageOne ? (ext ? [...pageOne.redacted, ...ext.redacted] : pageOne.redacted) : []), [pageOne, ext]);
+  const cursor = ext ? ext.cursor : pageOne?.next_cursor ?? null;
+  const state: "loading" | "ok" | "error" = pageOne ? "ok" : first.error ? "error" : "loading";
+  const itemsError = "";
+  const load = () => { void first.reload(); };
 
   async function loadMore() {
-    if (!cursor || more) return;
+    if (!cursor || more || !key || !pageOne) return;
     setMore(true);
     try {
-      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, cursor, limit: PAGE });
-      setItems((xs) => [...xs, ...r.items.filter((n) => !xs.some((x) => x.slug === n.slug))]);
-      setRedacted((xs) => [...xs, ...r.redacted.filter((n) => !xs.some((x) => x.id_token === n.id_token))]);
-      setCursor(r.next_cursor);
+      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, cursor, limit: ITEMS_PAGE });
+      const prev = ext ?? { key, base: pageOne, items: [], redacted: [], cursor: null };
+      const have = new Set(items.map((x) => x.slug));
+      const hidden = new Set(redacted.map((x) => x.id_token));
+      setExtra({
+        key, base: pageOne,
+        items: [...prev.items, ...r.items.filter((n) => !have.has(n.slug))],
+        redacted: [...prev.redacted, ...r.redacted.filter((n) => !hidden.has(n.id_token))],
+        cursor: r.next_cursor,
+      });
     } catch {
       toast.error("Couldn't load more. Try again.");
     } finally {
@@ -324,6 +348,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
 
   function itemMenu(it: WorkspaceItem): MenuEntry[] {
     const out: MenuEntry[] = [{ label: "Open", icon: "external", href: openHref(it.slug, it.url, it.encrypted), external: true }];
+    if (!it.encrypted) out.push({ label: "Copy link", icon: "copy", onClick: () => copyLink(it) });
+    if (it.can.share) out.push({ label: "Who can open it…", icon: ACCESS_ICON[it.access], onClick: () => setShareFor(it), description: accessLabel(it.access, team) });
     if (it.owner?.is_you) out.push({ label: "Analytics", icon: "chart", href: docHref(it.slug) });
     if (it.can.move) out.push({ label: "Move to…", icon: "folder", onClick: () => moveOne(it) });
     if (it.can.edit && !it.encrypted) out.push({ label: "Rename", icon: "edit", onClick: () => setRenameItem({ slug: it.slug, kind: it.kind, title: itemTitle(it) }) });
@@ -512,6 +538,39 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
   const filtered = searching || !!query.kind;
   const folderEmpty = state === "ok" && items.length === 0 && redacted.length === 0 && subfolders.length === 0 && !filtered;
   const parentHref = folder ? (folder.parent_id ? folderHref(workspaceId, folder.parent_id) : wsHref(workspaceId)) : "/dashboard";
+
+  /* ── The listing's entries ────────────────────────────────────────── */
+  const folderMenu = (f: TreeFolder): MenuEntry[] | null => (isAdmin ? [
+    { label: "Open", icon: "folder", href: folderHref(workspaceId, f.id) },
+    { label: "Rename…", icon: "edit", separated: true, onClick: () => setRenameFor(f) },
+    { label: "Move to…", icon: "folder", onClick: () => setMoveTarget({ kind: "folder", folder: f }) },
+    { label: "New items start as…", icon: "user", onClick: () => setDefaultFor(f) },
+    { label: "Delete…", icon: "trash", danger: true, separated: true, onClick: () => setDeleteFor(f) },
+  ] : null);
+  const listedFolders: FolderEntryProps[] = searching ? [] : subfolders.map((f) => ({
+    workspaceId, folder: f, href: folderHref(workspaceId, f.id),
+    canDropItems: isMember, canDragFolders: isAdmin,
+    blocked: isAdmin ? [...descendants(folders, f.id)] : [],
+    onFiles: uploads && isMember ? (files: File[]) => uploads.upload(files, uploads.resolve(workspaceId, f.id, f.name)) : null,
+    menu: folderMenu(f),
+  }));
+  const selecting = !phone && view === "list" && movable.length > 1;
+  const listedItems: ItemEntryProps[] = items.map((it) => ({
+    workspaceId, item: it, team, showLocation: searching,
+    dragSlugs: selected.has(it.slug) && selected.size > 1 ? [...selected].filter((s) => items.find((x) => x.slug === s)?.can.move) : [it.slug],
+    fromFolderId: searching ? undefined : folderId,
+    menu: itemMenu(it),
+    onAccess: it.can.share ? () => setShareFor(it) : null,
+    onSheet: () => setSheetFor(it),
+    selection: selecting && it.can.move ? { selected: selected.has(it.slug), active: selected.size > 0, onSelect: (on: boolean) => toggleSelect(it.slug, on) } : null,
+  }));
+  // Placeholders while the rows load: as many as the tree says are filed here (none when it says
+  // the folder holds no items of its own), a few for a search.
+  const placeholders = state === "loading" ? (filtered ? 4 : Math.min(6, directCount)) : 0;
+  const showListing = !rootEmpty && !folderEmpty && state !== "error"
+    ? listedFolders.length > 0 || items.length > 0 || placeholders > 0
+    : state === "error" && listedFolders.length > 0;
+  const contentsLabel = listedFolders.length && (items.length || state === "loading") ? "Folders and items" : listedFolders.length ? "Folders" : "Items";
   const parentName = folder ? (trail.length > 1 ? trail[trail.length - 2]!.name : wsName) : "My files";
 
   return (
@@ -614,28 +673,6 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         </div>
       )}
 
-      {/* ── Folders ── */}
-      {!searching && subfolders.length > 0 && (
-        <section aria-labelledby="md-subfolders" className="flex min-w-0 flex-col gap-2.5">
-          <h2 id="md-subfolders" className="text-eyebrow uppercase text-text-muted">Folders</h2>
-          {/* ph-no-capture: folder names. */}
-          <ul className={cx("ph-no-capture m-0 grid min-w-0 list-none gap-3 p-0", phone ? "grid-cols-1" : "grid-cols-[repeat(auto-fill,minmax(220px,1fr))]")}>
-            {subfolders.map((f) => (
-              <FolderCard
-                key={f.id}
-                workspaceId={workspaceId}
-                folder={f}
-                phone={phone}
-                canDropItems={isMember}
-                canDragFolders={isAdmin}
-                blocked={isAdmin ? [...descendants(folders, f.id)] : []}
-                onFiles={uploads && isMember ? (files) => uploads.upload(files, uploads.resolve(workspaceId, f.id, f.name)) : null}
-              />
-            ))}
-          </ul>
-        </section>
-      )}
-
       {/* ── Selection bar ── */}
       {!phone && selected.size > 0 && (
         <div className="sticky top-16 z-10 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border-strong bg-surface-raised px-3 py-2 shadow-md" role="region" aria-label="Selection">
@@ -654,13 +691,41 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         </div>
       )}
 
-      {/* ── Items ── */}
+      {/* ── Folders and items (List · Grid · Cards) ── */}
       {state === "error" && (
-        <Alert tone="danger" title="Couldn't load the items" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => void load()}>Try again</Button>}>
+        <Alert tone="danger" title="Couldn't load the items" actions={<Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => load()}>Try again</Button>}>
           {itemsError || "Check your connection and try again."}
         </Alert>
       )}
-      {state === "loading" && !rootEmpty && <ListSkeleton rows={4} label="Loading items" />}
+
+      {showListing && (
+        <section aria-labelledby="md-contents" className="wl flex min-w-0 flex-col" aria-busy={state === "loading" || undefined}>
+          <div className="wl-bar">
+            <h2 id="md-contents" className="wl-bar__label">
+              {searching ? <>Results in <Masked>{wsName}</Masked></> : contentsLabel}
+            </h2>
+            <ViewSwitch view={view} onChange={(v) => { setView(v); setSelected(new Set()); }} />
+          </div>
+          <Listing
+            view={view}
+            phone={phone}
+            label={searching ? "Results" : "Folders and items"}
+            folders={listedFolders}
+            items={listedItems}
+            loading={placeholders}
+            selectAll={!phone && view === "list" && movable.length > 1 ? {
+              checked: selected.size > 0 && selected.size === movable.length,
+              indeterminate: selected.size > 0 && selected.size < movable.length,
+              onChange: (on) => setSelected(on ? new Set(movable.map((i) => i.slug)) : new Set()),
+            } : null}
+          />
+          {cursor && state === "ok" && (
+            <div className="flex justify-center pt-3">
+              <Button variant="secondary" onClick={() => void loadMore()} loading={more}>Load more</Button>
+            </div>
+          )}
+        </section>
+      )}
 
       {folderEmpty && !rootEmpty && (
         isMember ? (
@@ -676,50 +741,6 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
           title={searching ? <>Nothing matches <Masked>“{query.q}”</Masked></> : query.kind === "artifact" ? "No files here" : "No documents here"}
           description={searching ? <>Search looks at titles and links across <Masked>{wsName}</Masked>, in what you can open.</> : undefined}
         />
-      )}
-
-      {state === "ok" && items.length > 0 && (
-        <section aria-labelledby="md-items" className="flex min-w-0 flex-col gap-2">
-          <div className="relative flex min-w-0 items-center gap-3">
-            {!phone && movable.length > 1 && (
-              <span className={cx("absolute top-1/2 -left-7 -translate-y-1/2 transition-opacity", selected.size ? "opacity-100" : "opacity-0 hover:opacity-100 focus-within:opacity-100")}>
-                <Checkbox
-                  aria-label="Select all"
-                  checked={selected.size > 0 && selected.size === movable.length}
-                  indeterminate={selected.size > 0 && selected.size < movable.length}
-                  onChange={(e) => setSelected(e.target.checked ? new Set(movable.map((i) => i.slug)) : new Set())}
-                />
-              </span>
-            )}
-            <h2 id="md-items" className="text-eyebrow uppercase text-text-muted">{searching ? <>Results in <Masked>{wsName}</Masked></> : "Items"}</h2>
-          </div>
-          <ul className="m-0 flex min-w-0 list-none flex-col gap-2 p-0" aria-labelledby="md-items">
-            {items.map((it) => (
-              <WorkspaceItemRow
-                key={it.slug}
-                item={it}
-                workspaceId={workspaceId}
-                team={team}
-                phone={phone}
-                showLocation={searching}
-                selectable={!phone && it.can.move && movable.length > 1}
-                selected={selected.has(it.slug)}
-                selectionActive={selected.size > 0}
-                onSelect={(on) => toggleSelect(it.slug, on)}
-                dragSlugs={selected.has(it.slug) && selected.size > 1 ? [...selected].filter((s) => items.find((x) => x.slug === s)?.can.move) : [it.slug]}
-                fromFolderId={searching ? undefined : folderId}
-                menu={itemMenu(it)}
-                onAccess={it.can.share ? () => setShareFor(it) : null}
-                onSheet={() => setSheetFor(it)}
-              />
-            ))}
-          </ul>
-          {cursor && (
-            <div className="flex justify-center pt-2">
-              <Button variant="secondary" onClick={() => void loadMore()} loading={more}>Load more</Button>
-            </div>
-          )}
-        </section>
       )}
 
       {/* Admins see that private items are filed here (not what they are), so they can take them out. */}
@@ -908,6 +929,10 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
           onClose={() => setSheetFor(null)}
           title={itemTitle(sheetFor)}
           address={sheetFor.encrypted ? null : displayAddress(sheetFor.url)}
+          details={<>
+            <Person person={sheetFor.owner} size="sm" />
+            {sheetFor.updated_at && <><span aria-hidden>·</span><span>Updated {relativeTime(sheetFor.updated_at)}</span></>}
+          </>}
           actions={sheetActions(sheetFor)}
         />
       )}
@@ -961,142 +986,5 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         }}
       />
     </div>
-  );
-}
-
-/* ── Folder card ─────────────────────────────────────────────────────── */
-
-function exposureNote(f: TreeFolder): string {
-  const e = f.exposure;
-  if (!e) return "";
-  if (e.link > 0) return ` · ${e.link} public`;
-  if (e.workspace > 0 && e.private === 0) return " · team only";
-  if (e.private > 0 && e.workspace === 0) return " · only people added";
-  return "";
-}
-
-function FolderCard({
-  workspaceId, folder: f, phone, canDropItems, canDragFolders, blocked, onFiles,
-}: {
-  workspaceId: string;
-  folder: TreeFolder;
-  phone: boolean;
-  canDropItems: boolean;
-  canDragFolders: boolean;
-  blocked: string[];
-  onFiles: ((files: File[]) => void) | null;
-}) {
-  const drop = useFolderDrop(`card:${f.id}`, canDropItems ? { workspaceId, folderId: f.id, label: f.name, acceptsFolders: canDragFolders } : null);
-  const dragData: DragData | null = canDragFolders
-    ? { type: "folder", workspaceId, folderId: f.id, label: f.name, parentId: f.parent_id, blocked }
-    : null;
-  const drag = useWorkspaceDraggable(`card:${f.id}`, dragData);
-  const { active } = useWorkspaceDrag();
-  const [fileOver, setFileOver] = useState(false);
-
-  return (
-    <li
-      ref={(el) => { drop.setNodeRef(el); drag.setNodeRef(el); }}
-      {...(drag.listeners ?? {})}
-      onDragOver={(e) => { if (onFiles && hasFiles(e)) { e.preventDefault(); e.stopPropagation(); setFileOver(true); } }}
-      onDragLeave={() => setFileOver(false)}
-      onDrop={(e) => {
-        if (!onFiles || !hasFiles(e)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        setFileOver(false);
-        onFiles(Array.from(e.dataTransfer.files));
-      }}
-      className={cx(
-        "relative flex min-w-0 items-center gap-3 rounded-xl border bg-surface shadow-sm transition-colors duration-(--duration-fast)",
-        phone ? "px-3.5 py-3" : "px-4 py-3.5",
-        drop.over || fileOver ? "border-accent bg-accent-soft ring-2 ring-accent" : active && drop.candidate ? "border-dashed border-border-strong" : "border-border hover:border-border-strong",
-        drag.isDragging && "opacity-50",
-      )}
-    >
-      <span aria-hidden className="flex shrink-0 text-accent-text"><Icon name="folder" size={phone ? 18 : 22} /></span>
-      <span className="flex min-w-0 flex-1 flex-col">
-        <Anchor
-          href={folderHref(workspaceId, f.id)}
-          draggable={false}
-          className="md-focus min-w-0 truncate rounded-sm text-body-strong text-text no-underline after:absolute after:inset-0 after:content-[''] hover:underline hover:underline-offset-3"
-          dir="auto"
-        >
-          {f.name}
-        </Anchor>
-        {!phone && (
-          <span className="truncate text-caption text-text-muted">
-            {plural(f.total_count, "item")}{exposureNote(f)}
-            {f.share && <span className="md-visually-hidden">, shared by {f.share.level === "link" ? "link" : "the team"}</span>}
-          </span>
-        )}
-      </span>
-      {phone && <span className="shrink-0 text-caption text-text-muted">{f.total_count}</span>}
-      {!phone && f.share && <Icon name="link" size={14} className="shrink-0 text-text-muted" aria-hidden />}
-    </li>
-  );
-}
-
-/* ── Item row ────────────────────────────────────────────────────────── */
-
-function WorkspaceItemRow({
-  item: it, workspaceId, team, phone, showLocation, selectable, selected, selectionActive, onSelect, dragSlugs, fromFolderId, menu, onAccess, onSheet,
-}: {
-  item: WorkspaceItem;
-  workspaceId: string;
-  team: string;
-  phone: boolean;
-  showLocation: boolean;
-  selectable: boolean;
-  selected: boolean;
-  selectionActive: boolean;
-  onSelect: (on: boolean) => void;
-  dragSlugs: string[];
-  fromFolderId: string | null | undefined;
-  menu: MenuEntry[];
-  onAccess: (() => void) | null;
-  onSheet: () => void;
-}) {
-  const t = itemTitle(it);
-  const drag = useWorkspaceDraggable(`item:${it.slug}`, it.can.move
-    ? { type: "items", workspaceId, slugs: dragSlugs, label: dragSlugs.length > 1 ? plural(dragSlugs.length, "item") : t, fromFolderId }
-    : null);
-  const location = showLocation ? (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-sm bg-surface-active px-1.5 text-micro text-text-secondary">
-      <Icon name="folder" size={11} />
-      <span className="max-w-32 truncate" dir="auto">{it.folder?.name ?? "Top level"}</span>
-    </span>
-  ) : null;
-
-  return (
-    <ItemRow
-      file={{ slug: it.slug, kind: it.kind, mime: it.mime, renderer: it.renderer, original_filename: it.original_filename, editor: it.editor, type_label: it.type_label }}
-      title={t}
-      href={openHref(it.slug, it.url, it.encrypted)}
-      address={it.encrypted ? "Encrypted" : displayAddress(it.url)}
-      views={it.views ?? 0}
-      by={it.owner.is_you ? "You" : it.owner.name}
-      when={it.updated_at}
-      access={it.access}
-      team={team}
-      hasPassword={it.has_password}
-      encrypted={!!it.encrypted}
-      onAccess={onAccess}
-      copy={it.encrypted ? null : it.url}
-      menu={menu}
-      menuLabel={`Actions for ${t}`}
-      phone={phone}
-      onSheet={onSheet}
-      chip={location}
-      rowRef={drag.setNodeRef}
-      rowProps={{ ...(drag.listeners ?? {}), "aria-label": undefined } as React.HTMLAttributes<HTMLLIElement>}
-      className={cx("group", selected && "!border-accent bg-accent-soft/40", drag.isDragging && "opacity-50")}
-      leading={selectable ? (
-        // In the gutter to the left of the row, so rows line up whether or not they can be selected.
-        <span className={cx("absolute top-1/2 -left-7 -translate-y-1/2 transition-opacity", selectionActive || selected ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
-          <Checkbox aria-label={`Select ${t}`} checked={selected} onChange={(e) => onSelect(e.target.checked)} />
-        </span>
-      ) : undefined}
-    />
   );
 }
