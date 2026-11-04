@@ -231,12 +231,12 @@ await step("locked", async () => {
   state.locked = await newPage("Product docs playbook", `---\nlocked: true\n---\n\n${BODY}`);
   const d = await docOf(state.locked, T.member);
   if (!d.page?.locked) fail(`not locked: ${JSON.stringify(d.page)}`);
-  // The owner edits a locked page; an admin gets whatever the page editor gives them (today: read
-  // only, "locked by its owner"), and sees the diagram either way.
+  // The owner and a workspace admin edit a locked page (can.edit_locked, 2026-11-04); both see the
+  // diagram until they click it.
   for (const who of ["owner", "admin"]) {
     const { c, p } = await ctx(browser, { token: T[who] });
     const errs = watch(p);
-    const editable = await openEditor(p, state.locked, who === "owner" ? true : null);
+    const editable = await openEditor(p, state.locked, true);
     log(`locked, ${who}: ${editable ? "editable" : "read only"}`);
     await expectDiagram(p, `locked, ${who}`);
     await shot(p, `06-locked-${who}-diagram`, { wait: 800 });

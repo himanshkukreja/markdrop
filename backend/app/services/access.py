@@ -727,7 +727,17 @@ async def can_flags(actor: Actor, doc: dict, ctx: Ctx) -> dict[str, bool]:
         "share": await ok("share"),
         "move": bool(doc.get("workspace_id")) and await ok("move_in_workspace"),
         "unshare": bool(doc.get("workspace_id")) and await ok("unshare"),
+        # A page locked by its `locked` property: who may still edit it (and lock / unlock it) —
+        # its owner (or the edit secret) and its workspace's admins (services/pages.may_edit_locked).
+        "edit_locked": await _may_edit_locked(actor, doc, ctx) and await ok("edit_content"),
     }
+
+
+async def _may_edit_locked(actor: Actor, doc: dict, ctx: Ctx) -> bool:
+    from app.models.workspace import role_allows
+
+    f = await facts(actor, doc, ctx)
+    return bool(f.is_owner or f.secret_ok or role_allows(f.ws_role, "admin"))
 
 
 async def anonymous_can_read(db: AsyncIOMotorDatabase, doc: dict | None) -> bool:
