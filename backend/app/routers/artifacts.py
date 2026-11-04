@@ -390,7 +390,7 @@ async def _artifact_response(db, raw: dict, user: User) -> ArtifactResponse:
     doc = _doc_from_mongo(raw)
     return ArtifactResponse(**art_service.to_response(
         doc, is_owner=raw.get("owner_id") == user.id,
-        public=await publicity.doc_is_public(db, raw),
+        public=publicity.unsigned_ok(raw, await publicity.doc_is_public(db, raw)),
         workspace_url=await urls.workspace_url(db, raw)))
 
 

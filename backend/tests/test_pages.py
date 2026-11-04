@@ -838,7 +838,9 @@ class Assets(PageWorld):
         key = f"pa/{page['_id']}/{info['id']}.png"
         self.assertTrue(self.obj(key)["public"])
         a = (await self.get(page["slug"])).json()["assets"][info["id"]]
-        self.assertEqual(a, {"url": f"{ORIGIN}/r/{key}", "expires_at": None})
+        # The size read at upload comes along, so the image keeps its room while it loads.
+        size = {k: info[k] for k in ("width", "height") if info.get(k)}
+        self.assertEqual(a, {"url": f"{ORIGIN}/r/{key}", "expires_at": None, **size})
         await self.set_level(page["slug"], "private")
         self.assertFalse(self.obj(key)["public"])
         self.assertEqual(self.obj(key)["ae"], str((await self.doc(page["slug"]))["access_epoch"]))

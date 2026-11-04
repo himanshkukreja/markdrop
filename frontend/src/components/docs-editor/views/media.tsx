@@ -42,8 +42,10 @@ function AlignIcon({ a }: { a: Align }) {
   );
 }
 
-function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUpload, onAttrs, onReplace, onDelete, onAlt, altOpen, altId, altEditor, altSuggested }: {
+function PageFigure({ src, size, alt, title, battrs, selected, readOnly, busy, canUpload, onAttrs, onReplace, onDelete, onAlt, altOpen, altId, altEditor, altSuggested }: {
   src: string;
+  /** Its size in pixels when known: the image keeps its room while it loads (nothing below jumps). */
+  size?: { width: number; height: number } | null;
   alt: string;
   title: string | null;
   battrs: Record<string, string> | null;
@@ -118,7 +120,7 @@ function PageFigure({ src, alt, title, battrs, selected, readOnly, busy, canUplo
       <div ref={box} className="dxe-figure__box" data-align={align} data-resizing={live !== null ? "" : undefined} style={{ "--pb-w": `${width}%` } as React.CSSProperties}>
         <div className="dx-fig__frame dxe-figure__frame" data-drag-handle="">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={src || undefined} alt={alt} className="dx-fig__img" draggable={false} loading="lazy" decoding="async" onDoubleClick={() => setFull(true)} />
+          <img src={src || undefined} alt={alt} width={size?.width} height={size?.height} className="dx-fig__img" draggable={false} loading="lazy" decoding="async" onDoubleClick={() => setFull(true)} />
         </div>
         {live !== null && <span ref={sizeLabel} className="dxe-figure__size">{Math.round(live)}%</span>}
         {!readOnly && (
@@ -303,6 +305,7 @@ export function FigureView({ node, updateAttributes, deleteNode, selected, edito
     return (
       <PageFigure
         src={host.resolveAsset(src)}
+        size={host.pages.assetSize?.(src)}
         alt={alt}
         title={title}
         battrs={(node.attrs.battrs as Record<string, string> | null) ?? null}

@@ -336,23 +336,25 @@ function plainBlockProps(props: Record<string, unknown>) {
   return out;
 }
 
-function Img({ node: _n, alt, src, title, ...rest }: P<"img">) {
+function Img({ node: _n, alt, src, title, width, height, ...rest }: P<"img">) {
   if (!src) return null;
-  if (rest["data-block"]) return <FigureImage src={String(src)} alt={alt ?? ""} caption={typeof title === "string" ? title : undefined} />;
+  // A page image's size (remarkPageBlocks, from the asset): it keeps its room while it loads.
+  const size = { width: width || undefined, height: height || undefined };
+  if (rest["data-block"]) return <FigureImage src={String(src)} alt={alt ?? ""} caption={typeof title === "string" ? title : undefined} size={size} />;
   return (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={String(src)} alt={alt ?? ""} title={typeof title === "string" ? title : undefined} loading="lazy" decoding="async" className="pb-img" />
+    <img src={String(src)} alt={alt ?? ""} title={typeof title === "string" ? title : undefined} {...size} loading="lazy" decoding="async" className="pb-img" />
   );
 }
 
 /** An image block: click for the full-screen view (with download), caption below. */
-function FigureImage({ src, alt, caption }: { src: string; alt: string; caption?: string }) {
+function FigureImage({ src, alt, caption, size }: { src: string; alt: string; caption?: string; size?: { width?: number | string; height?: number | string } }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button type="button" className="pb-figure__open md-focus" onClick={() => setOpen(true)} aria-label={alt ? `View ${alt} full screen` : "View image full screen"}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={alt} loading="lazy" decoding="async" className="pb-img pb-figure__img" />
+        <img src={src} alt={alt} {...size} loading="lazy" decoding="async" className="pb-img pb-figure__img" />
       </button>
       {caption && <span className="pb-caption pb-figure__cap">{caption}</span>}
       {open && <ImageLightbox src={src} alt={alt} caption={caption} onClose={() => setOpen(false)} />}

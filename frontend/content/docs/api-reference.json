@@ -110,6 +110,7 @@
     "read_password": "Readers must enter this password before they see the content.",
     "remove_password": "`true` removes the password.",
     "access_level": "Who can open it: `link` (anyone with the link), `private` (only you and the people you share it with) or `workspace` (members of its workspace).",
+    "access_sync": "A sign-in change (`require_auth_to_view` on or off) still applying to stored files, page images and cached pages: `state` (`applying` or `done`), `pending` and `total` items, and `want` (the setting being applied). The sign-in gate itself holds as soon as the change is saved. `null` when none was ever applied.",
     "workspace": "File it in this workspace: the workspace's id.",
     "folder": "An existing folder of `workspace`: its id or its path, like `guides/setup`.",
     "encrypted": "Set by clients that encrypt in the browser: `content` and `title` are already ciphertext. The server never sees the key.",
@@ -313,6 +314,13 @@
       "title": "List backlinks",
       "group": "pages",
       "description": "Pages that mention, embed or link to this one, among those you can open."
+    },
+    "GET /api/v1/documents/{slug}/mentionable": {
+      "title": "List people to mention",
+      "group": "pages",
+      "description": "Who you can @-mention on a page you can edit: the members of its workspace, sorted by name, with their email address when you're a signed-in member on markdrop.in (never on a workspace's own domain). `state` is `ok`, or says why no one is listed: `personal` (the page is in no workspace), `signin` (an edit link with no account) or `not_member` (you edit it but aren't in its workspace). Write a mention as `:person[Name]{id=\"<id>\"}`.",
+      "mcp": "list_workspace_members",
+      "guide": { "label": "Mentions and notifications", "href": "/pages/mentions-and-notifications" }
     },
     "PUT /api/v1/documents/{slug}/editor": {
       "title": "Switch the editor",
@@ -843,7 +851,7 @@
     },
     "PUT /api/v1/workspaces/{workspace_id}": {
       "title": "Update a workspace",
-      "description": "Changes a workspace's name, branding or settings. Every field is optional.",
+      "description": "Changes a workspace's name, branding or settings. Every field is optional. Turning `require_auth_to_view` on or off takes effect for readers at once; files, page images and cached pages follow in the background, and the answer's `access_sync` says how many items are still applying (`GET` the workspace to follow it).",
       "example": { "name": "Acme Inc." },
       "guide": { "label": "Branding", "href": "/workspaces/branding" }
     },

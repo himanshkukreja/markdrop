@@ -15,7 +15,7 @@ import Suggestion, { exitSuggestion, type SuggestionKeyDownProps, type Suggestio
 import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
-import { AI_ITEMS, BLOCK_ITEMS, GROUP_LABEL, filterItems, type BlockItem } from "../blocks";
+import { AI_ITEMS, BLOCK_ITEMS, GROUP_LABEL, cellItems, filterItems, type BlockItem } from "../blocks";
 import { aiHooks } from "./aiKeys";
 import { cx } from "../views/shared";
 import { reducedMotion, usePresence } from "./motion";
@@ -54,9 +54,26 @@ export class SlashStore {
 export const slashKey = new PluginKey("docsSlash");
 export const LISTBOX_ID_SUFFIX = "-slash";
 
+/** The caret is in a table cell (a cell holds one line of inline content). */
+export function inTableCell(editor: Editor): boolean {
+  const name = editor.state.selection.$from.parent.type.name;
+  return name === "tableCell" || name === "tableHeader";
+}
+
 export function SlashCommand(store: SlashStore, listboxId: string, items: BlockItem[] = BLOCK_ITEMS) {
-  // AI's commands lead the menu while the editor has AI it can use (menus/aiKeys.ts).
-  return SuggestMenu({ name: "docsSlash", key: slashKey, char: "/", store, listboxId, find: (q, e) => filterItems(q, e && aiHooks(e)?.on ? [...AI_ITEMS, ...items] : items), allowInTables: false });
+  // AI's commands lead the menu while the editor has AI it can use (menus/aiKeys.ts). In a table
+  // cell only the inline items (mentions, date, emoji…): a cell can't hold blocks.
+  return SuggestMenu({
+    name: "docsSlash",
+    key: slashKey,
+    char: "/",
+    store,
+    listboxId,
+    find: (q, e) => {
+      if (e && inTableCell(e)) return filterItems(q, cellItems(items));
+      return filterItems(q, e && aiHooks(e)?.on ? [...AI_ITEMS, ...items] : items);
+    },
+  });
 }
 
 export const emojiKey = new PluginKey("docsEmoji");

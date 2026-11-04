@@ -86,6 +86,29 @@ if os.environ.get("PB_FAKE_SEARCH_AI"):
     _client = NS(messages=_Messages())
     search_ai.docs_agent = NS(get_client=lambda: _client, configured=lambda: True)
 
+# PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
+# real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).
+_lat = float(os.environ.get("PB_R2_LATENCY_MS") or 0) / 1000
+if _lat:
+    import time
+
+    from app.services import r2
+
+    _set_public = r2.set_public
+
+    def _slow_set_public(key, public, content_type=None, epoch=None):
+        time.sleep(_lat)
+        return _set_public(key, public, content_type, epoch)
+
+    def _slow_set_public_prefix(prefix, public, epoch=None):
+        keys = r2.list_prefix(prefix)
+        for k in keys:
+            _slow_set_public(k, public, None, epoch)
+        return len(keys)
+
+    r2.set_public = _slow_set_public
+    r2.set_public_prefix = _slow_set_public_prefix
+
 import uvicorn  # noqa: E402
 
 uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning")

@@ -73,6 +73,20 @@ class WorkspaceUpdate(BaseModel):
     settings: SettingsPayload | None = None
 
 
+class AccessSync(BaseModel):
+    """A sign-in change (Team/Open ⇄ Locked) still being carried through to
+    stored files, page images and cached pages. The gate itself holds from the
+    moment the setting is saved; this is what the settings page shows as
+    "Applying to N items…"."""
+
+    state: Literal["applying", "done"]
+    # Items still to go, and how many the change touched.
+    pending: int = 0
+    total: int = 0
+    # The setting being applied (require_auth_to_view).
+    want: bool = False
+
+
 class WorkspaceResponse(BaseModel):
     id: str
     name: str
@@ -100,6 +114,9 @@ class WorkspaceResponse(BaseModel):
     member_count: int = 0
     pending_invite_count: int = 0
     domain_count: int = 0
+    # Settings and the PUT that changes them: a sign-in change still applying
+    # in the background (None when nothing ever was, or on list responses).
+    access_sync: AccessSync | None = None
 
 
 class WorkspaceListResponse(BaseModel):

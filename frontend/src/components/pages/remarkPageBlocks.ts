@@ -81,7 +81,7 @@ const attr = (n: MdNode, k: string) => {
 
 export interface PageBlocksOptions {
   /** Page images: `asset:<id>` → the URL this viewer may load. */
-  assets?: Record<string, { url: string } | undefined> | null;
+  assets?: Record<string, { url: string; width?: number; height?: number } | undefined> | null;
 }
 
 export function remarkPageBlocks(options: PageBlocksOptions = {}) {
@@ -243,8 +243,11 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           const id = assetId(node.url);
           if (id) {
             const a = assets[id];
-            if (a?.url) node.url = a.url;
-            else {
+            if (a?.url) {
+              node.url = a.url;
+              // Its size keeps its room while it loads (nothing below jumps).
+              if (a.width && a.height) addProps(node, { width: a.width, height: a.height });
+            } else {
               // Not (yet) resolved for this viewer: a placeholder, never the raw `asset:` address.
               set(node, "span", { dataPb: "asset", dataAsset: id, dataLabel: node.alt || "" });
               node.url = "";

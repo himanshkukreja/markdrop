@@ -20,6 +20,8 @@ export interface EditorServices {
   toast?: { success: (m: string) => void; error: (m: string) => void; info?: (m: string) => void };
   /** AI's "/" commands (blocks.ts AI_ITEMS). */
   ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
+  /** "/person" and an empty person chip: an `@` that opens the people picker (menus/people.tsx). */
+  openPeople?: (e: Editor, r: Range) => void;
 }
 
 export function services(editor: Editor): EditorServices {

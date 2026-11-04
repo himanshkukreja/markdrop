@@ -219,9 +219,11 @@ async def _register(db: AsyncIOMotorDatabase, page: dict, *, asset_id: str, key:
 
 
 async def urls_for(db: AsyncIOMotorDatabase, page: dict, ids: list[str] | None = None) -> dict[str, dict]:
-    """``{id: {url, expires_at}}`` for this page's images among ``ids`` (all of
-    them when None), for a reader already past can(read) on the page. Ids that
-    aren't this page's are left out."""
+    """``{id: {url, expires_at, width?, height?}}`` for this page's images among
+    ``ids`` (all of them when None), for a reader already past can(read) on the
+    page. Ids that aren't this page's are left out. The size (pixels, when it was
+    read at upload) lets the editor and the reader keep an image's room while it
+    loads, so nothing below it jumps."""
     from app.services import artifact as art_service
 
     if ids is not None and not ids:
@@ -231,18 +233,22 @@ async def urls_for(db: AsyncIOMotorDatabase, page: dict, ids: list[str] | None =
     q: dict = {"doc_id": str(page["_id"])}
     if ids is not None:
         q["_id"] = {"$in": list(ids)[:MAX_PER_PAGE]}
-    rows = await db[COLL].find(q, {"key": 1, "mime": 1}).to_list(length=MAX_PER_PAGE)
+    rows = await db[COLL].find(q, {"key": 1, "mime": 1, "width": 1, "height": 1}).to_list(length=MAX_PER_PAGE)
     if not rows:
         return {}
-    public = await is_public(db, page)
+    public = publicity.unsigned_ok(page, await is_public(db, page))
     epoch = publicity.epoch_of(page)
     ttl = int(get_settings().artifact_url_ttl_seconds)
     expires = None if public else (now_utc() + timedelta(seconds=ttl)).isoformat().replace("+00:00", "Z")
-    return {
-        r["_id"]: {"url": art_service.build_download_url(r["key"], private=not public, epoch=epoch, ttl=ttl),
-                   "expires_at": expires}
-        for r in rows
-    }
+    out: dict[str, dict] = {}
+    for r in rows:
+        entry = {"url": art_service.build_download_url(r["key"], private=not public, epoch=epoch, ttl=ttl),
+                 "expires_at": expires}
+        w, h = r.get("width"), r.get("height")
+        if isinstance(w, int) and isinstance(h, int) and w > 0 and h > 0:
+            entry["width"], entry["height"] = w, h
+        out[r["_id"]] = entry
+    return out
 
 
 async def _set(db: AsyncIOMotorDatabase, page: dict, public: bool, epoch: int) -> bool:

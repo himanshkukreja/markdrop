@@ -126,6 +126,40 @@ async def list_members(db: AsyncIOMotorDatabase, workspace_id: str) -> list[Memb
     return [_to_membership(r) for r in rows]
 
 
+async def mention_people(
+    db: AsyncIOMotorDatabase, workspace_id: str, *, viewer_id: str | None, emails: bool
+) -> list[dict]:
+    """Everyone a page's editor can @-mention: the workspace's members (accounts
+    that still exist), as ``[{id, name, email, avatar_url, you}]`` sorted by
+    name. ``email`` is None unless ``emails`` (the caller decides who may see
+    addresses: a signed-in member on markdrop.in, never a workspace domain's
+    session). The editor fetches this once and filters it as you type."""
+    import re
+
+    from app.services import viewers
+
+    members = await list_members(db, workspace_id)
+    oids = [ObjectId(m.user_id) for m in members if ObjectId.is_valid(m.user_id)]
+    users = {str(u["_id"]): u for u in await db["users"].find(
+        {"_id": {"$in": oids}}, {"name": 1, "email": 1, "picture": 1}).to_list(length=len(oids) or 1)}
+    out = []
+    for m in members:
+        u = users.get(m.user_id)
+        if u is None:
+            continue  # the account is gone
+        pic = u.get("picture")
+        avatar = pic if isinstance(pic, str) and re.match(r"^https://", pic) else None
+        out.append({
+            "id": m.user_id,
+            "name": viewers.display_name(type("U", (), {"name": u.get("name"), "email": u.get("email")})),
+            "email": (u.get("email") or m.email or None) if emails else None,
+            "avatar_url": avatar,
+            "you": m.user_id == viewer_id,
+        })
+    out.sort(key=lambda p: (p["name"].casefold(), p["id"]))
+    return out
+
+
 # ── Writes ────────────────────────────────────────────────────────────────────
 
 
@@ -272,7 +306,16 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
     # The docs sites with team-member readers they can read, while they still can (their sessions
     # there end).
     could_read = await docs_studio_roles.readable(db, await docs_studio_roles.reader_sites(db, workspace_id), user_id)
-    res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id})
+    # Never the owner's membership, even when ownership moved to them since the check above (a
+    # transfer racing this removal left a workspace with no owner at all: c248). The transfer
+    # promotes the membership before it moves `owner_id`, so the role is the thing to condition on.
+    res = await db["memberships"].delete_one({"workspace_id": workspace_id, "user_id": user_id, "role": {"$ne": "owner"}})
+    if not res.deleted_count and await db["memberships"].find_one(
+        {"workspace_id": workspace_id, "user_id": user_id, "role": "owner"}, {"_id": 1}):
+        raise HTTPException(
+            status_code=422,
+            detail="The owner can't be removed. Transfer ownership or delete the workspace.",
+        )
     if res.deleted_count:
         await lifecycle.member_left(db, workspace_id, user_id)
         # Their Guides roles there go too (read time already ignores them).

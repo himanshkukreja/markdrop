@@ -55,6 +55,11 @@ async def _counts(db: AsyncIOMotorDatabase, workspace_id: str) -> dict:
     }
 
 
+# How long a settings PUT that turns sign-in on or off waits for the
+# background part before it answers with progress instead.
+REQUIRE_AUTH_WAIT_S = 1.0
+
+
 def _to_response(workspace: Workspace, role: str, counts: dict | None = None) -> WorkspaceResponse:
     b = workspace.branding
     s = workspace.settings
@@ -187,6 +192,10 @@ async def get_workspace(
         raise HTTPException(status_code=404, detail="Workspace not found")
     counts = await _counts(db, workspace_id)
     counts["domains"], counts["primary_host"] = await _domains(db, workspace_id)
+    from app.services import lifecycle
+
+    # A sign-in change still applying: the settings page polls this for its progress.
+    counts["access_sync"] = await lifecycle.require_auth_progress(db, workspace_id)
     return _to_response(workspace, role, counts)
 
 
@@ -213,17 +222,20 @@ async def update_workspace(
     from app.services import lifecycle, revalidate
 
     # W1/W2: require sign-in changes the audience of every filed document at
-    # once — bytes, epochs, caches (D3). Applied from the *current* setting
-    # under a per-workspace lease, never from what this request saw before it
-    # wrote (C-N8: two racing toggles must end with the bytes matching the row).
-    toggled = await lifecycle.sync_require_auth(db, workspace_id)
+    # once (D3), applied from the *current* setting, never from what this
+    # request saw before it wrote (C-N8). The gate and the access epochs
+    # change before this answers; stored files, page images and cached pages
+    # follow in the background (waited for briefly: a small workspace is done
+    # by then, a big one answers with progress in ``access_sync``).
+    toggled = await lifecycle.sync_require_auth(db, workspace_id, wait=REQUIRE_AUTH_WAIT_S)
     if toggled is not None:
         workspace = await ws_service.get_workspace(db, workspace_id) or workspace
-    elif data.branding is not None or data.settings is not None or data.name is not None:
+        return _to_response(workspace, role, {"access_sync": toggled.get("progress")})
+    if data.branding is not None or data.settings is not None or data.name is not None:
         # Branding / chrome render on the workspace's hosts.
         rows = await db["domains"].find({"workspace_id": workspace_id}, {"host": 1}).to_list(length=200)
         await revalidate.enqueue(db, tags=[f"host:{r['host']}" for r in rows] + [f"wsl:{workspace_id}"])
-    return _to_response(workspace, role)
+    return _to_response(workspace, role, {"access_sync": await lifecycle.require_auth_progress(db, workspace_id)})
 
 
 # ── Members ───────────────────────────────────────────────────────────────────

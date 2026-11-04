@@ -148,8 +148,9 @@ class Viewers(AccessWorld):
             out = ws.presence()
             self.assertEqual(out["total"], 5)
             self.assertFalse([v for v in out["viewers"] if "name" in v or "pic" in v or "owner" in v])
+            # As a JSON value: a random viewer id can contain the letters (e.g. "WMnYQNfg").
             for who in ("OWNER", "WM", "GV"):
-                self.assertNotIn(who, json.dumps(out))
+                self.assertNotIn(f'"{who}"', json.dumps(out))
             self.assertNotIn("owner", v)
         self.assertEqual([v.get("owner") for v in snap["viewers"] if v.get("name") == "OWNER"], [True])
         # The stranger is signed in, yet nobody (themselves included) gets their name, address or id.

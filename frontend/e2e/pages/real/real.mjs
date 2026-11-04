@@ -229,6 +229,15 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
 await step("subpage", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
+  // The owner lands in the editor: it takes the read view's place once ready (its own "Add a
+  // sub-page"), so click the one that stays.
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  // Page images keep their room while they load (their size comes with the page): scrolling to the
+  // button lazy-loads the ones near it, and unsized they pushed it down between the press and the
+  // release, so the click landed on an image (WebKit, now and then).
+  const unsized = await p.locator(".pb-live img.dx-fig__img").evaluateAll((els) => els.filter((e) => !(Number(e.getAttribute("width")) > 0 && Number(e.getAttribute("height")) > 0)).map((e) => e.getAttribute("src")));
+  if (unsized.length) fail(`page images without a size: ${unsized.join(", ")}`);
+  if (!(await p.locator(".pb-live img.dx-fig__img").count())) fail("no page images to check (the create step adds two)");
   await p.getByRole("button", { name: "Add a sub-page" }).first().click();
   const dlg = p.getByRole("dialog");
   await dlg.getByText("Meeting notes", { exact: true }).click();
@@ -1258,8 +1267,11 @@ await step("blocks", async () => {
   await slashPick(p, "date");
   await p.keyboard.type("for ");
   await slashPick(p, "person");
-  await p.getByLabel("Search people").fill("ben");
-  await p.getByRole("dialog", { name: "Mention someone" }).getByRole("button", { name: "Ben Member" }).click();
+  // The `@` picker (docs-editor/menus/people.tsx): type to filter, Enter picks.
+  await p.locator(".dxe-people [role=option]").first().waitFor({ timeout: 10000 });
+  await p.keyboard.type("ben");
+  await p.locator(".dxe-people [role=option]", { hasText: "Ben Member" }).first().waitFor();
+  await p.keyboard.press("Enter");
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/toggle");

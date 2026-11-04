@@ -25,7 +25,7 @@
   "entries": [
     {
       "id": "files-one-top-bar",
-      "date": "2026-11-04",
+      "date": "2026-11-05",
       "title": "Files: one top bar, like documents and pages",
       "kind": "improved",
       "area": "Files",
@@ -38,22 +38,6 @@
         "/get-started/tour",
         "/get-started/first-file",
         "/workspaces/sign-in-on-your-domain"
-      ]
-    },
-    {
-      "id": "documents-one-top-bar",
-      "date": "2026-11-04",
-      "title": "Documents: one top bar, like pages",
-      "kind": "improved",
-      "area": "Documents",
-      "products": [
-        "web"
-      ],
-      "summary": "Leave full screen on a Markdown document and you get a single bar at the top, the same as a page's: the app's header and the document's bar under it are now one. Hide the Contents and Details sidebars with ⌘ \\ to keep just the text.",
-      "body": "- **One bar.** On the left: the sidebar button, the logo (your workspace's logo on its own domain) and the title, after the workspace and folder if you're a member. On the right: who's viewing, **Edit**, **Read full screen**, **Share** (or **Copy link**), **More actions** (**⋯**), **Create** and your avatar, or **Sign in**. It's the same in the editor and in front of a password or sign-in gate.\n- **Nothing moved out of reach.** **Copy link** and **Details** are in **⋯** when **Share** is in the bar, with **View raw**, **Export PDF**, **Save a copy**, **Request edit access** and, on your workspace's domain, **General access on markdrop.in**. The theme switch is in your avatar menu (in **⋯** when you're signed out).\n- **Hide the sidebars** with the sidebar button or **⌘ \\\\** (**Ctrl \\\\** on Windows and Linux): **Contents** and **Details** step aside and **Contents** moves into the bar. Your browser remembers it, together with a page's sidebar.\n- **On a phone** the bar keeps the title, full screen and **⋯** (with **Share** first), and **Contents**, **Copy link** and **Share** or **Edit** stay in the bar at the bottom.",
-      "docs": [
-        "/get-started/tour",
-        "/sharing/see-whos-viewing"
       ]
     },
     {
@@ -525,6 +509,82 @@
       "docs": [
         "/workspaces/search",
         "/ai/tools"
+      ]
+    },
+    {
+      "id": "fixes-2026-11-04-followups",
+      "date": "2026-11-04",
+      "title": "Workspace lists keep up with renames, and pages don't jump while images load",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "A workspace's list shows renames from your other tabs at once and other people's within half a minute, without a reload. Page images keep their space while they load, so nothing below them moves under your pointer. Esc on a Mermaid diagram's code shows the diagram again on locked pages too.",
+      "body": "- **Renames show without a reload.** Rename a page in one tab and the workspace or folder list in your other tabs shows the new name straight away. What other people rename, add or move shows within half a minute while the list is open, or as soon as you come back to the tab. Moving between folders stays as fast as before.\n- **Images keep their space.** Page images reserve their size before they load, in the editor and for readers, so the text and buttons below them no longer jump as you scroll. A click on **Add a sub-page** at the end of a page with images could land on an image instead.\n- **Mermaid and Esc.** On a page you can edit, including a locked page you're allowed to edit, **Esc** in a diagram's code always shows the diagram again. A click on the diagram followed quickly by **Esc** no longer reopens the code.\n- Removing a member while ownership of the workspace was being handed to them could leave the workspace without an owner. Ownership now always wins: the removal is refused.",
+      "docs": [
+        "/workspaces/folders#browse-a-workspace",
+        "/pages/markdown-reference#code-and-diagrams"
+      ]
+    },
+    {
+      "id": "documents-one-top-bar",
+      "date": "2026-11-04",
+      "title": "Documents: one top bar, like pages",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web"
+      ],
+      "summary": "Leave full screen on a Markdown document and you get a single bar at the top, the same as a page's: the app's header and the document's bar under it are now one. Hide the Contents and Details sidebars with ⌘ \\ to keep just the text.",
+      "body": "- **One bar.** On the left: the sidebar button, the logo (your workspace's logo on its own domain) and the title, after the workspace and folder if you're a member. On the right: who's viewing, **Edit**, **Read full screen**, **Share** (or **Copy link**), **More actions** (**⋯**), **Create** and your avatar, or **Sign in**. It's the same in the editor and in front of a password or sign-in gate.\n- **Nothing moved out of reach.** **Copy link** and **Details** are in **⋯** when **Share** is in the bar, with **View raw**, **Export PDF**, **Save a copy**, **Request edit access** and, on your workspace's domain, **General access on markdrop.in**. The theme switch is in your avatar menu (in **⋯** when you're signed out).\n- **Hide the sidebars** with the sidebar button or **⌘ \\\\** (**Ctrl \\\\** on Windows and Linux): **Contents** and **Details** step aside and **Contents** moves into the bar. Your browser remembers it, together with a page's sidebar.\n- **On a phone** the bar keeps the title, full screen and **⋯** (with **Share** first), and **Contents**, **Copy link** and **Share** or **Edit** stay in the bar at the bottom.",
+      "docs": [
+        "/get-started/tour",
+        "/sharing/see-whos-viewing"
+      ]
+    },
+    {
+      "id": "locked-switch-applies-in-background",
+      "date": "2026-11-04",
+      "title": "Switching a workspace to Locked is instant, with progress for big workspaces",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Choosing Locked (or switching back to Team or Open) used to freeze the settings page while every item was updated, about a minute and a half for 300 items. Sign-in is now enforced the moment you choose it, and the stored files, page images and cached pages follow in the background, with a progress bar.",
+      "body": "- **Enforced at once.** The moment you choose **Locked**, every item in the workspace asks for sign-in on every address: a link someone already has stops opening it unless they sign in and can open it.\n- **The rest follows in the background.** Markdrop then locks the stored files (so direct links to a file or a video stop working too), the images on pages and the copies of pages kept for speed, several at a time. A small workspace is done before the switch finishes; a big one shows **Applying to 300 items…** in **Privacy** (and under the switch in **Advanced**) and counts down. The page stays usable, you can leave it, and it carries on even if Markdrop restarts.\n- **Changing your mind is fine.** Switch back to **Team** or **Open** while it's applying and Markdrop applies whichever you chose last.\n- **API.** `GET` and `PUT /api/v1/workspaces/{id}` return `access_sync` (`state`, `pending`, `total`, `want`) while a change is applying. See [Workspace privacy](/workspaces/privacy)."
+    },
+    {
+      "id": "page-at-mentions",
+      "date": "2026-11-04",
+      "title": "Pages: type @ to mention someone, in tables too",
+      "kind": "improved",
+      "area": "Documents",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Type @ in a page and a list of the people in its workspace opens at your cursor, with their picture, name and email address. Type to narrow it, then pick someone. /person opens the same list, which now always shows your teammates, and both work in table cells.",
+      "body": "- **@ opens the list** at the start of a line or after a space or punctuation, never in the middle of a word (so email addresses don't open it) and never in code, Mermaid diagrams or equations. Part of a name or an email address finds someone, and so do letters in order.\n- **Keys:** ↑ and ↓ move, Enter or Tab picks, Esc closes the list and keeps what you typed, and deleting the @ closes it. Clicking works too.\n- **Fixed:** **Mention a person** (`/person`) could open with nobody in it, on a workspace's own domain and whenever the people couldn't be loaded. It now lists the workspace's members there too (names and pictures only on the domain), and a page in no workspace says why there's nobody to mention.\n- **Tables:** `@` and the `/` menu work in table cells. A cell's `/` menu offers what fits in a line: **Mention a person**, **Mention an item**, **Date** and **Emoji**.\n- **API:** `GET /api/v1/documents/{slug}/mentionable` lists who you can mention on a page you can edit.\n\nA mention is the same `:person[Name]{id=\"…\"}` either way, so notifications, exports and AI apps see no difference. See [Mentions and notifications](/pages/mentions-and-notifications).",
+      "docs": [
+        "/pages/mentions-and-notifications"
+      ]
+    },
+    {
+      "id": "open-items-without-a-flash",
+      "date": "2026-11-04",
+      "title": "Items open straight to themselves",
+      "kind": "fixed",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "Opening a page, document or file from a workspace no longer shows a locked document screen for a moment first. A page opens in its own screen, and documents and files open full screen.",
+      "body": "- **No locked screen first.** When you're signed in, an item from your workspace no longer shows the app header, a **Private** bar and a placeholder before it appears.\n- **A page opens as a page.** While it loads, you see the page's own screen with its single top bar.\n- **Documents and files open full screen**, with the Markdrop loader on a slow connection, and never show the framed view first.\n- **Access hasn't changed.** Nothing appears until Markdrop has checked that you can open the item. People who can't open it still get the sign-in or access screen.",
+      "docs": [
+        "/workspaces/folders"
       ]
     },
     {
