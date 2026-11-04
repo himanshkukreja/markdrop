@@ -159,6 +159,9 @@ _TENANT_ALLOWED = (
     # The AI writing tools on one page (pages_ai.load_page(..., "edit_content")). Not translate
     # (it creates a new document) and not notes (a page from nothing, with no parent).
     ("POST", re.compile(r"^/api/v1/ai/pages/[^/]+/(transform|write|action-items|summary|meta|alt-text)$")),
+    # Who the page's editor can @-mention (documents.mentionable_people: can(edit_content), then
+    # the page's workspace members, names and avatars only: never an address on the domain).
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/mentionable$")),
     # A bookmark block's preview: a fetch of a public address, no document involved.
     ("POST", re.compile(r"^/api/v1/link-preview$")),
     # "Request edit access" for a reader of this page (services/access_requests.py): a tenant token

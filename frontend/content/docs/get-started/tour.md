@@ -45,21 +45,22 @@ Each row in **My files** has a **Copy link** button and a menu with **Open**, **
 
 ## On a document
 
-A document opens full screen, with nothing but the text. Press :kbd[Esc] or choose **Show details** in the corner to bring back the bar above it. The bar has:
+A document opens full screen, with nothing but the text. Press :kbd[Esc] or choose **Show details** in the corner to bring back its bar. It's one bar at the top, the same as a [page](/pages/overview#the-top-bar)'s, and it stays in place as you scroll. On the left are the sidebar button, the logo (your workspace's logo on its own domain) and the title, after the workspace and folder if you're a member. On the right:
 
-- **Copy link**: copies the address. For an encrypted document, it includes the key.
+- [Who's viewing](/sharing/see-whos-viewing), when someone else has it open too.
 - **Edit**: shown to the owner, to people who can edit it, and to whoever holds the edit secret in this tab. Everyone else finds **Edit** in **More actions**, where it asks for the edit secret.
-- **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people).
 - **Read full screen**: hides everything but the text again. Press :kbd[F]; press :kbd[Esc] to come back.
-- **More actions**: **View raw**, **Export PDF**, **Save a copy** (on other people's documents), **Report** and, on your own documents once you've connected Google, **Publish to Google Docs**. If someone added you by email, it also has **Remove me**.
+- **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people). Everyone else gets **Copy link** here instead: it copies the address, and for an encrypted document it includes the key.
+- **More actions** (**⋯**): **Copy link** (when **Share** is in the bar), **View raw**, **Export PDF**, **Save a copy** (on other people's documents), **Request edit access** (if you're signed in and can't edit it), **Report**, **Details** and, on your own documents once you've connected Google, **Publish to Google Docs**. If someone added you by email, it also has **Remove me**.
+- **Create** and your account menu, or **Sign in**. If you're signed out, the theme is in **More actions**.
 
 ![The bar above a document with Copy link, Edit, Share and Read full screen, and More actions open showing View raw and Export PDF, with the Details and Access panels on the right.](/docs-assets/get-started/tour/document-bar.webp)
 
-**Details** lists when it was published, its views, its reading time and when it expires. The owner, and people allowed to share it, also see an **Access** card with who can open it and a **Share** button. On a wide screen it sits beside the text, with **Contents** built from the headings.
+**Details** lists when it was published, its views, its reading time and when it expires. The owner, and people allowed to share it, also see an **Access** card with who can open it and a **Share** button. On a wide screen it sits beside the text, with **Contents** built from the headings on the other side. To hide both and keep just the text, choose the sidebar button or press **⌘ \\** (**Ctrl \\** on Windows and Linux); your browser remembers it, and **Contents** moves into the bar. On smaller screens **Contents** is in the bar, and on a phone **Contents**, **Copy link** and **Share** or **Edit** are in a bar at the bottom of the screen.
 
 ## On a page
 
-A [page](/pages/overview) has one bar at the top instead: the sidebar button, the logo and the breadcrumbs on the left; who's viewing, **Saved**, **Share**, **⋯**, **Create** and your avatar on the right. Press **⌘ \\** (**Ctrl \\** on Windows and Linux) to hide the sidebar, and point at the left edge of the window to peek at it. See [The top bar](/pages/overview#the-top-bar).
+A [page](/pages/overview) has the same bar, with breadcrumbs for the pages above it and **Saved** beside **Share**, and its sidebar holds the page tree. Press **⌘ \\** (**Ctrl \\** on Windows and Linux) to hide the sidebar, and point at the left edge of the window to peek at it. See [The top bar](/pages/overview#the-top-bar).
 
 ## On a file
 
@@ -67,7 +68,7 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 
 ## Search and shortcuts
 
-Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to search your files and jump to pages.
+Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents.
 
 Two single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
 

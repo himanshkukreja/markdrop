@@ -1516,36 +1516,90 @@ async def get_document_analytics(ctx: Context, args: dict) -> tuple[str, dict]:
     return " ".join(lines[:6]), out
 
 
+_FETCHABLE = {"page", "doc", "file"}
+
+
+def _absolute(url: str) -> str:
+    """An app path (/w/…, /guides/…) as a full markdrop.in link; full links as they are."""
+    return url if url.startswith("http") else public_url(url.lstrip("/"))
+
+
+def _search_scope(scope: str | None) -> tuple[str | None, str]:
+    """(workspace id or None, owner) from the tool's scope: mine | workspaces | all | workspace:<id>."""
+    from app.services import search as search_service
+
+    s = (scope or "all").strip()
+    if s == "mine":
+        return None, "me"
+    if s in ("all", "workspaces"):
+        return None, "anyone"
+    try:
+        return search_service.parse_scope(s), "anyone"
+    except ValueError:
+        raise ToolError("scope must be mine, workspaces, all or workspace:<workspace id>.")
+
+
 async def search(ctx: Context, args: dict) -> tuple[str, dict]:
-    query = args["query"].replace("\x00", "").strip()[: doc_service.MAX_SEARCH_LEN]
-    scope = args.get("scope") or "mine"
-    limit = 20
-    docs, _total = await scoped_documents(ctx, scope, query=query, kind=None, page=1, limit=limit)
-    seen = {d.slug for d in docs}
+    """Global search (services/search.py): fuzzy over titles, headings, text and file contents of
+    everything the user can open; ids are slugs for fetch."""
+    from app.services import search as search_service
+
+    query = args["query"].replace("\x00", "").strip()[: search_service.MAX_Q]
+    ws, owner = _search_scope(args.get("scope"))
+    try:
+        kinds = search_service.parse_kinds(args.get("kind")) or frozenset(_FETCHABLE)
+    except ValueError as exc:
+        raise ToolError(str(exc))
+    limit = max(1, min(search_service.MAX_LIMIT, int(args.get("limit") or 20)))
+    q = search_service.Query(q=query, scope=ws, kinds=kinds, owner=args.get("owner") or owner,
+                             updated=args.get("updated") or "any", limit=limit, trash=False)
+    res = await search_service.run(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), q)
     results = []
-    for d in docs:
-        results.append({"id": d.slug, "title": display_title(d) or d.slug,
-                        "url": (await url_pair(ctx, d))["url"]})
-    if query and len(results) < limit and scope == "mine":
-        # Then the text of the user's own readable markdown documents.
-        cursor = ctx.db["documents"].find(
-            {
-                "owner_id": ctx.user.id,
-                "encrypted": {"$ne": True},
-                "kind": {"$ne": "artifact"},
-                "slug": {"$nin": list(seen)},
-                "template": {"$ne": True},
-                "content": {"$regex": re.escape(query), "$options": "i"},
-                "$or": [{"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}],
-            },
-            {"slug": 1, "title": 1, "content": {"$substrCP": ["$content", 0, 400]}},
-        ).sort("updated_at", -1).limit(limit - len(results))
-        async for row in cursor:
-            title = row.get("title") or heading_title(row.get("content")) or row["slug"]
-            results.append({"id": row["slug"], "title": title, "url": public_url(row["slug"])})
+    for it in res["items"]:
+        fetchable = it["kind"] in _FETCHABLE
+        sn = it.get("snippet") or {}
+        results.append({
+            "id": it["slug"] if fetchable else it["url"],
+            "title": it.get("title") or it.get("slug") or "Untitled",
+            "url": it.get("web_url") or _absolute(it["url"]),
+            "kind": it["kind"],
+            "snippet": sn.get("text") or "",
+            "workspace": (it.get("workspace") or {}).get("name"),
+            "folder": " / ".join((it.get("folder") or {}).get("path") or []) or None,
+            "owner": (it.get("owner") or {}).get("name"),
+            "updated_at": str(it.get("updated_at") or ""),
+            "fetchable": fetchable,
+        })
     out = {"results": results}
     # ChatGPT's search/fetch contract: the text block is the JSON result itself.
     return json.dumps(out), out
+
+
+async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
+    """AI search (services/search_ai.py): Claude Haiku 5.5 answers from the user's own readable
+    items, citing them. Counts towards the user's AI limits (feature search_ai)."""
+    from app.services import pages_ai, search_ai
+
+    ws, _owner = _search_scope(args.get("scope"))
+    gen = search_ai.ask(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), args["question"],
+                        scope=ws, via="mcp")
+    try:
+        done = await search_ai.collect(gen)
+    except pages_ai.AIError as exc:
+        raise ToolError(exc.detail)
+
+    def ref(c: dict) -> dict:
+        url = c.get("url") or ""
+        slug = url.rstrip("/").rsplit("/", 1)[-1].split("#", 1)[0] if c.get("kind") in _FETCHABLE else None
+        return {"n": c.get("n"), "title": c.get("title") or "Untitled", "url": url, "kind": c.get("kind"),
+                "id": slug or url}
+
+    out = {"answer": done.get("answer") or "", "citations": [ref(c) for c in done.get("citations") or []],
+           "results": [ref(c) for c in done.get("ranked") or []]}
+    text = out["answer"]
+    if out["citations"]:
+        text += "\n\nSources:\n" + "\n".join(f"[{c['n']}] {c['title']} — {c['url']}" for c in out["citations"])
+    return text, out
 
 
 async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2651,18 +2705,56 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="search",
-        title="Search my documents",
-        description=("Search Markdrop documents by title and slug (and, for the user's own, text). "
-                     "scope 'mine' (default), 'workspaces' or 'all' as for list_documents. Returns ids "
-                     "to pass to fetch."),
+        title="Search everything I can open",
+        description=("Fuzzy search over everything the user can open in Markdrop: their own documents, pages "
+                     "and files (private ones too), their workspaces' items, what is shared with them, and with "
+                     "kind folder / workspace / guide also folders, workspaces and Guides pages. Matches titles, "
+                     "headings, text and file contents (HTML, PDF), with typos, partial words and any word order. "
+                     "Encrypted and password-protected items match by title only. scope: all (default), mine, "
+                     "workspaces or workspace:<id>; kind: page, doc, file, folder, workspace, guide (comma-separated); "
+                     "updated: any, week, month. Returns ids to pass to fetch."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "query": {"type": "string", "minLength": 1, "maxLength": 200},
-            "scope": {"type": "string", "enum": SCOPE_CHOICES, "default": "mine"}}, "required": ["query"]},
+            "scope": {"type": "string", "maxLength": 40, "default": "all",
+                      "description": "all | mine | workspaces | workspace:<workspace id>"},
+            "kind": {"type": "string", "maxLength": 80,
+                     "description": "page, doc, file, folder, workspace or guide; comma-separated. Default: page,doc,file."},
+            "owner": {"type": "string", "enum": ["anyone", "me"]},
+            "updated": {"type": "string", "enum": ["any", "week", "month"], "default": "any"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20}},
+            "required": ["query"]},
         output_schema=_out({"results": {"type": "array", "items": _out({
-            "id": {"type": "string"}, "title": {"type": "string"}, "url": {"type": "string"}})}}),
+            "id": {"type": "string"}, "title": {"type": "string"}, "url": {"type": "string"},
+            "kind": {"type": "string"}, "snippet": {"type": "string"}, "workspace": _NULLABLE_STR,
+            "folder": _NULLABLE_STR, "owner": _NULLABLE_STR, "updated_at": {"type": "string"},
+            "fetchable": {"type": "boolean"}}, ["id", "title", "url", "kind"])}}),
         annotations=_ann(True, False, True),
         handler=search,
+    ),
+    Tool(
+        name="ask_documents",
+        title="Ask about my documents (AI)",
+        description=("Ask a question in plain words; Claude Haiku 5.5 searches everything the user can open and "
+                     "answers briefly, citing the items it used as [n] with their links. Only text the user can "
+                     "read is sent to the model (to Anthropic); workspaces with AI turned off are left out. "
+                     "scope: all (default) or workspace:<id>. Counts towards the user's AI limits."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "question": {"type": "string", "minLength": 1, "maxLength": 500},
+            "scope": {"type": "string", "maxLength": 40, "default": "all",
+                      "description": "all | workspace:<workspace id>"}},
+            "required": ["question"]},
+        output_schema=_out({
+            "answer": {"type": "string"},
+            "citations": {"type": "array", "items": _out({
+                "n": {"type": "integer"}, "title": {"type": "string"}, "url": {"type": "string"},
+                "kind": {"type": "string"}, "id": {"type": "string"}}, ["n", "title", "url"])},
+            "results": {"type": "array", "items": _out({
+                "n": {"type": "integer"}, "title": {"type": "string"}, "url": {"type": "string"},
+                "kind": {"type": "string"}, "id": {"type": "string"}}, ["n", "title", "url"])}}),
+        annotations=_ann(True, False, False),
+        handler=ask_documents,
     ),
     Tool(
         name="fetch",

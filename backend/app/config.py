@@ -548,6 +548,11 @@ class Settings(BaseSettings):
     pages_ai_enabled: bool = True
     pages_ai_daily_usd: float = 5.0
     pages_ai_monthly_usd: float = 50.0
+    # AI search (services/search_ai.py, ledger feature "search_ai"): kill switch and spend caps
+    # (owner decision 2026-11-04: $2 a day, $20 a month; the admin AI tab overrides them).
+    search_ai_enabled: bool = True
+    search_ai_daily_usd: float = 2.0
+    search_ai_monthly_usd: float = 20.0
 
     @property
     def docs_r2_configured(self) -> bool:

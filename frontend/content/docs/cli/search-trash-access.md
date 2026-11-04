@@ -5,7 +5,7 @@ description: Find anything you can open with markdrop search, delete and restore
 updated: 2026-11-04
 prerequisites: [/cli/install, /cli/login-and-tokens]
 since: CLI 0.6.0
-keywords: [markdrop search, markdrop trash, trash ls, trash restore, trash rm, delete forever, permanent, markdrop access, request edit access, approve, decline, access requests, json]
+keywords: [markdrop search, fuzzy search, search inside documents, snippet, markdrop trash, trash ls, trash restore, trash rm, delete forever, permanent, markdrop access, request edit access, approve, decline, access requests, json]
 ---
 
 These commands need an API token. See [Sign in with an API token](/cli/login-and-tokens). Each takes `--json` to print one JSON object on standard output.
@@ -17,20 +17,24 @@ markdrop search roadmap
 ```
 
 ```text
-KIND       TITLE          WHERE           LINK
-page       Roadmap 2026   Acme            https://docs.acme.com/roadmap-2026
-file       roadmap.pdf    -               https://markdrop.in/roadmap-pdf
-folder     Roadmaps       Acme / plans    671b03e1f2a9c7d4b8e60f31
-workspace  Roadmap team   -               671a22b9d0c4e8f7a1b3c540
+KIND    TITLE         WHERE                LINK                                 MATCHED
+page    Roadmap 2026  Acme                 https://docs.acme.com/roadmap-2026   Q3: ship the importer, then the roadmap review
+file    roadmap.pdf   -                    https://markdrop.in/roadmap-pdf      Roadmap 2026 · Product, platform and growth
+folder  Roadmaps      Acme / Plans         https://markdrop.in/w/671a…/f/671b…
+guide   Release plan  Help center/release  https://markdrop.in/guides/…         How we plan a release and update the roadmap
 ```
 
-Finds the pages, documents and files you can open by title, address or file name, and folders and workspaces by name, like the search box in the app. It doesn't search inside documents. Give at least two characters.
+Searches everything you can open, the same way as the search box in the app: titles, headings, the text of pages and documents, and the text inside HTML files and PDFs, plus folders, workspaces and the Guides pages you work on. Typos, partial words and any word order are fine: `markdrop search onbording plyabook` finds **Onboarding Playbook**. **MATCHED** shows the text that matched (with `--json`, `snippet`, and `match` says whether it was the `title`, a `heading` or the `body`). Encrypted documents are found by their link only, and nothing in the Trash is listed. Give at least two characters. See [Search](/workspaces/search) for how it ranks.
 
 | Flag | What it does |
 |---|---|
-| `--kind` | Only `page`, `document`, `file`, `folder` or `workspace`. |
+| `--kind` | Only `page`, `document`, `file`, `folder`, `workspace` or `guide`. |
 | `--workspace` | Only results in that workspace (its id, name or custom domain). |
-| `--limit` | Results per kind: 8 by default, at most 20. |
+| `--limit` | How many results: 20 by default, at most 50. |
+
+:::note
+CLI 0.6.0 searches titles, addresses and file names only, up to 20 results per kind, and has no `guide` kind. Later versions search inside the text as above. They fall back to the titles-only search when the server doesn't have the full one yet.
+:::
 
 ## Trash
 

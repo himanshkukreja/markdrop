@@ -15,7 +15,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
 import { Button, Dialog, EmptyState, FileIcon, Icon, IconButton, Input, SegmentedControl, Spinner, Tabs, type FileRenderer } from "@/components/ui";
 import { useHost } from "../host";
-import { ensureAnchorAround } from "../menus/blockOps";
+import { services } from "../menus/mediaUpload";
 import type { PagePickItem, PageResolvedItem, PagesEditorHost } from "../types";
 import { cx } from "./shared";
 
@@ -330,83 +330,35 @@ function DateChip({ node, updateAttributes, selected }: ReactNodeViewProps) {
   );
 }
 
-/** `:person[Name]{id}`: a workspace member, picked from a search. */
-function PersonChip({ node, updateAttributes, deleteNode, selected, editor, getPos }: ReactNodeViewProps) {
+/**
+ * `:person[Name]{id}`: a workspace member. They are picked in the `@` picker (menus/people.tsx),
+ * which "/person" opens too; a chip with no one in it yet (an older draft) opens that picker when
+ * chosen.
+ */
+function PersonChip({ node, selected, editor, getPos }: ReactNodeViewProps) {
   const host = useHost();
   const id = String((node.attrs.attributes ?? {}).id ?? "");
   const label = String(node.attrs.label ?? "");
-  const [q, setQ] = useState("");
-  const [people, setPeople] = useState<Array<{ id: string; name: string }> | null>(null);
-  const picking = !id && !host.readOnly && !!host.pages?.people;
-  const picked = useRef(false);
-  const pick = (p: { id: string; name: string }) => {
-    picked.current = true;
-    updateAttributes({ label: p.name.replace(/[[\]\\\n\r]+/g, " "), attributes: { id: p.id } });
-    // The block gets an anchor ({#b-…}), so the person's notification opens the page right here.
-    try {
+  if (!id && !host.readOnly) {
+    const pick = () => {
       const pos = typeof getPos === "function" ? getPos() : undefined;
-      if (typeof pos === "number") ensureAnchorAround(editor, pos);
-    } catch { /* an anchor is a convenience: the mention stands without one */ }
-    editor.view.focus();
-  };
-  useEffect(() => {
-    if (!picking) return;
-    let live = true;
-    const t = window.setTimeout(() => {
-      host.pages!.people!(q).then((p) => live && setPeople(p)).catch(() => live && setPeople([]));
-    }, 150);
-    return () => {
-      live = false;
-      window.clearTimeout(t);
+      const open = services(editor).openPeople;
+      if (typeof pos === "number" && open) open(editor, { from: pos, to: pos + node.nodeSize });
     };
-  }, [picking, q, host.pages]);
-  if (!picking) {
     return (
       <NodeViewWrapper as="span" className={cx("dxe-mention-wrap", selected && "dxe-selected")} contentEditable={false}>
-        <span className="pb-mention pb-mention--person">
+        <button type="button" className="pb-mention pb-mention--person" onClick={pick} aria-label="Pick someone to mention">
           <span aria-hidden>@</span>
-          <span className="ph-mask">{label || "a person"}</span>
-        </span>
+          <span>Pick someone</span>
+        </button>
       </NodeViewWrapper>
     );
   }
   return (
-    <NodeViewWrapper as="span" className="dxe-mention-wrap pb-person-pick" contentEditable={false}>
-      <span className="pb-mention pb-mention--loading">@</span>
-      <span className="pb-person-pop" role="dialog" aria-label="Mention someone">
-        <Input
-          size="sm"
-          autoFocus
-          placeholder="Search people in this workspace"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          aria-label="Search people"
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              deleteNode();
-              editor.view.focus();
-            }
-            if (e.key === "Enter" && people?.[0]) {
-              e.preventDefault();
-              pick(people[0]);
-            }
-          }}
-          onBlur={() => window.setTimeout(() => { if (!picked.current) deleteNode(); }, 200)}
-        />
-        <span className="pb-person-list ph-no-capture">
-          {(people ?? []).map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              className="dxe-pick__row"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => pick(p)}
-            >
-              <Icon name="user" size={14} aria-hidden /> <span className="ph-mask">{p.name}</span>
-            </button>
-          ))}
-          {people && !people.length && <span className="pb-meta">No one matches</span>}
-        </span>
+    <NodeViewWrapper as="span" className={cx("dxe-mention-wrap", selected && "dxe-selected")} contentEditable={false}>
+      <span className="pb-mention pb-mention--person">
+        <span aria-hidden>@</span>
+        <span className="ph-mask">{label || "a person"}</span>
       </span>
     </NodeViewWrapper>
   );

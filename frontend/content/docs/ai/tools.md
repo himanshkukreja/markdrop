@@ -3,10 +3,10 @@ title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
 updated: 2026-11-04
-keywords: [mcp tools, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions, delete_document, restore_document, list_trash, trash, restore, undo delete, notifications, list_notifications, mark_notifications_read, share_with_people, notify, request_edit_access, list_access_requests, decide_access_request, access requests, approve, list_signoffs, sign_off, sign-off, approval, set_folder_properties, list_folder_pages, typed properties, database views, auto_cover, automatic covers]
+keywords: [mcp tools, search, ask_documents, ai search, fuzzy search, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions, delete_document, restore_document, list_trash, trash, restore, undo delete, notifications, list_notifications, mark_notifications_read, share_with_people, notify, request_edit_access, list_access_requests, decide_access_request, access requests, approve, list_signoffs, sign_off, sign-off, approval, set_folder_properties, list_folder_pages, typed properties, database views, auto_cover, automatic covers]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 66 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 67 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -47,10 +47,11 @@ Results carry `url` (on the workspace's custom domain when it has a live one), `
 |---|---|---|---|
 | `get_document` | read | Reads a document or text file you can open: content (up to 200,000 characters), title, access, views, workspace and folder. For other files it returns the file's details instead. | `document` |
 | `list_documents` | read | Lists documents and files, newest first. | `query`, `kind` (`all`, `document`, `file`), `scope`, `limit` (1–50, default 20), `cursor` |
-| `search` | read | Searches titles and slugs (and, for your own documents, text). Returns ids to pass to `fetch`. | `query`, `scope` |
+| `search` | read | Searches everything you can open, the way [Search](/workspaces/search) does: titles, headings, text and file contents, with typos, partial words and any word order. Each result has its kind, where it lives and the matching snippet. Returns ids to pass to `fetch`. | `query`, `scope` (`all`, `mine`, `workspaces`, `workspace:<id>`), `kind` (`page`, `doc`, `file`, `folder`, `workspace`, `guide`), `owner` (`anyone`, `me`), `updated` (`any`, `week`, `month`), `limit` |
 | `fetch` | read | Returns the full text of a search result. | `id` |
+| `ask_documents` | read | Asks a question about everything you can open. Claude Haiku 5.5 answers briefly from your items and cites them as [n] with their links. Counts towards your AI limits; workspaces with AI turned off are left out. | `question`, `scope` (`all` or `workspace:<id>`) |
 
-`scope` is `mine` (default: your own), `workspaces` (what you can open in your workspaces) or `all` (both, plus documents shared with you).
+For `list_documents`, `scope` is `mine` (default: your own), `workspaces` (what you can open in your workspaces) or `all` (both, plus documents shared with you). For `search` it defaults to `all`.
 
 Password-protected and end-to-end encrypted documents can't be read by any tool.
 

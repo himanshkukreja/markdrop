@@ -338,6 +338,7 @@ async def create_page(db: AsyncIOMotorDatabase, site: dict, user: User, *, path:
         raise HTTPException(status_code=409, detail="Another page already has that address.") from None
     row["_id"] = res.inserted_id
     await _add_version(db, row, by=user.id, kind="save")
+    _search_touch(db, row["_id"])
     await _edit_nav(db, site["_id"], lambda nav: _place(nav, str(row["_id"]), group, after_page_id))
     await db[SITES].update_one({"_id": site["_id"]}, {"$set": {"updated_at": at}})
     return row
@@ -397,6 +398,7 @@ async def save_page(db: AsyncIOMotorDatabase, site: dict, page: dict, user: User
             "updated_at": aware((current.get("draft") or {}).get("updated_at")),
         })
     await _add_version(db, updated, by=user.id, kind="save")
+    _search_touch(db, updated["_id"])
     if "path" in sets:
         await _redirect_move(db, site, page.get("path"), sets["path"])
     if "hidden" in sets and sets["hidden"] != bool(page.get("hidden")):
@@ -423,7 +425,15 @@ async def delete_page(db: AsyncIOMotorDatabase, site: dict, page: dict, user: Us
             raise HTTPException(status_code=404, detail="Page not found")
         raise _locked(current)
     pid = str(page["_id"])
+    _search_touch(db, page["_id"])
     await _edit_nav(db, site["_id"], lambda nav: _without(nav, pid))
+
+
+def _search_touch(db: AsyncIOMotorDatabase, page_id) -> None:
+    """Global search's content index follows Guides pages too (services/search_index.py)."""
+    from app.services import search_index
+
+    search_index.touch_guide(db, page_id)
 
 
 # ── Locks ─────────────────────────────────────────────────────────────────────
@@ -507,5 +517,6 @@ async def restore_version(db: AsyncIOMotorDatabase, site: dict, page: dict, user
             raise HTTPException(status_code=404, detail="Page not found")
         raise _locked(current)
     await _add_version(db, updated, by=user.id, kind="restore")
+    _search_touch(db, updated["_id"])
     await db[SITES].update_one({"_id": site["_id"]}, {"$set": {"updated_at": at}})
     return updated

@@ -8,7 +8,8 @@
  *
  * The rule is simple: whoever changes a workspace calls `workspaceChanged(id)`. That refetches the
  * tree (every subscriber re-renders with the new counts) and fires a window event that item lists
- * listen to (`useWorkspaceChanged`). No polling, no cross-tab sync.
+ * listen to (`useWorkspaceChanged`). The person's other tabs hear it too (lib/navBus); a folder view
+ * on screen also refreshes its tree when the window comes back and on a light poll (FolderView).
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getWorkspaceTree, type TreeFolder, type WorkspaceTree } from "@/lib/workspaces";
@@ -47,7 +48,12 @@ export function loadTree(id: string): Promise<void> {
   if (running) return running;
   set(id, { loading: true });
   const p = getWorkspaceTree(id)
-    .then((tree) => set(id, { tree, error: null, loading: false, version: (entries.get(id)?.version ?? 0) + 1, at: Date.now() }))
+    .then((fresh) => {
+      // Nothing new (a background refresh, the listing's poll): the same object, so nothing re-renders.
+      const prev = entries.get(id)?.tree;
+      const tree = prev && JSON.stringify(prev) === JSON.stringify(fresh) ? prev : fresh;
+      set(id, { tree, error: null, loading: false, version: (entries.get(id)?.version ?? 0) + 1, at: Date.now() });
+    })
     .catch((error) => set(id, { error, loading: false }))
     .finally(() => inflight.delete(id));
   inflight.set(id, p);

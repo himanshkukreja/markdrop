@@ -39,9 +39,9 @@ import {
   type Folder, type ItemAccess, type ItemsPage, type PreviewAs, type RedactedItem, type TreeFolder, type Workspace, type WorkspaceItem,
 } from "@/lib/workspaces";
 import {
-  ancestry, childrenMap, descendants, documentsChanged, useWorkspaceTree, workspaceChanged,
+  ancestry, childrenMap, descendants, documentsChanged, refreshTree, useWorkspaceTree, workspaceChanged,
 } from "@/lib/workspaceStore";
-import { ITEMS_PAGE, itemsKey, prefetchFolderItems, useFolderItems } from "@/lib/navStore";
+import { ITEMS_FOCUS_MAX_AGE, ITEMS_PAGE, ITEMS_POLL_MS, PAGES_EVENT, itemsKey, prefetchFolderItems, useFolderItems } from "@/lib/navStore";
 import { parseFolderHref, registerListing, type FolderTarget } from "@/lib/folderNav";
 import { Listing, Person, ViewSwitch, useListingView, type FolderEntryProps, type ItemEntryProps } from "./Listing";
 import { AddExistingDialog, DeleteFolderDialog, MAX_FOLDER_DEPTH, MoveToDialog, RenameFolderDialog, type MoveTarget } from "./FolderDialogs";
@@ -60,6 +60,7 @@ import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
 import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
 import { docHref } from "@/components/analytics/format";
+import { openingKindOf, rememberOpening } from "@/lib/opening";
 
 type Kind = "" | "markdown" | "artifact";
 
@@ -111,6 +112,31 @@ function useWorkspaceMeta(id: string) {
     return () => { live = false; };
   }, [id, gen]);
   return ws;
+}
+
+/**
+ * The workspace's folder tree on screen stays current: refreshed when the window comes back (older
+ * than a few seconds) and polled while the tab is visible, so a folder renamed by someone else
+ * shows without a reload. Background only: what's shown stays until the new tree arrives.
+ */
+function useListingFresh(id: string | null) {
+  useEffect(() => {
+    if (!id) return;
+    const back = () => { if (document.visibilityState !== "hidden") refreshTree(id, ITEMS_FOCUS_MAX_AGE); };
+    const t = window.setInterval(() => { if (document.visibilityState !== "hidden") refreshTree(id, ITEMS_POLL_MS - 1_000); }, ITEMS_POLL_MS);
+    window.addEventListener("focus", back);
+    document.addEventListener("visibilitychange", back);
+    return () => {
+      window.clearInterval(t);
+      window.removeEventListener("focus", back);
+      document.removeEventListener("visibilitychange", back);
+    };
+  }, [id]);
+}
+
+/** The same rows, in the same order (titles may differ). */
+function sameRows(a: ItemsPage, b: ItemsPage): boolean {
+  return a.items.length === b.items.length && a.items.every((x, i) => x.slug === b.items[i]!.slug) && a.redacted.length === b.redacted.length;
 }
 
 /** Files dragged from the desktop anywhere on the page (desktop only). */
@@ -260,11 +286,27 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   // A search looks across the whole workspace; otherwise the folder (or the top level).
   const scope = query.q ? "all" : folderId ?? "root";
   const key = user && urlReady ? itemsKey(workspaceId, scope, query.q, query.kind) : null;
-  const first = useFolderItems(key);
   const [extra, setExtra] = useState<{ key: string; base: ItemsPage; items: WorkspaceItem[]; redacted: RedactedItem[]; cursor: string | null } | null>(null);
+  // Renames elsewhere (another tab, someone else) show without a reload: the first page is polled
+  // while it's on screen, unless "Load more" pages are open below it (a changed first page would
+  // drop them); coming back to the window refreshes it either way.
+  const first = useFolderItems(key, 15_000, !(extra && extra.key === key));
+  useListingFresh(user ? workspaceId : null);
+  // A page renamed in another tab (its save's event): a "Load more" row follows too.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ slug?: string; title?: string | null }>).detail;
+      if (!d?.slug || d.title === undefined) return;
+      setExtra((x) => (x && x.items.some((i) => i.slug === d.slug && i.title !== d.title) ? { ...x, items: x.items.map((i) => (i.slug === d.slug ? { ...i, title: d.title ?? null } : i)) } : x));
+    };
+    window.addEventListener(PAGES_EVENT, on);
+    return () => window.removeEventListener(PAGES_EVENT, on);
+  }, []);
   const [more, setMore] = useState(false);
   const pageOne = first.data;
-  const ext = extra && pageOne && extra.key === key && extra.base === pageOne ? extra : null;
+  // "Load more" pages stay while the first page holds the same rows in the same order (a rename
+  // patched in place); anything else starts over from the new first page.
+  const ext = extra && pageOne && extra.key === key && (extra.base === pageOne || sameRows(extra.base, pageOne)) ? extra : null;
   const items = useMemo(() => (pageOne ? (ext ? [...pageOne.items, ...ext.items] : pageOne.items) : []), [pageOne, ext]);
   const redacted = useMemo(() => (pageOne ? (ext ? [...pageOne.redacted, ...ext.redacted] : pageOne.redacted) : []), [pageOne, ext]);
   const cursor = ext ? ext.cursor : pageOne?.next_cursor ?? null;
@@ -579,8 +621,20 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   const contentsLabel = listedFolders.length && (items.length || state === "loading") ? "Folders and items" : listedFolders.length ? "Folders" : "Items";
   const parentName = folder ? (trail.length > 1 ? trail[trail.length - 2]!.name : wsName) : "My files";
 
+  // An item opens in a new tab: tell it what it is opening, so its first paint is that item's own
+  // look (a page's bar, or the loader a document or file opens on), never the locked view a
+  // stranger gets (lib/opening). Only the kind; access is still the API's to decide.
+  const noteOpening = (e: React.MouseEvent) => {
+    if (e.button > 1) return;
+    const a = (e.target as Element | null)?.closest?.("a[href]");
+    const href = a?.getAttribute("href");
+    if (!href || !href.startsWith("/")) return;
+    const it = items.find((i) => openHref(i.slug, i.url, i.encrypted) === href);
+    if (it) rememberOpening(href, openingKindOf(it));
+  };
+
   return (
-    <div className="flex min-w-0 flex-col gap-5">
+    <div className="flex min-w-0 flex-col gap-5" onClickCapture={noteOpening} onAuxClickCapture={noteOpening}>
       {/* ── Header ── */}
       {phone ? (
         <header className="-mx-4 -mt-6 flex items-center gap-1 border-b border-border bg-surface px-2 py-1.5">
@@ -709,28 +763,28 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
         </Alert>
       )}
 
-      {showListing && !dbView && (
+      {showListing && (!dbView || listedFolders.length > 0) && (
         <section aria-labelledby="md-contents" className="wl flex min-w-0 flex-col" aria-busy={state === "loading" || undefined}>
           <div className="wl-bar">
             <h2 id="md-contents" className="wl-bar__label">
-              {searching ? <>Results in <Masked>{wsName}</Masked></> : contentsLabel}
+              {searching ? <>Results in <Masked>{wsName}</Masked></> : dbView ? "Folders" : contentsLabel}
             </h2>
-            <ViewSwitch view={view} onChange={(v) => { setView(v); setSelected(new Set()); }} />
+            {!dbView && <ViewSwitch view={view} onChange={(v) => { setView(v); setSelected(new Set()); }} />}
           </div>
           <Listing
             view={view}
             phone={phone}
             label={searching ? "Results" : "Folders and items"}
             folders={listedFolders}
-            items={listedItems}
-            loading={placeholders}
-            selectAll={!phone && view === "list" && movable.length > 1 ? {
+            items={dbView ? [] : listedItems}
+            loading={dbView ? 0 : placeholders}
+            selectAll={!dbView && !phone && view === "list" && movable.length > 1 ? {
               checked: selected.size > 0 && selected.size === movable.length,
               indeterminate: selected.size > 0 && selected.size < movable.length,
               onChange: (on) => setSelected(on ? new Set(movable.map((i) => i.slug)) : new Set()),
             } : null}
           />
-          {cursor && state === "ok" && (
+          {!dbView && cursor && state === "ok" && (
             <div className="flex justify-center pt-3">
               <Button variant="secondary" onClick={() => void loadMore()} loading={more}>Load more</Button>
             </div>

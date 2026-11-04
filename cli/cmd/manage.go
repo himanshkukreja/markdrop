@@ -632,13 +632,15 @@ func newSearchCmd() *cobra.Command {
 	var limit int
 	c := &cobra.Command{
 		Use:   "search <query…>",
-		Short: "Find your pages, documents, files, folders and workspaces",
-		Long: `Search everything you can open by title, address or file name (and folders and
-workspaces by name), like ⌘K in the app.
+		Short: "Find your pages, documents, files, folders, workspaces and Guides pages",
+		Long: `Search everything you can open, like ⌘K in the app: titles, headings, the
+text of pages and documents, and the text inside HTML files and PDFs. Typos,
+partial words and any word order are fine ("onbording plyabook" finds
+"Onboarding Playbook"). Each result shows the text it matched.
 
-  --kind page|document|file|folder|workspace narrows it; --workspace (id, name or
-  domain) keeps what is in that workspace; --limit is per kind (default 8, at
-  most 20).
+  --kind page|document|file|folder|workspace|guide narrows it; --workspace
+  (id, name or domain) keeps what is in that workspace; --limit is how many
+  results (default 20, at most 50).
 
 Examples:
   markdrop search roadmap
@@ -671,7 +673,7 @@ Examples:
 				return nil
 			}
 			tw := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
-			fmt.Fprintln(tw, "KIND\tTITLE\tWHERE\tLINK")
+			fmt.Fprintln(tw, "KIND\tTITLE\tWHERE\tLINK\tMATCHED")
 			for _, h := range res.Results {
 				where := ""
 				if h.Workspace != nil {
@@ -684,14 +686,24 @@ Examples:
 				if link == "" {
 					link = h.ID
 				}
-				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", h.Kind, h.Title, orDash(strings.TrimPrefix(where, " / ")), link)
+				fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\n", h.Kind, h.Title, orDash(strings.TrimPrefix(where, " / ")), link,
+					snippetCell(h.Snippet))
 			}
 			return tw.Flush()
 		},
 	}
 	ff.register(c)
 	c.Flags().StringVar(&workspace, "workspace", "", "only results in this workspace (id, name or domain)")
-	c.Flags().StringVar(&kind, "kind", "", "page, document, file, folder or workspace")
-	c.Flags().IntVar(&limit, "limit", 0, "results per kind (default 8, at most 20)")
+	c.Flags().StringVar(&kind, "kind", "", "page, document, file, folder, workspace or guide")
+	c.Flags().IntVar(&limit, "limit", 0, "how many results (default 20, at most 50)")
 	return c
+}
+
+// snippetCell is a result's matched text on one line, at most 60 characters.
+func snippetCell(s string) string {
+	s = strings.Join(strings.Fields(s), " ")
+	if r := []rune(s); len(r) > 60 {
+		s = strings.TrimSpace(string(r[:59])) + "…"
+	}
+	return s
 }

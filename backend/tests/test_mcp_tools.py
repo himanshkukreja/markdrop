@@ -239,6 +239,11 @@ class Tools(McpTestCase):
         await self.seed("untitled-1", owner=self.user_id, content="# Launch plan\n\nmentions roadmap here")
         await self.seed("enc-roadmap", owner=self.user_id, encrypted=True, content="roadmap ciphertext")
         await self.seed("theirs-roadmap", owner=self.other_id, title="Roadmap theirs")
+        # Seeded straight into the database: the search index's backfill picks them up.
+        from app.services import search_index
+
+        await search_index.ensure_indexes(self.db)
+        await search_index.backfill_tick(self.db)
         result = await self.tool("search", query="roadmap")
         out = self.ok(result)
         self.assertEqual(json.loads(result["content"][0]["text"]), out)

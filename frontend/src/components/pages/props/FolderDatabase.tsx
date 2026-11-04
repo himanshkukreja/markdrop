@@ -690,22 +690,36 @@ function BoardView({ rows, schema, view, canSchema, member, people, onValue, onN
     useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
     useSensor(KeyboardSensor),
   );
+  // No Select to group by: the pages still show, as cards in one column, with how to get columns.
   if (!groupProp || groupProp.type !== "select") {
+    const shownAll = schema.filter((p) => !view.hidden.includes(p.key));
     return (
-      <div className="pp-db-empty">
-        <Icon name="columns" size={22} />
-        <strong>A board groups pages by a Select property</strong>
-        <span>{canSchema ? "Add one, like Status with Proposed, In build, In QA and Released." : "Ask a member of the workspace to add one."}</span>
-        {canSchema && (
-          <>
-            <Button size="sm" variant="secondary" iconLeft="plus" onClick={(e) => setAdding(e.currentTarget)}>Add a Select property</Button>
-            {adding && (
-              <Pop anchor={adding} onClose={() => setAdding(null)} title="Add a property" width={300}>
-                <AddProperty taken={schema} presetType="select" onAdd={async (def) => { await saveSchema([...schema, def]); }} onClose={() => setAdding(null)} />
-              </Pop>
-            )}
-          </>
-        )}
+      <div className="flex flex-col gap-3">
+        <div className="pp-board-hint" role="note">
+          <Icon name="columns" size={16} />
+          <span>{canSchema ? "Add a Select property, like Status, to sort these pages into columns." : "Columns come from a Select property, like Status. Ask a member of the workspace to add one."}</span>
+          {canSchema && (
+            <>
+              <Button size="sm" variant="secondary" iconLeft="plus" onClick={(e) => setAdding(e.currentTarget)}>Add a Select property</Button>
+              {adding && (
+                <Pop anchor={adding} onClose={() => setAdding(null)} title="Add a property" width={300}>
+                  <AddProperty taken={schema} presetType="select" onAdd={async (def) => { await saveSchema([...schema, def]); }} onClose={() => setAdding(null)} />
+                </Pop>
+              )}
+            </>
+          )}
+        </div>
+        <div className="pp-board" role="list" aria-label="Pages">
+          <section className="pp-col" data-pp-color="default" role="listitem" aria-label={`All pages: ${rows.length} page${rows.length === 1 ? "" : "s"}`}>
+            <div className="pp-col__head">
+              <span className="text-[13px] font-semibold text-text-secondary">All pages</span>
+              <span className="pp-count">{rows.length}</span>
+            </div>
+            {rows.map((r) => <CardBody key={r.slug} row={r} props={shownAll} ro />)}
+            {!rows.length && <div className="pp-col__empty">No pages</div>}
+            {member && <NewRow label="New" onCreate={(t) => onNew(t, presetFor(view, schema, null))} />}
+          </section>
+        </div>
       </div>
     );
   }

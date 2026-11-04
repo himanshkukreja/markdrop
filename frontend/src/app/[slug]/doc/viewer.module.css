@@ -62,3 +62,45 @@
   .pill, .delayed { animation: none; }
   .changedStatic { animation-duration: 1200ms; }
 }
+
+/* The opening cover (OpeningCover, lib/opening): over the anonymous locked render, for a browser
+   with a session, from the first paint until its own read answers. Shown only while <html> carries
+   data-md-opening (set before paint by the cover's inline script). */
+.opening { display: none; }
+:global(html[data-md-opening]) .opening {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--z-immersive) + 1);
+  display: block;
+  overflow: hidden;
+  background: var(--bg);
+}
+.openingAny { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+/* The same 300 ms grace as the frame cover's loader, in CSS so it holds before hydration. */
+.openingLoader { animation: delayed-in var(--duration-fast) var(--ease-out) 300ms both; }
+.openingPage { display: none; }
+:global(html[data-md-opening="page"]) .openingAny { display: none; }
+:global(html[data-md-opening="page"]) .openingPage { display: flex; min-height: 100dvh; }
+
+/* A page's screen (components/pages/pages.css, which ships with a page's code, not this view):
+   the rail (≥ 1280 px, unless collapsed) with the logo, the paper with its one 48 px bar. */
+.openingRail { display: none; }
+@media (min-width: 1280px) {
+  :global(html:not([data-pb-rail="collapsed"])) .openingRail { display: block; flex: none; width: 264px; padding: 0 12px 32px 20px; background: var(--bg); }
+  :global(html:not([data-pb-rail="collapsed"])) .openingBrand { display: none; }
+}
+.openingRailHead { display: flex; align-items: center; height: 48px; margin-left: 2px; }
+.openingPaper { flex: 1; min-width: 0; min-height: 100dvh; background: var(--surface); }
+:global([data-theme="light"]) .openingPaper { background: #F7F8FA; }
+.openingBar { display: flex; align-items: center; gap: 6px; height: 48px; padding: 0 12px 0 10px; }
+.openingBarBtn { flex: none; width: 30px; height: 30px; }
+.openingBrand { display: inline-flex; flex: none; margin: 0 2px; }
+.openingCol {
+  --pb-pad: clamp(20px, 6vw, 96px);
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(720px + 2 * var(--pb-pad));
+  margin-inline: auto;
+  padding: 64px var(--pb-pad) 0;
+}
+@media (prefers-reduced-motion: reduce) { .openingLoader { animation: none; } }

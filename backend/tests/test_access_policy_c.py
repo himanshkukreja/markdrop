@@ -717,6 +717,31 @@ class Concurrency(AccessWorld):
         self.assertEqual(owners, 1)
         self.assertTrue(await self.db["memberships"].find_one({"workspace_id": self.ws["W1"], "user_id": ws["owner_id"]}))
 
+    async def test_c248_transfer_landing_mid_removal(self):
+        """The interleaving c248 hit now and then, every time: the removal checked "not the owner",
+        then the transfer made them the owner, then the removal deleted the owner's membership."""
+        from app.services import docs_studio_roles
+
+        real = docs_studio_roles.readable
+        transfer = {}
+
+        async def transfer_meanwhile(db, sites, user_id):
+            if not transfer:
+                transfer["r"] = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/transfer",
+                                                     json={"user_id": self.uid["wm"]}, headers=self.session("wo"))
+            return await real(db, sites, user_id)
+
+        with mock.patch.object(docs_studio_roles, "readable", transfer_meanwhile):
+            r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/members/{self.uid['wm']}",
+                                       headers=self.session("wa"))
+        self.assertEqual(transfer["r"].status_code, 200)
+        self.assertEqual(r.status_code, 422)
+        ws = await self.db["workspaces"].find_one({"_id": ObjectId(self.ws["W1"])})
+        self.assertEqual(ws["owner_id"], self.uid["wm"])
+        owner = await self.db["memberships"].find_one({"workspace_id": self.ws["W1"], "role": "owner"})
+        self.assertEqual(owner["user_id"], self.uid["wm"])
+        self.assertEqual(await self.db["memberships"].count_documents({"workspace_id": self.ws["W1"], "role": "owner"}), 1)
+
     async def test_c249_concurrent_batch_moves(self):
         a = await folder_service.create_folder(self.db, self.ws["W1"], "A", None)
         b = await folder_service.create_folder(self.db, self.ws["W1"], "B", None)

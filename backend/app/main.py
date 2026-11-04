@@ -59,6 +59,7 @@ from app.routers.creator_analytics import router as creator_analytics_router
 from app.routers.notifications import router as notifications_router
 from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
+from app.routers.search import router as search_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -100,6 +101,14 @@ async def lifespan(app: FastAPI):
     # Weekly analytics digest: off unless MARKDROP_ANALYTICS_DIGEST_ENABLED
     # (and background workers) are on; a lease + per-user claims, never twice.
     analytics_digest.start(get_database)
+    # Everything loaded at startup lives as long as the process: move it out of the collector's
+    # reach, so a full collection doesn't walk it on every request that allocates a lot (global
+    # search builds thousands of candidates per keystroke; a gen-2 pass over the startup heap
+    # was its p95, 2026-11-04).
+    import gc
+
+    gc.collect()
+    gc.freeze()
     yield
     await analytics_digest.stop()
     await docs_dispatch.stop()
@@ -271,6 +280,7 @@ app.include_router(invites_router)
 app.include_router(library_router)
 app.include_router(access_router)
 app.include_router(personal_router)
+app.include_router(search_router)
 app.include_router(oauth_router)
 app.include_router(mcp_router)
 

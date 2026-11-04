@@ -30,7 +30,8 @@ import { getWorkspace } from "@/lib/workspaces";
 import { uploadArtifact } from "@/lib/api";
 import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
-import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, searchPeople, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
+import { filterPeople } from "@/components/docs-editor/menus/peopleMatch";
+import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, pageMentionable, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
@@ -183,6 +184,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const api = useRef<DocsEditorApi | null>(null);
   const [editor, setEditorInstance] = useState<Editor | null>(null);
   const local = useRef(new Map<string, string>());
+  const localSize = useRef(new Map<string, { width: number; height: number }>());
   const [, setLocalTick] = useState(0);
   const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [templates, setTemplates] = useState<PageTemplate[]>([]);
@@ -322,6 +324,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       if (!file.type.startsWith("image/")) throw new Error("Choose an image file (PNG, JPG, WebP or GIF).");
       const a = await uploadPageAsset(slug, file, secret);
       local.current.set(a.id, URL.createObjectURL(file));
+      if (a.width && a.height) localSize.current.set(a.id, { width: a.width, height: a.height });
       setLocalTick((n) => n + 1);
       return `asset:${a.id}`;
     },
@@ -335,6 +338,26 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     if (!id) return src;
     return local.current.get(id) ?? assetsRef.current[id]?.url ?? "";
   }, []);
+  // An image's size keeps its room while it loads: a lazy image coming in near the viewport no
+  // longer pushes what's below it down (a click on "Add a sub-page" landed on the image instead).
+  const assetSize = useCallback((src: string) => {
+    const id = assetId(src);
+    if (!id) return null;
+    const a = assetsRef.current[id];
+    return localSize.current.get(id) ?? (a?.width && a.height ? { width: a.width, height: a.height } : null);
+  }, []);
+
+  // Who can be mentioned: one fetch per page (and edit secret), shared by "@" and the sign-off picker.
+  const mentionable = useMemo(() => {
+    let once: ReturnType<typeof pageMentionable> | null = null;
+    return () => {
+      once ??= pageMentionable(slug, secret).catch((e) => {
+        once = null; // a failure is tried again next time
+        throw e;
+      });
+      return once;
+    };
+  }, [slug, secret]);
 
   const pages = useMemo<PagesEditorHost>(
     () => ({
@@ -349,7 +372,15 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       renderEmbed: (p) => <PageEmbed slug={p.slug} mode={p.mode} label={p.label} resolved={p.resolved as never} />,
       renderMention: (p) => <PageMention slug={p.slug} resolved={p.resolved as never} />,
       linkPreview: (u) => linkPreview(u),
-      people: workspaceId ? (q) => searchPeople(workspaceId, q) : undefined,
+      // Everyone the editor can @-mention: fetched once per editor (docs-editor/menus/people.tsx).
+      mentionable,
+      // The sign-off block's person picker: the same list, filtered here.
+      people: workspaceId
+        ? async (q) => {
+            const r = await mentionable();
+            return filterPeople(r.people, q, 20);
+          }
+        : undefined,
       signoffs,
       // Video, audio and other files: a Markdrop item beside the page (its workspace and folder),
       // embedded with ::markdrop (page assets are images only; DEVIATIONS "Frontend → backend").
@@ -368,8 +399,9 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       crumbs,
       pageTitle: title,
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
+      assetSize,
     }),
-    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs],
+    [slug, mentionable, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs, assetSize],
   );
 
   const setBody = useCallback(

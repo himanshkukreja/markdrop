@@ -13,14 +13,14 @@ Branding shows on your own domains. Admins and the owner change it on the **Look
 ## Names
 
 - **Workspace name** is what members see inside Markdrop. Up to 80 characters.
-- **Site name on your pages** is shown in the header and link previews on your domain, like `Acme`. Up to 60 characters. Members also see it as the team's name, as in "Acme team". If you leave it blank, the team takes the workspace name instead.
+- **Site name on your pages** is shown in the top bar and link previews on your domain, like `Acme`. Up to 60 characters. Members also see it as the team's name, as in "Acme team". If you leave it blank, the team takes the workspace name instead.
 
 ## Logo, colours and favicon
 
 | Setting | What to know |
 | --- | --- |
 | **Favicon** | PNG, JPEG, WebP or GIF, under 2 MB. Resized to 128 pixels. |
-| **Logo** | Same file types and size. Shown on link preview cards and in your domain's header. Resized so its longest side is at most 512 pixels. |
+| **Logo** | Same file types and size. Shown on link preview cards and in the top bar on your domain. Resized so its longest side is at most 512 pixels. |
 | **Logo background** | The ground behind your logo. **Automatic** follows the reader's theme. Pick **Light** for a dark logo, **Dark** for a light one, or **Checker**. |
 | **Accent colour** | Buttons, links and highlights on your domain use it. Blank uses Markdrop's blue. |
 | **White-label preview cards** | Removes "Published with Markdrop" from cards and titles. |

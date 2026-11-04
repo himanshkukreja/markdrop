@@ -3,14 +3,20 @@ title: Mentions and notifications
 description: Mention someone on a page and they get a notification under the bell, and an email, with a link to the exact block. Only people who can open the page are told.
 updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [mention, mentions, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, list_notifications, mark_notifications_read, share_with_people]
+keywords: [mention, mentions, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, list_notifications, mark_notifications_read, share_with_people]
 ---
 
 When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop and get an email, and both open the page at the block that mentions them.
 
 ## Mention someone
 
-In a page, type `/person` (or choose **Mention a person** from the `/` menu), then pick someone from your workspace. The block you mention them in gets its own link, so their notification opens the page right there.
+In a page, type `@` or `/person` (or choose **Mention a person** from the `/` menu). A list of the people in the page's workspace opens at your cursor, each with their picture, name and email address. Keep typing to narrow it: part of a name or an email address finds them, and so do letters in order, so `@bmem` finds Ben Member. Pick someone to put a mention of them in the page. The block you mention them in gets its own link, so their notification opens the page right there.
+
+- **Keys.** ↑ and ↓ move through the list, **Enter** or **Tab** picks the person, and **Esc** closes the list and leaves what you typed as plain text. Deleting the `@` closes it too. You can also click a name.
+- **When `@` opens the list.** At the start of a line, or after a space or punctuation, such as `(@ben`. Not in the middle of a word, so typing an email address like `ana@example.com` never opens it, and never in code, inline code, Mermaid diagrams or equations. Once nobody matches and you type a space, the list closes and your text stays as it is.
+- **In tables.** `@` works in a table cell, and so does the `/` menu. A cell holds one line of text, so its `/` menu offers what fits in a line: **Mention a person**, **Mention an item**, **Date** and **Emoji**.
+- **Who's listed.** Everyone in the page's workspace, including you. A page that isn't in a workspace has nobody to mention; move it into a workspace first. Someone editing with an edit link but no account, or who can edit the page but isn't in its workspace, can't mention people.
+- **On a workspace's own domain** the list shows names and pictures, but not email addresses.
 
 Everyone you newly mention is notified when the page saves. That includes mentions made by an AI app through [MCP](/ai/tools#notifications) and mentions that come back when you [restore a version](/pages/history). The notification names whoever made the change.
 

@@ -14,6 +14,8 @@ Folders decide where something appears and what its address is. They never decid
 
 Open a workspace from the sidebar to see its folders first, then the items filed at the top. Open a folder to see what's inside it. Folders open straight away, even on a slow connection: the folder's name and subfolders show at once, and its items follow.
 
+The list stays current while it's open. A page you rename in another tab shows its new name here straight away, and what other people rename, add or move shows within half a minute, or as soon as you come back to the tab. You don't need to reload.
+
 Choose how the list looks with the switch above it. Markdrop remembers your choice on this device, for every workspace and folder.
 
 | View | What you see |

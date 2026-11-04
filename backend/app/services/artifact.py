@@ -430,6 +430,9 @@ async def replace_file(
     )
     if not updated:
         return None, None
+    from app.services import search_index
+
+    search_index.touch(db, updated["_id"])
     # Only free the old bytes if the new upload actually points somewhere else.
     return _doc_from_mongo(updated), (old_key if old_key != blob_key else None)
 

@@ -300,7 +300,7 @@ markdrop page restore setup-guide 4
 markdrop link set setup-guide install [--check]                  # the old link keeps redirecting
 markdrop export setup-guide [--format md|html|zip] [--subpages] [-o file|folder|-] [--force]
 
-markdrop search roadmap [--kind page|document|file|folder|workspace] [--workspace Acme]
+markdrop search roadmap [--kind page|document|file|folder|workspace|guide] [--workspace Acme]  # titles + text, typos ok
 markdrop trash rm old-notes [--children delete|lift]             # 30 days to restore
 markdrop trash ls
 markdrop trash restore old-notes

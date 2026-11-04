@@ -168,6 +168,27 @@ export interface PagePickItem {
   encrypted?: boolean;
 }
 
+/** Someone the `@` picker offers (a member of the page's workspace). */
+export interface MentionPerson {
+  id: string;
+  name: string;
+  /** Only for a signed-in member on markdrop.in (never on the workspace's own domain). */
+  email?: string | null;
+  avatar_url?: string | null;
+  /** The person editing. */
+  you?: boolean;
+}
+
+/**
+ * Who can be mentioned (GET /documents/{slug}/mentionable). Only "ok" lists anyone: "personal" is
+ * a page in no workspace, "signin" an edit-link editor with no account, "not_member" someone who
+ * edits the page but isn't a member of its workspace.
+ */
+export interface MentionPeople {
+  state: "ok" | "personal" | "signin" | "not_member";
+  people: MentionPerson[];
+}
+
 /** An embed or mention resolved for the person editing (the page's embeds endpoint). */
 export interface PageResolvedItem {
   state: "ok" | "signin" | "denied" | "password" | "encrypted" | "missing";
@@ -201,7 +222,9 @@ export interface PagesEditorHost {
   renderMention(p: { slug: string | null; label?: string | null; resolved: PageResolvedItem | null | undefined }): React.ReactNode;
   /** A link's preview for a bookmark (title, description, image), fetched by the server. */
   linkPreview?(url: string): Promise<{ title?: string | null; description?: string | null; image_url?: string | null; site_name?: string | null; favicon_url?: string | null }>;
-  /** Workspace members, for `@person`. */
+  /** Who can be @-mentioned on the page (`@` and "/person"): fetched once per editor, then kept. */
+  mentionable?(): Promise<MentionPeople>;
+  /** Workspace members matching `q` (the sign-off block's person picker). */
   people?(q: string): Promise<Array<{ id: string; name: string; avatar_url?: string | null }>>;
   /** The page's sign-offs for this viewer (components/pages/signoff/store.ts): the blocks' state and the lock. */
   signoffs?: import("@/components/pages/signoff/store").SignoffStore | null;
@@ -214,6 +237,8 @@ export interface PagesEditorHost {
   pageTitle?: string | null;
   /** A page's address (links in the breadcrumb and sub-page blocks). */
   href?(slug: string, ancestors: string[]): string;
+  /** A page image's size in pixels (`asset:<id>`), when known: the image keeps its room while it loads. */
+  assetSize?(src: string): { width: number; height: number } | null;
 }
 
 /** What a host can do to the editor from outside (both modes). */

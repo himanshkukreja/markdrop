@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import MarkdownPreview from "@/components/MarkdownPreview";
@@ -9,8 +9,7 @@ import AccessGate from "@/components/access/AccessGate";
 import { RequestEditDialog, useEditRequest } from "@/components/access/RequestEditAccess";
 import { PRIMARY_HOST } from "@/lib/hosts";
 import { Alert, Button, ConfirmDialog, CopyButton, Drawer, EmptyState, Skeleton, useToast, type MenuEntry } from "@/components/ui";
-import { SiteHeader } from "@/components/shell/SiteHeader";
-import { TenantHeader, useTenant } from "@/components/tenant";
+import { useTenant } from "@/components/tenant";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { ReadingProgress, Toc, TocTicks, tocHeadings, useActiveHeading, useReadingProgress, type Heading } from "@/components/reading";
 import { DocPresence } from "@/components/presence/DocPresence";
@@ -22,12 +21,16 @@ import { track } from "@/lib/track";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { useDocumentViewer } from "./doc/useDocumentViewer";
 import { pageFieldsOf, type DocumentViewProps } from "./doc/types";
-import { DocumentActionBar, DocumentBar } from "./doc/DocumentBar";
+import { DocumentActionBar } from "./doc/DocumentBar";
+import type { DocumentTopBarProps } from "./doc/DocumentTopBar";
 import { DetailsPanel, readingMinutes } from "./doc/DetailsPanel";
 import { DeviceKeyNotice, EncryptionState, RotatedNotice } from "./doc/EncryptionState";
 import { LeaveGuard } from "./doc/LeaveGuard";
 import { LiveUpdatePill, useLiveUpdate } from "./doc/LiveUpdate";
 import { Colophon } from "./doc/Colophon";
+import { OpeningCover } from "./doc/OpeningCover";
+import { ready as preloaded } from "./doc/preload";
+import { noteViewKind } from "@/lib/opening";
 import vs from "./doc/viewer.module.css";
 import type { PageActionRequest } from "@/components/pages/PageActions";
 import { hasPageProps, readPageProps, withoutFrontMatter } from "@/components/pages/pageProps";
@@ -50,6 +53,10 @@ const ReportDialog = dynamic(() => import("./doc/ReportDialog").then((m) => m.Re
 const SaveCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.SaveCopyDialog), { loading: () => null });
 const EncryptedCopyDialog = dynamic(() => import("./doc/SaveCopyDialog").then((m) => m.EncryptedCopyDialog), { loading: () => null });
 const ProtectionDialog = dynamic(() => import("./doc/ProtectionDialog").then((m) => m.ProtectionDialog), { loading: () => null });
+// The framed view's one top bar (a page's bar, components/pages/PageChrome, with the document's
+// actions). Full screen has none, so it loads when the reader is idle (below) or the view is framed.
+const docTopBar = () => import("./doc/DocumentTopBar");
+const DocumentTopBar = dynamic(() => docTopBar().then((m) => m.DocumentTopBar), { loading: () => null });
 // Pages (documents in the block editor): the renderer ships with a page; the editor and the
 // template gallery load when used.
 const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").then((m) => m.PageRenderer));
@@ -125,10 +132,12 @@ function opensWithOwnTitle(content: string, title: string | null): boolean {
  *  - **Immersive** (the default for a readable document): the reading column
  *    alone on `bg`, ReadingProgress, TocTicks, the colophon and ImmersiveExit.
  *    No header — the server HTML of an immersive document has none (§4.1).
- *  - **Framed**: SiteHeader (TenantHeader on a workspace domain), the sticky
- *    DocumentBar, Contents rail · reading column · Details rail at ≥1280px; a
- *    Contents dropdown and a Details drawer below that; bottom sheets and a
- *    bottom action bar on phones.
+ *  - **Framed** ("Show details"): one top bar, DocumentTopBar (a page's bar: the
+ *    logo, or the workspace's on its domain, the title, the actions and the
+ *    account; no app header above it), Contents rail · reading column · Details
+ *    rail at ≥1280px (the bar's sidebar toggle, ⌘\, hides both); a Contents
+ *    dropdown and a Details drawer below that; bottom sheets and a bottom action
+ *    bar on phones. The editor and the gates have the same bar.
  *  - **Gates**, **encryption states**, **edit flow**, **?new=1** PublishedPanel.
  *
  * One content element serves both reading modes — immersive only swaps its
@@ -154,10 +163,15 @@ export default function DocumentView(props: DocumentViewProps) {
   } = v;
 
   const tenant = useTenant();
-  const pathname = usePathname();
   const router = useRouter();
   const toast = useToast();
   const [leaving, setLeaving] = useState(false);
+  // The opening cover (lib/opening) stays up through the read and, for a page, until the page's
+  // frame (its own code, loaded on demand) is on screen, so nothing paints in between.
+  const [opened, setOpened] = useState(false);
+  if (pwdFetching && !opened) setOpened(true);
+  const [pageFramed, setPageFramed] = useState(false);
+  const onPageFrame = useCallback((el: HTMLDivElement | null) => { if (el) setPageFramed(true); }, []);
   const phone = useMediaQuery(PHONE_QUERY);
   const layerRef = useRef<HTMLDivElement>(null);
   const [headings, setHeadings] = useState<Heading[]>([]);
@@ -172,6 +186,11 @@ export default function DocumentView(props: DocumentViewProps) {
   // A page: a document in the block editor (never an encrypted one).
   const page = v.page;
   const isPage = !encrypted && page?.editor === "blocks";
+  // The next item opened in this tab opens on this kind's look (lib/opening).
+  useEffect(() => {
+    if (v.artifactDoc) noteViewKind("file");
+    else if (v.readable && !pwdFetching && !v.pwdLocked) noteViewKind(isPage ? "page" : "doc");
+  }, [v.artifactDoc, v.readable, pwdFetching, v.pwdLocked, isPage]);
   // A classic document that was a page (its front matter, its place among pages): its editors get a
   // clear way back to the page editor, on markdrop.in and on the workspace's own domain.
   const wasPage = !isPage && !encrypted && !!page && (hasPageProps(displayContent) || (page.children_count ?? 0) > 0 || !!page.parent || (page.page_path?.length ?? 0) > 0);
@@ -315,6 +334,20 @@ export default function DocumentView(props: DocumentViewProps) {
     return () => document.documentElement.removeAttribute("data-md-immersive");
   }, [showImmersive]);
 
+  // Full screen has no bar: fetch the framed view's while the reader is idle, so "Show details"
+  // opens it at once.
+  useEffect(() => {
+    if (isPage) return;
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number; cancelIdleCallback?: (id: number) => void };
+    const load = () => void docTopBar().catch(() => {});
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(load);
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = window.setTimeout(load, 1500);
+    return () => window.clearTimeout(t);
+  }, [isPage]);
+
   const livePill = useLiveUpdate(v.liveUpdate, displayContent, readRef);
   useAnalyticsDoc(
     artifactDoc
@@ -341,8 +374,10 @@ export default function DocumentView(props: DocumentViewProps) {
 
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
+    // Its code was fetched before the read was adopted (doc/preload): render it directly.
+    const Artifact = preloaded.ArtifactView ?? ArtifactView;
     return (
-      <ArtifactView
+      <Artifact
         slug={slug}
         title={artifactDoc.title}
         url={url}
@@ -367,9 +402,24 @@ export default function DocumentView(props: DocumentViewProps) {
 
   const gated = pwdLocked || pwdFetching;
   const gateMode: "password" | "signin" | "denied" = accessDenied ? "denied" : gate === "signin" ? "signin" : "password";
-  const header = tenant
-    ? <TenantHeader returnPath={pathname || undefined} hideAuth={gated && !pwdFetching && gateMode === "signin"} />
-    : <SiteHeader />;
+  // A classic document's one bar (the framed view, a gate, the editor); a page has its own (below).
+  const docPresence = readable ? <DocPresence presence={presence} signedIn={!!user} /> : null;
+  const docBar = (o: Partial<DocumentTopBarProps> = {}) => (
+    <DocumentTopBar
+      slug={slug}
+      url={url}
+      shareUrl={shareUrl}
+      title={displayTitle}
+      addressing={addressing}
+      encrypted={encrypted}
+      gated={gated}
+      gateBadge={isPasswordProtected ? (gate === "signin" ? "private" : "password") : null}
+      // On a workspace's domain the sign-in gate has its own button.
+      hideAccount={!!tenant && gated && !pwdFetching && gateMode === "signin"}
+      presence={docPresence}
+      {...o}
+    />
+  );
 
   // A page (the block editor) has one screen for readers and editors: its frame, always editable
   // for editors (below). Someone who must type the edit secret first gets the edit flow's prompt.
@@ -419,7 +469,7 @@ export default function DocumentView(props: DocumentViewProps) {
   if (editing && !pageScreen) {
     return (
       <>
-        {header}
+        {docBar({ title: displayTitle, gated: false, menu: [], shareUrl: "" })}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
           {secretUnlocked && !isPage && backToPage && <div className="mx-auto w-full max-w-reading px-4 pt-4 sm:px-6">{backToPage}</div>}
           {secretUnlocked && !isPage ? (
@@ -759,6 +809,7 @@ export default function DocumentView(props: DocumentViewProps) {
             layout={pageLayoutClass}
             full={!!pageProps?.fullWidth}
             innerRef={readRef}
+            frameRef={onPageFrame}
             className="ph-no-capture"
             bar={
               <PageTopBar
@@ -860,32 +911,22 @@ export default function DocumentView(props: DocumentViewProps) {
   return (
     // data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page.
     <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
-      {!pageScreen && framed && header}
+      {/* First, so its inline script runs before the locked chrome below is parsed (lib/opening). */}
+      {(pwdFetching || (opened && pageScreen && !pageFramed)) && <OpeningCover tenant={!!tenant} />}
+      {!pageScreen && framed && docBar({
+        title: readable ? shownTitle : null,
+        onProtection: encrypted && readable ? () => v.setShowProtection(true) : null,
+        onCopyLink: copyLinkEvent,
+        onEdit: secretUnlocked && !editBlocked ? handleEditClick : null,
+        onShare: pageShare,
+        onFullScreen: canFullScreen ? () => v.toggleImmersive(true) : null,
+        menu: readerPageMenu,
+        headings: tocEntries.length ? headings : [],
+        rail: !gated,
+      })}
 
       <main id="main" tabIndex={-1} className={pageScreen ? "pb-screen outline-none" : "flex min-w-0 flex-1 flex-col outline-none"}>
         {pageScreen ? pageMain : <>
-        {framed && (
-          <DocumentBar
-            slug={slug}
-            url={url}
-            shareUrl={shareUrl}
-            title={readable ? shownTitle : null}
-            gated={gated}
-            gateBadge={protection}
-            encrypted={encrypted}
-            onProtection={encrypted && readable ? () => v.setShowProtection(true) : null}
-            onCopyLink={copyLinkEvent}
-            onEdit={secretUnlocked && !editBlocked ? handleEditClick : null}
-            onShare={v.canShare && !pwdLocked ? () => setShowShare(true) : null}
-            onFullScreen={canFullScreen ? () => v.toggleImmersive(true) : null}
-            onDetails={() => setDetailsOpen(true)}
-            menu={menu}
-            headings={tocEntries.length ? headings : []}
-            copyVariant={showPanel ? "secondary" : "primary"}
-            presence={readable ? <DocPresence presence={presence} signedIn={!!user} /> : null}
-          />
-        )}
-
         {/* Framed reading progress follows the page; the immersive one lives
             inside the layer (its own scroller, and above the page). */}
         {framed && !gated && readable && !empty && <ReadingProgress key="page" />}
@@ -895,13 +936,13 @@ export default function DocumentView(props: DocumentViewProps) {
             element without ever re-parenting it. */}
         <div
           className={framed
-            ? "mx-auto grid w-full max-w-marketing flex-1 grid-cols-1 content-start gap-10 px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:grid-cols-[200px_minmax(0,680px)_260px] xl:justify-between"
+            ? "md-docgrid mx-auto grid w-full max-w-marketing flex-1 grid-cols-1 content-start gap-10 px-4 pb-16 pt-6 sm:px-6 sm:pt-8 xl:grid-cols-[200px_minmax(0,680px)_260px] xl:justify-between"
             : "contents"}
         >
           {framed && (
-            <aside className="no-print hidden xl:block" aria-label="Contents">
+            <aside className="md-docrail no-print hidden xl:block" aria-label="Contents">
               {(tocEntries.length > 0 || (isPage && readable && (crumbs.length > 0 || (page?.children_count ?? 0) > 0))) && (
-                <div className="sticky top-32 flex max-h-[calc(100dvh-9rem)] flex-col gap-6 overflow-y-auto pb-6">
+                <div className="sticky top-16 flex max-h-[calc(100dvh-5rem)] flex-col gap-6 overflow-y-auto pb-6">
                   {isPage && readable && !gated && (
                     <PageTree
                       key={`${crumbs[0]?.slug ?? slug}:${treeKey}:${user?.id ?? "anon"}`}
@@ -1070,8 +1111,8 @@ export default function DocumentView(props: DocumentViewProps) {
           </div>
 
           {framed && !gated && (
-            <aside className="no-print hidden xl:block" aria-label="Details">
-              <div className="sticky top-32 pb-6">{details}</div>
+            <aside className="md-docrail no-print hidden xl:block" aria-label="Details">
+              <div className="sticky top-16 pb-6">{details}</div>
             </aside>
           )}
         </div>

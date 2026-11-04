@@ -33,7 +33,7 @@ export interface SiteHeaderProps {
   width?: "contained" | "full";
   /** Override the Create trigger; default primary on /dashboard, secondary elsewhere (REVAMP_PLAN 4.4). */
   createVariant?: "primary" | "secondary";
-  /** App pages: the "Search files, folders and workspaces" field that opens the ⌘K palette. */
+  /** App pages: the "Search everything, or ask AI" field that opens the ⌘K palette. */
   search?: boolean;
   className?: string;
 }
@@ -52,7 +52,7 @@ function SearchTrigger() {
         className="md-focus ml-4 hidden h-9 min-w-0 max-w-[520px] flex-[1_1_320px] cursor-text items-center gap-2 rounded-lg border border-border-strong bg-surface-inset px-3 text-left text-body text-text-muted hover:border-text-muted md:flex"
       >
         <Icon name="search" size={14} className="shrink-0" />
-        <span className="min-w-0 flex-1 truncate">Search files, folders and workspaces</span>
+        <span className="min-w-0 flex-1 truncate">Search everything, or ask AI</span>
         <span className="flex shrink-0 items-center gap-1" aria-hidden>
           <Kbd>{mac ? "⌘" : "Ctrl"}</Kbd>
           <Kbd>K</Kbd>

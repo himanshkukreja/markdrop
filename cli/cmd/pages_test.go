@@ -654,6 +654,7 @@ func TestSearch(t *testing.T) {
 	e := setup(t)
 	e.fake.AddAcme()
 	e.fake.AddPage("roadmap", fakeapi.Token, "Roadmap 2026", "r\n")
+	e.fake.AddPage("plans", fakeapi.Token, "Plans", "The kangaroo budget is in the second half.\n")
 	e.fake.AddDoc("roadmap-video", fakeapi.Token, "artifact", []byte("v"), "video/mp4")
 	if _, _, err := e.run("page", "new", "Guides roadmap", "--workspace", "Acme", "--slug", "acme-roadmap"); err != nil {
 		t.Fatal(err)
@@ -662,16 +663,31 @@ func TestSearch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, w := range []string{"page  ", "Roadmap 2026", "file", "roadmap-video", "Acme", "https://docs.acme.test/acme-roadmap"} {
+	for _, w := range []string{"page  ", "Roadmap 2026", "file", "roadmap-video", "Acme", "https://docs.acme.test/acme-roadmap", "MATCHED"} {
 		if !strings.Contains(stdout, w) {
 			t.Errorf("search lacks %q:\n%s", w, stdout)
 		}
 	}
-	stdout, _, _ = e.run("search", "road", "--kind", "file", "--json")
+	// Inside the text: the matched text is shown.
+	stdout, _, _ = e.run("search", "kangaroo")
+	if !strings.Contains(stdout, "Plans") || !strings.Contains(stdout, "The kangaroo budget") {
+		t.Errorf("body match:\n%s", stdout)
+	}
+	stdout, _, _ = e.run("search", "kangaroo", "--json")
 	obj := oneJSONObject(t, stdout)
 	rs, _ := obj["results"].([]any)
-	if len(rs) != 1 || rs[0].(map[string]any)["slug"] != "roadmap-video" || obj["backend"] != "quick" || obj["query"] != "road" {
+	if len(rs) != 1 || rs[0].(map[string]any)["match"] != "body" || !strings.Contains(rs[0].(map[string]any)["snippet"].(string), "kangaroo") {
+		t.Errorf("body match json %v", obj)
+	}
+	stdout, _, _ = e.run("search", "road", "--kind", "file", "--json")
+	obj = oneJSONObject(t, stdout)
+	rs, _ = obj["results"].([]any)
+	if len(rs) != 1 || rs[0].(map[string]any)["slug"] != "roadmap-video" || obj["backend"] != "search" || obj["query"] != "road" {
 		t.Errorf("--kind file %v", obj)
+	}
+	stdout, _, _ = e.run("search", "roadmap", "--kind", "document", "--json")
+	if rs, _ = oneJSONObject(t, stdout)["results"].([]any); len(rs) != 0 {
+		t.Errorf("--kind document %v", rs)
 	}
 	stdout, _, _ = e.run("search", "roadmap", "--workspace", "Acme", "--json")
 	rs, _ = oneJSONObject(t, stdout)["results"].([]any)
@@ -680,7 +696,8 @@ func TestSearch(t *testing.T) {
 	}
 	stdout, _, _ = e.run("search", "setup", "--json")
 	rs, _ = oneJSONObject(t, stdout)["results"].([]any)
-	if len(rs) != 1 || rs[0].(map[string]any)["kind"] != "folder" || rs[0].(map[string]any)["path"] != "guides/setup" {
+	if len(rs) != 1 || rs[0].(map[string]any)["kind"] != "folder" || rs[0].(map[string]any)["path"] != "Guides/Setup" ||
+		rs[0].(map[string]any)["url"] != e.fake.WebBase+"/w/ws_acme/f/f_setup" {
 		t.Errorf("folders %v", rs)
 	}
 	stdout, _, _ = e.run("search", "acm", "--kind", "workspace", "--json")
@@ -696,6 +713,38 @@ func TestSearch(t *testing.T) {
 	mustErr(t, err, "at least 2")
 	_, _, err = e.run("search", "xy", "--kind", "folders")
 	mustErr(t, err, "kind must be")
+	_, _, err = e.run("search", "xy", "--limit", "51", "--json")
+	if err != nil {
+		t.Errorf("--limit is capped, not refused: %v", err)
+	}
+}
+
+// A server from before GET /api/v1/search: the search falls back to /search/quick.
+func TestSearchFallsBackToQuick(t *testing.T) {
+	e := setup(t)
+	e.fake.NoSearchV1 = true
+	e.fake.AddAcme()
+	e.fake.AddPage("roadmap", fakeapi.Token, "Roadmap 2026", "r\n")
+	e.fake.AddPage("plans", fakeapi.Token, "Plans", "The kangaroo budget.\n")
+	stdout, _, err := e.run("search", "roadmap", "--json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	obj := oneJSONObject(t, stdout)
+	rs, _ := obj["results"].([]any)
+	if obj["backend"] != "quick" || len(rs) != 1 || rs[0].(map[string]any)["slug"] != "roadmap" {
+		t.Errorf("fallback %v", obj)
+	}
+	stdout, _, _ = e.run("search", "setup", "--json")
+	rs, _ = oneJSONObject(t, stdout)["results"].([]any)
+	if len(rs) != 1 || rs[0].(map[string]any)["path"] != "guides/setup" {
+		t.Errorf("fallback folders %v", rs)
+	}
+	// The quick search never looks inside the text.
+	_, stderr, _ := e.run("search", "kangaroo")
+	if !strings.Contains(stderr, "Nothing found") {
+		t.Errorf("fallback body %q", stderr)
+	}
 }
 
 func TestNewCommandsNeedAToken(t *testing.T) {

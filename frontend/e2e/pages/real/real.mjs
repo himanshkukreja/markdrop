@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved } from "./lib.mjs";
+import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -229,6 +229,15 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
 await step("subpage", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
+  // The owner lands in the editor: it takes the read view's place once ready (its own "Add a
+  // sub-page"), so click the one that stays.
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+  // Page images keep their room while they load (their size comes with the page): scrolling to the
+  // button lazy-loads the ones near it, and unsized they pushed it down between the press and the
+  // release, so the click landed on an image (WebKit, now and then).
+  const unsized = await p.locator(".pb-live img.dx-fig__img").evaluateAll((els) => els.filter((e) => !(Number(e.getAttribute("width")) > 0 && Number(e.getAttribute("height")) > 0)).map((e) => e.getAttribute("src")));
+  if (unsized.length) fail(`page images without a size: ${unsized.join(", ")}`);
+  if (!(await p.locator(".pb-live img.dx-fig__img").count())) fail("no page images to check (the create step adds two)");
   await p.getByRole("button", { name: "Add a sub-page" }).first().click();
   const dlg = p.getByRole("dialog");
   await dlg.getByText("Meeting notes", { exact: true }).click();
@@ -814,6 +823,134 @@ await step("to-blocks", async () => {
   await c.close();
 });
 
+/* ── 9b. a classic (Markdown) document has one top bar, like a page: in view details (framed), in the
+   editor and behind a gate, on markdrop.in and on the workspace's domain, wide and on a phone; the
+   bar keeps Share, ⋯ (Export PDF, Copy link, Details, Request edit access, General access on
+   markdrop.in), presence and Edit; its sidebar toggle hides the Contents and Details rails ── */
+await step("classic-onebar", async () => {
+  const md = "# Release notes\n\nWhat changed this week.\n\n## Highlights\n\n- One top bar\n\n## Fixes\n\nMore notes.\n\n## Next\n\nThe docs.\n";
+  const made = await api("POST", "/api/v1/documents", T.owner, { content: md, title: "Release notes", expires_in: "never", access_level: "link", workspace: WS, folder: FOLDER });
+  if (made.status !== 201) fail(`create classic → ${made.status} ${JSON.stringify(made.body)}`);
+  const slug = made.body.slug;
+  const one = async (p, where) => {
+    const bars = await topBars(p);
+    if (bars.length !== 1) fail(`${where}: ${bars.length} top bars (${bars.join(" | ")}), want exactly one`);
+    if (!(await p.locator("header.md-docbar").isVisible())) fail(`${where}: the one bar isn't the document's bar`);
+  };
+  const details = async (p) => {
+    await p.getByRole("button", { name: "Show details" }).click({ timeout: 20000 });
+    await p.locator("header.md-docbar").waitFor({ timeout: 20000 });
+    await p.waitForTimeout(600);
+  };
+  const menuItems = async (p) => {
+    await p.locator("header.md-docbar").getByRole("button", { name: "More actions" }).click();
+    const items = await p.getByRole("menuitem").allInnerTexts();
+    await p.keyboard.press("Escape");
+    await p.waitForTimeout(200);
+    return items.join(" · ");
+  };
+
+  // The owner on markdrop.in, wide: view details, then the editor.
+  for (const width of [1440, 390]) {
+    const { c, p } = await ctx(browser, { token: T.owner, width, height: width < 500 ? 844 : 900, mobile: width < 500 });
+    await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+    if ((await topBars(p)).length !== 0) fail(`full screen (${width}) has a top bar`);
+    await details(p);
+    await p.mouse.wheel(0, 400);
+    await p.waitForTimeout(400);
+    await one(p, `owner view details ${width}`);
+    await shot(p, `42-classic-details-${width}`);
+    const bar = p.locator("header.md-docbar");
+    if (width > 500) {
+      for (const name of ["Share", "Edit", "Read full screen", "More actions"]) {
+        if (!(await bar.getByRole("button", { name, exact: true }).isVisible())) fail(`the bar has no ${name}`);
+      }
+      const items = await menuItems(p);
+      for (const want of ["Copy link", "Export PDF", "Details"]) if (!items.includes(want)) fail(`⋯ lacks ${want}: ${items}`);
+      // The sidebar toggle hides both rails (and Contents moves into the bar), remembered, ⌘\ brings them back.
+      const rails = () => p.locator("aside.md-docrail:visible").count();
+      if ((await rails()) !== 2) fail(`expected the Contents and Details rails, saw ${await rails()}`);
+      await bar.getByRole("button", { name: "Hide the sidebar" }).click();
+      await p.waitForTimeout(300);
+      if ((await rails()) !== 0) fail("the toggle didn't hide the rails");
+      if (!(await bar.getByRole("button", { name: /Contents/ }).isVisible())) fail("no Contents in the bar with the rails hidden");
+      await p.reload({ waitUntil: "networkidle" });
+      await details(p);
+      if ((await rails()) !== 0) fail("hidden rails not remembered");
+      await p.keyboard.press("ControlOrMeta+Backslash");
+      await p.waitForTimeout(300);
+      if ((await rails()) !== 2) fail("⌘\\ didn't bring the rails back");
+      // The editor: the same bar, nothing above it.
+      await bar.getByRole("button", { name: "Edit", exact: true }).click();
+      await p.getByRole("button", { name: /Save changes/ }).waitFor({ timeout: 20000 });
+      await one(p, "owner editing");
+      await shot(p, "43-classic-editing");
+    } else {
+      // Phones: ⋯ is a sheet with Share first; the bottom action bar is still there.
+      await bar.getByRole("button", { name: "More actions" }).click();
+      await p.getByRole("dialog").getByRole("menuitem", { name: "Share" }).waitFor({ timeout: 10000 });
+      await p.keyboard.press("Escape");
+      if (!(await p.getByRole("button", { name: "Copy link" }).last().isVisible())) fail("no Copy link on the phone's bottom bar");
+      const sw = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (sw > 0) fail(`the phone scrolls sideways by ${sw}px`);
+    }
+    await c.close();
+  }
+
+  // A workspace viewer: Request edit access in ⋯, presence of the owner in the bar.
+  const o = await ctx(browser, { token: T.owner });
+  await o.p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  const r = await ctx(browser, { token: T.reader });
+  await r.p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await details(r.p);
+  await one(r.p, "reader view details");
+  const ritems = await menuItems(r.p);
+  if (!/Request edit access/.test(ritems)) fail(`a viewer's ⋯ lacks Request edit access: ${ritems}`);
+  await r.p.locator("header.md-docbar .pb-bar__presence").waitFor({ timeout: 15000 });
+  await shot(r.p, "44-classic-reader-presence");
+  await r.c.close();
+  await o.c.close();
+
+  // The workspace's domain: anonymous, then the owner (General access on markdrop.in in ⋯).
+  const d = await docOf(slug, T.owner);
+  const addr = `${TENANT}/${[...(d.folder_path || []), slug].join("/")}`;
+  await fetch(`${APP}/api/revalidate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag: "host:acme.localhost" }) });
+  for (const width of [1440, 390]) {
+    const a = await ctx(browser, { width, height: width < 500 ? 844 : 900, mobile: width < 500 });
+    await a.p.goto(addr, { waitUntil: "networkidle" });
+    await details(a.p);
+    await one(a.p, `tenant anonymous ${width}`);
+    if (await a.p.locator("header.md-docbar .md-logo").count()) fail("Markdrop's logo on the workspace's domain");
+    await shot(a.p, `45-classic-tenant-${width}`);
+    await a.c.close();
+  }
+  // A classic document opens full screen: sign in from the view details' bar.
+  const to = await ctx(browser, { token: T.owner });
+  await to.p.goto(`${APP}/robots.txt`);
+  await to.p.goto(addr, { waitUntil: "networkidle" });
+  await details(to.p);
+  await to.p.locator("header.md-docbar").getByRole("link", { name: /Sign in/ }).or(to.p.locator("header.md-docbar").getByRole("button", { name: /Sign in/ })).first().click();
+  await to.p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
+  await to.p.waitForLoadState("networkidle");
+  await details(to.p);
+  await one(to.p, "tenant owner");
+  await to.p.locator("header.md-docbar").getByRole("button", { name: "More actions" }).click();
+  await to.p.getByRole("menuitem", { name: /General access on markdrop\.in/ }).or(to.p.getByRole("link", { name: /General access on markdrop\.in/ })).waitFor({ timeout: 10000 });
+  await shot(to.p, "46-classic-tenant-owner-menu");
+  await to.c.close();
+
+  // Behind a password: the gate under the one bar (the slug and a Password badge).
+  const locked = await api("POST", "/api/v1/documents", T.owner, { content: md, title: "Locked notes", expires_in: "never", read_password: "open sesame" });
+  if (locked.status !== 201) fail(`create locked → ${locked.status}`);
+  const g = await ctx(browser);
+  await g.p.goto(`${APP}/${locked.body.slug}`, { waitUntil: "networkidle" });
+  await g.p.getByLabel(/Password/).first().waitFor({ timeout: 20000 });
+  await one(g.p, "password gate");
+  if (!(await g.p.locator("header.md-docbar").getByText("Password", { exact: true }).isVisible())) fail("no Password badge in the gate's bar");
+  await shot(g.p, "47-classic-gate");
+  await g.c.close();
+});
+
 await step("create-menu", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
@@ -979,8 +1116,11 @@ await step("blocks", async () => {
   await slashPick(p, "date");
   await p.keyboard.type("for ");
   await slashPick(p, "person");
-  await p.getByLabel("Search people").fill("ben");
-  await p.getByRole("dialog", { name: "Mention someone" }).getByRole("button", { name: "Ben Member" }).click();
+  // The `@` picker (docs-editor/menus/people.tsx): type to filter, Enter picks.
+  await p.locator(".dxe-people [role=option]").first().waitFor({ timeout: 10000 });
+  await p.keyboard.type("ben");
+  await p.locator(".dxe-people [role=option]", { hasText: "Ben Member" }).first().waitFor();
+  await p.keyboard.press("Enter");
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/toggle");
