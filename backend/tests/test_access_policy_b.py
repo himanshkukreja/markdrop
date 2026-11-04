@@ -176,8 +176,9 @@ class Listings(AccessWorld):
         self.assertEqual(r.status_code, 200, r.text)
         body = r.json()
         self.assertEqual([d["slug"] for d in body["documents"]], [l["slug"]])
-        self.assertEqual(set(body), {"folder", "trail", "folders", "documents", "workspace"})
+        self.assertEqual(set(body), {"folder", "trail", "folders", "documents", "workspace", "properties"})
         self.assertIsNone(body["folder"])
+        self.assertIsNone(body["properties"])  # typed page properties belong to a folder, not the root
         self.assertEqual(body["documents"][0]["url"], f"https://docs.acme.test/{l['slug']}")
         self.assertEqual(r.headers["Cache-Control"], "public, max-age=60")
         for d in (lp, w, p, e):
