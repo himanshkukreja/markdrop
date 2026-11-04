@@ -10,16 +10,20 @@
  *   "Pages inside", so the same list is never fetched twice at once.
  *
  * Entries are keyed by the session the request carries (the token's tail), so another account,
- * or signing out, never shows the previous one's rows. Stale-while-revalidate: what's cached shows at once and is refreshed in the
- * background when it is older than the caller allows, when the window regains focus after a
- * minute, and whenever something changed it: `workspaceChanged(id)` (lib/workspaceStore) and
- * `pagesChanged()` (lib/pages calls it after a page is created, saved, moved or deleted). A
- * refresh never empties what is on screen.
+ * or signing out, never shows the previous one's rows. Stale-while-revalidate: what's cached
+ * shows at once and is refreshed in the background when it is older than the caller allows, when
+ * the window regains focus after a minute, and whenever something changed it:
+ * `workspaceChanged(id)` (lib/workspaceStore) and the page events lib/pages fires after a page is
+ * created, moved or deleted. A save (and a change the reading view sees live) patches the page's
+ * title and icon in place (`patchPage`), with no request. The person's other tabs get the same
+ * events (lib/navBus). A refresh never empties what is on screen.
  */
 import { useEffect, useSyncExternalStore } from "react";
 import { getWorkspaceNav, type WorkspaceNav } from "@/lib/workspaces";
 import { listChildren, PagesApiError, type ChildPage } from "@/lib/pages";
 import { getToken } from "@/lib/api";
+import { listenRemote } from "@/lib/navBus";
+import { refreshTree } from "@/lib/workspaceStore";
 
 /** lib/workspaceStore's event (a workspace's folders or items changed). */
 const WS_CHANGE_EVENT = "md:workspace-change";
@@ -101,6 +105,23 @@ class Cache<T> {
     for (const k of this.active.keys()) void this.load(k, maxAge).catch(() => {});
   }
 
+  /** Rewrite cached values in place (`edit` returns the same value when nothing changed); keys it
+   *  can't patch (`refetch`) refresh like `invalidate`. Returns whether anything changed. */
+  patch(edit: (data: T) => T | "refetch"): boolean {
+    let changed = false;
+    const refetch: string[] = [];
+    for (const [k, e] of this.entries) {
+      if (!e.data) continue;
+      const next = edit(e.data);
+      if (next === "refetch") refetch.push(k);
+      else if (next !== e.data) {
+        e.data = next;
+        changed = true;
+      }
+    }
+    if (refetch.length) this.invalidate((k) => refetch.includes(k));
+    return changed;
+  }
 
   bump() {
     this.version++;
@@ -134,17 +155,28 @@ let wired = false;
 function wire() {
   if (wired || typeof window === "undefined") return;
   wired = true;
+  // What the person's other tabs change arrives as the same events (lib/navBus).
+  listenRemote();
   window.addEventListener(WS_CHANGE_EVENT, (e) => {
-    const id = (e as CustomEvent<{ id?: string }>).detail?.id;
+    const d = (e as CustomEvent<{ id?: string; remote?: boolean }>).detail;
+    const id = d?.id;
+    // Another tab's change: this tab's copy of the folder tree refreshes too (here,
+    // workspaceChanged already did that).
+    if (d?.remote && id) refreshTree(id, 0);
     navCache.invalidate((k) => !id || idOf(k) === id);
     // Sub-pages aren't keyed by workspace: a move or delete anywhere may touch any of them.
     kidsCache.invalidate();
   });
   window.addEventListener(PAGES_EVENT, (e) => {
-    // A save is "soft": mark stale only (autosave runs often); anything else refreshes what's shown.
-    const soft = !!(e as CustomEvent<{ soft?: boolean }>).detail?.soft;
-    navCache.invalidate(undefined, soft);
-    kidsCache.invalidate(undefined, soft);
+    const d = (e as CustomEvent<PageChange>).detail ?? {};
+    // A save (or a change seen live) carries the page's title and icon: patch its rows, no request.
+    if (d.slug) {
+      patchPage(d.slug, { title: d.title, icon: d.icon });
+      return;
+    }
+    // Anything else refreshes what's shown; "soft" only marks stale.
+    navCache.invalidate(undefined, !!d.soft);
+    kidsCache.invalidate(undefined, !!d.soft);
   });
   const refresh = () => {
     if (document.visibilityState === "hidden") return;
@@ -153,6 +185,52 @@ function wire() {
   };
   window.addEventListener("focus", refresh);
   document.addEventListener("visibilitychange", refresh);
+}
+
+interface PageChange {
+  soft?: boolean;
+  slug?: string;
+  title?: string | null;
+  icon?: string | null;
+  remote?: boolean;
+}
+
+/** The fields of a cached row that a save can change. */
+type Named = { slug: string; title: string | null; icon?: string | null; icon_url?: string | null };
+
+/** `row` with `title` / `icon` applied (the same object when nothing changes); "refetch" when the
+ *  icon became an image (only the API can sign its link). */
+function patched<R extends Named>(row: R, p: { title?: string | null; icon?: string | null }): R | "refetch" {
+  const title = p.title === undefined ? row.title : p.title;
+  const icon = p.icon === undefined ? row.icon ?? null : p.icon;
+  if (title === row.title && icon === (row.icon ?? null)) return row;
+  if (icon !== (row.icon ?? null) && icon?.startsWith("asset:")) return "refetch";
+  const next: R = { ...row, title };
+  if (icon !== (row.icon ?? null)) {
+    next.icon = icon;
+    next.icon_url = null;
+  }
+  return next;
+}
+
+/** Patch `slug`'s title / icon wherever a list holds it (outlines, sub-page lists): the rail and the
+ *  page tree show a rename at once, with no request. Undefined fields are left alone. */
+export function patchPage(slug: string, p: { title?: string | null; icon?: string | null }) {
+  const inList = <R extends Named>(list: R[]): R[] | "refetch" => {
+    const i = list.findIndex((r) => r.slug === slug);
+    if (i < 0) return list;
+    const row = patched(list[i]!, p);
+    if (row === "refetch" || row === list[i]) return row === "refetch" ? row : list;
+    const out = list.slice();
+    out[i] = row;
+    return out;
+  };
+  const a = navCache.patch((nav) => {
+    const items = inList(nav.items);
+    return items === "refetch" ? items : items === nav.items ? nav : { ...nav, items };
+  });
+  const b = kidsCache.patch(inList);
+  if (a || b) navCache.bump();
 }
 
 /** A page was created, saved, moved or deleted: outlines and sub-page lists refresh. */
@@ -191,6 +269,12 @@ export function useNavRetain(workspaces: string[], pages: string[], maxAge = 10_
   useEffect(() => (wsSig ? navCache.retain(wsSig.split(","), maxAge) : undefined), [wsSig, maxAge]);
   useEffect(() => (pageSig ? kidsCache.retain(pageSig.split(","), maxAge) : undefined), [pageSig, maxAge]);
   return version;
+}
+
+/** A number that changes whenever anything cached changes (read the lists with `childrenSlot`),
+ *  without keeping anything loaded (the page tree holds its own branches). */
+export function useNavVersion(): number {
+  return useSyncExternalStore(subscribe, () => navCache.version * 100_003 + kidsCache.version, () => 0);
 }
 
 /**

@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getWorkspaceTree, type TreeFolder, type WorkspaceTree } from "@/lib/workspaces";
+import { announce } from "@/lib/navBus";
 
 interface Entry {
   tree: WorkspaceTree | null;
@@ -130,13 +131,14 @@ function snapshotFor(key: string): Record<string, TreeSlot> {
  */
 export function workspaceChanged(id: string) {
   void loadTree(id);
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(CHANGE_EVENT, { detail: { id } }));
+  // Here and in the person's other tabs (lib/navBus): their rail and lists refresh too.
+  announce(CHANGE_EVENT, { id });
 }
 
 /** Personal documents changed (moved into or out of a workspace, access changed): rail counts and
  *  the personal list reload. */
 export function documentsChanged() {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(DOCS_EVENT));
+  announce(DOCS_EVENT);
 }
 
 /** Run `cb` whenever `workspaceChanged(id)` is called (any id when `id` is "*"). */

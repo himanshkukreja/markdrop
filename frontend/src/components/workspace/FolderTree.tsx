@@ -50,6 +50,30 @@ export interface TreeNode {
   note?: boolean;
   /** nav: shown on hover / keyboard focus beside the row: "+" (a link) and a ⋯ menu. */
   actions?: { add?: { href: string; label: string } | null; menu?: MenuEntry[] | null } | null;
+  /** Everything the row shows or does, as a string: `shareNodes` keeps the previous build's node
+   *  (and so skips re-rendering its row) when it is unchanged. Without it the node is always new. */
+  sig?: string;
+}
+
+const sameList = (a?: TreeNode[], b?: TreeNode[]) => a === b || (!!a && !!b && a.length === b.length && a.every((x, i) => x === b[i]));
+
+/**
+ * Structural sharing for a rebuilt tree: a node whose `sig` and children match the previous
+ * build's node of the same key IS that node, so memoised rows whose data didn't change skip
+ * rendering however often the caller rebuilds (a navigation, a cache refresh, a rename elsewhere).
+ * Pass the returned map back in next time.
+ */
+export function shareNodes(next: TreeNode[], prev: Map<string, TreeNode>): { nodes: TreeNode[]; byKey: Map<string, TreeNode> } {
+  const byKey = new Map<string, TreeNode>();
+  const share = (list: TreeNode[]): TreeNode[] =>
+    list.map((n) => {
+      const kids = n.children ? share(n.children) : undefined;
+      const old = prev.get(n.key);
+      const out = old && n.sig !== undefined && old.sig === n.sig && sameList(old.children, kids) ? old : kids ? { ...n, children: kids } : n;
+      byKey.set(n.key, out);
+      return out;
+    });
+  return { nodes: share(next), byKey };
 }
 
 interface Visible {

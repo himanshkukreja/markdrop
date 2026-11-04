@@ -5,7 +5,7 @@ import { Anchor, FileIcon, Icon, Skeleton, copyText, cx, useToast } from "@/comp
 import VSCodeIcon from "@/components/VSCodeIcon";
 import { DOCS_URL } from "./links";
 import { studioUrl } from "@/lib/studioHost";
-import { TreeView, type TreeNode } from "@/components/workspace/FolderTree";
+import { TreeView, shareNodes, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { can, type NavItem, type TreeFolder, type Workspace, type WorkspaceNav } from "@/lib/workspaces";
 import { childrenMap, descendants, refreshTree, useWorkspaceTrees, type TreeSlot } from "@/lib/workspaceStore";
@@ -190,6 +190,9 @@ interface Ctx {
   copy: (href: string, label: string) => void;
 }
 
+/** A node's `sig` (see shareNodes): the values its row shows and its handlers use. */
+const sig = (...parts: unknown[]) => JSON.stringify(parts);
+
 const absolute = (href: string) => (typeof window === "undefined" ? href : new URL(href, window.location.origin).toString());
 
 /** `shown`: every row above it is open (only then are its sub-pages asked for). */
@@ -209,14 +212,17 @@ function pageNode(c: Ctx, p: { slug: string; title: string | null; has_children?
       children = kids.map((k) => pageNode(c, k, below, true));
     }
   } else if (p.has_children) lazy = true;
+  const isLazy = lazy && !children?.length;
+  const isLeaf = !p.has_children || (children !== undefined && !children.length);
   return {
     key,
+    sig: sig("p", label, p.icon, p.icon_url, isLazy, isLeaf, c.member, at.folderId, at.parent, at.ancestors),
     label,
     icon: <PageIcon icon={p.icon} url={p.icon_url} />,
     href,
     children: children?.length ? children : undefined,
-    lazy: lazy && !children?.length,
-    leaf: !p.has_children || (children !== undefined && !children.length),
+    lazy: isLazy,
+    leaf: isLeaf,
     drag: c.member ? { type: "page", workspaceId: wsId, slug: p.slug, label, parent: at.parent, folderId: at.folderId } : null,
     drop: c.member ? { workspaceId: wsId, folderId: at.folderId, label: `“${label}”`, acceptsFolders: false, page: { slug: p.slug, ancestors: at.ancestors } } : null,
     actions: {
@@ -235,6 +241,7 @@ function itemNode(c: Ctx, it: NavItem): TreeNode {
   const href = `/${encodeURIComponent(it.slug)}`;
   return {
     key: `ws:${c.ws.id}:item:${it.slug}`,
+    sig: sig("i", label, it.kind, it.renderer, it.mime, it.filename, it.folder_id, c.member),
     label,
     icon: <ItemIcon it={it} />,
     href,
@@ -260,6 +267,7 @@ function placeNodes(c: Ctx, nav: WorkspaceNav, folderId: string | null, href: st
   if (more) {
     out.push({
       key: `ws:${c.ws.id}:more:${folderId ?? "root"}`,
+      sig: sig("m", more, href),
       label: `${more} more`,
       icon: <Icon name="more" size={16} />,
       href,
@@ -295,8 +303,10 @@ function workspaceNode(
       const sub = (kids.get(f.id) ?? []).map((k) => build(k, shown));
       const items = outline ? placeNodes(c, outline, f.id, folderHref(f.id), shown) : [];
       const all = [...sub, ...items];
+      const blocked = admin ? [...descendants(tree.folders, f.id)] : [];
       return {
         key: wsFolderKey(ws.id, f.id),
+        sig: sig("f", f.name, f.parent_id, f.share?.level ?? null, !all.length, member, admin, blocked),
         label: f.name,
         icon: <Icon name="folder" size={16} />,
         href: folderHref(f.id),
@@ -311,7 +321,7 @@ function workspaceNode(
         ) : undefined,
         drop: member ? { workspaceId: ws.id, folderId: f.id, label: f.name, acceptsFolders: admin } : null,
         drag: admin
-          ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked: [...descendants(tree.folders, f.id)] }
+          ? { type: "folder", workspaceId: ws.id, folderId: f.id, label: f.name, parentId: f.parent_id, blocked }
           : null,
         onFiles: filesTo(f.id, f.name),
         actions: {
@@ -326,18 +336,20 @@ function workspaceNode(
     const open = c.expanded.has(wsRootKey(ws.id));
     children = [...(kids.get(null) ?? []).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
     if (!children.length) {
-      children = [{ key: `ws:${ws.id}:empty`, label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
+      children = [{ key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
     }
   }
+  const lazy = slot === null || (!!tree && nav === null);
   return {
     key: wsRootKey(ws.id),
+    sig: sig("w", ws.name, ws.branding?.logo_url, ws.branding?.site_name, active, lazy, slot === false, member, admin),
     label: ws.name,
     icon: <WorkspaceTile ws={ws} active={active} />,
     href: wsHref,
     children,
     // Not loaded yet: expandable, with placeholders when opened. Failed: a leaf (the folder view
     // explains the error).
-    lazy: slot === null || (!!tree && nav === null),
+    lazy,
     leaf: slot === false,
     className: "font-semibold text-text",
     drop: member ? { workspaceId: ws.id, folderId: null, label: `the top of ${ws.name}`, acceptsFolders: admin } : null,
@@ -427,14 +439,20 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     void copyText(absolute(href)).then((ok) => (ok ? toastRef.current.success(`Link to “${label}” copied`) : toastRef.current.error("Couldn't copy")));
   }, []);
 
+  // The previous build's nodes, for shareNodes (dropped when the handlers nodes close over change).
+  const prevNodes = useRef<{ byKey: Map<string, TreeNode>; deps: unknown[] }>({ byKey: new Map(), deps: [] });
   const built = useMemo(() => {
     const want: string[] = [];
-    const nodes = (data.workspaces ?? []).map((ws) => {
+    const fresh = (data.workspaces ?? []).map((ws) => {
       const slot = trees[ws.id] ?? null;
       const open = expanded.has(wsRootKey(ws.id));
       const c: Ctx = { ws, member: can((slot || null)?.workspace.role ?? ws.role, "member"), expanded, want, copy };
       return workspaceNode(c, slot, open ? navSlot(ws.id) : undefined, ws.id === activeWs, onFiles);
     });
+    const deps = [onFiles, copy];
+    const prev = prevNodes.current.deps.every((d, i) => d === deps[i]) && prevNodes.current.deps.length ? prevNodes.current.byKey : new Map<string, TreeNode>();
+    const { nodes, byKey } = shareNodes(fresh, prev);
+    prevNodes.current = { byKey, deps };
     return { nodes, want: [...new Set(want)].sort() };
     // navVersion: the outlines and sub-page lists (read through navSlot / childrenSlot) changed.
   }, [data.workspaces, trees, expanded, activeWs, onFiles, viewer, copy, navVersion]); // eslint-disable-line react-hooks/exhaustive-deps

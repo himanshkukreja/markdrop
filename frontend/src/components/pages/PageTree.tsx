@@ -10,7 +10,7 @@ import { DndContext, DragOverlay, PointerSensor, TouchSensor, useDraggable, useS
 import { getEventCoordinates } from "@dnd-kit/utilities";
 import { Anchor, Dropdown, Icon, IconButton, Skeleton, Spinner, copyText, cx, useToast, type MenuEntry } from "@/components/ui";
 import { type ChildPage, type Crumb } from "@/lib/pages";
-import { fetchChildren } from "@/lib/navStore";
+import { childrenSlot, fetchChildren, useNavVersion } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import { TREE_INDENT, dropAt, subtree, type TreeDrop, type TreeRow } from "@/lib/pageTree.mjs";
 import { workspaceChanged } from "@/lib/workspaceStore";
@@ -56,6 +56,13 @@ function flatten(root: TreeItem, rootParent: string | null, kidsOf: Kids, open: 
   };
   walk(root, 0, rootParent, []);
   return out;
+}
+
+/** `row` with the page's current title and icon (the same row when they match). */
+function asNow(row: Row, title: string | null, icon: string | null): Row {
+  const it = row.item;
+  if (it.title === title && (it.icon ?? null) === icon) return row;
+  return { ...row, item: { ...it, title, icon, icon_url: (it.icon ?? null) === icon ? it.icon_url : null } };
 }
 
 /** Notion's hover-hold: a collapsed page opens after the pointer rests "inside" it this long. */
@@ -262,12 +269,33 @@ export function PageTree({ slug, title, crumbs, childrenCount, addressing: addre
 
   // Sub-pages come from the shared cache (lib/navStore): the rail, this tree and "Pages inside"
   // never fetch the same list twice at once; `force` asks the API.
+  // The cache's list each branch last took: a newer one there (a rename patched in, a refresh
+  // after a change elsewhere) replaces this tree's copy; this tree's own optimistic edits (a move
+  // in flight) never get overwritten by the older cached list.
+  const adopted = useRef(new Map<string, ChildPage[]>());
   const load = useCallback((s: string, force = false) => {
     setKidsOf((m) => (!force && m[s] && m[s] !== "error" ? m : { ...m, [s]: Array.isArray(m[s]) && force ? m[s] : "loading" }));
     fetchChildren(s, force ? 0 : 5_000)
-      .then((k) => setKidsOf((m) => ({ ...m, [s]: k })))
+      .then((k) => {
+        adopted.current.set(s, k);
+        setKidsOf((m) => ({ ...m, [s]: k }));
+      })
       .catch(() => setKidsOf((m) => ({ ...m, [s]: "error" })));
   }, []);
+  const navVersion = useNavVersion();
+  useEffect(() => {
+    setKidsOf((m) => {
+      let next = m;
+      for (const s of Object.keys(m)) {
+        const c = childrenSlot(s);
+        if (!Array.isArray(m[s]) || !Array.isArray(c) || c === adopted.current.get(s)) continue;
+        adopted.current.set(s, c);
+        if (next === m) next = { ...m };
+        next[s] = c;
+      }
+      return next;
+    });
+  }, [navVersion]);
 
   useEffect(() => {
     open.forEach((s) => {
@@ -283,7 +311,11 @@ export function PageTree({ slug, title, crumbs, childrenCount, addressing: addre
       return n;
     }), []);
 
-  const rows = useMemo(() => flatten(root, topParent, kidsOf, open), [root.slug, root.title, root.has_children, root.icon, topParent, kidsOf, open]); // eslint-disable-line react-hooks/exhaustive-deps
+  // This page's row shows its title and icon as they are now (being edited), not as listed.
+  const rows = useMemo(
+    () => flatten(root, topParent, kidsOf, open).map((r) => (r.item.slug === slug ? asNow(r, title, icon) : r)),
+    [root.slug, root.title, root.has_children, root.icon, topParent, kidsOf, open, slug, title, icon], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
   const titleOf = (s: string | null) => (s ? rows.find((r) => r.item.slug === s)?.item.title?.trim() || "Untitled" : null);

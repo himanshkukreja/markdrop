@@ -6,6 +6,7 @@
  */
 import { isPrimaryHost } from "@/components/tenant/hosts";
 import { API_BASE, type MyDocListItem, type MyDocListResponse } from "@/lib/api";
+import { announce } from "@/lib/navBus";
 
 const TOKEN_KEY = "markdrop_token";
 
@@ -179,9 +180,10 @@ export interface Folder {
  *  made a moment ago was missing from the rail until a reload. */
 export const WORKSPACES_EVENT = "md:workspaces-change";
 export function workspacesChanged(): void {
-  if (typeof window !== "undefined") window.dispatchEvent(new Event(WORKSPACES_EVENT));
+  // Here and in the person's other tabs (lib/navBus).
+  announce(WORKSPACES_EVENT);
 }
-function announce<T>(p: Promise<T>): Promise<T> {
+function announced<T>(p: Promise<T>): Promise<T> {
   return p.then((r) => {
     workspacesChanged();
     return r;
@@ -198,14 +200,14 @@ export const listWorkspaces = (): Promise<Workspace[]> => {
 };
 
 export const createWorkspace = (name: string) =>
-  announce(request<Workspace>("/api/v1/workspaces", { method: "POST", body: JSON.stringify({ name }) }));
+  announced(request<Workspace>("/api/v1/workspaces", { method: "POST", body: JSON.stringify({ name }) }));
 
 export const getWorkspace = (id: string) => request<Workspace>(`/api/v1/workspaces/${id}`);
 
 /** Delete a workspace. Owner only, and the exact name must be typed back.
  *  Shared documents are released to their owners, never deleted; its docs sites are deleted. */
 export const deleteWorkspace = (id: string, confirmName: string) =>
-  announce(request<{ documents_released: number; domains_removed: number; members_removed: number; docs_sites_deleted?: number }>(
+  announced(request<{ documents_released: number; domains_removed: number; members_removed: number; docs_sites_deleted?: number }>(
     `/api/v1/workspaces/${id}`,
     { method: "DELETE", body: JSON.stringify({ confirm_name: confirmName }) }
   ));
@@ -213,7 +215,7 @@ export const deleteWorkspace = (id: string, confirmName: string) =>
 export const updateWorkspace = (
   id: string,
   data: { name?: string; branding?: Branding; settings?: WorkspaceSettings }
-) => announce(request<Workspace>(`/api/v1/workspaces/${id}`, { method: "PUT", body: JSON.stringify(data) }));
+) => announced(request<Workspace>(`/api/v1/workspaces/${id}`, { method: "PUT", body: JSON.stringify(data) }));
 
 // ── Members ───────────────────────────────────────────────────────────────────
 
@@ -227,11 +229,11 @@ export const setMemberRole = (id: string, userId: string, role: Exclude<Role, "o
   });
 
 export const removeMember = (id: string, userId: string) =>
-  announce(request<void>(`/api/v1/workspaces/${id}/members/${userId}`, { method: "DELETE" }));
+  announced(request<void>(`/api/v1/workspaces/${id}/members/${userId}`, { method: "DELETE" }));
 
 /** Owner only: hand the workspace to an existing member. The old owner becomes an admin. */
 export const transferOwnership = (id: string, userId: string) =>
-  announce(request<{ workspace_id: string; owner_id: string }>(`/api/v1/workspaces/${id}/transfer`, {
+  announced(request<{ workspace_id: string; owner_id: string }>(`/api/v1/workspaces/${id}/transfer`, {
     method: "POST",
     body: JSON.stringify({ user_id: userId }),
   }));
@@ -276,19 +278,19 @@ export const listInvitations = (id: string) =>
   );
 
 export const inviteMember = (id: string, email: string, role: Exclude<Role, "owner">) =>
-  announce(request<Invitation>(`/api/v1/workspaces/${id}/invitations`, {
+  announced(request<Invitation>(`/api/v1/workspaces/${id}/invitations`, {
     method: "POST",
     body: JSON.stringify({ email, role }),
   }));
 
 export const revokeInvitation = (id: string, inviteId: string) =>
-  announce(request<void>(`/api/v1/workspaces/${id}/invitations/${inviteId}`, { method: "DELETE" }));
+  announced(request<void>(`/api/v1/workspaces/${id}/invitations/${inviteId}`, { method: "DELETE" }));
 
 export const previewInvite = (token: string) =>
   request<InvitePreview>(`/api/v1/invites/${encodeURIComponent(token)}`);
 
 export const acceptInvite = (token: string) =>
-  announce(request<{ workspace_id: string; workspace_name: string; role: Role }>(
+  announced(request<{ workspace_id: string; workspace_name: string; role: Role }>(
     `/api/v1/invites/${encodeURIComponent(token)}/accept`,
     { method: "POST" }
   ));

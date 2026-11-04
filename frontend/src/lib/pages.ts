@@ -8,6 +8,8 @@
  * Kept out of lib/api.ts: that module is loaded by every public document page.
  */
 import { API_BASE, getToken, type DocumentResponse } from "@/lib/api";
+import { announce } from "@/lib/navBus";
+import { readPageProps } from "@/components/pages/pageProps";
 
 /* ── errors ─────────────────────────────────────────────────────────────── */
 
@@ -155,11 +157,13 @@ export interface LockInfo {
 
 /* ── pages ──────────────────────────────────────────────────────────────── */
 
-/** Tell the navigation caches (lib/navStore) that pages changed: the rail's outline and sub-page
- *  lists refresh (an event, so this module doesn't import the store that imports it). */
-function changed<T>(p: Promise<T>, soft = false): Promise<T> {
+/** Tell the navigation caches (lib/navStore), here and in the person's other tabs (lib/navBus),
+ *  that pages changed: the rail's outline and sub-page lists refresh (an event, so this module
+ *  doesn't import the store that imports it). A save carries the page's title and icon instead,
+ *  so the caches patch that one row without a request. */
+function changed<T>(p: Promise<T>, saved?: { slug: string; title: string | null; icon: string | null }): Promise<T> {
   return p.then((r) => {
-    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("md:pages-change", { detail: { soft } }));
+    announce("md:pages-change", saved ? { soft: true, ...saved } : { soft: false });
     return r;
   });
 }
@@ -248,8 +252,8 @@ export function deletePage(slug: string, children?: "delete" | "lift", secret?: 
  * "locked", holder}` while someone else holds the edit lock.
  */
 export function savePage(slug: string, input: { title: string | null; content: string; baseRev: number | null }, secret?: string | null) {
-  // A save may rename the page or change its icon: "soft" only marks the caches stale (autosave
-  // runs often; nothing is fetched until a rail or tree mounts or the window regains focus).
+  // A save may rename the page or change its icon: the caches patch its row (autosave runs
+  // often; nothing is fetched, except for a new image icon, whose link only the API knows).
   return changed(call<PageDocument>(`/api/v1/documents/${enc(slug)}`, {
     method: "PUT",
     secret,
@@ -258,7 +262,7 @@ export function savePage(slug: string, input: { title: string | null; content: s
       content: input.content || "\n",
       ...(typeof input.baseRev === "number" && input.baseRev > 0 ? { base_rev: input.baseRev } : {}),
     }),
-  }), true);
+  }), { slug, title: input.title, icon: readPageProps(input.content).icon });
 }
 
 /** Take (or refresh) the edit lock: held 2 minutes, refreshed every 30 s. 423 when someone else has it. */
