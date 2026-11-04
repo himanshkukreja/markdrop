@@ -2833,4 +2833,9 @@ from app.mcp.slug_tools import SLUG_TOOLS  # noqa: E402
 
 TOOLS += SLUG_TOOLS
 
+# Sign-off blocks in pages (list_signoffs, sign_off): app/mcp/signoff_tools.py.
+from app.mcp.signoff_tools import SIGNOFF_TOOLS  # noqa: E402
+
+TOOLS += SIGNOFF_TOOLS
+
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

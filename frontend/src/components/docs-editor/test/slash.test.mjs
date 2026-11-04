@@ -19,7 +19,7 @@ test("a page's menu comes in sections, in the spec's order", () => {
     "Toggle heading 1", "Toggle heading 2", "Toggle heading 3", "Quote", "Divider", "Callout",
   ]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "media")), ["Image", "Video", "Audio", "File", "Bookmark", "Web embed"]);
-  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page"]);
+  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off"]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "advanced")), ["Table", "Columns", "Code", "Equation", "Mermaid diagram", "Table of contents", "Breadcrumb", "Button"]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "inline")), ["Mention a person", "Date", "Emoji"]);
   // An empty query is the sectioned list.

@@ -165,6 +165,14 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
           } else if (name === "indent") {
             takeLabel(node);
             set(node, "div", { dataPb: "indent", dataBid: anchorOf(node) });
+          } else if (name === "signoff") {
+            // A sign-off: the card (its state is resolved for the viewer, never read from here); the
+            // block's text stays inside it.
+            const label = takeLabel(node);
+            set(node, "div", {
+              dataPb: "signoff", dataBid: anchorOf(node), dataLabel: attr(node, "label") || label,
+              dataPerson: attr(node, "person"), dataOptions: attr(node, "options"), dataLock: attr(node, "lock") === "above" ? "above" : undefined,
+            });
           } else if (name === "button" && parent) {
             // A button inserts its blocks while editing; readers don't see it (as in Notion).
             parent.children!.splice(index, 1);
@@ -256,8 +264,31 @@ export function remarkPageBlocks(options: PageBlocksOptions = {}) {
         }
       }
     };
+    lockRanges(tree, anchorOf);
     visit(tree, null, 0);
   };
+}
+
+/**
+ * `lock=above` on a top-level sign-off: the blocks from the previous heading (or the page's start)
+ * down to it go in a `signoff-range` wrapper, which shows a quiet lock rail once it is signed.
+ */
+function lockRanges(tree: MdNode, anchorOf: (n: MdNode) => string | undefined) {
+  const kids = tree.children;
+  if (!kids?.length) return;
+  for (let i = 0; i < kids.length; i++) {
+    const n = kids[i];
+    if (n.type !== "containerDirective" || n.name !== "signoff" || attr(n, "lock") !== "above") continue;
+    const id = anchorOf(n);
+    if (!id) continue;
+    let start = i;
+    while (start > 0 && kids[start - 1].type !== "heading" && !(kids[start - 1].data?.hProperties as Record<string, unknown> | undefined)?.dataPb) start--;
+    if (start > 0 && kids[start - 1].type === "heading") start--;
+    if (start === i) continue;
+    const wrapped = kids.splice(start, i - start, { type: "signoffRange", children: [], data: { hName: "div", hProperties: { dataPb: "signoff-range", dataRef: id } } });
+    kids[start].children = wrapped;
+    i = start + 1;
+  }
 }
 
 /** A leaf directive's `[label]` (remark-directive keeps it as the leaf's children). */

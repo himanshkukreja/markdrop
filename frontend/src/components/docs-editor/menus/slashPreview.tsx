@@ -190,6 +190,13 @@ function sample(id: string): ReactNode {
       return <div className="dxe-pv__t dxe-pv__muted">Acme <span>/</span> Guides <span>/</span> <b>This page</b></div>;
     case "button":
       return <span className="dxe-pv__button"><Icon name="plus" size={12} /> Add a task</span>;
+    case "signoff":
+      return (
+        <div className="dxe-pv__t">
+          <b>Release approval</b>
+          <div><span className="dxe-pv__chip">✓ Approved</span> <span className="dxe-pv__chip">Not approved</span></div>
+        </div>
+      );
     case "person":
       return <div className="dxe-pv__t">Ask <span className="dxe-pv__chip">@Ada Owner</span> to review.</div>;
     case "date":

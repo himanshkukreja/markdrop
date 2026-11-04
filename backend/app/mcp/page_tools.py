@@ -117,20 +117,26 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
     lock (their editor inserts it live: the socket gets ``appended``)."""
     from datetime import datetime, timezone
 
+    from app.services import signoffs
+
     _check_embeds(block)
     for _ in range(5):
         cur = await ctx.db["documents"].find_one({"_id": raw["_id"]})
         if cur is None:
             raise ToolError("That page was deleted meanwhile.")
+        # Sign-off blocks added here get their ids now, so the open editor receives them with ids.
+        block = signoffs.normalize_ids(block, str(cur["_id"]), taken={
+            b.id for b in signoffs.blocks_of(cur.get("content")) if b.id}) or block
         try:
             await pages.check_page_lock(cur, actor_of(ctx), _actx(ctx), pages.appended(cur.get("content") or "", block))
+            content, removed = await signoffs.guard(ctx.db, cur, pages.appended(cur.get("content") or "", block),
+                                                    actor_of(ctx), _actx(ctx))
         except HTTPException as exc:
             raise ToolError(http_message(exc))
-        content = pages.appended(cur.get("content") or "", block)
         if len(content) > settings.max_content_chars:
             raise ToolError(f"Pages are limited to {settings.max_content_chars:,} characters.")
         rev = int(cur.get("rev") or 1)
-        q: dict = {"_id": cur["_id"]}
+        q: dict = {"_id": cur["_id"], **signoffs.cas(cur)}
         q["rev"] = rev if "rev" in cur else {"$exists": False}
         after = await ctx.db["documents"].find_one_and_update(
             q, {"$set": {"content": content, "updated_at": datetime.now(timezone.utc)}, "$inc": {"rev": 1}},
@@ -139,6 +145,7 @@ async def _append(ctx: Context, raw: dict, block: str) -> dict:
             from app.services import page_history
 
             await page_history.on_save(ctx.db, cur, after, actor_of(ctx))
+            await signoffs.after_write(ctx.db, cur, after, actor_of(ctx), removed)
             new_rev = int(after.get("rev") or 1)
             live.notify(after["slug"], {"type": "appended", "rev": new_rev, "markdown": block.strip("\n")})
             live.publish(after["slug"], new_rev)
@@ -194,6 +201,12 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         _check_embeds(content)
         content, left = await _people(ctx, {"editor": "blocks", "workspace_id": (
             parent_raw.get("workspace_id") if parent_raw else ws_id)}, content)
+        # Sign-off blocks written without an id get one (services/signoffs.py).
+        import secrets as _secrets
+
+        from app.services import signoffs
+
+        content = signoffs.normalize_ids(content, _secrets.token_hex(6)) or content
     if args.get("properties"):
         props = {k: v for k, v in args["properties"].items() if k in page_props.KEYS}
         if any(str(v or "").startswith("asset:") for v in props.values()):
@@ -866,7 +879,11 @@ PAGE_SYNTAX = (
     "'::embed{src=\"https://…\"}'. Person: ':person[Name]{id=\"<user id>\"}' (ids from "
     "list_workspace_members; ':person[Name]' alone is given the id when exactly one member of the page's "
     "workspace has that name, else it stays plain text); date: ':date[YYYY-MM-DD]'; "
-    "key: ':kbd[⌘ K]'. Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
+    "key: ':kbd[⌘ K]'. Sign-off (one named person approves): ':::signoff{#b-k3x9a1 person=\"<user id>\" "
+    "label=\"Release approval\" options=\"Approved for production|Not approved\" lock=above}' optional text "
+    "':::' (lock=above: once signed, the section from the previous heading down to it is read-only; the "
+    "decision is never written in the Markdown: list_signoffs reads it, sign_off makes it, and a signed block "
+    "can't be changed or deleted). Page properties go in front matter (icon, cover, cover_y, full_width, small_text, "
     "font, locked, allow_export): use set_page_properties."
 )
 _SYNTAX = PAGE_SYNTAX

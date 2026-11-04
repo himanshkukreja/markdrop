@@ -68,6 +68,8 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "restore_page_version", scope: "write" },
       { name: "export_page", scope: "read" },
       { name: "duplicate_page", scope: "write" },
+      { name: "list_signoffs", scope: "read" },
+      { name: "sign_off", scope: "write" },
     ],
   },
   { title: "Access", icon: "lock", tools: [{ name: "set_access", scope: "write" }] },

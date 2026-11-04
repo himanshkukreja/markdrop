@@ -8,8 +8,10 @@ front matter carries its icon and cover)::
 
 ``author_kind``: ``user`` (someone's saves in the editor), ``mcp`` (an AI app;
 ``client`` names it), ``restore`` (a restore, ``restored_from`` = the version
-it brought back) or ``system`` (a state written some other way — a template,
-a VS Code push — captured the first time history needs it).
+it brought back), ``system`` (a state written some other way — a template,
+a VS Code push — captured the first time history needs it) or ``signoff``
+(a sign-off given, changed, cleared or removed: services/signoffs.py; the
+page as it was then, ``event.text`` says what happened).
 
 When versions are made
 * **Saves** (``on_save``, from ``document.update_document``): one version per
@@ -154,7 +156,8 @@ def _author_name(actor) -> str | None:
 
 async def _insert(db: AsyncIOMotorDatabase, raw: dict, *, kind: str, author_id: str | None,
                   author_name: str | None, client: str | None = None, sealed: bool = True,
-                  restored_from: int | None = None, reason: str, ts: datetime | None = None) -> dict:
+                  restored_from: int | None = None, reason: str, ts: datetime | None = None,
+                  event: dict | None = None) -> dict:
     doc_id = str(raw["_id"])
     at = ts or now_utc()
     row: dict[str, Any] = {
@@ -162,6 +165,8 @@ async def _insert(db: AsyncIOMotorDatabase, raw: dict, *, kind: str, author_id: 
         "author_id": author_id, "author_kind": kind, "author_name": author_name, "client": client,
         "sealed": sealed, "restored_from": restored_from, "reason": reason, **_state(raw),
     }
+    if event:
+        row["event"] = event
     for _ in range(8):
         top = await latest(db, doc_id, {"n": 1})
         row["n"] = int((top or {}).get("n") or 0) + 1
@@ -259,6 +264,25 @@ async def on_release(db: AsyncIOMotorDatabase, raw: dict, actor) -> None:
         log.warning("version history: release snapshot failed", exc_info=True)
 
 
+async def record_event(db: AsyncIOMotorDatabase, raw: dict, actor, *, text: str, event: dict) -> None:
+    """Something that happened to the page without changing its text (a
+    sign-off, services/signoffs.py): an entry of its own (``author_kind``
+    ``signoff``, ``event.text`` is what the list shows), holding the page as it
+    is. Never fails the caller."""
+    if not records(raw):
+        return
+    try:
+        fresh = await db["documents"].find_one({"_id": raw["_id"]})
+        if fresh is None:
+            return
+        await capture(db, fresh, reason="before_event")
+        await _insert(db, fresh, kind="signoff", author_id=getattr(actor, "user_id", None),
+                      author_name=_author_name(actor), sealed=True, reason="signoff",
+                      event={**event, "text": text[:300]})
+    except Exception:
+        log.warning("version history: event failed", exc_info=True)
+
+
 async def forget_document(db: AsyncIOMotorDatabase, doc_id: str) -> None:
     await db[COLL].delete_many({"doc_id": doc_id})
 
@@ -286,6 +310,8 @@ def _author(row: dict, people: dict[str, dict]) -> dict:
         label = f"{row.get('client') or 'AI app'} via MCP"
     elif kind == "system":
         label = "Earlier version"
+    elif kind == "signoff":
+        label = (row.get("event") or {}).get("text") or "Sign-off"
     else:
         label = name or "Someone"
     return {"kind": kind, "id": row.get("author_id"), "name": name, "client": row.get("client"),
@@ -297,6 +323,8 @@ def view(row: dict, people: dict[str, dict], current_sha: str | None = None) -> 
         "n": int(row["n"]), "ts": iso(row.get("ts")), "author": _author(row, people),
         "title": row.get("title"), "icon": row.get("icon"), "bytes": int(row.get("bytes") or 0),
         "restored_from": row.get("restored_from"), "current": bool(current_sha) and row.get("sha") == current_sha,
+        **({"event": {k: v for k, v in row["event"].items() if k in ("type", "action", "block", "label", "option",
+                                                                     "was", "text")}} if row.get("event") else {}),
     }
 
 

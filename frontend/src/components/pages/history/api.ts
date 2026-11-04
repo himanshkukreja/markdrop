@@ -6,7 +6,7 @@ import { API_BASE, getToken, type DocumentResponse } from "@/lib/api";
 import { PagesApiError } from "@/lib/pages";
 import type { AssetUrl } from "@/lib/pages";
 
-export type AuthorKind = "user" | "mcp" | "restore" | "system";
+export type AuthorKind = "user" | "mcp" | "restore" | "system" | "signoff";
 
 export interface VersionAuthor {
   kind: AuthorKind;
@@ -29,6 +29,8 @@ export interface VersionSummary {
   restored_from: number | null;
   /** The newest version, and it matches the page now. */
   current: boolean;
+  /** A sign-off given, changed, cleared or removed (`author.label` says which): the page as it was then. */
+  event?: { type: "signoff"; action: "signed" | "changed" | "cleared" | "removed"; block?: string; label?: string; option?: string | null; was?: string | null; text?: string };
 }
 
 export interface VersionList {

@@ -109,3 +109,14 @@ Text that ends like attributes but escaped \{color="red"}
 Text with braces that are not attributes {like this}
 
 A literal :span[that is not a colour]{size=big} stays as written.
+
+## Sign-off
+
+The release notes above, approved.
+
+:::signoff{#b-rel0001 person="6650f0c2a1" label="Release approval" options="Approved for production|Not approved" lock=above}
+QA passed on staging. **Rollback** plan in the runbook.
+:::
+
+:::signoff{#b-rel0002 person="6650f0c2a1"}
+:::

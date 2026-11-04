@@ -42,6 +42,8 @@ import { pageEditorAi, suggestPageMeta, usePagesAiStatus, type PageMeta } from "
 import { MetaChip, type MetaState } from "./ai/MetaChip";
 import "./ai/pageAi.css";
 import { usePageAssets } from "./usePageEmbeds";
+import { usePageSignoffs } from "./signoff/store";
+import { SignoffSummary } from "./signoff/SignoffSummary";
 import { clearPageDraft, dropLegacyPageDraft, readPageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
 import "./pages.css";
 import "./page-blocks.css";
@@ -219,6 +221,8 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   }, [slug, userId, title, content, rev]);
 
   const assets = usePageAssets(slug, initialAssets, content);
+  // Sign-offs (components/pages/signoff): their state, the lock on signed blocks, the summary.
+  const signoffs = usePageSignoffs(slug, content, { viewer: userId, subscribeLive });
 
   useEffect(() => {
     if (!workspaceId) return;
@@ -277,6 +281,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       renderMention: (p) => <PageMention slug={p.slug} resolved={p.resolved as never} />,
       linkPreview: (u) => linkPreview(u),
       people: workspaceId ? (q) => searchPeople(workspaceId, q) : undefined,
+      signoffs,
       // Video, audio and other files: a Markdrop item beside the page (its workspace and folder),
       // embedded with ::markdrop (page assets are images only; DEVIATIONS "Frontend → backend").
       uploadFile: async (file, onProgress) => {
@@ -295,7 +300,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       pageTitle: title,
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
     }),
-    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath],
+    [slug, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs],
   );
 
   const setBody = useCallback(
@@ -539,9 +544,10 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           props={props}
           resolve={resolveAsset}
           below={
-            meta || chrome.below ? (
+            meta || chrome.below || signoffs?.all().length ? (
               <>
                 {meta && !readOnly && <MetaChip state={meta} hasIcon={!!props.icon} onUse={applyMeta} onDismiss={() => { metaSeq.current++; setMeta(null); }} />}
+                <SignoffSummary store={signoffs} />
                 {chrome.below}
               </>
             ) : undefined
