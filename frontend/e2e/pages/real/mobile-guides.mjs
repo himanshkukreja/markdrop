@@ -60,7 +60,7 @@ const roles = want("ROLES", ["owner", "member"]);
 const themes = want("THEMES", ["light", "dark"]);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const SHOOT = process.env.SHOTS !== "0";
-const OUT = path.join(WORK, "mobile-guides", BROWSER);
+const OUT = path.join(WORK, "mobile-guides", process.env.OUT_TAG || BROWSER);
 fs.mkdirSync(OUT, { recursive: true });
 
 const ROOT = path.resolve(here, "../../../..").split("/.claude/worktrees/")[0];
@@ -385,7 +385,7 @@ const STATES = [
   }],
   ["home-cardmenu", ["owner", "member"], () => `${G}/home`, (p) => p.getByRole("tabpanel").first(), async (p) => click(p, p.getByRole("button", { name: "More for Acme Docs" }))],
   ["home-preview", ["owner"], () => `${G}/home`, (p) => p.getByRole("tabpanel").first(), async (p) => {
-    await click(p, p.getByRole("link", { name: "Preview Acme Docs" }));
+    await click(p, p.getByRole("link", { name: "Preview API reference" }));
     await p.waitForURL(/preview=1|page=/, { timeout: 15000 });
     await p.waitForTimeout(2000);
   }],
@@ -393,7 +393,7 @@ const STATES = [
   ["members", ["owner", "member"], () => `${G}/members`, h1],
   ["new", ["owner"], () => `${G}/new`, h1],
   ["new-template", ["owner"], () => `${G}/new`, h1, async (p) => {
-    await click(p, p.getByRole("radio", { name: /From a template/ }).or(p.getByRole("button", { name: /From a template/ })));
+    await click(p, p.locator("label").filter({ hasText: "From a template" }));
     await p.waitForTimeout(600);
   }],
   ["new-scrolled", ["owner"], () => `${G}/new`, h1, async (p) => {
