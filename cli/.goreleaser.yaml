@@ -49,7 +49,7 @@ nfpms:
     vendor: markdrop
     homepage: https://markdrop.in
     maintainer: markdrop <hi@markdrop.in>
-    description: Peer-to-peer file sharing from the terminal via WebRTC.
+    description: Share files peer-to-peer, and publish files and pages on Markdrop, from the terminal.
     license: MIT
     formats:
       - deb    # Ubuntu, Debian, Raspberry Pi OS
@@ -83,7 +83,7 @@ brews:
       name: himanshkukreja
       email: hi@markdrop.in
     homepage: "https://markdrop.in"
-    description: "Peer-to-peer file sharing from the terminal via WebRTC"
+    description: "Share files peer-to-peer, and publish files and pages on Markdrop, from the terminal"
     license: "MIT"
     test: |
       system "#{bin}/markdrop --version"
