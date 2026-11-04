@@ -284,7 +284,8 @@ function measure({ checkTargets }) {
       const reach = (dx, dy) => {
         for (let s = 1; s <= 22; s++) {
           const x = cx + dx * s, y = cy + dy * s;
-          if (x < 0 || y < 0 || x >= vw || y >= vh) return 22;
+          // (elementFromPoint rounds: the last pixel row and column already count as off screen.)
+          if (x < 0 || y < 0 || x > vw - 1 || y > vh - 1) return 22;
           if (!owns(x, y)) return s - 1;
         }
         return 22;
