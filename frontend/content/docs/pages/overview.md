@@ -18,7 +18,9 @@ You need to be signed in.
 - **In a workspace or folder**: choose **New page**. Pick a [template](/pages/templates) or **Blank**, give it a title and choose **Create page**. The page is filed where you made it, and new items there start with the folder's access.
 - **From anywhere**: choose **Create**, then **Page**.
 - **Inside another page**: choose **Add a sub-page** at the bottom of the page or in its menu, or type `/page` in the editor. See [Sub-pages](/pages/sub-pages).
-- **From a document you already have**: open it, choose **More actions**, then **Open in block editor**. The Markdown doesn't change, and you can switch back to the classic editor from the page's **⋯** menu at any time. End-to-end encrypted documents keep the classic editor.
+- **From a document you already have**: open it, choose **More actions**, then **Open in block editor**. The Markdown doesn't change and the link stays the same. End-to-end encrypted documents keep the classic editor.
+
+Once it's a page, it stays a page: its menus don't switch it to another editor. To work on its Markdown directly, use **Edit as Markdown** (see [Edit the Markdown](#edit-the-markdown)).
 
 ## Write with blocks
 
@@ -60,12 +62,22 @@ The **⋯** menu in the top bar has:
 
 - The font: **Default**, **Serif** or **Mono**, then the **Small text**, **Full width** and **Readers can export** switches.
 - **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
-- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Change link…** (owners), **Edit as Markdown**, **Open in the classic editor** and **Delete page**.
+- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Change link…** (owners), **Edit as Markdown** and **Delete page**.
 - AI: **Summarize page**, **Find action items**, **Suggest title & icon** and **Translate…**. See [AI in pages](/pages/ai).
 - **Export…** (Markdown, HTML or PDF; see [Export a page](/pages/export)) and **Details** (published, views and who can open it).
 - The word count.
 
 These options are saved in the page's Markdown, so they travel with it. See [Page Markdown reference](/pages/markdown-reference).
+
+## Edit the Markdown
+
+**Edit as Markdown** in the **⋯** menu shows the page's Markdown source in place of its blocks, with its properties (icon, cover, layout) at the top. Your changes save as you type. A bar above the source says you're editing it; choose **Edit with blocks** there, or in the **⋯** menu, to see your changes as blocks again.
+
+The source view is only for now: it doesn't change the page. Reloading the page, or opening another one, shows blocks again, and the page stays a page for everyone.
+
+### A page that was switched to the classic editor
+
+Pages used to offer **Open in the classic editor**, which turned a page back into a classic Markdown document. If a page was switched that way, its owner and editors see **This page is open in the classic editor** above it, with **Switch back to the page editor** (it's also in **More actions**, here and on your workspace's own domain). Switching back keeps the Markdown, the link, the sub-pages and the properties, so the icon and cover come back. AI apps can still choose the editor with `publish_document`'s `editor` option.
 
 ## Change a page's link
 
