@@ -20,7 +20,9 @@
  * and the findings to findings-<browser>.json there. Exit code 1 when anything is flagged (a regression).
  *
  *   PB_STACK_ID=34 BROWSER=chromium|webkit [DEVICES=phone-360,ipad-air] [ROLES=owner,member]
- *     [THEMES=light,dark] [ONLY=files,palette,…] [NO_RESEED=1] [SHOTS=0] node mobile-shell.mjs
+ *     [THEMES=light,dark] [ONLY=files,palette,…] [NO_RESEED=1] [SHOTS=0] [TAG=phones] node mobile-shell.mjs
+ *
+ * Two processes at once (one seeds, the other waits for it with NO_RESEED=1) split the devices.
  *
  * Dark runs the phones and one tablet (the colours, not the layout, change); light runs every device.
  */
@@ -51,6 +53,8 @@ const themes = want("THEMES", ["light", "dark"]);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const SHOOT = process.env.SHOTS !== "0";
 const OUT = path.join(WORK, "mobile-shell", BROWSER);
+// TAG=… names this run's findings files (findings-<browser><tag>.*), for runs split across processes.
+const TAG = process.env.TAG ? `-${process.env.TAG}` : "";
 fs.mkdirSync(OUT, { recursive: true });
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../..").split("/.claude/worktrees/")[0];
@@ -343,6 +347,8 @@ function measure({ checkTargets }) {
       const s = getComputedStyle(a);
       if (Number(s.opacity) === 0 && s.display !== "none") { hidden = true; break; }
     }
+    // A transparent native input laid over its own visible face (a colour swatch, a file button) is not hover-only.
+    if (hidden && el.matches("input") && Number(cs.opacity) === 0 && el.parentElement && Number(getComputedStyle(el.parentElement).opacity) > 0) hidden = false;
     if (hidden && cs.visibility !== "hidden" && !el.closest("[aria-hidden=true]")) {
       // Opacity 0 but in the layout and clickable: a hover-only affordance.
       if (cs.pointerEvents !== "none") push("hover", el, "opacity 0 until hover/focus");
@@ -551,6 +557,7 @@ for (const theme of themes) {
             await p.screenshot({ path: path.join(dir, `${role}-${name}.png`) });
           }
           log(`${key}: ${res.length ? res.map((f) => f.rule).join(",") : "ok"}`);
+          for (const f of res) log(`    ${f.rule} ${f.who} — ${f.detail}`);
         } catch (e) {
           findings.push({ browser: BROWSER, theme, device: dev.name, role, state: name, rule: "error", who: "-", detail: e.message.split("\n")[0].slice(0, 200) });
           log(`${key}: ERROR ${e.message.split("\n")[0].slice(0, 200)}`);
@@ -591,7 +598,7 @@ await browser.close();
 
 /* ── Report ───────────────────────────────────────────────────────────── */
 
-fs.writeFileSync(path.join(OUT, `findings-${BROWSER}.json`), JSON.stringify(findings, null, 1));
+fs.writeFileSync(path.join(OUT, `findings-${BROWSER}${TAG}.json`), JSON.stringify(findings, null, 1));
 // Group by rule + state + element, listing the devices.
 const groups = new Map();
 for (const f of findings) {
@@ -604,8 +611,8 @@ for (const f of findings) {
 const lines = [...groups.values()]
   .sort((a, b) => a.rule.localeCompare(b.rule) || a.state.localeCompare(b.state))
   .map((g) => `${g.rule.padEnd(9)} ${g.state.padEnd(20)} ${g.who}  — ${[...g.details].slice(0, 2).join(" | ")}  [${g.where.size}: ${[...g.where].slice(0, 4).join(" ")}${g.where.size > 4 ? " …" : ""}]`);
-fs.writeFileSync(path.join(OUT, `findings-${BROWSER}.txt`), lines.join("\n") + "\n");
-console.log(`\n${states} states, ${findings.length} findings in ${groups.size} groups (${OUT}/findings-${BROWSER}.txt)`);
+fs.writeFileSync(path.join(OUT, `findings-${BROWSER}${TAG}.txt`), lines.join("\n") + "\n");
+console.log(`\n${states} states, ${findings.length} findings in ${groups.size} groups (${OUT}/findings-${BROWSER}${TAG}.txt)`);
 const byRule = {};
 for (const f of findings) byRule[f.rule] = (byRule[f.rule] ?? 0) + 1;
 console.log(byRule);

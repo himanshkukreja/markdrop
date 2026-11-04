@@ -35,7 +35,8 @@
   }
   .md-btn--link { min-height: 44px; }
   /* Small text links and text buttons (Read more, How sharing works, Back to …): the same hit area. */
-  .md-hit::after {
+  .md-crumbs a { position: relative; }
+  .md-hit::after, .md-crumbs a::after {
     content: "";
     position: absolute;
     top: min(0px, calc((100% - 44px) / 2));
@@ -57,7 +58,7 @@
   .md-menu__item { min-height: 44px; }
   .md-menu__item--rich { min-height: 52px; }
   .md-tab { min-height: 44px; }
-  .md-seg__opt, .md-seg--sm .md-seg__opt { height: auto; min-height: 44px; }
+  .md-seg__opt, .md-seg--sm .md-seg__opt { height: auto; min-height: 44px; min-width: 44px; }
   .md-seg--icons .md-seg__opt, .md-seg--sm.md-seg--icons .md-seg__opt { min-width: 44px; }
 
   /* ── Checkboxes, radios, switches: the label row is the target ─────── */
