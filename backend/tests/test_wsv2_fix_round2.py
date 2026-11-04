@@ -897,7 +897,8 @@ class CN7CollisionsRevealNothing(AccessWorld):
         g = await folder_service.create_folder(self.db, W, "Guides", None)
         x = await folder_service.create_folder(self.db, W, "X", None)
         hidden = await self.mkdoc("P", slug="guides", folder_id=x.id, folder_path=["x"], grants=False)
-        r = await self.http.delete(f"/api/v1/workspaces/{W}/folders/{x.id}", headers=self.session("wa"))
+        r = await self.http.delete(f"/api/v1/workspaces/{W}/folders/{x.id}", params={"mode": "unfile"},
+                                   headers=self.session("wa"))
         self.assertEqual(r.status_code, 200, r.text)
         self.assertNotIn("guides", r.text)
         row = await self.doc(hidden["slug"])
@@ -912,7 +913,8 @@ class CN7CollisionsRevealNothing(AccessWorld):
         await folder_service.create_folder(self.db, W, "Guides", None)
         x = await folder_service.create_folder(self.db, W, "X", None)
         await self.mkdoc("W", slug="guides", folder_id=x.id, folder_path=["x"], grants=False)
-        r = await self.http.delete(f"/api/v1/workspaces/{W}/folders/{x.id}", headers=self.session("wa"))
+        r = await self.http.delete(f"/api/v1/workspaces/{W}/folders/{x.id}", params={"mode": "unfile"},
+                                   headers=self.session("wa"))
         self.assertEqual(r.status_code, 409, r.text)
         self.assertIn("guides", r.text)
 

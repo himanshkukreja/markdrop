@@ -135,7 +135,9 @@ class Listings(AccessWorld):
         f = await folder_service.create_folder(self.db, self.ws["W1"], "Docs", None)
         for state, owner in (("W", "owner"), ("W", "owner"), ("P", "wm")):
             await self.mkdoc(state, owner=owner, folder_id=f.id, grants=False)
-        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/folders/{f.id}", headers=self.session("wa"))
+        # mode=unfile: the folder alone goes (the default sends it and its items to the trash).
+        r = await self.http.delete(f"/api/v1/workspaces/{self.ws['W1']}/folders/{f.id}", params={"mode": "unfile"},
+                                   headers=self.session("wa"))
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["unfiled_documents"], 2)
 

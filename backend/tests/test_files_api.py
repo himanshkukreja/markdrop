@@ -656,6 +656,12 @@ class Replace(FilesTestCase):
         self.r2.put_bytes(f"art/{self.user_id}/p.poster.jpg", b"\xff\xd8", "image/jpeg")
         r = await self.http.delete(f"/api/v1/documents/{self.slug}", headers=self.auth)
         self.assertEqual(r.status_code, 204, r.text)
+        # In the trash every version is kept; deleted forever, they all go.
+        self.assertEqual(await self.db["file_versions"].count_documents({}), 3)
+        for k in keys:
+            self.assertIn(k, self.r2.objects)
+        r = await self.http.delete(f"/api/v1/trash/{self.slug}", headers=self.auth)
+        self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(await self.db["file_versions"].count_documents({}), 0)
         for k in keys | {f"art/{self.user_id}/p.poster.jpg"}:
             self.assertNotIn(k, self.r2.objects)

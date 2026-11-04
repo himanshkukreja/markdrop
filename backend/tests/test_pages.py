@@ -900,6 +900,11 @@ class Assets(PageWorld):
         self.assertEqual(used, info["size"])
         r = await self.http.delete(f"/api/v1/documents/{page['slug']}", headers=self.session("owner"))
         self.assertEqual(r.status_code, 204)
+        # In the trash: the image is kept, closed, and still counts.
+        self.assertFalse(self.obj(f"pa/{page['_id']}/{info['id']}.png")["public"])
+        self.assertEqual(await art_service.user_usage_bytes(self.db, self.uid["owner"]), info["size"])
+        r = await self.http.delete(f"/api/v1/trash/{page['slug']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
         self.assertIsNone(self.obj(f"pa/{page['_id']}/{info['id']}.png"))
         self.assertEqual(await self.db["page_assets"].count_documents({}), 0)
 
@@ -1348,7 +1353,11 @@ class Backlinks(PageWorld):
                             json={"title": "t", "content": f':markdrop[x]{{src="{target["slug"]}"}}'},
                             headers=self.session("owner"))
         await self.http.delete(f"/api/v1/documents/{page['slug']}", headers=self.session("owner"))
-        self.assertEqual((await self.http.get(url)).json(), [])
+        self.assertEqual((await self.http.get(url)).json(), [])  # in the trash: not a backlink
+        await self.http.post(f"/api/v1/trash/{page['slug']}/restore", headers=self.session("owner"))
+        self.assertEqual([b["slug"] for b in (await self.http.get(url)).json()], [page["slug"]])
+        await self.http.delete(f"/api/v1/documents/{page['slug']}", headers=self.session("owner"))
+        await self.http.delete(f"/api/v1/trash/{page['slug']}", headers=self.session("owner"))
         self.assertEqual(await self.db["page_links"].count_documents({}), 0)
 
     async def test_backlinks_of_unreadable_target(self):

@@ -943,9 +943,14 @@ class ReviewRound1(World):
         presence.touch(str(gone["_id"]), "x", pos=None, country=None, device=None, kind="doc")
         r = await self.http.delete(f"/api/v1/documents/{gone['slug']}", headers=self.session("owner"))
         self.assertEqual(r.status_code, 204)
-        self.assertEqual(await self.db["engage_sessions"].count_documents({"doc_id": str(gone["_id"])}), 0)
+        # In the trash: nobody shown as live, nothing pending; its sessions wait for a restore …
         self.assertEqual(presence.count(str(gone["_id"])), 0)
         self.assertFalse([k for k in engage._pending if k[0] == str(gone["_id"])])
+        self.assertEqual(await self.db["engage_sessions"].count_documents({"doc_id": str(gone["_id"])}), 2)
+        # … and go when it's deleted forever.
+        r = await self.http.delete(f"/api/v1/trash/{gone['slug']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(await self.db["engage_sessions"].count_documents({"doc_id": str(gone["_id"])}), 0)
         # Rows another path left behind still don't count.
         await self.seed(gone, 2, depth=10)
         out = (await self.http.get("/api/v1/me/analytics", headers=self.session("owner"))).json()

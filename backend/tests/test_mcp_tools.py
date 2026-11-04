@@ -147,6 +147,8 @@ class Tools(McpTestCase):
             self.assertFalse(stored[raw["blob_key"]]["public"])
 
             self.ok(await self.tool("delete_document", document=out["slug"]))
+            self.assertFalse(stored[raw["blob_key"]]["public"])  # in the trash: kept, closed
+            self.ok(await self.tool("delete_document", document=out["slug"], permanent=True))
             self.assertNotIn(raw["blob_key"], stored)
         finally:
             for p in patches:
@@ -314,7 +316,8 @@ class Tools(McpTestCase):
     async def test_delete_document(self):
         pub = self.ok(await self.tool("publish_document", markdown="bye"))
         out = self.ok(await self.tool("delete_document", document=pub["slug"]))
-        self.assertEqual(out, {"deleted": True, "slug": pub["slug"], "lifted_items": [],
+        self.assertTrue(out.pop("restore_until").endswith("Z"))  # the trash (tests/test_trash.py)
+        self.assertEqual(out, {"deleted": True, "trashed": True, "slug": pub["slug"], "lifted_items": [],
                                "deleted_items": [{"slug": pub["slug"], "title": pub["title"], "kind": "document"}]})
         self.assertIsNone(await self.db["documents"].find_one({"slug": pub["slug"]}))
         await self.seed("theirs-4", owner=self.other_id)
@@ -487,8 +490,13 @@ class Tools(McpTestCase):
         self.err(await self.tool("get_document", document="nope-nope"))
         rows = await self.db["mcp_events"].find({}, {"_id": 0}).to_list(10)
         self.assertEqual([(r["tool"], r["ok"]) for r in rows], [("publish_document", True), ("get_document", False)])
+        # A write tool's row also says what it acted on and what came of it (the slug), a read's
+        # doesn't; neither ever holds content.
+        self.assertEqual(set(rows[0]), {"user_id", "client_id", "tool", "ok", "ms", "ts", "target", "result"})
+        self.assertEqual(rows[0]["result"], {"slug": pub["slug"]})
+        self.assertEqual(set(rows[1]), {"user_id", "client_id", "tool", "ok", "ms", "ts"})
+        self.assertNotIn("secret", json.dumps(rows, default=str).lower())
         for r in rows:
-            self.assertEqual(set(r), {"user_id", "client_id", "tool", "ok", "ms", "ts"})
             self.assertEqual(r["user_id"], self.user_id)
         events = await self.db["traffic_events"].find({"name": "mcp_tool"}, {"_id": 0}).to_list(10)
         self.assertEqual(len(events), 2)

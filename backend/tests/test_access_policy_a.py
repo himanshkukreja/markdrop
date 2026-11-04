@@ -365,6 +365,10 @@ class Grants(AccessWorld):
         d = await self.mkdoc("P", ws=None)
         r = await self.http.delete(f"/api/v1/documents/{d['slug']}", headers=self.session("owner"))
         self.assertEqual(r.status_code, 204)
+        # In the trash its grants wait with it (tests/test_trash.py); deleted forever, they go.
+        self.assertEqual(await self.db["document_grants"].count_documents({"document_id": str(d["_id"])}), 2)
+        r = await self.http.delete(f"/api/v1/trash/{d['slug']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(await self.db["document_grants"].count_documents({"document_id": str(d["_id"])}), 0)
 
 
@@ -453,6 +457,10 @@ class Writes(AccessWorld):
                                                    "user_id": self.uid["owner"], "size_bytes": 1})
         r = await self.http.delete(f"/api/v1/documents/{d['slug']}", headers=self.session("owner"))
         self.assertEqual(r.status_code, 204)
+        for k in (d["blob_key"], poster):  # in the trash: kept, closed
+            self.assertFalse(self.r2.objects[k]["public"], k)
+        r = await self.http.delete(f"/api/v1/trash/{d['slug']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
         for k in (d["blob_key"], poster, old):
             self.assertNotIn(k, self.r2.objects)
         self.assertEqual(await self.db["file_versions"].count_documents({"doc_id": str(d["_id"])}), 0)
@@ -463,6 +471,9 @@ class Writes(AccessWorld):
     async def test_c057_tombstoned_slug_owner_only(self):
         d = await self.mkdoc("L", ws=None, slug="keep-mine")
         await self.http.delete(f"/api/v1/documents/{d['slug']}", headers=self.session("owner"))
+        # In the trash the slug is held for everyone (tests/test_trash.py); deleted forever, the
+        # tombstone holds it for its owner only.
+        await self.http.delete(f"/api/v1/trash/{d['slug']}", headers=self.session("owner"))
         r = await self.http.post("/api/v1/documents", json={"content": "x", "custom_slug": "keep-mine"},
                                  headers=self.session("stranger"))
         self.assertEqual(r.status_code, 409)

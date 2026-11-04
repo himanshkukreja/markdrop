@@ -1145,7 +1145,13 @@ async def add_grant(db: AsyncIOMotorDatabase, raw_doc: dict, email: str, role: G
         result = {**row, "_id": res.inserted_id}
     # Race with a delete (§3.8): a grant must never outlive its document.
     if not await db["documents"].find_one({"_id": raw_doc["_id"]}, {"_id": 1}):
-        await db["document_grants"].delete_many({"document_id": document_id})
+        if await db["trash"].find_one({"_id": raw_doc["_id"]}, {"_id": 1}):
+            # Moved to the trash meanwhile (services/trash.py): its own grants
+            # wait there with it; only a new one goes.
+            if existing is None:
+                await db["document_grants"].delete_one({"_id": result["_id"]})
+        else:
+            await db["document_grants"].delete_many({"document_id": document_id})
         raise HTTPException(status_code=404, detail="Document not found")
     # Race with the granter losing the authority it rests on (C7, C-N4): read
     # back what the new grant gives *after* it was written. Worthless ⇒ gone.
