@@ -109,6 +109,12 @@ export function usePhone(): boolean {
   return useMediaQuery(PHONE_QUERY);
 }
 
+/** A touch screen (phones and tablets, no mouse or trackpad): the editor's bottom toolbar rides the keyboard. */
+export const TOUCH_QUERY = "(hover: none) and (pointer: coarse)";
+export function useTouch(): boolean {
+  return useMediaQuery(TOUCH_QUERY);
+}
+
 /**
  * Breadcrumbs: the workspace and folders (members), every readable ancestor, then this page. More
  * than three before this page fold the middle into "…" (a menu); on phones it's "… / this page".

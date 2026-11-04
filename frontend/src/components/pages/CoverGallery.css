@@ -47,3 +47,9 @@
   .pb-covergal__thumb, .pb-covergal__thumb img { transition: none; }
   .pb-covergal__item:hover .pb-covergal__thumb img { transform: none; }
 }
+
+/* A finger (fix/mobile-content): the tabs and "Pick for me" are 44 px tall. */
+@media (pointer: coarse) {
+  .pb-covergal__tab, .pb-covergal__auto { height: 44px; font-size: 14px; }
+  .pb-covergal__tab--on::after { bottom: -7px; }
+}

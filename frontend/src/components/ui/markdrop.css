@@ -242,7 +242,7 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-tab__count { font-size: 11px; line-height: 16px; padding: 0 6px; border-radius: var(--radius-full); background: var(--surface-active); color: var(--text-secondary); }
 
 /* ── Overlays: Dialog / Drawer ──────────────────────────────────────────── */
-.md-scrim { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay); backdrop-filter: blur(4px); display: grid; place-items: center; padding: var(--space-4); animation: md-fade var(--duration-dialog) var(--ease-out); }
+.md-scrim { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay); backdrop-filter: blur(4px); display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; padding: var(--space-4); animation: md-fade var(--duration-dialog) var(--ease-out); }
 .md-scrim--closing { animation: md-fade-out var(--duration-exit) var(--ease-out) forwards; pointer-events: none; }
 .md-dialog { width: 100%; max-width: 448px; max-height: calc(100dvh - 32px); display: flex; flex-direction: column; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-xl); box-shadow: var(--shadow-xl); animation: md-pop var(--duration-dialog) var(--ease-out); }
 .md-dialog:focus { outline: none; }

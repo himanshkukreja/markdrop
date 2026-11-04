@@ -342,7 +342,10 @@ button.pb-mention--date { cursor: pointer; }
 
 /* ── The head: a full-width cover, the icon and the title in the column ── */
 .pb-head { position: relative; }
-.pb-cover-img { position: relative; height: clamp(150px, 30vh, 280px); background-position: center; background-size: cover; background-repeat: no-repeat; }
+/* The cover keeps the gallery art's proportions (1500 × 480) up to 280 px tall, so a narrower paper (a
+   tablet in portrait, a phone) shows the whole cover smaller instead of a cropped middle of it; never
+   more than 30 % of a short screen (a phone turned sideways), never under 120 px. */
+.pb-cover-img { position: relative; width: 100%; height: auto; aspect-ratio: 1500 / 480; min-height: 120px; max-height: clamp(120px, 30vh, 280px); background-position: center; background-size: cover; background-repeat: no-repeat; }
 .pb-cover-img__img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; pointer-events: none; will-change: object-position; }
 /* Auto covers: the cover's place while one is picked, and the cover fading in when it lands. */
 .pb-cover-img--pending { overflow: hidden; background: var(--surface-raised); }
@@ -517,12 +520,12 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-crumb--narrow { display: flex; }
   .pb-crumb__link { max-width: 120px; height: 44px; }
   .pb-crumb__more { min-width: 40px; }
-  .pb-save { margin: 0 2px; font-size: 11px; }
+  .pb-save { margin: 0 2px; font-size: 12px; }
   .pb-head__body { padding-top: 28px; }
   .pb-head--cover .pb-head__icon { margin-top: -44px; }
   .pb-head__iconbtn { width: 72px; height: 72px; }
   .pb-title { font-size: 32px; }
-  .pb-cover-img { height: 180px; }
+  .pb-cover-img { min-height: 150px; }
   /* The page's own toolbar replaces the editor's touch bar on phones. */
   .pb-frame .dxe-touchbar { display: none !important; }
 }
@@ -543,3 +546,80 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 /* Callout text on one size for the reader and the editor. */
 .pb-frame :is(.pb-callout, .dxe-callout) :is(p, li) { font-size: 15px; line-height: 24px; }
 .pb-save__l--solo { animation: pb-fade 180ms var(--ease-out); }
+
+/* ── The template gallery on small and touch screens (fix/mobile-content) ──────────────────────
+   The preview never widens the dialog (a template's table would push it past a phone's edge); a
+   phone lists the templates in one column, icon beside the name; a double tap never zooms. */
+.pb-template-preview { contain: inline-size; }
+.pb-templates:focus { outline: none; }
+.pb-template { touch-action: manipulation; }
+@media (max-width: 479px) {
+  .pb-templates { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .pb-template { display: grid; grid-template-columns: 32px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; align-items: start; padding: 12px 14px; }
+  .pb-template__icon { grid-row: span 2; }
+  .pb-template-preview { max-height: 40dvh; }
+}
+
+/* ── Touch screens: phones and tablets (fix/mobile-content) ─────────────────────────────────────
+   No hover: what waits for it on a desktop is simply there (the cover's tools, Add icon / Add cover,
+   an embed's Show as / Replace / Remove). A coarse pointer: every control in the page's bar, head
+   and body is at least 44 × 44 to the finger (compact ones keep their look and get a larger hit
+   area), and nothing reads under 12 px. Mouse and trackpad layouts don't change. */
+@media (hover: none) {
+  .pb-cover-img__tools { opacity: 1; transform: none; }
+  .pb-head--edit .pb-head__add { opacity: 1; transform: none; }
+  .dxe-pembed__tools { opacity: 1; }
+  /* The bar's buttons and the editor's handle wait for no hover either: the touch toolbar and a long
+     press give a block its menu, so the desktop's hover handle (and the caret's "+") stay away. */
+  .pb-frame .dxe-handle:not(.dxe-handle--touch) { display: none; }
+  .pb-frame .dxe-touchbar { display: none !important; }
+}
+@media (pointer: coarse) {
+  /* The bar (48 px): its buttons, crumbs, logo and avatar fill its height. */
+  .pb-bar .pb-bar__btn { height: 44px; }
+  .pb-bar .pb-bar__btn.md-iconbtn { width: 44px; }
+  .pb-bar .pb-bar__signin { height: 44px; }
+  .pb-bar__auth > button, .pb-bar__auth .md-dropdown > button { width: 44px; height: 44px; }
+  .pb-bar__create .md-create { width: 44px; height: 44px; }
+  .pb-bar__brand .md-logo { min-width: 44px; min-height: 44px; justify-content: center; }
+  .pb-crumb__link { height: 44px; }
+  .pb-crumb__more { min-width: 44px; }
+  .pb-save { font-size: 12px; }
+
+  /* The head: the cover's tools, Add icon / Add cover, the pickers. */
+  .pb-headbtn { position: relative; height: 36px; padding: 0 12px; font-size: 14px; }
+  .pb-headbtn::after { content: ""; position: absolute; inset: -4px 0; }
+  .pb-head__add { height: 44px; }
+  .pb-head__add .pb-headbtn { height: 44px; }
+  .pb-head__add .pb-headbtn::after { content: none; }
+  .pb-emojipick__cell { width: 44px; height: 44px; }
+  .pb-emojipick__group { font-size: 12px; }
+  .pb-emojipick__upload { height: 44px; }
+  .pb-emojipick .md-input { font-size: 16px; min-height: 44px; }
+
+  /* The body: helpers, sub-pages, embeds, links, the menu's tiles. */
+  .pb-empty__chip { height: 44px; padding: 0 14px; }
+  .pb-children__item { min-height: 44px; }
+  .pb-embed__open { min-height: 44px; padding: 0 6px; }
+  .pb-fonts__name { font-size: 12px; }
+  .pb-meta { font-size: 12px; }
+
+  /* The editor's own controls inside a block: callout type, toggle arrow, labels and captions. */
+  .pb-frame .dxe-callout__kindbtn { min-width: 44px; min-height: 44px; margin: -14px; }
+  .pb-frame .dxe-details__toggle { padding: 12px; margin: -10px; }
+  .pb-frame :is(.dxe-label, .dxe-code__title, .dxe-code__lang, .dxe-codecap, .pb-date-input) { font-size: 16px; }
+  .pb-frame .dxe-handle--touch .dxe-handle__btn { width: 44px; height: 44px; }
+  .pb-frame :is(.md-diagram__kind, .md-codeblock__lang, .md-table th) { font-size: 12px; }
+
+  /* Who's viewing and the page's properties. */
+  .pp-row { min-height: 44px; }
+  .pp-row__label { height: 44px; }
+  .pp-row__value { min-height: 44px; }
+  .pp-add { height: 44px; }
+}
+/* Tablets: the bottom toolbar (format, blocks, undo; on the keyboard) as a centred bar, and the
+   sheets it opens at a readable width, not stretched edge to edge. */
+@media (min-width: 640px) {
+  .pb-phonebar { left: 50%; right: auto; width: min(640px, calc(100vw - 32px)); margin-left: max(-320px, calc(16px - 50vw)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-xl); box-shadow: 0 8px 24px rgb(0 0 0 / 0.16); }
+  .pb-sheet { left: 0; right: 0; width: min(560px, 100%); margin-inline: auto; }
+}

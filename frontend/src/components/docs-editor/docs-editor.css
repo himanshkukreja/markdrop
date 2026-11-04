@@ -608,6 +608,18 @@ body.dxe-sidedrop .dxe-dropline { opacity: 0; }
 .dxe-visual .dxe-figure__handle::before { transition: transform 120ms var(--dxe-ease), background-color 120ms ease; }
 .dxe-visual .dxe-figure__handle:hover::before, .dxe-visual .dxe-figure__box[data-resizing] .dxe-figure__handle::before { transform: scaleY(1.12); background: var(--accent); }
 
+/* ── a finger (pointer: coarse: phones and tablets) ───────────────────────────
+   The editor's floating bars (format, table) and menus at 44 px targets; the "/" menu's group
+   headings at 12 px and no keyboard hints (there's no keyboard to type them on, or it's on screen). */
+@media (pointer: coarse) {
+  .dxe-tb { max-width: calc(100vw - 16px); flex-wrap: wrap; }
+  .dxe-tb__btn { min-width: 44px; height: 44px; }
+  .dxe-tablebar .md-btn, .dxe-tablebar .dxe-tb__btn { min-width: 44px; min-height: 44px; }
+  .dxe-slash__head { font-size: 12px; line-height: 16px; }
+  .dxe-slash__kbd { display: none; }
+  .dxe-selbar__btn { height: 44px; }
+}
+
 /* ── phones: the block menu is a bottom sheet ─────────────────────────────── */
 @keyframes dxe-sheet-in { from { transform: translateY(24px); opacity: 0; } }
 @media (max-width: 640px) and (pointer: coarse) {

@@ -5,7 +5,7 @@
  * editor. Used by the workspace and folder views ("New page"), a page ("Add a sub-page"), the
  * dashboard's Create menu (/pages/new) and the page editor.
  */
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Dialog, Icon, Input, SegmentedControl, Skeleton } from "@/components/ui";
 import { createPage, listPageTemplates, type CreatedPage, type PageTemplate } from "@/lib/pages";
@@ -62,6 +62,10 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const titleId = useId();
+  // Touch screens: open on the templates, not in the title, so the keyboard doesn't cover the gallery
+  // the moment it opens (a tap on the title brings it up).
+  const [touch] = useState(() => typeof window !== "undefined" && !!window.matchMedia?.("(hover: none) and (pointer: coarse)").matches);
+  const gridRef = useRef<HTMLDivElement>(null);
   // "Start from notes" (AI): offered when this person may use AI for a page here.
   const ai = usePagesAiStatus({ workspace: workspace ?? null }, !open);
   const notesOn = !!ai?.enabled && ai.can_write !== false;
@@ -119,6 +123,8 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
       onClose={() => !busy && onClose()}
       dismissible={!busy}
       size="xl"
+      className="pb-tg"
+      initialFocus={touch ? gridRef : undefined}
       title={parent ? "New sub-page" : <span className="inline-flex items-center gap-2">New page <Badge tone="info" size="sm" upper>Beta</Badge></span>}
       description={
         parent ? (
@@ -145,7 +151,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           <label htmlFor={titleId} className="text-caption-strong text-text">
             Title
           </label>
-          <Input id={titleId} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={current.id === "blank" ? "Untitled" : current.name} autoFocus className="ph-mask" maxLength={200} />
+          <Input id={titleId} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={current.id === "blank" ? "Untitled" : current.name} autoFocus={!touch} className="ph-mask" maxLength={200} />
         </div>
         {error && <Alert tone="danger">{error}</Alert>}
         {notesOn && (
@@ -173,7 +179,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
             <Alert tone="warning">{loadError} You can still start from a blank page.</Alert>
           ) : null}
           <YourTemplates open={open} workspace={workspace ?? templatesWorkspace} folder={workspace ? folder : null} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={(t) => void create(undefined, t)} />
-          <div className="pb-templates" role="group" aria-labelledby={`${titleId}-t`}>
+          <div ref={gridRef} tabIndex={-1} className="pb-templates" role="group" aria-labelledby={`${titleId}-t`}>
             {!templates && !loadError
               ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={96} />)
               : all.map((t) => (

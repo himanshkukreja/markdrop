@@ -58,6 +58,7 @@ const themes = want("THEMES", ["light", "dark"]);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
 const SKIP = process.env.SKIP ? new Set(process.env.SKIP.split(",")) : null;
 const SHOOT = process.env.SHOTS !== "0";
+const SHARED = process.env.SHARED_CSS ? fs.readFileSync(process.env.SHARED_CSS, "utf8") : null;
 const OUT = path.join(WORK, "mobile-content", BROWSER);
 fs.mkdirSync(OUT, { recursive: true });
 const FIX = process.env.PB_FIXTURES || path.join(path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../.."), "scripts/docs-media/.data/fixtures");
@@ -126,9 +127,10 @@ async function seedContent(S) {
   const sub = ok(await api("POST", "/api/v1/pages", T.owner, { title: "Rollout checklist", parent: mainSlug, auto_cover: false }), "sub-page");
   const files = { image: "team-photo", pdf: "q3-report", html: "pricing-calc", video: slug(video), sheet: slug(sheet) };
   const body = richBody({ photo: files.image, pdf: files.pdf, html: files.html, sub: sub.document.slug });
-  ok(await api("PUT", `/api/v1/documents/${mainSlug}`, T.owner, { content: body }), "page body");
+  ok(await api("PUT", `/api/v1/documents/${mainSlug}`, T.owner, { title: "Field guide", content: body }), "page body");
   const open = ok(await api("POST", "/api/v1/pages", T.owner, { title: "Open house notes", workspace: S.ws, folder: S.folder, access_level: "link", auto_cover: false }), "open page");
-  ok(await api("PUT", `/api/v1/documents/${open.document.slug}`, T.owner, { content: richBody({ photo: files.image, pdf: files.pdf, html: files.html, sub: sub.document.slug, cover: "gallery:circuit" }) }), "open body");
+  ok(await api("PUT", `/api/v1/documents/${open.document.slug}`, T.owner, { title: "Open house notes", content: richBody({ photo: files.image, pdf: files.pdf, html: files.html, sub: sub.document.slug, cover: "gallery:circuit" }) }), "open body");
+  ok(await api("PUT", `/api/v1/documents/${open.document.slug}/access/level`, T.owner, { level: "link" }), "open level");
   const board = ok(await api("POST", `/api/v1/workspaces/${S.ws}/folders`, T.owner, { name: "Roadmap" }), "board folder");
   const boardId = board.id ?? board.folder?.id;
   ok(await api("PUT", `/api/v1/workspaces/${S.ws}/folders/${boardId}/properties`, T.owner, {
@@ -283,18 +285,18 @@ const STATES = [
   ["page-anon", ["anon"], () => pageUrl(X.open), pageReady],
   ["page-anon-gate", ["anon"], () => pageUrl(X.page), (p) => p.locator("main, h1").first()],
   // Classic Markdown.
-  ["classic-view", ["anon", "owner"], () => pageUrl(X.classic), (p) => p.locator("main h1, article h1").first()],
-  ["classic-view-body", ["anon"], () => pageUrl(X.classic), (p) => p.locator("main h1, article h1").first(), async (p) => {
-    await p.locator("main table, article table").first().scrollIntoViewIfNeeded();
+  ["classic-view", ["anon", "owner"], () => pageUrl(X.classic), (p) => p.locator("h1").first()],
+  ["classic-view-body", ["anon"], () => pageUrl(X.classic), (p) => p.locator("h1").first(), async (p) => {
+    await p.locator("table").first().scrollIntoViewIfNeeded();
   }],
-  ["classic-edit", ["owner"], () => `${pageUrl(X.mine)}?edit=1`, (p) => p.locator("main textarea, main .ProseMirror, main [contenteditable=true], .cm-editor").first()],
+  ["classic-edit", ["owner"], () => `${pageUrl(X.mine)}?edit=1`, (p) => p.locator("textarea, .ProseMirror, [contenteditable=true], .cm-editor").first()],
   ["classic-gate", ["anon"], () => pageUrl(X.gated), (p) => p.locator("input[type=password]").first()],
   // File viewers (the viewer body is the Worker's page in an iframe).
-  ["file-image", ["owner"], () => pageUrl(X.files.image), (p) => p.locator("main iframe, main img").first()],
-  ["file-pdf", ["owner"], () => pageUrl(X.files.pdf), (p) => p.locator("main iframe").first(), async (p) => p.waitForTimeout(2500)],
-  ["file-html", ["owner"], () => pageUrl(X.files.html), (p) => p.locator("main iframe").first()],
-  ["file-video", ["owner"], () => pageUrl(X.files.video), (p) => p.locator("main iframe, main video").first(), async (p) => p.waitForTimeout(1500)],
-  ["file-sheet", ["owner"], () => pageUrl(X.files.sheet), (p) => p.locator("main iframe").first(), async (p) => p.waitForTimeout(1500)],
+  ["file-image", ["owner"], () => pageUrl(X.files.image), (p) => p.locator("iframe, main img").first()],
+  ["file-pdf", ["owner"], () => pageUrl(X.files.pdf), (p) => p.locator("iframe").first(), async (p) => p.waitForTimeout(2500)],
+  ["file-html", ["owner"], () => pageUrl(X.files.html), (p) => p.locator("iframe").first()],
+  ["file-video", ["owner"], () => pageUrl(X.files.video), (p) => p.locator("iframe, video").first(), async (p) => p.waitForTimeout(1500)],
+  ["file-sheet", ["owner"], () => pageUrl(X.files.sheet), (p) => p.locator("iframe").first(), async (p) => p.waitForTimeout(1500)],
 ];
 
 /** Measure inside the Worker's viewer frame too (sideways scroll, small text, targets). */
@@ -326,6 +328,12 @@ async function newContext(dev, theme, role) {
     hasTouch: true,
     colorScheme: theme,
   });
+  // SHARED_CSS=<file>: inject another branch's shared touch layer (fix/mobile-shell's ui/touch.css) to
+  // audit this area as it will be once both land.
+  if (SHARED) await c.addInitScript((css) => {
+    const add = () => { const s = document.createElement("style"); s.dataset.shared = ""; s.textContent = css; document.head.appendChild(s); };
+    if (document.head) add(); else document.addEventListener("DOMContentLoaded", add);
+  }, SHARED);
   await c.addInitScript(([t, th]) => {
     try {
       if (t) localStorage.setItem("markdrop_token", t);
