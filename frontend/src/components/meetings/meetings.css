@@ -28,7 +28,10 @@
 .mt-cite__icon { flex: none; width: 11px; height: 11px; color: var(--text-muted); }
 .mt-cite:hover .mt-cite__icon { color: var(--accent-text); }
 .mt-cite--pending { padding: 0 6px; color: var(--text-subtle); border-style: dashed; }
-@media (pointer: coarse) { .mt-cite { padding: 4px 10px 4px 8px; line-height: 20px; } }
+/* Inside an answer, a chip is a chip (not the answer's underlined link). */
+.pa-md a.mt-cite { color: var(--text-secondary); text-decoration: none; }
+.pa-md a.mt-cite:hover { color: var(--accent-text); }
+@media (pointer: coarse), (max-width: 639px) { .mt-cite { padding: 4px 10px 4px 8px; line-height: 20px; } }
 
 .mt-linkbtn { padding: 0; border: 0; background: none; color: var(--text-secondary); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .mt-linkbtn:hover { color: var(--text); }
@@ -39,7 +42,7 @@
 .mt-chat--inline .pa-ask__composer { padding: 0; border: 0; background: none; }
 .mt-chat--inline .pa-field { background: var(--surface); }
 .mt-chat__thread .pa-thread { padding: 4px 2px 0; }
-.mt-chat__chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.mt-chat__chips { display: flex; flex-direction: row; flex-wrap: wrap; gap: 8px; }
 .mt-chip {
   display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px;
   border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface);
@@ -49,7 +52,8 @@
 .mt-chip:hover { background: var(--surface-hover); color: var(--text); border-color: var(--border-strong); }
 .mt-chip:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .mt-chip__icon { width: 14px; height: 14px; color: var(--accent-text); }
-@media (pointer: coarse) { .mt-chip { min-height: 44px; } }
+@media (pointer: coarse), (max-width: 639px) { .mt-chip { min-height: 44px; } }
+@media (max-width: 639px) { .mt-chat--inline .pa-field__input { font-size: 16px; } }
 
 /* ── the hub ───────────────────────────────────────────────────────────── */
 .mt-hub { width: 100%; max-width: 1040px; margin: 0 auto; padding: 24px 24px 96px; }
@@ -126,6 +130,13 @@
   .mt-date__d { font-size: 19px; }
   .mt-steps { grid-template-columns: 1fr; }
   .mt-ask { padding: 12px; }
+  .mt-hub__titles { align-items: flex-start; gap: 12px; }
+  .mt-hub__glyph { width: 36px; height: 36px; border-radius: var(--radius-lg); }
+  .mt-hub__glyph svg { width: 18px; height: 18px; }
+  .mt-ask__hint { display: none; }
+  .mt-section-title { flex-wrap: wrap; }
+  .mt-filter { width: 100%; }
+  .mt-filter input { font-size: 16px; }
 }
 
 /* ── import dialog ─────────────────────────────────────────────────────── */
@@ -165,7 +176,7 @@
 }
 .mt-tab[aria-selected="true"] { background: var(--surface-inset); color: var(--text); }
 .mt-tab:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
-@media (pointer: coarse) { .mt-tab { min-height: 44px; } }
+@media (pointer: coarse), (max-width: 639px) { .mt-tab { min-height: 44px; } }
 .mt-banner { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-lg); background: var(--accent-soft); color: var(--accent-text); font-size: 13px; line-height: 19px; }
 .mt-banner--warn { background: var(--warning-soft); color: var(--text); }
 .mt-details { display: flex; flex-direction: column; gap: 16px; padding: 16px; overflow-y: auto; }
