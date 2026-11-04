@@ -206,8 +206,7 @@ function Body({ p, title }: { p: CardPreview; title: string }) {
         <span className="wl-pv wl-pv--video">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={p.src} alt="" aria-hidden decoding="async" />
-          <span className="wl-pv__play" aria-hidden><Icon name="play" size={14} /></span>
-          {p.duration ? <span className="wl-pv__chip">{duration(p.duration)}</span> : null}
+          <span className="wl-pv__chip"><Icon name="play" size={10} />{p.duration ? duration(p.duration) : "Video"}</span>
         </span>
       ) : null;
     case "pdf":

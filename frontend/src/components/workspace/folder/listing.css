@@ -160,17 +160,24 @@
 .wl-pv__paper--light { background: #fff; color: #3d4148; border-color: rgba(15, 23, 42, .1); --pv-strong: #15171a; --pv-line: rgba(15, 23, 42, .1); --pv-soft: #f3f4f6; }
 :root:not([data-theme="light"]) .wl-pv__paper--light {
   box-shadow: 0 1px 2px rgba(0, 0, 0, .4); filter: brightness(.94);
-  /* White fading into a dark band reads as grey smudge: the sheet just runs off the edge. */
+  /* White fading into a dark band reads as a grey smudge: in dark, the sheet is a whole thumbnail
+     that ends above the kind label instead. */
+  bottom: 32px; border-bottom: 1px solid rgba(15, 23, 42, .1); border-radius: var(--radius-md);
   -webkit-mask-image: none; mask-image: none;
 }
+:root:not([data-theme="light"]) .wl-pv__paper:not(.wl-pv__paper--light) { border-color: var(--border-strong); background: var(--surface-raised); }
 .wl-pv__paper--page { padding: 0; }
 .wl-pv__paper--page img { width: 100%; height: auto; }
 .wl-pv__paper--word { font-family: Georgia, "Times New Roman", serif; }
 .wl-pv__paper--cover { padding-top: 0; }
-.wl-pv__cover { flex: none; display: block; height: 40px; margin: 0 -14px; width: calc(100% + 28px); max-width: none; object-fit: cover; background: var(--surface-inset); }
+.wl-pv__cover { flex: none; display: block; height: 28px; margin: 0 -14px; width: calc(100% + 28px); max-width: none; object-fit: cover; background: var(--surface-inset); }
 .wl-pv__cover--empty { background: color-mix(in srgb, var(--tint) 18%, var(--surface-inset)); }
-.wl-pv__icon { font-size: 17px; line-height: 1; margin-top: 2px; }
-.wl-pv__paper--cover .wl-pv__icon { margin-top: -10px; text-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
+.wl-pv__icon { font-size: 15px; line-height: 1; margin-top: 1px; }
+.wl-pv__paper--cover .wl-pv__icon { margin-top: -9px; text-shadow: 0 1px 2px rgba(0, 0, 0, .15); }
+.wl-pv__paper--page, .wl-pv:has(.wl-pv__cover) .wl-pv__paper {
+  -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent 94%);
+          mask-image: linear-gradient(to bottom, #000 68%, transparent 94%);
+}
 .wl-pv__h1, .wl-pv__h2, .wl-pv__h3, .wl-pv__p, .wl-pv__quote, .wl-pv__li {
   display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis;
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow-wrap: anywhere;
@@ -207,15 +214,10 @@
 .wl-pv__paper--text { gap: 0; padding: 8px 10px 0 6px; font-family: var(--font-mono); font-size: 7.5px; line-height: 1.6; }
 .wl-pv__line { display: flex; gap: 8px; white-space: pre; overflow: hidden; color: var(--text-secondary); }
 .wl-pv__ln { flex: none; width: 12px; text-align: end; color: var(--text-subtle); }
-/* Videos: the poster with a play disc; chips for duration and page counts. */
-.wl-pv__play {
-  position: absolute; left: 50%; top: 50%; display: grid; place-items: center; width: 36px; height: 36px; margin: -18px 0 0 -18px;
-  border-radius: 999px; color: #fff; background: rgba(15, 17, 20, .55); box-shadow: 0 0 0 1px rgba(255, 255, 255, .25);
-  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
-}
-.wl-pv__play svg { margin-left: 2px; }
+/* Videos: the poster, and a play mark with the length (never over the middle of the frame, where
+   a poster's own title usually is); a PDF's page count. */
 .wl-pv__chip {
-  position: absolute; right: 8px; bottom: 8px; padding: 1px 6px; border-radius: var(--radius-sm);
+  position: absolute; right: 8px; bottom: 8px; display: inline-flex; align-items: center; gap: 4px; padding: 1px 6px; border-radius: var(--radius-sm);
   font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; color: #fff; background: rgba(15, 17, 20, .62);
 }
 /* Locks: encrypted, or nothing the caller may see. */
@@ -237,7 +239,7 @@
 /* Over a picture the kind label and the ⋯ need their own backing. */
 .wl-card__band:not([data-pv="icon"]) .wl-card__kind { background: color-mix(in srgb, var(--surface) 88%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--border) 60%, transparent); }
 .wl-tile:has(.wl-card__band:not([data-pv="icon"])) .wl-card__act {
-  border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 72%, transparent);
+  border-radius: var(--radius-md); background: color-mix(in srgb, var(--surface) 58%, transparent);
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
 
