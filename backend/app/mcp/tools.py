@@ -1516,6 +1516,63 @@ async def get_document_analytics(ctx: Context, args: dict) -> tuple[str, dict]:
     return " ".join(lines[:6]), out
 
 
+async def analyze_document_engagement(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Analytics AI for one of the user's documents (services/analytics_ai_doc.py): Claude Haiku 5.5
+    reads its numbers (and the owner's own content) and says what to change. Same access as the
+    analytics (view_stats), same AI limits (feature analytics_ai), same cache as the dashboard."""
+    from app.services import analytics_ai_doc as aid
+    from app.services import creator_analytics as ca
+    from app.services import pages_ai
+
+    raw = await load_for(ctx, args["document"], "view_stats", "analyse the analytics of")
+    rng = args.get("range") or "30d"
+    if rng not in ca.RANGES:
+        raise ToolError("range must be one of 7d, 30d, 90d or all.")
+    kind = args.get("kind") or aid.default_kind(raw)
+    if kind is None:
+        raise ToolError("AI analysis is available for Markdown documents and pages, PDFs, video and audio "
+                        "files, and files with several versions. This one is none of those.")
+    if kind not in aid.KINDS:
+        raise ToolError("kind must be one of content, media, pages or versions.")
+    try:
+        res = await aid.analysis(ctx.db, raw, kind, range_key=rng, internal=False, ver=None, user=ctx.user,
+                                 actor=actor_of(ctx), run=True, refresh=bool(args.get("refresh")), via="mcp")
+    except pages_ai.AIError as exc:
+        raise ToolError(exc.detail)
+    state = res["state"]
+    title = md_outline_title(raw)
+    out = {"slug": raw["slug"], "title": title, "kind": kind, "range": rng, "state": state,
+           "available_kinds": res["kinds"], "generated_at": res["generated_at"], "stale": res["stale"],
+           "note": res["note"], "sample": res["sample"], "result": res["result"]}
+    if state != "ready":
+        return res["note"] or "There is nothing to analyse yet.", out
+    r = res["result"]
+    lines = [f"“{title}” ({kind}): {r['summary']}".strip()]
+    if r.get("verdict"):
+        v = r["verdict"]
+        lines.append(f"Verdict: {v['headline']} ({v['confidence']['level']} confidence. {v['confidence']['note']})")
+    for i, f in enumerate(r["findings"], 1):
+        where = ""
+        if f.get("section"):
+            where = f" [section: {f['section']['title']}]"
+        elif f.get("t") is not None:
+            where = f" [at {aid.fmt_t(f['t'])}]"
+        elif f.get("page"):
+            where = f" [page {f['page']}]"
+        lines.append(f"{i}. ({f['severity']}) {f['title']}{where}: {f['why']} Suggestion: {f['suggestion']}")
+    if r.get("chapters"):
+        lines.append("Suggested chapters: " + "; ".join(f"{aid.fmt_t(c['t'])} {c['title']}" for c in r["chapters"]))
+    if res["stale"]:
+        lines.append("(The document changed since this analysis; pass refresh to re-analyse.)")
+    return "\n".join(lines), out
+
+
+def md_outline_title(raw: dict) -> str:
+    from app.services import md_outline
+
+    return md_outline.display_title(raw)
+
+
 _FETCHABLE = {"page", "doc", "file"}
 
 
@@ -2623,6 +2680,48 @@ TOOLS: list[Tool] = [
         }),
         annotations=_ann(True, False, True),
         handler=get_document_analytics,
+    ),
+    Tool(
+        name="analyze_document_engagement",
+        title="Analyse a document's engagement (AI)",
+        description=("Claude Haiku 5.5 reads the analytics of one of the user's own documents or files and says "
+                     "what to change, with 3 to 5 findings that point at the exact place. kind: content (a "
+                     "Markdown document or page: why readers stop, section by section, with rewrites), media "
+                     "(a video or audio file: drops, skips and rewatches with timestamps, chapter suggestions), "
+                     "pages (a PDF: where readers stop and linger, page by page) or versions (a file with several "
+                     "versions: which works better, with a confidence Markdrop computes). Defaults to the "
+                     "document's own kind. Only the numbers and the owner's own content are sent to the model "
+                     "(to Anthropic), never anything about individual viewers; an end-to-end encrypted "
+                     "document's content is never sent. Needs at least 20 sessions; results are cached and "
+                     "shared with the dashboard (refresh re-analyses). Counts towards the user's AI limits."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF,
+            "kind": {"type": "string", "enum": ["content", "media", "pages", "versions"],
+                     "description": "Which analysis (default: the document's own)."},
+            "range": {"type": "string", "enum": ["7d", "30d", "90d", "all"], "default": "30d",
+                      "description": "The period analysed (versions are compared over their whole life)."},
+            "refresh": {"type": "boolean", "default": False,
+                        "description": "Analyse again even if a cached analysis exists."},
+        }, "required": ["document"]},
+        output_schema=_out({
+            "slug": {"type": "string"},
+            "title": {"type": "string"},
+            "kind": {"type": "string"},
+            "range": {"type": "string"},
+            "state": {"type": "string", "enum": ["ready", "empty", "thin", "encrypted", "unsupported"]},
+            "available_kinds": {"type": "array", "items": {"type": "string"}},
+            "generated_at": _NULLABLE_STR,
+            "stale": {"type": "boolean"},
+            "note": _NULLABLE_STR,
+            "sample": {"type": ["object", "null"], "properties": {
+                "have": {"type": "integer"}, "need": {"type": "integer"}}},
+            "result": {"type": ["object", "null"], "description": (
+                "summary, findings [{severity, title, why, suggestion, section?|t?|page?|version?, rewrite?}], "
+                "and per kind: chapters and moments (media), verdict with confidence (versions).")},
+        }),
+        annotations=_ann(True, False, False),
+        handler=analyze_document_engagement,
     ),
     Tool(
         name="get_viewers",

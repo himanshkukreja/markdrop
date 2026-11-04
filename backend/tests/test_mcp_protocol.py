@@ -106,6 +106,8 @@ class Transport(McpTestCase):
         self.assertEqual(set(tools), {
             "publish_document", "publish_page", "update_document", "get_document", "list_documents",
             "set_access", "delete_document", "restore_document", "list_trash", "get_document_stats", "get_document_analytics", "search", "fetch",
+            # Analytics AI per document (services/analytics_ai_doc.py).
+            "analyze_document_engagement",
             # Global search's AI mode (services/search_ai.py).
             "ask_documents",
             "list_shares", "get_share_status", "create_upload", "complete_upload", "get_upload_status",
