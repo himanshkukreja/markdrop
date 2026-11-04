@@ -340,7 +340,7 @@ async def site_members(db: AsyncIOMotorDatabase, site: dict) -> list[dict]:
     return out
 
 
-async def site_people(db: AsyncIOMotorDatabase, sites: list[dict], you: str,
+async def site_people(db: AsyncIOMotorDatabase, sites: list[dict], you: str | None,
                       faces: int | None = None) -> dict[Any, dict]:
     """Who works on each workspace site: the current workspace members with a Guides role there
     (after the site's override), admins first. Keyed by site ``_id``: ``{"people": [...], "count": n}``,

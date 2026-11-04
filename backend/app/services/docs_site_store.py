@@ -598,7 +598,7 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
 PEOPLE_FACES = 3
 
 
-async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of, you: str) -> tuple[list[dict], dict[str, int]]:
+async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of, you: str | None = None) -> tuple[list[dict], dict[str, int]]:
     """SiteSummary for each row (``role_of(row)`` → the caller's role), plus Ask AI use per site id.
     A workspace site also carries ``people`` (the first three who work on it, admins first) and
     ``people_count`` (everyone with a Guides role on it): the home's avatar stack."""
