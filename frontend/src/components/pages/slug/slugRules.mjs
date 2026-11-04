@@ -62,11 +62,15 @@ export function splitLink(url) {
   }
 }
 
-/** The input's prefix: the whole base when it fits, else the host, an ellipsis and the last folder. */
-export function shortBase(base, max = 30) {
+/**
+ * The input's prefix: the whole base when it is short ("markdrop.in/"), else "…/" and the last folder
+ * ("…/templates/"), so the slug being typed keeps the room. The full address is shown under the input.
+ */
+export function shortBase(base, max = 18) {
   if (typeof base !== "string" || base.length <= max) return base || "";
   const [host, ...rest] = base.replace(/\/$/, "").split("/");
   const last = rest.length ? rest[rest.length - 1] : "";
-  const short = last ? `${host}/…/${last}/` : `${host}/`;
-  return short.length <= max + 12 ? short : `…/${last}/`;
+  if (!last) return host.length + 1 <= max ? `${host}/` : "…/";
+  const short = `…/${last}/`;
+  return short.length <= max + 4 ? short : `…/${last.slice(0, max - 2)}…/`;
 }

@@ -40,6 +40,8 @@ test("splitLink and shortBase", () => {
   assert.deepEqual(s, { host: "docs.acme.com", folders: ["product-hub", "templates"], base: "docs.acme.com/product-hub/templates/", slug: "sl-prd" });
   assert.equal(splitLink("https://markdrop.in/abc").base, "markdrop.in/");
   assert.equal(shortBase("markdrop.in/"), "markdrop.in/");
-  assert.equal(shortBase("docs.acme.com/product-hub/templates/"), "docs.acme.com/…/templates/");
+  assert.equal(shortBase("docs.acme.com/product-hub/templates/"), "…/templates/");
+  assert.equal(shortBase("docs.acme.localhost:3117/"), "…/");
+  assert.ok(shortBase("docs.acme.com/a-very-long-folder-name-indeed/").length <= 22);
   assert.equal(splitLink("not a url").slug, "");
 });
