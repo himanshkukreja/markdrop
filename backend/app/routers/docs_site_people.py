@@ -50,6 +50,32 @@ async def list_people(request: Request, site_id: str, db: AsyncIOMotorDatabase =
     }
 
 
+@router.get("/{site_id}/team")
+@limiter.limit("120/minute")
+async def list_team(request: Request, site_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                    user: User = Depends(require_user)):
+    """Who works on this guide, for anyone with a role on it (Settings › People for those who
+    can't change roles): everyone with a Guides role here, admins first, with their role and where
+    it comes from. Names and photos only, no emails; a personal guide lists its owner. Changing
+    roles stays with the guide's admins (…/members)."""
+    site, access = await store.site_access(db, site_id, user, "viewer")
+    if site.get("workspace_id"):
+        team = (await roles.site_people(db, [site], user.id)).get(site["_id"]) or {"people": [], "count": 0}
+    else:
+        owner = (await roles.site_members(db, site))[0]
+        team = {"people": [{"user_id": owner["user_id"], "name": owner["name"], "picture": owner["picture"],
+                            "role": "admin", "source": roles.SRC_PERSONAL, "you": owner["user_id"] == user.id}],
+                "count": 1}
+    return {
+        "site_id": str(site["_id"]),
+        "workspace_id": site.get("workspace_id"),
+        "personal": not site.get("workspace_id"),
+        "your_role": access.role,
+        "can_manage": roles.role_at_least(access.role, "admin"),
+        **team,
+    }
+
+
 @router.get("/{site_id}/members-history")
 @limiter.limit("60/minute")
 async def people_history(request: Request, site_id: str, limit: int = Query(50, ge=1, le=200),
