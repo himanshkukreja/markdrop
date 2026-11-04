@@ -63,7 +63,7 @@ class _Shaper:
         self.db, self.actor, self.ctx = db, actor, ctx
         self.hosts = urls.HostCache(db)
         self._folders: dict[str, dict] = {}
-        self._names: dict[str, str | None] = {}
+        self._names: dict[str, dict] = {}
 
     async def folders_for(self, ws_id: str | None) -> dict:
         if not ws_id:
@@ -78,7 +78,7 @@ class _Shaper:
 
     async def names(self, rows: list[dict]) -> None:
         missing = [r.get("owner_id") for r in rows if r.get("owner_id") not in self._names]
-        self._names.update(await items_service.owner_names(self.db, missing))
+        self._names.update(await items_service.owner_cards(self.db, missing))
 
     async def item(self, raw: dict) -> dict:
         out = await items_service.item_for(
@@ -86,6 +86,10 @@ class _Shaper:
             folders=await self.folders_for(raw.get("workspace_id")), hosts=self.hosts)
         f = await access.facts(self.actor, raw, self.ctx)
         ws = f.ws
+        if f.role is None:
+            # Read through a public link only: no relationship, so no owner's name or picture
+            # (the presence rule, services/viewers.py).
+            out["owner"] = {"name": None, "picture": None, "is_you": False}
         out["role"] = f.role
         out["workspace"] = {"id": f.ws_id, "name": ws.name} if (ws is not None and f.ws_id) else None
         return out
