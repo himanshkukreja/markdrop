@@ -439,7 +439,10 @@ function ItemTileEntry(p: ItemEntryProps & { cards: boolean }) {
   if (cards) {
     return (
       <li ref={e.ref} {...e.props} className="wl-tile" data-row-kind="item">
-        <span className="wl-card__band" style={{ "--tint": tintOf(it) } as React.CSSProperties}><ItemIcon it={it} /></span>
+        <span className="wl-card__band" style={{ "--tint": tintOf(it) } as React.CSSProperties}>
+          <ItemIcon it={it} />
+          <span className="wl-card__kind">{kindLabel(it)}</span>
+        </span>
         <span className="wl-card__body">
           <span className="flex min-w-0 items-center gap-2">{link}<Badges it={it} /></span>
           <span className="wl-card__foot">
@@ -465,6 +468,8 @@ function ItemTileEntry(p: ItemEntryProps & { cards: boolean }) {
       {link}
       <span className="wl-tile__meta">
         <Person person={it.owner} size="sm" hideName />
+        <span>{kindLabel(it)}</span>
+        <span aria-hidden>·</span>
         <When iso={it.updated_at} />
         {showLocation && <Location it={it} />}
       </span>
