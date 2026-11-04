@@ -24,6 +24,40 @@
   "next": [],
   "entries": [
     {
+      "id": "cli-0-6-1",
+      "date": "2026-11-05",
+      "title": "CLI 0.6.1: markdrop search looks inside your content",
+      "kind": "improved",
+      "area": "CLI",
+      "products": [
+        "cli"
+      ],
+      "versions": {
+        "cli": "0.6.1"
+      },
+      "summary": "markdrop search now uses the same global search as the app: it finds words inside pages, documents and file contents, forgives typos, and shows the text that matched.",
+      "body": "- **`markdrop search`** runs on the app's global search: titles, headings, body text and file contents (HTML and PDF text), folders, workspaces and Guides pages, forgiving typos.\n- A new **`guide`** kind for `--kind`, and a **MATCHED** column with the text that matched. `--limit` is now the total number of results (20 by default, at most 50).\n- Against a server without the new search it falls back to the titles-only search of 0.6.0.\n- Update with `brew upgrade markdrop`, or see [Install the markdrop CLI](/cli/install)."
+    },
+    {
+      "id": "card-previews",
+      "date": "2026-11-05",
+      "title": "Cards show what's inside",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "The workspace Cards view now previews every item: a page's cover and first blocks, the start of a document, a PDF's first page, images, video posters, a sheet's first cells, and HTML files live when you point at them.",
+      "body": "- **Pages** show their cover, icon, title and first blocks. **Markdown documents** show their start, with headings, lists, to-dos, quotes and code.\n- **HTML files** show their opening text. Point at the card for a moment and the real page plays, scaled down, in a sandbox on Markdrop's separate files address. A few play at once, with a mouse only.\n- **PDFs** show their first page, **images** themselves, **videos** their poster frame and length, **spreadsheets and CSVs** their first cells, **text files** their first lines and **Word documents** their first paragraphs.\n- **Fast and quiet.** Previews load only for the cards on screen, after the folder opens, so folders still open straight away. List and Grid are unchanged.\n- **Access first.** A card previews only what you could open yourself. End-to-end encrypted documents show a lock, and other items' titles never appear in a preview.\n- **AI apps.** `list_workspace_items` takes `previews: true` and adds each item's opening text.\n- **API.** `POST /api/v1/workspaces/{id}/items/previews` returns the previews for up to 12 items.",
+      "docs": [
+        "/workspaces/folders",
+        "/ai/tools",
+        "/api/overview"
+      ]
+    },
+    {
       "id": "pages-on-phones-and-tablets",
       "date": "2026-11-05",
       "title": "Pages, documents and files fit phones and tablets",

@@ -2,7 +2,7 @@
 title: CLI reference
 nav: Command reference
 description: Every markdrop command, flag, default, environment variable and exit code in CLI 0.6.0.
-updated: 2026-11-04
+updated: 2026-11-05
 since: CLI 0.5.0
 keywords: [reference, flags, commands, options, environment variables, exit codes, help, completion, page, export, trash, search, access, link]
 ---
@@ -187,7 +187,7 @@ Guide: [Search, trash and access requests from the terminal](/cli/search-trash-a
 markdrop search <query…> [--kind page|document|file|folder|workspace|guide] [--workspace W] [--limit N]
 ```
 
-Searches everything you can open, like the app's search: titles, headings, text and file contents, folders, workspaces and Guides pages, forgiving typos. At least 2 characters; 20 results by default, at most 50. (CLI 0.6.0: titles, addresses and names only, up to 20 per kind.)
+Searches everything you can open, like the app's search: titles, headings, text and file contents, folders, workspaces and Guides pages, forgiving typos. At least 2 characters; 20 results by default, at most 50. (Since CLI 0.6.1; 0.6.0 searched titles, addresses and names only, up to 20 per kind.)
 
 ### trash
 
