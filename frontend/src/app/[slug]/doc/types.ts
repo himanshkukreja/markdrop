@@ -52,6 +52,9 @@ export interface PageFields {
   props?: { icon?: string | null; icon_url?: string | null; cover?: string | null; cover_url?: string | null } | null;
   /** This page is a workspace or personal template ({id, …}), or part of one ({part_of}). */
   template?: { id?: string; description?: string; icon?: string | null; scope?: "workspace" | "personal"; part_of?: boolean } | null;
+  /** Auto covers: the cover was picked automatically / one is on its way (the editor fades it in). */
+  cover_auto?: boolean;
+  cover_pending?: boolean;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -72,6 +75,8 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     page_path: Array.isArray((d as { page_path?: unknown }).page_path) ? ((d as { page_path: unknown[] }).page_path.filter((s) => typeof s === "string") as string[]) : [],
     props: d.page && typeof d.page === "object" ? (d.page as PageFields["props"]) : null,
     template: d.template && typeof d.template === "object" ? d.template : null,
+    cover_auto: d.cover_auto === true,
+    cover_pending: d.cover_pending === true,
   };
 }
 

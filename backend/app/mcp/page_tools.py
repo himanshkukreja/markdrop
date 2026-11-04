@@ -220,11 +220,25 @@ async def create_page(ctx: Context, args: dict) -> tuple[str, dict]:
         # Properties on a page made from a template (or a folder's default): written into what it got.
         after = await _save(ctx, raw, page_props.apply(raw.get("content") or "", props), None)
         raw = after or raw
+    # Auto cover (services/page_covers.py): picked now, so the result can say which.
+    from app.services import page_covers
+
+    cover_auto = False
+    if args.get("auto_cover", True) is False:
+        await page_covers.opt_out(ctx.db, raw)
+    else:
+        picked = await page_covers.pick_now(ctx.db, raw, ctx.user, via="mcp")
+        if picked is not None:
+            raw, cover_auto = picked, True
+    cover = page_props.parse(raw.get("content")).get("cover")
     out = {**await url_pair(ctx, raw), "slug": raw["slug"], "title": raw.get("title"),
            "editor": "blocks", "parent": parent_slug, "workspace_error": error,
-           "template_id": raw.get("template_id")}
+           "template_id": raw.get("template_id"), "cover": cover, "cover_auto": cover_auto}
     where = f" inside {parent_slug}" if parent_slug else ""
     text = f"Created the page {out['title']!r}{where}: {out['url']}"
+    if cover_auto:
+        text += (f"\nIt got the cover {cover} automatically (change it with set_page_properties: cover, "
+                 "cover=\"auto\" to pick again, or null to remove it).")
     if error:
         text += f"\n{error}"
     return _people_note(text, out, left), out
@@ -262,7 +276,8 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
         "rev": int(raw.get("rev") or 1),
         "editor": raw.get("editor") or "classic",
         "parent": fields["parent"],
-        "properties": {k: v for k, v in fields["page"].items() if k not in ("icon_url", "cover_url")},
+        "properties": {**{k: v for k, v in fields["page"].items() if k not in ("icon_url", "cover_url")},
+                       "cover_auto": bool(fields.get("cover_auto"))},
         "children": [{"slug": k["slug"], "title": k["title"]} for k in kids],
         "embeds": embeds,
         "assets": [{"id": i, "url": a["url"]} for i, a in fields["assets"].items()],
@@ -448,6 +463,17 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
     changes = {k: args[k] for k in page_props.KEYS if k in args}
+    # cover="auto": pick one again, like a new page gets (after the other changes).
+    auto = isinstance(changes.get("cover"), str) and changes["cover"].strip().lower() == "auto"
+    if auto:
+        changes.pop("cover")
+        if raw.get("encrypted") or raw.get("template"):
+            raise ToolError("Only ordinary pages get an automatic cover (not templates).")
+        if args.get("template") is not None:
+            raise ToolError('Pass cover="auto" without template (one change at a time).')
+        if not changes:
+            _lock_check(raw, ctx)
+            return await _auto_cover(ctx, raw, "")
     as_template = args.get("template")
     if not changes and as_template is None:
         raise ToolError(f"Nothing to change: pass one of {', '.join(page_props.KEYS)} (null clears it), "
@@ -481,11 +507,34 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
     except ValueError as exc:
         raise ToolError(str(exc))
     after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
+    if auto:
+        return await _auto_cover(ctx, after, f"Updated the page properties of {after['slug']}: " + ", ".join(
+            f"{k}={page_props.parse(after.get('content'))[k]}" for k in changes) + note + ". ")
     props = page_props.parse(after.get("content"))
-    out = {**await _result(ctx, after), "properties": props, "template": bool(after.get("template")),
+    out = {**await _result(ctx, after), "properties": {**props, "cover_auto": bool(after.get("cover_auto"))},
+           "template": bool(after.get("template")),
            "template_id": str(after["_id"]) if after.get("template") else None}
     return f"Updated the page properties of {out['url']}: " + ", ".join(
         f"{k}={props[k]}" for k in changes) + note, out
+
+
+async def _auto_cover(ctx: Context, raw: dict, prefix: str) -> tuple[str, dict]:
+    """set_page_properties(cover="auto"): pick a cover again and write it."""
+    from app.services import page_covers
+
+    after, how = await page_covers.repick(ctx.db, raw, ctx.user, via="mcp")
+    if after is None:
+        if how == "workspace_off":
+            raise ToolError("Auto covers are off for this page's workspace (its admins can turn them on in "
+                            "the workspace's settings, Advanced). Choose one with cover=\"gallery:<name>\".")
+        raise ToolError("Couldn't pick a cover for this page right now. Try again, or choose one with "
+                        "cover=\"gallery:<name>\".")
+    props = page_props.parse(after.get("content"))
+    out = {**await _result(ctx, after), "properties": {**props, "cover_auto": True},
+           "template": bool(after.get("template")), "template_id": None,
+           "cover": props["cover"], "cover_auto": True}
+    how_text = "by AI" if how == "ai" else "by matching the page's words"
+    return f"{prefix}Picked the cover {props['cover']} for {out['url']} ({how_text}).", out
 
 
 async def upload_page_image(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -883,7 +932,8 @@ PAGE_TOOLS: list[Tool] = [
                      "slug sets its link: markdrop.in/<slug>, and on the workspace's domain "
                      "/<folders>/<parent pages>/<slug>; a taken slug is an error naming it (never a silent "
                      "rename); change it later with set_slug. "
-                     "Always give the user the returned url. " + _SYNTAX),
+                     "A page without a cover gets one picked for it (auto_cover, default true): the result's "
+                     "cover. Always give the user the returned url. " + _SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -907,10 +957,15 @@ PAGE_TOOLS: list[Tool] = [
                 "Optional page properties: icon (an emoji), cover (gallery:<name>, one of "
                 f"{', '.join(page_props.GALLERY)}; or an https:// image), cover_y, full_width, "
                 "small_text, font (default, serif, mono), locked.")},
+            "auto_cover": {"type": "boolean", "default": True, "description": (
+                "Default true: a page without a cover gets one of Markdrop's covers, picked for what it's "
+                "about (from its title and the start of its text; the workspace's Auto covers setting "
+                "can turn this off). The result's cover says which. false: no cover.")},
         }, "required": ["title"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
                             "editor": {"type": "string"}, "parent": _NULLABLE_STR,
                             "workspace_error": _NULLABLE_STR, "template_id": _NULLABLE_STR,
+                            "cover": _NULLABLE_STR, "cover_auto": {"type": "boolean"},
                             "unresolved_people": _UNRESOLVED},
                            ["url", "markdrop_url", "slug", "title", "editor"]),
         annotations=_ann(False, False, False),
@@ -1105,7 +1160,8 @@ PAGE_TOOLS: list[Tool] = [
         title="Set a page's properties",
         description=("Set a page's icon (an emoji, or asset:<id> of an image of this page), "
                      "cover (asset:<id> of an image of this page, an https:// image, or gallery:<name>, a "
-                     f"built-in cover: {', '.join(page_props.GALLERY)}) and its focal point cover_y "
+                     f"built-in cover: {', '.join(page_props.GALLERY)}; or \"auto\": pick one for what the "
+                     "page is about, as new pages get, replacing the cover it has) and its focal point cover_y "
                      "(0 top .. 100 bottom), "
                      "full_width, small_text, font (default, serif, mono) and locked (only the owner or a "
                      "workspace admin may edit a locked page, or lock / unlock one) and allow_export (false: "
@@ -1122,7 +1178,8 @@ PAGE_TOOLS: list[Tool] = [
             "icon": {"type": ["string", "null"], "maxLength": 80},
             "cover": {"type": ["string", "null"], "maxLength": 80,
                       "description": "asset:<id> (an image of this page), gallery:<name>, an https:// image, "
-                                     "or null."},
+                                     "\"auto\" (pick one for the page again), or null (remove it: an "
+                                     "automatic cover is then never added again)."},
             "cover_y": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
             "full_width": {"type": ["boolean", "null"]},
             "small_text": {"type": ["boolean", "null"]},

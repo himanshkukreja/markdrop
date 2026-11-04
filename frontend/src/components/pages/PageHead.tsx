@@ -8,6 +8,11 @@
  * moves); hovering the cover shows Change cover, Reposition and Remove. Reposition: drag the image
  * up or down (or ↑/↓), then Save position; the image follows the pointer each frame without a
  * React render (the focal point is written once, on Save).
+ *
+ * Auto covers: while one is being picked for a new page (`coverPending`) the cover's place holds a
+ * quiet shimmer; a cover that arrives after the page is on screen fades in once its image has
+ * loaded. An automatic cover says so ("Auto") among its tools; Remove is one click, and a removed
+ * cover is never added back.
  */
 import { useEffect, useRef, useState } from "react";
 import { Icon, cx } from "@/components/ui";
@@ -52,11 +57,17 @@ export interface PageHeadProps {
   top?: React.ReactNode;
   /** Shown under the title, in the column (backlinks). */
   below?: React.ReactNode;
+  /** Auto covers: one is being picked for this page right now. */
+  coverPending?: boolean;
+  /** The cover on the page was picked automatically. */
+  coverAuto?: boolean;
+  /** "Pick for me" in the cover picker: a cover chosen for the page (`gallery:<id>`), or null. */
+  suggestCover?: (() => Promise<string | null>) | null;
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
 
-export function PageHead({ title, props, resolve, edit, top, below }: PageHeadProps) {
+export function PageHead({ title, props, resolve, edit, top, below, coverPending = false, coverAuto = false, suggestCover = null }: PageHeadProps) {
   const [iconOpen, setIconOpen] = useState<"icon" | "add" | null>(null);
   const [coverOpen, setCoverOpen] = useState<"cover" | "add" | null>(null);
   const [moving, setMoving] = useState(false);
@@ -65,6 +76,15 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
   const posRef = useRef(props.coverY);
   const style = coverStyle(props.cover, resolve);
   const ro = !edit || edit.readOnly;
+  // A cover that appears after the page is on screen (an auto cover landing) fades in when loaded.
+  const shown = useRef<{ mounted: boolean; cover: string | null }>({ mounted: false, cover: props.cover });
+  const [fade, setFade] = useState<string | null>(null);
+  useEffect(() => {
+    const was = shown.current;
+    if (was.mounted && !was.cover && props.cover) setFade(props.cover);
+    shown.current = { mounted: true, cover: props.cover };
+  }, [props.cover]);
+  const fadeIn = !!style?.image && fade === props.cover;
 
   // A new focal point from the page (someone else's edit, or Save) when not repositioning.
   useEffect(() => {
@@ -151,7 +171,7 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
     ) : null;
 
   return (
-    <div className={cx("pb-head", style && "pb-head--cover", props.icon && "pb-head--icon", !ro && "pb-head--edit")}>
+    <div className={cx("pb-head", (style || coverPending) && "pb-head--cover", props.icon && "pb-head--icon", !ro && "pb-head--edit")}>
       {style && (
         <div
           ref={coverRef}
@@ -172,7 +192,21 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
         >
           {style.image && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img ref={imgRef} src={style.image} alt="" className="pb-cover-img__img" style={{ objectPosition: `50% ${props.coverY}%` }} draggable={false} decoding="async" />
+            <img
+              ref={(el) => {
+                imgRef.current = el;
+                // Already in the cache: no load event to wait for.
+                if (el && fadeIn && el.complete && el.naturalWidth) el.dataset.loaded = "";
+              }}
+              src={style.image}
+              alt=""
+              className="pb-cover-img__img"
+              style={{ objectPosition: `50% ${props.coverY}%` }}
+              draggable={false}
+              decoding="async"
+              data-fade={fadeIn ? "" : undefined}
+              onLoad={(e) => { e.currentTarget.dataset.loaded = ""; }}
+            />
           )}
           {moving && <span className="pb-cover-img__hint" aria-live="polite">Drag the image to reposition</span>}
           {!ro && (
@@ -184,6 +218,11 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
                 </>
               ) : (
                 <>
+                  {coverAuto && (
+                    <span className="pb-headbtn pb-headbtn--note" title="Picked for this page automatically. Change it or remove it anytime; a removed cover isn't added back.">
+                      <Icon name="sparkle" size={14} aria-hidden /> Auto
+                    </span>
+                  )}
                   <button type="button" className="pb-headbtn" onClick={() => setCoverOpen("cover")}>Change cover</button>
                   {style.image && (
                     <button type="button" className="pb-headbtn" onClick={() => { setMoving(true); requestAnimationFrame(() => coverRef.current?.focus({ preventScroll: true })); }}>
@@ -195,9 +234,10 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
               )}
             </div>
           )}
-          {coverOpen === "cover" && edit && <CoverPicker current={props.cover} onPick={pickCover} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(null)} />}
+          {coverOpen === "cover" && edit && <CoverPicker current={props.cover} onPick={pickCover} onUpload={(f) => void uploadTo(f, "cover")} onSuggest={suggestCover ?? undefined} onClose={() => setCoverOpen(null)} />}
         </div>
       )}
+      {!style && coverPending && <div className="pb-cover-img pb-cover-img--pending" aria-hidden />}
       <div className="pb-col pb-head__body">
         {top}
         {props.icon && (
@@ -218,12 +258,12 @@ export function PageHead({ title, props, resolve, edit, top, below }: PageHeadPr
                 {iconPicker("add")}
               </span>
             )}
-            {!ro && !style && (
+            {!ro && !style && !coverPending && (
               <span className="pb-head__iconwrap">
                 <button type="button" className="pb-headbtn pb-headbtn--quiet md-focus" onClick={() => setCoverOpen("add")}>
                   <Icon name="image" size={16} aria-hidden /> Add cover
                 </button>
-                {coverOpen === "add" && <CoverPicker current={props.cover} onPick={pickCover} onUpload={(f) => void uploadTo(f, "cover")} onClose={() => setCoverOpen(null)} />}
+                {coverOpen === "add" && <CoverPicker current={props.cover} onPick={pickCover} onUpload={(f) => void uploadTo(f, "cover")} onSuggest={suggestCover ?? undefined} onClose={() => setCoverOpen(null)} />}
               </span>
             )}
         </div>

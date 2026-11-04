@@ -26,7 +26,7 @@ interface Budgets {
   user_daily_usd: number | null; default_user_daily_usd: number | null; effective_user_daily_usd: number | null;
   blocked_users: number; capped_users: number; configured: boolean; updated_at: string | null; updated_by: string | null;
 }
-interface AuditRow { id: string; ts: string; admin: string; kind: "budgets" | "user"; target: string; target_label: string | null; before: Record<string, unknown> | null; after: Record<string, unknown> | null }
+interface AuditRow { id: string; ts: string; admin: string; kind: "budgets" | "user" | "covers"; target: string; target_label: string | null; before: Record<string, unknown> | null; after: Record<string, unknown> | null }
 
 interface Form {
   caps: Record<string, { daily: string; monthly: string }>;
@@ -259,7 +259,10 @@ function describe(v: unknown, money: boolean): string {
 /** One audit row as short "field: before → after" lines. */
 function AuditItem({ a }: { a: AuditRow }) {
   const lines: string[] = [];
-  if (a.kind === "user") {
+  if (a.kind === "covers") {
+    const st = (o: Record<string, unknown> | null) => String(o?.status ?? "idle");
+    lines.push(st(a.after) === "paused" ? "Paused" : st(a.after) === "running" ? "Resumed" : `${st(a.before)} → ${st(a.after)}`);
+  } else if (a.kind === "user") {
     for (const k of ["blocked", "daily_usd"]) {
       const before = a.before?.[k] ?? (k === "blocked" ? false : null), after = a.after?.[k] ?? (k === "blocked" ? false : null);
       if (before !== after) lines.push(k === "blocked" ? (after ? "Blocked from AI" : "Unblocked") : `Daily cap ${before === null ? "default" : usd(before as number)} → ${after === null ? "default" : usd(after as number)}`);
@@ -284,7 +287,7 @@ function AuditItem({ a }: { a: AuditRow }) {
   return (
     <li className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
       <div className="min-w-0">
-        <p className="text-body text-text">{a.kind === "user" ? <>Person <b className="font-medium">{a.target_label || a.target}</b></> : "Budgets"}</p>
+        <p className="text-body text-text">{a.kind === "user" ? <>Person <b className="font-medium">{a.target_label || a.target}</b></> : a.kind === "covers" ? "Cover backfill" : "Budgets"}</p>
         <ul className="mt-0.5 flex flex-col text-caption text-text-secondary">{(lines.length ? lines : ["No visible change"]).map((l) => <li key={l}>{l}</li>)}</ul>
       </div>
       <p className="shrink-0 text-micro text-text-muted">{fmtDateTime(a.ts)} · {a.admin}</p>

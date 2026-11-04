@@ -87,6 +87,8 @@ def is_page_capable(raw: dict | None) -> bool:
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db["documents"].create_index("parent_id", sparse=True)
+    # Auto covers: picks a stopped process left pending (services/page_covers.finish_stale).
+    await db["documents"].create_index("cover_pick", sparse=True)
     from app.services import bookmarks, page_assets, page_links
 
     await page_assets.ensure_indexes(db)
@@ -848,6 +850,11 @@ async def page_fields(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
                      else ({"part_of": True} if raw.get("template") else None)),
         "assets": {},
     }
+    if raw.get("editor") == "blocks" and not raw.get("encrypted"):
+        # Auto covers (services/page_covers.py): was this cover picked for the page, is one on its way.
+        from app.services import page_covers
+
+        out.update(page_covers.fields(raw))
     if raw.get("parent_id") is not None:
         crumbs = []
         cur = raw

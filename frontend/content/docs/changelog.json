@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "auto-covers",
+      "date": "2026-11-04",
+      "title": "Automatic covers for pages, and 32 new covers",
+      "kind": "new",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "A new page gets a cover picked for what it's about, from 44 calm covers now. Remove it in one click and it never comes back; workspace admins can turn Auto covers off.",
+      "body": "- New pages get one of Markdrop's covers by themselves: AI reads the title and the first lines and picks one, or the page's words are matched when AI is off. It fades in a moment after the page opens. An untitled, empty page gets its cover once you've named it and started writing.\n- 32 new covers, for roadmaps, meetings, releases, research, design, runbooks, people, finance, marketing, legal, support, data, security, docs and more, in a new **Shapes** group. **Pick for me** in the cover picker chooses one for the page.\n- An automatic cover says **Auto** when you hover it. **Remove** is one click, and a removed cover is never added back. A duplicate keeps its original's cover; templates and encrypted pages never get one.\n- **Auto covers** on the workspace settings' **Advanced** tab, next to **AI features**, turns it off for a workspace.\n- Pages made before this got a cover the same way, once.\n- MCP: `create_page` picks a cover (`auto_cover`, default true) and says which in `cover`; `set_page_properties` with `cover: \"auto\"` picks one again. See [Automatic covers](/pages/overview#automatic-covers).",
+      "docs": [
+        "/pages/overview",
+        "/pages/ai",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "page-ai",
       "date": "2026-11-04",
       "title": "AI in pages: rewrite, draft, summarize, translate, and ask a page questions",

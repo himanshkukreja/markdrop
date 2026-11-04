@@ -181,6 +181,12 @@ async def duplicate(db: AsyncIOMotorDatabase, src: dict, user, actor: access.Act
         if top:
             result["workspace_error"] = error
         result["pages"] += 1
+        # Auto covers (services/page_covers.py): the copy keeps its source's cover and how it got it,
+        # and a removed cover stays removed (no auto pick for a copy).
+        flags = {k: row[k] for k in ("cover_auto", "cover_auto_how", "cover_removed_at", "cover_auto_off") if row.get(k)}
+        if flags:
+            await db["documents"].update_one({"_id": copy["_id"]}, {"$set": flags})
+            copy.update(flags)
         if row.get("editor") != "blocks":
             # A document in the classic editor stays one (create_page makes pages).
             await db["documents"].update_one({"_id": copy["_id"]}, {"$set": {"editor": None}})

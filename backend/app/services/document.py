@@ -493,6 +493,12 @@ async def update_document(
 
             sets["content"], _left = await page_people.resolve(db, sets["content"], raw, actor.user_id)
 
+    # Auto covers (services/page_covers.py): a save that removes the cover is remembered (it is
+    # never auto-added again); one that changes it makes the cover the person's own.
+    from app.services import page_covers
+
+    cover_unset = page_covers.on_save(raw, sets.get("content"), sets)
+
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,
         expires_in=data.expires_in, custom_expires_at=data.custom_expires_at, now=now)
@@ -503,7 +509,7 @@ async def update_document(
     try:
         after = await transitions.change(
             db, raw, sets=sets, inc={"rev": 1}, narrows=narrows or None,
-            cas=cas,
+            cas=cas, unset=cover_unset or None,
         )
     except HTTPException as exc:
         if exc.status_code == 409 and "rev" in cas:
@@ -516,6 +522,9 @@ async def update_document(
     from app.services import page_history
 
     await page_history.on_save(db, raw, after, actor, **(history or {}))
+    # A new page waiting for its auto cover gets it once it says what it's about.
+    if after.get("cover_pick") == "waiting":
+        await page_covers.after_save(db, after)
     return after
 
 

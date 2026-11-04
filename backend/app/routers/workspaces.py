@@ -78,6 +78,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
             members_can_share_folders=s.members_can_share_folders,
             default_access=s.default_access,
             ai_enabled=s.ai_enabled,
+            auto_covers=s.auto_covers,
         ),
         role=role,  # type: ignore[arg-type]
         default_access=s.default_access,

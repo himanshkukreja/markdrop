@@ -740,6 +740,8 @@ export default function DocumentView(props: DocumentViewProps) {
               onReady={() => setEditorReady(true)}
               othersEditing={othersEditing}
               onHeadings={setHeadings}
+              coverPending={page?.cover_pending === true}
+              coverAuto={page?.cover_auto === true}
               onSaved={(doc) => {
                 if (typeof doc.rev === "number") v.setDocRev(doc.rev);
                 if (typeof doc.content === "string") v.setDisplayContent(doc.content);

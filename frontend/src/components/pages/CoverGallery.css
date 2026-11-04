@@ -8,6 +8,11 @@
 .pb-covergal__tab { position: relative; flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--text-muted); font: 500 13px/1 var(--font-sans); cursor: pointer; transition: background-color 120ms ease, color 120ms ease; }
 .pb-covergal__tab:hover { background: var(--surface-hover); color: var(--text); }
 .pb-covergal__tab--on { color: var(--text); }
+.pb-covergal__auto { display: inline-flex; flex: none; align-items: center; gap: 5px; height: 28px; margin-left: auto; padding: 0 10px; border: 0; border-radius: var(--radius-md); background: none; color: var(--accent-text, var(--accent)); font: 500 13px/1 var(--font-sans); cursor: pointer; transition: background-color 120ms ease, opacity 120ms ease; }
+.pb-covergal__auto:hover { background: var(--accent-soft); }
+.pb-covergal__auto--busy { opacity: .7; cursor: progress; }
+.pb-covergal__auto--busy svg { animation: pb-covergal-spin 1.2s linear infinite; }
+@keyframes pb-covergal-spin { to { transform: rotate(360deg); } }
 .pb-covergal__tab--on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -7px; height: 2px; border-radius: 2px; background: var(--accent); }
 
 /* Every tab is as tall as a row of covers (an invisible row sizes it), so the picker never jumps. */
@@ -34,6 +39,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .pb-covergal { animation: none; }
+  .pb-covergal__auto--busy svg { animation: none; }
   .pb-covergal__thumb, .pb-covergal__thumb img { transition: none; }
   .pb-covergal__item:hover .pb-covergal__thumb img { transform: none; }
 }

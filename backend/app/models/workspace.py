@@ -68,6 +68,8 @@ class WorkspaceSettings:
     default_access: Literal["link", "workspace", "private"] = "workspace"
     # Page AI (routers/pages_ai.py) on this workspace's pages. Admins can turn it off.
     ai_enabled: bool = True
+    # Auto covers (services/page_covers.py): new pages get a cover picked for them. Default on.
+    auto_covers: bool = True
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "WorkspaceSettings":
@@ -81,6 +83,7 @@ class WorkspaceSettings:
             default_access=default_access if default_access in ("link", "workspace", "private")
             else "workspace",
             ai_enabled=raw.get("ai_enabled") is not False,
+            auto_covers=raw.get("auto_covers") is not False,
         )
 
 

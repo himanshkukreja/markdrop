@@ -9,6 +9,8 @@ one API worker runs it (§5.1, §5.5, A6):
                              guide's Fix list once a day (services/guide_fixes.py)
     page_history    hourly   once a day: thin pages' version history and clean up page images
                              nothing references (services/page_history.py)
+    page_covers     every 15 s  finish auto-cover picks a stopped process left pending, and run one
+                             batch of the admin's cover backfill (services/page_covers.py)
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -126,13 +128,19 @@ async def _page_history(db: AsyncIOMotorDatabase) -> None:
     await page_history.run_due(db)
 
 
+async def _page_covers(db: AsyncIOMotorDatabase) -> None:
+    from app.services import page_covers
+
+    await page_covers.background(db)
+
+
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
     loop = asyncio.get_running_loop()
     for name, every, body in (("revalidate", 5.0, _revalidate), ("sweeper", SWEEP_EVERY, _sweep),
                               ("reconciler", 60.0, _reconcile), ("guide_insights", 3600.0, _insights),
-                              ("page_history", 3600.0, _page_history)):
+                              ("page_history", 3600.0, _page_history), ("page_covers", 15.0, _page_covers)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
 
