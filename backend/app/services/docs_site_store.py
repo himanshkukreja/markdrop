@@ -594,8 +594,14 @@ async def site_view(db: AsyncIOMotorDatabase, site: dict, role: str | studio_rol
 # ── Listing ───────────────────────────────────────────────────────────────────
 
 
-async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of) -> tuple[list[dict], dict[str, int]]:
-    """SiteSummary for each row (``role_of(row)`` → the caller's role), plus Ask AI use per site id."""
+# Faces in a listing's avatar stack ("+n" for the rest).
+PEOPLE_FACES = 3
+
+
+async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of, you: str | None = None) -> tuple[list[dict], dict[str, int]]:
+    """SiteSummary for each row (``role_of(row)`` → the caller's role), plus Ask AI use per site id.
+    A workspace site also carries ``people`` (the first three who work on it, admins first) and
+    ``people_count`` (everyone with a Guides role on it): the home's avatar stack."""
     ids = [r["_id"] for r in rows]
     counts: dict = {}
     edited: dict = {}
@@ -621,6 +627,11 @@ async def _summaries(db: AsyncIOMotorDatabase, rows: list[dict], role_of) -> tup
     sites = [await site_summary(db, r, role_of(r), pages=counts.get(r["_id"], 0), ai_used=ai.get(str(r["_id"]), 0),
                                 open_review=reviews.get(r["_id"]), names=names, latest_build=latest.get(r["_id"]),
                                 last_edited_at=edited.get(r["_id"])) for r in rows]
+    people = await studio_roles.site_people(db, rows, you, faces=PEOPLE_FACES)
+    for r, s in zip(rows, sites):
+        p = people.get(r["_id"])
+        if p is not None:
+            s["people"], s["people_count"] = p["people"], p["count"]
     return sites, ai
 
 
@@ -640,7 +651,7 @@ async def list_sites(db: AsyncIOMotorDatabase, user: User, workspace_id: str | N
     rows = await db[SITES].find(_scope_query(workspace_id, user.id)).sort("created_at", 1).to_list(length=100)
     access = await studio_roles.resolve_many(db, user.id, rows, ws_roles)
     visible = [r for r in rows if access[r["_id"]].role]
-    sites, ai = await _summaries(db, visible, lambda r: access[r["_id"]])
+    sites, ai = await _summaries(db, visible, lambda r: access[r["_id"]], user.id)
     return {
         "sites": sites,
         "your_role": ws_access.role or "none",
@@ -691,7 +702,7 @@ async def list_all_sites(db: AsyncIOMotorDatabase, user: User) -> dict:
     visible = [r for r in rows if access[r["_id"]].role]
     ws_access = await studio_roles.workspace_roles_for(db, user.id, roles)
 
-    sites, ai = await _summaries(db, visible, lambda r: access[r["_id"]])
+    sites, ai = await _summaries(db, visible, lambda r: access[r["_id"]], user.id)
     per_scope: dict[str | None, int] = {}
     seen: dict[str | None, int] = {}
     for r in rows:

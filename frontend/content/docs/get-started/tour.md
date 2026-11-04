@@ -1,9 +1,9 @@
 ---
 title: A tour of the app
 description: Where your files, shared items, analytics, workspaces and settings live, and what each button on a document or file page does.
-updated: 2026-10-30
+updated: 2026-11-04
 prerequisites: [/get-started/accounts]
-keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette]
+keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar]
 ---
 
 Once you sign in, Markdrop works like a drive for things that render. This page walks through the sidebar, the **Create** menu, and the bar on top of every document and file.
@@ -31,7 +31,8 @@ Once you sign in, Markdrop works like a drive for things that render. This page 
 | **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. |
 | **Recent** | What you opened lately, signed in. |
 | **Analytics** | Views and engagement across everything you own. See [Analytics](/analytics/overview). |
-| **Workspaces** | Each workspace you belong to, with its folders. Drop files onto a folder to upload them there. **New workspace** creates one. |
+| **Trash** | What you deleted in the last 30 days, to restore or delete forever. See [Trash and restoring](/documents/trash). |
+| **Workspaces** | Each workspace you belong to, with its folders, pages, documents and files. Pages show their emoji, and what you have open is highlighted and scrolled into view. Point at a row for **+** (add a page inside) and **⋯**. Drop files onto a folder to upload them there. **New workspace** creates one. |
 | **VS Code** | Your [API tokens](/account/api-tokens), which the VS Code extension and the CLI use. |
 | **Connected apps** | AI assistants and other apps you've allowed in. See [Connected apps](/account/connected-apps). |
 | **Settings** | Your display name, theme and the weekly analytics email. |
@@ -55,6 +56,10 @@ A document opens full screen, with nothing but the text. Press :kbd[Esc] or choo
 ![The bar above a document with Copy link, Edit, Share and Read full screen, and More actions open showing View raw and Export PDF, with the Details and Access panels on the right.](/docs-assets/get-started/tour/document-bar.webp)
 
 **Details** lists when it was published, its views, its reading time and when it expires. The owner, and people allowed to share it, also see an **Access** card with who can open it and a **Share** button. On a wide screen it sits beside the text, with **Contents** built from the headings.
+
+## On a page
+
+A [page](/pages/overview) has one bar at the top instead: the sidebar button, the logo and the breadcrumbs on the left; who's viewing, **Saved**, **Share**, **⋯**, **Create** and your avatar on the right. Press **⌘ \\** (**Ctrl \\** on Windows and Linux) to hide the sidebar, and point at the left edge of the window to peek at it. See [The top bar](/pages/overview#the-top-bar).
 
 ## On a file
 

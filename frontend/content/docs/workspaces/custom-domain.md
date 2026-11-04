@@ -6,7 +6,7 @@ prerequisites: [/workspaces/create, /workspaces/members-and-roles]
 keywords: [domain, custom domain, dns, cname, txt, a record, apex, cloudflare, godaddy, namecheap, route 53, verify, ssl, certificate]
 ---
 
-Serve every document and folder in a workspace from an address you own, like `docs.acme.com`. A document filed under **Guides** opens at `docs.acme.com/guides/<document>`. Existing markdrop.in links keep working. People who may edit a page edit it right there too, signed in on your domain; see [Edit on your domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain).
+Serve every document and folder in a workspace from an address you own, like `docs.acme.com`. A document filed under **Guides** opens at `docs.acme.com/guides/<document>`. Existing markdrop.in links keep working. People who may edit a page edit it right there too, signed in on your domain, and people who may share it add and remove people from **Share**; see [Edit on your domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain). Links to the workspace and its folders unfurl in Slack and other apps with their own [preview card](/documents/link-previews#folders-and-workspaces).
 
 :::note[Before you start]
 You need to be an **Admin** or the **Owner** of the workspace, and able to add DNS records for the domain (or know who can). A workspace can have up to 25 domains.

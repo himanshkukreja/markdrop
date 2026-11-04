@@ -16,7 +16,7 @@
  */
 import { useState, useSyncExternalStore } from "react";
 import {
-  Anchor, Badge, Checkbox, CopyButton, Icon, IconButton, SegmentedControl, Skeleton, cx, FILE_KINDS, fileKind,
+  Anchor, Badge, Checkbox, CopyButton, Icon, IconButton, SegmentedControl, Skeleton, Tooltip, cx, FILE_KINDS, fileKind,
   type FileRenderer, type MenuEntry,
 } from "@/components/ui";
 import RowMenu from "@/components/dashboard/RowMenu";
@@ -120,11 +120,14 @@ export function PersonAvatar({ person, size = "md" }: { person: ItemOwner; size?
 /** Avatar and name ("You" for the caller). `data-owner` marks it for tests. */
 export function Person({ person, size, hideName, className }: { person: ItemOwner; size?: "sm" | "md" | "lg"; hideName?: boolean; className?: string }) {
   const label = ownerLabel(person);
+  // The name on hover (instant, the design system's tooltip; never the slow native title).
   return (
-    <span className={cx("wl-person", className)} data-owner title={person.is_you ? "You own this" : `Owned by ${label}`}>
-      <PersonAvatar person={person} size={size} />
-      <span className={cx("wl-person__name ph-sensitive ph-mask", hideName && "md-visually-hidden")}>{label}</span>
-    </span>
+    <Tooltip content={<span className="ph-sensitive ph-mask">{person.is_you ? "You own this" : `Owned by ${label}`}</span>}>
+      <span className={cx("wl-person", className)} data-owner>
+        <PersonAvatar person={person} size={size} />
+        <span className={cx("wl-person__name ph-sensitive ph-mask", hideName && "md-visually-hidden")}>{label}</span>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -135,9 +138,18 @@ export function People({ people, count, size = "md" }: { people: ItemOwner[]; co
   const rest = Math.max(0, count - people.length);
   const words = `Items by ${names.join(", ")}${rest ? ` and ${rest} more` : ""}`;
   return (
-    <span className="wl-people" data-owner title={words}>
-      {people.map((p, i) => <PersonAvatar key={`${p.name}-${i}`} person={p} size={size} />)}
-      {rest > 0 && <span className="wl-more" aria-hidden>+{rest}</span>}
+    <span className="wl-people" data-owner>
+      {/* Each face names its person on hover; "+n" lists the rest. */}
+      {people.map((p, i) => (
+        <Tooltip key={`${p.name}-${i}`} content={<span className="ph-sensitive ph-mask">{ownerLabel(p)}</span>}>
+          <PersonAvatar person={p} size={size} />
+        </Tooltip>
+      ))}
+      {rest > 0 && (
+        <Tooltip content={<span className="ph-sensitive ph-mask">{words}</span>}>
+          <span className="wl-more" aria-hidden>+{rest}</span>
+        </Tooltip>
+      )}
       <span className="md-visually-hidden ph-sensitive ph-mask">{words}</span>
     </span>
   );
@@ -309,7 +321,7 @@ function FolderRow(p: FolderEntryProps) {
       <span className="wl-cell"><When iso={f.updated_at} /></span>
       <span className="wl-cell wl-c-access" />
       <span className="wl-cell wl-cell--act">
-        {menu && menu.length > 0 && <span className="wl-lift wl-hover"><RowMenu items={menu} label={`Actions for the folder ${f.name}`} /></span>}
+        {menu && menu.length > 0 && <span className="wl-lift wl-hover"><RowMenu portal items={menu} label={`Actions for the folder ${f.name}`} /></span>}
       </span>
     </li>
   );
@@ -344,7 +356,7 @@ function ItemListRow(p: ItemEntryProps) {
             <CopyButton text={it.url} label="Copy link" iconOnly variant="ghost" size="sm" announceText="Link copied" />
           </span>
         )}
-        <span className="wl-lift"><RowMenu items={menu} label={`Actions for ${t}`} /></span>
+        <span className="wl-lift"><RowMenu portal items={menu} label={`Actions for ${t}`} /></span>
       </span>
     </li>
   );
@@ -397,7 +409,7 @@ function ItemPhoneRow(p: ItemEntryProps) {
 function FolderTile(p: FolderEntryProps & { cards: boolean }) {
   const { folder: f, href, menu, cards } = p;
   const e = useFolderEntry(p);
-  const act = menu && menu.length > 0 ? <RowMenu items={menu} label={`Actions for the folder ${f.name}`} /> : null;
+  const act = menu && menu.length > 0 ? <RowMenu portal items={menu} label={`Actions for the folder ${f.name}`} /> : null;
   const name = <Anchor href={href} draggable={false} className="wl-name ph-sensitive ph-mask" dir="auto">{f.name}</Anchor>;
   if (cards) {
     return (
@@ -435,7 +447,7 @@ function ItemTileEntry(p: ItemEntryProps & { cards: boolean }) {
       {t}<span className="md-visually-hidden"> (opens in a new tab)</span>
     </a>
   );
-  const act = <RowMenu items={menu} label={`Actions for ${t}`} />;
+  const act = <RowMenu portal items={menu} label={`Actions for ${t}`} />;
   if (cards) {
     return (
       <li ref={e.ref} {...e.props} className="wl-tile" data-row-kind="item">

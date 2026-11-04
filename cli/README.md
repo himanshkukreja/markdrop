@@ -1,12 +1,15 @@
 # markdrop CLI
 
-A cross-platform terminal tool that does two things with files:
+A cross-platform terminal tool for Markdrop:
 
 - **Share peer-to-peer** (`send` / `get`) with no cloud storage. Files travel directly between machines
   over an encrypted WebRTC DataChannel; the signalling server only ever sees tiny handshake messages.
 - **Publish behind a lasting link** (`upload` / `replace`): a video, PDF, HTML page… gets a
   `markdrop.in/<slug>` link, and you can swap the file behind that same link later, keeping earlier
   versions. See [Upload and replace files](#upload-and-replace-files).
+- **Write pages** (`page`, `export`, `link`): create a page from a Markdown file, print it, edit it,
+  add images from your disk, restore an earlier version, export it; plus `search`, `trash` and
+  `access` for the rest of your account. See [Pages, search, trash and access](#pages-search-trash-and-access) (v0.6.0+).
 
 ---
 
@@ -22,7 +25,9 @@ A cross-platform terminal tool that does two things with files:
 - **Cross-platform** — single statically linked binary for macOS and Linux (amd64 and arm64) and Windows (amd64)
 - **Large file support** — 64 KB chunking with backpressure; no memory limits on file size
 - **Auto-accept mode** — `-y` flag for scripted / unattended use
-- **AI assistants** — `markdrop mcp` lets Claude Code, Claude Desktop, Cursor or VS Code publish, replace, share and receive files for you
+- **Pages from the terminal** — `markdrop page new "Notes" --from-file notes.md`, `page get`, `page update`,
+  `page append`, `page props`, `page image add`, `page versions`/`restore`, `export`, `link set`
+- **AI assistants** — `markdrop mcp` lets Claude Code, Claude Desktop, Cursor or VS Code publish, replace, share and receive files, put images into pages and export pages for you
 
 ---
 
@@ -268,6 +273,66 @@ prints `{"workspaces":[…]}`, and `markdrop workspaces <workspace> --json` the 
 
 ---
 
+## Pages, search, trash and access
+
+(v0.6.0+.) These use the same API token as `upload`. A page is named by its slug or any of its links
+(markdrop.in, a workspace's domain, or an old link of a page whose link changed). Full guide:
+[docs.markdrop.in/cli/pages](https://docs.markdrop.in/cli/pages).
+
+```bash
+markdrop page new "Release notes" --from-file notes.md          # prints the link
+markdrop page new "Setup" --workspace Acme --folder guides --slug setup-guide --icon 🚀
+markdrop page new "Step 2" --parent setup-guide --from-file step2.md
+markdrop page new "Standup" --template meeting-notes             # see: markdrop page templates
+cat draft.md | markdrop page new "Draft" --from-file -
+
+markdrop page get setup-guide > setup.md                         # Markdown with its front matter
+markdrop page get setup-guide --info                             # title, revision, properties, sub-pages
+markdrop page update setup-guide --from-file setup.md [--base-rev 7] [--title "…"]
+markdrop page append standup -- "- Shipped the CLI update"       # Markdown starting with - goes after --
+markdrop page props setup-guide --icon 🚀 --cover gallery:dusk --full-width --clear font
+markdrop page props task-12 --set Status=Done --set Points=3     # a folder's typed properties
+markdrop page image add setup-guide diagram.png [--cover|--icon|--append] [--alt "…"]
+markdrop page versions setup-guide                               # * = the page now
+markdrop page version setup-guide 4                              # print version 4
+markdrop page restore setup-guide 4
+
+markdrop link set setup-guide install [--check]                  # the old link keeps redirecting
+markdrop export setup-guide [--format md|html|zip] [--subpages] [-o file|folder|-] [--force]
+
+markdrop search roadmap [--kind page|document|file|folder|workspace] [--workspace Acme]
+markdrop trash rm old-notes [--children delete|lift]             # 30 days to restore
+markdrop trash ls
+markdrop trash restore old-notes
+markdrop trash rm old-notes --permanent [--yes]                  # forever; asks first
+markdrop access request handbook --message "Fixing typos"        # ask for edit access (--view: to open)
+markdrop access requests [--status pending|approved|declined|all]
+markdrop access approve <id> [--role viewer|editor]
+markdrop access decline <id>
+```
+
+**How it behaves**
+
+- `page update`, `append`, `props` and `image add` save through the page's normal save path: they are
+  refused (HTTP 423) while someone else has the page open in the editor. `append` and `props` re-read
+  and retry when someone saved in between; `update --base-rev N` refuses instead of overwriting.
+- `page props` writes the page's front matter (`icon`, `cover`, `cover_y`, `full_width`, `small_text`,
+  `font`, `locked`, `allow_export`), keeping every other line of it as it was. `--cover auto` picks a
+  cover like a new page gets. `--set` writes a typed property of the page's folder (values that are
+  JSON are read as JSON).
+- `page image add` takes PNG, JPEG, GIF or WebP up to 10 MB.
+- `export` saves under the name Markdrop gives the export unless `-o` names a file; it writes to a
+  temporary file and renames it at the end, and never overwrites without `--force`.
+- `search` searches titles, addresses and file names (not document text), plus folder and workspace
+  names: the same search as the app's ⌘K. When Markdrop's full search API ships, the CLI switches
+  to it in one place (internal/files/search.go).
+- `trash rm --permanent` asks on a terminal; in scripts it needs `--yes`.
+- `--json` on every one of these prints exactly one JSON object on stdout. For pages the shape is
+  `{url, markdrop_url, workspace_url, slug, title, rev}` (plus `markdown`, `properties`, `children`, …
+  for `page get`). A page's edit secret is never printed.
+
+---
+
 ## Use with AI assistants (MCP)
 
 `markdrop mcp` is a local [Model Context Protocol](https://modelcontextprotocol.io) server. It lets
@@ -275,7 +340,7 @@ an AI app on your computer — Claude Code, Claude Desktop, Cursor, VS Code — 
 "publish ~/Movies/demo.mp4 and give me the link", "replace the video at markdrop.in/demo with the new
 render", "share these three PDFs peer-to-peer", "download https://markdrop.in/share/… into ~/Projects".
 (Peer-to-peer tools since v0.3.0; file publishing tools since v0.4.0; workspaces, folders and custom
-slugs since v0.5.0.)
+slugs since v0.5.0; page images and exports since v0.6.0.)
 
 It runs **on your computer** because the bytes come from your own disk: an AI app never has to pass a
 file's contents through the conversation. The remote server at `https://api.markdrop.in/mcp` (which
@@ -339,6 +404,13 @@ progress (an MCP progress token), the server sends `notifications/progress` with
 size. A long upload never holds up other tool calls and has no time limit of its own; if the app cancels
 the call, calling the tool again with the same arguments resumes where it stopped.
 
+**Tools — pages and files on disk** (v0.6.0+, need a token)
+
+| Tool | What it does |
+|------|--------------|
+| `upload_page_image` | Uploads an image file (`path`; PNG, JPEG, GIF or WebP up to 10 MB) to a page (`document`) and returns `{asset, markdown, id, mime, size, width, height, slug, url}`. `set_as` = `cover`/`icon` also makes it the cover or icon; `append` adds it at the end of the page; `alt` sets the alt text. |
+| `export_page` | Saves a page (`document`) as a file: `format` `md` (default), `html` or `zip`; `include_subpages`; `path` = a file or folder (default `~/Downloads/Markdrop`); `overwrite`. Returns `{slug, format, subpages, filename, path, bytes, notes}`. |
+
 **Tools — peer-to-peer**
 
 | Tool | What it does |
@@ -366,7 +438,9 @@ the call, calling the tool again with the same arguments resumes where it stoppe
 - Anyone with a link can open what it points to (unless you published with `access: "private"` or a
   password). Your AI app asks before it calls `upload_file`, `replace_file` or `share_files`; read what it
   is about to publish or share.
-- `upload_file` and `replace_file` refuse the same secret locations as `share_files` (below).
+- `upload_file`, `replace_file` and `upload_page_image` refuse the same secret locations as `share_files` (below).
+- `export_page` won't save into secret or autostart locations, refuses file names starting with a dot,
+  and never replaces a file unless `overwrite` is set.
 - Anyone with a share link can download what it shares, until the share stops.
 - Shares live only as long as the app that started them: closing the app ends every link.
 - `share_files` refuses well-known secret locations — `~/.ssh`, `~/.aws`, `~/.gnupg`,
@@ -382,7 +456,7 @@ the call, calling the tool again with the same arguments resumes where it stoppe
 
 | Variable | Effect |
 |----------|--------|
-| `MARKDROP_TOKEN` | An API token (markdrop.in → Settings → API tokens). Without it, the token saved by `markdrop login` is used. The file and workspace tools need one. With a token, peer-to-peer shares you start are listed under your account, e.g. by the remote MCP server's `list_shares` (the same goes for `markdrop send`); without one the peer-to-peer tools tell the server nothing about your files. |
+| `MARKDROP_TOKEN` | An API token (markdrop.in → Settings → API tokens). Without it, the token saved by `markdrop login` is used. The file, workspace and page tools need one. With a token, peer-to-peer shares you start are listed under your account, e.g. by the remote MCP server's `list_shares` (the same goes for `markdrop send`); without one the peer-to-peer tools tell the server nothing about your files. |
 | `MARKDROP_MCP_ALLOW_ANY_PATH` | `1` disables the secret-path guard. |
 | `MARKDROP_CACHE_DIR` | Where resumable uploads are remembered (default: your user cache folder). |
 | `MARKDROP_CONFIG_DIR` | Where `markdrop login` keeps the token (default: your user config folder). |
@@ -486,6 +560,11 @@ name or domain — its folders, with the paths `upload --folder` takes. Flags: `
 
 List versions (newest first, `*` = current), make an earlier version current again (as a new version),
 or show a file's details. Each takes `--json` and `--token`.
+
+### `markdrop page …` · `markdrop link set` · `markdrop export` · `markdrop search` · `markdrop trash …` · `markdrop access …`
+
+See [Pages, search, trash and access](#pages-search-trash-and-access). Each takes `--json` and `--token`;
+`markdrop <command> --help` lists every flag.
 
 ### `markdrop login` / `markdrop logout`
 
@@ -596,7 +675,7 @@ make test           # go test ./...
 ```
 
 The version `markdrop --version` reports comes from the latest `v*` tag (`git describe`); set it
-yourself with `make build VERSION=0.5.0`.
+yourself with `make build VERSION=0.6.0`.
 
 ---
 
@@ -612,6 +691,9 @@ cli/
 │   ├── root.go                     Cobra root command; global flags
 │   ├── send.go                     `markdrop send` — file sender
 │   ├── get.go                      `markdrop get` — file receiver
+│   ├── files.go                    upload, replace, versions, restore, info, workspaces
+│   ├── pages.go                    `markdrop page …`
+│   ├── manage.go                   link set, export, trash, access, search
 │   └── mcp.go                      `markdrop mcp` — local MCP server (stdio)
 └── internal/
     ├── signaling/
@@ -622,6 +704,8 @@ cli/
     │   ├── guest.go                WebRTC guest: answers offer, assembles chunks
     │   ├── source.go               What a host serves: a file, or a zip of a folder / several paths
     │   └── blob.go                 Share-metadata blob (attribution with your API token)
+    ├── files/                      API client: files, pages, front matter, export, trash, access, search
+    │   └── fakeapi/                In-memory stand-in for the API (tests)
     ├── mcpserver/                  MCP tools, share/receive manager, secret-path guard
     └── ui/
         └── display.go              Terminal output: box, QR code, spinner, progress bar

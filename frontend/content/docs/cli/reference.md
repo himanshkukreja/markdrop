@@ -1,13 +1,13 @@
 ---
 title: CLI reference
 nav: Command reference
-description: Every markdrop command, flag, default, environment variable and exit code in CLI 0.5.1.
-updated: 2026-10-30
+description: Every markdrop command, flag, default, environment variable and exit code in CLI 0.6.0.
+updated: 2026-11-04
 since: CLI 0.5.0
-keywords: [reference, flags, commands, options, environment variables, exit codes, help, completion]
+keywords: [reference, flags, commands, options, environment variables, exit codes, help, completion, page, export, trash, search, access, link]
 ---
 
-This page covers the markdrop CLI 0.5.1. Run `markdrop <command> --help` for the same details in your terminal, and `markdrop --version` to see which version you have.
+This page covers the markdrop CLI 0.6.0. Run `markdrop <command> --help` for the same details in your terminal, and `markdrop --version` to see which version you have.
 
 ## Commands
 
@@ -21,9 +21,15 @@ This page covers the markdrop CLI 0.5.1. Run `markdrop <command> --help` for the
 | [`restore <slug-or-url> <version>`](#restore) | Make an earlier version current again | Yes |
 | [`info <slug-or-url>`](#info) | Show a published file's details | Yes |
 | [`workspaces [workspace]`](#workspaces) | List your workspaces, or one workspace's folders | Yes |
+| [`page <subcommand>`](#page) | Create, read, edit and restore pages, set their properties, add images | Yes |
+| [`link set <document> <new-slug>`](#link-set) | Change a document's link; the old one redirects | Yes |
+| [`export <page>`](#export) | Save a page as Markdown, HTML or a zip | Yes |
+| [`search <query>`](#search) | Find pages, documents, files, folders and workspaces | Yes |
+| [`trash ls\|restore\|rm`](#trash) | List, restore or delete items in the trash | Yes |
+| [`access request\|requests\|approve\|decline`](#access) | Ask for edit access, and answer access requests | Yes |
 | [`login`](#login) | Save an API token on this computer | No |
 | [`logout`](#logout) | Delete the saved API token | No |
-| [`mcp`](#mcp) | Run the local MCP server for AI apps (stdio) | For file and workspace tools |
+| [`mcp`](#mcp) | Run the local MCP server for AI apps (stdio) | For file, workspace and page tools |
 | `completion <shell>` | Print a shell completion script (bash, zsh, fish, powershell) | No |
 | `help [command]` | Show help | No |
 
@@ -134,6 +140,72 @@ markdrop workspaces [workspace]
 
 Without an argument: your workspaces with id, name, your role and live custom domains. With a workspace id, name or domain: its folders with path, name, item count and id. Guide: [Workspaces and folders](/cli/workspaces).
 
+## Page commands
+
+These take the same `--token` and `--json` flags as the file commands. A `<page>` is a slug, a markdrop.in link, a link on a workspace's domain, or an old link of a page whose link changed. Guide: [Write pages from the terminal](/cli/pages).
+
+### page
+
+| Subcommand | What it does |
+|---|---|
+| `page new <title>` | Create a page and print its link. Flags: `--from-file <file\|->`, `--template <id>`, `--workspace`, `--folder`, `--parent <page>`, `--slug`, `--icon`, `--cover`, `--no-auto-cover`. |
+| `page get <page>` | Print its Markdown with front matter. `--body` leaves the front matter out; `--info` prints its details instead. |
+| `page update <page>` | Replace its Markdown (`--from-file <file\|->`) and/or its title (`--title`). `--base-rev N` refuses if it changed since revision N. |
+| `page append <page> [markdown…]` | Add Markdown at the end (or `--from-file <file\|->`). Markdown that starts with `-` goes after `--`. |
+| `page props <page>` | Show its properties, or change them: `--icon`, `--cover` (`gallery:<name>`, `asset:<id>`, `https://…`, `auto`), `--cover-y`, `--full-width`, `--small-text`, `--font`, `--locked`, `--allow-export`, `--clear <key>`, `--set key=value` (typed folder properties). |
+| `page templates` | The templates `page new --template` takes; `--workspace` adds that workspace's. |
+| `page image add <page> <file>` | Upload a PNG, JPEG, GIF or WebP image (up to 10 MB) and print its Markdown. `--cover`, `--icon` or `--append` puts it to use; `--alt` sets the alt text. |
+| `page versions <page>` | Its saved versions, newest first, `*` on the current one. `--limit`, `--cursor`. |
+| `page version <page> <n>` | Print version `n`'s Markdown. |
+| `page restore <page> <n>` | Make version `n` the page again, as a new version. |
+
+`page update`, `page append`, `page props` and `page image add` are refused while someone else has the page open in the editor. A save that meets someone else's newer save is retried on their version (`append`, `props`) or refused (`update --base-rev`).
+
+### link set
+
+```text
+markdrop link set <document> <new-slug> [--check]
+```
+
+Changes the link of a page, document or file you own. The old link redirects to the new one. `--check` only says whether the slug is free.
+
+### export
+
+```text
+markdrop export <page> [--format md|html|zip] [--subpages] [-o file|folder|-] [--force]
+```
+
+Saves the page as portable Markdown (default), one HTML file, or a zip with its images; `--subpages` adds its sub-pages as a zip. `-o -` writes to standard output. An existing file is overwritten only with `--force`.
+
+## Search, trash and access
+
+Guide: [Search, trash and access requests from the terminal](/cli/search-trash-access).
+
+### search
+
+```text
+markdrop search <query…> [--kind page|document|file|folder|workspace] [--workspace W] [--limit N]
+```
+
+Searches titles, addresses and file names of what you can open, and folder and workspace names. At least 2 characters; up to 20 results per kind.
+
+### trash
+
+| Subcommand | What it does |
+|---|---|
+| `trash ls [--workspace W]` | What you can restore, newest first, with the days left. |
+| `trash restore <document\|folder-key>` | Bring it back where it was. |
+| `trash rm <document>` | Move it to the trash. `--children delete\|lift` for a page with sub-pages. `--permanent` deletes it forever (asks first; `--yes` in scripts). |
+
+### access
+
+| Subcommand | What it does |
+|---|---|
+| `access request <document>` | Ask for edit access (`--view`: to open it), with `--message`. Prints the request id. |
+| `access requests` | Requests on your documents; `--status pending` (default), `approved`, `declined` or `all`. |
+| `access approve <id>` | Approve; `--role viewer\|editor` (default: what they asked for). |
+| `access decline <id>` | Decline. |
+
 ## Account commands
 
 ### login
@@ -164,10 +236,10 @@ Runs Markdrop's local MCP server over standard input and output. AI apps start i
 
 | Variable | Used by | Effect |
 |---|---|---|
-| `MARKDROP_TOKEN` | File commands, `send`, `mcp` | API token. Beats the saved token; `--token` beats it. |
-| `MARKDROP_CONFIG_DIR` | `login`, `logout`, file commands, `send`, `mcp` | Folder for the saved token (`<dir>/token`). Default: your user config folder plus `markdrop`. |
+| `MARKDROP_TOKEN` | File, page, search, trash and access commands, `send`, `mcp` | API token. Beats the saved token; `--token` beats it. |
+| `MARKDROP_CONFIG_DIR` | `login`, `logout`, every command that uses a token | Folder for the saved token (`<dir>/token`). Default: your user config folder plus `markdrop`. |
 | `MARKDROP_CACHE_DIR` | `upload`, `replace`, `mcp` | Folder for unfinished uploads (`<dir>/uploads`). Default: your user cache folder plus `markdrop`. |
-| `MARKDROP_MCP_ALLOW_ANY_PATH` | `mcp` | `1` turns off the guard that refuses to share or publish secret locations such as `~/.ssh`. |
+| `MARKDROP_MCP_ALLOW_ANY_PATH` | `mcp` | `1` turns off the guard that refuses to share, publish or save into secret locations such as `~/.ssh`. |
 | `MARKDROP_DEBUG` | `send`, `get`, `mcp` shares | Any value prints connection state changes and the chosen route on standard error. |
 | `MARKDROP_ICE_EXCLUDE_IFACES` | `send`, `get`, `mcp` shares | Comma-separated network interface name prefixes to leave out, for example `utun`. |
 

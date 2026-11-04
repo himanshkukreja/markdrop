@@ -18,7 +18,9 @@
 .wl-av--lg { width: 24px; height: 24px; font-size: 11px; }
 .wl-people { display: inline-flex; align-items: center; min-width: 0; }
 .wl-people .wl-av { box-shadow: 0 0 0 2px var(--surface); }
-.wl-people .wl-av + .wl-av { margin-left: -5px; }
+.wl-people .wl-av + .wl-av,
+.wl-people > .md-tip + .md-tip { margin-left: -5px; }
+.wl-people > .md-tip { display: inline-flex; }
 .wl-more { margin-left: 6px; font-size: 12px; color: var(--text-muted); white-space: nowrap; }
 .wl-person { display: inline-flex; align-items: center; gap: 8px; min-width: 0; color: var(--text-secondary); font-size: 13px; }
 .wl-person__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

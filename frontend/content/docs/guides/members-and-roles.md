@@ -1,9 +1,9 @@
 ---
 title: Members and roles
 description: Markdrop Guides' own roles (Admin, Reviewer, Editor, Viewer, No access), who gets which by default, per-guide roles, and the history of changes.
-updated: 2026-11-02
+updated: 2026-11-04
 prerequisites: [/guides/overview, /workspaces/members-and-roles]
-keywords: [roles, permissions, members, admin, reviewer, editor, viewer, no access, guide roles, site roles, override, team, access]
+keywords: [roles, permissions, members, people, admin, reviewer, editor, viewer, no access, guide roles, site roles, override, team, access, avatars]
 ---
 
 Guides in a workspace are shared with the workspace's people, but Markdrop Guides has **its own roles**, separate from the [workspace roles](/workspaces/members-and-roles) that decide who can see documents and files. Being a workspace member doesn't, on its own, give anyone access to its guides.
@@ -51,7 +51,7 @@ You can only give roles to people in the workspace. To add someone new, [invite 
 
 ## Give someone a role
 
-Guides admins manage roles on the **Members** page: on the Markdrop Guides home, pick the workspace under **Workspace** and choose **Members**. A guide's **More** menu and the guide menu in the header (**Members of** the workspace) open it too.
+Guides admins manage roles on the **Members** page: choose **Members** at the top of the Markdrop Guides home, beside **New guide**. If you're an admin in more than one workspace, pick the workspace under **Workspace** first, or switch workspaces on the Members page. A guide's **⋯** menu (**Workspace members**) and the guide menu in the header (**Members of** the workspace) open it too.
 
 ::::steps
 ### Find the person
@@ -65,11 +65,20 @@ Choose **Admin**, **Reviewer**, **Editor**, **Viewer** or **No access** from the
 
 Under each name you see who gave the role and when, and badges for any guide where the person has a different role. You can't change your own role: ask another admin. **Invite to the workspace** opens the workspace's People settings.
 
+## See who works on a guide
+
+Every workspace guide shows its people at a glance: up to three faces, admins first, then **+n** for everyone else with a role on it. Hover over a face to see the person's name and role. You see them:
+
+- on each guide's card and row on the Markdrop Guides home, in both the cards and the list view;
+- in the guide's bar, beside **Live** or **Not published yet**, on every screen of the guide.
+
+Click the faces, or choose **People** in the guide's **⋯** menu, to open the guide's **Settings › People**. Admins change roles there; everyone else sees the list of who works on the guide, with each person's role and where it comes from. Email addresses are only shown to Guides admins. A personal guide has no faces: it's yours alone.
+
 ## A different role on one guide
 
 A guide can give someone a different role from their workspace-wide one, higher or lower. For example: an editor for the Help Center only, or **No access** to an internal handbook. The guide's role wins.
 
-Open the guide's **Settings** and find **People**:
+Open the guide's **Settings** and find **People** (or click the faces on the guide's card or bar):
 
 1. Choose **Add person**, pick someone from the workspace, and pick their **Role on this guide**. Choose **Save**.
 2. To change it, pick another role beside their name. To remove it, choose **×**: they're back to their workspace role.
@@ -80,7 +89,7 @@ Open the guide's **Settings** and find **People**:
 
 ![The People card of Acme Help Center: Different on this guide · 1 with Priya Nair as Editor (workspace-wide: No access, set by Maya), and the collapsed Everyone's role on this guide and History.](/docs-assets/guides/members-and-roles/site-people.webp)
 
-Only Guides admins see **People**. Everyone else sees **Your role** there instead.
+Only Guides admins can change roles here. Everyone else sees their own role, and who works on the guide with their roles, read-only.
 
 ## History
 

@@ -2,7 +2,7 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-04
-keywords: [page, pages, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
+keywords: [page, pages, top bar, sidebar, collapse sidebar, menu, more actions, use as template, version history, request edit access, admins, unlock, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -70,16 +70,21 @@ The sidebar beside the page holds the page tree and the page's contents. To hide
 
 ## Page options
 
-The **⋯** menu in the top bar has:
+The **⋯** menu in the top bar has, if you can edit the page:
 
 - The font: **Default**, **Serif** or **Mono**, then the **Small text**, **Full width** and **Readers can export** switches.
-- **Lock page** (owners): only you and workspace admins can edit it, and AI apps can't add to it, until you unlock it.
-- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate**, **Change link…** (owners), **Edit as Markdown** and **Delete page**.
-- AI: **Summarize page**, **Find action items**, **Suggest title & icon** and **Translate…**. See [AI in pages](/pages/ai).
-- **Export…** (Markdown, HTML or PDF; see [Export a page](/pages/export)) and **Details** (published, views and who can open it).
-- The word count.
+- AI: **Summarize page**, **Find action items** and **Suggest title & icon** (and **Translate…** further down). See [AI in pages](/pages/ai).
+- **Lock page** (the owner and workspace admins): only the owner and the workspace's admins can edit it, and AI apps can't add to it, until one of them chooses **Unlock page**.
+- **Copy link**, **Add a sub-page**, **Move to…**, **Duplicate** and **Edit as Markdown** (see [Edit the Markdown](#edit-the-markdown)).
+- **Export…** (Markdown, HTML or PDF; see [Export a page](/pages/export)), **Version history** (see [Version history](/pages/history)), **Use as template** (see [Templates](/pages/templates)), **Change link…** (owners; see [Change a page's link](#change-a-pages-link)), **Translate…**, **Publish to Google Docs** (owners who have connected Google) and **Details** (published, views and who can open it). If someone shared the page with you, **Remove me** takes you off it.
+- **Delete page** (owners), which moves it to [Trash](/documents/trash) for 30 days.
+- The word count, and when the page was last edited.
 
-These options are saved in the page's Markdown, so they travel with it. See [Page Markdown reference](/pages/markdown-reference).
+People who can only read the page get a shorter menu: **Copy link**, **View raw**, **Export…** (unless its editors turned **Readers can export** off), **Save a copy**, **Edit** (it asks for the page's [edit secret](/documents/edit-key)), **Request edit access** (signed in; see [Request edit access](/sharing/request-access#request-edit-access)), **Report** and **Details**. On a workspace's own domain, the owner's menu also has **General access on markdrop.in**, **Change link on markdrop.in** and **Delete on markdrop.in**, which open the same page on markdrop.in. See [Edit on your domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain).
+
+A long menu never runs off the screen: if it's taller than the room it has, it scrolls.
+
+The font, the switches and the lock are saved in the page's Markdown, so they travel with it. See [Page Markdown reference](/pages/markdown-reference).
 
 ## Edit the Markdown
 

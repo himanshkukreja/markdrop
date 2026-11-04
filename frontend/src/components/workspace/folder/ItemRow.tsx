@@ -112,7 +112,7 @@ export function ItemRow({
         {onSheet ? (
           <IconButton icon="more" label={menuLabel} className="size-11" onClick={onSheet} aria-haspopup="dialog" />
         ) : (
-          <RowMenu items={menu} label={menuLabel} />
+          <RowMenu portal items={menu} label={menuLabel} />
         )}
       </li>
     );
@@ -168,7 +168,7 @@ export function ItemRow({
           </span>
         )}
         {copy && <CopyButton text={copy} label="Copy link" variant="secondary" size="sm" announceText="Link copied" />}
-        <RowMenu items={menu} label={menuLabel} />
+        <RowMenu portal items={menu} label={menuLabel} />
       </div>
     </li>
   );

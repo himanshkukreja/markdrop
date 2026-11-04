@@ -3,7 +3,7 @@ title: Share with specific people
 description: Add people by email with Can view or Can edit, email them a note, let them share it on, and remove them later.
 updated: 2026-11-04
 prerequisites: [/get-started/accounts]
-keywords: [share, invite, email, grant, collaborator, can view, can edit, reshare, notify people, notification, message]
+keywords: [share, invite, email, grant, collaborator, can view, can edit, reshare, notify people, notification, message, custom domain, share on domain]
 ---
 
 Add people by email when a document or file is for them and not for everyone with the link. They sign in with that address and it opens. You can give each person **Can view** or **Can edit**, and take it back whenever you like.
@@ -77,6 +77,10 @@ Turn on **Let people I share with add others** to let the people you added share
 If you remove someone, everyone they added loses the access that came through them.
 
 It's on by default for documents outside a workspace, and off by default for documents filed in one.
+
+## On a workspace's own domain
+
+On a workspace's domain, like `docs.acme.com`, **Share** on a page works for people too: anyone who may share the page on markdrop.in can see who has access, add people as **Can view** or **Can edit** (with **Notify people** and a message), remove them and copy the link. **Who can open it**, the password and the link stay on markdrop.in. See [Edit on your domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain).
 
 ## Limits
 

@@ -349,14 +349,24 @@ export default function StudioHome() {
   const managesPeople = (s: SiteSummary) => !!all?.workspaces.find((w) => w.id === s.workspace_id)?.can_manage_people;
   const showStart = !!all && (newScope !== null || (!filter && (all.personal.can_create || all.workspaces.some((w) => w.can_create))));
   const item = { onDelete: setDeleting };
+  // Guides › Members (the team who can work on the guides, and their roles): for anyone who
+  // manages people somewhere, the filtered workspace when they manage it, else the page picks.
+  const membersHref = all?.workspaces.some((w) => w.can_manage_people)
+    ? studioMembers(ws?.can_manage_people ? ws.id : null)
+    : null;
 
   return (
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1168px] flex-col gap-7 px-4 pb-16 pt-6 outline-none max-sm:gap-[18px] sm:px-6 sm:pt-9">
       <Title
         actions={
           <div className="flex gap-2 max-sm:w-full">
+            {membersHref && (
+              <Button variant="secondary" iconLeft="users" href={membersHref} title="Who can work on the guides, and their roles">
+                Members
+              </Button>
+            )}
             <Button variant="secondary" iconLeft="download" href={studioNew(newScope, "gitbook")} className="max-sm:hidden">Import from GitBook</Button>
-            <Button variant="primary" iconLeft="plus" href={studioNew(newScope)} className="max-sm:w-full">New guide</Button>
+            <Button variant="primary" iconLeft="plus" href={studioNew(newScope)} className="max-sm:flex-1">New guide</Button>
           </div>
         }
       />
@@ -403,7 +413,6 @@ export default function StudioHome() {
                   />
                 </label>
               )}
-              {ws?.can_manage_people && <Button variant="ghost" size="sm" iconLeft="users" href={studioMembers(ws.id)}>Members</Button>}
               <SegmentedControl
                 aria-label="Layout"
                 size="sm"
@@ -428,7 +437,7 @@ export default function StudioHome() {
                 <>
                   {shown.length === 0 && <p className="text-body text-text-muted">{EMPTY_TAB[tab]}</p>}
                   {layout === "list" && shown.length > 0 ? (
-                    <ul className="ph-no-capture hidden flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface sm:flex" aria-label="Guides">
+                    <ul className="ph-no-capture hidden flex-col divide-y divide-border rounded-xl border border-border bg-surface sm:flex" aria-label="Guides">
                       {shown.map((s) => <GuideRow key={s.id} site={s} where={where(s)} insights={cardIns(s)} canManagePeople={managesPeople(s)} {...item} />)}
                     </ul>
                   ) : null}

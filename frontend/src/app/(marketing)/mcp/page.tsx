@@ -105,7 +105,7 @@ function ToolsPanel() {
         ))}
       </div>
       <p className={m.local}>
-        <b>On your computer,</b> the local server ({MCP_LOCAL_SERVER}) adds {LOCAL_COUNT} more: publishing files from disk, workspaces, and sending and receiving share links.
+        <b>On your computer,</b> the local server ({MCP_LOCAL_SERVER}) adds {LOCAL_COUNT} more: publishing files from disk, workspaces, images into pages and exports to files, and sending and receiving share links.
       </p>
     </div>
   );

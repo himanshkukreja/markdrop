@@ -20,6 +20,11 @@ normal ``access.add_grant`` owner path (an owner-made root grant, which
 survives every membership change, I9). Deciding twice the same way is a
 no-op; a different second decision is a 409.
 
+Over MCP (app/mcp/access_request_tools.py) the same functions answer: an
+assistant's token may ask (``create``), list the requests its user decides on
+(``list_for_owner``, a read: a read-only token sees them too) or made
+(``list_for_requester``), and decide (``decide``, which needs documents:write).
+
 Edit requests (``role: "editor"``, "Request edit access", 2026-11-04): from
 someone who can already *read* the page but not edit it (a workspace viewer, a
 viewer grant, a reader of a link page) — on markdrop.in or on the workspace's
@@ -37,6 +42,7 @@ declined edit request can't be asked again for a day (``DECLINED_COOLDOWN``).
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime, timedelta, timezone
 
 from bson import ObjectId
@@ -348,6 +354,15 @@ async def mine(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, s
 # ── The owner's side ─────────────────────────────────────────────────────────
 
 
+def _as_decider(actor: access.Actor) -> access.Actor:
+    """Who may decide is a question about the person, not their credential's write scope: a
+    read-only MCP token lists the requests its user decides on. Deciding itself needs
+    documents:write (``decide``)."""
+    if actor.cred == "mcp" and access.MCP_WRITE not in actor.scopes:
+        return dataclasses.replace(actor, scopes=frozenset(actor.scopes) | {access.MCP_WRITE})
+    return actor
+
+
 async def _owned_doc(db: AsyncIOMotorDatabase, row: dict, actor: access.Actor,
                      ctx: access.Ctx) -> dict | None:
     """The request's document when the caller may decide on it, else None. Its owner, now; or,
@@ -357,6 +372,7 @@ async def _owned_doc(db: AsyncIOMotorDatabase, row: dict, actor: access.Actor,
     raw = await db["documents"].find_one({"_id": oid}) if oid else None
     if raw is None or publicity.is_expired(raw):
         return None
+    actor = _as_decider(actor)
     if (await access.can(actor, raw, "change_access", ctx)).allowed:
         return raw
     if await _admin_decides(db, row, raw, actor, ctx):
@@ -370,8 +386,8 @@ async def _admin_decides(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: 
     ws_id = row.get("admin_workspace_id")
     if requested_role(row) != "editor" or not ws_id or not actor.user_id:
         return False
-    if actor.cred not in ("session", "api_token"):
-        return False
+    if actor.cred not in ("session", "api_token", "mcp"):
+        return False  # never a workspace domain's tenant token
     if raw.get("workspace_id") != ws_id:
         return False
     from app.models.workspace import role_allows
@@ -429,14 +445,56 @@ async def list_for_owner(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
     return {"requests": out, "pending_count": pending}
 
 
-async def get_for_owner(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
-                        request_id: str) -> dict:
+async def for_decider(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
+                      request_id: str) -> tuple[dict, dict]:
+    """(request row, its document) when the caller may decide on it; else the 404 of an id that
+    never existed."""
     oid = _oid(request_id)
     row = await db[COLL].find_one({"_id": oid}) if oid else None
     raw = await _owned_doc(db, row, actor, ctx) if row else None
     if raw is None:
         raise request_not_found()
+    return row, raw
+
+
+async def get_for_owner(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
+                        request_id: str) -> dict:
+    row, raw = await for_decider(db, actor, ctx, request_id)
     return await _shape(db, row, raw, urls.HostCache(db))
+
+
+async def list_for_requester(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
+                             status: str = "pending", limit: int = 50) -> dict:
+    """The caller's own requests, newest first. The document's title and link only while the
+    caller can open it now (a request to open something they still can't shows its slug alone,
+    the address they asked at); a deleted or expired one shows ``available: false``."""
+    query: dict = {"requester_user_id": actor.user_id}
+    if status != "all":
+        query["status"] = status
+    rows = await db[COLL].find(query).sort([("created_at", -1), ("_id", -1)]).limit(limit).to_list(
+        length=limit) if actor.user_id else []
+    hosts = urls.HostCache(db)
+    out = []
+    for row in rows:
+        oid = _oid(row.get("doc_id") or "")
+        raw = await db["documents"].find_one({"_id": oid}) if oid else None
+        readable = raw is not None and (await access.can(actor, raw, "read", ctx)).allowed
+        out.append({
+            "id": str(row["_id"]),
+            "status": row.get("status"),
+            "role_requested": requested_role(row),
+            "as_admin": bool(row.get("admin_workspace_id")),
+            "message": row.get("message"),
+            "created_at": row.get("created_at"),
+            "decided_at": row.get("decided_at"),
+            "role_granted": row.get("role_granted"),
+            "requester": {"email": row.get("requester_email"), "name": row.get("requester_name")},
+            "document": {"slug": raw["slug"] if readable else row.get("slug"),
+                         "title": display_title(raw) if readable else None,
+                         "available": readable,
+                         "url": await urls.canonical_url(db, raw, hosts) if readable else None},
+        })
+    return {"requests": out}
 
 
 def _settled(row: dict, status: str, role: str | None) -> bool:
@@ -445,12 +503,10 @@ def _settled(row: dict, status: str, role: str | None) -> bool:
 
 async def decide(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                  request_id: str, decision: str) -> dict:
-    oid = _oid(request_id)
-    row = await db[COLL].find_one({"_id": oid}) if oid else None
-    raw = await _owned_doc(db, row, actor, ctx) if row else None
-    if raw is None:
-        # Not theirs (or gone): the same answer as an id that never existed.
-        raise request_not_found()
+    if actor.cred == "mcp" and access.MCP_WRITE not in actor.scopes:
+        raise HTTPException(status_code=403, detail="insufficient_scope")
+    # Not theirs (or gone): the same answer as an id that never existed.
+    row, raw = await for_decider(db, actor, ctx, request_id)
     status = "declined" if decision == "decline" else "approved"
     role = ROLE_FOR.get(decision)
     editing = requested_role(row) == "editor"
