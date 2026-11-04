@@ -214,6 +214,8 @@ export interface PagesEditorHost {
   pageTitle?: string | null;
   /** A page's address (links in the breadcrumb and sub-page blocks). */
   href?(slug: string, ancestors: string[]): string;
+  /** A page image's size in pixels (`asset:<id>`), when known: the image keeps its room while it loads. */
+  assetSize?(src: string): { width: number; height: number } | null;
 }
 
 /** What a host can do to the editor from outside (both modes). */
