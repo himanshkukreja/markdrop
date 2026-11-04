@@ -107,7 +107,7 @@ class FolderSlugsAndContracts(DomainCase):
         slug = r.json()["slug"]
         body = (await self.http.get(f"/api/v1/documents/{slug}/access", headers=self.auth)).json()
         self.assertEqual(set(body["can"]), {"edit", "replace", "settings", "access", "rename",
-                                            "delete", "share", "move", "unshare"})
+                                            "delete", "share", "move", "unshare", "edit_locked"})
         doc = (await self.http.get(f"/api/v1/documents/{slug}", headers=self.auth)).json()
         self.assertEqual(set(doc["can"]), set(body["can"]))
         self.assertIsInstance(doc["access_epoch"], int)
