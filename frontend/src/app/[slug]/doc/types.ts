@@ -1,3 +1,4 @@
+import type { PagePropertiesInfo } from "@/components/pages/props/api";
 /** DocumentView's props. The contract `page.tsx` and the tenant route render with — unchanged. */
 export interface DocumentViewProps {
   slug: string;
@@ -52,6 +53,8 @@ export interface PageFields {
   props?: { icon?: string | null; icon_url?: string | null; cover?: string | null; cover_url?: string | null } | null;
   /** This page is a workspace or personal template ({id, …}), or part of one ({part_of}). */
   template?: { id?: string; description?: string; icon?: string | null; scope?: "workspace" | "personal"; part_of?: boolean } | null;
+  /** Typed properties (a page filed in a folder with a schema): components/pages/props. */
+  page_properties?: PagePropertiesInfo | null;
 }
 
 /** The page fields of a document read (null when it says nothing about pages). */
@@ -72,6 +75,7 @@ export function pageFieldsOf(doc: Record<string, unknown> | null | undefined): P
     page_path: Array.isArray((d as { page_path?: unknown }).page_path) ? ((d as { page_path: unknown[] }).page_path.filter((s) => typeof s === "string") as string[]) : [],
     props: d.page && typeof d.page === "object" ? (d.page as PageFields["props"]) : null,
     template: d.template && typeof d.template === "object" ? d.template : null,
+    page_properties: d.page_properties && typeof d.page_properties === "object" && Array.isArray((d.page_properties as PagePropertiesInfo).properties) ? (d.page_properties as PagePropertiesInfo) : null,
   };
 }
 

@@ -492,6 +492,10 @@ async def update_document(
             from app.services import page_people
 
             sets["content"], _left = await page_people.resolve(db, sets["content"], raw, actor.user_id)
+            # Typed page properties (services/page_db.py): changed values must fit the folder's schema.
+            from app.services import page_db
+
+            await page_db.check_save(db, raw, sets["content"], actor, ctx)
 
     extra, narrows = settings_sets(
         read_password=data.read_password, remove_password=data.remove_password,

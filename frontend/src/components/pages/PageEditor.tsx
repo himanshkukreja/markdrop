@@ -38,6 +38,8 @@ import { PagePhoneBar } from "./PagePhoneBar";
 import { readPageProps, type PageFont, type PageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
 import { usePageEditSession } from "./usePageEditSession";
+import { EditorProperties } from "./props/EditorProperties";
+import type { PagePropertiesInfo } from "./props/api";
 import { pageEditorAi, suggestPageMeta, usePagesAiStatus, type PageMeta } from "@/lib/pages-ai/client";
 import { MetaChip, type MetaState } from "./ai/MetaChip";
 import "./ai/pageAi.css";
@@ -58,6 +60,10 @@ export interface PageChromeSlots {
   menu?: MenuEntry[];
   /** Under the title (backlinks). */
   below?: ReactNode;
+  /** Typed properties of the page's folder (the document read's `page_properties`): rows under the title. */
+  properties?: PagePropertiesInfo | null;
+  /** Where a linked page goes (markdrop.in; the item's own link on a workspace's domain). */
+  propertiesHref?: (slug: string) => string;
   /** Under the body (Pages inside, the colophon). */
   footer?: ReactNode;
   /** Notices at the top of the column (Save to account, …). */
@@ -539,8 +545,9 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           props={props}
           resolve={resolveAsset}
           below={
-            meta || chrome.below ? (
+            meta || chrome.below || chrome.properties ? (
               <>
+                {chrome.properties && <EditorProperties info={chrome.properties} markdown={content} onMarkdown={setBody} readOnly={readOnly} workspaceId={workspaceId ?? null} pageHref={chrome.propertiesHref} />}
                 {meta && !readOnly && <MetaChip state={meta} hasIcon={!!props.icon} onUse={applyMeta} onDismiss={() => { metaSeq.current++; setMeta(null); }} />}
                 {chrome.below}
               </>

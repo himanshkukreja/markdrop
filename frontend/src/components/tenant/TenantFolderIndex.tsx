@@ -7,6 +7,7 @@ import type { TenantFolderDocument, TenantFolderRef } from "./folderIndex";
 import { TenantFooter } from "./TenantFooter";
 import { TenantHandoff } from "./TenantHandoff";
 import { TenantHeader } from "./TenantHeader";
+import "@/components/pages/props/props.css";
 
 export interface TenantFolderIndexProps {
   /** The site's name (h1 at the root; the first breadcrumb elsewhere). */
@@ -156,11 +157,23 @@ export function TenantFolderIndex({ siteName, folder, trail = [], folders, docum
                     {documents.map((d) => {
                       const when = dateOf(d);
                       const kind = d.kind === "artifact" ? d.type_label || "File" : "Document";
+                      const base = when ? `${kind} · Updated ${when}` : kind;
+                      const props = Array.isArray(d.props) ? d.props.filter((p) => p && typeof p.name === "string" && typeof p.text === "string").slice(0, 6) : [];
                       return (
                         <li key={d.slug} className="min-w-0">
                           <DocumentRow
                             title={d.title || d.slug}
-                            meta={when ? `${kind} · Updated ${when}` : kind}
+                            meta={props.length ? (
+                              // A folder with typed properties: the page's values, read only.
+                              <span className="pp-scope flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                {props.map((p) => p.type === "select" ? (
+                                  <span key={p.name} className="pp-chip" data-pp-color={p.color || "default"} title={p.name}><span>{p.text}</span></span>
+                                ) : (
+                                  <span key={p.name} className="truncate"><span className="text-text-muted">{p.name}:</span> {p.text}</span>
+                                ))}
+                                <span className="text-text-muted">{base}</span>
+                              </span>
+                            ) : base}
                             href={hrefOf([...(d.folder_path ?? folder?.path ?? []), d.slug])}
                             tile={<Tile doc={d} />}
                             hideOpen

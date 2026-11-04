@@ -52,6 +52,8 @@ import dynamic from "next/dynamic";
 
 // New page: the template gallery loads when it's opened.
 const TemplateGallery = dynamic(() => import("@/components/pages/TemplateGallery").then((m) => m.TemplateGallery), { loading: () => null });
+// A folder as a database (table / board of its pages' typed properties): components/pages/props.
+const FolderDatabase = dynamic(() => import("@/components/pages/props/FolderDatabase").then((m) => m.FolderDatabase), { loading: () => null });
 import RenameItemDialog, { type RenameTarget } from "./RenameItemDialog";
 import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
@@ -77,6 +79,8 @@ function readQuery(search: string) {
     unfiled: p.get("filter") === "unfiled",
     preview: (pv === "anyone" || pv === "member" || pv === "email" ? pv : null) as PreviewAs | null,
     email: (p.get("email") || "").trim(),
+    // A table or board of the folder's pages (?view=table|board|<saved view id>); none = the list.
+    view: (p.get("view") || "").trim().slice(0, 32) || null,
   };
 }
 
@@ -510,6 +514,8 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
 
   const searching = !!query.q;
   const filtered = searching || !!query.kind;
+  // A table or board replaces the list (the views bar shows in every folder).
+  const dbView = !!folderId && !filtered && !!query.view;
   const folderEmpty = state === "ok" && items.length === 0 && redacted.length === 0 && subfolders.length === 0 && !filtered;
   const parentHref = folder ? (folder.parent_id ? folderHref(workspaceId, folder.parent_id) : wsHref(workspaceId)) : "/dashboard";
   const parentName = folder ? (trail.length > 1 ? trail[trail.length - 2]!.name : wsName) : "My files";
@@ -636,8 +642,13 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         </section>
       )}
 
+      {/* ── Views: List · Table · Board · saved views ── */}
+      {folderId && tree && !filtered && (
+        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={query.view} onView={(v) => setQuery({ view: v }, false)} member={isMember} phone={phone} />
+      )}
+
       {/* ── Selection bar ── */}
-      {!phone && selected.size > 0 && (
+      {!dbView && !phone && selected.size > 0 && (
         <div className="sticky top-16 z-10 flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border-strong bg-surface-raised px-3 py-2 shadow-md" role="region" aria-label="Selection">
           <span className="text-body-strong text-text">{plural(selected.size, "item")} selected</span>
           <span className="flex-1" />
@@ -660,9 +671,9 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
           {itemsError || "Check your connection and try again."}
         </Alert>
       )}
-      {state === "loading" && !rootEmpty && <ListSkeleton rows={4} label="Loading items" />}
+      {!dbView && state === "loading" && !rootEmpty && <ListSkeleton rows={4} label="Loading items" />}
 
-      {folderEmpty && !rootEmpty && (
+      {!dbView && folderEmpty && !rootEmpty && (
         isMember ? (
           <DropArea target={uploadTarget} team={team} startsAs={startsAs} newDocHref={newDocHref} onNewFolder={depthFull ? null : () => setNewFolderOpen(true)} title={folder ? <><Masked>“{folder.name}”</Masked> is empty</> : "Drop files here"} />
         ) : (
@@ -678,7 +689,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
         />
       )}
 
-      {state === "ok" && items.length > 0 && (
+      {!dbView && state === "ok" && items.length > 0 && (
         <section aria-labelledby="md-items" className="flex min-w-0 flex-col gap-2">
           <div className="relative flex min-w-0 items-center gap-3">
             {!phone && movable.length > 1 && (
@@ -723,7 +734,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       )}
 
       {/* Admins see that private items are filed here (not what they are), so they can take them out. */}
-      {state === "ok" && redacted.length > 0 && (
+      {!dbView && state === "ok" && redacted.length > 0 && (
         <section aria-labelledby="md-redacted" className="flex min-w-0 flex-col gap-2">
           <h2 id="md-redacted" className="text-eyebrow uppercase text-text-muted">Private items you can&apos;t open</h2>
           {/* ph-no-capture: owners' names and folder names. */}
@@ -752,7 +763,7 @@ export default function FolderView({ workspaceId, folderId }: { workspaceId: str
       )}
 
       {/* ── Drop hint ── */}
-      {uploadTarget && !phone && !rootEmpty && !folderEmpty && state === "ok" && (
+      {!dbView && uploadTarget && !phone && !rootEmpty && !folderEmpty && state === "ok" && (
         <div className="flex items-center justify-center gap-2.5 rounded-2xl border-[1.5px] border-dashed border-border-strong p-4.5 text-[13px] text-text-muted">
           <Icon name="upload" size={18} />
           <span>Drop files anywhere on this page to add them to <strong className="ph-sensitive ph-mask font-semibold text-text">{here}</strong></span>
