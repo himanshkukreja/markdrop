@@ -108,6 +108,8 @@ class Transport(McpTestCase):
             "set_access", "delete_document", "restore_document", "list_trash", "get_document_stats", "get_document_analytics", "search", "fetch",
             # Global search's AI mode (services/search_ai.py).
             "ask_documents",
+            # Analytics AI on the analytics home (services/analytics_ai_home.py).
+            "analytics_story", "ask_analytics", "content_gaps",
             "list_shares", "get_share_status", "create_upload", "complete_upload", "get_upload_status",
             "get_file_info", "list_file_versions", "restore_file_version",
             # Who's viewing (live presence).
