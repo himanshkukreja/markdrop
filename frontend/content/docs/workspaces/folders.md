@@ -1,7 +1,7 @@
 ---
 title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/workspaces/create]
 keywords: [folder, subfolder, move, rename, organize, path, address, list view, grid view, cards, owner]
 ---
@@ -20,9 +20,9 @@ Choose how the list looks with the switch above it. Markdrop remembers your choi
 
 | View | What you see |
 | --- | --- |
-| **List** (the default) | One row each: the name, its kind, its owner, when it last changed, who can open it, and a **⋯** menu. Folders show how many items you can open in them. |
+| **List** | One row each: the name, its kind, its owner, when it last changed, who can open it, and a **⋯** menu. Folders show how many items you can open in them. |
 | **Grid** | Tiles with the name, and the owner and date (or, for a folder, how many items). |
-| **Cards** | Larger cards with a preview of each item, its name, its owner, when it changed and who can open it. |
+| **Cards** (the default) | Larger cards with a preview of each item, its name, its owner, when it changed and who can open it. |
 
 ### Previews in Cards
 
