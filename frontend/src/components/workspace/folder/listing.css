@@ -11,11 +11,11 @@
   width: 20px; height: 20px; border-radius: 999px;
   background: color-mix(in srgb, var(--av) 16%, var(--surface));
   color: color-mix(in srgb, var(--av) 82%, var(--text));
-  font-size: 9px; font-weight: 700; line-height: 1; letter-spacing: .01em; user-select: none;
+  font-size: 10px; font-weight: 700; line-height: 1; user-select: none;
 }
 .wl-av img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.wl-av--sm { width: 18px; height: 18px; font-size: 8px; }
-.wl-av--lg { width: 24px; height: 24px; font-size: 10px; }
+.wl-av--sm { width: 18px; height: 18px; font-size: 9px; }
+.wl-av--lg { width: 24px; height: 24px; font-size: 11px; }
 .wl-people { display: inline-flex; align-items: center; min-width: 0; }
 .wl-people .wl-av { box-shadow: 0 0 0 2px var(--surface); }
 .wl-people .wl-av + .wl-av { margin-left: -5px; }
@@ -79,8 +79,8 @@
 }
 @container (max-width: 700px) {
   .wl-list { --wl-cols: minmax(0, 1fr) 40px 88px 40px 72px; }
-  .wl-person__name, .wl-access-words, .wl-head .wl-c-owner, .wl-head .wl-c-access { display: none; }
-  .wl-more { display: none; }
+  .wl-list .wl-person__name, .wl-list .wl-access-words, .wl-head .wl-c-owner, .wl-head .wl-c-access { display: none; }
+  .wl-list .wl-more { display: none; }
 }
 
 /* Phones: one line of title, one of meta, a ⋯ (bottom sheet). */
@@ -121,7 +121,7 @@
     color-mix(in srgb, var(--tint) 6%, var(--surface));
   color: var(--tint);
 }
-.wl-card__band .wl-icon { width: 48px; height: 48px; font-size: 26px; border-radius: var(--radius-xl); background: var(--surface); box-shadow: var(--shadow-sm); }
+.wl-card__band .wl-icon { width: 48px; height: 48px; font-size: 26px; border-radius: var(--radius-xl); background: var(--surface) !important; box-shadow: var(--shadow-sm); }
 .wl-card__body { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px 14px; min-width: 0; }
 .wl-card__foot { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 12px; color: var(--text-muted); }
 .wl-card__foot .wl-person { font-size: 12px; }

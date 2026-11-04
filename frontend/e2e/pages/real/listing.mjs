@@ -68,7 +68,7 @@ const ARM = ({ want, text }) => {
       if (m.url == null && location.pathname.endsWith(want)) m.url = now;
       if (m.feedback == null && (location.pathname !== prevPath || h1() !== prevH1 || busy)) m.feedback = now;
       if (m.content == null && main().innerText.includes(text)) m.content = now;
-      if (m.content == null && now < 30000) requestAnimationFrame(tick);
+      if ((m.content == null || m.url == null) && now < 30000) requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
   }, { capture: true, once: true });
@@ -94,7 +94,7 @@ async function timedClick(p, cdp, selector, { want, text }) {
   cdp.on("Network.loadingFailed", onFail);
   const wall0 = Date.now();
   await link.click({ noWaitAfter: true });
-  await p.waitForFunction(() => window.__m && window.__m.content != null, null, { timeout: 45000, polling: 100 });
+  await p.waitForFunction(() => window.__m && window.__m.content != null && window.__m.url != null, null, { timeout: 45000, polling: 100 });
   await p.waitForTimeout(400);
   cdp.off("Network.requestWillBeSent", onReq);
   cdp.off("Network.loadingFinished", onDone);
@@ -159,7 +159,7 @@ await step("timing", async () => {
     summary[prof] = { coldLoad: med(runsOf.map((r) => r.coldLoad)) };
     for (const k of ["rootToProduct", "productToSpecs", "specsToRoot", "rootToArchive"]) {
       summary[prof][k] = {
-        feedback: med(runsOf.map((r) => r[k].feedback)), content: med(runsOf.map((r) => r[k].content)),
+        feedback: med(runsOf.map((r) => r[k].feedback)), url: med(runsOf.map((r) => r[k].url ?? -1)), content: med(runsOf.map((r) => r[k].content)),
         requests: med(runsOf.map((r) => r[k].requests.length)), kb: Math.round(med(runsOf.map((r) => r[k].requests.reduce((a, q) => a + q.bytes, 0))) / 1024),
         longTaskMs: med(runsOf.map((r) => r[k].longTaskMs)),
       };

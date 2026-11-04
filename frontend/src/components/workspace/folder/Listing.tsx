@@ -91,8 +91,9 @@ export function ViewSwitch({ view, onChange, className }: { view: ListingView; o
 
 /* ── People ────────────────────────────────────────────────────────────── */
 
-function initials(name: string): string {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+/** One letter: two don't fit a 20 px circle legibly (Notion does the same). */
+function initial(name: string): string {
+  return Array.from(name.trim())[0]?.toUpperCase() || "?";
 }
 
 export const ownerLabel = (o: Pick<ItemOwner, "name" | "is_you">) => (o.is_you ? "You" : o.name || "Someone");
@@ -108,7 +109,7 @@ export function PersonAvatar({ person, size = "md" }: { person: ItemOwner; size?
       className={cx("wl-av ph-no-capture", size === "sm" && "wl-av--sm", size === "lg" && "wl-av--lg")}
       style={{ "--av": viewerColor(colorFor(name)) } as React.CSSProperties}
     >
-      {initials(name)}
+      {initial(name)}
       {/* A profile photo from the sign-in provider: next/image would need every host allow-listed. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {pic && <img src={pic} alt="" referrerPolicy="no-referrer" loading="lazy" decoding="async" onError={() => setBroken(true)} />}

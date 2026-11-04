@@ -21,10 +21,11 @@ const base = Math.min(...list.map((r) => r.t0));
 const groups = {};
 for (const r of list) {
   const u = r.url.replace(APP, "").replace(API, "API");
-  const g = r.type === "Fetch" && u.includes("_rsc") ? `RSC${r.purpose ? " prefetch" : ""} ${u.startsWith("/w/") ? "/w/… (folder)" : "/<slug> (document)"}` : r.type === "Script" ? (u.includes("%5Bslug%5D") ? "Script [slug] page" : "Script") : u.startsWith("API") ? "API" : r.type;
+  const g = r.type === "Fetch" && u.includes("_rsc") ? `RSC ${u.startsWith("/w/") ? "/w/… (folder)" : /^\/(dashboard|shared|recent|trash|settings|pages|requests)?(\/|\?|$)/.test(u) ? "app page" : "/<slug> (document)"}` : r.type === "Script" ? (u.includes("%5Bslug%5D") ? "Script [slug] page" : "Script") : u.startsWith("API") ? "API" : r.type;
   groups[g] = groups[g] || { n: 0, kb: 0, lastEnd: 0 };
   groups[g].n++; groups[g].kb += r.bytes / 1024; groups[g].lastEnd = Math.max(groups[g].lastEnd, Math.round(((r.t1 || r.t0) - base) * 1000));
 }
 for (const [g, v] of Object.entries(groups)) console.log(g.padEnd(40), String(v.n).padStart(4), `${v.kb.toFixed(0)} KB`.padStart(8), `done by ${v.lastEnd} ms`);
+console.log("RSC:", [...new Set(list.filter((r) => r.url.includes("_rsc")).map((r) => r.url.replace(APP, "").split("?")[0]))].join(" "));
 console.log("rail links to documents:", await p.locator('nav a[href^="/"]:not([href^="/w/"]):not([href^="/settings"])').count(), "main links:", await p.locator("#main a").count());
 await browser.close();
