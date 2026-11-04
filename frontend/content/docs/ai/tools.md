@@ -2,11 +2,11 @@
 title: MCP tools
 nav: Tools
 description: Every tool of Markdrop's hosted MCP server and the local markdrop mcp server, grouped by area, with the permission and inputs each one takes.
-updated: 2026-11-04
-keywords: [mcp tools, search, ask_documents, ai search, fuzzy search, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions, delete_document, restore_document, list_trash, trash, restore, undo delete, notifications, list_notifications, mark_notifications_read, share_with_people, notify, request_edit_access, list_access_requests, decide_access_request, access requests, approve, list_signoffs, sign_off, sign-off, approval, set_folder_properties, list_folder_pages, typed properties, database views, auto_cover, automatic covers]
+updated: 2026-11-05
+keywords: [mcp tools, search, ask_documents, ai search, fuzzy search, publish_document, publish_page, set_access, create_upload, upload_file, share_files, get_document_analytics, get_viewers, set_presence, who's viewing, create_page, get_page, update_page, append_blocks, replace_section, insert_embed, set_page_properties, upload_page_image, move_page, translate_page, summarize_page, suggest_page_meta, pages, sub-pages, scopes, reference, list_page_versions, get_page_version, restore_page_version, version history, export_page, list_page_templates, save_page_as_template, set_folder_default_template, default template, templates, create_page_image_upload, complete_page_image_upload, copy_page_asset, page cover, set_slug, change link, custom link, slug, duplicate_page, list_workspace_members, people, mentions, delete_document, restore_document, list_trash, trash, restore, undo delete, notifications, list_notifications, mark_notifications_read, share_with_people, notify, request_edit_access, list_access_requests, decide_access_request, access requests, approve, list_signoffs, sign_off, sign-off, approval, set_folder_properties, list_folder_pages, typed properties, database views, auto_cover, automatic covers, import_meeting, list_meetings, get_meeting, ask_meetings, meetings, transcripts, google meet]
 ---
 
-Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 67 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
+Markdrop has two MCP servers. The hosted server at `https://api.markdrop.in/mcp` has 71 tools; the local server, `markdrop mcp` in the CLI, has 13. Your assistant picks the tool from what you ask; you rarely need the names. This page is the reference for when you do.
 
 In the tables, **Permission** is the one the app must have been given when you approved it: `read` is `documents:read` and `write` is `documents:write`. See [Connect an AI app](/ai/hosted-mcp#the-two-permissions).
 
@@ -171,6 +171,15 @@ Your own views are never counted, and views by members of the document's workspa
 | `remove_from_workspace` | write | Takes a document out of its workspace (its owner or a workspace admin). It keeps its markdrop.in link; a members-only document becomes private. | `document` |
 | `create_folder` | write | Creates a folder by path, with any missing parent folders. | `workspace`, `path` |
 | `move_to_folder` | write | Moves a workspace document to another folder of the same workspace, or to the top level when `folder` is omitted. | `document`, `folder` |
+
+### Meetings
+
+| Tool | Permission | What it does | Main inputs |
+|---|---|---|---|
+| `import_meeting` | write | Turns a meeting into a page in the workspace's **Meetings** folder: an AI summary, decisions, action items (people who are members are @mentioned and notified), open questions, topics, and the transcript as a sub-page. Takes the transcript as text, a file as `file_name` + `content_base64` (`.txt`, `.vtt`, `.srt`, `.sbv`, `.docx`), and/or Google Meet's Gemini notes as `notes_text` (used as written; the AI only fills the gaps). Waits for the summary, which is always in English. See [Meetings](/workspaces/meetings). | `workspace`, `text`, `notes_text`, `file_name`, `content_base64`, `title`, `date`, `type`, `restricted` |
+| `list_meetings` | read | The meetings of a workspace you can open, newest first: title, date, type, attendees, action items and link. | `workspace`, `query`, `limit` |
+| `get_meeting` | read | One meeting: its page's Markdown and, with `transcript: true`, its transcript lines (400 at a time), each with a link to that moment. | `meeting` (an id from `list_meetings`, or the page's link), `transcript`, `from_segment` |
+| `ask_meetings` | read | Asks one meeting, or every meeting in a workspace you can open. Claude Haiku 5.5 answers in English and cites the moments with links. Counts towards your **Meetings AI** limit. | `question`, `meeting` or `workspace` |
 
 ### Peer-to-peer shares
 
