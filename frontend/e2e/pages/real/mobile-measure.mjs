@@ -163,7 +163,7 @@ export function measure({ checkTargets }) {
     const cs = getComputedStyle(el);
     if (cs.position !== "fixed" && cs.position !== "sticky") continue;
     if (!visible(el) || cs.pointerEvents === "none") continue;
-    if (el.closest('[aria-modal="true"], [role=menu], [role=listbox], [role=tooltip], .md-popover, .md-scrim, .md-drawer-scrim, .md-skiplink, .pb-railscrim, .dxe-pop, .dxe-slash, .dxe-people, [data-audit-skip]')) continue;
+    if (el.closest('[aria-modal="true"], [role=menu], [role=listbox], [role=tooltip], .md-popover, .md-scrim, .md-drawer-scrim, .md-skiplink, .pb-railscrim, .dxe-pop, .dxe-slash, .dxe-people, .pb-emojipick, .pb-coverpick, [data-audit-skip]')) continue;
     if (el.matches('[aria-modal="true"], .md-scrim, .md-drawer-scrim, .pb-railscrim')) continue;
     const r = el.getBoundingClientRect();
     if (r.width * r.height >= vw * vh * 0.9) continue;

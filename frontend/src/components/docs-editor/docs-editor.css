@@ -227,7 +227,7 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-mdblock__textbody { display: flex; flex-direction: column; gap: 6px; }
 .dxe-mdblock__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-top: 6px; border-top: 1px solid var(--border); }
 
-.dxe-mdpick { display: flex; flex-direction: column; gap: 14px; min-height: min(520px, 70vh); }
+.dxe-mdpick { display: flex; flex-direction: column; gap: 14px; min-height: min(520px, 70dvh); }
 .dxe-mdpick__lib { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 .dxe-mdpick__filters { display: flex; flex-direction: column; gap: 10px; }
 .dxe-mdpick__types { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -235,7 +235,7 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-mdpick__type:hover { border-color: var(--border-strong); color: var(--text); }
 .dxe-mdpick__type--on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 .dxe-mdpick__type:focus-visible, .dxe-mdpick__item:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
-.dxe-mdpick__list { display: flex; flex-direction: column; gap: 2px; max-height: min(420px, 52vh); margin: 0; padding: 0; overflow: auto; list-style: none; }
+.dxe-mdpick__list { display: flex; flex-direction: column; gap: 2px; max-height: min(420px, 52dvh); margin: 0; padding: 0; overflow: auto; list-style: none; }
 .dxe-mdpick__item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius-lg); background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .dxe-mdpick__item:hover:not(:disabled) { background: var(--surface-hover); }
 .dxe-mdpick__item:disabled { cursor: default; opacity: 0.6; }
@@ -346,7 +346,7 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 
 /* ── slash menu ──────────────────────────────────────────────────────────── */
 .dxe-slash { position: fixed; z-index: 1000; width: 340px; max-width: calc(100vw - 16px); border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface-raised); box-shadow: var(--shadow-lg); font-family: var(--font-sans); color: var(--text); }
-.dxe-slash__scroll { max-height: min(360px, 60vh); overflow-y: auto; overscroll-behavior: contain; padding: 0 6px 6px; border-radius: inherit; scroll-padding: 34px 0 6px; }
+.dxe-slash__scroll { max-height: min(360px, 60dvh); overflow-y: auto; overscroll-behavior: contain; padding: 0 6px 6px; border-radius: inherit; scroll-padding: 34px 0 6px; }
 .dxe-slash__list { display: flex; flex-direction: column; gap: 1px; }
 /* Section headers, small caps, kept at the top while their section scrolls. */
 .dxe-slash__head { position: sticky; top: 0; z-index: 1; margin: 0 -6px; padding: 10px 14px 6px; background: var(--surface-raised); font-size: 11px; line-height: 14px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
@@ -365,7 +365,7 @@ input.dxe-tabbar__tab { cursor: text; min-width: 3ch; }
 .dxe-slash__none > .dxe-slash__list { padding-bottom: 0; }
 
 /* ── @ people picker (menus/people.tsx) ─────────────────────────────────── */
-.dxe-people { position: fixed; z-index: 1000; width: 320px; max-width: calc(100vw - 16px); max-height: min(320px, 60vh); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface-raised); box-shadow: var(--shadow-lg); font-family: var(--font-sans); color: var(--text); }
+.dxe-people { position: fixed; z-index: 1000; width: 320px; max-width: calc(100vw - 16px); max-height: min(320px, 60dvh); overflow-y: auto; overscroll-behavior: contain; padding: 6px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface-raised); box-shadow: var(--shadow-lg); font-family: var(--font-sans); color: var(--text); }
 .dxe-people__list { display: flex; flex-direction: column; gap: 1px; }
 .dxe-people__opt { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 8px; border-radius: var(--radius-md); cursor: pointer; }
 .dxe-people__opt--on { background: color-mix(in srgb, var(--text) 7%, transparent); }

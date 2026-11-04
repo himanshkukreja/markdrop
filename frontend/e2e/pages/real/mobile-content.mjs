@@ -56,6 +56,7 @@ const devices = DEVICES.filter((d) => want("DEVICES", DEVICES.map((x) => x.name)
 const roles = want("ROLES", ["owner", "reader", "anon"]);
 const themes = want("THEMES", ["light", "dark"]);
 const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
+const OPT_IN = new Set(["page-share"]);
 const SKIP = process.env.SKIP ? new Set(process.env.SKIP.split(",")) : null;
 const SHOOT = process.env.SHOTS !== "0";
 const SHARED = process.env.SHARED_CSS ? fs.readFileSync(process.env.SHARED_CSS, "utf8") : null;
@@ -270,6 +271,7 @@ const STATES = [
     await menuItem(p, /Export/);
     await p.getByRole("dialog").first().waitFor({ timeout: 6000 });
   }],
+  // The Share dialog is the app's (components/access, fix/mobile-shell's area): opt in with ONLY=page-share.
   ["page-share", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
     // Phones: Share is in the ⋯ sheet (the bar has no room for it).
     if (!(await p.getByRole("button", { name: /^Share/ }).first().isVisible())) {
@@ -361,7 +363,7 @@ for (const theme of themes) {
   for (const dev of devices) {
     if (theme === "dark" && !DARK_DEVICES.has(dev.name)) continue;
     for (const role of roles) {
-      const list = STATES.filter(([name, rs]) => rs.includes(role) && (!ONLY || ONLY.has(name)) && !(SKIP && SKIP.has(name)));
+      const list = STATES.filter(([name, rs]) => rs.includes(role) && (ONLY ? ONLY.has(name) : !OPT_IN.has(name)) && !(SKIP && SKIP.has(name)));
       for (const [name, , url, ready, action] of list) {
         // A fresh context per state: no lock, picker or scroll position carries over.
         const { c, p } = await newContext(dev, theme, role);

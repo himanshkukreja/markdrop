@@ -22,7 +22,7 @@
 .pb-embed { margin: 24px 0; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); overflow: hidden; }
 .pb-embed--loading { border: 0; background: none; }
 .pb-embed__img { display: block; width: 100%; height: auto; margin: 0 !important; border-radius: 0 !important; background: var(--qr-ground); }
-.pb-embed__video { display: block; width: 100%; max-height: 70vh; background: #000; }
+.pb-embed__video { display: block; width: 100%; max-height: 70dvh; background: #000; }
 .pb-embed__audio { display: block; width: 100%; padding: 12px; }
 .pb-embed__frame { display: block; width: 100%; border: 0; background: var(--bg); }
 .pb-embed__frame--paper { background: var(--qr-ground); }
@@ -217,7 +217,7 @@ button.pb-mention--date { cursor: pointer; }
   .pb-templates { grid-template-columns: 1fr 1fr; }
   .pb-editor__title { font-size: 26px; line-height: 34px; }
   .pb-embed__type { display: none; }
-  .pb-embed__frame { max-height: 70vh; }
+  .pb-embed__frame { max-height: 70dvh; }
 }
 
 /* ── The page screen (POLISH.md "Look", "Editing model") ────────────────────────────────────────
@@ -345,7 +345,7 @@ button.pb-mention--date { cursor: pointer; }
 /* The cover keeps the gallery art's proportions (1500 × 480) up to 280 px tall, so a narrower paper (a
    tablet in portrait, a phone) shows the whole cover smaller instead of a cropped middle of it; never
    more than 30 % of a short screen (a phone turned sideways), never under 120 px. */
-.pb-cover-img { position: relative; width: 100%; height: auto; aspect-ratio: 1500 / 480; min-height: 120px; max-height: clamp(120px, 30vh, 280px); background-position: center; background-size: cover; background-repeat: no-repeat; }
+.pb-cover-img { position: relative; width: 100%; height: auto; aspect-ratio: 1500 / 480; min-height: 120px; max-height: clamp(120px, 30svh, 280px); background-position: center; background-size: cover; background-repeat: no-repeat; }
 .pb-cover-img__img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; user-select: none; pointer-events: none; will-change: object-position; }
 /* Auto covers: the cover's place while one is picked, and the cover fading in when it lands. */
 .pb-cover-img--pending { overflow: hidden; background: var(--surface-raised); }

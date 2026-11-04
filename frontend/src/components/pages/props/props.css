@@ -92,7 +92,7 @@ button.pp-row__value:hover { background: var(--surface-hover); }
 
 /* ── Popovers (and bottom sheets on phones) ────────────────────────────── */
 .pp-pop {
-  position: fixed; z-index: var(--z-dropdown, 60); width: 300px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100vh - 24px));
+  position: fixed; z-index: var(--z-dropdown, 60); width: 300px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100dvh - 24px));
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg);
   font-size: 14px; line-height: 20px; transform-origin: top left;
