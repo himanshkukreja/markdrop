@@ -264,7 +264,32 @@ await step("locked", async () => {
   await r.c.close();
 });
 
-/* ── 5. dark theme, the same diagram ── */
+/* ── 5. the Guides studio editor: the same view ── */
+await step("studio", async () => {
+  const site = await api("POST", "/api/v1/docs-sites", T.owner, { workspace_id: S.ws, name: "Mermaid guide", slug: `mermaid-${Date.now().toString(36)}` });
+  if (site.status >= 300) fail(`create site → ${site.status} ${JSON.stringify(site.body).slice(0, 300)}`);
+  const sid = site.body.id ?? site.body.site?.id;
+  const pg = await api("POST", `/api/v1/docs-sites/${sid}/pages`, T.owner, { path: "/lifecycle", title: "Lifecycle", markdown: BODY });
+  if (pg.status >= 300) fail(`create page → ${pg.status} ${JSON.stringify(pg.body).slice(0, 300)}`);
+  const pid = pg.body.id ?? pg.body.page?.id;
+  const { c, p } = await ctx(browser, { token: T.owner });
+  const errs = watch(p);
+  await p.goto(`${APP}/guides/${sid}?page=${pid}`, { waitUntil: "networkidle" });
+  const b = p.locator('.dxe-code[data-lang="mermaid"]').first();
+  await b.locator(".md-diagram svg").first().waitFor({ timeout: 30000 });
+  if (await b.locator(".md-codeblock__body").isVisible()) fail("studio: the code shows with the diagram");
+  await shot(p, "10-studio-diagram", { wait: 800 });
+  await b.locator(".md-diagram svg").first().click();
+  await b.locator(".md-codeblock__body").waitFor({ state: "visible", timeout: 5000 });
+  await shot(p, "11-studio-editing", { wait: 600 });
+  await p.keyboard.press("Escape");
+  await p.waitForTimeout(400);
+  if (await b.locator(".md-codeblock__body").isVisible()) fail("studio: Esc left the code up");
+  noErrors(errs, "studio");
+  await c.close();
+});
+
+/* ── 6. dark theme, the same diagram ── */
 await step("dark", async () => {
   state.page ??= await newPage("Mermaid lifecycle", BODY);
   const { c, p } = await ctx(browser, { token: T.owner, theme: "dark" });
