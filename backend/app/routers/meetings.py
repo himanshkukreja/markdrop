@@ -154,6 +154,8 @@ class PatchBody(BaseModel):
 class AskBody(BaseModel):
     question: str = Field(..., min_length=1, max_length=meetings_ai.MAX_QUESTION)
     history: list[dict[str, Any]] | None = Field(None, max_length=meetings_ai.MAX_HISTORY)
+    # The conversation to add this answer to (``done`` returns its id; GET /ask/threads/{id} reads it back).
+    thread_id: str | None = Field(None, max_length=40)
 
 
 class AskAllBody(BaseModel):
@@ -163,6 +165,9 @@ class AskAllBody(BaseModel):
     series: str | None = Field(None, max_length=60)
     since: str | None = Field(None, max_length=10)
     until: str | None = Field(None, max_length=10)
+    # Earlier turns of this conversation (follow-ups), newest last, and the conversation to save it in.
+    history: list[dict[str, Any]] | None = Field(None, max_length=meetings_ai.MAX_HISTORY)
+    thread_id: str | None = Field(None, max_length=40)
 
 
 async def _incoming(db, user: User, sources: list[SourceIn], *, allow_google: bool) -> list[meetings.Incoming]:
@@ -420,8 +425,10 @@ async def list_meetings(request: Request, workspace: str = Query(..., max_length
 async def ask_all(request: Request, body: AskAllBody, db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return sse(meetings_ai.ask_meetings(db, actor, ctx, _ws(body.workspace), body.question, series=body.series,
-                                        since=body.since, until=body.until))
+    ws = _ws(body.workspace)
+    return sse(meetings_ai.threaded(db, actor, meetings_ai.ask_meetings(
+        db, actor, ctx, ws, body.question, series=body.series, since=body.since, until=body.until, history=body.history),
+        question=body.question, thread_id=body.thread_id, ref=f"w:{ws}"))
 
 
 @router.get("/{meeting_id}")
@@ -487,4 +494,6 @@ async def ask_one(request: Request, meeting_id: str, body: AskBody, db: AsyncIOM
                   user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
     await meetings.for_read(db, meeting_id, actor, ctx)   # a 404 before the stream starts
-    return sse(meetings_ai.ask_meeting(db, actor, ctx, meeting_id, body.question, history=body.history))
+    return sse(meetings_ai.threaded(db, actor, meetings_ai.ask_meeting(db, actor, ctx, meeting_id, body.question,
+                                                                       history=body.history),
+                                    question=body.question, thread_id=body.thread_id, ref=f"m:{meeting_id}"))

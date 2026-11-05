@@ -1157,12 +1157,47 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "source": source_of(row),
         "history": bool(row.get("history")),   # a past meeting from a backfill (imported quietly)
         "series": row.get("series") or None,
+        # For the list's cards: a line of the summary, how many decisions / open questions, the series' cover.
+        **card_bits(row, raw),
     }
     if full:
         from app.services import urls
 
         out["url"] = urls.markdrop_url(raw["slug"])
     return out
+
+
+SNIPPET_CHARS = 220
+_MD_NOISE = re.compile(r"\[(?:M?\d{1,3}-)?[sn]?\d{1,5}\]|\*\*|__|`|^#+\s*|^[-*]\s+", re.M)
+
+
+def snippet(text: str | None, limit: int = SNIPPET_CHARS) -> str | None:
+    """Plain text of a summary (no Markdown, no citations), cut on a word."""
+    t = _MD_NOISE.sub("", str(text or ""))
+    t = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    if len(t) <= limit:
+        return t or None
+    return t[:limit].rsplit(" ", 1)[0].rstrip(",;:.") + "…"
+
+
+def card_bits(row: dict, raw: dict) -> dict:
+    """``summary`` (a line), ``decisions`` / ``open_questions`` (counts) and ``cover`` (the gallery cover the
+    page shows, else the series' one) — what the Meetings list shows on a card."""
+    from app.services import page_props
+
+    gen = row.get("generated") or {}
+    notes = row.get("notes") or {}
+    cover = None
+    try:
+        cur = page_props.parse(raw.get("content")).get("cover") or ""
+        if isinstance(cur, str) and cur.startswith("gallery:"):
+            cover = cur[len("gallery:"):]
+    except Exception:
+        cover = None
+    return {"summary": snippet(gen.get("summary") or notes.get("summary")),
+            "decisions": len(gen.get("decisions") or []), "open_questions": len(gen.get("open_questions") or []),
+            "cover": cover or row.get("cover") or cover_for(row.get("series"))}
 
 
 async def repair_organizers(db: AsyncIOMotorDatabase, *, apply: bool = False, workspace_id: str | None = None) -> dict:

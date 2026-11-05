@@ -714,6 +714,78 @@ class Asking(MeetingsWorld):
         self.assertEqual(parse_sse(r.text)[-1][1]["answer"], "There are no meetings here that you can open yet.")
 
 
+class ChatUX(MeetingsWorld):
+    """What the shared chat and the Meetings list cards need (feat/meetings-ux)."""
+
+    async def test_citations_carry_the_moment(self):
+        m = await self.imported()
+        r = await self.http.post(f"/api/v1/meetings/{m['id']}/ask", headers=self.session("wm"), json={"question": "When do we ship?"})
+        by = {c["label"]: c for c in parse_sse(r.text)[-1][1]["citations"]}
+        self.assertEqual((by["s4"]["speaker"], by["s4"]["at"]), ("Ada Lovelace", "2:49"))
+        self.assertTrue(by["s4"]["quote"])
+        self.assertTrue(by["s4"]["key"].startswith("d:"))
+        self.assertTrue(by["n3"]["quote"])
+
+    async def test_conversations_are_saved_and_read_back(self):
+        m = await self.imported()
+        url = f"/api/v1/meetings/{m['id']}/ask"
+        done = parse_sse((await self.http.post(url, headers=self.session("wm"), json={"question": "When do we ship?"})).text)[-1][1]
+        tid = done["thread_id"]
+        self.assertTrue(tid)
+        again = parse_sse((await self.http.post(url, headers=self.session("wm"),
+                                                 json={"question": "And who?", "thread_id": tid})).text)[-1][1]
+        self.assertEqual(again["thread_id"], tid)
+        t = (await self.http.get(f"/api/v1/ask/threads/{tid}", headers=self.session("wm"))).json()
+        self.assertEqual([x["question"] for x in t["turns"]], ["When do we ship?", "And who?"])
+        self.assertTrue(t["turns"][0]["citations"])
+        # Someone else's id, or another meeting's / the workspace's conversation, starts a new one.
+        other = parse_sse((await self.http.post(url, headers=self.session("owner"), json={"question": "When?", "thread_id": tid})).text)[-1][1]
+        self.assertNotEqual(other["thread_id"], tid)
+        across = parse_sse((await self.http.post("/api/v1/meetings/ask", headers=self.session("wm"),
+                                                  json={"workspace": self.W, "question": "When do we ship?", "thread_id": tid})).text)[-1][1]
+        self.assertNotEqual(across["thread_id"], tid)
+        # Not in Ask Markdrop's recent questions on the home.
+        home = (await self.http.get("/api/v1/ask/home", headers=self.session("wm"))).json()
+        self.assertEqual(home["recent"], [])
+        # Restricted later: the saved answer is withheld from someone who can't open it now.
+        await self.http.patch(f"/api/v1/meetings/{m['id']}", headers=self.session("owner"), json={"restricted": True})
+        row = await self.db["meetings"].find_one({"_id": ObjectId(m["id"])})
+        if self.uid["wm"] not in [a.get("user_id") for a in row.get("attendees") or []]:
+            t = (await self.http.get(f"/api/v1/ask/threads/{tid}", headers=self.session("wm"))).json()
+            self.assertTrue(all(x["withheld"] for x in t["turns"]))
+
+    async def test_ask_across_follow_ups_send_history(self):
+        await self.imported()
+        from app.services import search_index
+
+        await search_index.drain()
+        self.fake.calls.clear()
+        r = await self.http.post("/api/v1/meetings/ask", headers=self.session("wm"), json={
+            "workspace": self.W, "question": "And who owns it?",
+            "history": [{"question": "When is the release?", "answer": "Friday [M1-s4]."}]})
+        self.assertEqual(parse_sse(r.text)[-1][0], "done")
+        p = prompt_of(self.fake.calls[-1])
+        self.assertIn("Earlier in this conversation", p)
+        self.assertIn("When is the release?", p)
+
+    async def test_list_cards(self):
+        m = await self.imported()
+        got = next(x for x in (await self.http.get(f"/api/v1/meetings?workspace={self.W}", headers=self.session("wm"))).json()["meetings"]
+                   if x["id"] == m["id"])
+        self.assertTrue(got["summary"])
+        self.assertNotRegex(got["summary"], r"\[[sn]?\d+\]|\*\*")
+        self.assertLessEqual(len(got["summary"]), meetings.SNIPPET_CHARS + 1)
+        self.assertIsInstance(got["decisions"], int)
+        self.assertIsInstance(got["open_questions"], int)
+        self.assertTrue(got["cover"])
+
+    def test_snippet(self):
+        self.assertEqual(meetings.snippet("**Ship** on Friday [s4] — see [notes](/x)."), "Ship on Friday — see notes.")
+        long = meetings.snippet("word " * 100, 30)
+        self.assertTrue(long.endswith("…") and len(long) <= 31)
+        self.assertIsNone(meetings.snippet(None))
+
+
 class MCP(MeetingsWorld):
     async def test_tools(self):
         from app.mcp import tools as mcp_tools

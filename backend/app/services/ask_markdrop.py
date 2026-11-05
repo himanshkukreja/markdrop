@@ -602,7 +602,8 @@ async def clear_threads(db: AsyncIOMotorDatabase, user_id: str) -> int:
     return (await db[COLL].delete_many({"user_id": user_id})).deleted_count
 
 
-async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None, turn: dict, via: str) -> str:
+async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None, turn: dict, via: str,
+                     extra: dict | None = None) -> str:
     now = now_utc()
     turn = {**turn, "at": now}
     if thread is not None:
@@ -611,7 +612,7 @@ async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None
             "$set": {"updated_at": now, "expires_at": now + THREAD_TTL}})
         return str(thread["_id"])
     title = re.sub(r"\s+", " ", turn["q"]).strip()[:120]
-    res = await db[COLL].insert_one({"user_id": user_id, "title": title, "turns": [turn], "via": via,
+    res = await db[COLL].insert_one({"user_id": user_id, "title": title, "turns": [turn], "via": via, **(extra or {}),
                                      "created_at": now, "updated_at": now, "expires_at": now + THREAD_TTL})
     # Keep the newest MAX_THREADS per person.
     old = await db[COLL].find({"user_id": user_id}, {"_id": 1}).sort("updated_at", -1).skip(MAX_THREADS).to_list(length=1000)
