@@ -240,7 +240,12 @@ class Inbox(AutoWorld):
         self.assertEqual(await self.rows(), [])
 
     async def test_rate_limit_is_per_token(self):
+        from app.limiter import limiter
+
         tok = (await self.connect())["token"]
+        limiter.enabled = True   # the AI world turns it off
+        limiter.reset()
+        self.addCleanup(setattr, limiter, "enabled", False)
         await self.deliver(tok)
         codes = [(await self.deliver(tok)).status_code for _ in range(32)]
         self.assertIn(429, codes)

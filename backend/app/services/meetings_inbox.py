@@ -224,7 +224,10 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
 
     try:
         src = mp.parse_source(title, text)
-        if not text.strip() or (not src.segments and not src.notes):
+        # The script only sends Docs titled like Meet's; a Doc that is neither Google's notes nor a transcript
+        # with speakers (a shopping list called "… - Notes") is handled once and left alone.
+        spoken = any(seg.get("speaker") for seg in src.segments)
+        if not text.strip() or (not spoken and not src.notes):
             await finish("ignored", reason="no_meeting")
             await _stats(db, rec, {"ignored": 1}, {})
             return {"status": "ignored", "reason": "No transcript or meeting notes found in it."}
