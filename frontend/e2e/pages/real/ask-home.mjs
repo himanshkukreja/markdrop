@@ -76,7 +76,7 @@ async function ask(p, q) {
 }
 /** Waits for the n-th answer (1-based) to finish. */
 async function answered(p, n = 1) {
-  await p.waitForFunction((k) => document.querySelectorAll('[data-testid="ask-home"] ol[aria-label="Conversation"] > li[data-state="done"]').length >= k, n, { timeout: 25000 });
+  await p.waitForFunction((k) => document.querySelectorAll('[data-testid="ask-home"] ol[aria-label="Conversation"] > li[data-state="done"] .ch-md:not([data-streaming])').length >= k, n, { timeout: 25000 });
 }
 
 // ── Steps ────────────────────────────────────────────────────────────────────

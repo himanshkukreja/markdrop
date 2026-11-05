@@ -18,6 +18,10 @@ html[data-md-immersive] .as-scrim { z-index: calc(var(--z-immersive) + 1); }
 html[data-md-immersive]:has(.as-panel) { --z-dropdown: calc(var(--z-immersive) + 3); }
 .as-panel .ch { --ch-bg: var(--as-bg); }
 
+/* A classic document's editor keeps its Save in view beside the open panel. */
+@media (min-width: 1024px) {
+  body:has(.as-panel[data-layout="panel"]) .md-editscreen { margin-right: 436px; max-width: none; width: auto; }
+}
 /* Wide screens: the page makes room beside the open panel. */
 @media (min-width: 1280px) {
   body:has(.as-panel[data-layout="panel"]) .pb-paper,

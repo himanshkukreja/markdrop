@@ -70,7 +70,8 @@ async function ask(root, q) {
 }
 /** Waits for the n-th answer (1-based) in `root` to finish (its tools are there). */
 async function answered(root, n = 1, timeout = 30000) {
-  await root.locator('ol[aria-label="Conversation"] > li[data-state="done"]').nth(n - 1).waitFor({ timeout });
+  // Done, and its text fully shown (the chat reveals a streamed answer smoothly).
+  await root.locator('ol[aria-label="Conversation"] > li[data-state="done"] .ch-md:not([data-streaming])').nth(n - 1).waitFor({ timeout });
 }
 async function openPanel(p, how = "key") {
   if (how === "key") await p.keyboard.press("ControlOrMeta+j");

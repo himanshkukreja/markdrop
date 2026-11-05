@@ -202,7 +202,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
     "ph-no-capture block h-full min-h-[50dvh] w-full resize-none bg-transparent p-4 font-mono text-code text-text outline-none placeholder:text-text-muted";
 
   return (
-    <div className="mx-auto flex w-full max-w-marketing flex-col gap-3 px-4 py-4 sm:px-6">
+    <div className="md-editscreen mx-auto flex w-full max-w-marketing flex-col gap-3 px-4 py-4 sm:px-6">
       <h1 className="md-visually-hidden">Edit <span className="ph-sensitive ph-mask">{displayTitle || "document"}</span></h1>
 
       {/* Bar */}
