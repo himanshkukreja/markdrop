@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-auto-import-shared",
+      "date": "2026-11-05",
+      "title": "Connect Google Meet finds the meetings someone else organized, and shows what it found",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "The Google Meet script now imports every meeting you attended: Docs shared with you (a call your manager organized lives in their Drive), shared drives and Google's titles in other languages. Each run reports what it found and why it skipped Docs, right on the Meetings page.",
+      "body": "- **Meetings shared with you, on by default**: Google saves a call's transcript and Gemini notes in the organizer's Drive and shares them with attendees. The first script only looked at Docs you own, so an attendee got nothing. **Include meetings shared with me** in the Connect dialog (on by default). A call several attendees send is imported once.\n- **More of Google's titles**: \"Notes by Gemini\" anywhere in the title, Google's names in other languages (\"Transcripción\", \"Notizen von Gemini\"…), Docs in a **Meet Recordings** folder, and shared drives.\n- **See what the script found**: under **Google Meet connected**, \"Script ran 5 min ago · found 2 meeting Docs · 14 skipped: 12 not titled like Meet…\", and any Doc it couldn't read. Only counts reach Markdrop, never the skipped Docs.\n- **`check`** in Apps Script lists what the script would send and why it skips the rest, without sending anything.\n- **Update your script**: scripts installed before today show **New script**. Select **Get the new script**, paste it over `Code.gs` in the same project and run `setup` (the manifest is unchanged).\n- API: `POST /api/v1/meetings/inbox/status` (the script's runs), `include_shared` on `POST /api/v1/meetings/connection`, and the script's last run, `needs_update` and `latest_script_version` on `GET /api/v1/meetings/connection`.",
+      "docs": [
+        "/workspaces/meetings-auto-import"
+      ]
+    },
+    {
       "id": "ask-markdrop",
       "date": "2026-11-05",
       "title": "Ask Markdrop: one question across everything you can open",

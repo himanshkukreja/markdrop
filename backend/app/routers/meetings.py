@@ -275,6 +275,24 @@ async def disconnect(request: Request, db: AsyncIOMotorDatabase = Depends(get_db
     return {"disconnected": await meetings_inbox.disconnect(db, user.id)}
 
 
+def _inline_schema(model: type[BaseModel]) -> dict:
+    """A model's JSON schema with its ``$defs`` written in place (the body is described by hand above)."""
+    schema = model.model_json_schema()
+    defs = schema.pop("$defs", {})
+
+    def walk(v):
+        if isinstance(v, dict):
+            ref = v.get("$ref", "")
+            if ref.startswith("#/$defs/"):
+                return walk(dict(defs[ref.split("/")[-1]]))
+            return {k: walk(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [walk(x) for x in v]
+        return v
+
+    return walk(schema)
+
+
 def _inbox_key(request: Request) -> str:
     auth = request.headers.get("Authorization", "")
     return meetings_inbox.token_key(auth.removeprefix("Bearer ").strip())
@@ -282,7 +300,7 @@ def _inbox_key(request: Request) -> str:
 
 @router.post("/inbox", openapi_extra={
     # The body is read raw (size-checked first) and validated as InboxBody; the token is a scoped one.
-    "requestBody": {"required": True, "content": {"application/json": {"schema": InboxBody.model_json_schema()}}},
+    "requestBody": {"required": True, "content": {"application/json": {"schema": _inline_schema(InboxBody)}}},
     "x-markdrop": {"auth": "token"},   # a Bearer token: the script's meetings:import one
 })
 @limiter.limit("30/minute", key_func=_inbox_key)
