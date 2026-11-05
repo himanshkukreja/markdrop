@@ -61,7 +61,7 @@ async function connect() {
   await card.waitFor({ timeout: 30000 });
   await card.getByRole("button", { name: "Add to Slack" }).click();
   await p.waitForURL(/tab=integrations/, { timeout: 30000 });
-  await card.getByText("Connected", { exact: true }).waitFor({ timeout: 20000 });
+  await card.locator(".md-badge", { hasText: "Connected" }).waitFor({ timeout: 20000 });
   await p.getByTestId("slack-team").getByText("Acme Slack").waitFor();
   return { c, p };
 }
@@ -80,7 +80,7 @@ await step("connect", async () => {
   await p.getByText("Meeting notes go to that channel now.").waitFor({ timeout: 10000 });
   const st2 = await status("owner");
   if (st2.install.meetings_channel?.name !== "meetings") fail(`channel: ${JSON.stringify(st2.install.meetings_channel)}`);
-  await p.getByRole("switch", { name: "Post new meetings automatically" }).waitFor();
+  await p.getByRole("switch", { name: "Post new meetings automatically" }).waitFor({ state: "attached" });
   await p.getByTestId("slack-me").getByRole("button", { name: "Unlink" }).waitFor();
 });
 
@@ -99,7 +99,7 @@ await step("member", async () => {
   await me.getByText("Direct messages from Markdrop").waitFor({ timeout: 20000 });
   const sw = p.getByRole("switch", { name: "Mentions" });
   if (!(await sw.isChecked())) fail("Mentions starts off");
-  await sw.click();
+  await sw.dispatchEvent("click");  // a visually hidden checkbox (SwitchRow's label is a <p>)
   await p.waitForFunction(() => {
     const el = [...document.querySelectorAll('[role="switch"]')].find((s) => s.getAttribute("aria-labelledby") === "slack-pref-mention-label");
     return el && !el.checked;

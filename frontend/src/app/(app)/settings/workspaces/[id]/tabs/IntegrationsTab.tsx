@@ -94,7 +94,7 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
           <div className="min-w-0 flex-[1_1_280px]">
             <h2 id="slack-h" className="flex flex-wrap items-center gap-2 text-body-strong text-text">
               Slack
-              {inst ? <Badge tone="success" size="sm" dot>Connected</Badge> : st.configured ? null : <Badge size="sm">Not set up yet</Badge>}
+              {inst ? <Badge tone="success" size="sm" dot data-testid="slack-connected">Connected</Badge> : st.configured ? null : <Badge size="sm">Not set up yet</Badge>}
             </h2>
             <p className="mt-0.5 text-[13px] leading-5 text-text-secondary">
               Meeting notes with Done buttons in a channel, <code>/markdrop search</code> and <code>/markdrop ask</code> (answers only you see,
@@ -127,7 +127,7 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
             )}
 
             <Locked locked={!isAdmin}>
-              <div>
+              <div className="max-w-[360px]">
                 <Field label="Meetings channel" hint="Each imported meeting's summary, decisions and action items go here. Meetings restricted to their attendees are never posted. For a private channel, first type /invite @Markdrop in it.">
                   <Select
                     data-testid="slack-channel"
@@ -147,7 +147,6 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
                         value: c.id, label: `${c.private ? "🔒 " : "#"}${c.name}${c.shared ? " (shared with another organization)" : ""}`,
                       })),
                     ]}
-                    className="max-w-[360px]"
                   />
                 </Field>
               </div>
