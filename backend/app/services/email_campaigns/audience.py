@@ -65,7 +65,7 @@ async def _build(db: AsyncIOMotorDatabase) -> dict[str, Any]:
         return await db["documents"].aggregate(pipeline).to_list(length=None)
 
     async def tokens():
-        return set(await db["api_tokens"].distinct("user_id"))
+        return set(await db["api_tokens"].distinct("user_id", {"scope": {"$exists": False}}))
 
     async def members():
         return set(await db["memberships"].distinct("user_id"))

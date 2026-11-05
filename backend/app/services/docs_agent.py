@@ -876,7 +876,7 @@ async def t_get_my_account(ctx: ToolContext, args: dict) -> dict:
                     "used_percent": round(100 * used / quota, 1) if quota else None},
         "documents_owned": await db["documents"].count_documents({"owner_id": user.id}),
         "workspaces": workspaces,
-        "api_tokens": await db["api_tokens"].count_documents({"user_id": user.id}),
+        "api_tokens": await db["api_tokens"].count_documents({"user_id": user.id, "scope": {"$exists": False}}),
         "connected_apps": await db["oauth_grants"].count_documents({"user_id": user.id}),
     }
 

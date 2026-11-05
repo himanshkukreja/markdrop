@@ -207,6 +207,12 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
             </li>
           ))}
         </ul>
+        {m.source && m.source !== "manual" && (
+          <p className="mt-src-via" data-testid="meeting-via">
+            <Icon name={m.source === "auto" ? "refresh" : "sparkle"} />
+            {m.source === "auto" ? "Imported automatically by Connect Google Meet" : "Imported by an AI app (MCP)"}
+          </p>
+        )}
       </div>
 
       <div className="mt-switchrow">

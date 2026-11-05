@@ -473,7 +473,7 @@ async def list_all_users(
         # VS Code sync: token count + most recent sync per user
         async for row in db["api_tokens"].aggregate(
             [
-                {"$match": {"user_id": {"$in": ids}}},
+                {"$match": {"user_id": {"$in": ids}, "scope": {"$exists": False}}},
                 {
                     "$group": {
                         "_id": "$user_id",
@@ -595,11 +595,13 @@ async def feature_usage(
     total_users = await db["users"].count_documents({})
 
     # VS Code sync — distinct users with a token, and of those, who has synced
-    token_users = await db["api_tokens"].distinct("user_id")
+    # (personal tokens only: a scoped token, e.g. the Google Meet script's, isn't VS Code sync)
+    personal = {"scope": {"$exists": False}}
+    token_users = await db["api_tokens"].distinct("user_id", personal)
     synced_users = await db["api_tokens"].distinct(
-        "user_id", {"last_used_at": {"$ne": None}}
+        "user_id", {"last_used_at": {"$ne": None}, **personal}
     )
-    tokens_total = await db["api_tokens"].count_documents({})
+    tokens_total = await db["api_tokens"].count_documents(personal)
 
     # Google Drive / Docs
     google_connected = await db["users"].count_documents(

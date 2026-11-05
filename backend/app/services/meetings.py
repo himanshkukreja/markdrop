@@ -499,8 +499,31 @@ def preview(incoming: list[Incoming]) -> list[dict]:
 
 async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
                           title: str | None = None, date_: str | None = None, type_: str | None = None,
-                          restricted: bool = False, wait: bool = False, via: str = "web") -> list[dict]:
-    """Make a meeting per group of sources (notes + transcript of one call pair up). Returns the rows."""
+                          restricted: bool = False, wait: bool = False, via: str = "web",
+                          dedupe: str | None = None, notify: bool = True) -> list[dict]:
+    """Make a meeting per group of sources (notes + transcript of one call pair up). Returns the rows,
+    each with ``_status``: "imported" (new), "attached" (it filled the other half of a meeting that was
+    already here) or "duplicate" (already here; nothing changed).
+
+    ``dedupe``: None (always new meetings), "file" (a Google Doc already imported into this workspace
+    is that meeting), "all" (also a meeting with the same name, date and start time: see
+    :func:`find_existing`).
+
+    ``notify=False``: history (a past meeting brought in by a backfill). Its @mentions stay links and
+    nobody is notified, now or when its AI sections are written; the meeting is marked ``history``."""
+    from app.services import notifications
+
+    if not notify:
+        with notifications.quiet():
+            return await _import_meetings(db, user, workspace_id, incoming, title=title, date_=date_, type_=type_,
+                                          restricted=restricted, wait=wait, via=via, dedupe=dedupe, history=True)
+    return await _import_meetings(db, user, workspace_id, incoming, title=title, date_=date_, type_=type_,
+                                  restricted=restricted, wait=wait, via=via, dedupe=dedupe, history=False)
+
+
+async def _import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
+                           title: str | None, date_: str | None, type_: str | None, restricted: bool, wait: bool,
+                           via: str, dedupe: str | None, history: bool) -> list[dict]:
     from app.services import workspace as ws_service
 
     await require_member(db, workspace_id, user.id)
@@ -526,20 +549,216 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
             date.fromisoformat(date_)
         except ValueError:
             raise HTTPException(status_code=422, detail="Date is written YYYY-MM-DD.")
+    rows: list[dict] = []
+    if dedupe:
+        fresh = []
+        for s in sources:
+            fid = s._incoming.file_id  # type: ignore[attr-defined]
+            hit = await db[COLL].find_one({"workspace_id": workspace_id, "sources.file_id": fid}) if fid else None
+            if hit is not None:
+                hit["_status"] = "duplicate"
+                rows.append(hit)
+            else:
+                fresh.append(s)
+        if not fresh:
+            return rows
+        groups = mp.pair(fresh)
     folder = await ensure_folder(db, workspace_id, user.id)
     people = await people_of(db, workspace_id)
-    rows = []
     for g in groups:
         one = len(groups) == 1
-        rows.append(await _create(db, user, workspace_id, folder, people, g,
-                                  title=title if one else None, date_=date_ if one else None,
-                                  type_=type_, restricted=restricted, wait=wait, via=via))
+        if dedupe == "all":
+            m = mp.merge(g)
+            have = ({"transcript"} if m.segments else set()) | ({"notes"} if m.notes else set())
+            action, hit = await find_existing(db, workspace_id, title=(title if one else None) or m.title,
+                                              date_=(date_ if one else None) or m.date, time_=m.time, kinds=have)
+            if action == "duplicate":
+                hit["_status"] = "duplicate"
+                rows.append(hit)
+                continue
+            if action == "attach":
+                row = await attach_sources(db, user, hit, g, wait=wait)
+                row["_status"] = "attached"
+                rows.append(row)
+                continue
+        row = await _create(db, user, workspace_id, folder, people, g,
+                            title=title if one else None, date_=date_ if one else None,
+                            type_=type_, restricted=restricted, wait=wait, via=via, history=history)
+        row["_status"] = "imported"
+        rows.append(row)
     return rows
+
+
+# ── One call, several imports (the Google Meet script, MCP) ───────────────────
+
+PAIR_TIME_SLACK_MIN = 45
+
+
+def _minutes(t: str | None) -> int | None:
+    m = re.match(r"^(\d{1,2}):(\d{2})$", t or "")
+    return int(m.group(1)) * 60 + int(m.group(2)) if m else None
+
+
+def kinds_of(row: dict) -> set[str]:
+    return ({"transcript"} if row.get("segments") else set()) | ({"notes"} if row.get("notes") else set())
+
+
+def same_call(row: dict, title: str | None, date_: str | None, time_: str | None) -> bool:
+    """Is ``row`` the meeting that a source named ``title`` on ``date_`` at ``time_`` belongs to? The
+    same name (Google's suffixes and dates aside; one may be the start of the other), the same day,
+    and start times (when both are known) within 45 minutes: a daily "Standup" is another meeting
+    every day, and two calls of one name on one day are told apart by their times."""
+    rk, sk = mp.title_key(row.get("title")), mp.title_key(title)
+    if not rk or not sk or not (rk == sk or rk.startswith(sk) or sk.startswith(rk)):
+        return False
+    if not date_ or row.get("date") != date_:
+        return False
+    a, b = _minutes(row.get("time")), _minutes(time_)
+    return a is None or b is None or abs(a - b) <= PAIR_TIME_SLACK_MIN
+
+
+async def find_existing(db: AsyncIOMotorDatabase, workspace_id: str, *, title: str | None, date_: str | None,
+                        time_: str | None, kinds: set[str]) -> tuple[str, dict | None]:
+    """("duplicate", row) when the workspace already has this call with everything the source has,
+    ("attach", row) when it has the call but not this half (Google's notes, or the transcript),
+    ("new", None) otherwise. Needs a date: undated text is never matched by name alone."""
+    if not date_ or not kinds:
+        return "new", None
+    proj = {"segments": {"$slice": 1}, "title": 1, "date": 1, "time": 1, "notes": 1, "workspace_id": 1,
+            "doc_id": 1, "created_at": 1}
+    cursor = db[COLL].find({"workspace_id": workspace_id, "date": date_}, proj).sort("created_at", -1).limit(50)
+    async for row in cursor:
+        if not same_call(row, title, date_, time_):
+            continue
+        if kinds <= kinds_of(row):
+            return "duplicate", row
+        return "attach", await db[COLL].find_one({"_id": row["_id"]})
+    return "new", None
+
+
+async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *,
+                         wait: bool = False) -> dict:
+    """The other half of a call into its meeting: the transcript (segments and the Transcript
+    sub-page) or Google's notes, whichever the meeting doesn't have yet; attendees and sources merged.
+    The page is written again when nobody edited it since (else the new parts are added at the end),
+    and the AI sections are written again once a summary still being written has finished. A
+    ``history`` meeting stays quiet (no notifications)."""
+    from app.services import notifications
+
+    if row.get("history") and not notifications.is_quiet():
+        with notifications.quiet():
+            return await _attach_sources(db, user, row, group, wait=wait)
+    return await _attach_sources(db, user, row, group, wait=wait)
+
+
+async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *,
+                          wait: bool = False) -> dict:
+    from app.services import meetings_ai, pages
+
+    page = await page_of(db, row)
+    if page is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    actor, ctx = access.Actor.of(user), access.Ctx(db)
+    await access.require(actor, page, "edit_content", ctx)
+    people = await people_of(db, row["workspace_id"])
+    sets: dict[str, Any] = {}
+    added_transcript = added_notes = False
+    attendees = list(row.get("attendees") or [])
+    sources = list(row.get("sources") or [])
+    for s in group:
+        inc: Incoming = s._incoming  # type: ignore[attr-defined]
+        if s.segments and not row.get("segments") and not sets.get("segments"):
+            traw = await _make_transcript(db, user, row, page, s.segments, s.approx_times)
+            sets.update(segments=s.segments, approx_times=s.approx_times, transcript_doc_id=traw["_id"],
+                        transcript_slug=traw["slug"])
+            if not row.get("duration_s") and s.duration_s:
+                sets["duration_s"] = s.duration_s
+            added_transcript = True
+        if s.notes and not row.get("notes") and not sets.get("notes"):
+            sets["notes"] = s.notes
+            sets["action_items"] = int(row.get("action_items") or 0) + len(s.notes.get("next_steps") or [])
+            added_notes = True
+        if s.time and not row.get("time"):
+            sets["time"] = s.time
+        if s.truncated:
+            sets["truncated"] = True
+        for a in s.attendees:
+            if any(x["name"].casefold() == a["name"].casefold() for x in attendees):
+                continue
+            mem = people.match(a["name"], a.get("email"))
+            attendees.append({"name": a["name"], "user_id": mem["id"] if mem else None})
+        sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
+                        "url": inc.url, "format": s.format})
+    sets.update(attendees=attendees[:100], sources=sources, updated_at=now_utc())
+    await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+    row = await db[COLL].find_one({"_id": row["_id"]})
+    busy = (row.get("ai") or {}).get("state") == "pending" and ai_view(row)["state"] == "pending"
+    reason = await meetings_ai.generate_reason(db, user.id, row["workspace_id"])
+    if not busy:
+        # Show the new half now (the AI sections, if any, are written again below).
+        page = await page_of(db, row) or page
+        if int(page.get("rev") or 1) == int(row.get("base_rev") or 0):
+            try:
+                after = await _save(db, page, await full_markdown(db, row, row.get("generated"), people), actor, ctx,
+                                    base_rev=int(page.get("rev") or 1))
+                if after is not None:
+                    await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
+            except HTTPException as exc:
+                log.info("meetings: %s not rewritten after an attach (%s)", page.get("slug"), exc.detail)
+        elif reason:
+            # Edited since, and no AI pass to add things: put the new half at the end.
+            block = _added_block(row, added_notes=added_notes, added_transcript=added_transcript)
+            if block:
+                cur = page.get("content") or ""
+                try:
+                    await pages.check_page_lock(page, actor, ctx, pages.appended(cur, block))
+                    await _save(db, page, pages.appended(cur, block), actor, ctx)
+                except HTTPException as exc:
+                    log.info("meetings: couldn't add to %s (%s)", page.get("slug"), exc.detail)
+    if not reason:
+        if wait:
+            await _when_free(db, row["_id"])
+            await meetings_ai.generate(db, str(row["_id"]), user)
+        else:
+            spawn(_regenerate_when_free(db, str(row["_id"]), user))
+    return await db[COLL].find_one({"_id": row["_id"]})
+
+
+def _added_block(row: dict, *, added_notes: bool, added_transcript: bool) -> str:
+    parts = []
+    notes = row.get("notes") or {}
+    if added_notes and notes.get("summary"):
+        body = "\n\n".join(md_inline(p, keep_bold=True) for p in notes["summary"].split("\n\n") if p.strip())
+        parts.append(f':::note[Summary · From Google Meet notes]{{icon="📝"}}\n{body}\n:::')
+    if added_notes and notes.get("details"):
+        parts.append("## Details\n\n_From Google Meet notes._\n\n" +
+                     "\n".join(f"- {md_inline(d, keep_bold=True)}" for d in notes["details"] if d.strip()))
+    if added_transcript and row.get("transcript_slug"):
+        parts.append(f'## Transcript\n\n::page{{src="{row["transcript_slug"]}"}}')
+    return "\n\n".join(parts) + "\n" if parts else ""
+
+
+async def _when_free(db: AsyncIOMotorDatabase, row_id: Any, *, timeout_s: float = 300, every_s: float = 1.0) -> None:
+    """Waits (up to ``timeout_s``) while the meeting's summary is still being written."""
+    loop = asyncio.get_running_loop()
+    end = loop.time() + timeout_s
+    while loop.time() < end:
+        row = await db[COLL].find_one({"_id": row_id}, {"ai": 1, "updated_at": 1, "created_at": 1})
+        if row is None or ai_view(row)["state"] != "pending":
+            return
+        await asyncio.sleep(every_s)
+
+
+async def _regenerate_when_free(db: AsyncIOMotorDatabase, meeting_id: str, user) -> None:
+    from app.services import meetings_ai
+
+    await _when_free(db, ObjectId(meeting_id))
+    await meetings_ai.generate(db, meeting_id, user)
 
 
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
-                  restricted: bool, wait: bool, via: str) -> dict:
+                  restricted: bool, wait: bool, via: str, history: bool = False) -> dict:
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
     from app.services import meetings_ai, page_covers, pages
@@ -566,6 +785,8 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
     }
+    if history:
+        row["history"] = True
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
     actor, ctx = access.Actor.of(user), access.Ctx(db)
@@ -585,15 +806,7 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     row["doc_id"] = raw["_id"]
     row["slug"] = raw["slug"]
     if m.segments:
-        traw, _s, _e = await pages.create_page(
-            db, user, actor, ctx, title="Transcript", parent=raw["slug"],
-            content=transcript_markdown(m.segments, approx=m.approx_times))
-        await db["documents"].update_one({"_id": traw["_id"]}, {"$set": {"meeting_id": str(row["_id"]),
-                                                                         "meeting_role": "transcript"}})
-        await page_covers.opt_out(db, traw)
-        from app.services import page_props
-
-        await _save(db, traw, page_props.apply(traw.get("content") or "", {"icon": TRANSCRIPT_ICON}), actor, ctx)
+        traw = await _make_transcript(db, user, row, raw, m.segments, m.approx_times)
         row["transcript_doc_id"] = traw["_id"]
         row["transcript_slug"] = traw["slug"]
     reason = await meetings_ai.generate_reason(db, user.id, workspace_id)
@@ -617,6 +830,22 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     return await db[COLL].find_one({"_id": row["_id"]})
 
 
+async def _make_transcript(db: AsyncIOMotorDatabase, user, row: dict, page: dict, segments: list[dict],
+                           approx: bool) -> dict:
+    """The Transcript sub-page under the meeting page."""
+    from app.services import page_covers, page_props, pages
+
+    actor, ctx = access.Actor.of(user), access.Ctx(db)
+    traw, _s, _e = await pages.create_page(
+        db, user, actor, ctx, title="Transcript", parent=page["slug"],
+        content=transcript_markdown(segments, approx=approx))
+    await db["documents"].update_one({"_id": traw["_id"]}, {"$set": {"meeting_id": str(row["_id"]),
+                                                                     "meeting_role": "transcript"}})
+    await page_covers.opt_out(db, traw)
+    await _save(db, traw, page_props.apply(traw.get("content") or "", {"icon": TRANSCRIPT_ICON}), actor, ctx)
+    return traw
+
+
 def spawn(coro) -> None:
     task = asyncio.create_task(coro)
     _bg.add(task)
@@ -634,7 +863,17 @@ async def _save(db: AsyncIOMotorDatabase, raw: dict, content: str, actor, ctx, *
 
 async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
     """The AI's sections into the meeting page: the whole page when nobody changed it since import,
-    else the new sections appended at the end (never over someone's edits)."""
+    else the new sections appended at the end (never over someone's edits). A ``history`` meeting's
+    mentions notify nobody."""
+    from app.services import notifications
+
+    if meeting.get("history") and not notifications.is_quiet():
+        with notifications.quiet():
+            return await _write_generated(db, meeting, gen, user)
+    return await _write_generated(db, meeting, gen, user)
+
+
+async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
     from app.services import pages
 
     raw = await db["documents"].find_one({"_id": oid(meeting.get("doc_id"))})
@@ -737,6 +976,8 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "ai": ai_view(row), "created_at": iso(row.get("created_at")), "created_by": row.get("created_by"),
         "can_manage": can_manage, "can_delete": can_delete, "can_regenerate": (await access.can(actor, raw, "edit_content", ctx)).allowed,
         "approx_times": bool(row.get("approx_times")),
+        "source": source_of(row),
+        "history": bool(row.get("history")),   # a past meeting from a backfill (imported quietly)
     }
     if full:
         from app.services import urls
@@ -745,15 +986,40 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
     return out
 
 
+SOURCES = ("manual", "auto", "mcp")
+_VIA = {"manual": {"$nin": ["inbox", "mcp"]}, "auto": "inbox", "mcp": "mcp"}
+
+
+def source_of(row: dict) -> str:
+    """How the meeting came in: "auto" (the Google Meet script), "mcp", or "manual" (the website)."""
+    return {"inbox": "auto", "mcp": "mcp"}.get(row.get("via") or "", "manual")
+
+
 async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,
-                        limit: int = 100, q: str | None = None) -> dict:
+                        limit: int = 100, q: str | None = None, source: str | None = None,
+                        since: str | None = None) -> dict:
     """The meetings of a workspace the caller can open, newest first. A workspace admin also sees
-    restricted meetings they can't open, without their title (so they can delete them)."""
+    restricted meetings they can't open, without their title (so they can delete them).
+
+    ``source``: only those that came in that way (:data:`SOURCES`); ``since``: only meetings on or
+    after that date (YYYY-MM-DD)."""
     await require_member(db, workspace_id, actor.user_id, write=False)
     admin = await is_ws_admin(db, workspace_id, actor.user_id)
     limit = max(1, min(limit, MAX_LIST))
     out, hidden = [], []
-    cursor = db[COLL].find({"workspace_id": workspace_id}, {"segments": 0}).sort([("date", -1), ("created_at", -1)])
+    query: dict[str, Any] = {"workspace_id": workspace_id}
+    if source:
+        if source not in SOURCES:
+            raise HTTPException(status_code=422, detail=f"source is one of {', '.join(SOURCES)}.")
+        query["via"] = _VIA[source]
+    if since:
+        try:
+            date.fromisoformat(since)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="since is a date, YYYY-MM-DD.")
+        query["date"] = {"$gte": since}
+    filtered = bool(q or source or since)
+    cursor = db[COLL].find(query, {"segments": 0}).sort([("date", -1), ("created_at", -1)])
     async for row in cursor:
         raw = await page_of(db, row)
         if raw is None:
@@ -762,7 +1028,7 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
             if q and q.casefold() not in (row.get("title") or "").casefold():
                 continue
             out.append(await shape(db, row, raw, actor, ctx))
-        elif admin and not q:
+        elif admin and not filtered:
             hidden.append({"id": str(row["_id"]), "date": row.get("date"), "restricted": True, "redacted": True,
                            "can_delete": True})
         if len(out) >= limit:
