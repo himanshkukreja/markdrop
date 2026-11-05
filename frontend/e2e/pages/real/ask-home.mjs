@@ -178,7 +178,9 @@ await step("private", async () => {
   await ask(p, "What are the release salaries zebra?");
   await answered(p).catch(() => {});
   await p.waitForTimeout(800);
-  const leak = bodies.filter((b) => /salaries|zebra/i.test(b.body.replace(/What are the release salaries zebra\?/g, "")));
+  // Only what's IN the private document counts (its slug, title, body); the question's own words come back
+  // as the search terms ("searching" status), which is the asker's text, not a leak.
+  const leak = bodies.filter((b) => /release-salaries|Release salaries zebra|Confidential|bonus pool/.test(b.body));
   if (leak.length) fail(`a response carried the private document: ${leak[0].url}`);
   if (!bodies.some((b) => /\/api\/v1\/ask$/.test(b.url))) fail("no ask request was seen");
 });
