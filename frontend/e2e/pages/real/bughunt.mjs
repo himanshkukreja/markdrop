@@ -358,7 +358,7 @@ await step("two-tabs", async () => {
   await b.keyboard.type(" from B");
   await b.waitForTimeout(4500);
   md = await content(slug);
-  const conflict = await b.getByText("This page changed").count();
+  const conflict = await b.getByText(/This page changed|same part of this page/).count();
   log("after B typed:", JSON.stringify(md), "conflict shown:", conflict);
   await shot(b, "62-two-tabs-b");
   if (!md.includes("Shared line from A")) fail(`tab B overwrote or split tab A's text: ${JSON.stringify(md)}`);

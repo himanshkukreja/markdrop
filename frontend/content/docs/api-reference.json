@@ -940,24 +940,27 @@
     },
     "POST /api/v1/workspaces/{workspace_id}/folders": {
       "title": "Create a folder",
-      "description": "Creates a folder at the top level, or inside another folder with `parent_id`.",
+      "description": "Creates a folder at the top level, or inside another folder with `parent_id`. If a folder, page, document or file there already has the folder's address, it returns `409` saying what holds it and creates nothing (an item you can't open is never named and never blocks you: the folder takes the next free address); send `on_conflict: \"suffix\"` to take the next free address (`guides-2`) instead.",
       "example": { "name": "Guides" },
+      "mcp": "create_folder",
       "guide": { "label": "Folders", "href": "/workspaces/folders" }
     },
     "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Update a folder",
-      "description": "Renames a folder, or moves it with `parent_id` and `reparent: true`.",
+      "description": "Renames a folder, or moves it with `parent_id` and `reparent: true`. A new address that is already taken there is a `409` unless you send `on_conflict: \"suffix\"`. The folder's old address redirects to the new one.",
       "example": { "name": "Handbook" }
     },
     "PATCH /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Rename or move a folder",
-      "description": "Renames a folder, changes its address, moves it (`parent_id`; `null` is the top level) or sets the access new documents in it start with. Admins and the owner. Every document below it moves to its new address.",
+      "description": "Renames a folder, changes its address, moves it (`parent_id`; `null` is the top level) or sets the access new documents in it start with. Admins and the owner. Every document below it moves to its new address, and the old addresses (the folder's own included) redirect. A new address that is already taken there is a `409` unless you send `on_conflict: \"suffix\"`.",
+      "mcp": "rename_folder",
       "example": { "name": "Handbook" }
     },
     "DELETE /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Delete a folder",
       "description": "Deletes a folder. By default (`mode=trash`) the folder, every folder inside it and everything filed in them go to the trash for 30 days, and come back together if you restore the folder. With `unfile` or `move_up` only the folder goes: what was in it moves to the top of the workspace, or into the parent folder.",
       "paramNotes": { "mode": "`trash` (the default), `unfile` or `move_up`." },
+      "mcp": "delete_folder",
       "guide": { "label": "Trash", "href": "/documents/trash" }
     },
     "GET /api/v1/workspaces/{workspace_id}/tree": {

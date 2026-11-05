@@ -90,7 +90,14 @@ MAX_RETURNED_CHARS = 200_000
 
 
 class ToolError(Exception):
-    """A failure to report to the model as `isError: true`."""
+    """A failure to report to the model as `isError: true`. ``data``, when
+    given, goes out as the result's ``structuredContent`` (it must fit the
+    tool's output schema): a refusal the model can act on field by field,
+    like delete_folder's listing of what is inside."""
+
+    def __init__(self, message: str = "", data: dict | None = None):
+        super().__init__(message)
+        self.data = data
 
 
 @dataclass
@@ -796,6 +803,11 @@ async def publish_page(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Published {filename}: {out['url']}", out
 
 
+def _stale(base_rev: int, now) -> str:
+    return (f"The document changed since revision {base_rev} (it is at revision {now}). Nothing was "
+            "written. Read it again with get_document and redo the change on the newer text.")
+
+
 async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     slug = raw["slug"]
@@ -805,6 +817,13 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
     title = args.get("title")
     actor = actor_of(ctx)
     actx = access_service.Ctx(ctx.db, surface="mcp")
+    # base_rev (get_document's rev): never write over a version this caller hasn't read — someone
+    # (or another AI app) may have changed it since (fix/collab-audit).
+    base_rev = args.get("base_rev")
+    if base_rev is not None:
+        base_rev = int(base_rev)
+        if base_rev != int(raw.get("rev") or 1):
+            raise ToolError(_stale(base_rev, int(raw.get("rev") or 1)))
     if raw.get("kind") == "artifact":
         if not art_service.is_syncable(raw.get("mime")) or raw.get("bundle_prefix"):
             label = art_service.label_for(raw.get("mime") or "")
@@ -849,12 +868,15 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
             data = DocumentUpdate(
                 title=title if title is not None else raw.get("title"),
                 content=content,
+                base_rev=base_rev,
             )
         except ValidationError:
             raise ToolError("That title or content isn't valid.")
         try:
             after = await doc_service.update_document(ctx.db, slug, data, actor, actx)
         except HTTPException as exc:
+            if exc.status_code == 409 and base_rev is not None:
+                raise ToolError(_stale(base_rev, (exc.headers or {}).get("X-Markdrop-Rev", "newer")))
             raise ToolError(http_message(exc))
         from app.services.document import _doc_from_mongo
 
@@ -921,6 +943,8 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
         "updated_at": iso(doc.updated_at),
         "views": doc.views,
         "owner": "you" if doc.owner_id == ctx.user.id else "someone else",
+        # What update_document takes as base_rev (it refuses to write over a newer version).
+        "rev": int(doc.rev or 1),
         **meta,
     }
     if content is not None:
@@ -1729,7 +1753,8 @@ async def list_folders(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id, _ws, role = await resolve_workspace(ctx, args["workspace"])
     tree = await workspace_items.tree(ctx.db, access_service.Actor.of(ctx.user),
                                       access_service.Ctx(ctx.db), ws_id, role)
-    folders = [{"id": f["id"], "name": f["name"], "path": f["path"], "depth": f["depth"],
+    folders = [{"id": f["id"], "name": f["name"], "slug": f["slug"], "parent_id": f["parent_id"],
+                "path": f["path"], "depth": f["depth"],
                 "items": f["total_count"], "updated_at": iso(f.get("updated_at")),
                 "people": ["you" if p["is_you"] else p["name"] for p in f.get("people") or [] if p.get("name") or p["is_you"]]}
                for f in tree["folders"]]
@@ -1880,15 +1905,27 @@ async def create_folder(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id, _ws, role = await resolve_workspace(ctx, args["workspace"])
     if not role_allows(role, "member"):
         raise ToolError("The user is a viewer of that workspace, so they can't create folders.")
+    on_conflict = args.get("on_conflict") or "error"
     try:
-        folder_id, created = await folder_service.ensure_path(ctx.db, ws_id, args["path"])
+        folder_id, created = await folder_service.ensure_path(
+            ctx.db, ws_id, args["path"], on_conflict=on_conflict, actor=actor_of(ctx),
+            ctx=access_service.Ctx(ctx.db, surface="mcp"))
         path = await folder_service.path_of(ctx.db, ws_id, folder_id)
     except HTTPException as exc:
+        if exc.status_code == 409 and on_conflict == "error":
+            raise ToolError(f"{http_message(exc)} Nothing was created. To use the next free address "
+                            "instead (…-2), call again with on_conflict: \"suffix\".")
         raise ToolError(http_message(exc))
     out = {"workspace_id": ws_id, "folder_id": folder_id, "path": "/".join(path), "created": created}
     if not created:
         return f"The folder {out['path']} already exists.", out
-    return f"Created {out['path']}.", out
+    # Only the first folder made can have met a taken address (the rest are inside it).
+    first = path[len(path) - len(created)] if len(path) >= len(created) else None
+    note = (folder_service.suffixed_note(folder_service.base_slug(created[0]), first)
+            if on_conflict == "error" and first else None)
+    if note:
+        out["note"] = note
+    return f"Created {out['path']}." + (f" {note}" if note else ""), out
 
 
 async def move_to_folder(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2269,6 +2306,10 @@ _URL_PROPS = {
 _WORKSPACE_ARG = {"type": "string", "minLength": 1, "maxLength": 300,
                   "description": ("A workspace the user belongs to: its id, its name, or one of its "
                                   "custom domains (see list_workspaces). The user must be a member.")}
+_ON_CONFLICT_ARG = {"type": "string", "enum": ["error", "suffix"], "default": "error",
+                    "description": ("When the folder's address is already taken where it goes: \"error\" "
+                                    "(default) refuses and says what holds it; \"suffix\" takes the next "
+                                    "free address (name-2, name-3…).")}
 _FOLDER_ARG = {"type": "string", "minLength": 1, "maxLength": 400,
                "description": ("An existing folder of that workspace, as a path like 'guides/setup' "
                                "(see list_folders). It must exist; create it with create_folder.")}
@@ -2440,7 +2481,10 @@ TOOLS: list[Tool] = [
         description=(
             "Replace the full content of a document or text file the user owns or can edit (a "
             "document shared with them as an editor, or a non-private document of a workspace they "
-            "are a member of), keeping its link. Encrypted documents and non-text files can't be updated."
+            "are a member of), keeping its link. Encrypted documents and non-text files can't be updated. "
+            "Pass base_rev (the rev get_document returned) so a change someone made after you read it "
+            "is never overwritten: if the document moved on, nothing is written and you're told to read "
+            "it again. For pages, prefer update_page / replace_section / append_blocks."
         ),
         scope=WRITE,
         writes=True,
@@ -2451,6 +2495,9 @@ TOOLS: list[Tool] = [
                 "content": {"type": "string", "minLength": 1,
                             "description": "The new full content (markdown for documents, the file text for files)."},
                 "title": {"type": "string", "maxLength": 200, "description": "Optional new title."},
+                "base_rev": {"type": "integer", "minimum": 1,
+                             "description": "The rev get_document returned. Recommended: the update is refused "
+                                            "if the document changed since (no silent overwrite)."},
             },
             "required": ["document", "content"],
         },
@@ -2480,7 +2527,7 @@ TOOLS: list[Tool] = [
                 "kind": {"type": "string", "enum": ["document", "artifact"]},
                 "content": {"type": "string"}, "note": {"type": "string"},
                 "access": _ACCESS_OUT, "created_at": {"type": "string"},
-                "updated_at": {"type": "string"}, "views": {"type": "integer"},
+                "updated_at": {"type": "string"}, "views": {"type": "integer"}, "rev": {"type": "integer"},
                 "owner": {"type": "string", "enum": ["you", "someone else"]},
                 "file": _FILE_INFO,
             },
@@ -3174,7 +3221,8 @@ TOOLS += [
         name="list_folders",
         title="List a workspace's folders",
         description=("The folders of a workspace as paths (e.g. 'guides/setup'), with how many items the user can open "
-                     "in each, when something in each last changed, and whose items are in it (up to three people)."),
+                     "in each, when something in each last changed, and whose items are in it (up to three people). "
+                     "Each folder's path or id is what rename_folder, move_folder and delete_folder take."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folders": {"type": "array"},
@@ -3256,16 +3304,25 @@ TOOLS += [
     Tool(
         name="create_folder",
         title="Create a folder",
-        description="Create a folder in a workspace by path ('guides/setup'), including any missing parent folders.",
+        description=("Create a folder in a workspace by path ('guides/setup'), including any missing parent "
+                     "folders; folders that already exist along the path are used as they are. If the new "
+                     "folder's address is already taken where it goes (a page, document, file or another "
+                     "folder there has that slug), nothing is created and the error says what holds it — never "
+                     "a silent '-2'. on_conflict: \"suffix\" takes the next free address instead. Members "
+                     "can create folders; rename_folder, move_folder and delete_folder need an admin."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
             "path": {"type": "string", "minLength": 1, "maxLength": 400,
                      "description": "Folder path, e.g. 'guides/setup'."},
+            "on_conflict": _ON_CONFLICT_ARG,
         }, "required": ["workspace", "path"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folder_id": {"type": "string"},
-                            "path": {"type": "string"}, "created": {"type": "array"}}),
+                            "path": {"type": "string"}, "created": {"type": "array"},
+                            "note": {"type": "string", "description": "Set when the address had to be "
+                                                                      "suffixed (an item the user can't open has it)."}},
+                           ["workspace_id", "folder_id", "path", "created"]),
         annotations=_ann(False, False, True),
         handler=create_folder,
     ),
@@ -3294,6 +3351,11 @@ TOOLS += PAGE_TOOLS
 from app.mcp.history_tools import HISTORY_TOOLS  # noqa: E402
 
 TOOLS += HISTORY_TOOLS
+
+# Rename, move and delete folders: app/mcp/folder_tools.py.
+from app.mcp.folder_tools import FOLDER_TOOLS  # noqa: E402
+
+TOOLS += FOLDER_TOOLS
 
 # A document's link (set_slug): app/mcp/slug_tools.py.
 from app.mcp.slug_tools import SLUG_TOOLS  # noqa: E402
@@ -3328,5 +3390,17 @@ TOOLS += ANALYTICS_AI_TOOLS
 from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
 
 TOOLS += MEETING_TOOLS
+
+# Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
+# answers with the first call's result instead of writing twice.
+IDEMPOTENCY_KEY = {
+    "type": "string", "minLength": 8, "maxLength": 200,
+    "description": ("Optional. A unique id for this change (a UUID). Retrying with the same key within "
+                    "24 hours returns the first call's result instead of doing it again (no duplicate "
+                    "pages, blocks or uploads after a timeout)."),
+}
+for _t in TOOLS:
+    if _t.writes and isinstance(_t.input_schema.get("properties"), dict):
+        _t.input_schema["properties"].setdefault("idempotency_key", IDEMPOTENCY_KEY)
 
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

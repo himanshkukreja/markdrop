@@ -131,6 +131,11 @@ async def host_folder(
     url, size_bytes, poster_url?}], workspace: {...}}``
 
     ``document_count`` counts readable documents at or below the folder.
+
+    A former address of a renamed or moved folder answers ``{moved_to:
+    [path…]}`` (the page redirects there) — only when the folder it names now
+    would be listed for this caller; otherwise the same 404 as any missing
+    folder (services/folder.resolve_moved).
     """
     row = await urls.live_host(db, host)
     ws = await ws_service.get_workspace(db, row["workspace_id"]) if row else None
@@ -143,8 +148,12 @@ async def host_folder(
                      ip=get_client_ip(request))
     segments = [s for s in (path or "").strip("/").split("/") if s]
     folder_id = await folder_service.resolve_path(db, ws.id, segments) if segments else None
+    moved_to: list[str] | None = None
     if segments and folder_id is None:
-        raise HTTPException(status_code=404, detail="Folder not found")
+        moved = await folder_service.resolve_moved(db, ws.id, segments)
+        if moved is None:
+            raise HTTPException(status_code=404, detail="Folder not found")
+        folder_id, moved_to = moved
     shared_link = False
     if folder_id:
         f = await db["folders"].find_one({"_id": ObjectId(folder_id)}, {"share": 1})
@@ -158,6 +167,9 @@ async def host_folder(
         db, actor, ctx, ws.id, folder_id, always_show=(folder_id is None or shared_link))
     if listing is None:
         raise HTTPException(status_code=404, detail="Folder not found")
+    if moved_to is not None:
+        _cache(response, actor)
+        return {"moved_to": moved_to}
     paths, total = listing["paths"], listing["total"]
     folders_by_id = {f.id: f for f in await folder_service.list_folders(db, ws.id)}
     trail, folder = [], None
