@@ -332,6 +332,70 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
     _mclient = _NS(messages=_MMessages())
     meetings_ai.docs_agent = _NS(get_client=lambda: _mclient, configured=lambda: True)
 
+# Ask Markdrop (services/ask_markdrop.py) against a fake model: PB_FAKE_ASK_AI=1 (ask-home.mjs). The expansion keeps
+# the question (a follow-up: the question with the conversation's first one) and its words; an answer ranks the first
+# three candidates and cites them, plus the first transcript moment it was sent; catch-up and action items cite
+# everything. Streams like the real API; nothing leaves the machine.
+if os.environ.get("PB_FAKE_ASK_AI"):
+    import asyncio as _aaio
+    import json as _ajson
+    import re as _are
+    from types import SimpleNamespace as _ANS
+
+    from app.services import ask_markdrop
+
+    class _AStream:
+        def __init__(self, text: str):
+            self.text = text
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            return self._gen()
+
+        async def _gen(self):
+            for i in range(0, len(self.text), 10):
+                await _aaio.sleep(0.03)
+                yield _ANS(type="text", text=self.text[i:i + 10])
+
+        async def get_final_message(self):
+            return _ANS(content=[_ANS(type="text", text=self.text)], stop_reason="end_turn",
+                        usage=_ANS(input_tokens=2500, output_tokens=len(self.text) // 4 + 5, cache_read_input_tokens=0,
+                                   cache_creation_input_tokens=0, cache_creation=None))
+
+    class _AMessages:
+        def stream(self, **params):
+            system = params["system"][0]["text"]
+            user = "\n".join(b["text"] for b in params["messages"][-1]["content"])
+            if "Return only JSON" in system:
+                q = user.rsplit("Search: ", 1)[-1].strip()
+                first = _are.search(r"Q: ([^\n]+)", user)
+                standalone = f"{first.group(1)} {q}" if first else q
+                words = [w for w in _are.findall(r"[A-Za-z]{4,}", standalone) if w.lower() not in ("what", "when", "does", "with", "about")]
+                return _AStream(_ajson.dumps({"standalone": standalone, "terms": words[:6], "titles": []}))
+            if "open action items" in system:
+                ns = _are.findall(r'<untrusted_task n="(\d+)"', user)
+                items = "\n".join(f"- {t.strip()[:80]} [{n}]" for n, t in _are.findall(r'<untrusted_task n="(\d+)"[^>]*>\n([^\n]*)', user))
+                return _AStream(f"<ranking>{','.join(ns)}</ranking>\n\nYou have {len(ns)} open action item{'s' if len(ns) != 1 else ''}:\n{items}")
+            ns = _are.findall(r'<untrusted_document n="(\d+)" title="([^"]*)"', user)
+            if not ns:
+                return _AStream("<ranking></ranking>\n\nNothing you can open answers that.")
+            if "caught up" in system:
+                bullets = "\n".join(f"- **{t}** changed this week [{n}]." for n, t in ns[:4])
+                return _AStream(f"<ranking>{','.join(n for n, _ in ns[:4])}</ranking>\n\nHere's your week:\n{bullets}")
+            moments = _are.findall(r"\[(\d+-s\d+)\] \S+ ([^:\n]+): ([^\n]+)", user)
+            top = ns[:3]
+            said = f" {moments[0][1]} said: \"{moments[0][2][:90]}\" [{moments[0][0]}]." if moments else ""
+            cites = " ".join(f"**{t}** covers it [{n}]." for n, t in top)
+            return _AStream(f"<ranking>{','.join(n for n, _ in top)}</ranking>\n\nFrom what you can open: {cites}{said}")
+
+    _aclient = _ANS(messages=_AMessages())
+    ask_markdrop.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
+
 # PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
 # real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).
 _lat = float(os.environ.get("PB_R2_LATENCY_MS") or 0) / 1000
