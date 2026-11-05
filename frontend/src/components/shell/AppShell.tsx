@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Button, Drawer, IconButton, cx } from "@/components/ui";
+import { Button, Drawer, cx } from "@/components/ui";
 import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
 import { openFeedback, FeedbackDialog } from "@/components/FeedbackWidget";
 import { useAuth } from "@/contexts/AuthContext";
-import { listApiTokens } from "@/lib/api";
 import { listSharedWithMe } from "@/lib/me";
 import { LIGHT_ENABLED } from "@/lib/theme";
 import { can, listWorkspaces, WORKSPACES_EVENT, type ItemAccess } from "@/lib/workspaces";
@@ -20,17 +19,6 @@ import { sendFolderCommand, usePaletteRequests, useBrowseRequests } from "./comm
 import { SideNav, railKeyFor, workspaceOfKey, wsFolderKey, wsRootKey, type RailData } from "./SideNav";
 import { useLocationSearch } from "./useLocation";
 
-const LABELS: Record<string, string> = {
-  files: "My files",
-  shared: "Shared with me",
-  recent: "Recent",
-  analytics: "Analytics",
-  trash: "Trash",
-  "ws:new": "Workspaces",
-  "int:vscode": "API tokens",
-  "int:apps": "Connected apps",
-  settings: "Settings",
-};
 
 /**
  * Loads the rail's data lazily and tolerantly: workspaces, the token count and how many shares are
@@ -53,9 +41,6 @@ function useRailData(userId: string | null) {
     void loadWorkspaces();
     // A workspace made, renamed, joined or deleted on any screen shows up here without a reload.
     window.addEventListener(WORKSPACES_EVENT, loadWorkspaces);
-    listApiTokens()
-      .then((t) => live && setData((d) => ({ ...d, tokens: t.length })))
-      .catch(() => {});
     listSharedWithMe()
       .then((r) => live && setData((d) => ({ ...d, sharedNew: r.new_count })))
       .catch(() => {});
@@ -69,6 +54,20 @@ function useRailData(userId: string | null) {
 }
 
 const EXPANDED_KEY = "md_rail_tree";
+const COLLAPSED_KEY = "md_rail_collapsed";
+
+/** Desktop: the full sidebar or the icon rail, remembered on this device. */
+function useCollapsed(): [boolean, (v: boolean) => void] {
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try { setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1"); } catch { /* storage off */ }
+  }, []);
+  const set = useCallback((v: boolean) => {
+    setCollapsed(v);
+    try { localStorage.setItem(COLLAPSED_KEY, v ? "1" : "0"); } catch { /* storage off */ }
+  }, []);
+  return [collapsed, set];
+}
 
 /** Which tree nodes are open, remembered on this device (REVAMP P2 "persisted expand state"). */
 function useExpanded() {
@@ -104,11 +103,11 @@ function useExpanded() {
 }
 
 /** Wide pages (the drive views) get the Main board's 960px column; settings keep 880. */
-const WIDE = /^\/(w\/|meetings\/|shared$|recent$|trash$)/;
+const WIDE = /^\/(w\/|meetings\/|shared$|recent$|trash$|dashboard\/files$)/;
+/** The home: its own, wider column (two columns of sections). */
+const HOME = /^\/dashboard\/?$/;
 /** Analytics pages use the analytics boards' 1180px column. */
 const ANALYTICS = /^\/dashboard\/(analytics(\/|$)|live$)/;
-/** A workspace's folder view (/w/<ws> and /w/<ws>/f/<folder>), which brings its own phone header. */
-const FOLDER_PAGE = /^\/w\/[^/]+(\/f\/[^/]+)?\/?$/;
 
 /**
  * The account shell for /dashboard, /w/*, /shared, /recent and /settings/* (simpler UI, Main
@@ -138,6 +137,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [activeWs, activeTree, activeFolderId, openAll]);
 
   const data = useRailData(user?.id ?? null);
+  const [collapsed, setCollapsed] = useCollapsed();
   const [browseOpen, setBrowseOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   useEffect(() => setBrowseOpen(false), [pathname, search]);
@@ -158,46 +158,44 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return f?.effective_default_access ?? ws?.default_access ?? ws?.settings?.default_access ?? "workspace";
   }, [workspaces]);
 
-  let activeLabel = active ? LABELS[active] : undefined;
-  if (!activeLabel && activeWs) {
-    const ws = data.workspaces?.find((w) => w.id === activeWs);
-    if (ws) {
-      const folder = activeFolderId ? activeTree?.folders.find((f) => f.id === activeFolderId) : undefined;
-      activeLabel = folder
-        ? `${ws.name} / ${folder.name}`
-        : active?.endsWith(":settings") ? `${ws.name} settings` : ws.name;
-    }
-  }
-
   return (
     <UploadProvider resolveAccess={resolveAccess}>
     <WorkspaceDndProvider>
     <div className="flex w-full min-w-0 flex-1">
-      <aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-62 shrink-0 overflow-y-auto border-r border-border bg-bg lg:block">
-        <SideNav data={data} active={active} expanded={expanded} onToggle={setOpen} onFeedback={feedback} />
+      {/* Desktop (≥ 1024): the full sidebar, or the icon rail when collapsed. Tablets (768–1023): the
+          icon rail, whose Expand opens the full sidebar as a drawer. Phones: the header's Menu opens it. */}
+      <aside className={cx(
+        "sticky top-[calc(3.5rem+var(--safe-top))] hidden h-[calc(100dvh-3.5rem-var(--safe-top))] shrink-0 overflow-y-auto border-r border-border bg-bg md:block lg:hidden",
+        "w-16",
+      )} data-rail="tablet">
+        <SideNav data={data} active={active} expanded={expanded} onToggle={setOpen} onFeedback={feedback} collapsed onExpand={openBrowseDrawer} />
+      </aside>
+      <aside className={cx(
+        "sticky top-[calc(3.5rem+var(--safe-top))] hidden h-[calc(100dvh-3.5rem-var(--safe-top))] shrink-0 overflow-y-auto border-r border-border bg-bg lg:block",
+        collapsed ? "w-16" : "w-62",
+      )} data-rail={collapsed ? "collapsed" : "full"}>
+        {collapsed ? (
+          <SideNav data={data} active={active} expanded={expanded} onToggle={setOpen} onFeedback={feedback} collapsed onExpand={() => setCollapsed(false)} />
+        ) : (
+          <SideNav data={data} active={active} expanded={expanded} onToggle={setOpen} onFeedback={feedback} onCollapse={() => setCollapsed(true)} />
+        )}
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Phones on a workspace page get the folder's own compact header (back · title · search ·
-            share, Mobile board) instead of this bar, so the place isn't named twice. */}
-        <div className={cx("flex min-h-14 items-center gap-2 border-b border-border px-4 sm:px-6 lg:hidden", FOLDER_PAGE.test(pathname) && "max-sm:hidden")}>
-          <IconButton icon="listTree" label="Browse" variant="secondary" className="size-11" aria-haspopup="dialog" aria-expanded={browseOpen} onClick={() => setBrowseOpen(true)} />
-          {/* A workspace or folder name is masked in replays; the fixed labels aren't. */}
-          {activeLabel && <span className={cx("min-w-0 truncate text-body-strong text-text", !(active && LABELS[active]) && "ph-sensitive ph-mask")} dir="auto">{activeLabel}</span>}
-        </div>
         <main
           id="main"
           tabIndex={-1}
           className={cx(
             "mx-auto w-full min-w-0 flex-1 px-4 py-6 outline-none sm:px-6",
-            ANALYTICS.test(pathname) ? "max-w-[1180px] lg:px-8 lg:py-7 lg:pb-12" : WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
+            HOME.test(pathname) ? "max-w-[1160px] pt-5 lg:px-8 lg:pt-7 lg:pb-12"
+              : ANALYTICS.test(pathname) ? "max-w-[1180px] lg:px-8 lg:py-7 lg:pb-12" : WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
           )}
         >
           {children}
         </main>
       </div>
 
-      <Drawer open={browseOpen} onClose={() => setBrowseOpen(false)} side="left" width={320} title="Browse" bodyClassName="p-0">
+      <Drawer open={browseOpen} onClose={() => setBrowseOpen(false)} side="left" width={320} title="Menu" bodyClassName="p-0">
         <SideNav
           data={data}
           active={active}

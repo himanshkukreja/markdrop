@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Anchor, Icon, IconButton, Kbd, MarkdropLogo, SkipLink, VisuallyHidden, cx } from "@/components/ui";
-import { openCommandPalette } from "./commands";
+import { openBrowse, openCommandPalette } from "./commands";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import CreateMenu from "@/components/CreateMenu";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +35,8 @@ export interface SiteHeaderProps {
   createVariant?: "primary" | "secondary";
   /** App pages: the "Search everything, or ask AI" field that opens the ⌘K palette. */
   search?: boolean;
+  /** App pages (the AppShell): phones get a Menu button at the start that opens the sidebar drawer. */
+  menu?: boolean;
   className?: string;
 }
 
@@ -83,7 +85,7 @@ function useScrolledPast(px: number, active: boolean): boolean {
  * feedback and theme; signed-in people get it on marketing pages only). Below 360px Create is the
  * plus alone.
  */
-export function SiteHeader({ variant = "default", width = "contained", createVariant, search, className }: SiteHeaderProps) {
+export function SiteHeader({ variant = "default", width = "contained", createVariant, search, menu, className }: SiteHeaderProps) {
   const pathname = usePathname() || "/";
   const { user, loading } = useAuth();
   const mounted = useMounted();
@@ -113,6 +115,9 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
       <SkipLink />
       <div className="h-full w-full px-4 sm:px-6">
         <div className={cx("mx-auto flex h-full min-w-0 items-center gap-2", width === "contained" && (marketing ? "max-w-marketing" : "max-w-tool"))}>
+          {menu && user && (
+            <IconButton icon="menu" label="Menu" variant="ghost" className="-ml-2 size-11 shrink-0 md:hidden" onClick={openBrowse} aria-haspopup="dialog" data-testid="app-menu" />
+          )}
           <MarkdropLogo size={24} className="shrink-0 md:hidden" />
           <MarkdropLogo size={28} className="hidden shrink-0 md:inline-flex" />
           {search && user && <SearchTrigger />}

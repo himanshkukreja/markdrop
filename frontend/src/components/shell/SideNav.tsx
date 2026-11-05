@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Anchor, FileIcon, Icon, Skeleton, copyText, cx, useToast } from "@/components/ui";
-import VSCodeIcon from "@/components/VSCodeIcon";
+import { Anchor, Dropdown, FileIcon, Icon, Skeleton, Tooltip, copyText, cx, useToast } from "@/components/ui";
+import { usePwa } from "@/components/pwa/PwaProvider";
+import { toggleAssistant } from "@/components/assistant/store";
+import { openNotifications, useUnreadCount } from "./NotificationBell";
 import { DOCS_URL } from "./links";
 import { studioUrl } from "@/lib/studioHost";
 import { TreeView, shareNodes, type TreeNode } from "@/components/workspace/FolderTree";
@@ -30,10 +32,14 @@ export const wsFolderKey = (id: string, folderId: string) => `ws:${id}:folder:${
 export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
 /** The workspace's "Guides" link: it opens Markdrop Guides filtered to the workspace (never active here). */
 export const wsDocsKey = (id: string) => `ws:${id}:docs`;
+/** The workspace's Meetings hub (/meetings/<id>). */
+export const wsMeetingsKey = (id: string) => `ws:${id}:meetings`;
+/** lib/meetings' meetingsHref, without loading the meetings client into the shell. */
+const meetingsHref = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 
 /**
- * Which rail item the URL points at. Keys: "files" | "shared" | "recent" | "analytics" | "trash" | "ws:<id>:root" |
- * "ws:<id>:folder:<fid>" | "ws:<id>:settings" | "ws:new" | "int:vscode" | "int:apps" | "settings".
+ * Which rail item the URL points at. Keys: "home" | "search" | "files" | "shared" | "recent" | "analytics" | "trash" |
+ * "ws:<id>:root" | "ws:<id>:folder:<fid>" | "ws:<id>:meetings" | "ws:<id>:settings" | "ws:new" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
   const q = new URLSearchParams(search);
@@ -42,14 +48,19 @@ export function railKeyFor(pathname: string, search: string): string | null {
     const id = decodeURIComponent(w[1]!);
     return w[2] ? wsFolderKey(id, decodeURIComponent(w[2])) : wsRootKey(id);
   }
-  if (pathname === "/dashboard") {
+  if (pathname === "/dashboard" || pathname === "/dashboard/files") {
     const ws = q.get("ws");
     if (ws) {
       const folder = q.get("folder");
       return folder && folder !== "unfiled" ? wsFolderKey(ws, folder) : wsRootKey(ws);
     }
+    // Old links (/dashboard?kind=…, ?q=…) are the files list; they forward there.
+    if (pathname === "/dashboard" && !["kind", "q", "page", "gdocs"].some((k) => q.has(k))) return "home";
     return "files";
   }
+  const mt = pathname.match(/^\/meetings\/([^/]+)\/?$/);
+  if (mt) return wsMeetingsKey(decodeURIComponent(mt[1]!));
+  if (pathname === "/search") return "search";
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
   if (pathname === "/trash") return "trash";
@@ -57,9 +68,9 @@ export function railKeyFor(pathname: string, search: string): string | null {
   const m = pathname.match(/^\/settings\/workspaces\/([^/]+)/);
   if (m) return wsSettingsKey(decodeURIComponent(m[1]!));
   if (pathname === "/settings/workspaces") return "ws:new";
-  if (pathname.startsWith("/settings/tokens")) return "int:vscode";
-  if (pathname.startsWith("/settings/connections")) return "int:apps";
-  if (pathname === "/settings" || pathname.startsWith("/settings/account")) return "settings";
+  // Integrations (VS Code tokens, connected apps) live under Settings.
+  if (pathname === "/settings" || pathname.startsWith("/settings/account") || pathname.startsWith("/settings/tokens")
+    || pathname.startsWith("/settings/connections")) return "settings";
   return null;
 }
 
@@ -335,9 +346,18 @@ function workspaceNode(
       };
     };
     const open = c.expanded.has(wsRootKey(ws.id));
-    children = [...(kids.get(null) ?? []).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
-    if (!children.length) {
-      children = [{ key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
+    // Meetings first: the hub (/meetings/<id>) for members (they can import) and anyone once there are meetings.
+    const meetingsRow: TreeNode[] = member || tree.folders.some((f) => f.meetings) ? [{
+      key: wsMeetingsKey(ws.id),
+      sig: sig("mt", ws.id),
+      label: "Meetings",
+      icon: <Icon name="mic" size={16} />,
+      href: meetingsHref(ws.id),
+      leaf: true,
+    }] : [];
+    children = [...meetingsRow, ...(kids.get(null) ?? []).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
+    if (children.length === meetingsRow.length) {
+      children = [...meetingsRow, { key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
     }
   }
   const lazy = slot === null || (!!tree && nav === null);
@@ -378,6 +398,12 @@ export interface SideNavProps {
   /** Extra content after the bottom links (the drawer adds theme + identity). */
   footer?: React.ReactNode;
   className?: string;
+  /** The icon rail instead of the full sidebar (desktop: collapsed by choice; tablets: always). */
+  collapsed?: boolean;
+  /** Shows "Expand" on the icon rail. */
+  onExpand?: () => void;
+  /** Shows "Collapse" at the bottom of the full sidebar (desktop). */
+  onCollapse?: () => void;
 }
 
 /**
@@ -393,7 +419,7 @@ export interface SideNavProps {
  * and whenever `workspaceChanged` / a page change says so), so moving around the app never
  * blanks or refetches the tree.
  */
-export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedback, footer, className }: SideNavProps) {
+export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedback, footer, className, collapsed, onExpand, onCollapse }: SideNavProps) {
   const container = useRef<HTMLElement>(null);
   const pill = useRef<HTMLSpanElement>(null);
   const uid = useId();
@@ -474,16 +500,46 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
   ].join("|");
   useActivePill(container, pill, active, layoutKey);
 
-  const tokens = data.tokens;
   const fresh = data.sharedNew ?? 0;
+  const unread = useUnreadCount();
+  const pwa = usePwa();
+  const go = (fn: () => void) => () => { onNavigate?.(); fn(); };
+
+  if (collapsed) {
+    return (
+      <CollapsedRail
+        container={container} pill={pill} data={data} active={active} unread={unread} fresh={fresh}
+        onExpand={onExpand} onFeedback={onFeedback} canInstall={!!pwa.installPath} onInstall={pwa.install}
+      />
+    );
+  }
 
   return (
-    <nav ref={container} aria-label="Your drive" className={cx("relative flex min-h-full flex-col gap-5 px-3 py-4", className)}>
+    <nav ref={container} aria-label="Your drive" className={cx("relative flex min-h-full flex-col gap-4 px-3 py-3", className)}>
       <span ref={pill} aria-hidden className="pointer-events-none absolute rounded-lg bg-accent-soft opacity-0" />
 
       <div className="flex flex-col gap-0.5">
-        <RailLink k="files" href="/dashboard" active={active} onNavigate={onNavigate}>
-          <Icon name="home" size={18} /> <span className="truncate">My files</span>
+        <RailLink k="home" href="/dashboard" active={active} onNavigate={onNavigate}>
+          <Icon name="home" size={18} /> <span className="truncate">Home</span>
+        </RailLink>
+        <RailLink k="search" href="/search" active={active} onNavigate={onNavigate}>
+          <Icon name="search" size={18} /> <span className="truncate">Search</span>
+        </RailLink>
+        <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(() => toggleAssistant())}
+          aria-haspopup="dialog" aria-keyshortcuts="Meta+J Control+J" data-testid="rail-ask">
+          <Icon name="sparkle" size={18} className="text-accent-text" /> <span className="truncate">Ask Markdrop</span>
+          <span className="ml-auto hidden shrink-0 text-caption text-text-muted pointer-fine:inline" aria-hidden>⌘J</span>
+        </button>
+        <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(openNotifications)}
+          aria-haspopup="dialog" aria-label={unread ? `Inbox, ${unread} unread` : "Inbox"} data-testid="rail-inbox">
+          <Icon name="bell" size={18} /> <span className="truncate">Inbox</span>
+          {unread > 0 && <span className="ml-auto shrink-0 rounded-full bg-accent px-1.5 text-micro font-semibold text-on-accent">{unread > 99 ? "99+" : unread}</span>}
+        </button>
+      </div>
+
+      <div className="flex flex-col gap-0.5">
+        <RailLink k="files" href="/dashboard/files" active={active} onNavigate={onNavigate}>
+          <Icon name="folder" size={18} /> <span className="truncate">My files</span>
         </RailLink>
         <RailLink k="shared" href="/shared" active={active} onNavigate={onNavigate}>
           <Icon name="inbox" size={18} /> <span className="truncate">Shared with me</span>
@@ -506,7 +562,9 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
       </div>
 
       <section aria-labelledby={`${uid}-ws`} className="flex flex-col gap-0.5">
-        <h2 id={`${uid}-ws`} className="text-eyebrow uppercase mb-1.5 px-2.5 text-text-muted">Workspaces</h2>
+        <div className="mb-1 flex items-center justify-between gap-2 px-2.5">
+          <h2 id={`${uid}-ws`} className="text-eyebrow uppercase text-text-muted">Workspaces</h2>
+        </div>
         {data.workspaces === undefined && (authLoading || !!user) ? (
           // Loading: rows the size of the real ones, so nothing below jumps when they arrive.
           <div aria-busy="true" className="flex flex-col">
@@ -536,26 +594,111 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
       </section>
 
       <div className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3">
-        <RailLink k="int:vscode" href="/settings/tokens" active={active} onNavigate={onNavigate}>
-          <span className="inline-flex text-cat-sync"><VSCodeIcon size={16} className="size-4" /></span>
-          <span className="truncate">VS Code</span>
-          {tokens !== undefined && (
-            <span className="ml-auto shrink-0 text-caption text-text-muted">{tokens === 1 ? "1 token" : `${tokens} tokens`}</span>
-          )}
-        </RailLink>
-        <RailLink k="int:apps" href="/settings/connections" active={active} onNavigate={onNavigate}>
-          <Icon name="sparkle" size={16} /> <span className="truncate">Connected apps</span>
-        </RailLink>
+        {pwa.installPath && (
+          <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(pwa.install)} data-testid="rail-install">
+            <Icon name="download" size={16} /> <span className="truncate">Install app</span>
+          </button>
+        )}
         <RailLink k="settings" href="/settings/account" active={active} onNavigate={onNavigate}>
           <Icon name="settings" size={16} /> <span className="truncate">Settings</span>
         </RailLink>
         <RailLink k="docs" href={DOCS_URL} active={active} onNavigate={onNavigate}>
-          <Icon name="doc" size={16} /> <span className="truncate">Docs</span>
+          <Icon name="doc" size={16} /> <span className="truncate">Help &amp; docs</span>
         </RailLink>
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={onFeedback}>
           <Icon name="message" size={16} /> <span className="truncate">Send feedback</span>
         </button>
+        {onCollapse && (
+          <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left text-text-muted")} onClick={onCollapse}
+            aria-label="Collapse the sidebar" data-testid="rail-collapse">
+            <Icon name="sidebar" size={16} /> <span className="truncate">Collapse</span>
+          </button>
+        )}
         {footer}
+      </div>
+    </nav>
+  );
+}
+
+/** One icon in the collapsed rail: a link or a button, its name in a tooltip (and to screen readers). */
+function RailIcon({ k, href, label, icon, active, onClick, badge, testId }: {
+  k?: string; href?: string; label: string; icon: React.ReactNode; active: string | null; onClick?: () => void; badge?: number; testId?: string;
+}) {
+  const on = !!k && active === k;
+  const cls = cx(
+    "md-focus relative grid size-10 place-items-center rounded-lg text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text pointer-coarse:size-11",
+    on && "text-accent-text hover:bg-transparent hover:text-accent-text",
+  );
+  const dot = badge ? <span className="absolute right-1 top-1 min-w-4 rounded-full bg-accent px-1 text-center text-[10px] font-semibold leading-4 text-on-accent" aria-hidden>{badge > 99 ? "99+" : badge}</span> : null;
+  const inner = href ? (
+    <Anchor href={href} data-rail-key={k} aria-current={on ? "page" : undefined} aria-label={label} className={cls} data-testid={testId}>{icon}{dot}</Anchor>
+  ) : (
+    <button type="button" data-rail-key={k} aria-label={badge ? `${label}, ${badge} unread` : label} className={cx(cls, "cursor-pointer bg-transparent")} onClick={onClick} data-testid={testId}>{icon}{dot}</button>
+  );
+  return <Tooltip content={label} side="right">{inner}</Tooltip>;
+}
+
+/**
+ * The collapsed rail (desktop by choice, tablets always): the same places as icons, each named in a
+ * tooltip; workspaces as their tiles; Meetings opens a workspace's hub (a menu when there are several).
+ * "Expand" brings the full sidebar back (tablets: as a drawer over the page).
+ */
+function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand, onFeedback, canInstall, onInstall }: {
+  container: React.RefObject<HTMLElement | null>; pill: React.RefObject<HTMLSpanElement | null>; data: RailData; active: string | null;
+  unread: number; fresh: number; onExpand?: () => void; onFeedback: () => void; canInstall: boolean; onInstall: () => void;
+}) {
+  const wss = data.workspaces ?? [];
+  const activeWs = workspaceOfKey(active);
+  const meetingsWs = wss.find((w) => w.id === activeWs) ?? (wss.length === 1 ? wss[0] : null);
+  const meetingsKey = meetingsWs ? wsMeetingsKey(meetingsWs.id) : undefined;
+  const meetingsOn = !!active && active.endsWith(":meetings");
+  return (
+    <nav ref={container} aria-label="Your drive" className="relative flex min-h-full flex-col items-center gap-3 px-2 py-3" data-collapsed="true">
+      <span ref={pill} aria-hidden className="pointer-events-none absolute rounded-lg bg-accent-soft opacity-0" />
+      {onExpand && (
+        <RailIcon label="Expand the sidebar" icon={<Icon name="sidebar" size={18} />} active={active} onClick={onExpand} testId="rail-expand" />
+      )}
+      <div className="flex flex-col items-center gap-1">
+        <RailIcon k="home" href="/dashboard" label="Home" icon={<Icon name="home" size={18} />} active={active} />
+        <RailIcon k="search" href="/search" label="Search" icon={<Icon name="search" size={18} />} active={active} />
+        <RailIcon label="Ask Markdrop (⌘J)" icon={<Icon name="sparkle" size={18} className="text-accent-text" />} active={active} onClick={() => toggleAssistant()} testId="rail-ask" />
+        <RailIcon label="Inbox" icon={<Icon name="bell" size={18} />} active={active} onClick={openNotifications} badge={unread} testId="rail-inbox" />
+      </div>
+      <span className="h-px w-8 bg-border" aria-hidden />
+      <div className="flex flex-col items-center gap-1">
+        <RailIcon k="files" href="/dashboard/files" label="My files" icon={<Icon name="folder" size={18} />} active={active} />
+        <RailIcon k="shared" href="/shared" label={fresh ? `Shared with me, ${fresh} new` : "Shared with me"} icon={<Icon name="inbox" size={18} />} active={active} badge={fresh || undefined} />
+        <RailIcon k="recent" href="/recent" label="Recent" icon={<Icon name="clock" size={18} />} active={active} />
+        <RailIcon k="analytics" href="/dashboard/analytics" label="Analytics" icon={<Icon name="chart" size={18} />} active={active} />
+        <RailIcon k="trash" href="/trash" label="Trash" icon={<Icon name="trash" size={18} />} active={active} />
+      </div>
+      {wss.length > 0 && <span className="h-px w-8 bg-border" aria-hidden />}
+      <div className="flex flex-col items-center gap-1">
+        {wss.length > 0 && (meetingsWs ? (
+          <RailIcon k={meetingsKey} href={`/meetings/${encodeURIComponent(meetingsWs.id)}`} label={`Meetings · ${meetingsWs.name}`} icon={<Icon name="mic" size={18} />} active={active} testId="rail-meetings" />
+        ) : (
+          <Dropdown
+            portal
+            aria-label="Meetings of"
+            trigger={
+              <button type="button" aria-label="Meetings" className={cx("md-focus grid size-10 cursor-pointer place-items-center rounded-lg bg-transparent text-text-secondary hover:bg-surface-hover hover:text-text pointer-coarse:size-11", meetingsOn && "text-accent-text")} data-testid="rail-meetings">
+                <Icon name="mic" size={18} />
+              </button>
+            }
+            items={[{ header: "Meetings of" }, ...wss.map((w) => ({ label: w.name, icon: "mic", href: `/meetings/${encodeURIComponent(w.id)}` }))]}
+          />
+        ))}
+        {wss.slice(0, 8).map((w) => (
+          <RailIcon key={w.id} k={wsRootKey(w.id)} href={`/w/${encodeURIComponent(w.id)}`} label={w.name}
+            icon={<WorkspaceTile ws={w} active={activeWs === w.id} size={22} />} active={active} />
+        ))}
+        <RailIcon k="ws:new" href="/settings/workspaces" label="New workspace" icon={<Icon name="plus" size={18} />} active={active} />
+      </div>
+      <div className="mt-auto flex flex-col items-center gap-1 border-t border-border pt-3">
+        {canInstall && <RailIcon label="Install app" icon={<Icon name="download" size={18} />} active={active} onClick={onInstall} />}
+        <RailIcon k="settings" href="/settings/account" label="Settings" icon={<Icon name="settings" size={18} />} active={active} />
+        <RailIcon k="docs" href={DOCS_URL} label="Help & docs" icon={<Icon name="doc" size={18} />} active={active} />
+        <RailIcon label="Send feedback" icon={<Icon name="message" size={18} />} active={active} onClick={onFeedback} />
       </div>
     </nav>
   );
