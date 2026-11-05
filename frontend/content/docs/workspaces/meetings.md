@@ -53,6 +53,8 @@ Meetings imported before folders, or moved by hand, can be filed again. A worksp
 - How many meetings move into another folder (each with its transcript), and how many join a series. The spellings of one series are put together, so "Daily Syncup" joins "Daily Sync Up".
 - That each series gets its cover, on pages nobody chose a cover for, and how many transcripts are tucked under their meeting page instead of listed beside it.
 
+![The Organize meetings window before anything changes: 4 meetings go into 1 series folder plus 2 in Other meetings, the Meetings folder as it will look (Daily Standup and Other meetings, 2 each), that every meeting is already in its folder, that each series gets its own cover, and Organize 4 meetings.](/docs-assets/workspaces/meetings/organize.webp)
+
 Select **Organize** to start. It runs on Markdrop's servers and shows its progress, such as "Organizing 34 of 80 meetings". You can close the window: the Meetings page keeps a progress line, and the list refreshes when it's done. At the end you see how many meetings moved, how many series and folders there are, and how many covers were set. If a meeting couldn't be organized, it's named, and running **Organize meetings** again retries it.
 
 Nothing is deleted, every link keeps working, and a series someone set by hand stays as it is. Running it again changes nothing that's already in place. If two people start it at the same time, they both follow the same run. Empty extra folders of a series, and the empty folder of a series whose meetings joined another, are removed; a folder with anything in it always stays.

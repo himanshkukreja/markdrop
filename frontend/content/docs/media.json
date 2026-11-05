@@ -3359,6 +3359,18 @@
     "bytes": 140130,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings/organize.dark.webp": {
+    "w": 896,
+    "h": 1014,
+    "bytes": 38534,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/organize.webp": {
+    "w": 896,
+    "h": 1014,
+    "bytes": 40314,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/members-and-roles/invite-dialog.dark.webp": {
     "w": 896,
     "h": 898,

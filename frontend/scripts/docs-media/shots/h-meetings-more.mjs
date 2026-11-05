@@ -5,7 +5,7 @@
  * (Paste with its preview, and Drive link) and a short clip of Connect Google Meet. Meetings are
  * imported with the demo people (shots/_demo.mjs); the AI summary comes from the fake Meetings AI
  * (start the sandbox API through e2e/pages/real/api_run.py with PB_FAKE_MEETINGS_AI=1).
- * Organize meetings is left out on purpose: it is being rebuilt (fix/organize-meetings).
+ * Organize meetings: the dialog's preview (the background-job version, main 15a0e09b+).
  */
 import { api, meeting, transcript } from "./_demo.mjs";
 
@@ -27,6 +27,29 @@ async function importDialog(h) {
 }
 
 export default [
+  {
+    id: "meetings-organize",
+    page: "/workspaces/meetings",
+    name: "organize",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    prepare: async (h) => {
+      await meeting(h, { title: "Daily Standup", date: "2026-11-03", time: "09:30" });
+      await meeting(h, { title: "Daily Standup", date: "2026-11-04", time: "09:30" });
+      await meeting(h, { title: "Weekly product sync", date: "2026-11-04", time: "10:00" });
+      await meeting(h, { title: "Pricing review", date: "2026-11-05", time: "15:00" });
+      await h.goto(hub(h.fx));
+      await h.loc("[data-testid='meeting-card']").first().waitFor({ timeout: 30000 });
+      await h.page.getByTestId("meetings-more").click();
+      await h.page.getByRole("menuitem", { name: /Organize meetings/ }).click();
+      const dlg = h.page.getByTestId("organize-dialog");
+      await dlg.getByText("in Other meetings").waitFor({ timeout: 30000 });
+      await h.settle(700);
+      await h.page.mouse.move(5, 5);
+    },
+    crop: { selector: ".md-dialog:has([data-testid='organize-dialog'])", pad: 0 },
+  },
   {
     id: "meetings-meeting-bar",
     page: "/workspaces/meetings-ask",
