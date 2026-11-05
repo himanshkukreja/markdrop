@@ -1701,6 +1701,7 @@ export function useDocumentViewer({
     startCopy,
     startGoogleSync,
     startInEdit,
+    flagsReady,
     submitReport,
     syncScroll,
     textareaRef,

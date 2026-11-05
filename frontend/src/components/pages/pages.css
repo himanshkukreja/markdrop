@@ -290,6 +290,13 @@ button.pb-mention--date { cursor: pointer; }
 .pb-bar .pb-bar__btn { height: 30px; color: var(--text-secondary); }
 .pb-bar .pb-bar__btn.md-iconbtn { width: 30px; padding: 0; }
 .pb-bar .pb-bar__btn:hover { background: var(--surface-hover); color: var(--text); }
+/* View mode / Edit mode (PageModeButton): Edit reads like the bar's other buttons; Done is the
+   one way back to reading, so it stands out a little. A 44 px target on any touch screen. */
+.pb-bar .pb-mode[data-page-mode="done"] { color: var(--text); }
+@media (hover: none) and (pointer: coarse) {
+  .pb-bar .pb-mode { min-height: 44px; }
+  .pb-bar .pb-mode.md-iconbtn { min-width: 44px; }
+}
 
 .pb-bar .pb-crumbs { display: flex; align-items: center; gap: 0; min-width: 0; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; white-space: nowrap; }
 .pb-crumb { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }

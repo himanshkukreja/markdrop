@@ -43,8 +43,9 @@ export interface Conflict {
 }
 
 /**
- * One page open in the block editor (one editor at a time). A page is always editable for the
- * people who can edit it (no Edit / Done), so the edit lock follows what they do:
+ * One page open in the block editor (one editor at a time). A page opens in View mode; Edit
+ * mounts the editor and Done (`finish`) saves and lets go. While it's open the edit lock follows
+ * what they do:
  *
  * - the first key, click or change (`activity`, `update`) takes the lock; it's heartbeated every
  *   30 s, let go of after 3 minutes without activity (what's pending is saved first) and on leave;
@@ -439,13 +440,39 @@ export function usePageEditSession({
     await doSave();
   }, [doSave, acquire]);
 
+  /**
+   * Done editing: save what's pending (waiting for a save already on its way), then let go of the
+   * lock so someone else can edit straight away. False when something is still unsaved (someone
+   * else holds the lock, the page changed, offline…): the caller keeps the editor open.
+   */
+  const finish = useCallback(async (): Promise<boolean> => {
+    const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+    let tries = 0;
+    for (let i = 0; i < 100; i++) {
+      if (saving.current || acquiring.current) {
+        await wait(100);
+        continue;
+      }
+      if (!dirty.current) break;
+      const k = lockRef.current.kind;
+      if (k === "theirs" || k === "readonly") return false;
+      if (k !== "mine" && !(await acquire())) return false;
+      if (++tries > 3) return false;
+      clearTimer();
+      await doSave();
+    }
+    if (dirty.current || saving.current) return false;
+    await release();
+    return true;
+  }, [doSave, acquire, release]);
+
   const retry = useCallback(() => {
     dirty.current = true;
     if (lockRef.current.kind !== "mine") void acquire();
     else void doSave();
   }, [doSave, acquire]);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover };
+  return { save, lock, conflict, update, resolveConflict, flush, finish, retry, activity, remoteCover };
 }
 
 /** The cover `latest` added when that is all that differs from `base` (else null). */
