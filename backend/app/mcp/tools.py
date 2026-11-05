@@ -3325,4 +3325,16 @@ from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
 
 TOOLS += MEETING_TOOLS
 
+# Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
+# answers with the first call's result instead of writing twice.
+IDEMPOTENCY_KEY = {
+    "type": "string", "minLength": 8, "maxLength": 200,
+    "description": ("Optional. A unique id for this change (a UUID). Retrying with the same key within "
+                    "24 hours returns the first call's result instead of doing it again (no duplicate "
+                    "pages, blocks or uploads after a timeout)."),
+}
+for _t in TOOLS:
+    if _t.writes and isinstance(_t.input_schema.get("properties"), dict):
+        _t.input_schema["properties"].setdefault("idempotency_key", IDEMPOTENCY_KEY)
+
 BY_NAME: dict[str, Tool] = {t.name: t for t in TOOLS}

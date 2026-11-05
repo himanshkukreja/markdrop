@@ -191,6 +191,8 @@ async def connect() -> None:
     await db["oauth_clients"].create_index("created_at")
     # Tool-call audit (no content), kept 90 days.
     await db["mcp_events"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    # MCP writes retried with the same idempotency_key answer from here for a day (mcp/protocol.py).
+    await db["mcp_idempotency"].create_index("created_at", expireAfterSeconds=24 * 3600)
     await db["mcp_events"].create_index([("user_id", 1), ("ts", -1)])
     # A write tool's target (protocol._audit): "which calls touched this item".
     await db["mcp_events"].create_index("target.slug", sparse=True)

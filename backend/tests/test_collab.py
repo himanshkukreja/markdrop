@@ -173,3 +173,49 @@ class FolderViews(CollabWorld):
         b = await self.http.put(f"{path}/views", headers=self.session("wa"),
                                 json={"views": [{"id": "vbbb", "name": "Wes", "type": "table"}], "base_rev": db0["rev"]})
         self.assertEqual(b.status_code, 409, b.text)
+
+
+class McpIdempotency(CollabWorld):
+    async def test_a_retry_with_the_same_key_writes_once(self):
+        tok = await self.mcp_token("owner")
+        args = {"title": "Retry me", "workspace": self.ws["W1"], "idempotency_key": "req-0001-abcd"}
+        _s, a = await self.mcp_call(tok, "create_page", args)
+        self.assertFalse(a["isError"], a["content"][0]["text"])
+        _s, b = await self.mcp_call(tok, "create_page", args)
+        self.assertFalse(b["isError"], b["content"][0]["text"])
+        self.assertEqual(a["structuredContent"]["slug"], b["structuredContent"]["slug"])
+        self.assertEqual(await self.db["documents"].count_documents({"title": "Retry me"}), 1)
+        # Appending twice with one key: one block.
+        slug = a["structuredContent"]["slug"]
+        ap = {"document": slug, "markdown": "Added once.", "idempotency_key": "req-0002-abcd"}
+        for _ in range(2):
+            _s, r = await self.mcp_call(tok, "append_blocks", ap)
+            self.assertFalse(r["isError"], r["content"][0]["text"])
+        self.assertEqual((await self.doc(slug))["content"].count("Added once."), 1)
+        # Another key (or none) is another change.
+        _s, r = await self.mcp_call(tok, "append_blocks", {**ap, "idempotency_key": "req-0003-abcd"})
+        self.assertFalse(r["isError"])
+        self.assertEqual((await self.doc(slug))["content"].count("Added once."), 2)
+
+    async def test_keys_are_per_user_and_a_failed_call_is_forgotten(self):
+        d = await self.mkdoc("W", content="# Plan\n")
+        key = {"idempotency_key": "same-key-123"}
+        _s, r = await self.mcp_call(await self.mcp_token("owner"), "update_document",
+                                    {"document": d["slug"], "content": "# A\n", "base_rev": 9, **key})
+        self.assertTrue(r["isError"])
+        _s, r = await self.mcp_call(await self.mcp_token("owner"), "update_document",
+                                    {"document": d["slug"], "content": "# A\n", "base_rev": 1, **key})
+        self.assertFalse(r["isError"], r["content"][0]["text"])
+        _s, r = await self.mcp_call(await self.mcp_token("wm"), "update_document",
+                                    {"document": d["slug"], "content": "# B\n", **key})
+        self.assertFalse(r["isError"], r["content"][0]["text"])
+        self.assertEqual((await self.doc(d["slug"]))["content"], "# B\n")
+
+    async def test_every_write_tool_advertises_it(self):
+        from app.mcp import tools as mcp_tools
+
+        for t in mcp_tools.TOOLS:
+            if t.writes and isinstance(t.input_schema.get("properties"), dict):
+                self.assertIn("idempotency_key", t.input_schema["properties"], t.name)
+            if not t.writes:
+                self.assertNotIn("idempotency_key", t.input_schema.get("properties") or {}, t.name)
