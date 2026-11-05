@@ -659,6 +659,19 @@ await step("lock-mcp", async () => {
   // Leaving the page lets go of the lock: then update_page works (with the fresh rev).
   await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
   await p.waitForTimeout(1500);
+  // (The leave beacon frees it at once; when a browser drops it — WebKit on a CI runner, now and
+  // then — the editor's closed live socket frees it within page_lock_gone_s: lockleave.mjs.)
+  {
+    const st = await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin);
+    const goneMs = ((st.body?.timers?.gone_s ?? 8) + 6) * 1000;
+    const t0 = Date.now();
+    let h = st.body?.holder?.name;
+    while (h && Date.now() - t0 < goneMs) {
+      await p.waitForTimeout(250);
+      h = (await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin)).body?.holder?.name;
+    }
+    if (Date.now() - t0 > 500) log(`(the leave beacon didn't land: free after ${((Date.now() - t0) / 1000).toFixed(1)} s more, holder now ${h ?? "none"})`);
+  }
   const now = await docOf(state.slug, T.owner);
   const up2 = await mcp(tok, "update_page", { document: state.slug, markdown: now.content + "\nAfter the lock.\n", base_rev: now.rev });
   if (up2.isError) fail(`update_page after leaving refused: ${up2.text}`);
