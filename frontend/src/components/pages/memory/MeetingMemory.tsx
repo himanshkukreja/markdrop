@@ -26,6 +26,7 @@ import { services } from "@/components/docs-editor/menus/mediaUpload";
 import { KIND_LABEL, checkSection, fmtDay, relatedFacts, setMemoryPrefs, type FactKind, type MemoryFact, type MemoryHint, type MemoryPrefs, type RelatedResult } from "@/lib/meetingMemory";
 import { sectionAround, sectionKey, shouldCheck, textHash, type BlockLine } from "./memoryCore.mjs";
 import { insertAfterCaret } from "../editorInsert";
+import { openAssistant } from "@/components/assistant/store";
 import "./memory.css";
 
 export interface MeetingMemoryProps {
@@ -392,6 +393,16 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
   );
 }
 
+/** "Ask about this": a question about one recorded fact, for Ask Markdrop (This doc, with the meetings). */
+function askAbout(f: MemoryFact): string {
+  const day = f.meeting.date ? ` on ${fmtDay(f.meeting.date)}` : "";
+  const where = `${f.meeting.title || "the meeting"}${day}`;
+  if (f.kind === "decision") return `Why did we decide this in ${where}, and has it changed since? "${f.text}"`;
+  if (f.kind === "action_item") return `What's the status of this action item from ${where}? "${f.text}"`;
+  if (f.kind === "open_question") return `Was this question from ${where} ever answered? "${f.text}"`;
+  return `What did we discuss about ${f.title || f.text} in ${where}?`;
+}
+
 function FactRow({ fact: f, canInsert, onInsert, inserted }: { fact: MemoryFact; canInsert: boolean; onInsert: () => void; inserted: boolean }) {
   const m = f.meeting;
   const extra = [f.owner, f.due ? `due ${f.due}` : null].filter(Boolean).join(" · ");
@@ -417,6 +428,10 @@ function FactRow({ fact: f, canInsert, onInsert, inserted }: { fact: MemoryFact;
         ) : m.href ? (
           <a className="mm-btn" href={m.href}><Icon name="arrowUpRight" /> Open meeting</a>
         ) : null}
+        <button type="button" className="mm-btn" onClick={() => openAssistant({ scope: "doc", question: askAbout(f) })}
+          title="Ask Markdrop about this" data-testid="mm-ask">
+          <Icon name="sparkle" /> Ask about this
+        </button>
         {canInsert && (
           <button type="button" className="mm-btn mm-btn--primary" onClick={onInsert} disabled={inserted}>
             <Icon name={inserted ? "check" : "plus"} /> {inserted ? "Inserted" : "Insert"}
