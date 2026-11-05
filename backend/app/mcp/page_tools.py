@@ -634,7 +634,8 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
         except page_db.PropsError as exc:
             raise ToolError(str(exc))
         content = page_db.write_values(content, clean)
-    after = await _save(ctx, raw, content, int(raw.get("rev") or 1))
+    # base_rev (optional): the rev the caller read; refused (no change) if the page moved on since.
+    after = await _save(ctx, raw, content, int(args.get("base_rev") or raw.get("rev") or 1))
     props = await _all_props(after)
     said = [f"{k}={props[k]}" for k in changes] + [
         f"{k}={json.dumps(v, ensure_ascii=False)}" if v is not None else f"{k} cleared" for k, v in clean.items()]
@@ -1337,6 +1338,9 @@ PAGE_TOOLS: list[Tool] = [
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF,
+            "base_rev": {"type": "integer", "minimum": 1,
+                         "description": "Optional: the rev get_page returned. The change is refused if the page "
+                                        "changed since (no silent overwrite)."},
             "icon": {"type": ["string", "null"], "maxLength": 80},
             "cover": {"type": ["string", "null"], "maxLength": 80,
                       "description": "asset:<id> (an image of this page), gallery:<name>, an https:// image, "

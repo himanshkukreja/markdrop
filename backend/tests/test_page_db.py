@@ -205,6 +205,31 @@ class Schema(World):
         self.assertEqual(got["pages"][0]["properties"]["status"], "In QA")
 
 
+class BaseRev(World):
+    async def test_mcp_property_writes_take_base_rev(self):
+        """set_folder_properties / set_page_properties with base_rev: refused when it moved on (REST parity)."""
+        fid = await self.prds()
+        got = await self.ok("wm", "list_folder_pages", {"workspace": self.ws["W1"], "folder": fid})
+        rev = got["rev"]
+        self.assertIsInstance(rev, int)
+        out = await self.ok("wm", "set_folder_properties", {"workspace": self.ws["W1"], "folder": fid,
+                                                            "properties": PRD_SCHEMA, "base_rev": rev})
+        self.assertGreater(out["rev"], rev)
+        self.assertIn("changed this folder's properties", await self.err("wm", "set_folder_properties", {
+            "workspace": self.ws["W1"], "folder": fid, "properties": PRD_SCHEMA[:1], "base_rev": rev}))
+        self.assertEqual(len((await self.ok("wm", "list_folder_pages", {"workspace": self.ws["W1"], "folder": fid}))["properties"]),
+                         len(PRD_SCHEMA))
+        page = await self.page_in(fid)
+        prev = (await self.doc(page["slug"]))["rev"]
+        await self.ok("wm", "set_page_properties", {"document": page["slug"], "properties": {"Status": "In QA"},
+                                                    "base_rev": prev})
+        self.assertIn("changed since revision", await self.err("wm", "set_page_properties", {
+            "document": page["slug"], "properties": {"Status": "Released"}, "base_rev": prev}))
+        self.assertIn('status: "In QA"', (await self.doc(page["slug"]))["content"])
+        # Without base_rev it still writes over the newest revision.
+        await self.ok("wm", "set_page_properties", {"document": page["slug"], "properties": {"Status": "Released"}})
+
+
 # ── Values ───────────────────────────────────────────────────────────────────
 
 

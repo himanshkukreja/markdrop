@@ -52,7 +52,7 @@ async def set_folder_properties(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id, folder_id, _role = await _folder(ctx, args)
     try:
         out = await page_db.set_schema(ctx.db, ws_id, folder_id, ctx.user.id, args["properties"],
-                                       views=args.get("views"))
+                                       views=args.get("views"), base_rev=args.get("base_rev"))
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     props = out["properties"]
@@ -156,7 +156,7 @@ async def list_folder_pages(ctx: Context, args: dict) -> tuple[str, dict]:
                 shown[p["name"]] = _display(p, r["values"][p["key"]], data["people"], links)
         item["display"] = shown
         pages.append(item)
-    out = {"folder": data["folder"], "properties": schema, "views": data["views"], "pages": pages,
+    out = {"folder": data["folder"], "properties": schema, "views": data["views"], "rev": data.get("rev"), "pages": pages,
            "total": total, "truncated": data["truncated"] or total > len(pages),
            "people": {k: v["name"] for k, v in data["people"].items()},
            "links": {k: {kk: vv for kk, vv in v.items() if kk in ("state", "title", "url")}
@@ -231,6 +231,9 @@ PROPS_TOOLS: list[Tool] = [
             "properties": {"type": "array", "maxItems": page_db.MAX_PROPERTIES, "items": _PROPERTY},
             "views": {"type": "array", "maxItems": page_db.MAX_VIEWS, "items": _VIEW,
                       "description": "Optional: the saved views (replaces them; left out = kept)."},
+            "base_rev": {"type": "integer", "minimum": 1,
+                         "description": ("Optional: the folder's properties rev (the rev list_folder_pages or this "
+                                         "tool returned). Refused if someone changed the properties since.")},
         }, "required": ["workspace", "folder", "properties"]},
         output_schema=_out({"folder_id": {"type": "string"}, "properties": {"type": "array"},
                             "views": {"type": "array"}, "rev": {"type": "integer"}},
@@ -260,7 +263,7 @@ PROPS_TOOLS: list[Tool] = [
             "limit": {"type": "integer", "minimum": 1, "maximum": MAX_LIMIT},
         }, "required": ["workspace", "folder"]},
         output_schema=_out({"folder": {"type": "object"}, "properties": {"type": "array"},
-                            "views": {"type": "array"}, "pages": {"type": "array"},
+                            "views": {"type": "array"}, "rev": {"type": ["integer", "null"]}, "pages": {"type": "array"},
                             "total": {"type": "integer"}, "truncated": {"type": "boolean"},
                             "people": {"type": "object"}, "links": {"type": "object"}},
                            ["folder", "properties", "pages", "total"]),

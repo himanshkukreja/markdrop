@@ -3438,6 +3438,10 @@ TOOLS += MEETING_TOOLS
 from app.mcp.meeting_backfill_tools import BACKFILL_TOOLS  # noqa: E402
 
 TOOLS += BACKFILL_TOOLS
+# Markdrop for Slack (slack_status, post_meeting_to_slack): app/mcp/slack_tools.py.
+from app.mcp.slack_tools import SLACK_TOOLS  # noqa: E402
+
+TOOLS += SLACK_TOOLS
 
 # Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
 # answers with the first call's result instead of writing twice.

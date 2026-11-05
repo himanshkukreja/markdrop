@@ -759,6 +759,86 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 2)
 
 
+class McpTools(MeetingsWorld, SlackWorld):
+    """slack_status and post_meeting_to_slack (app/mcp/slack_tools.py): the REST routes' rules."""
+
+    async def call(self, who: str, name: str, args: dict, *, write: bool = True) -> dict:
+        code, res = await self.mcp_call(await self.mcp_token(who, write=write), name, args)
+        self.assertEqual(code, 200)
+        return res
+
+    def ok(self, res: dict) -> dict:
+        self.assertFalse(res["isError"], res["content"][0]["text"])
+        return res["structuredContent"]
+
+    def refused(self, res: dict, words: str) -> None:
+        self.assertTrue(res["isError"], res)
+        self.assertIn(words, res["content"][0]["text"])
+
+    async def test_status_for_members_only_and_never_a_token(self):
+        out = self.ok(await self.call("wv", "slack_status", {"workspace": self.W}))
+        self.assertEqual((out["available"], out["connected"], out["can_manage"]), (True, False, False))
+        await self.install()
+        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"meetings_channel": {"id": "C2", "name": "meetings"}}})
+        await self.link("wm", "U0WM")
+        res = await self.call("wm", "slack_status", {"workspace": self.W})
+        out = self.ok(res)
+        self.assertTrue(out["connected"])
+        self.assertEqual(out["slack_workspace"], "Acme Slack")
+        self.assertEqual(out["meetings_channel"], {"id": "C2", "name": "meetings"})
+        self.assertTrue(out["post_meetings"])
+        self.assertTrue(out["me"]["linked"])
+        self.assertFalse(out["can_manage"])
+        self.assertIn("#meetings", res["content"][0]["text"])
+        self.assertNotIn(BOT_TOKEN, json.dumps(res))
+        self.assertNotIn("bot_token", json.dumps(res))
+        self.assertTrue(self.ok(await self.call("wa", "slack_status", {"workspace": self.W}))["can_manage"])
+        # Not a member: refused like the REST route.
+        self.refused(await self.call("stranger", "slack_status", {"workspace": self.W}), "")
+        self.refused(await self.call("wm2", "slack_status", {"workspace": self.W}), "")
+        # Another workspace isn't connected.
+        self.assertFalse(self.ok(await self.call("wm2", "slack_status", {"workspace": self.ws["W2"]}))["connected"])
+
+    async def test_status_when_slack_isnt_set_up_on_the_server(self):
+        settings.slack_signing_secret = ""
+        res = await self.call("wm", "slack_status", {"workspace": self.W})
+        self.assertFalse(self.ok(res)["available"])
+        self.assertIn("isn't available", res["content"][0]["text"])
+        self.refused(await self.call("wm", "post_meeting_to_slack", {"meeting": "0" * 24}), "isn't set up")
+
+    async def test_post_needs_edit_access_and_a_channel(self):
+        await self.install()
+        m = await self.imported()
+        await slack.drain()
+        posts = lambda: [d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]  # noqa: E731
+        # No channel chosen yet.
+        self.refused(await self.call("wm", "post_meeting_to_slack", {"meeting": m["id"]}), "Choose a meetings channel")
+        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"meetings_channel": {"id": "C2", "name": "meetings"}}})
+        # A viewer can't; a stranger can't see it; a read-only token can't write.
+        self.refused(await self.call("wv", "post_meeting_to_slack", {"meeting": m["id"]}), "meetings you can edit")
+        self.refused(await self.call("stranger", "post_meeting_to_slack", {"meeting": m["id"]}), "not found")
+        _code, res = await self.mcp_call(await self.mcp_token("wm", write=False), "post_meeting_to_slack", {"meeting": m["id"]})
+        self.assertTrue(res is None or res.get("isError"), res)
+        self.assertEqual(posts(), [])
+        # A member who can edit posts it (by its page's slug too); twice in a minute posts once.
+        out = self.ok(await self.call("wm", "post_meeting_to_slack", {"meeting": m["slug"]}))
+        self.assertEqual((out["posted"], out["channel"]["name"]), (True, "meetings"))
+        self.assertEqual(len(posts()), 1)
+        self.assertIn("md_done", json.dumps(posts()[0]))
+        self.refused(await self.call("wm", "post_meeting_to_slack", {"meeting": m["id"]}), "less than a minute ago")
+        self.assertEqual(len(posts()), 1)
+
+    async def test_restricted_meetings_are_never_posted(self):
+        await self.install()
+        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"meetings_channel": {"id": "C2", "name": "meetings"}}})
+        m = await self.imported(restricted=True)
+        await slack.drain()
+        self.refused(await self.call("owner", "post_meeting_to_slack", {"meeting": m["id"]}), "restricted")
+        self.assertEqual([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"], [])
+        # A failed post doesn't hold the minute.
+        self.refused(await self.call("owner", "post_meeting_to_slack", {"meeting": m["id"]}), "restricted")
+
+
 class Drain(unittest.TestCase):
     def test_finished_work_of_a_closed_loop_doesnt_hang_drain(self):
         # A test's loop that closes before a finished task's done callbacks run leaves it in _bg; the
