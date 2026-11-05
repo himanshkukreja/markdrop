@@ -333,9 +333,29 @@
     "POST /api/v1/documents/{slug}/lock": {
       "title": "Take the edit lock",
       "group": "pages",
-      "description": "Takes, or renews, a page's edit lock, so nobody else edits it at the same time. It lasts two minutes past your last call: renew it every 30 seconds while you edit.",
-      "responses": { "423": "Someone else is editing: `code` is `locked`, with the `holder`'s name." },
-      "guide": { "label": "Pages and the block editor", "href": "/pages/overview" }
+      "description": "Takes, renews or takes over a page's edit lock, so nobody else edits it at the same time. Take it with your first real change (`intent=edit`) and renew it every 30 seconds while you edit (`intent=heartbeat`, with `edited`, `hidden` and `dirty`). It lapses 2 minutes after your last heartbeat, 2 minutes after your last change, or 60 seconds after your tab was hidden, whichever comes first. A heartbeat never takes back a lock that lapsed or was taken over: it answers `mine: false`, `released: true` and the `reason`. `take_over=true` lets the page's owner or a workspace admin take it from whoever holds it.",
+      "paramNotes": {
+        "intent": "`edit` (your first change: take it) or `heartbeat` (renew yours). Leave it out only in old clients.",
+        "edited": "You changed something since the last heartbeat.",
+        "hidden": "Your tab is hidden now.",
+        "dirty": "You have changes the server doesn't have yet.",
+        "take_over": "Take it from whoever holds it. The page's owner and workspace admins only."
+      },
+      "responses": { "423": "Someone else is editing: `code` is `locked`, with the `holder`'s name, `idle_s`, `dirty` (unsaved changes), `releases_in_s` and `can_take_over`.", "403": "`take_over_forbidden`: only the page's owner or a workspace admin can take over." },
+      "guide": { "label": "Editing together", "href": "/pages/editing-together" }
+    },
+    "GET /api/v1/documents/{slug}/lock": {
+      "title": "Check the edit lock",
+      "group": "pages",
+      "description": "Who holds a page's edit lock, without taking it: `holder` is `null` when it's free. Otherwise it says how long they've been idle, whether they have unsaved changes, when it releases by itself and whether you may take over.",
+      "guide": { "label": "Editing together", "href": "/pages/editing-together" }
+    },
+    "POST /api/v1/documents/{slug}/lock/keep": {
+      "title": "Keep unsaved text",
+      "group": "pages",
+      "description": "Keeps text you couldn't save, because someone took over the page, as a version in its history. The page itself doesn't change.",
+      "example": { "title": "Launch plan", "content": "# Launch plan\n\nWhat I was writing…", "base_rev": 12, "reason": "taken_over" },
+      "guide": { "label": "Editing together", "href": "/pages/editing-together" }
     },
     "DELETE /api/v1/documents/{slug}/lock": {
       "title": "Release the edit lock",

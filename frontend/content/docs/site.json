@@ -150,6 +150,7 @@
       "new": true,
       "pages": [
         "/pages/overview",
+        "/pages/editing-together",
         "/pages/templates",
         "/pages/embed-and-mention",
         "/pages/mentions-and-notifications",
