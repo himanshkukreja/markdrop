@@ -259,8 +259,10 @@ async def connect() -> None:
         print(f"[startup] search indexes skipped: {exc}")
     try:
         from app.services import meetings as _meetings
+        from app.services import meetings_inbox as _meetings_inbox
 
         await _meetings.ensure_indexes(db)
+        await _meetings_inbox.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] meetings indexes skipped: {exc}")
 
