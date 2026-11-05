@@ -13963,23 +13963,25 @@
       }
     },
     "/api/v1/meetings/organize": {
-      "post": {
+      "get": {
         "tags": [
           "meetings"
         ],
-        "summary": "Organize",
-        "description": "The meetings already here get their series and move into Meetings/<Series> (or Meetings/Other\nmeetings): workspace admins and owners.",
-        "operationId": "organize_api_v1_meetings_organize_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrganizeBody"
-              }
+        "summary": "Organize Status",
+        "description": "What \"Organize meetings\" would do now, and the current (or last) run: admins.",
+        "operationId": "organize_status_api_v1_meetings_organize_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "title": "Workspace"
             }
-          },
-          "required": true
-        },
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -14003,7 +14005,98 @@
         "x-markdrop": {
           "auth": "token",
           "rateLimits": [
-            "6/minute"
+            "120/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Organize",
+        "description": "Start \"Organize meetings\" (admins): a background job, so this answers at once (202) with the\nrun; a click while one is running joins it. Poll GET /organize/{run} for progress.",
+        "operationId": "organize_api_v1_meetings_organize_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "12/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/organize/{run}": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Organize Progress",
+        "description": "A run's progress {done, total, filed, folders, series, covers, errors}: the workspace's admins.",
+        "operationId": "organize_progress_api_v1_meetings_organize__run__get",
+        "parameters": [
+          {
+            "name": "run",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
           ]
         }
       }
