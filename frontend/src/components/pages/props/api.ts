@@ -94,11 +94,28 @@ export function putFolderProperties(workspaceId: string, folderId: string, prope
   );
 }
 
-export function putFolderViews(workspaceId: string, folderId: string, views: SavedView[]) {
+/** `baseRev`: the folder's properties rev these views were read at (409 when someone saved since). */
+export function putFolderViews(workspaceId: string, folderId: string, views: SavedView[], baseRev?: number | null) {
   return call<{ folder_id: string; properties: PropDef[]; views: SavedView[]; rev: number }>(
     `/api/v1/workspaces/${enc(workspaceId)}/folders/${enc(folderId)}/views`,
-    { method: "PUT", body: JSON.stringify({ views }) },
+    { method: "PUT", body: JSON.stringify({ views, ...(typeof baseRev === "number" ? { base_rev: baseRev } : {}) }) },
   );
+}
+
+/**
+ * The views list after replaying the change `from` → `to` (views added, removed or changed, by id)
+ * onto `fresh`: someone else's view changes made meanwhile stay (fix/collab-audit).
+ */
+export function replayViews(from: SavedView[], to: SavedView[], fresh: SavedView[]): SavedView[] {
+  const before = new Map(from.map((v) => [v.id, JSON.stringify(v)]));
+  const after = new Map(to.map((v) => [v.id, v]));
+  let out = fresh.filter((v) => !before.has(v.id) || after.has(v.id));
+  out = out.map((v) => {
+    const mine = after.get(v.id);
+    return mine && before.get(v.id) !== JSON.stringify(mine) ? mine : v;
+  });
+  for (const v of to) if (!before.has(v.id) && !out.some((x) => x.id === v.id)) out.push(v);
+  return out;
 }
 
 export function getPageProperties(slug: string, secret?: string | null) {

@@ -44,7 +44,13 @@ export function TenantNotFound() {
     if (!path.length) return;
     let cancelled = false;
     void fetchTenantFolderAsReader(tenant.host, path).then((data) => {
-      if (!cancelled && data?.folder) setListing({ path, data });
+      if (cancelled) return;
+      // A folder only this reader can see into, at its old address: go to where it is now.
+      if (data?.moved_to) {
+        window.location.replace(`/${data.moved_to.map(encodeURIComponent).join("/")}`);
+        return;
+      }
+      if (data?.folder) setListing({ path, data });
     });
     return () => {
       cancelled = true;

@@ -1,11 +1,19 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
+
+# A name whose address something already holds there: "error" (default) = 409
+# saying what holds it; "suffix" = take the next free address (-2, -3…).
+OnConflict = Literal["error", "suffix"]
+ON_CONFLICT_HELP = ("When the folder's address is already taken where it goes: `error` (default) returns "
+                    "409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).")
 
 
 class FolderCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     parent_id: str | None = None
+    on_conflict: OnConflict = Field("error", description=ON_CONFLICT_HELP)
 
 
 class FolderUpdate(BaseModel):
@@ -14,6 +22,7 @@ class FolderUpdate(BaseModel):
     # plain optional field cannot express.
     parent_id: str | None = None
     reparent: bool = False
+    on_conflict: OnConflict = Field("error", description=ON_CONFLICT_HELP)
 
 
 class FolderResponse(BaseModel):
