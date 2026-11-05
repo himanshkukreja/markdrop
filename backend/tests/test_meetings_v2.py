@@ -7,6 +7,8 @@ and the one-off organizer repair. The model is always the fake client; Google is
 
 from __future__ import annotations
 
+from bson import ObjectId
+
 import unittest
 from unittest import mock
 
@@ -220,9 +222,13 @@ class Placement(AutoWorld):
             mt = await self.mcp_token("owner")
             await self.mcp_call(mt, "import_meeting", {"workspace": self.W, "text": THREE, "file_name": "Retro.txt"})
         self.assertEqual([c[2] for c in calls], ["web", "inbox", "mcp"])
+        # feat/meetings-backfill's placement: a subfolder of Meetings (Other meetings, or the series).
         folder = await meetings.folder_of(self.db, self.W)
         for row in await self.rows():
-            self.assertEqual(row["folder_id"], str(folder["_id"]))
+            sub = await self.db["folders"].find_one({"_id": ObjectId(row["folder_id"])})
+            self.assertEqual(sub["parent_id"], str(folder["_id"]))
+            page = await self.db["documents"].find_one({"_id": row["doc_id"]})
+            self.assertEqual(page["folder_id"], row["folder_id"])
 
 
 class Links(AutoWorld):
