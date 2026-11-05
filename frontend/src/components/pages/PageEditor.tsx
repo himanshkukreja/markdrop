@@ -666,8 +666,8 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           </>
         }
       >
-        Someone changed the same {session.conflict.merged && session.conflict.merged.count > 1 ? `${session.conflict.merged.count} places` : "part"} of this page while you were editing; everything else is merged.
-        {" "}<strong>Keep both</strong> puts their version and then yours there, <strong>Use theirs</strong> drops your change to it (it stays in this browser), <strong>Use mine</strong> replaces theirs (it stays in version history).
+        Someone else changed the same {session.conflict.merged && session.conflict.merged.count > 1 ? `${session.conflict.merged.count} parts` : "part"} of this page while you were editing.
+        {" "}<strong>Keep both</strong> puts their version and then yours there; <strong>Use theirs</strong> drops your change (this browser keeps a copy); <strong>Use mine</strong> replaces theirs (version history keeps it). Their other changes stay either way.
       </PageBanner>
     ) : session.save.state === "error" && online ? (
       <PageBanner icon="alert" tone="warn" actions={<Button size="sm" variant="secondary" onClick={session.retry}>Try again</Button>}>

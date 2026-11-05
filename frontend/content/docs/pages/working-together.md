@@ -24,7 +24,7 @@ Sometimes you type into a page that changed elsewhere since you last saw it, for
 
 - **You changed different parts.** Both changes are kept, and the page shows the merged version. Nothing to do.
 - **You both added to the end.** Both additions are kept: theirs first, then yours.
-- **You both changed the same lines.** A banner says **Someone changed the same part of this page while you were editing**, and everything else is already merged. Choose:
+- **You both changed the same lines.** A banner says **Someone else changed the same part of this page while you were editing**. Their other changes stay whichever you choose:
   - **Keep both**: their version of those lines, then yours, one after the other. Delete the one you don't want.
   - **Use theirs**: your change to those lines goes. It stays in this browser, and you're offered it back the next time you open the page.
   - **Use mine**: your version of those lines replaces theirs. Their other changes stay, and theirs is in [version history](/pages/history).
