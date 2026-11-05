@@ -83,7 +83,8 @@ jobs:
       # ffmpeg/ffprobe: the media probe tests. redis-server: the rate-limit store the app expects on
       # localhost:6379 (as on the dev Mac) and the binary the Redis fallback test starts itself.
       # The Ubuntu mirror has held this step for 5-9 minutes: the .debs are cached per runner image
-      # (apt-cached.sh installs them with dpkg, no network); without the packages those tests skip.
+      # (apt-cached.sh installs them with dpkg, no network). A miss goes to apt, retried with backoff
+      # (update --fix-missing, then other mirrors) within 7 minutes; without the packages those tests skip.
       # The runner image's name and version (process env, not the workflow's env context) key the cache.
       - name: apt cache key
         id: aptkey
@@ -96,7 +97,7 @@ jobs:
           key: ${{ steps.aptkey.outputs.key }}
       - name: System packages (ffmpeg, redis)
         id: apt
-        timeout-minutes: 7
+        timeout-minutes: 12
         run: |
           bash .github/scripts/apt-cached.sh ~/apt-debs ffmpeg redis-server
           redis-cli ping || true
@@ -324,7 +325,7 @@ jobs:
       # The runner image's name and version (process env, not the workflow's env context) key the cache.
       - name: apt cache key
         id: aptkey
-        run: echo "key=apt-$ImageOS-$ImageVersion-zsh-ffmpeg-v1" >> "$GITHUB_OUTPUT"
+        run: echo "key=apt-$ImageOS-$ImageVersion-zsh-ffmpeg-v2" >> "$GITHUB_OUTPUT"
       - name: Restore the apt .debs
         id: debs
         uses: actions/cache/restore@v4
@@ -333,7 +334,7 @@ jobs:
           key: ${{ steps.aptkey.outputs.key }}
       - name: System packages (zsh for up.sh, ffmpeg) and acme.localhost
         id: apt
-        timeout-minutes: 7
+        timeout-minutes: 12
         run: |
           bash .github/scripts/apt-cached.sh ~/apt-debs zsh ffmpeg
           command -v zsh >/dev/null || { echo "::error::no zsh: up.sh can't run"; exit 1; }
