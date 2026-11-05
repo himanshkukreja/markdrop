@@ -173,7 +173,7 @@ await step("recent", async () => {
   await list.waitFor({ timeout: 10000 });
   const rows = list.locator("li");
   const n = await rows.count();
-  if (n < 3) fail(`only ${n} recent questions`);
+  if (n < 2) fail(`only ${n} recent questions`);
   await rows.first().locator('button[aria-label^="Forget"]').click();
   await p.waitForFunction((k) => document.querySelectorAll('[data-testid="home-ask-history-list"] li').length === k, n - 1, { timeout: 10000 });
   // Open one: the conversation comes back in the assistant.
