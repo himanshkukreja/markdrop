@@ -1,6 +1,6 @@
 ---
 title: Editing together
-description: One person edits a page at a time, and only while they're actually editing. An open tab you've left alone never blocks anyone, and the page's owner or a workspace admin can always take over.
+description: One person edits a page at a time, and only while they're actually editing. A tab left open never blocks anyone, and admins can take over.
 updated: 2026-11-05
 prerequisites: [/pages/overview]
 keywords: [edit lock, lock, is editing, someone else is editing, editing, take over, edit anyway, idle, away, unsaved changes, collaboration, concurrent editing, one editor, read only, take_over, mcp, locked error]

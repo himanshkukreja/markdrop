@@ -1685,8 +1685,125 @@
           "documents"
         ],
         "summary": "Take Page Lock",
-        "description": "Take (or renew) the page's edit lock: ``{holder: {name}, expires_at}``,\ntwo minutes past the last call (the editor sends one every 30 s). 423\n``{code: \"locked\", holder: {name}}`` while someone else holds it.",
+        "description": "Take, renew or take over the page's edit lock (services/pages.acquire_lock).\n\nThe block editor takes it with its first real change (``intent=edit``) and renews it every\n30 s (``intent=heartbeat`` with ``edited``: it changed something since, ``hidden``: its tab is\nhidden, ``dirty``: it has unsaved changes). It holds until 2 minutes after the last heartbeat,\n2 minutes after the last change or 60 seconds after the tab was hidden, whichever is first.\nAnswers ``{holder: {name}, expires_at, mine: true, rev, timers}``; a heartbeat for a lock that\nlapsed or was taken over answers ``{mine: false, released: true, reason}`` (it never takes it\nback). 423 ``{code: \"locked\", holder, idle_s, dirty, releases_in_s, can_take_over, …}`` while\nsomeone else holds it. ``take_over=true``: the page's owner or a workspace admin takes it (403\n``take_over_forbidden`` for anyone else); the other editor is told and keeps its unsaved text.",
         "operationId": "take_page_lock_api_v1_documents__slug__lock_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "intent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "edit",
+                    "heartbeat"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Intent"
+            }
+          },
+          {
+            "name": "edited",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Edited"
+            }
+          },
+          {
+            "name": "hidden",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Hidden"
+            }
+          },
+          {
+            "name": "dirty",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Dirty"
+            }
+          },
+          {
+            "name": "take_over",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Take Over"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Page Lock Status",
+        "description": "Who holds the page's edit lock, without taking it (can(edit_content)): ``{holder: null}``\nwhen it's free, else the holder, ``idle_s``, ``dirty``, ``releases_in_s``, ``mine`` and\n``can_take_over``; ``taken_over`` when the caller's own lock was taken in the last hour.",
+        "operationId": "page_lock_status_api_v1_documents__slug__lock_get",
         "parameters": [
           {
             "name": "slug",
@@ -1745,6 +1862,63 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/lock/keep": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Keep Unsaved Page Text",
+        "description": "Keep an editor's unsaved text that it can't save (its lock was taken over, or someone else\nholds the page now) as a version in the page's history, labelled as such. The page itself is\nunchanged. ``{version, kept}`` (``kept: false`` when the text is already the page or its newest\nversion).",
+        "operationId": "keep_unsaved_page_text_api_v1_documents__slug__lock_keep_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LockKeepRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -19073,6 +19247,54 @@
         },
         "type": "object",
         "title": "LinkStartIn"
+      },
+      "LockKeepRequest": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2000000,
+            "title": "Content"
+          },
+          "base_rev": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Rev"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "taken_over",
+              "lost",
+              "conflict"
+            ],
+            "title": "Reason",
+            "default": "taken_over"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "LockKeepRequest",
+        "description": "An editor's unsaved text it can't save (its lock was taken over, or someone else holds the\npage now): kept as a version in the page's history (services/pages.keep_unsaved)."
       },
       "MarkRead": {
         "properties": {
