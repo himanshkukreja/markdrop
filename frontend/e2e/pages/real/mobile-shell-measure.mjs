@@ -133,11 +133,24 @@ export function measure({ checkTargets }) {
       // The hit area along the centre lines, walked out 1 px at a time (a stretched link's ::after or
       // a larger invisible hit area counts; the screen's edge counts as reach).
       const owns = (x, y) => { const h = document.elementFromPoint(x, y); return !!h && (h === target || target.contains(h)); };
+      // The edge of a scroller the target sits in counts as reach too (a board card partly scrolled
+      // past its board's edge: it is aimed at once it's scrolled in), like the screen's edge.
+      let clip = null;
+      for (let a = target.parentElement; a && a !== document.body; a = a.parentElement) {
+        const cs = getComputedStyle(a);
+        if (/(auto|scroll)/.test(cs.overflowX + cs.overflowY) && (a.scrollWidth > a.clientWidth + 1 || a.scrollHeight > a.clientHeight + 1)) {
+          const ar = a.getBoundingClientRect();
+          clip = clip
+            ? { l: Math.max(clip.l, ar.left), t: Math.max(clip.t, ar.top), r: Math.min(clip.r, ar.right), b: Math.min(clip.b, ar.bottom) }
+            : { l: ar.left, t: ar.top, r: ar.right, b: ar.bottom };
+        }
+      }
       const reach = (dx, dy) => {
         for (let s = 1; s <= 22; s++) {
           const x = cx + dx * s, y = cy + dy * s;
           // (elementFromPoint rounds: the last pixel row and column already count as off screen.)
           if (x < 0 || y < 0 || x > vw - 1 || y > vh - 1) return 22;
+          if (clip && (x < clip.l || y < clip.t || x > clip.r - 1 || y > clip.b - 1)) return 22;
           if (!owns(x, y)) return s - 1;
         }
         return 22;

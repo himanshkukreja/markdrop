@@ -102,6 +102,12 @@ html[data-md-immersive]:has(.as-panel) { --z-dropdown: calc(var(--z-immersive) +
 .as-btn[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); color: var(--accent-text); }
 .as-btn--icon { width: 32px; padding: 0; justify-content: center; }
 @media (max-width: 639px) { .as-btn { height: 36px; } .as-btn__label { display: none; } .as-btn { width: 36px; padding: 0; justify-content: center; } }
+/* Touch screens: finger-sized, as tall as the buttons beside it (a page's bar sizes its own). */
+@media (pointer: coarse) {
+  .as-btn { height: 44px; padding: 0 14px; }
+  .as-btn--icon { width: 44px; padding: 0; }
+}
+@media (pointer: coarse) and (max-width: 639px) { .as-btn { width: 44px; padding: 0; } }
 
 @keyframes as-in { from { opacity: 0; transform: translate3d(12px, 0, 0) scale(0.985); } }
 @keyframes as-up { from { transform: translate3d(0, 100%, 0); } }
