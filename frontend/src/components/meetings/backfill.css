@@ -48,10 +48,10 @@
 .mt-bulk__status--warn { color: var(--text); font-weight: 600; }
 .mt-bulk__status--warn svg { color: var(--warning, var(--accent-text)); }
 
-.mt-bulk__folder { display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mt-bulk__folder { display: flex; flex-wrap: nowrap; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .mt-bulk__folder svg { flex: none; width: 12px; height: 12px; }
 .mt-bulk__vis {
-  display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; min-height: 26px; padding: 0 8px; border: 1px solid var(--border);
+  display: flex; width: fit-content; align-items: center; gap: 4px; margin-top: 6px; min-height: 26px; padding: 0 8px; border: 1px solid var(--border);
   border-radius: var(--radius-full); background: var(--surface); color: var(--text-secondary); font: 500 12px/1 var(--font-sans); cursor: pointer;
 }
 .mt-bulk__vis svg { width: 12px; height: 12px; }

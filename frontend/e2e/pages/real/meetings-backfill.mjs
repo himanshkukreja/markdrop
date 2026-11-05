@@ -149,7 +149,7 @@ await step("bulk", async () => {
     const m = list.find((x) => x.date === d);
     if (!m || m.title !== t) fail(`meeting on ${d}: ${JSON.stringify(m)?.slice(0, 200)}`);
     if (!m.history) fail(`${t} on ${d} wasn't imported quietly`);
-    if (m.restricted !== (t === "Hallway chat")) fail(`${t}: restricted ${m.restricted}`);
+    if (m.restricted !== (t !== "Daily Standup")) fail(`${t}: restricted ${m.restricted}`);   // two people: attendees only
   }
   const su = list.filter((m) => m.series === "Daily Standup");
   if (su.length !== 2) fail(`Daily Standup series: ${su.length}`);

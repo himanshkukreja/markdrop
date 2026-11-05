@@ -18,10 +18,11 @@ Meetings folder's views.
   workspace already names that series, a new meeting joins it; when a name has been seen on **two
   or more different days**, it is a series and the earlier one-offs join it (:func:`adopt`: their
   series is set and they move into its folder). Two calls of one name on one day aren't a series.
-* The **Meetings folder** gets a Series property (Select; an option per series, added as series
-  appear) and three saved views, once (``folders.meetings_views``): "All meetings" (table, Date
-  newest first, grouped by month), "By series" (board) and "Series table". The folder opens on
-  "All meetings" (frontend FolderView); a person's own changes to the views are never redone.
+* The **Meetings folder** gets a Series property (once, ``folders.meetings_views``) and opens on its
+  folders. Each subfolder gets the Meetings folder's properties (a Series option per series, added
+  as series appear) and saved views: "All meetings" (table, Date newest first, grouped by month),
+  plus "By series" (board) and "Series table" in Other meetings. A subfolder opens on "All meetings"
+  (frontend FolderView); a person's own changes to the views are never redone.
 * The series is on the page too (front matter ``props``), so the folder's table, board and filters
   see it; changing it on the page's property panel is a change of the page, not of the row (the hub
   reads the row): :func:`set_series` writes both.
@@ -67,32 +68,23 @@ def clean_name(value: Any) -> str | None:
 
 
 async def organise_folder(db: AsyncIOMotorDatabase, folder: dict, user_id: str | None) -> dict:
-    """The Series property and the meetings views on the Meetings folder (once; idempotent)."""
+    """The Series property on the Meetings folder (once; idempotent). Its meetings live in its
+    subfolders (:func:`place_meeting`), which get the properties and the meetings views; the Meetings
+    folder itself opens on those folders."""
     from app.services import page_db
 
     if folder is None or folder.get("meetings_views"):
         return folder
     schema = list(folder.get("properties") or [])
-    if not any(p.get("key") == "series" for p in schema):
-        if any((p.get("name") or "").casefold() == "series" for p in schema) or len(schema) >= page_db.MAX_PROPERTIES:
-            await db["folders"].update_one({"_id": folder["_id"]}, {"$set": {"meetings_views": True}})
-            return folder
+    if not any(p.get("key") == "series" for p in schema) and \
+            not any((p.get("name") or "").casefold() == "series" for p in schema) and len(schema) < page_db.MAX_PROPERTIES:
         at = next((i + 1 for i, p in enumerate(schema) if p.get("key") == "type"), len(schema))
         schema = [*schema[:at], dict(SERIES_PROP), *schema[at:]]
-    keys = {p["key"] for p in schema}
-    views = list(folder.get("views") or [])
-    have = {v.get("id") for v in views}
-    add = []
-    for v in VIEWS:
-        if v["id"] in have or v["group"] not in keys:
-            continue
-        add.append({**v, "hidden": [k for k in v["hidden"] if k in keys]})
-    try:
-        await page_db.set_schema(db, folder["workspace_id"], str(folder["_id"]), user_id, schema,
-                                 views=[*add, *views][:page_db.MAX_VIEWS])
-    except HTTPException as exc:
-        log.info("meetings: folder views not set (%s)", exc.detail)
-        return folder
+        try:
+            await page_db.set_schema(db, folder["workspace_id"], str(folder["_id"]), user_id, schema)
+        except HTTPException as exc:
+            log.info("meetings: Series property not added (%s)", exc.detail)
+            return folder
     await db["folders"].update_one({"_id": folder["_id"]}, {"$set": {"meetings_views": True}})
     return await db["folders"].find_one({"_id": folder["_id"]}) or folder
 
@@ -272,7 +264,8 @@ async def _copy_setup(db: AsyncIOMotorDatabase, root: dict, sub: dict, user_id: 
 
     if sub.get("meetings_views"):
         return sub
-    views = [v for v in (root.get("views") or []) if v.get("id") in (VIEW_ALL, VIEW_BOARD, VIEW_TABLE)] or VIEWS
+    keys = {p.get("key") for p in root.get("properties") or []}
+    views = [{**v, "hidden": [k for k in v["hidden"] if k in keys]} for v in VIEWS if v["group"] in keys]
     if sub.get("meetings_series"):
         views = [v for v in views if v.get("group") != "series"] or views   # one series: no "by series" views
     try:

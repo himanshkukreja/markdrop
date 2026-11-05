@@ -353,7 +353,8 @@ class Queue(BackfillWorld):
         self.assertEqual(subs["Daily Standup"]["meetings_series"], "daily standup")
         self.assertEqual([v_["id"] for v_ in subs["Daily Standup"]["views"]], [meeting_series.VIEW_ALL])
         self.assertEqual(subs["Other meetings"]["views"][0]["group"], "date")
-        views = {v_["id"]: v_ for v_ in folder["views"]}
+        self.assertEqual(folder.get("views") or [], [])                     # Meetings itself opens on its folders
+        views = {v_["id"]: v_ for v_ in subs["Other meetings"]["views"]}
         self.assertEqual(views[meeting_series.VIEW_ALL]["group"], "date")
         self.assertEqual(views[meeting_series.VIEW_ALL]["sort"], [{"key": "date", "dir": "desc"}])
         self.assertEqual((views[meeting_series.VIEW_BOARD]["type"], views[meeting_series.VIEW_BOARD]["group"]), ("board", "series"))
@@ -608,23 +609,22 @@ class Organise(BackfillWorld):
         r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
         self.assertEqual(r.json()["moved"], 0)                                        # idempotent
 
-    async def test_existing_folder_gets_series_and_views_once(self):
+    async def test_existing_folder_gets_series_property_once(self):
         await self.imported()
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
         self.assertTrue(folder["meetings_views"])
-        # A person deletes a view: it is not put back on the next import.
-        views = [v for v in folder["views"] if v["id"] != meeting_series.VIEW_TABLE]
-        await self.db["folders"].update_one({"_id": folder["_id"]}, {"$set": {"views": views}})
+        self.assertIn("series", [p["key"] for p in folder["properties"]])
+        # A person removes the Series property: it is not put back on the next import.
+        props = [p for p in folder["properties"] if p["key"] != "series"]
+        await self.db["folders"].update_one({"_id": folder["_id"]}, {"$set": {"properties": props}})
         await self.imported(sources=[{"name": "standup.vtt", "text": fixture("teams.vtt")}], title="Daily standup")
         folder = await self.db["folders"].find_one({"_id": folder["_id"]})
-        self.assertNotIn(meeting_series.VIEW_TABLE, {v["id"] for v in folder["views"]})
-        # A v1 folder (no Series, no views) is organised on its next import.
-        await self.db["folders"].update_one({"_id": folder["_id"]}, {"$set": {"views": [], "meetings_views": False,
-                                                                             "properties": [p for p in folder["properties"] if p["key"] != "series"]}})
+        self.assertNotIn("series", [p["key"] for p in folder["properties"]])
+        # A v1 folder (no Series) gets it on its next import.
+        await self.db["folders"].update_one({"_id": folder["_id"]}, {"$set": {"meetings_views": False}})
         await self.imported(sources=[{"name": "zoom.srt", "text": fixture("zoom.srt")}], title="Zoom call")
         folder = await self.db["folders"].find_one({"_id": folder["_id"]})
         self.assertIn("series", [p["key"] for p in folder["properties"]])
-        self.assertEqual([v["id"] for v in folder["views"]], [meeting_series.VIEW_ALL, meeting_series.VIEW_BOARD, meeting_series.VIEW_TABLE])
 
 
 class AskScoped(BackfillWorld):
