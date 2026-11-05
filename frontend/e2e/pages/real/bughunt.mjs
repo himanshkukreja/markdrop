@@ -85,17 +85,39 @@ await step("typing-undo", async () => {
   let md = await settle(p, slug, (m) => m === want);
   if (md !== want) fail(`fast typing saved ${JSON.stringify(md)}`);
   // Undo everything (history across blocks), then redo everything.
+  // The editor's undo history (Tiptap puts the editor on its element) and every document change from
+  // here on, to say what happened when the redo comes up short.
+  const history = () => p.locator(".pb-live .ProseMirror").evaluate((el) => {
+    const ed = el.editor;
+    const h = ed?.state.plugins.find((pl) => pl.key.startsWith("history$"))?.getState(ed.state);
+    return h ? { done: h.done.eventCount, undone: h.undone.eventCount } : null;
+  });
+  await p.locator(".pb-live .ProseMirror").evaluate((el) => {
+    const t0 = performance.now();
+    window.__pbTrs = [];
+    el.editor?.on("transaction", ({ transaction: tr, appendedTransactions: more }) => {
+      if (![tr, ...(more ?? [])].some((t) => t.docChanged)) return;
+      const keys = (t) => Object.keys(t.meta ?? {}).filter((k) => k !== "appendedTransaction").join(",");
+      window.__pbTrs.push(`${Math.round(performance.now() - t0)}ms ${tr.docChanged ? "doc" : "-"}[${keys(tr)}]${tr.getMeta("addToHistory") === false ? " nohist" : ""}${more?.length ? ` +${more.map(keys).join("|")}` : ""}`);
+    });
+  });
+  const before = await history();
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+z`);
   md = await settle(p, slug, (m) => !m.trim());
   if (md.trim()) fail(`undo all left ${JSON.stringify(md)}`);
+  const undone = await history();
+  await p.evaluate(() => (window.__pbTrs = []));
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+z`);
   md = await settle(p, slug, (m) => m === want);
   if (md !== want) {
-    // Say more: is it the count (more redos finish it) or a lost history item (nothing more to redo)?
+    // Say more: is it the count (more redos finish it) or a lost history item (nothing more to redo),
+    // and what changed the document during the redos besides the redos themselves.
     const shown = await p.locator(".pb-live .ProseMirror").innerText();
+    const after = await history();
+    const trs = await p.evaluate(() => [`${window.__pbTrs.filter((t) => t.includes("history$")).length} redo changes`, ...window.__pbTrs.filter((t) => !t.includes("history$")).slice(0, 12)]);
     for (let i = 0; i < 40; i++) await p.keyboard.press(`${mod}+Shift+z`);
     const more = await settle(p, slug, (m) => m === want, 8000);
-    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; 40 more redos saved ${JSON.stringify(more.slice(-60))}`);
+    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; 40 more redos saved ${JSON.stringify(more.slice(-60))}; history typed ${JSON.stringify(before)} undone ${JSON.stringify(undone)} redone ${JSON.stringify(after)}; changes during the redos: ${trs.join(" ; ")}`);
   }
   await c.close();
 });

@@ -533,13 +533,26 @@ await step("anonymous-dark", async () => {
 /* ── 5. the edit lock, MCP update (423) and append (live) ── */
 await step("lock-mcp", async () => {
   const tok = mcpToken("ada@acme.test");
+  // Free before this editor opens? (An earlier step's editor may not have let go.)
+  const pre = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (pre.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   const { c, p } = await ctx(browser, { token: T.owner });
+  const locks = [];
+  p.on("request", (r) => {
+    if (r.method() === "POST" && /\/lock(\?|$)/.test(r.url())) locks.push(Date.now());
+  });
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.waitForTimeout(1500);
   // Opening takes nothing: the first click takes the lock.
   const lk = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
-  if (lk.status !== 200) fail(`opening the editor took the lock (${lk.status} ${JSON.stringify(lk.body).slice(0, 300)})`);
+  if (lk.status !== 200) {
+    const focus = await p.evaluate(() => {
+      const a = document.activeElement;
+      return a ? `${a.tagName.toLowerCase()}${a.className ? `.${String(a.className).split(" ").join(".")}` : ""}` : "none";
+    });
+    fail(`opening the editor took the lock (${lk.status} ${JSON.stringify(lk.body).slice(0, 300)}); before opening: ${pre.status}; this editor sent ${locks.length} lock requests; focus on ${focus}`);
+  }
   await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   await p.locator(".pb-live .ProseMirror p").first().click();
   await p.waitForTimeout(1500);
