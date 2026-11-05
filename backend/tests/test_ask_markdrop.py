@@ -421,7 +421,9 @@ class Intents(AskWorld):
     async def test_my_actions(self):
         m = await self.import_meeting()
         await self.put("ravi-private", "Someone's private todo", f'- [ ] :person[Ravi Kumar]{{id="{self.uid["wv"]}"}} Secret task kiwi-9',
-                       owner="wm2", state="P", ws="W2")
+                       owner="wm2", state="P", ws="W2", editor="blocks")
+        await self.put("ravi-todo", "Launch prep", f'# Launch prep\n\n- [ ] :person[Ravi Kumar]{{id="{self.uid["wv"]}"}} Order the banners :date[2026-11-09] {{#b-a1b2c3d4}}',
+                       editor="blocks")
         await self.index_all()
         self.fake.calls.clear()
         done = self.done(await self.ask("wv", "What are my open action items?"))
@@ -432,8 +434,10 @@ class Intents(AskWorld):
         self.assertIn("Email the Senseloaf team", p)
         self.assertNotIn("Update the onboarding docs", p)       # Bo's
         self.assertNotIn("kiwi-9", p)
-        c = done["citations"][0]
-        self.assertEqual(c["slug"], m["slug"])
+        self.assertIn("Order the banners 2026-11-09", p)               # any page, not only meetings
+        banners = next(c for c in done["citations"] if "banners" in (c["text"] or ""))
+        self.assertTrue(banners["url"].endswith("/ravi-todo#b-a1b2c3d4"), banners["url"])
+        c = next(c for c in done["citations"] if c["slug"] == m["slug"])
         self.assertRegex(c["url"], r"#b-[0-9a-f]{8}$")
         self.assertIn("Email the Senseloaf team", c["text"])
         # Priya has none: a fixed answer, no model call, no ledger row (nothing spent).
@@ -448,7 +452,7 @@ class Intents(AskWorld):
         ticked = re.sub(r"- \[ \] (:person\[Ravi Kumar\])", r"- [x] \1", page["content"])
         await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": ticked}})
         done = self.done(await self.ask("wv", "", intent="my_actions"))
-        self.assertEqual(done["citations"], [])
+        self.assertEqual([c["slug"] for c in done["citations"]], ["ravi-todo"])
 
 
 class Limits(AskWorld):
