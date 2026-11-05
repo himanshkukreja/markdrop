@@ -244,7 +244,11 @@ def _inbox_key(request: Request) -> str:
     return meetings_inbox.token_key(auth.removeprefix("Bearer ").strip())
 
 
-@router.post("/inbox")
+@router.post("/inbox", openapi_extra={
+    # The body is read raw (size-checked first) and validated as InboxBody; the token is a scoped one.
+    "requestBody": {"required": True, "content": {"application/json": {"schema": InboxBody.model_json_schema()}}},
+    "x-markdrop": {"auth": "token"},   # a Bearer token: the script's meetings:import one
+})
 @limiter.limit("30/minute", key_func=_inbox_key)
 @limiter.limit("600/day", key_func=_inbox_key)
 async def inbox(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):

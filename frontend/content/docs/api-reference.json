@@ -1312,7 +1312,7 @@
     },
     "POST /api/v1/meetings/import": {
       "title": "Import a meeting",
-      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; `restricted: true` limits it to attendees who are members. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`.",
+      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; `restricted: true` limits it to attendees who are members. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`, each with a `status`: `imported` (new), or `duplicate` (a Google Doc already imported into this workspace: that meeting, unchanged).",
       "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "sources": [{"name": "Weekly sync - Transcript", "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed."}]},
       "mcp": "import_meeting",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
@@ -1322,10 +1322,34 @@
       "description": "A short-lived Google access token (scope drive.file) and the Picker's keys, so the browser can open the Google Picker on your own Drive. Markdrop can then read only the Docs you pick. 428 `reconnect_required` when Google Docs isn't connected.",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
+    "GET /api/v1/meetings/connection": {
+      "title": "Google Meet connection",
+      "description": "Your Connect Google Meet connection (`connection`, null when you haven't connected), wherever it sends meetings, and, with `workspace`, the other members' connections into that workspace (`others`). Each has the `workspace_id` and `workspace_name`, `restricted`, `connected_by`, `created_at`, `last_received_at`, `last_imported_at`, counts (`received`, `imported`, `attached`, `duplicates`, `ignored`) and `last_error`. Never the token or the script.",
+      "paramNotes": {"workspace": "The workspace's id (optional)."},
+      "mcp": "meetings_connection",
+      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+    },
+    "POST /api/v1/meetings/connection": {
+      "title": "Connect Google Meet",
+      "description": "Makes your Google Apps Script for automatic import into `workspace` (members and up): a new token with the `meetings:import` scope, pinned to that workspace, shown once inside the `script` (Code.gs) with the endpoint filled in, plus the Apps Script `manifest` (appsscript.json) and the inbox `endpoint`. `restricted: true` restricts every meeting it imports to its attendees. Connecting again replaces your earlier connection: its token stops working. 10 an hour.",
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "restricted": false},
+      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+    },
+    "DELETE /api/v1/meetings/connection": {
+      "title": "Disconnect Google Meet",
+      "description": "Revokes your connection's token at once: the script's next delivery gets 401 and it removes its own schedule. Meetings it imported stay. Returns `{disconnected}`.",
+      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+    },
+    "POST /api/v1/meetings/inbox": {
+      "title": "Meetings inbox (the Google Meet script)",
+      "description": "Where the Connect Google Meet script sends one Google Doc: `{source: \"google-meet-script\", file_id, title, created, kind_hint, text, doc_url}`. Authenticated with the script's `meetings:import` token (Bearer `mdk_…`), which works here and nowhere else and is pinned to one workspace; its owner must still be a member. Idempotent on `file_id`: returns `{status, meeting_id?, url?}` with `status` `imported` (a new meeting), `attached` (the other half of a call already in the workspace: notes for a transcript, or the other way round), `duplicate` (already here: the same Doc, a Doc imported by hand, or the same call by name, date and start time) or `ignored` (no transcript or notes in it). 401 when disconnected, 403 when no longer a member, 409 while the same Doc is being imported, 413 over 1,500,000 characters, 422 for a malformed delivery. Rate limited per token: 30 a minute, 600 a day.",
+      "example": {"source": "google-meet-script", "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz", "title": "Weekly sync (2026-11-04 10:00 GMT+05:30) - Transcript", "created": "2026-11-04T05:20:00.000Z", "kind_hint": "transcript", "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed.", "doc_url": "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit"},
+      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+    },
     "GET /api/v1/meetings": {
       "title": "List meetings",
-      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources` and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
-      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300)."},
+      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
+      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300).", "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).", "since": "Only meetings on or after this date (YYYY-MM-DD)."},
       "mcp": "list_meetings",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },

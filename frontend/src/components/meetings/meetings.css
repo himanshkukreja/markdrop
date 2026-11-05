@@ -202,6 +202,10 @@
 .mt-folderbar__text b { display: block; color: var(--text); font-size: 14px; }
 .mt-folderbar svg.mt-folderbar__glyph { width: 20px; height: 20px; color: var(--accent-text); }
 
+/* ── where a meeting came from (Details) ── */
+.mt-src-via { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 12.5px; color: var(--text-muted); }
+.mt-src-via svg { width: 14px; height: 14px; }
+
 /* ── Connect Google Meet ───────────────────────────────────────────────── */
 .mt-connect { display: grid; gap: 14px; font-size: 14px; line-height: 21px; color: var(--text-secondary); }
 .mt-connect__lead { margin: 0; }
