@@ -272,7 +272,7 @@ function Access({ it, team, onAccess, compact }: { it: WorkspaceItem; team: stri
       <button
         type="button"
         onClick={onAccess}
-        className="wl-lift md-focus inline-flex h-8 max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-[13px] text-text-secondary hover:bg-surface-active hover:text-text"
+        className="wl-lift wl-access md-focus inline-flex h-8 max-w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-[13px] text-text-secondary hover:bg-surface-active hover:text-text"
         aria-label={`Who can open it: ${words}. Change`}
         aria-haspopup="dialog"
         title={`Who can open it: ${words}`}
@@ -355,7 +355,7 @@ function ItemListRow(p: ItemEntryProps) {
       <span className="wl-cell wl-c-access overflow-visible"><Access it={it} team={team} onAccess={onAccess} /></span>
       <span className="wl-cell wl-cell--act">
         {!it.encrypted && (
-          <span className="wl-lift wl-hover">
+          <span className="wl-lift wl-hover wl-copy">
             <CopyButton text={it.url} label="Copy link" iconOnly variant="ghost" size="sm" announceText="Link copied" />
           </span>
         )}

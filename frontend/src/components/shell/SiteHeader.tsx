@@ -49,7 +49,7 @@ function SearchTrigger() {
         onClick={openCommandPalette}
         aria-keyshortcuts={mac ? "Meta+K" : "Control+K"}
         aria-haspopup="dialog"
-        className="md-focus ml-4 hidden h-9 min-w-0 max-w-[520px] flex-[1_1_320px] cursor-text items-center gap-2 rounded-lg border border-border-strong bg-surface-inset px-3 text-left text-body text-text-muted hover:border-text-muted md:flex"
+        className="md-focus ml-4 hidden h-9 min-w-0 pointer-coarse:h-11 max-w-[520px] flex-[1_1_320px] cursor-text items-center gap-2 rounded-lg border border-border-strong bg-surface-inset px-3 text-left text-body text-text-muted hover:border-text-muted md:flex"
       >
         <Icon name="search" size={14} className="shrink-0" />
         <span className="min-w-0 flex-1 truncate">Search everything, or ask AI</span>
@@ -103,10 +103,10 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
         "no-print sticky top-0 z-[calc(var(--z-sticky)+1)] w-full shrink-0 border-b",
         marketing
           ? cx(
-              "h-14 transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
+              "h-[calc(3.5rem+var(--safe-top))] pt-(--safe-top) transition-[background-color,border-color,backdrop-filter] duration-(--duration-fast) ease-(--ease-out)",
               scrolled ? "border-border bg-bg/85 backdrop-blur-md" : "border-transparent bg-transparent",
             )
-          : "h-14 border-border bg-bg",
+          : "h-[calc(3.5rem+var(--safe-top))] pt-(--safe-top) border-border bg-bg",
         className,
       )}
     >

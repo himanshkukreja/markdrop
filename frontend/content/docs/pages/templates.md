@@ -1,7 +1,7 @@
 ---
 title: Templates
 description: Start pages from built-in, workspace or personal templates. Use any page as a template, with its sub-pages and images, and give a folder a default.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/pages/overview]
 keywords: [template, templates, workspace templates, use as template, save as template, default template, folder template, "{{folder}}", personal templates, placeholders, "{{date}}", "{{author}}", "{{title}}", manage templates, prd, spec, runbook, meeting notes, release notes, how-to, qa, test plan, save_page_as_template, list_page_templates]
 ---
@@ -13,6 +13,8 @@ When you make a page, Markdrop offers templates: the built-in ones, your workspa
 1. Choose **New page** in a workspace or folder, **Create** › **Page**, or **Add a sub-page** inside a page.
 2. Pick a template. Your workspace's templates come first, then yours, then the built-in ones. Choosing one shows a preview. In a folder with a [default template](#a-folders-default-template), that one is already chosen: pick **Blank** or another template if you want something else.
 3. Type a title, or leave it empty to use the template's name, and choose **Create page**. Double-clicking a template creates the page straight away.
+
+On a phone or tablet the gallery opens on the templates, not in the title, so the keyboard doesn't cover them; tap **Title** when you want to type one. On a phone the templates are one list, each with its icon beside its name.
 
 A blank page also offers the built-in templates as chips under the title until you start typing.
 

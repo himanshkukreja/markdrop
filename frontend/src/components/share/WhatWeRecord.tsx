@@ -38,7 +38,7 @@ export default function WhatWeRecord({ fromHash, className, label = "What we rec
         <button
           type="button"
           id={fromHash ? "what-we-record" : undefined}
-          className="md-focus inline-flex scroll-mt-24 items-center gap-1 rounded-sm font-semibold text-accent-text underline-offset-2 hover:underline"
+          className="md-focus md-hit inline-flex scroll-mt-24 items-center gap-1 rounded-sm font-semibold text-accent-text underline-offset-2 hover:underline"
         >
           {label}
           {arrow && <Icon name="arrowRight" size={12} />}

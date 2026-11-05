@@ -75,7 +75,7 @@ function InsightsCard({ range, status }: { range: string; status: AnalyticsAiSta
       ) : null}>
       <div aria-live="polite" aria-busy={loading}>
         {loading && !story ? <StorySkeleton /> : failed ? (
-          <Quiet>Couldn&apos;t load the insights. <button type="button" className="md-focus cursor-pointer border-0 bg-transparent p-0 text-accent-text underline" onClick={() => void load(false)}>Try again</button></Quiet>
+          <Quiet>Couldn&apos;t load the insights. <button type="button" className="md-focus md-hit cursor-pointer border-0 bg-transparent p-0 text-accent-text underline" onClick={() => void load(false)}>Try again</button></Quiet>
         ) : story?.status === "ok" ? (
           <div className="flex flex-col gap-2">
             <p className="m-0 text-[15px] leading-6 font-semibold text-text" data-testid="ai-story-headline">{story.headline}</p>
@@ -166,15 +166,15 @@ function AskBox({ range, disabled, disabledMessage }: { range: string; disabled:
           <Icon name="sparkle" size={14} className="shrink-0 text-text-muted" />
           <input id="ah-ask" value={q} onChange={(e) => setQ(e.target.value)} maxLength={500} disabled={disabled}
             placeholder={disabled ? (disabledMessage || "AI isn't available right now.") : "Ask your analytics, e.g. where did Tuesday's spike come from?"}
-            className="min-w-0 flex-1 border-0 bg-transparent py-2 text-[14px] text-text outline-none placeholder:text-text-muted" data-testid="ai-ask-input" />
+            className="min-w-0 flex-1 border-0 bg-transparent py-2 text-[14px] text-text outline-none placeholder:text-text-muted pointer-coarse:min-h-11" data-testid="ai-ask-input" />
         </div>
-        <Button type="submit" size="sm" variant="secondary" disabled={disabled || !q.trim()} loading={st.status === "running"} data-testid="ai-ask-submit">Ask</Button>
+        <Button type="submit" size="sm" variant="secondary" disabled={disabled || !q.trim()} loading={st.status === "running"} className="pointer-coarse:min-w-11" data-testid="ai-ask-submit">Ask</Button>
       </form>
       {st.status === "idle" && !disabled && (
         <div className="flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((s) => (
             <button key={s} type="button" onClick={() => { setQ(s); run(s); }}
-              className="md-focus cursor-pointer rounded-full border border-border bg-transparent px-2.5 py-1 text-caption text-text-secondary hover:border-accent hover:text-text">{s}</button>
+              className="md-focus cursor-pointer rounded-full border border-border bg-transparent px-2.5 py-1 text-caption text-text-secondary hover:border-accent hover:text-text pointer-coarse:min-h-11">{s}</button>
           ))}
         </div>
       )}
@@ -183,7 +183,7 @@ function AskBox({ range, disabled, disabledMessage }: { range: string; disabled:
           <div className="mb-1 flex flex-wrap items-center gap-2 text-caption text-text-muted">
             <span className="font-semibold text-text-secondary" dir="auto">{st.question}</span>
             {st.status === "running" && <span className="inline-flex items-center gap-1"><Spinner size={12} />{st.stage}…</span>}
-            {st.cached && <span>· from earlier today <button type="button" className="md-focus cursor-pointer border-0 bg-transparent p-0 text-accent-text underline" onClick={() => run(st.question, true)}>Ask again</button></span>}
+            {st.cached && <span>· from earlier today <button type="button" className="md-focus md-hit cursor-pointer border-0 bg-transparent p-0 text-accent-text underline" onClick={() => run(st.question, true)}>Ask again</button></span>}
           </div>
           {st.status === "limit" || st.status === "error" ? (
             <p className="m-0 text-text-secondary">{st.message}</p>
@@ -256,7 +256,7 @@ function WriteThisNext({ status }: { status: AnalyticsAiStatus }) {
       }>
       <div aria-live="polite" aria-busy={loading} data-testid="ai-gaps">
         {loading && !data ? <StorySkeleton /> : failed ? (
-          <Quiet>Couldn&apos;t load the gaps. <button type="button" className="md-focus cursor-pointer border-0 bg-transparent p-0 text-accent-text underline" onClick={() => void load(false)}>Try again</button></Quiet>
+          <Quiet>Couldn&apos;t load the gaps. <button type="button" className="md-focus md-hit cursor-pointer border-0 bg-transparent p-0 text-accent-text underline" onClick={() => void load(false)}>Try again</button></Quiet>
         ) : data?.status === "ok" ? (
           data.gaps.length ? (
             <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(min(100%,300px),1fr))] gap-3 p-0">
@@ -304,7 +304,7 @@ function GapCard({ gap, workspace }: { gap: Gap; workspace: string | null }) {
         </ul>
       )}
       <button type="button" aria-expanded={open} onClick={() => setOpen((v) => !v)}
-        className="md-focus flex cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-caption text-text-secondary hover:text-text">
+        className="md-focus flex cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-caption text-text-secondary hover:text-text pointer-coarse:min-h-11">
         <Icon name={open ? "chevronDown" : "chevronRight"} size={14} />Outline ({gap.outline.length} sections)
       </button>
       {open && <ol className="m-0 pl-5 text-[13px] leading-5 text-text-secondary">{gap.outline.map((h) => <li key={h}>{h}</li>)}</ol>}

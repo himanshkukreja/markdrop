@@ -177,7 +177,7 @@ export default function CompareScreen() {
 
   return (
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1240px] flex-col gap-[18px] px-4 pb-14 pt-6 outline-none sm:px-6">
-      <Anchor href={`${base}/publish`} className="inline-flex items-center gap-1.5 self-start text-[13px] text-accent-text no-underline hover:underline">
+      <Anchor href={`${base}/publish`} className="inline-flex items-center gap-1.5 self-start text-[13px] text-accent-text no-underline hover:underline pointer-coarse:min-h-11">
         <Icon name="chevronLeft" size={14} /> Back to Publish
       </Anchor>
       <div className="flex flex-wrap items-center gap-3">
@@ -236,7 +236,7 @@ export default function CompareScreen() {
                   <span className={cx("size-2 shrink-0 rounded-full", DOT[p.change])} aria-hidden />
                   <span className="flex min-w-0 flex-1 flex-col">
                     <strong className="ph-sensitive ph-mask truncate font-semibold" dir="auto">{p.title}</strong>
-                    <span className="ph-sensitive ph-mask truncate font-mono text-[11px] text-text-muted">{p.path}</span>
+                    <span className="ph-sensitive ph-mask truncate font-mono text-[12px] text-text-muted">{p.path}</span>
                   </span>
                   <span className="shrink-0 text-[12px] text-text-muted">
                     {delta}<span className="md-visually-hidden">{p.change === "edited" ? ` lines, edited` : ""}</span>
@@ -259,7 +259,7 @@ export default function CompareScreen() {
                       type="button"
                       aria-pressed={view === v}
                       onClick={() => { setView(v); go({ view: v }); guideEvents.compareView(v); }}
-                      className={cx("md-focus h-[26px] rounded-md px-2.5 text-[12px]", view === v ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text")}
+                      className={cx("md-focus h-[26px] rounded-md px-2.5 text-[12px] pointer-coarse:h-11", view === v ? "bg-surface text-text shadow-sm" : "text-text-muted hover:text-text")}
                     >
                       {v === "text" ? "Text" : "Side by side"}
                     </button>
@@ -298,7 +298,7 @@ export default function CompareScreen() {
                 <span className={cx("size-2 shrink-0 rounded-full", DOT[c.change as keyof typeof DOT] ?? "bg-border-strong")} aria-hidden />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <strong className="ph-sensitive ph-mask truncate font-semibold text-text" dir="auto">{c.title}</strong>
-                  <span className="ph-sensitive ph-mask truncate font-mono text-[11px] text-text-muted">/changelog/{c.slug} · {c.date}</span>
+                  <span className="ph-sensitive ph-mask truncate font-mono text-[12px] text-text-muted">/changelog/{c.slug} · {c.date}</span>
                 </span>
                 <span className="shrink-0 text-[12px] text-text-muted">{c.change === "added" ? "new" : c.change}</span>
                 {c.change !== "removed" && to === "drafts" && (

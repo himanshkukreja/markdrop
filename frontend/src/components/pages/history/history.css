@@ -179,3 +179,10 @@
   .ph-layer, .ph-layer--closing, .ph-fade, .ph-row--on::before, .ph-phonefoot { animation: none; }
   .ph-row, .ph-seg__tag, .ph-layer--phone .ph-list, .ph-layer--phone .ph-preview { transition: none; }
 }
+
+/* A finger (fix/mobile-content): nothing under 12 px; no keyboard hints without a keyboard. */
+@media (pointer: coarse) {
+  .ph-group__label, .ph-who .md-avatar, .ph-chip, .ph-seg__tag { font-size: 12px; }
+  .ph-chip { height: 20px; }
+  .ph-list__hint { display: none; }
+}

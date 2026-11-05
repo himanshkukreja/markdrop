@@ -3,7 +3,7 @@
 /**
  * Hand-written SVG charts for creator analytics. Rules (dataviz skill + the boards): one series
  * colour (--chart-1, a second series --chart-2 dashed), thin marks, one y-axis, text in text
- * tokens, a crosshair or per-mark tooltip on hover AND keyboard focus (arrow keys, Home/End), and
+ * tokens, a crosshair or per-mark tooltip on hover, tap AND keyboard focus (arrow keys, Home/End), and
  * every chart has role="img", a summary aria-label and a visually hidden data table. Charts draw at
  * their measured pixel width, so text never stretches.
  */
@@ -34,7 +34,7 @@ function useWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] 
   return [ref, w];
 }
 
-/** Hover / keyboard scrubbing over n positions. */
+/** Hover, tap and keyboard scrubbing over n positions. */
 function useScrub(n: number) {
   const [i, setI] = useState<number | null>(null);
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -48,7 +48,11 @@ function useScrub(n: number) {
     else if (e.key === "End") { e.preventDefault(); setI(n - 1); }
     else if (e.key === "Escape") setI(null);
   };
-  return { i, setI, onKeyDown, clear: () => setI(null) };
+  // A finger lifting also "leaves": a tap keeps its tooltip until the next tap or the chart loses focus.
+  const leave = (e: React.PointerEvent) => {
+    if (e.pointerType !== "touch") setI(null);
+  };
+  return { i, setI, onKeyDown, leave, clear: () => setI(null) };
 }
 
 /** Top of the y-axis: a "nice" round number that clears the data. */
@@ -64,6 +68,7 @@ function Tip({ x, width, children }: { x: number; width: number; children: React
   return (
     <div
       aria-hidden
+      data-chart-tip=""
       className="pointer-events-none absolute top-0 z-10 rounded-md border border-border bg-surface-raised px-2.5 py-1.5 text-caption whitespace-nowrap text-text shadow-lg"
       style={{ left: x, transform: `translate(${align}, 0)` }}
     >
@@ -74,11 +79,15 @@ function Tip({ x, width, children }: { x: number; width: number; children: React
 
 function HiddenTable({ caption, head, rows }: { caption: string; head: string[]; rows: (string | number)[][] }) {
   return (
-    <table className="md-visually-hidden">
-      <caption>{caption}</caption>
-      <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
-      <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => (j === 0 ? <th key={j} scope="row">{c}</th> : <td key={j}>{c}</td>))}</tr>)}</tbody>
-    </table>
+    // The wrapper, not the table, is visually hidden: a table can't be narrower than its content, so
+    // on a 360 px phone it pushed the page sideways.
+    <div className="md-visually-hidden">
+      <table>
+        <caption>{caption}</caption>
+        <thead><tr>{head.map((h) => <th key={h} scope="col">{h}</th>)}</tr></thead>
+        <tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => (j === 0 ? <th key={j} scope="row">{c}</th> : <td key={j}>{c}</td>))}</tr>)}</tbody>
+      </table>
+    </div>
   );
 }
 
@@ -147,7 +156,7 @@ export function DailyViewsChart({ daily, marks, height = 180 }: {
         {W > 0 && (
           <svg
             width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} tabIndex={0}
-            className={svgFocus} onPointerMove={onMove} onPointerLeave={scrub.clear} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}
+            className={svgFocus} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={scrub.leave} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}
           >
             <title id={titleId}>{summary} Use the arrow keys to read each day.</title>
             <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke={GRID} />
@@ -244,7 +253,7 @@ export function ReadersLineChart({ daily, height = 200, today }: {
         {W > 0 && (
           <svg
             width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} tabIndex={0}
-            className={svgFocus} onPointerMove={onMove} onPointerLeave={scrub.clear} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}
+            className={svgFocus} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={scrub.leave} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}
           >
             <title id={titleId}>{summary} Use the arrow keys to read each day.</title>
             {ticks.map((v) => (
@@ -342,7 +351,7 @@ export function RetentionChart({ points, dur, marks = [], height = 240, compact,
       <div ref={ref} className="relative" style={{ height }}>
         {W > 0 && (
           <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} tabIndex={0}
-            className={svgFocus} onPointerMove={onMove} onPointerLeave={scrub.clear} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}>
+            className={svgFocus} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={scrub.leave} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}>
             <title id={titleId}>{summary} Use the arrow keys to move through the video.</title>
             {!compact && [100, 50].map((v) => <line key={v} x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke={GRID} strokeDasharray="2 4" />)}
             <line x1={PADL} x2={W - PADR} y1={y(0)} y2={y(0)} stroke={GRID} />
@@ -440,7 +449,7 @@ export function CompareChart({ a, b, height = 200, noun = "watching" }: {
       <div ref={ref} className="relative" style={{ height }}>
         {W > 0 && (
           <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} tabIndex={0}
-            className={svgFocus} onPointerMove={onMove} onPointerLeave={scrub.clear} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}>
+            className={svgFocus} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={scrub.leave} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}>
             <title id={titleId}>{summary}</title>
             <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke={GRID} />
             <line x1={x(30)} x2={x(30)} y1={PADT} y2={y(0)} stroke={GRID} strokeDasharray="2 4" />
@@ -509,7 +518,7 @@ export function PageBars({ values, highlight, highlightLabel, format, label, cap
       <div ref={ref} className="relative" style={{ height }}>
         {W > 0 && (
           <svg width={W} height={height} viewBox={`0 0 ${W} ${height}`} role="img" aria-labelledby={titleId} tabIndex={0}
-            className={svgFocus} onPointerMove={onMove} onPointerLeave={scrub.clear} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}>
+            className={svgFocus} onPointerMove={onMove} onPointerDown={onMove} onPointerLeave={scrub.leave} onBlur={scrub.clear} onKeyDown={scrub.onKeyDown}>
             <title id={titleId}>{label}</title>
             <line x1={0} x2={W} y1={y(0)} y2={y(0)} stroke={GRID} />
             {values.map((d, i) => {

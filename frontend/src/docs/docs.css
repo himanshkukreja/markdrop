@@ -557,6 +557,8 @@ html.dx-modal-open { overflow: hidden; }
 .dx-askdrawer__title .md-icon { font-size: 18px; color: var(--accent-text); }
 .dx-askdrawer .md-drawer__head { padding: 10px 10px 10px 16px; }
 .dx-askdrawer--sheet { height: 86dvh; }
+/* The on-screen keyboard (AskPanel useKeyboardInset): the sheet rides on top of it, no taller than what's left. */
+.dx-askdrawer--sheet.md-drawer--bottom { bottom: var(--dx-kb, 0px); max-height: calc(var(--dx-vvh, 100dvh) - 8px); }
 .dx-askdrawer--sheet .md-drawer__head { border-bottom: 0; padding-top: 6px; }
 .dx-askdrawer .md-drawer__body.dx-askpanel__body { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
 .dx-askdrawer .md-drawer__foot { display: block; padding: 10px 16px; }
@@ -883,3 +885,35 @@ html.dx-modal-open { overflow: hidden; }
 .dx-private > :last-child { margin-bottom: 12px; }
 .dx-private__label { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-secondary); }
 .dx-nav__lock { flex: none; width: 13px; height: 13px; margin-left: auto; color: var(--text-muted); }
+
+/* ── Touch screens (phones, tablets): 44 px targets; text sizes are in styles/touch.css ── */
+@media (pointer: coarse) {
+  /* The wide header's row is 44 px tall here (12 + 44 + 12 + its border): the docked Ask AI panel,
+     the sticky side columns and linked headings start under it. */
+  .dx-root { --dx-header-h: 69px; }
+  .dx-tabsnav__item { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; box-sizing: border-box; }
+  .dx-searchbox { height: 44px; }
+  .dx-nav__item { min-height: 44px; box-sizing: border-box; }
+  .dx-split__main, .dx-split__more { height: 44px; }
+  .dx-split__more { width: 44px; }
+  .dx-brand, .dx-otp, .dx-chapters__item, .dx-palette__row, .dx-followup, .dx-seg__opt { min-height: 44px; }
+  .dx-sheet__tab { min-height: 44px; min-width: 44px; }
+  .dx-palette__input { min-height: 44px; }
+  .dx-composer__input { min-height: 44px; }
+  .dx-chapters__item { align-items: center; }
+  .dx-chip { min-height: 44px; display: inline-flex; align-items: center; }
+  .dx-ask__input { height: 44px; }
+  .dx-prereq a { position: relative; }
+  .dx-prereq a::after { content: ""; position: absolute; inset: -13px -4px; }
+  .dx-area__title, .dx-area__links a,
+  .dx-footer a, .dx-footer__choices, .dx-crumbs a { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; }
+}
+/* Touch, narrow: the header's 44 px buttons fit a 360 px phone (the brand gives way first). */
+@media (pointer: coarse) and (max-width: 899px) {
+  .dx-root { --dx-header-h: 61px; }
+  .dx-header__tools { gap: 0; }
+  .dx-brand { min-width: 0; overflow: hidden; }
+}
+@media (pointer: coarse) and (max-width: 389px) {
+  .dx-brand__docs { display: none; }
+}

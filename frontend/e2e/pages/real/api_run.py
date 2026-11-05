@@ -91,6 +91,24 @@ if os.environ.get("PB_FAKE_SEARCH_AI"):
     _client = NS(messages=_Messages())
     search_ai.docs_agent = NS(get_client=lambda: _client, configured=lambda: True)
 
+# PB_FAKE_DOCS_ASK=1: Ask AI on a guide shows its composer (mobile-guides.mjs measures it against the
+# on-screen keyboard). Only the guide Ask status says "configured" (the docs_ai router's view of docs_agent;
+# Pages AI, search and Analytics AI still see the real, unconfigured client, so their menus don't change):
+# no question is sent, and no key is needed.
+if os.environ.get("PB_FAKE_DOCS_ASK"):
+    from app.routers import docs_ai as _docs_ai
+    from app.services import docs_agent as _real_docs_agent
+
+    class _AskConfigured:
+        def __getattr__(self, name):
+            return getattr(_real_docs_agent, name)
+
+        @staticmethod
+        def configured():
+            return True
+
+    _docs_ai.docs_agent = _AskConfigured()
+
 # Analytics AI (services/analytics_ai_home.py) against a fake model: PB_FAKE_ANALYTICS_AI=1 (analytics-ai.mjs).
 # The story names the first document it was given; Ask calls top_documents, then answers with the first
 # link the tool returned; gaps groups the first items. Streams like the real API; nothing leaves the machine.

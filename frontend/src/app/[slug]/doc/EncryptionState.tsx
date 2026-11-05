@@ -246,7 +246,7 @@ function PasswordPrompt({ onPassword, passwordError, passwordErrorKey = 0, passw
               suffix={
                 <button
                   type="button"
-                  className="md-focus grid h-8 w-8 place-items-center rounded-md text-text-muted hover:text-text"
+                  className="md-focus grid h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 place-items-center rounded-md text-text-muted hover:text-text"
                   aria-label={visible ? "Hide password" : "Show password"}
                   aria-pressed={visible}
                   onClick={() => setVisible((v) => !v)}

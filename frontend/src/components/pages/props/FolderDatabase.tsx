@@ -690,6 +690,10 @@ function TableView({ rows, schema, view, onView, canSchema, member, phone, peopl
 
 /* ── board ────────────────────────────────────────────────────────────── */
 
+/** When the last board drag ended: on a touch screen the card's link covers the card (a tap opens
+ *  it, a long press drags it), and a drop without moving must not also open the page. */
+let lastBoardDrag = 0;
+
 function BoardView({ rows, schema, view, canSchema, member, people, onValue, onNew, saveSchema }: ViewProps) {
   const groupProp = view.group ? findProp(schema, view.group) : null;
   const [adding, setAdding] = useState<HTMLElement | null>(null);
@@ -737,6 +741,7 @@ function BoardView({ rows, schema, view, canSchema, member, people, onValue, onN
   const shown = schema.filter((p) => p.key !== groupProp.key && !view.hidden.includes(p.key));
   const onStart = (e: DragStartEvent) => setDragging(rows.find((r) => r.slug === e.active.id) ?? null);
   const onEnd = (e: DragEndEvent) => {
+    lastBoardDrag = Date.now();
     setDragging(null);
     setOverCol(null);
     const row = rows.find((r) => r.slug === e.active.id);
@@ -750,7 +755,7 @@ function BoardView({ rows, schema, view, canSchema, member, people, onValue, onN
     onValue(row, groupProp.key, next);
   };
   return (
-    <DndContext sensors={sensors} collisionDetection={columnCollision} autoScroll={{ threshold: { x: 0.08, y: 0.15 }, acceleration: 6 }} onDragStart={onStart} onDragEnd={onEnd} onDragOver={(e) => setOverCol((e.over?.id as string) ?? null)} onDragCancel={() => { setDragging(null); setOverCol(null); }}
+    <DndContext sensors={sensors} collisionDetection={columnCollision} autoScroll={{ threshold: { x: 0.08, y: 0.15 }, acceleration: 6 }} onDragStart={onStart} onDragEnd={onEnd} onDragOver={(e) => setOverCol((e.over?.id as string) ?? null)} onDragCancel={() => { lastBoardDrag = Date.now(); setDragging(null); setOverCol(null); }}
       accessibility={{ announcements: {
         onDragStart: ({ active }) => `Picked up ${rows.find((r) => r.slug === active.id)?.title ?? "a page"}.`,
         onDragOver: ({ over }) => (over ? `Over ${groups.find((g) => g.id === over.id)?.label ?? "a column"}.` : "Not over a column."),
@@ -802,7 +807,7 @@ function CardBody({ row, props, overlay, ro }: { row: DbRow; props: PropDef[]; o
     <div className={cx("pp-card", overlay && "pp-card--overlay", ro && "pp-card--ro")}>
       <div className="pp-card__title">
         <span className="pp-title__icon" aria-hidden>{row.icon && !/^(asset:|https?:)/.test(row.icon) ? row.icon : <Icon name="doc" size={15} />}</span>
-        <a href={`/${encodeURIComponent(row.slug)}`} className="ph-sensitive" dir="auto" onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()} draggable={false}>{row.title}</a>
+        <a href={`/${encodeURIComponent(row.slug)}`} className="ph-sensitive" dir="auto" onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { if (Date.now() - lastBoardDrag < 600) e.preventDefault(); }} draggable={false}>{row.title}</a>
       </div>
       {filled.length > 0 && (
         <div className="pp-card__props">

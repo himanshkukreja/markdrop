@@ -18,7 +18,7 @@ A published guide is a fast, static website at its address, built by the same en
 - **Light and dark**, following the [colour mode](/guides/brand-and-style#fonts-colour-mode-and-corners) you chose; with both, readers switch with the button in the header. Images with a dark version switch with the theme.
 - **Contents and links to sections.** Every heading has a link readers can copy, and long pages have **On this page**.
 - **Link previews.** Every page has its own preview card in your brand's colours for Slack, LinkedIn and the like.
-- **Phones.** The layout works on small screens, with the sidebar in a menu.
+- **Phones and tablets.** The layout works on small screens, with the sidebar in a menu, links and buttons sized for a finger, and wide tables and code scrolling on their own. Ask AI opens as a sheet that stays above the on-screen keyboard.
 - **A changelog**, when you write entries: a `/changelog` page with every release, a page per entry, filters by kind, area, product and version, and RSS and JSON feeds to subscribe to. See [Add a changelog to your guide](/guides/changelog).
 - **Live demos, PDFs and video** in the page, when you [embed Markdrop files](/guides/embed-files): an interactive HTML page runs in a sandbox, a PDF has page controls and zoom, and a video plays in the docs player with chapters and captions.
 - **Private pages and sections**, when you have some: readers who may open them sign in with their email, with Markdrop or with a password, and everyone else sees a lock with the way in. See [Private pages and sections](/guides/private-pages).

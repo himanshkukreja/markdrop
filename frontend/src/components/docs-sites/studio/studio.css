@@ -46,3 +46,9 @@ html[data-studio] #main * {
     scroll-margin-top: 176px;
   }
 }
+/* Phones and short landscape screens: the site bar scrolls away (SiteBar), only the header stays. */
+@media (max-width: 639px), (max-height: 500px) {
+  html[data-studio] #main * {
+    scroll-margin-top: 72px;
+  }
+}

@@ -261,7 +261,7 @@ function SessionCard({ s, now, token, watching, onWatch }: {
             {s.person_id && (
               <NavLink
                 to={{ person: s.person_id }}
-                className="inline-flex min-h-9 items-center gap-1 rounded-md px-2 font-mono text-caption text-text-secondary hover:bg-surface-hover hover:text-accent-text"
+                className="md-hit inline-flex min-h-9 items-center gap-1 rounded-md px-2 font-mono text-caption text-text-secondary hover:bg-surface-hover hover:text-accent-text"
                 aria-label={`Journey of ${who}`}
               >
                 Journey <span aria-hidden>↗</span>

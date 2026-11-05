@@ -203,7 +203,33 @@ export function BlockMarquee({ editor, container }: { editor: Editor; container:
   return <div className="dxe-marquee" style={{ left: box.x, top: box.y, width: box.w, height: box.h }} aria-hidden />;
 }
 
-/** Touch screens: "+" opens the "/" menu on a new line, "⋮⋮" the menu of the block at the caret. */
+/**
+ * How much of the layout viewport the on-screen keyboard covers (iOS and Android shrink only the
+ * visual viewport, so a fixed bar at the bottom would sit under the keyboard). 0 when it's down.
+ */
+function useKeyboardHeight(on: boolean): number {
+  const [kb, setKb] = useState(0);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!on || !vv) { setKb(0); return; }
+    let raf = 0;
+    const up = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => setKb(Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))));
+    };
+    up();
+    vv.addEventListener("resize", up);
+    vv.addEventListener("scroll", up);
+    return () => {
+      cancelAnimationFrame(raf);
+      vv.removeEventListener("resize", up);
+      vv.removeEventListener("scroll", up);
+    };
+  }, [on]);
+  return kb;
+}
+
+/** Touch screens: "+" opens the "/" menu on a new line, "⋮⋮" the menu of the block at the caret. It rides on the on-screen keyboard. */
 export function TouchBar({ editor }: { editor: Editor }) {
   const [touch, setTouch] = useState(false);
   const focused = useEditorState({ editor, selector: ({ editor: e }) => e.isFocused && e.isEditable });
@@ -215,6 +241,7 @@ export function TouchBar({ editor }: { editor: Editor }) {
     return () => mq.removeEventListener("change", up);
   }, []);
   const blur = useRef(0);
+  const kb = useKeyboardHeight(touch && !!focused);
   if (!touch || !focused) return null;
   const blockMenu = () => {
     const api = (editor.storage as unknown as { dxeBlockMenu?: BlockMenuApi }).dxeBlockMenu;
@@ -227,7 +254,7 @@ export function TouchBar({ editor }: { editor: Editor }) {
     if (pos !== null && api) api.open(pos);
   };
   return (
-    <div className="dxe-touchbar" role="toolbar" aria-label="Blocks" onMouseDown={(e) => e.preventDefault()} onTouchStart={() => window.clearTimeout(blur.current)}>
+    <div className="dxe-touchbar" role="toolbar" aria-label="Blocks" style={kb ? { bottom: kb + 8 } : undefined} onMouseDown={(e) => e.preventDefault()} onTouchStart={() => window.clearTimeout(blur.current)}>
       <button
         type="button"
         className="dxe-touchbar__btn"

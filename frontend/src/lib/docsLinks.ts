@@ -6,6 +6,7 @@
 export const DOCS_PAGES = {
   // Get started
   accounts: "/get-started/accounts",
+  installApp: "/get-started/install-app",
   // Documents
   writing: "/documents/writing",
   addresses: "/documents/addresses",

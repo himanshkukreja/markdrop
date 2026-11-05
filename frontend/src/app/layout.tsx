@@ -10,6 +10,8 @@ import SiteTracker from "@/components/SiteTracker";
 import ThirdPartyAnalytics from "@/components/analytics/ThirdPartyAnalytics";
 import { AppTrackers } from "@/docs/client/AppTrackers";
 import { themeScript } from "@/lib/themeScript";
+import { pwaBootScript } from "@/lib/pwa";
+import { PwaProvider } from "@/components/pwa/PwaProvider";
 import { DEFAULT_OG_IMAGE, SITE_ORIGIN } from "@/lib/og";
 
 const SITE_DESCRIPTION =
@@ -22,6 +24,11 @@ export const metadata: Metadata = {
   description: SITE_DESCRIPTION,
   // app/manifest.webmanifest/route.ts (a route, so the docs layout's `manifest: null` can drop it).
   manifest: "/manifest.webmanifest",
+  // Installed on an iPhone or iPad (lib/pwa.ts): full screen, the status bar in the page's
+  // theme-color (light or dark, lib/themeScript), content below it. No apple title: iOS then takes
+  // the manifest's name, which is "Markdrop Guides" on the studio host.
+  appleWebApp: { capable: true, statusBarStyle: "default" },
+  formatDetection: { telephone: false },
   openGraph: {
     title: "Drop it. It renders.",
     description: SITE_DESCRIPTION,
@@ -42,6 +49,11 @@ export const metadata: Metadata = {
 // The no-JS default: a media-query pair. The head script replaces it with one meta for the
 // resolved theme (a meta that carries `media` can't be overridden when OS and choice disagree).
 export const viewport: Viewport = {
+  // Pages reach the screen's edges (notch, home indicator, rounded corners); every bar that sits
+  // on an edge pads itself with env(safe-area-inset-*) (globals.css --safe-*).
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#E3E7ED" },
     { media: "(prefers-color-scheme: dark)", color: "#030712" },
@@ -74,6 +86,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Resolves the theme before first paint. Static, so ISR-safe: it never reads cookies,
             headers or the URL fragment (which carries E2E keys). See lib/theme.ts. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript() }} />
+        {/* The install prompt, and the installed app skipping the landing page (lib/pwa.ts). */}
+        <script dangerouslySetInnerHTML={{ __html: pwaBootScript() }} />
       </head>
       <body className="min-h-dvh flex flex-col bg-bg text-text">
         {/* NextLinkProvider: design-system links use next/link for in-app hrefs. StatusRegion: the
@@ -82,7 +96,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AuthProvider>
             <ToastProvider>
               <StatusRegion />
-              {children}
+              {/* Service worker, "new version" toast, install prompt (components/pwa). */}
+              <PwaProvider>{children}</PwaProvider>
             </ToastProvider>
           </AuthProvider>
         </NextLinkProvider>

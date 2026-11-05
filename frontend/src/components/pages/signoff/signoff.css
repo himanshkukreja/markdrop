@@ -441,3 +441,6 @@
 @media (prefers-reduced-motion: reduce) {
   .pb-signoff, .pb-signoff__opt, .pb-signoff__change, .pb-signoff__pop { transition: none; animation: none; }
 }
+
+/* A finger (fix/mobile-content): nothing under 12 px. */
+@media (pointer: coarse) { .pb-signoff__eyebrow { font-size: 12px; } }

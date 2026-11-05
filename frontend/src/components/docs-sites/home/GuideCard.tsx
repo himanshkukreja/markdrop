@@ -138,7 +138,7 @@ function Address({ site, className }: { site: SiteSummary; className?: string })
     );
   }
   return (
-    <a href={`https://${address}`} target="_blank" rel="noopener noreferrer" className={cx(cls, "md-focus max-w-full self-start rounded no-underline hover:text-text hover:underline")} title={`${address} (opens in a new tab)`}>
+    <a href={`https://${address}`} target="_blank" rel="noopener noreferrer" className={cx(cls, "md-focus md-touch-hit max-w-full self-start rounded no-underline hover:text-text hover:underline")} title={`${address} (opens in a new tab)`}>
       <span className="ph-sensitive ph-mask truncate">{address}</span>
       <Icon name="external" size={12} className="shrink-0" />
     </a>
@@ -191,7 +191,7 @@ function FixChip({ ins, site, className }: { ins: CardInsights; site: SiteSummar
   const words = `${num(f.open)} ${f.open === 1 ? "thing" : "things"} to fix`;
   return (
     <Anchor href={`${siteBase(site.id)}/fixes`} title={f.high ? `${words}, ${f.high} high impact` : words}
-      className={cx("md-focus inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold no-underline hover:underline",
+      className={cx("md-focus md-touch-hit inline-flex h-[26px] shrink-0 items-center gap-1 rounded-full px-2 text-[12px] font-semibold no-underline hover:underline",
         f.high ? "bg-danger-soft text-danger" : "bg-warning-soft text-warning", className)}>
       <Icon name="flag" size={12} />{num(f.open)} to fix<span className="md-visually-hidden"> in {site.name}</span>
     </Anchor>
@@ -241,14 +241,17 @@ export function GuideCard({ site, where, insights, canManagePeople, onDelete }: 
           </div>
         </div>
       </div>
-      <div className="flex items-center gap-1.5 border-t border-border px-3 py-2.5">
+      {/* Touch: 44 px buttons may not fit one row of a narrow card; people and More then wrap to a
+          second row, on the right (never clipped by the card). */}
+      <div className="flex items-center gap-1.5 border-t border-border px-3 py-2.5 pointer-coarse:flex-wrap pointer-coarse:gap-y-2">
         <OpenButton site={site} className="max-sm:flex-1" block />
         <ViewButton site={site} />
         {showNumbers && <FixChip ins={insights} site={site} />}
-        <span className="flex-1 max-sm:hidden" />
-        {!isAdminRole(site.your_role) && <RoleBadge role={site.your_role} className="max-lg:hidden" title={site.your_role_source === "site" ? "Your role on this guide (different from your workspace role)" : "Your Guides role"} />}
-        <GuidePeople site={site} />
-        <MoreMenu site={site} canManagePeople={canManagePeople} onDelete={onDelete} />
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {!isAdminRole(site.your_role) && <RoleBadge role={site.your_role} className="max-lg:hidden" title={site.your_role_source === "site" ? "Your role on this guide (different from your workspace role)" : "Your Guides role"} />}
+          <GuidePeople site={site} />
+          <MoreMenu site={site} canManagePeople={canManagePeople} onDelete={onDelete} />
+        </div>
       </div>
     </article>
   );

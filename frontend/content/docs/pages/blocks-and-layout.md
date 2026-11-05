@@ -1,7 +1,7 @@
 ---
 title: Colours, columns and block tools
 description: Colour text and blocks, put blocks side by side, nest them, select several at once, link to one block, and size images and table columns.
-updated: 2026-11-03
+updated: 2026-11-05
 prerequisites: [/pages/overview]
 keywords: [colour, color, highlight, underline, columns, layout, side by side, nest, indent, select blocks, link to block, anchor, image size, align, table, header column, caption, button, template button, video, audio, file]
 ---
@@ -91,9 +91,9 @@ Type `/button` to add a button with blocks under it, such as a to-do. Clicking t
 
 Unlike images, these files keep their own access. A reader who can open the page but not the file sees a locked placeholder. See [Embeds and mentions](/pages/embed-and-mention).
 
-## On a phone
+## On a phone or tablet
 
-While you edit, a toolbar sits above the keyboard:
+While you edit on a touch screen (a phone, an iPad or an Android tablet), a toolbar sits above the keyboard. On a tablet it's a bar in the middle of the screen:
 - **+** adds a block under this one and opens the block menu;
 - **/** opens the block menu where you are;
 - **⋮⋮** opens the menu of the block you're in;
@@ -103,6 +103,8 @@ While you edit, a toolbar sits above the keyboard:
 - **⌄** puts the keyboard away.
 
 You can also press and hold a block to open its menu. The format menu and the page's **⋯** menu open as sheets from the bottom of the screen: drag one down, or tap outside it, to close it.
+
+On a touch screen nothing waits for a hover: the cover's **Change cover**, **Reposition** and **Remove**, **Add icon** and **Add cover**, and an embed's **Show as**, **Replace** and **Remove** are always there while you edit. Every button is big enough for a finger, and text fields never make the page zoom in.
 
 ## In the Markdown
 
