@@ -58,7 +58,7 @@ export default function DnsHandoff({
             <Input readOnly mono value={subject} onFocus={(e) => e.currentTarget.select()} />
           </Field>
           <Field label="Message">
-            <Textarea readOnly mono value={body} rows={12} onFocus={(e) => e.currentTarget.select()} className="text-code" />
+            <Textarea readOnly mono value={body} rows={12} onFocus={(e) => e.currentTarget.select()} className="text-code pointer-coarse:text-[16px]" />
           </Field>
         </div>
       </Dialog>

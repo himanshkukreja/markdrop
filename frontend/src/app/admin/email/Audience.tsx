@@ -90,7 +90,7 @@ export default function AudiencePicker({ token, spec, onChange, campaignId, read
             {spec.kind === "custom" && (
               <Field label="Addresses (comma, space or one per line)"
                 hint="Matched to accounts for names and counts; addresses without an account get empty merge data (fallbacks apply). Unsubscribed and suppressed addresses are always skipped.">
-                <Textarea mono rows={6} readOnly={readOnly} spellCheck={false} className="text-caption" value={spec.emails ?? ""}
+                <Textarea mono rows={6} readOnly={readOnly} spellCheck={false} className="text-caption pointer-coarse:text-[16px]" value={spec.emails ?? ""}
                   placeholder={"ana@example.com\nbo@example.com"} onChange={(e) => set({ emails: e.target.value })} />
               </Field>
             )}

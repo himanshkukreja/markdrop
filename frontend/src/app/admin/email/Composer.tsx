@@ -185,10 +185,10 @@ function RawEditor({ doc, setRaw, bind, readOnly, template, byWhere }: {
         you type, and it must keep an {"{{unsubscribe_url}}"} link.
       </p>
       <Field label={`HTML · ${kb} KB`} error={byWhere.get("HTML")}>
-        <Textarea mono rows={18} spellCheck={false} className="text-caption" {...bind(doc.html, (v) => setRaw((d) => ({ ...d, html: v })))} />
+        <Textarea mono rows={18} spellCheck={false} className="text-caption pointer-coarse:text-[16px]" {...bind(doc.html, (v) => setRaw((d) => ({ ...d, html: v })))} />
       </Field>
       <Field label="Plain-text version" error={byWhere.get("Plain text")} hint="Sent alongside the HTML for clients that show text only. Left empty, it's derived from the HTML.">
-        <Textarea mono rows={12} spellCheck={false} className="text-caption" {...bind(doc.text, (v) => setRaw((d) => ({ ...d, text: v })))} />
+        <Textarea mono rows={12} spellCheck={false} className="text-caption pointer-coarse:text-[16px]" {...bind(doc.text, (v) => setRaw((d) => ({ ...d, text: v })))} />
       </Field>
     </Section>
   );
@@ -256,7 +256,7 @@ function BlocksEditor({ doc, setBlocks, bind, readOnly, meta, byWhere, site }: {
                     return (
                       <Field key={k} label={FIELD_LABEL[k] ?? k} error={error} className={wide ? "sm:col-span-2" : undefined}>
                         {AREA[k] ? (
-                          <Textarea rows={Math.min(16, Math.max(AREA[k]!, (b[k] ?? "").split("\n").length + 1))} mono={MONO.has(k)} spellCheck={!MONO.has(k)} className={MONO.has(k) ? "text-caption" : undefined} {...props} />
+                          <Textarea rows={Math.min(16, Math.max(AREA[k]!, (b[k] ?? "").split("\n").length + 1))} mono={MONO.has(k)} spellCheck={!MONO.has(k)} className={MONO.has(k) ? "text-caption pointer-coarse:text-[16px]" : undefined} {...props} />
                         ) : (
                           <Input mono={MONO.has(k)} spellCheck={!MONO.has(k)} {...props} />
                         )}

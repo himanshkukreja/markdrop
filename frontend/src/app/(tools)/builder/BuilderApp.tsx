@@ -289,7 +289,7 @@ export default function BuilderApp() {
           maxLength={200}
           dir="auto"
           wrapClassName="min-w-0 flex-1"
-          className="h-11 min-w-0 text-body-strong lg:h-10"
+          className="h-11 min-w-0 text-body-strong pointer-coarse:text-[16px] lg:h-10"
         />
         <Dropdown
           align="right"
