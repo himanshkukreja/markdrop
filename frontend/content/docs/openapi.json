@@ -14341,6 +14341,792 @@
         }
       }
     },
+    "/api/v1/slack/status": {
+      "get": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack connection status",
+        "operationId": "status_api_v1_slack_status_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/install": {
+      "post": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Start Add to Slack",
+        "operationId": "install_api_v1_slack_install_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Disconnect Slack",
+        "operationId": "disconnect_api_v1_slack_install_delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/connect": {
+      "post": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Finish Add to Slack",
+        "operationId": "connect_api_v1_slack_connect_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/channels": {
+      "get": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack channels for meeting posts",
+        "operationId": "channels_api_v1_slack_channels_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/settings": {
+      "patch": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Choose the meetings channel",
+        "operationId": "settings_api_v1_slack_settings_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/link/start": {
+      "post": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Start linking my Slack account",
+        "operationId": "link_start_api_v1_slack_link_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkStartIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/link/info": {
+      "get": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "The Slack workspace a link page is for",
+        "operationId": "link_info_api_v1_slack_link_info_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{3,20}$",
+              "title": "Team Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/link/finish": {
+      "post": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Finish linking my Slack account",
+        "operationId": "link_finish_api_v1_slack_link_finish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/link": {
+      "delete": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Unlink my Slack account",
+        "operationId": "unlink_api_v1_slack_link_delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/me/prefs": {
+      "patch": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "My Slack notifications",
+        "operationId": "prefs_api_v1_slack_me_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrefsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/meetings/{meeting_id}/post": {
+      "post": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Post a meeting to Slack",
+        "description": "Who can edit the meeting's page may post it (again) to the workspace's meetings channel. The\nchannel rule still applies: a meeting the whole channel may not see is never posted.",
+        "operationId": "post_meeting_api_v1_slack_meetings__meeting_id__post_post",
+        "parameters": [
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask/home": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask Home",
+        "description": "What the home's Ask box needs: whether AI can answer now, suggested questions, recent ones.",
+        "operationId": "ask_home_api_v1_ask_home_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask": {
+      "post": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask",
+        "description": "Ask a question (a follow-up with ``thread_id``); the answer streams as Server-Sent Events.",
+        "operationId": "ask_api_v1_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__ask__AskBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask/threads": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "List Threads",
+        "description": "Your recent questions, newest first.",
+        "operationId": "list_threads_api_v1_ask_threads_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Clear Threads",
+        "operationId": "clear_threads_api_v1_ask_threads_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask/threads/{thread_id}": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Get Thread",
+        "description": "One conversation, its sources decided again for you now.",
+        "operationId": "get_thread_api_v1_ask_threads__thread_id__get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Delete Thread",
+        "operationId": "delete_thread_api_v1_ask_threads__thread_id__delete",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/oauth/requests/{request_id}": {
       "get": {
         "tags": [
@@ -16120,6 +16906,28 @@
           "log_id"
         ],
         "title": "ClickBody"
+      },
+      "CodeIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Code"
+          },
+          "state": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "state"
+        ],
+        "title": "CodeIn"
       },
       "ConnectBody": {
         "properties": {
@@ -18481,6 +19289,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -18605,6 +19423,16 @@
               }
             ],
             "title": "Default Access"
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -18716,6 +19544,16 @@
             "type": "boolean",
             "title": "Reparent",
             "default": false
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -19423,6 +20261,36 @@
         },
         "type": "object",
         "title": "LibraryFolderRequest"
+      },
+      "LinkStartIn": {
+        "properties": {
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{24}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z0-9]{3,20}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          }
+        },
+        "type": "object",
+        "title": "LinkStartIn"
       },
       "MarkRead": {
         "properties": {
@@ -20269,6 +21137,56 @@
         "title": "PreferencesUpdate",
         "description": "Either or both; what's left out is unchanged."
       },
+      "PrefsIn": {
+        "properties": {
+          "mention": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention"
+          },
+          "signoff_requested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signoff Requested"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "access_request": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Request"
+          }
+        },
+        "type": "object",
+        "title": "PrefsIn"
+      },
       "PresenceUpdate": {
         "properties": {
           "show": {
@@ -20391,6 +21309,48 @@
           "properties"
         ],
         "title": "SchemaPut"
+      },
+      "SettingsIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          },
+          "meetings_channel_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meetings Channel Id"
+          },
+          "clear_channel": {
+            "type": "boolean",
+            "title": "Clear Channel",
+            "default": false
+          },
+          "post_meetings": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Post Meetings"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "SettingsIn"
       },
       "SettingsPayload": {
         "properties": {
@@ -21621,6 +22581,20 @@
         ],
         "title": "WorkspaceDeleteResponse"
       },
+      "WorkspaceIn": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{24}$",
+            "title": "Workspace Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "WorkspaceIn"
+      },
       "WorkspaceListResponse": {
         "properties": {
           "workspaces": {
@@ -21852,6 +22826,46 @@
         "required": [
           "question"
         ],
+        "title": "AskBody"
+      },
+      "app__routers__ask__AskBody": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Question",
+            "default": ""
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ask",
+                  "catch_up",
+                  "my_actions"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          }
+        },
+        "type": "object",
         "title": "AskBody"
       },
       "app__routers__docs_ai__AskBody": {

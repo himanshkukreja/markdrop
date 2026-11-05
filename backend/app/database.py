@@ -86,6 +86,8 @@ async def connect() -> None:
         unique=True,
         partialFilterExpression={"slug": {"$exists": True}},
     )
+    # A renamed or moved folder's former addresses (services/folder.resolve_moved).
+    await db["folders"].create_index([("workspace_id", 1), ("old_paths", 1)])
     await db["documents"].create_index([("workspace_id", 1), ("folder_id", 1)], sparse=True)
     # The folder view (GET /workspaces/{id}/items?folder=…): one folder's rows, newest edit first,
     # cursor-paged on (updated_at, _id) — served from the index, no in-memory sort.
@@ -191,6 +193,8 @@ async def connect() -> None:
     await db["oauth_clients"].create_index("created_at")
     # Tool-call audit (no content), kept 90 days.
     await db["mcp_events"].create_index("ts", expireAfterSeconds=90 * 24 * 3600)
+    # MCP writes retried with the same idempotency_key answer from here for a day (mcp/protocol.py).
+    await db["mcp_idempotency"].create_index("created_at", expireAfterSeconds=24 * 3600)
     await db["mcp_events"].create_index([("user_id", 1), ("ts", -1)])
     # A write tool's target (protocol._audit): "which calls touched this item".
     await db["mcp_events"].create_index("target.slug", sparse=True)
@@ -268,6 +272,19 @@ async def connect() -> None:
         await _meeting_backfill.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] meetings indexes skipped: {exc}")
+    try:
+        from app.services import slack as _slack, slack_notify as _slack_notify
+
+        await _slack.ensure_indexes(db)
+        await _slack_notify.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] slack indexes skipped: {exc}")
+    try:
+        from app.services import ask_markdrop as _ask
+
+        await _ask.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] ask indexes skipped: {exc}")
 
     # Private guide pages (services/docs_page_access.py): sign-in links, requests, audit.
     try:

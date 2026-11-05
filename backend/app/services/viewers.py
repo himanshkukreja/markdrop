@@ -593,6 +593,26 @@ def drop(slug: str | None) -> None:
         r.flush_handle.cancel()
 
 
+def access_changed_for(user_id: str | None) -> int:
+    """Someone's access changed outside any one document (removed from a workspace, a new role
+    there): every page they have open re-checks through the read path (``{"type": "access"}`` on
+    their own sockets only; the socket then closes and the page reconnects with a fresh ticket if
+    it still may read). Only sockets that said who they are (a presence ticket) are known. Returns
+    how many were told."""
+    if not user_id:
+        return 0
+    told = 0
+    for r in list(_rooms.values()):
+        for c in list(r.conns.values()):
+            if c.user_id == user_id:
+                try:
+                    c.queue.put_nowait({"type": "access"})
+                    told += 1
+                except asyncio.QueueFull:  # unbounded queue — defensive only
+                    pass
+    return told
+
+
 def content_changed(slug: str | None) -> None:
     r = _rooms.get(slug or "")
     if r is not None:

@@ -43,6 +43,56 @@
       ]
     },
     {
+      "id": "working-together-on-pages",
+      "date": "2026-11-05",
+      "title": "Working together on a page: merged changes, no silent overwrites",
+      "kind": "fixed",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "When two people, or a person and an AI app, change the same page, changes to different parts are merged instead of asking you to throw one away. Open pages catch up after sleep or a dropped connection, follow a rename, and say when a page was deleted or your access changed.",
+      "body": "- **Merged, not overwritten.** A save that meets a newer version merges your change into it: different paragraphs, list items or properties both stay. Only when you both changed the same lines does a banner ask, with **Keep both**, **Use theirs** or **Use mine**; their other changes stay either way.\n- **Unsaved changes from earlier.** **Restore them** merges your old unsaved changes into the page as it is now, instead of saving the old copy over newer edits.\n- **Catching up.** After your laptop sleeps, your connection drops or Markdrop restarts, an open page checks for changes made meanwhile, shows them, and saves what you typed offline.\n- **Renamed, deleted, access changed.** A page renamed while you have it open saves what you typed and moves to its new address (it used to stay on **Saving…**). A deleted page says so. Removed from a workspace, or made a viewer, your open pages check again at once.\n- **Sub-pages and views.** New, moved and deleted sub-pages show up under **Pages inside** on everyone's open copy. Two people changing a folder's saved views at once both keep their changes.\n- **AI apps.** `update_document` takes `base_rev` (the `rev` that `get_document` now returns), so an app can't overwrite a change made after it read the document. Every write tool takes an optional `idempotency_key`: a retry with the same key returns the first result instead of writing twice.\n\nSee [Working together on a page](/pages/working-together)."
+    },
+    {
+      "id": "folder-mcp",
+      "date": "2026-11-05",
+      "title": "AI apps can rename, move and delete folders, and folders never get a silent -2",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Three new MCP tools: rename_folder, move_folder and delete_folder, for workspace admins, as in the app. A new folder whose address is already taken is refused, with what holds it, instead of quietly becoming name-2. A renamed or moved folder's old address now redirects.",
+      "body": "- **`delete_folder`** deletes an empty folder (to Trash for 30 days). A folder with anything in it is refused, and the error lists what's inside: subfolders, the items you can open, and a count of the rest. Choose `contents: \"move_to_parent\"` to move everything up one level first, or `contents: \"trash\"` to send the folder with everything in it to Trash. `restore_document` with the folder's id brings it back.\n- **`rename_folder`** and **`move_folder`**: the folder's old address and the old addresses of everything in it redirect to the new ones on your domain.\n- **No silent -2.** `create_folder`, and **New folder**, **Rename folder…** and **Move folder to…** in the app, refuse an address that a folder, page, document or file already has in that place, and say what holds it. An item you can't open is never named and never blocks you: the folder takes the next free address, and MCP's result says so. For a suffixed address, pass `on_conflict: \"suffix\"` (MCP and API).\n- **Old folder addresses redirect.** Renaming or moving a folder used to leave its own page's old address empty. It now redirects to where the folder is, and so do the addresses of its subfolders.\n- `list_folders` gives each folder's id, address and parent, which the folder tools take (79 MCP tools now).",
+      "docs": [
+        "/ai/tools",
+        "/workspaces/folders"
+      ]
+    },
+    {
+      "id": "ask-markdrop",
+      "date": "2026-11-05",
+      "title": "Ask Markdrop: one question across everything you can open",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A box at the top of your home asks across your meetings, documents, pages, files and Guides at once. Answers cite their sources (meeting moments included), follow-ups stay in a conversation, and suggested questions catch you up on the week or list your open action items.",
+      "body": "- **One box, everything you can open**: meetings and their transcripts, documents, pages, files and Guides. Every source is a number you can tap; meeting chips open the transcript at the moment it was said.\n- **Follow-ups** in the same conversation (\"and the annual discount?\"). **New question** starts over; the conversation is in the address, so reload and Back keep your place.\n- **Suggested questions**: **Catch me up on this week**, **My open action items** (every unchecked task that @mentions you, meeting action items included; no AI needed when there are none) and one about your latest meeting.\n- **Recent questions** under the box, private to you, kept 90 days.\n- **Strict access**: only items you can open now are read; every cited source is checked again before you see it and when you reopen a conversation, and an answer whose sources you lost is hidden. Restricted meetings, encrypted items and workspaces with AI off are never read.\n- Built for phones: the first thing on the home, a 16px field and 44px targets.\n- Uses the **AI search** budget. MCP `ask_documents` now asks the same way, with `thread_id` for follow-ups and `intent` (`catch_up`, `my_actions`). API: `POST /api/v1/ask` and `/api/v1/ask/threads`.",
+      "docs": [
+        "/workspaces/ask-markdrop",
+        "/ai/tools",
+        "/security/privacy"
+      ]
+    },
+    {
       "id": "meetings-auto-import",
       "date": "2026-11-05",
       "title": "Meetings import themselves: Connect Google Meet",
@@ -59,6 +109,22 @@
         "/workspaces/meetings-auto-import",
         "/workspaces/meetings-import",
         "/workspaces/meetings"
+      ]
+    },
+    {
+      "id": "slack",
+      "date": "2026-11-05",
+      "title": "Markdrop for Slack: meeting notes, /markdrop, link previews and direct messages",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Connect a Slack workspace from Workspace settings › Integrations. Meeting notes go to a channel with Done buttons that tick the action items on the page, /markdrop search and ask answer you privately from what you can open, links preview when the whole channel may see them, and mentions, sign-offs, shares and access requests arrive as direct messages.",
+      "body": "- **Meeting notes in a channel:** the summary, decisions and action items of each imported meeting, with a **Done** button per action item that ticks it on the Markdrop page as the person who clicked. Meetings restricted to their attendees are never posted; **Post to Slack** in the meeting panel posts one again.\n- **`/markdrop search`, `/markdrop ask` and `/markdrop meetings`:** replies only you see, built only from what your Markdrop account can open.\n- **Link previews** for markdrop.in links: a preview when anyone with the link, or everyone in your workspace, may open it (and the channel isn't shared with another organization); otherwise \"Markdrop link — sign in to view\".\n- **Direct messages** for mentions, sign-off requests (choose an option in Slack), shares, and access requests (Approve or Decline in Slack), each one switchable.\n- **Link your Slack account** once with Sign in with Slack. Markdrop keeps no Slack token for you; the workspace's app token is encrypted.",
+      "docs": [
+        "/integrations/slack"
       ]
     },
     {

@@ -36,12 +36,15 @@ You can also say it in the question: "What came up in the Daily Standups last mo
 
 Answers always use only the meetings you can open. See [Privacy and cost](/workspaces/meetings-privacy).
 
+To ask across meetings and everything else at once, use [Ask Markdrop](/workspaces/ask-markdrop) at the top of your home. It cites meeting moments the same way, and **My open action items** lists the action items assigned to you across meetings.
+
 ## From an AI app
 
 `ask_meetings` asks one meeting or a whole workspace from an AI app connected to the [hosted MCP server](/ai/hosted-mcp), optionally only one `series` or dates (`since`, `until`). It counts towards the same **Meetings AI** limit. See [MCP tools](/ai/tools#meetings).
 
 ## Related
 
+- [Ask Markdrop](/workspaces/ask-markdrop)
 - [Meetings](/workspaces/meetings)
 - [Search](/workspaces/search)
 - [Privacy and cost](/workspaces/meetings-privacy)

@@ -150,7 +150,7 @@ The first time you type or click in a page, it's held for you, and others see **
 
 A page is let go when you leave it, or after three minutes without typing or clicking in it, so someone who only has a page open never blocks anyone. It's also released two minutes after the editor stops responding, for example when a laptop goes to sleep.
 
-If someone saved a newer version anyway (from the classic editor, VS Code or an AI app), you see **This page changed**, with **Load the latest** or **Keep mine**. When an AI app only adds blocks to the end of a page you're editing, they appear at the end of your page without interrupting you.
+If someone saved a newer version anyway (from the classic editor, VS Code or an AI app, or while your laptop slept), your change is merged into it: changes to different parts are both kept. Only when you both changed the same lines do you see a banner, with **Keep both**, **Use theirs** or **Use mine**. When an AI app only adds blocks to the end of a page you're editing, they appear at the end of your page without interrupting you. See [Working together on a page](/pages/working-together).
 
 ## On a phone
 

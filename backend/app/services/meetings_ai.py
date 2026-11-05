@@ -410,6 +410,13 @@ async def generate(db: AsyncIOMotorDatabase, meeting_id: str, user, *, via: str 
         return {"state": "failed"}
 
 
+async def _slack_ready(db: AsyncIOMotorDatabase, row: dict) -> None:
+    """Markdrop for Slack: post the notes to the workspace's meetings channel (services/slack_notify)."""
+    from app.services import slack_notify
+
+    await slack_notify.meeting_ready(db, str(row["_id"]))
+
+
 async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict:
     run = Run(db, user.id, "generate", via, {"meeting_id": str(row["_id"]), "workspace_id": row["workspace_id"],
                                              "segments": len(row.get("segments") or [])}, RESERVE_GENERATE)
@@ -421,6 +428,8 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
         await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {"ai": ai, "updated_at": now_utc()}})
         row["ai"] = ai
         await meetings.write_generated(db, row, None, user)
+        if (row.get("notes") or {}).get("summary"):
+            await _slack_ready(db, row)  # Google's notes are the summary: worth posting without AI
         return ai
     await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": {"ai.state": "pending", "updated_at": now_utc()}})
     run.hold()
@@ -458,6 +467,7 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
         await db[meetings.COLL].update_one({"_id": row["_id"]}, {"$set": sets})
         row.update(sets)
         await meetings.write_generated(db, row, gen, user)
+        await _slack_ready(db, row)
         return sets["ai"]
     finally:
         run.release()

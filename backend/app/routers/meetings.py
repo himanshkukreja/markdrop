@@ -316,7 +316,13 @@ async def get_meeting(request: Request, meeting_id: str, db: AsyncIOMotorDatabas
                       user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
     row, raw = await meetings.for_read(db, meeting_id, actor, ctx)
-    return await meetings.shape(db, row, raw, actor, ctx)
+    out = await meetings.shape(db, row, raw, actor, ctx)
+    # Markdrop for Slack: the workspace's meetings channel, for the panel's "Post to Slack".
+    from app.services import slack
+
+    inst = await slack.install_for_workspace(db, row["workspace_id"]) if slack.configured() else None
+    out["slack_channel"] = ((inst or {}).get("meetings_channel") or {}).get("name")
+    return out
 
 
 @router.patch("/{meeting_id}")

@@ -224,6 +224,10 @@ async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
         await _notify_edit_request(db, raw, row, actor, owner)
     else:
         await _notify_owner(db, raw, row, actor)
+    # Approve / Decline in Slack too, for deciders who linked it (services/slack_notify).
+    from app.services import slack_notify
+
+    await slack_notify.queue_access_request(db, raw, row)
     return row
 
 

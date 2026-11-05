@@ -157,6 +157,7 @@
         "/pages/properties-and-views",
         "/pages/images",
         "/pages/history",
+        "/pages/working-together",
         "/pages/sign-off",
         "/pages/blocks-and-layout",
         "/pages/paste",
@@ -202,6 +203,7 @@
         "/workspaces/privacy",
         "/workspaces/folders",
         "/workspaces/search",
+        "/workspaces/ask-markdrop",
         "/workspaces/share-a-folder",
         "/workspaces/custom-domain",
         "/workspaces/branding",
@@ -244,6 +246,15 @@
       "pages": [
         "/share/send-files",
         "/share/troubleshooting"
+      ]
+    },
+    {
+      "group": "Integrations",
+      "icon": "layers",
+      "tab": "platform",
+      "new": true,
+      "pages": [
+        "/integrations/slack"
       ]
     },
     {

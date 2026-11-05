@@ -163,6 +163,12 @@ async def _notifications(db: AsyncIOMotorDatabase) -> None:
     await notifications.flush_emails(db)
 
 
+async def _slack(db: AsyncIOMotorDatabase) -> None:
+    from app.services import slack_notify
+
+    await slack_notify.flush(db)
+
+
 async def _page_covers(db: AsyncIOMotorDatabase) -> None:
     from app.services import page_covers
 
@@ -190,7 +196,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("guide_insights", 3600.0, _insights),
                               ("page_history", 3600.0, _page_history), ("trash", TRASH_EVERY, _trash),
                               ("notifications", 30.0, _notifications), ("page_covers", 15.0, _page_covers),
-                              ("search_index", 10.0, _search_index),
+                              ("search_index", 10.0, _search_index), ("slack_dm", 5.0, _slack),
                               ("meetings_backfill", 10.0, _meetings_backfill)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

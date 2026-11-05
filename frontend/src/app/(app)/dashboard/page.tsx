@@ -23,6 +23,7 @@ import { MoveToDialog } from "@/components/workspace/folder/FolderDialogs";
 import { teamName } from "@/components/workspace/folder/items";
 import { docHref } from "@/components/analytics/format";
 import NameCard from "@/components/dashboard/NameCard";
+import AskHome from "@/components/ask/AskHome";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
 import { ChangeUrlDialog, DeleteDocDialog } from "@/components/dashboard/DocDialogs";
@@ -418,6 +419,9 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
+      {/* Ask Markdrop: the home's first thing (the "All" view; a search or a kind tab is about the list). */}
+      {scope.kind === "all" && !scope.q && <AskHome />}
+
       <PageHeader
         breadcrumb={scope.kind === "all" ? undefined : <Breadcrumb items={crumbs} />}
         title={heading}

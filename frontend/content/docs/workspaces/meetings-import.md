@@ -74,7 +74,7 @@ The import runs in the background, **oldest first**, and keeps going if you clos
 
 ### Nobody is notified about old action items
 
-Action items in past meetings still @mention their owners, as links. But **Don't notify anyone** is on by default, so nobody gets a bell or an email about last month's tasks. With it off, meetings from the last day notify as usual, and older ones are still imported quietly.
+Action items in past meetings still @mention their owners, as links. But **Don't notify anyone** is on by default, so nobody gets a bell, an email or a Slack message about last month's tasks, and they aren't posted to your [Slack meetings channel](/integrations/slack). With it off, meetings from the last day notify as usual, and older ones are still imported quietly.
 
 ### Many meetings and the AI budget
 

@@ -3,7 +3,7 @@ title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
 updated: 2026-11-05
 prerequisites: [/workspaces/create]
-keywords: [folder, subfolder, move, rename, organize, path, address, list view, grid view, cards, owner]
+keywords: [folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, owner]
 ---
 
 Folders keep a workspace tidy, and on your own domain they shape the address. A document filed under **Guides › Setup** is served at `docs.acme.com/guides/setup/<document>`.
@@ -64,7 +64,7 @@ Open the workspace (or the folder you want it inside), choose **New**, then **Ne
 | How deep folders can nest | 8 levels |
 | Folder name | Up to 80 characters |
 
-Two folders in the same place can't share a name that gives the same address. A few words are reserved for the top level because the app uses them, such as `settings`, `dashboard` and `api`.
+A folder's address has to be free where it goes. If a folder, page, document or file in the same place already has that address, Markdrop says what holds it and doesn't create the folder. Pick another name, or rename the other one first. If the address belongs to an item you can't open, Markdrop doesn't name it or stop you: the folder gets the next free address, like `reports-2`. A few words are reserved for the top level because the app uses them, such as `settings`, `dashboard` and `api`.
 
 ## File things into folders
 
@@ -76,8 +76,8 @@ Two folders in the same place can't share a name that gives the same address. A 
 
 Admins and the owner manage folders. Open the folder and choose **More folder actions**, or open the **⋯** menu on the folder's row in the list:
 
-- **Rename folder…** shows the new address as you type. Links to documents inside it that use the old name redirect to the new address. The folder's own page moves, and its old address stops working.
-- **Move folder to…** moves it with everything inside. The move is refused if it would nest anything deeper than 8 levels.
+- **Rename folder…** shows the new address as you type. The folder's old address, and links to everything inside it that use the old name, redirect to the new addresses. If the new address is already taken in that place, the rename is refused and says what holds it.
+- **Move folder to…** moves it with everything inside. Old addresses redirect here too. The move is refused if it would nest anything deeper than 8 levels, or if something at the destination already has the folder's address.
 - **New items start as…** sets who can open new items filed into the folder. See [Workspace privacy](/workspaces/privacy).
 - **Delete folder…** moves the folder, the folders inside it and everything filed in them to [Trash](/documents/trash) for 30 days. The dialog says how much goes with it. Restoring the folder from Trash brings it all back, in place.
 
@@ -86,6 +86,12 @@ Admins and the owner manage folders. Open the folder and choose **More folder ac
 The same menu has **Workspace settings** and, when the workspace has its own domain, an item like **Copy docs.acme.com address** that copies the folder's address there. At the top level of the workspace it's called **More workspace actions**, and the folder actions aren't there.
 
 markdrop.in links never change when you rename or move a folder. Only addresses on your own domain include folders.
+
+### With an AI app
+
+An AI app connected over [MCP](/ai/overview) can do the same: `create_folder`, `rename_folder`, `move_folder` and `delete_folder`, with the same permissions. `delete_folder` deletes an empty folder. For a folder with anything in it, the app has to choose what happens to what's inside. It can move everything up one level, or move the folder with everything in it to Trash. Until it chooses, the folder stays, and the app is told what's inside. See [MCP tools](/ai/tools#workspaces-and-folders).
+
+For the [API](/api/overview), `POST /api/v1/workspaces/{id}/folders` and the folder rename and move requests return `409` when the address is taken. Send `"on_conflict": "suffix"` to get the next free address (`reports-2`) instead.
 
 ## Take something out of the workspace
 
