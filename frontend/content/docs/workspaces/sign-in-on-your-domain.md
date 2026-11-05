@@ -75,6 +75,8 @@ Some things stay on markdrop.in, so a domain can never make a private page publi
 
 Moving a page, duplicating it, using it as a template and translating it are on markdrop.in too, as are workspace settings, API tokens and your account.
 
+A file works the same way on your domain: its owner can **Share** it with people there, and its **More artifact actions** menu has **General access on markdrop.in ↗**, **Settings on markdrop.in ↗** (the title, link, password, expiry, replacing the file and its versions) and **Delete on markdrop.in ↗**.
+
 Someone who can read a page but not edit it sees **Request edit access** in its **⋯** menu, on your domain and on markdrop.in. See [Request edit access](/sharing/request-access#request-edit-access).
 
 :::note[If the domain changes hands]

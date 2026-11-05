@@ -107,6 +107,23 @@
       ]
     },
     {
+      "id": "files-one-top-bar",
+      "date": "2026-11-05",
+      "title": "Files: one top bar, like documents and pages",
+      "kind": "improved",
+      "area": "Files",
+      "products": [
+        "web"
+      ],
+      "summary": "Leave full screen on a file (an HTML page, a PDF, a sheet, a video, an image) and you get a single bar at the top: the app's header and the file's bar under it are now one, and the file gets the room.",
+      "body": "- **One bar.** On the left: the logo (your workspace's logo on its own domain) and the file's title with its type, after the workspace and folder if you're a member. On the right: who's viewing, **Download**, **Read full screen**, **Share** (or **Copy link**), **More artifact actions** (**⋯**), **Create** and your avatar, or **Sign in**.\n- **Nothing moved out of reach.** **⋯** starts with the file's size, views and date, then **Copy link** (when **Share** is in the bar), **Settings** (the title, link, password, expiry, the file and its versions), **Replace file**, **Report**, **Delete artifact** and **Remove me**, as before.\n- **On your workspace's domain** the owner shares with people right there, and **⋯** has **General access on markdrop.in**, **Settings on markdrop.in** and **Delete on markdrop.in**.\n- **On a phone** the bar keeps the title, full screen and **⋯** (with **Share** first), and **Copy link** and **Download** stay in the bar at the bottom.\n- The file still opens in its own sandboxed frame on a separate domain; nothing about how it's served changed.",
+      "docs": [
+        "/get-started/tour",
+        "/get-started/first-file",
+        "/workspaces/sign-in-on-your-domain"
+      ]
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",

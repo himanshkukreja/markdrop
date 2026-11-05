@@ -29,7 +29,7 @@ You need to be the document's owner, signed in.
 
 ::::steps
 ### Open Share
-From **My files**, choose **Share…** in the row's menu. Or open the document or file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share** (on a file, **More artifact actions › Share**).
+From **My files**, choose **Share…** in the row's menu. Or open the document or file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share** in the bar at the top.
 
 ### Pick a choice
 Under **Who can open it**, choose one of the three cards. It saves straight away: "Who can open it is updated."

@@ -11,7 +11,8 @@
  *                "…"; "… / Title" on phones), then who's viewing, Saved / Saving…, Share, ⋯, and
  *                search, Create and the avatar menu (or Sign in); a hairline once the page has
  *                scrolled; a calm banner under it when someone else is editing. A classic
- *                document's framed view has the same bar (app/[slug]/doc/DocumentTopBar);
+ *                document's framed view has the same bar (app/[slug]/doc/DocumentTopBar), and
+ *                so does a file's (app/[slug]/artifact/ArtifactTopBar);
  *   PageRailHead the rail's top row (the logo, level with the bar) while the rail is open;
  *   PageMenu     the ⋯ menu: a dropdown, a bottom sheet with drag-to-dismiss on phones (PageSheet);
  *   SubPages     "Pages inside" (with "Add a sub-page"), Backlinks ("N backlinks").
@@ -120,12 +121,15 @@ export function PageBreadcrumbs({
   resolve,
   addressing,
   place = [],
+  tile,
   className,
 }: {
   crumbs: Crumb[];
   title: string | null;
   /** This page's icon. */
   icon?: string | null;
+  /** In place of the icon: a node (a file's type icon). */
+  tile?: ReactNode;
   resolve?: (src: string) => string;
   addressing: PageAddressing;
   /** The workspace and folders before the pages. */
@@ -184,7 +188,7 @@ export function PageBreadcrumbs({
         {items}
         <li className="pb-crumb pb-crumb--current">
           <span aria-current="page" className="pb-crumb__link">
-            <CrumbIcon icon={icon} resolve={resolve} />
+            {tile ?? <CrumbIcon icon={icon} resolve={resolve} />}
             <span className="pb-crumb__text ph-sensitive ph-mask" dir="auto">{title || "Untitled"}</span>
           </span>
         </li>
@@ -485,6 +489,7 @@ export function PageTopBar({
   menuLabel,
   tools,
   badge,
+  tile,
   rail: hasRail = true,
   hideAccount,
   className,
@@ -507,8 +512,10 @@ export function PageTopBar({
   menuLabel?: string;
   /** More of the bar's own buttons, before Share (a classic document: Contents, Edit, full screen). */
   tools?: ReactNode;
-  /** Beside the title: a classic document's E2E or lock badge. */
+  /** Beside the title: a classic document's E2E or lock badge, a file's type. */
   badge?: ReactNode;
+  /** The title's icon as a node, in place of `icon` (a file's type icon). */
+  tile?: ReactNode;
   /** There is a rail (a sidebar) for the bar's toggle to show and hide. */
   rail?: boolean;
   /** No account slot (a gate is showing its own sign-in). */
@@ -568,7 +575,7 @@ export function PageTopBar({
           />
         )}
         <PageBrand className="pb-bar__brandslot" />
-        <PageBreadcrumbs crumbs={crumbs} title={title} icon={icon} resolve={resolve} addressing={addressing} place={place} className="pb-bar__crumbs" />
+        <PageBreadcrumbs crumbs={crumbs} title={title} icon={icon} tile={tile} resolve={resolve} addressing={addressing} place={place} className="pb-bar__crumbs" />
         {badge && <span className="pb-bar__badge">{badge}</span>}
         <div className="pb-bar__actions">
           {presence && <span className="pb-bar__presence">{presence}</span>}

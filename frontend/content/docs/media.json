@@ -592,15 +592,15 @@
     "kind": "image"
   },
   "/docs-assets/get-started/first-file/artifact-actions-menu.dark.webp": {
-    "w": 2548,
-    "h": 428,
-    "bytes": 17854,
+    "w": 2880,
+    "h": 500,
+    "bytes": 22548,
     "kind": "image"
   },
   "/docs-assets/get-started/first-file/artifact-actions-menu.webp": {
-    "w": 2548,
-    "h": 428,
-    "bytes": 17874,
+    "w": 2880,
+    "h": 500,
+    "bytes": 23888,
     "kind": "image"
   },
   "/docs-assets/get-started/first-file/upload-form.dark.webp": {
@@ -629,14 +629,14 @@
   },
   "/docs-assets/get-started/tour/document-bar.dark.webp": {
     "w": 2880,
-    "h": 880,
-    "bytes": 85850,
+    "h": 960,
+    "bytes": 87402,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/document-bar.webp": {
     "w": 2880,
-    "h": 880,
-    "bytes": 85738,
+    "h": 960,
+    "bytes": 86758,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/my-files.dark.webp": {
@@ -678,13 +678,13 @@
   "/docs-assets/get-started/what-is-markdrop/what-is-rendered-html.dark.webp": {
     "w": 2880,
     "h": 1688,
-    "bytes": 81880,
+    "bytes": 77850,
     "kind": "image"
   },
   "/docs-assets/get-started/what-is-markdrop/what-is-rendered-html.webp": {
     "w": 2880,
     "h": 1688,
-    "bytes": 79876,
+    "bytes": 76692,
     "kind": "image"
   },
   "/docs-assets/guides/api-reference/api-reference-checked.dark.webp": {
@@ -2830,13 +2830,13 @@
   "/docs-assets/workspaces/branding/tenant-branded-page.dark.webp": {
     "w": 2880,
     "h": 1240,
-    "bytes": 96546,
+    "bytes": 92630,
     "kind": "image"
   },
   "/docs-assets/workspaces/branding/tenant-branded-page.webp": {
     "w": 2880,
     "h": 1240,
-    "bytes": 95544,
+    "bytes": 91580,
     "kind": "image"
   },
   "/docs-assets/workspaces/create/get-set-up.dark.webp": {
