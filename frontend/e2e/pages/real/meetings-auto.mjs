@@ -167,7 +167,6 @@ await step("inbox", async () => {
   await snap(p, "hub-connected");
   await p.goto(`${APP}/${meeting.slug}`);
   await p.getByTestId("meeting-pill").click();
-  await p.getByTestId("meeting-details-tab").click();
   await p.getByTestId("meeting-via").getByText("Imported automatically by Connect Google Meet").waitFor({ timeout: 10000 });
   await snap(p, "details-via");
 });

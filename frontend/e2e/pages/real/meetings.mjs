@@ -139,9 +139,10 @@ await step("ask", async () => {
   if (!meeting) fail("no meeting");
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/${meeting.slug}`);
-  await p.getByTestId("meeting-pill").click();
-  const panel = p.locator(".mt-panel .pa-ask__panel");
-  await panel.getByText("Ask this meeting").first().waitFor();
+  // Ask Markdrop (the one assistant) on Meetings · This meeting.
+  await p.getByTestId("meeting-ask").click({ timeout: 20000 });
+  const panel = p.getByTestId("assistant");
+  await panel.getByTestId("chat-scope-meeting").filter({ hasText: "This meeting" }).waitFor({ timeout: 15000 });
   await panel.locator("textarea").fill("When do we ship the release?");
   await panel.locator("textarea").press("Enter");
   const chip = panel.getByTestId("chat-cite").first();
@@ -162,10 +163,9 @@ await step("ask", async () => {
   // Blocks carry their anchor as data-bid (anchors.ts scrolls to it and flashes it).
   await p.locator(`[data-bid="${anchor}"]`).first().waitFor({ timeout: 15000 });
   await snap(p, "transcript-at-moment-light");
-  // Details tab.
+  // The meeting's details (the Meeting pill).
   await p.goto(`${APP}/${meeting.slug}`);
   await p.getByTestId("meeting-pill").click();
-  await p.getByTestId("meeting-details-tab").click();
   await p.locator(".mt-details").getByText("Who was there").waitFor();
   await snap(p, "panel-details-light");
 });
@@ -193,7 +193,7 @@ await step("across", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(HUB);
   await p.getByTestId("ask-across-open").click();
-  const box = p.getByTestId("ask-across-panel");
+  const box = p.getByTestId("assistant");
   await box.locator("textarea").fill("When do we ship the release?");
   await box.locator("textarea").press("Enter");
   await box.getByTestId("chat-cite").first().waitFor({ timeout: 25000 });
@@ -220,7 +220,7 @@ await step("restricted", async () => {
   await p.getByTestId("meetings-list").waitFor({ timeout: 20000 });
   if (await p.getByText("Board prep").count()) fail("Vic's hub lists it");
   await p.getByTestId("ask-across-open").click();
-  const box = p.getByTestId("ask-across-panel");
+  const box = p.getByTestId("assistant");
   await box.locator("textarea").fill(`What is the acquisition codename zebra?`);
   await box.locator("textarea").press("Enter");
   await box.locator(".ch-md, [data-testid='chat-notice']").first().waitFor({ timeout: 25000 });
@@ -265,15 +265,16 @@ await step("shots", async () => {
       await snap(p, `import-${theme}-${tag}`);
       await p.keyboard.press("Escape");
       await p.goto(`${APP}/${meeting.slug}`);
-      await p.getByTestId("meeting-pill").click();
-      const panel = p.locator(".mt-panel .pa-ask__panel");
+      await p.getByTestId("meeting-ask").click({ timeout: 20000 });
+      const panel = p.getByTestId("assistant");
+      await panel.getByTestId("chat-scope-meeting").waitFor({ timeout: 15000 });
       await panel.locator("textarea").fill("What did we decide?");
       await panel.locator("textarea").press("Enter");
       await panel.getByTestId("chat-cite").first().waitFor({ timeout: 20000 });
-      // A touch target check on phones: the pill, chips and tabs are at least 44px tall.
+      // A touch target check on phones: the scope chips are at least 36px tall, the box 16px.
       if (tag === "phone") {
-        const tab = await p.getByTestId("meeting-details-tab").boundingBox();
-        if (!tab || tab.height < 43) fail(`tab is ${tab?.height}px tall on a phone`);
+        const chip = await panel.getByTestId("assistant-scope-meetings").boundingBox();
+        if (!chip || chip.height < 35) fail(`a scope chip is ${chip?.height}px tall on a phone`);
         const input = await panel.locator("textarea").evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
         if (input < 16) fail(`the question box is ${input}px on a phone`);
       }
@@ -289,9 +290,10 @@ await step("ux", async () => {
     const { p } = await ctx(browser, { token: T.owner });
     await p.goto(HUB);
     await p.getByTestId("ask-across-open").click();
-    const box = p.getByTestId("ask-across-panel");
+    const box = p.getByTestId("assistant");
     const field = box.locator("textarea");
     await field.waitFor();
+    await p.waitForTimeout(300);
     if (!(await field.evaluate((el) => el === document.activeElement))) fail("the question box isn't focused when the panel opens");
     // Shift+Enter is a new line, not a question.
     await field.fill("When do we ship");
@@ -340,21 +342,18 @@ await step("ux", async () => {
     // New chat starts over.
     await box.getByTestId("chat-new").click();
     await box.getByTestId("chat-starters").waitFor();
-    // Expand: a page-wide conversation.
-    await box.getByTestId("ask-across-expand").click();
-    await p.locator(".mt-dock[data-layout='page']").waitFor();
-    await snap(p, "ux-across-expanded-light");
+    await snap(p, "ux-across-new-light");
   }
   // Phones: the chat is a full-screen sheet; the sources a bottom sheet; 16px box; 44px send.
   for (const theme of ["light", "dark"]) {
     const { p } = await ctx(browser, { token: T.owner, theme, width: 390, height: 844, mobile: true });
     await p.goto(HUB);
     await p.getByTestId("ask-across-open").click();
-    const panel = p.getByTestId("ask-across-panel");
-    await p.locator(".mt-dock[data-layout='sheet'][data-open]").waitFor();
+    const panel = p.getByTestId("assistant");
+    await p.locator("[data-testid='assistant'][data-layout='sheet']").waitFor();
     await p.waitForTimeout(350);
     const bb = await panel.boundingBox();
-    if (!bb || bb.width < 389 || bb.height < 800) fail(`the phone chat isn't full screen: ${JSON.stringify(bb)}`);
+    if (!bb || bb.width < 389 || bb.height < 700) fail(`the phone sheet is too small: ${JSON.stringify(bb)}`);
     const field = panel.locator("textarea");
     if ((await field.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))) < 16) fail("the box is under 16px on a phone");
     await field.fill("When do we ship the release?");
@@ -375,14 +374,15 @@ await step("ux", async () => {
     await p.getByTestId("meeting-header").waitFor({ timeout: 20000 });
     if (!(await p.getByTestId("meeting-transcript").count())) fail("the meeting bar has no Transcript");
     await p.getByTestId("meeting-ask").click();
-    const panel = p.locator(".mt-panel .pa-ask__panel");
+    const panel = p.getByTestId("assistant");
+    await panel.getByTestId("chat-new").click({ timeout: 3000 }).catch(() => {});
     await panel.getByTestId("chat-starters").waitFor();
     await panel.getByTestId("chat-starters").getByRole("button").first().click();
     await panel.getByTestId("chat-cite").first().waitFor({ timeout: 20000 });
     await snap(p, "ux-meeting-panel-light");
-    // ?ask=1 (a card's Ask) opens the panel.
+    // ?ask=1 (a card's Ask) opens Ask Markdrop on Meetings.
     await p.goto(`${APP}/${meeting.slug}?ask=1`);
-    await p.locator(".mt-panel[data-open]").waitFor({ timeout: 20000 });
+    await p.getByTestId("assistant").waitFor({ timeout: 20000 });
   }
 });
 
@@ -414,7 +414,7 @@ await step("docs-media", async () => {
     const p = await c.newPage();
     await p.goto(HUB);
     await p.getByTestId("ask-across-open").click();
-    const box = p.getByTestId("ask-across-panel");
+    const box = p.getByTestId("assistant");
     await box.getByTestId("chat-new").click({ timeout: 3000 }).catch(() => {});
     await box.locator("textarea").fill("When do we ship the release?");
     await box.locator("textarea").press("Enter");

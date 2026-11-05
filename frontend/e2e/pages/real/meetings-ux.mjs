@@ -177,7 +177,9 @@ await step("one", async () => {
       await p.goto(`${APP}/${m.slug}`);
       await p.getByTestId("meeting-pill").waitFor({ timeout: 20000 });
       await snap(p, `page-${theme}-${tag}`);
-      await p.getByTestId("meeting-pill").click();
+      // Ask this meeting: Ask Markdrop on Meetings · This meeting.
+      await p.getByTestId("meeting-ask").click();
+      await p.getByTestId("assistant").waitFor({ timeout: 15000 });
       await p.waitForTimeout(350);
       await snap(p, `one-empty-${theme}-${tag}`);
       const field = p.locator("textarea[aria-label='Your question']:visible").first();

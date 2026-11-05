@@ -9,7 +9,7 @@
  *   insert    Insert puts a dated, cited line in the page (a mention of the meeting + the moment), saved
  *   reader    a reader of the PRD follows the inserted citation to the meeting page
  *   slash     "/meetings" opens the panel with its search
- *   ask       Ask in the page (+ Meetings on) cites the meeting; its source link opens the meeting
+ *   ask       Ask Markdrop (This doc) in the page cites the meeting; its source link opens the meeting
  *   leak      a meeting restricted to its attendees never reaches anyone else (panel, search, Ask, API)
  *   prefs     "Show by itself" off hides the button (kept after a reload); /meetings still opens the panel
  *   phone     390 px: the sheet, no sideways scroll
@@ -196,18 +196,21 @@ await step("slash", async () => {
 await step("ask", async () => {
   const { p } = await ctx(browser, { token: T.admin });
   await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
-  await p.locator(".pa-pill").click({ timeout: 20000 });
-  const box = p.locator(".pa-ask[data-open] .pa-ask__panel");
-  await box.waitFor({ timeout: 8000 });
-  if ((await box.locator(".pa-meet").getAttribute("aria-checked")) !== "true") fail("+ Meetings isn't on by default");
+  // Ask Markdrop (✦ Ask in the bar) on This doc: the page, then the workspace's meetings.
+  await p.getByTestId("assistant-button").first().click({ timeout: 20000 });
+  const box = p.getByTestId("assistant");
+  await box.getByTestId("assistant-scope-doc").waitFor({ timeout: 15000 });
+  if ((await box.getByTestId("assistant-scope-doc").getAttribute("aria-checked")) !== "true") fail("This doc isn't the scope in a page");
   await box.locator("textarea").fill("When did we decide to ship the checkout redesign?");
   await box.locator("textarea").press("Enter");
-  await box.locator(".pa-cites").waitFor({ timeout: 25000 });
-  const text = await box.innerText();
+  await box.locator('ol[aria-label="Conversation"] > li[data-state="done"]').first().waitFor({ timeout: 25000 });
+  if (!(await box.getByTestId("chat-cite").count())) fail("no citation chips in the answer");
+  await box.getByTestId("chat-sources-btn").first().click();
+  const src = box.getByTestId("chat-sources");
+  const text = await src.innerText();
   if (!/Checkout sync/.test(text)) fail(`the meeting isn't cited: ${text.slice(0, 600)}`);
-  if (!(await box.locator(".pa-md a.pa-cite").count())) fail("no citation links in the answer");
   await shot(p, "mm07-ask");
-  const href = await box.locator(".pa-cites__title", { hasText: "Checkout sync" }).first().getAttribute("href");
+  const href = await src.locator(".ch-src", { hasText: "Checkout sync" }).first().getByTestId("chat-source-link").getAttribute("href");
   if (!href || !href.includes(team.slug)) fail(`the meeting's source link: ${href}`);
 });
 
@@ -234,11 +237,12 @@ await step("leak", async () => {
   await p.waitForTimeout(1500);
   await shot(p, "mm08-leak-panel");
   await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
-  await p.locator(".pa-pill").click({ timeout: 20000 });
-  const box = p.locator(".pa-ask[data-open] .pa-ask__panel");
+  await p.getByTestId("assistant-button").first().click({ timeout: 20000 });
+  const box = p.getByTestId("assistant");
+  await box.getByTestId("assistant-scope-doc").waitFor({ timeout: 15000 });
   await box.locator("textarea").fill("What did we decide about the plan pricing?");
   await box.locator("textarea").press("Enter");
-  await box.locator(".pa-a .pa-md, .pa-notice").first().waitFor({ timeout: 25000 });
+  await box.locator('ol[aria-label="Conversation"] > li:not([data-state="streaming"])').first().waitFor({ timeout: 25000 });
   await p.waitForTimeout(2500);
   for (const b of bodies) if (b.body.toLowerCase().includes(SECRET)) fail(`an API response to Wes carried the secret: ${b.url}`);
 });

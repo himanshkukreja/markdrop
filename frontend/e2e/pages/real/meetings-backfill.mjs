@@ -222,7 +222,7 @@ await step("ask", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(HUB);
   await p.getByTestId("ask-across-open").click();
-  const box = p.getByTestId("ask-across-panel");
+  const box = p.getByTestId("assistant");
   await box.getByTestId("chat-scope-series").click();
   await p.getByRole("menuitem", { name: "Daily Standup" }).click();
   await box.locator("textarea").fill("What did Ben say about billing?");
