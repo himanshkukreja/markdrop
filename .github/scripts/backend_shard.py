@@ -150,6 +150,9 @@ def main() -> int:
         for r in failed:
             lines.append(f"| `{r['module']}` | {r['rc']} | {r['tests']} | {'<br>'.join(r['failures'][:5]) or r['detail']} |")
         lines.append("")
+    perf = [ln for r in rows for ln in (logs / f"{r['module']}.log").read_text().splitlines() if ln.startswith("SEARCH PERF")]
+    if perf:
+        lines += ["```", *perf, "```", ""]
     lines += ["<details><summary>Per-module times</summary>", "", "| Module | s | tests | result |", "|---|---|---|---|"]
     for r in sorted(rows, key=lambda r: -r["seconds"]):
         lines.append(f"| `{r['module']}` | {r['seconds']} | {r['tests']} | {'ok' if r['ok'] else 'FAIL'} {r['detail']} |")

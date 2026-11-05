@@ -88,12 +88,18 @@ jobs:
           redis-cli ping
 
       - name: Install backend requirements
-        run: pip install -r backend/requirements.txt
+        run: pip install -r backend/requirements.txt -r backend/requirements-test.txt
 
       - name: Shard ${{ matrix.shard }} modules
         run: python .github/scripts/backend_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARDS }} --list
 
+      # SEARCH_P95_MS: tests/test_search.py's bar is p95 < 150 ms on the dev Mac (M-series), where the
+      # 5k-item test reads ~80 ms. The same code reads ~190 ms on a GitHub runner (~2.3x slower per
+      # core), so the bar here keeps the same ~1.8x headroom over this machine's baseline: 350 ms.
+      # A real 2x regression still fails here and on the Mac.
       - name: Run shard ${{ matrix.shard }}
+        env:
+          SEARCH_P95_MS: "350"
         run: python .github/scripts/backend_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARDS }}
 
       - name: Upload timings
@@ -309,6 +315,20 @@ jobs:
       - name: Playwright ${{ matrix.browser }}
         working-directory: frontend
         run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # seed.py uploads demo files (a PDF deck, images) from scripts/docs-media/.data/fixtures, which
+      # is git-ignored: make_fixtures.mjs renders them (system Chrome + ffmpeg), cached by its hash.
+      - name: Fixtures cache
+        id: fixtures
+        uses: actions/cache@v4
+        with:
+          path: frontend/scripts/docs-media/.data/fixtures
+          key: e2e-fixtures-${{ hashFiles('frontend/scripts/docs-media/make_fixtures.mjs') }}
+
+      - name: Make fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: node scripts/docs-media/make_fixtures.mjs && ls -la scripts/docs-media/.data/fixtures
 
       - name: Next.js build cache
         uses: actions/cache@v4
