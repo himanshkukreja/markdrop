@@ -122,13 +122,14 @@ const overlaps = (g, e) => {
  * @param {string} base what the editor last loaded or saved
  * @param {string} mine what it holds now
  * @param {string} theirs the server's newer version
- * @returns {{ clean: boolean, content: string, mineContent: string,
+ * @returns {{ clean: boolean, content: string, mineContent: string, bothContent: string,
  *             conflicts: Array<{ base: string, mine: string, theirs: string }> }}
  */
 export function merge3(base, mine, theirs) {
   base ??= ""; mine ??= ""; theirs ??= "";
-  if (mine === theirs || base === mine) return { clean: true, content: theirs, mineContent: theirs, conflicts: [] };
-  if (base === theirs) return { clean: true, content: mine, mineContent: mine, conflicts: [] };
+  const same = (c) => ({ clean: true, content: c, mineContent: c, bothContent: c, conflicts: [] });
+  if (mine === theirs || base === mine) return same(theirs);
+  if (base === theirs) return same(mine);
   const B = split(base);
   const ours = diffLines(B, split(mine)).map((e) => ({ ...e, side: "mine" }));
   const other = diffLines(B, split(theirs)).map((e) => ({ ...e, side: "theirs" }));
@@ -143,28 +144,27 @@ export function merge3(base, mine, theirs) {
       g.edits.push(e);
     } else groups.push({ start: e.start, end: e.end, edits: [e] });
   }
-  const left = [], right = [], conflicts = [];
+  const left = [], right = [], both = [], conflicts = [];
+  const all3 = (lines) => { left.push(...lines); right.push(...lines); both.push(...lines); };
   let i = 0;
   for (const g of groups) {
-    while (i < g.start) { left.push(B[i]); right.push(B[i]); i++; }
+    while (i < g.start) all3([B[i++]]);
     const m = g.edits.filter((e) => e.side === "mine");
     const t = g.edits.filter((e) => e.side === "theirs");
     const mt = sideText(B, m, g.start, g.end);
     const tt = sideText(B, t, g.start, g.end);
-    if (!m.length) { left.push(...tt); right.push(...tt); }
-    else if (!t.length) { left.push(...mt); right.push(...mt); }
-    else if (mt.join("\n") === tt.join("\n")) { left.push(...tt); right.push(...tt); }
-    else if (g.start === g.end) {
-      // Both only added here: theirs, then mine (nothing lost). A blank line between two added
-      // blocks keeps them two blocks.
-      const both = [...tt, ...(tt.length && mt.length && tt[tt.length - 1] !== "" && mt[0] !== "" ? [""] : []), ...mt];
-      left.push(...both); right.push(...both);
-    } else {
+    // Theirs, then mine; a blank line between two stretches keeps them two blocks.
+    const join = () => [...tt, ...(tt.length && mt.length && tt[tt.length - 1] !== "" && mt[0] !== "" ? [""] : []), ...mt];
+    if (!m.length) all3(tt);
+    else if (!t.length) all3(mt);
+    else if (mt.join("\n") === tt.join("\n")) all3(tt);
+    else if (g.start === g.end) all3(join()); // both only added here: nothing lost, no question
+    else {
       conflicts.push({ base: B.slice(g.start, g.end).join("\n"), mine: mt.join("\n"), theirs: tt.join("\n") });
-      left.push(...tt); right.push(...mt);
+      left.push(...tt); right.push(...mt); both.push(...join());
     }
     i = Math.max(i, g.end);
   }
-  while (i < B.length) { left.push(B[i]); right.push(B[i]); i++; }
-  return { clean: conflicts.length === 0, content: left.join("\n"), mineContent: right.join("\n"), conflicts };
+  while (i < B.length) all3([B[i++]]);
+  return { clean: conflicts.length === 0, content: left.join("\n"), mineContent: right.join("\n"), bothContent: both.join("\n"), conflicts };
 }

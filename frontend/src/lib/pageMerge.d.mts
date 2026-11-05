@@ -15,6 +15,8 @@ export interface MergeResult {
   content: string;
   /** The same, but a conflicting stretch takes mine. */
   mineContent: string;
+  /** Theirs and then mine in each conflicting stretch (Keep both). */
+  bothContent: string;
   conflicts: MergeConflict[];
 }
 export function diffLines(a: string[], b: string[]): LineEdit[];
