@@ -16,6 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { slackPostMeeting } from "@/lib/slack";
 import { Badge, Button, ConfirmDialog, Icon, IconButton, Select, Spinner, Switch, useToast } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import {
@@ -232,6 +233,12 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
 
       <div className="mt-dangerzone">
         <Button size="sm" variant="ghost" iconLeft="mic" href={meetingsHref(m.workspace_id)}>All meetings</Button>
+        {m.slack_channel && m.can_regenerate && !m.restricted && (
+          <Button size="sm" variant="ghost" iconLeft="send" disabled={!!busy} loading={busy === "slack"} data-testid="meeting-slack"
+            onClick={() => void run("slack", async () => { await slackPostMeeting(m.id); }, `Posted to #${m.slack_channel} in Slack.`)}>
+            Post to Slack
+          </Button>
+        )}
         {m.can_delete && (
           <Button size="sm" variant="ghost" iconLeft="trash" onClick={() => setConfirm(true)} disabled={!!busy}>Delete meeting</Button>
         )}

@@ -571,6 +571,22 @@ class Settings(BaseSettings):
     meetings_ai_daily_usd: float = 5.0
     meetings_ai_monthly_usd: float = 50.0
 
+    # ── Markdrop for Slack (services/slack*.py, routers/slack.py) ────────────
+    # The one Slack app Markdrop owns (docs-platform/slack/manifest.yaml + SETUP.md). All three come
+    # from the app's Basic Information page; until they are all set (and token_encryption_key, which
+    # protects the teams' bot tokens at rest) the Slack card says "Not set up yet".
+    slack_client_id: str = ""
+    slack_client_secret: str = ""
+    slack_signing_secret: str = ""
+    # Slack's Web API and web addresses (tests point them elsewhere; the defaults are slack.com).
+    slack_api_base: str = "https://slack.com/api"
+    slack_web_base: str = "https://slack.com"
+
+    @property
+    def slack_configured(self) -> bool:
+        return bool(self.slack_client_id and self.slack_client_secret and self.slack_signing_secret
+                    and self.token_encryption_key)
+
     @property
     def docs_r2_configured(self) -> bool:
         return bool(self.docs_r2_bucket and self.docs_r2_account_id

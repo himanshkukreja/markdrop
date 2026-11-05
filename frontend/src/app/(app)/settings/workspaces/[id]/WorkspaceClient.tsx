@@ -16,6 +16,7 @@ import { OLD_TABS, TAB_IDS, TAB_NEEDS, type Resource, type TabId, type WsTabProp
 import PeopleTab from "./tabs/PeopleTab";
 import LookTab from "./tabs/LookTab";
 import AdvancedTab from "./tabs/AdvancedTab";
+import IntegrationsTab from "./tabs/IntegrationsTab";
 
 /** `?tab=` → a tab; old names map onto the new ones; "folders" opens the folder view. */
 function tabFromSearch(search: string): TabId | "folders" {
@@ -26,7 +27,7 @@ function tabFromSearch(search: string): TabId | "folders" {
 
 /**
  * /settings/workspaces/[id] (simpler UI, Settings board): "Back to {workspace}", the workspace's tile,
- * name and one line of facts, then three tabs — People · Look and domain · Advanced — synced to
+ * name and one line of facts, then four tabs — People · Look and domain · Integrations (Slack) · Advanced — synced to
  * `?tab=` (read after mount, written with history.replaceState). Old tab names still work:
  * general/brand/domains → Look and domain, people → People, folders → the workspace's folder view.
  *
@@ -192,6 +193,7 @@ export default function WorkspaceClient({ id }: { id: string }) {
   const panels: Record<TabId, React.ReactNode> = {
     people: <PeopleTab {...tabProps} />,
     look: <LookTab {...tabProps} />,
+    integrations: <IntegrationsTab {...tabProps} />,
     advanced: <AdvancedTab {...tabProps} />,
   };
 
@@ -217,6 +219,7 @@ export default function WorkspaceClient({ id }: { id: string }) {
         items={[
           { value: "people", label: "People", icon: "user", count: ws.member_count + ws.pending_invite_count },
           { value: "look", label: "Look and domain", icon: "globe" },
+          { value: "integrations", label: "Integrations", icon: "layers" },
           { value: "advanced", label: "Advanced", icon: "settings" },
         ]}
       />

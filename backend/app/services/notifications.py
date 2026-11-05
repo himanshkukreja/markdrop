@@ -217,6 +217,10 @@ async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, bl
     }
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
+    # A direct message in Slack too, for a linked account that wants this kind (services/slack_notify).
+    from app.services import slack_notify
+
+    await slack_notify.queue_notification(db, row)
     return row
 
 
