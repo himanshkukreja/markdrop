@@ -40,11 +40,13 @@ email: ``email: "seen"``).
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator
+
 import hashlib
 import hmac
 import html
-import contextlib
-import contextvars
 import logging
 import re
 from datetime import datetime, timedelta, timezone
@@ -79,26 +81,6 @@ _ANCHOR_IN = re.compile(r"(?:^|\s)#(b-[a-z0-9]{4,12})(?=\s|$)")
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
-
-
-# Saves made while this is set notify nobody (a mention is still a link): the meetings code sets it
-# while it writes the pages of past meetings imported in bulk (services/meeting_backfill.py), so
-# action items from last month don't ring anyone's bell. A context variable: tasks spawned inside
-# (the AI summary written in the background) inherit it.
-_QUIET: contextvars.ContextVar[bool] = contextvars.ContextVar("notifications_quiet", default=False)
-
-
-@contextlib.contextmanager
-def quietly(on: bool = True):
-    token = _QUIET.set(bool(on) or _QUIET.get())
-    try:
-        yield
-    finally:
-        _QUIET.reset(token)
-
-
-def is_quiet() -> bool:
-    return _QUIET.get()
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -378,12 +360,33 @@ async def _excerpt_for(db: AsyncIOMotorDatabase, user_id: str, page: dict, line:
     return _plain(line) or None
 
 
+_quiet: ContextVar[bool] = ContextVar("notifications_quiet", default=False)
+
+
+@contextmanager
+def quiet() -> Iterator[None]:
+    """Writes inside this (and tasks spawned from it) notify nobody: history being imported (a past
+    meeting's @mentions stay links; services/meetings.py ``notify=False``)."""
+    token = _quiet.set(True)
+    try:
+        yield
+    finally:
+        _quiet.reset(token)
+
+
+def is_quiet() -> bool:
+    return _quiet.get()
+
+
 async def on_page_saved(db: AsyncIOMotorDatabase, before: dict | None, after: dict | None, actor: Any) -> int:
     """After a write of a page: notify each person newly mentioned (or newly
-    named on a sign-off block). Returns how many were notified. Never raises."""
+    named on a sign-off block). Returns how many were notified. Never raises.
+    Nobody is notified inside :func:`quiet`."""
+    if _quiet.get():
+        return 0
     try:
         if not after or after.get("encrypted") or after.get("kind") == "artifact" \
-                or after.get("editor") != "blocks" or _QUIET.get():
+                or after.get("editor") != "blocks":
             return 0
         fresh = new_mentions((before or {}).get("content"), after.get("content"))[:MAX_PER_SAVE]
         sent = 0

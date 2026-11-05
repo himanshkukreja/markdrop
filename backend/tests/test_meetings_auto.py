@@ -273,6 +273,35 @@ class Inbox(AutoWorld):
         self.assertEqual(r.json()["status"], "imported")
         self.assertEqual((await self.rows())[0]["date"], "2026-10-30")
 
+    async def test_undated_doc_is_dated_in_the_connectors_time_zone(self):
+        # 20:30 UTC on Oct 30 is already Oct 31 in Kolkata, where the call happened.
+        tok = (await self.connect(tz="Asia/Kolkata"))["token"]
+        await self.deliver(tok, title="Late chat - Transcript", created="2026-10-30T20:30:00.000Z",
+                           text="Ada Lovelace: hello\nBo Chen: hi there\n")
+        self.assertEqual((await self.rows())[0]["date"], "2026-10-31")
+        self.assertEqual(meetings_inbox.meeting_date("2026-10-30T20:30:00.000Z", None), "2026-10-30")
+        self.assertIsNone(meetings_inbox._tz("Mars/Olympus"))
+
+    async def test_backfill_is_quiet_and_keeps_the_real_date(self):
+        tok = (await self.connect(backfill_days=30))["token"]
+        r = await self.deliver(tok, backfill=True, created="2026-11-04T05:20:00.000Z")
+        self.assertEqual(r.json()["status"], "imported")
+        row = (await self.rows())[0]
+        self.assertTrue(row.get("history"))
+        self.assertEqual(row["date"], "2026-11-04")             # the call's date, not today
+        page = await self.doc(row["slug"])
+        self.assertIn(":person[", page["content"])                 # the mentions stay links
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
+        # Its other half arriving later (also history) stays quiet too, AI rewrite included.
+        r = await self.deliver(tok, file_id=FID_N, title=NOTES, text=fixture("gemini_notes.txt"), kind="notes", backfill=True)
+        self.assertEqual(r.json()["status"], "attached")
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
+        # A new call afterwards notifies as usual.
+        await self.deliver(tok, file_id="1AnotherCallAbcdefghijklm",
+                           title="Release review (2026-11-05 15:00 GMT+05:30) - Transcript",
+                           text="Ada Lovelace: Bo Chen will update the docs by Friday.\nBo Chen: Yes, I will update the docs.\n")
+        self.assertGreater(await self.db["notifications"].count_documents({}), 0)
+
 
 class Pairing(AutoWorld):
     async def test_transcript_then_notes_in_another_run(self):
@@ -534,6 +563,46 @@ class Script(unittest.TestCase):
         # A 409 (being imported) is retried next run without stopping this one.
         out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"], "responses": [409, 200]})
         self.assertEqual((len(out["posts"]), len(out["sent"])), (2, 1))
+
+    def test_backfill_oldest_first_and_flagged(self):
+        now = datetime.now(timezone.utc)
+
+        def iso(h: float) -> str:
+            return (now - timedelta(hours=h)).isoformat().replace("+00:00", "Z")
+
+        files = [{"id": "1Recent", "name": "Now (2026-11-05) - Transcript", "created": iso(1), "modified": iso(1), "text": "A: hi\n"},
+                 {"id": "1TenDays", "name": "Ten (2026-10-26) - Transcript", "created": iso(240), "modified": iso(240), "text": "A: hi\n"},
+                 {"id": "1TwentyDays", "name": "Twenty - Notes by Gemini", "created": iso(480), "modified": iso(470), "text": "Summary\nok"},
+                 {"id": "1TooOld", "name": "Old (2026-08-01) - Transcript", "created": iso(24 * 60), "modified": iso(24 * 60), "text": "A: hi\n"}]
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)", "syncMeetings"]})
+        # The recent sweep first (not flagged), then the past, oldest first and flagged; once each.
+        self.assertEqual([(p["body"]["file_id"], p["body"]["backfill"]) for p in out["posts"]],
+                         [("1Recent", False), ("1TwentyDays", True), ("1TenDays", True)])
+        self.assertNotIn("backfill_since", out["props"])
+        # setup with BACKFILL_DAYS filled in does the same by itself.
+        code = meetings_inbox.script("mdk_" + "A" * 43, "Acme", url="https://api.example.test/api/v1/meetings/inbox",
+                                     backfill_days=30)
+        self.assertIn("var BACKFILL_DAYS = 30;", code)
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["setup"]}, code=code)
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], ["1Recent", "1TwentyDays", "1TenDays"])
+        self.assertIn("var BACKFILL_DAYS = 0;", self.render())
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["setup"]})
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], ["1Recent"])
+
+    def test_backfill_spreads_over_runs(self):
+        now = datetime.now(timezone.utc)
+        files = [{"id": f"1Day{i:02d}", "name": f"Call {i} (2026-10-{i:02d}) - Transcript",
+                  "created": (now - timedelta(days=i)).isoformat().replace("+00:00", "Z"),
+                  "modified": (now - timedelta(days=i)).isoformat().replace("+00:00", "Z"), "text": "A: hi\n"}
+                 for i in range(1, 26)]
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)"]})
+        self.assertEqual(len(out["posts"]), 20)                       # MAX_PER_RUN
+        # The last 48 hours first (yesterday's call), then the past, oldest first.
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"][:3]], ["1Day01", "1Day25", "1Day24"])
+        self.assertIn("backfill_since", out["props"])
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)", "syncMeetings"]})
+        self.assertEqual(len(out["posts"]), 25)
+        self.assertNotIn("backfill_since", out["props"])
 
     def test_waits_for_a_doc_still_being_written(self):
         just = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

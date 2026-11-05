@@ -190,7 +190,10 @@ async def adopt(db: AsyncIOMotorDatabase, user, workspace_id: str, key: str, ser
             continue
         raw = await db["documents"].find_one({"_id": r.get("doc_id")}) if r.get("doc_id") else None
         try:
-            with notifications.quietly(quiet):
+            if quiet:
+                with notifications.quiet():
+                    await set_series(db, r, raw, series, actor, ctx, source="auto", check=False)
+            else:
                 await set_series(db, r, raw, series, actor, ctx, source="auto", check=False)
             n += 1
         except HTTPException as exc:

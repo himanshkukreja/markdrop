@@ -85,8 +85,9 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox, { filename: "Code.gs" });
-for (const fn of sc.runs || ["setup"]) vm.runInContext(fn + "()", sandbox);
+for (const fn of sc.runs || ["setup"]) vm.runInContext(fn.includes("(") ? fn : fn + "()", sandbox);
 report.triggers = triggers.map((t) => ({ fn: t.fn, every: t.every }));
+report.props = Object.keys(props).filter((k) => !k.startsWith("sent:"));
 report.sent = Object.keys(props).filter((k) => k.startsWith("sent:")).map((k) => k.slice(5)).sort();
 report.constants = vm.runInContext("({endpoint: MARKDROP_ENDPOINT, token: MARKDROP_TOKEN, lookback: LOOKBACK_HOURS})", sandbox);
 process.stdout.write(JSON.stringify(report));

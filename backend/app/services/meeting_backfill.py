@@ -26,7 +26,8 @@ on; a row caught half way is finished, not imported twice (``import_meetings`` d
 meeting this job made is recognised as its own).
 
 **Quiet.** A bulk import notifies nobody by default (``quiet``, the review's "Don't notify anyone"
-switch); with it off, meetings older than a day still import silently. Mentions stay links.
+switch); with it off, meetings older than a day still import silently (``import_meetings(notify=False)``:
+the meeting is marked ``history`` and its later AI rewrite stays quiet too). Mentions stay links.
 
 **The cap.** Before each row: Meetings AI over today's budget (or the person's own daily cap) →
 the job waits until the next UTC midnight; over the month's → the 1st; too fast → a minute. AI
@@ -590,7 +591,7 @@ async def _row(db: AsyncIOMotorDatabase, job: dict, row: dict, user) -> None:
         rows = await meetings.import_meetings(
             db, user, job["workspace_id"], incoming, title=row["title"], date_=row["date"],
             restricted=bool(job.get("restricted")), wait=True, via="backfill", dedupe="all",
-            series=row.get("series"), series_from=row.get("series_from") or "auto", quiet=quiet)
+            series=row.get("series"), series_from=row.get("series_from") or "auto", notify=not quiet)
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else "The import was refused."
         await _set_row(db, oid, row["id"], state="failed", error=detail[:300])

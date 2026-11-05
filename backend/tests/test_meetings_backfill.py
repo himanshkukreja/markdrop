@@ -292,7 +292,7 @@ class Queue(BackfillWorld):
         async def spy(db, user, ws, incoming, **kw):
             order.append(kw["date_"])
             self.assertEqual(kw["via"], "backfill")
-            self.assertTrue(kw["quiet"])
+            self.assertFalse(kw["notify"])
             return await real(db, user, ws, incoming, **kw)
 
         with mock.patch.object(meetings, "import_meetings", spy):
@@ -306,7 +306,7 @@ class Queue(BackfillWorld):
         rows = await self.db[meetings.COLL].find({"workspace_id": self.W}).sort("date", 1).to_list(10)
         self.assertEqual([r["date"] for r in rows], sorted(ago(d).isoformat() for d in (30, 20, 12, 1)))
         self.assertEqual({r["title"]: r["series"] for r in rows}, {"Daily Standup": "Daily Standup", "Acme kickoff": None})
-        self.assertTrue(all(r["quiet"] for r in rows))
+        self.assertTrue(all(r["history"] for r in rows))
         self.assertTrue(all((r["ai"] or {}).get("state") == "done" for r in rows))
         # Action items mention members, but nobody was notified (bulk = quiet by default).
         page = await self.doc(rows[-1]["slug"])
@@ -355,8 +355,8 @@ class Queue(BackfillWorld):
         rows = {r["title"]: r async for r in self.db[meetings.COLL].find({"workspace_id": self.W})}
         self.assertTrue(notes)                                         # the recent one notified…
         self.assertEqual(pages, {str(rows["Release sync"]["doc_id"])})  # …the 40-day-old one didn't
-        self.assertFalse(rows["Release sync"]["quiet"])
-        self.assertTrue(rows["Old sync"]["quiet"])
+        self.assertFalse(rows["Release sync"].get("history"))
+        self.assertTrue(rows["Old sync"]["history"])
 
     async def test_resume_after_a_restart(self):
         job = await self.new_job()
@@ -369,7 +369,7 @@ class Queue(BackfillWorld):
         user = await bf._owner(self.db, row)
         srcs = await self.db[bf.SOURCES].find({"_id": {"$in": [bf.ObjectId(s) for s in first["source_ids"]]}}).to_list(5)
         await meetings.import_meetings(self.db, user, self.W, [meetings.Incoming(name=s["name"], text=s["text"], origin="upload") for s in srcs],
-                                       title=first["title"], date_=first["date"], wait=True, via="backfill", dedupe="all", quiet=True)
+                                       title=first["title"], date_=first["date"], wait=True, via="backfill", dedupe="all", notify=False)
         await self.db[bf.JOBS].update_one({"_id": row["_id"]}, {"$set": {
             "lease": {"holder": "other:1", "until": datetime.now(timezone.utc) - timedelta(seconds=1)},
             "rows.$[r].state": "importing", "rows.$[r].attempts": 1,
