@@ -282,6 +282,10 @@ jobs:
       PB_FAKE_ASK_AI: "1"
       PB_FAKE_SEARCH_AI: "1"
       BROWSER: ${{ matrix.browser }}
+      # bughunt's perf-typing throttles the CPU (CPU, default 4x on the dev Mac) and fails on a long task
+      # over 100 ms. A runner core is ~2.3x slower than the Mac's (see SEARCH_P95_MS above), so 2x here
+      # is about the Mac's 4x: the same bar. At 4x it read 0–3 tasks of 52–65 ms, and once 121 ms.
+      CPU: "2"
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
