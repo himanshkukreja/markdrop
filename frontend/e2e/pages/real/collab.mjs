@@ -188,11 +188,17 @@ await step("true-conflict", async () => {
   await shot(p, "c05-true-conflict");
   log("banner:", b);
   if (!/same part of this page/i.test(b)) fail(`no conflict notice: ${b}`);
+  // No saves while it waits for an answer, and what's typed meanwhile is part of the answer.
+  const puts = [];
+  p.on("request", (r) => { if (r.method() === "PUT" && r.url().includes(`/documents/${slug}`)) puts.push(r.url()); });
+  await p.keyboard.type("Z");
+  await p.waitForTimeout(5000);
+  if (puts.length) fail(`${puts.length} save(s) while the conflict banner waited`);
   await p.getByRole("button", { name: "Keep both" }).click();
   await waitSaved(p);
   const x = await content(slug);
-  if (!x.includes("Beta paragraph. XY") || !x.includes("Beta rewritten elsewhere.")) fail(`Keep both: ${JSON.stringify(x)}`);
-  if (x.indexOf("Beta rewritten elsewhere.") > x.indexOf("Beta paragraph. XY")) fail("Keep both: theirs should come first");
+  if (!x.includes("Beta paragraph. XYZ") || !x.includes("Beta rewritten elsewhere.")) fail(`Keep both: ${JSON.stringify(x)}`);
+  if (x.indexOf("Beta rewritten elsewhere.") > x.indexOf("Beta paragraph. XYZ")) fail("Keep both: theirs should come first");
 });
 
 /* ── 6. Renamed (set_slug) while open: the tab follows, typing still saves ── */
