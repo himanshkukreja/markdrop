@@ -87,6 +87,7 @@ const pagesApi = () => import("@/lib/pages");
 const AskLauncher = dynamic(() => import("@/components/pages/ai/AskLauncher").then((m) => m.AskLauncher), { ssr: false, loading: () => null });
 // Meetings (components/meetings): a meeting page's own pill and panel (Ask this meeting, details).
 const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
+const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
 
 /**
@@ -765,6 +766,9 @@ export default function DocumentView(props: DocumentViewProps) {
   const otherEditor = snap?.viewers.find((x) => x.editing && x.id !== snap.you && x.id !== snap.me?.id && !(snap.you == null && !!user?.name && x.name === user.name)) ?? null;
   const othersEditing = otherEditor ? otherEditor.name || (otherEditor.animal ? `Anonymous ${otherEditor.animal}` : "Someone") : null;
   const pageBacklinks = !tenant ? <Backlinks key={user?.id ?? "anon"} slug={slug} addressing={addressing} /> : null;
+  // A meeting page (or its transcript): who was there, who can open it, Transcript and Ask.
+  const meetingBar = readable && !!user && isPage && page?.meeting && !tenant
+    ? <MeetingHeader meetingId={page.meeting.id} role={page.meeting.role} /> : null;
   const propsHref = tenant ? undefined : (s: string) => `/${encodeURIComponent(s)}`;
   const readerProps = page?.page_properties ? <PropertiesPanel info={page.page_properties} workspaceId={page.workspace_id ?? null} pageHref={propsHref} /> : null;
   const pageFooter = isPage ? (
@@ -841,7 +845,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 menu={readerPageMenu}
               />
             }
-            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{pageBacklinks}</>} />}
+            head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{meetingBar}{pageBacklinks}</>} />}
             footer={pageFooter}
           >
             {notices}
@@ -911,7 +915,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 shareUrl,
                 onCopied: copyLinkEvent,
                 menu: editorDocMenu,
-                below: pageBacklinks,
+                below: meetingBar ? <>{meetingBar}{pageBacklinks}</> : pageBacklinks,
                 properties: page?.page_properties ?? null,
                 propertiesHref: propsHref,
                 footer: pageFooter,

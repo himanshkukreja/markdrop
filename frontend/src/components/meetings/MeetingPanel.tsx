@@ -13,7 +13,7 @@
  * (page_fields `meeting`); the meeting itself is decided again by GET /meetings/{id}. While the
  * summary is being written the panel polls, and the page updates through its live socket.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { slackPostMeeting } from "@/lib/slack";
@@ -28,34 +28,97 @@ import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
 
-const SUGGESTIONS = [
-  { q: "What did we decide?", icon: "checkCircle" },
-  { q: "What are the action items, and who owns them?", icon: "checkSquare" },
-  { q: "What's still open?", icon: "flag" },
-  { q: "Summarize it in three bullets", icon: "lines" },
-];
+
+// One meeting, shared by the panel and the page's meeting bar (one fetch; a change in Details shows in both).
+const cache = new Map<string, Meeting | null>();
+const listeners = new Set<() => void>();
+const loading = new Map<string, Promise<Meeting | null>>();
+function setCached(id: string, m: Meeting | null) {
+  cache.set(id, m);
+  listeners.forEach((l) => l());
+}
+function fetchMeeting(id: string, fresh = false): Promise<Meeting | null> {
+  if (!fresh && loading.has(id)) return loading.get(id)!;
+  const p = getMeeting(id).then((m) => { setCached(id, m); return m; }).catch(() => { setCached(id, null); return null; })
+    .finally(() => loading.delete(id));
+  loading.set(id, p);
+  return p;
+}
+function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Promise<Meeting | null>] {
+  const m = useSyncExternalStore(
+    (l) => { listeners.add(l); return () => { listeners.delete(l); }; },
+    () => cache.get(id) ?? null,
+    () => null,
+  );
+  useEffect(() => { if (!cache.has(id)) void fetchMeeting(id); }, [id]);
+  const set = useCallback((next: Meeting) => setCached(id, next), [id]);
+  const reload = useCallback(() => fetchMeeting(id, true), [id]);
+  return [m, set, reload];
+}
+const OPEN_EVENT = "md:meeting-ask";
+
+/**
+ * The meeting bar under a meeting page's properties: who was there, who can open it, and the two things
+ * people do next — read the transcript, ask the meeting. On the transcript: back to the meeting, ask.
+ */
+export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: string }) {
+  const [m] = useMeeting(meetingId);
+  if (!m) return null;
+  const people = m.attendees;
+  const ask = () => window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: meetingId }));
+  return (
+    <div className="mt-pagebar no-print" data-testid="meeting-header">
+      <div className="mt-pagebar__facts">
+        {people.length > 0 && (
+          <span className="mt-pagebar__people" title={people.map((a) => a.name).join(", ")}>
+            <span className="mt-faces" aria-hidden>
+              {people.slice(0, 5).map((a) => (
+                <span key={a.name} className="mt-face" style={{ background: `hsl(${hueOf(a.name)} 45% 46%)` }}>
+                  {a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("")}
+                </span>
+              ))}
+            </span>
+            {people.length} {people.length === 1 ? "person" : "people"}
+          </span>
+        )}
+        {m.organizer?.name && <span className="mt-pagebar__fact"><Icon name="user" />Organized by {m.organizer.name}</span>}
+        <span className="mt-pagebar__fact" data-testid="meeting-privacy">
+          <Icon name={m.restricted ? "lock" : "users"} />{m.restricted ? "Only the people who were there" : "Everyone in the workspace"}
+        </span>
+      </div>
+      <div className="mt-pagebar__actions">
+        {role === "transcript"
+          ? <Button size="sm" variant="secondary" iconLeft="arrowLeft" href={`/${m.slug}`}>The meeting</Button>
+          : m.transcript_slug && <Button size="sm" variant="secondary" iconLeft="lines" href={`/${m.transcript_slug}`} data-testid="meeting-transcript">Transcript</Button>}
+        <Button size="sm" iconLeft="sparkle" onClick={ask} data-testid="meeting-ask">Ask this meeting</Button>
+      </div>
+    </div>
+  );
+}
+
+function hueOf(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return h;
+}
 
 export function MeetingLauncher({ meetingId }: { meetingId: string; role?: string }) {
   const phone = useMediaQuery(PHONE_QUERY);
   const router = useRouter();
   const toast = useToast();
-  const [m, setM] = useState<Meeting | null>(null);
+  const [m, setM, load] = useMeeting(meetingId);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"ask" | "details">("ask");
   const pill = useRef<HTMLButtonElement>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const got = await getMeeting(meetingId);
-      setM(got);
-      return got;
-    } catch {
-      setM(null);
-      return null;
-    }
+  // The meeting bar's Ask, a card's "Ask this meeting" (?ask=1).
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent).detail === meetingId) { setTab("ask"); setOpen(true); } };
+    window.addEventListener(OPEN_EVENT, on);
+    if (new URLSearchParams(window.location.search).get("ask") === "1") setOpen(true);
+    return () => window.removeEventListener(OPEN_EVENT, on);
   }, [meetingId]);
-
-  useEffect(() => { void load(); }, [load]);
+  const info = useMemo(() => (m ? { title: m.title, date: m.date, series: m.series ?? null } : null), [m?.title, m?.date, m?.series]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The summary is being written: check every few seconds; the page fills in through its socket.
   const wasPending = useRef(false);
@@ -111,17 +174,17 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
               <IconButton icon="x" label="Close" size="sm" onClick={close} />
             </header>
             <div className="mt-tabs" role="tablist" aria-label="Meeting">
-              <button type="button" role="tab" className="mt-tab" aria-selected={tab === "ask"} onClick={() => setTab("ask")}>Ask</button>
-              <button type="button" role="tab" className="mt-tab" aria-selected={tab === "details"} onClick={() => setTab("details")} data-testid="meeting-details-tab">Details</button>
+              <button type="button" role="tab" className="mt-tab" aria-selected={tab === "ask"} onClick={() => setTab("ask")}><Icon name="sparkle" />Ask</button>
+              <button type="button" role="tab" className="mt-tab" aria-selected={tab === "details"} onClick={() => setTab("details")} data-testid="meeting-details-tab"><Icon name="info" />Details</button>
             </div>
             {tab === "ask" ? (
               <MeetingChat
                 mode="one"
                 meetingId={m.id}
-                suggestions={SUGGESTIONS}
+                meeting={info}
+                layout={phone ? "sheet" : "panel"}
                 emptyTitle="Ask this meeting"
-                emptySub={m.has_transcript ? "Answers come from the transcript and the page, with chips that jump to the moment it was said." : "Answers come from Google's notes on this page."}
-                placeholder="Ask about this meeting…"
+                emptySub={m.has_transcript ? "Answers come from the transcript and the notes, and link to the moment it was said." : "Answers come from Google's notes on this page."}
                 autoFocus={open && !phone}
                 onNavigate={phone ? close : undefined}
                 banner={<SummaryBanner m={m} />}

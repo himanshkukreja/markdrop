@@ -80,6 +80,11 @@ export interface Meeting {
   auto_restricted?: boolean;
   /** The recurring meeting it belongs to ("Daily Standup"), or null. */
   series?: string | null;
+  /** For the list's cards: a line of the AI summary (plain text), counts, and the page's gallery cover id. */
+  summary?: string | null;
+  decisions?: number;
+  open_questions?: number;
+  cover?: string | null;
 }
 
 /** A "Connect Google Meet" connection (never its token). */
@@ -261,6 +266,11 @@ export interface MeetingCitation {
   href: string;
   slug?: string | null;
   meeting_id?: string;
+  /** A transcript line's speaker and time ("12:34"), and what it (or a notes line) says. */
+  speaker?: string | null;
+  at?: string | null;
+  quote?: string | null;
+  key?: string;
 }
 
 export interface RankedMeeting { n: number; id: string; title: string | null; date: string | null; type: string | null; series?: string | null; slug: string }
@@ -272,7 +282,7 @@ export type MeetingAskEvent =
   | { type: "status"; stage: "searching" | "answering" }
   | { type: "results"; items: RankedMeeting[]; scope?: AskScope | null }
   | { type: "delta"; text: string }
-  | { type: "done"; answer: string; citations: MeetingCitation[]; ranked?: RankedMeeting[]; truncated?: boolean; scope?: AskScope | null }
+  | { type: "done"; answer: string; citations: MeetingCitation[]; ranked?: RankedMeeting[]; truncated?: boolean; scope?: AskScope | null; thread_id?: string | null }
   | { type: "limit"; reason: string; message: string }
   | { type: "error"; detail: string; code?: string };
 
@@ -321,12 +331,13 @@ async function stream(path: string, body: unknown, onEvent: (e: MeetingAskEvent)
   }
 }
 
-export function askMeeting(id: string, body: { question: string; history?: Array<{ question: string; answer: string }> },
+export function askMeeting(id: string, body: { question: string; history?: Array<{ question: string; answer: string }>; thread_id?: string | null },
   onEvent: (e: MeetingAskEvent) => void, signal?: AbortSignal) {
   return stream(`/api/v1/meetings/${encodeURIComponent(id)}/ask`, body, onEvent, signal);
 }
 
-export function askMeetings(body: { workspace: string; question: string; series?: string; since?: string; until?: string },
+export function askMeetings(body: { workspace: string; question: string; series?: string; since?: string; until?: string;
+  history?: Array<{ question: string; answer: string }>; thread_id?: string | null },
   onEvent: (e: MeetingAskEvent) => void, signal?: AbortSignal) {
   return stream(`/api/v1/meetings/ask`, body, onEvent, signal);
 }
