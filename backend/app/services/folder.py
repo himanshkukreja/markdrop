@@ -102,19 +102,23 @@ def _clean_name(name: str) -> str:
 # which is what internal callers that have nobody to ask keep doing.
 ON_CONFLICT = ("error", "suffix")
 OLD_PATHS_KEPT = 20
+# address_clash's answer for a document the caller can't read: not a refusal.
+HIDDEN_CLASH = "hidden"
 
 
 async def address_clash(db: AsyncIOMotorDatabase, workspace_id: str, parent_id: str | None, slug: str,
                         *, exclude_id: ObjectId | None = None, actor=None, ctx=None) -> str | None:
     """None when ``slug`` is free directly in ``parent_id`` (None = the top),
+    :data:`HIDDEN_CLASH` when only a document the caller can't read holds it,
     else the sentence for the 409.
 
     A sibling folder is named (every member sees the folders). A document is
     named only when ``actor`` may read it (C-N7); otherwise the answer says
-    only that the address is taken there, which is the one thing the old
-    ``-2`` suffix gave away too. Either way the caller can pick another name
-    or ask for a suffixed address, so a document they can't see never blocks
-    them."""
+    only that the address is taken there. Callers that refuse on a clash
+    (:func:`_unique_slug` with ``on_conflict="error"``) never refuse on that
+    one: a document the caller can't read neither blocks them nor answers
+    differently from a free address (C-N7, tests/test_wsv2_fix_round2) — the
+    folder takes the next free address, as it always did."""
     where = "/" + "/".join([*await path_of(db, workspace_id, parent_id), slug])
     query: dict = {"workspace_id": workspace_id, "parent_id": parent_id or None, "slug": slug}
     if exclude_id is not None:
@@ -137,7 +141,7 @@ async def address_clash(db: AsyncIOMotorDatabase, workspace_id: str, parent_id: 
             title = f"“{item['title']}” " if item.get("title") else ""
             return (f"The {item['kind']} {title}({slug}) already has the address {where}. "
                     "Pick another folder name, or change that item's link first.")
-    return f"The address {where} is already taken in that folder. Pick another name."
+    return HIDDEN_CLASH
 
 
 async def _unique_slug(
@@ -171,9 +175,11 @@ async def _unique_slug(
     if on_conflict == "error":
         clash = await address_clash(db, workspace_id, parent_id, base, exclude_id=exclude_id,
                                     actor=actor, ctx=ctx)
-        if clash:
+        if not clash:
+            return base
+        if clash != HIDDEN_CLASH:
             raise HTTPException(status_code=409, detail=clash)
-        return base
+        # A document the caller can't read: suffixed, as below (C-N7).
 
     candidate, n = base, 1
     while True:
@@ -745,6 +751,20 @@ async def update_folder(
         shares = [f.share.get("id") for f in current if f.share and f.id in below]
         await _purge(db, workspace_id, slugs, shares)
     return _to_folder(raw)
+
+
+def base_slug(name: str) -> str:
+    """The address a folder called ``name`` asks for (before any suffix)."""
+    return slugify(name)[:MAX_SLUG].strip("-") or "folder"
+
+
+def suffixed_note(asked: str, got: str) -> str | None:
+    """For a caller who didn't ask for a suffix but got one (an item they
+    can't open holds the address; never named)."""
+    if got == asked:
+        return None
+    return (f"The address “{asked}” is already used there by an item the user can't open, so the folder's "
+            f"address is “{got}”. Rename it with rename_folder (slug) to choose another.")
 
 
 def _same_address(name: str, current: str) -> bool:

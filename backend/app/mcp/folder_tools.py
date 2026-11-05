@@ -85,7 +85,8 @@ def _clash(exc: HTTPException, on_conflict: str, what: str) -> ToolError:
     return ToolError(http_message(exc))
 
 
-async def _changed(ctx: Context, ws_id: str, fid: str, before: list[str], text: str) -> tuple[str, dict]:
+async def _changed(ctx: Context, ws_id: str, fid: str, before: list[str], text: str,
+                   asked: str | None = None) -> tuple[str, dict]:
     from app.services import folder as folder_service
 
     raw = await ctx.db["folders"].find_one({"_id": access_service.as_oid(fid)},
@@ -97,6 +98,10 @@ async def _changed(ctx: Context, ws_id: str, fid: str, before: list[str], text: 
            "redirects_from": [p for p in (raw.get("old_paths") or []) if isinstance(p, str)]}
     if after == before:
         return f"Nothing changed: the folder is already at {out['path']}.", out
+    note = folder_service.suffixed_note(asked, out["slug"]) if asked else None
+    if note:
+        out["note"] = note
+        text = f"{text} {note}"
     where = out["url"] or out["path"]
     return (f"{text} It is now at {where}. Its old address ({out['previous_path']}) and the old addresses of "
             "everything in it redirect to the new ones; markdrop.in links don't change."), out
@@ -110,6 +115,10 @@ async def rename_folder(ctx: Context, args: dict) -> tuple[str, dict]:
     fid = await _folder(ctx, ws_id, args["path"])
     before = await folder_service.path_of(ctx.db, ws_id, fid)
     on_conflict = args.get("on_conflict") or "error"
+    wanted = args.get("slug") or args["new_name"]
+    # The address asked for, unless the rename keeps the current one (update_folder's rule).
+    asked = (folder_service.base_slug(wanted) if on_conflict == "error" and before
+             and not folder_service._same_address(wanted, before[-1]) else None)
     try:
         async with revalidate.batch(ctx.db):
             await folder_service.update_folder(
@@ -118,7 +127,7 @@ async def rename_folder(ctx: Context, args: dict) -> tuple[str, dict]:
                 ctx=access_service.Ctx(ctx.db, surface="mcp"))
     except HTTPException as exc:
         raise _clash(exc, on_conflict, "renamed")
-    return await _changed(ctx, ws_id, fid, before, f"Renamed the folder to {args['new_name']!r}.")
+    return await _changed(ctx, ws_id, fid, before, f"Renamed the folder to {args['new_name']!r}.", asked)
 
 
 async def move_folder(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -140,7 +149,8 @@ async def move_folder(ctx: Context, args: dict) -> tuple[str, dict]:
         raise _clash(exc, on_conflict, "moved")
     dest = "/".join(await folder_service.path_of(ctx.db, ws_id, parent_id)) if parent_id else None
     return await _changed(ctx, ws_id, fid, before,
-                          f"Moved the folder {'into ' + dest if dest else 'to the top of the workspace'}.")
+                          f"Moved the folder {'into ' + dest if dest else 'to the top of the workspace'}.",
+                          before[-1] if on_conflict == "error" and before else None)
 
 
 async def _contents(ctx: Context, ws_id: str, fid: str) -> dict:
@@ -236,7 +246,9 @@ _FOLDER_CHANGE_OUT = _out({
     "url": {**_NULLABLE_STR, "description": "The folder's address on the workspace's live domain, if any."},
     "redirects_from": {"type": "array", "items": {"type": "string"},
                        "description": "Former paths of this folder that redirect to it."},
-})
+    "note": {"type": "string", "description": "Set when the address had to be suffixed (an item the user "
+                                              "can't open has it there)."},
+}, ["workspace_id", "folder_id", "name", "slug", "path", "previous_path", "url", "redirects_from"])
 
 FOLDER_TOOLS: list[Tool] = [
     Tool(

@@ -87,11 +87,20 @@ class FolderMcp(AccessWorld):
         self.assertEqual((again["folder_id"], again["created"]), (out["folder_id"], []))
 
     async def test_create_folder_clash_with_a_document_the_caller_cant_read_is_not_named(self):
+        # Never named and never a refusal (C-N7: no answer that differs from a free address but the
+        # suffix the old behaviour gave too); the result says the address was suffixed.
         await self.mkdoc("P", owner="owner", slug="secret-plans", title="Codename Falcon")
-        text = await self.err("wm", "create_folder", {"workspace": WS, "path": "secret-plans"})
-        self.assertNotIn("Falcon", text)
-        self.assertIn("already taken", text)
-        self.assertEqual(await self.folders(), {})
+        res = await self.call("wm", "create_folder", {"workspace": WS, "path": "secret-plans"})
+        self.assertFalse(res["isError"], res)
+        self.assertNotIn("Falcon", str(res))
+        self.assertEqual(res["structuredContent"]["path"], "secret-plans-2")
+        self.assertIn("can't open", res["structuredContent"]["note"])
+        # Same for a rename onto it.
+        await self.folder("Other")
+        out = await self.ok("wa", "rename_folder", {"workspace": WS, "path": "other", "new_name": "Secret Plans"})
+        self.assertEqual(out["path"], "secret-plans-3")
+        self.assertNotIn("Falcon", str(out))
+        self.assertIn("note", out)
 
     async def test_create_folder_clash_with_a_sibling_folder_names_it(self):
         await self.folder("Release Notes")  # address release-notes
@@ -117,8 +126,8 @@ class FolderMcp(AccessWorld):
         self.assertIn("The Handbook", r.json()["detail"])
         await self.mkdoc("P", owner="owner", slug="hidden-one", title="Hidden Title")
         r = await self.http.post(url, json={"name": "Hidden One"}, headers=self.session("wm"))
-        self.assertEqual(r.status_code, 409)
-        self.assertNotIn("Hidden Title", r.json()["detail"])
+        self.assertEqual((r.status_code, r.json()["slug"]), (201, "hidden-one-2"))
+        self.assertNotIn("Hidden Title", r.text)
 
     async def test_create_folder_needs_a_member(self):
         self.assertIn("viewer", await self.err("wv", "create_folder", {"workspace": WS, "path": "x-folder"}))

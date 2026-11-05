@@ -64,7 +64,7 @@ Open the workspace (or the folder you want it inside), choose **New**, then **Ne
 | How deep folders can nest | 8 levels |
 | Folder name | Up to 80 characters |
 
-A folder's address has to be free where it goes. If a folder, page, document or file in the same place already has that address, Markdrop says what holds it and doesn't create the folder. Pick another name, or rename the other one first. An item you can't open isn't named, but its address is still taken. A few words are reserved for the top level because the app uses them, such as `settings`, `dashboard` and `api`.
+A folder's address has to be free where it goes. If a folder, page, document or file in the same place already has that address, Markdrop says what holds it and doesn't create the folder. Pick another name, or rename the other one first. If the address belongs to an item you can't open, Markdrop doesn't name it or stop you: the folder gets the next free address, like `reports-2`. A few words are reserved for the top level because the app uses them, such as `settings`, `dashboard` and `api`.
 
 ## File things into folders
 

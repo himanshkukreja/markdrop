@@ -939,7 +939,7 @@
     },
     "POST /api/v1/workspaces/{workspace_id}/folders": {
       "title": "Create a folder",
-      "description": "Creates a folder at the top level, or inside another folder with `parent_id`. If a folder, page, document or file there already has the folder's address, it returns `409` saying what holds it (an item you can't open isn't named) and creates nothing; send `on_conflict: \"suffix\"` to take the next free address (`guides-2`) instead.",
+      "description": "Creates a folder at the top level, or inside another folder with `parent_id`. If a folder, page, document or file there already has the folder's address, it returns `409` saying what holds it and creates nothing (an item you can't open is never named and never blocks you: the folder takes the next free address); send `on_conflict: \"suffix\"` to take the next free address (`guides-2`) instead.",
       "example": { "name": "Guides" },
       "mcp": "create_folder",
       "guide": { "label": "Folders", "href": "/workspaces/folders" }

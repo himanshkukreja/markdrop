@@ -1887,7 +1887,13 @@ async def create_folder(ctx: Context, args: dict) -> tuple[str, dict]:
     out = {"workspace_id": ws_id, "folder_id": folder_id, "path": "/".join(path), "created": created}
     if not created:
         return f"The folder {out['path']} already exists.", out
-    return f"Created {out['path']}.", out
+    # Only the first folder made can have met a taken address (the rest are inside it).
+    first = path[len(path) - len(created)] if len(path) >= len(created) else None
+    note = (folder_service.suffixed_note(folder_service.base_slug(created[0]), first)
+            if on_conflict == "error" and first else None)
+    if note:
+        out["note"] = note
+    return f"Created {out['path']}." + (f" {note}" if note else ""), out
 
 
 async def move_to_folder(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -3263,7 +3269,10 @@ TOOLS += [
             "on_conflict": _ON_CONFLICT_ARG,
         }, "required": ["workspace", "path"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folder_id": {"type": "string"},
-                            "path": {"type": "string"}, "created": {"type": "array"}}),
+                            "path": {"type": "string"}, "created": {"type": "array"},
+                            "note": {"type": "string", "description": "Set when the address had to be "
+                                                                      "suffixed (an item the user can't open has it)."}},
+                           ["workspace_id", "folder_id", "path", "created"]),
         annotations=_ann(False, False, True),
         handler=create_folder,
     ),
