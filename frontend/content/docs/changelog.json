@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "meeting-memory-while-writing",
+      "date": "2026-11-05",
+      "title": "Meeting memory while writing: what the team decided, right in the page",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "While you write a PRD or any page in a workspace, From meetings shows the decisions, action items and open questions your meetings recorded about it, with the date, the meeting and a link to the moment. Insert one as a cited line, get a gentle card when a section leaves out a decision, and ask the page with your meetings.",
+      "body": "- **From meetings**, beside **Ask** at the bottom right of a page, follows the section you're writing: decisions, action items (owner, due, open or done), open questions and topics from the workspace's meetings, each with its date, meeting and series, and a link to the moment in the transcript. A search box finds anything else.\n- **Insert** adds a dated, cited line, such as \"**Decided on Oct 28, 2026** (Daily Standup): …\", with a mention of the meeting and a link to the moment. `/meetings` in the page opens the panel and inserts where you typed.\n- **Missed decisions.** When a section clearly leaves out a decision about its topic, a small card asks \"Include it here?\". With AI on, Claude Haiku 5.5 also notices a section that says something different from a decision. Nothing changes unless you choose **Include**. Both the button and the cards can be switched off, per person.\n- **Ask the page with your meetings.** **Ask** in a workspace page answers from the page and the workspace's meetings, naming the meeting and date for \"when did we decide…\" questions, with citations that open the moment.\n- **Private by design.** Only meetings you can open count. Meetings restricted to their attendees, including one-to-one calls, never appear for anyone else. No extra AI cost: the memory comes from the summary each meeting already has.\n- **For AI apps**: `meeting_context` returns the decisions and action items related to a topic or a page, with dates, links and a cited line to paste (80 MCP tools now).",
+      "docs": [
+        "/pages/meeting-memory",
+        "/ai/tools",
+        "/workspaces/meetings"
+      ]
+    },
+    {
       "id": "working-together-on-pages",
       "date": "2026-11-05",
       "title": "Working together on a page: merged changes, no silent overwrites",

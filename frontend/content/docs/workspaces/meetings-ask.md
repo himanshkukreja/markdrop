@@ -36,8 +36,11 @@ To ask across meetings and everything else at once, use [Ask Markdrop](/workspac
 
 `ask_meetings` asks one meeting or a whole workspace from an AI app connected to the [hosted MCP server](/ai/hosted-mcp). It counts towards the same **Meetings AI** limit. See [MCP tools](/ai/tools#meetings).
 
+While you write a page, [Meeting memory](/pages/meeting-memory) shows what was decided about it, and **Ask** in the page can answer from your meetings.
+
 ## Related
 
+- [Meeting memory while writing](/pages/meeting-memory)
 - [Ask Markdrop](/workspaces/ask-markdrop)
 - [Meetings](/workspaces/meetings)
 - [Search](/workspaces/search)

@@ -2,7 +2,7 @@
 title: AI in pages
 nav: AI in pages
 description: Rewrite, draft, summarize and translate pages with AI, turn notes into a page, and let readers ask a page questions. Who can use it, what's sent, the limits.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/pages/overview]
 keywords: [ai, claude, anthropic, ask ai, ask this page, summarize, summary, translate, translation, action items, to-do, notes, alt text, title, icon, /ai, cmd j, ctrl j, workspace ai, privacy, training, limits, cover, auto cover, automatic cover]
 ---
@@ -67,7 +67,9 @@ Anyone signed in who can open a page can ask it questions. Choose **✦ Ask** at
 - Answers stream in and link to the sections they come from. Choose a link, or a section under **Sections**, to scroll to that heading; it's highlighted for a moment.
 - Ask follow-ups: your last six questions and answers go with each new question. **Stop** ends an answer early, and **Clear** starts again. Closing the panel keeps the conversation until you leave the page.
 
-Answers use only this page and the Markdrop items it embeds that you can open yourself. An embedded item you can't open is never read for your answer. AI can be wrong, so check what matters on the page itself.
+In a workspace page, **Meetings** under the question box (on by default) lets answers use the workspace's meetings too, with the meeting, its date and a link to the moment: "When did we decide this?" See [Meeting memory while writing](/pages/meeting-memory#ask-the-page-with-your-meetings).
+
+Without **Meetings**, answers use only this page and the Markdrop items it embeds that you can open yourself. An embedded item you can't open is never read for your answer. AI can be wrong, so check what matters on the page itself.
 
 **Ask** works on a workspace's [own domain](/workspaces/custom-domain) too, once you're [signed in there](/workspaces/sign-in-on-your-domain). Visitors who aren't signed in don't see it.
 
@@ -150,6 +152,7 @@ Three [MCP tools](/ai/tools#pages) bring this to Claude, ChatGPT and other AI ap
 
 ## Related
 
+- [Meeting memory while writing](/pages/meeting-memory)
 - [Pages and the block editor](/pages/overview)
 - [Keyboard shortcuts](/pages/keyboard-shortcuts)
 - [Embed and mention Markdrop items](/pages/embed-and-mention)

@@ -57,13 +57,16 @@ The page is an ordinary page. Edit it like any other: fix a name, add notes, tic
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`), list meetings (`list_meetings`, filtered by how they came in or by date), read one (`get_meeting`), ask them (`ask_meetings`), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`), list meetings (`list_meetings`, filtered by how they came in or by date), read one (`get_meeting`), ask them (`ask_meetings`), get what was decided about a topic while writing a document (`meeting_context`), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
 
 ## Next
 
 ::::cards
 :::card[Ask your meetings]{href="/workspaces/meetings-ask" icon="sparkle"}
 Ask one meeting or all of them. Answers link to the moment it was said.
+:::
+:::card[Meeting memory while writing]{href="/pages/meeting-memory" icon="lines"}
+See what was decided in meetings while you write a page, and insert it as a cited line.
 :::
 :::card[Privacy and cost]{href="/workspaces/meetings-privacy" icon="lock"}
 Who can open a meeting, restricted meetings, how long transcripts are kept, and the AI budget.
