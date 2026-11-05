@@ -244,7 +244,8 @@ export async function editPage(p, timeout = 30000) {
   const live = p.locator('.pb-live .ProseMirror');
   const edit = p.locator('[data-page-mode="edit"]');
   await Promise.race([live.first().waitFor({ timeout }), edit.first().waitFor({ timeout })]).catch(() => {});
-  if (!(await live.count()) && (await edit.count())) await edit.first().click();
+  // (A busy Edit: the editor is already on its way, e.g. ?edit=1 or "Open in block editor".)
+  if (!(await live.count()) && (await edit.count()) && (await edit.first().getAttribute("aria-busy")) !== "true") await edit.first().click();
   await live.first().waitFor({ timeout });
 }
 
