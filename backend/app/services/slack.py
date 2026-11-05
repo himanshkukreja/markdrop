@@ -107,8 +107,18 @@ def _log_failure(task: asyncio.Task) -> None:
 
 
 async def drain() -> None:
-    """Wait for the background work started so far (tests)."""
-    while _bg:
+    """Wait for the background work started so far (tests).
+
+    Work left from another event loop (a test's loop that closed before a finished task's done
+    callbacks ran) is dropped: a finished task stays in ``_bg`` then, and gathering it returns at once
+    without yielding, so this loop spun forever and hung the test."""
+    loop = asyncio.get_running_loop()
+    while True:
+        for t in list(_bg):
+            if t.done() or t.get_loop() is not loop:
+                _bg.discard(t)
+        if not _bg:
+            return
         await asyncio.gather(*list(_bg), return_exceptions=True)
 
 

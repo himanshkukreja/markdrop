@@ -10,7 +10,10 @@ const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
 const browser = await launch();
 const { step, results } = stepper(browser);
-const mod = BROWSER === "webkit" || process.platform === "darwin" ? "Meta" : "Control";
+// The editor's shortcuts follow the OS, not the engine: Meta on macOS (Chromium and WebKit alike), Control
+// on Linux (CI). And macOS's line end is Meta+ArrowRight (End scrolls the page there); Linux's is End.
+const mod = process.platform === "darwin" ? "Meta" : "Control";
+const lineEnd = process.platform === "darwin" ? "Meta+ArrowRight" : "End";
 const content = async (slug) => (await docOf(slug, T.owner)).content;
 // auto_cover: false — these checks compare the saved Markdown exactly (a new page otherwise gets an automatic cover).
 const newPage = async (title, body = "\n") => (await api("POST", "/api/v1/pages", T.owner, { title, workspace: S.ws, folder: S.folder, content: body, auto_cover: false })).body.document.slug;
@@ -81,13 +84,27 @@ await step("typing-undo", async () => {
   const want = "First line typed fast with **bold** words\n\n## A heading\n\n- one\n- two\n\nLast paragraph 1234567890 the quick brown fox.\n";
   let md = await settle(p, slug, (m) => m === want);
   if (md !== want) fail(`fast typing saved ${JSON.stringify(md)}`);
-  // Undo everything (history across blocks), then redo everything.
+  // Undo everything (history across blocks), then redo everything. The redo key is Shift+Z, as a real
+  // keyboard reports it: Playwright on Linux sends Control+Shift+z as key "z" with Shift, which no real
+  // keyboard does, and ProseMirror's keymap then falls back from Shift-Ctrl-z (redo, nothing left) to
+  // Ctrl-z (undo): every extra press undid the last step again, so the result hung on the press count.
+  // The editor's undo history (Tiptap puts the editor on its element) says what happened if it comes up short.
+  const history = () => p.locator(".pb-live .ProseMirror").evaluate((el) => {
+    const ed = el.editor;
+    const h = ed?.state.plugins.find((pl) => pl.key.startsWith("history$"))?.getState(ed.state);
+    return h ? `${h.done.eventCount} done / ${h.undone.eventCount} to redo` : "?";
+  });
+  const typed = await history();
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+z`);
   md = await settle(p, slug, (m) => !m.trim());
   if (md.trim()) fail(`undo all left ${JSON.stringify(md)}`);
-  for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+z`);
+  const undone = await history();
+  for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+Z`);
   md = await settle(p, slug, (m) => m === want);
-  if (md !== want) fail(`redo all saved ${JSON.stringify(md)}`);
+  if (md !== want) {
+    const shown = await p.locator(".pb-live .ProseMirror").innerText();
+    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; history after typing ${typed}, after undo all ${undone}, after redo all ${await history()}`);
+  }
   await c.close();
 });
 
@@ -149,7 +166,7 @@ await step("long-page", async () => {
   await openEditor(p, slug);
   log("300 blocks open in", Date.now() - t0, "ms");
   await clickText(p, "Paragraph 151");
-  await p.keyboard.press(`${mod}+ArrowRight`); // macOS: End scrolls the page
+  await p.keyboard.press(lineEnd); // macOS: End scrolls the page
   await p.waitForTimeout(250);
   // Long tasks while typing.
   await p.evaluate(() => {
@@ -190,7 +207,7 @@ await step("perf-typing", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   await openEditor(p, slug);
   await clickText(p, "Paragraph 151");
-  await p.keyboard.press(`${mod}+ArrowRight`);
+  await p.keyboard.press(lineEnd);
   const cdp = await c.newCDPSession(p);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: Number(process.env.CPU || 4) });
   await cdp.send("Profiler.enable");
