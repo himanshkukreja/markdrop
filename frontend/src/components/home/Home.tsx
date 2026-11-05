@@ -575,8 +575,10 @@ function ActionsSection({ data, onTicked, onUndone, toast }: {
                   <Anchor href={a.url} className="hm-todo__main md-focus">
                     <span className="hm-row__title ph-sensitive" dir="auto">{a.text}</span>
                     <span className="hm-row__meta">
-                      {a.meeting && <Icon name="mic" size={12} className="hm-todo__mic" />}
-                      <span className="truncate ph-sensitive" dir="auto">{a.title}</span>
+                      <span className="hm-todo__src">
+                        {a.meeting && <Icon name="mic" size={12} className="hm-todo__mic" />}
+                        <span className="truncate ph-sensitive" dir="auto">{a.title}</span>
+                      </span>
                       {a.workspace?.name && <><span aria-hidden>·</span><span className="truncate ph-sensitive ph-mask">{a.workspace.name}</span></>}
                     </span>
                   </Anchor>

@@ -177,6 +177,7 @@
 .hm-todo--done .hm-row__title { text-decoration: line-through; color: var(--text-muted); }
 .hm-todo__main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; padding: 12px 8px 10px 0; color: inherit; text-decoration: none; border-radius: var(--radius-md); }
 .hm-todo__mic { flex: none; color: var(--accent-text); }
+.hm-todo__src { display: inline-flex; min-width: 0; max-width: 100%; align-items: center; gap: 4px; }
 
 /* ── Workspaces ───────────────────────────────────────────────────────── */
 .hm-ws { display: grid; min-width: 0; gap: 10px; margin: 0; padding: 0; list-style: none; }
