@@ -13456,6 +13456,52 @@
         }
       }
     },
+    "/api/v1/meetings/organize": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Organize",
+        "description": "The meetings already here get their series and move into Meetings/<Series> (or Meetings/Other\nmeetings): workspace admins and owners.",
+        "operationId": "organize_api_v1_meetings_organize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizeBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "6/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings/status": {
       "get": {
         "tags": [
@@ -18069,6 +18115,17 @@
               }
             ],
             "title": "Include"
+          },
+          "restricted": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restricted"
           }
         },
         "type": "object",
@@ -18907,9 +18964,15 @@
             "title": "Type"
           },
           "restricted": {
-            "type": "boolean",
-            "title": "Restricted",
-            "default": false
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restricted"
           },
           "wait": {
             "type": "boolean",
@@ -19903,6 +19966,20 @@
           "notes"
         ],
         "title": "NotesBody"
+      },
+      "OrganizeBody": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Workspace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace"
+        ],
+        "title": "OrganizeBody"
       },
       "OwnershipTransfer": {
         "properties": {

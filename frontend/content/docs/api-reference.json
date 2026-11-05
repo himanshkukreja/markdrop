@@ -2034,7 +2034,7 @@
     },
     "POST /api/v1/meetings/import": {
       "title": "Import a meeting",
-      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; `restricted: true` limits it to attendees who are members. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`, each with a `status`: `imported` (new), or `duplicate` (a Google Doc already imported into this workspace: that meeting, unchanged).",
+      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; Each meeting is filed in Meetings › <series> when it's a recurring call (a name seen on two or more days), else in Meetings › Other meetings. `restricted: true` limits a meeting to its attendees who are members and `false` opens it to the team; left out, a 1:1 or two-person call is restricted and three or more people are the team. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`, each with a `status`: `imported` (new), or `duplicate` (a Google Doc already imported into this workspace: that meeting, unchanged).",
       "example": {
         "workspace": "665f1c2ab3e4d5f6a7b8c9d0",
         "sources": [
@@ -2307,6 +2307,18 @@
       "paramNotes": {
         "workspace": "The workspace's id."
       },
+      "guide": {
+        "label": "How meetings are organised",
+        "href": "/workspaces/meetings#how-meetings-are-organised"
+      }
+    },
+    "POST /api/v1/meetings/organize": {
+      "title": "Organize meetings",
+      "description": "Workspace admins and owners: files every meeting in `workspace` the way new ones are filed. A recurring meeting (a name seen on two or more different days) goes to Meetings › <series> and gets that series, unless a person set its series; anything else goes to Meetings › Other meetings. The folders are made when needed and keep working when renamed. Safe to run again. Returns `meetings`, `moved`, `series_set` and `folders`.",
+      "example": {
+        "workspace": "665f1c2ab3e4d5f6a7b8c9d0"
+      },
+      "mcp": "organize_meetings",
       "guide": {
         "label": "How meetings are organised",
         "href": "/workspaces/meetings#how-meetings-are-organised"
