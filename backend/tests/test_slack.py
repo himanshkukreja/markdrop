@@ -257,6 +257,11 @@ class Verification(SlackWorld):
         self.assertEqual(set(m["settings"]["event_subscriptions"]["bot_events"]),
                          {"link_shared", "app_uninstalled", "tokens_revoked"})
         self.assertIn("https://www.markdrop.in/integrations/slack/callback", m["oauth_config"]["redirect_urls"])
+        # The redirect_uri the backend actually sends (production's frontend_url has no www): Slack refuses
+        # an install whose redirect_uri isn't listed in the app's redirect_urls.
+        settings.frontend_url = "https://markdrop.in"
+        self.assertEqual(slack.redirect_uri(), "https://markdrop.in/integrations/slack/callback")
+        self.assertIn(slack.redirect_uri(), m["oauth_config"]["redirect_urls"])
         self.assertNotRegex(path.read_text(), r"xox[abp]-|[0-9a-f]{32}")
 
 

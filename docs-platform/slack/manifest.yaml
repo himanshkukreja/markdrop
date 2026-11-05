@@ -39,6 +39,9 @@ oauth_config:
   redirect_urls:
     # Installing the app (Workspace settings › Integrations › Slack › Add to Slack) and linking a
     # person's Slack account (Link my Slack account) both come back here.
+    # The backend sends redirect_uri = <frontend_url>/integrations/slack/callback, and production's
+    # frontend_url is https://markdrop.in (no www); the www address stays for installs already started there.
+    - https://markdrop.in/integrations/slack/callback
     - https://www.markdrop.in/integrations/slack/callback
   scopes:
     # Linking a person's account uses Sign in with Slack (OpenID Connect): Markdrop reads who they
