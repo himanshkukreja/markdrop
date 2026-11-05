@@ -214,8 +214,10 @@ await step("many", async () => {
   const N = 80;
   const titles = [];
   const series = ["Daily Sync Up", "Weekly ops review", "Design crit", "Sales pipeline"];
+  const ONE_OFFS = "apples birches cedars dunes embers fables groves harbors indigo junipers kestrels lumens maples nectar onyx peppers quartz ravens sables tundras".split(" ");
   for (let i = 0; i < N; i++) {
-    const t = i < 60 ? series[i % 4] : `One-off ${["alpha", "beta", "gamma", "delta", "epsilon"][i % 5]} ${i}`;
+    // One-offs: names that never repeat (numbers alone don't make a name new: "Call 1" and "Call 2" are a series).
+    const t = i < 60 ? series[i % 4] : `Chat about ${ONE_OFFS[i - 60]}`;
     const r = await api("POST", "/api/v1/meetings/import", T.owner, {
       workspace: WS, wait: true, title: t, date: day(2 + Math.floor(i / 4) + (i >= 60 ? 30 : 0)),
       sources: [{ name: `${t} ${i}.txt`, text: talk(`w${i}x`) }],
