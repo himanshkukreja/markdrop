@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "folders-without-access-bar",
+      "date": "2026-11-05",
+      "title": "Folders open straight to their items",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "The \"Who can open what's in here\" bar above every folder is gone, so folders open straight to their items.",
+      "body": "- Folders and the workspace's top level no longer show the access counts bar above the items.\n- What new items start as is still in the folder's **⋯** menu (**New items start as…**) and, for the top level, in **Workspace settings**.\n- Each item's own access is still shown on its row and in **Who can open it**."
+    },
+    {
       "id": "page-view-mode",
       "date": "2026-11-05",
       "title": "Pages open in View mode: links open on a click, Edit when you want to write",
