@@ -33,10 +33,11 @@
         "web"
       ],
       "summary": "A page now opens for reading, for everyone, including people who can edit it: links, mentions, sub-pages and embeds open when you click them. Choose Edit in the top bar (or press E) to write, and Done to go back. Works on markdrop.in and your workspace's own domain.",
-      "body": "- **View mode first.** No caret, no block handles, nothing changes by accident while you read; links, page mentions, sub-pages, embeds and database rows open on a click.\n- **Edit** in the top bar, or **E** (not while you're typing in a field), opens the editor in the same spot. **Done** saves anything still waiting, lets go of the page so someone else can edit at once, and goes back to reading.\n- **Straight into the editor** for a page you've just made (New page, Add a sub-page, a template, Duplicate, a meeting import), an empty page, and links ending in `?edit=1`.\n- **Tick to-dos in View mode** if you can edit the page: the box saves at once. Readers can't change them.\n- On phones and tablets **Edit** and **Done** are 44 px targets in the top bar. Who's viewing, edit locks, Request edit access and sign-offs work in both modes.",
+      "body": "- **View mode first.** No caret, no block handles, nothing changes by accident while you read; links, page mentions, sub-pages, embeds and database rows open on a click.\n- **Edit** in the top bar, or **E** (not while you're typing in a field), opens the editor in the same spot. **Done** saves anything still waiting, lets go of the page so someone else can edit at once, and goes back to reading.\n- **Straight into the editor** for a page you've just made (New page, Add a sub-page, a template, Duplicate, a meeting import), an empty page, and links ending in `?edit=1`.\n- **Tick to-dos in View mode** if you can edit the page: the box saves at once. Readers can't change them.\n- On phones and tablets **Edit** and **Done** are 44 px targets in the top bar. Who's viewing, edit locks, Request edit access and sign-offs work in both modes.\n- **Ask Markdrop** (✦ Ask, ⌘J) sits beside **Edit** in the top bar. Its **Insert** in View mode switches to Edit with the answer at the end of the section you were reading.",
       "docs": [
         "/pages/overview#view-and-edit",
-        "/pages/keyboard-shortcuts"
+        "/pages/keyboard-shortcuts",
+        "/workspaces/ask-markdrop#insert-an-answer-into-the-doc"
       ]
     },
     {

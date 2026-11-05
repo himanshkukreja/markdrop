@@ -70,7 +70,7 @@ Anyone signed in who can open a page can ask it questions with [Ask Markdrop](/w
 
 In a workspace page, **This doc** answers from the page first, then what the workspace's meetings decided about it (with the meeting, its date and a link to the moment: "When did we decide this?"), then the workspace's other documents. See [Meeting memory while writing](/pages/meeting-memory#ask-the-page-with-your-meetings). Switch to **Meetings**, **Workspace** or **Everything** to ask more widely.
 
-If you can edit the page, **Insert** under an answer puts it into the page after the line where your cursor is, with its sources as links. Nothing goes into the page unless you choose **Insert**.
+If you can edit the page, **Insert** under an answer puts it into the page after the line where your cursor is, with its sources as links. In View mode, **Insert** switches the page to **Edit** with the answer at the end of the section you were reading. Nothing goes into the page unless you choose **Insert**.
 
 AI can be wrong, so check what matters on the page itself. Asking counts towards your **AI search** limit; see [AI limits](/workspaces/ask-markdrop#ai-limits).
 

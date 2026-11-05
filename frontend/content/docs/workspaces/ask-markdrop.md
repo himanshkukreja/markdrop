@@ -2,7 +2,7 @@
 title: Ask Markdrop
 description: One assistant everywhere. Ask about the doc you're in, your meetings, a folder, a workspace or everything you can open, with cited sources, follow-ups and ⌘J.
 updated: 2026-11-05
-keywords: [ask markdrop, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
+keywords: [ask markdrop, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---
 
 **Ask Markdrop** is one assistant, everywhere in Markdrop. Ask a question in plain words about the doc you're reading, your meetings, a folder, a workspace or everything you can open. Each answer cites where it came from, so you can check it in one tap, and the conversation follows you from screen to screen.
@@ -61,7 +61,8 @@ AI can be wrong, so check the sources. When nothing you can open answers the que
 
 If you can edit the document or page you're in, **Insert** puts the answer into it, with its sources as links:
 
-- **In a page**, the answer goes in as its own blocks after the line where your cursor is. Click where it should go first.
+- **In a page you're editing**, the answer goes in as its own blocks after the line where your cursor is. Click where it should go first.
+- **In a page you're reading** (View mode), the page switches to **Edit** with the answer at the end of the section you were reading. It saves like anything you type; choose **Done** when you're finished.
 - **In a document you're editing**, it goes in at your cursor in the Markdown, as its own paragraph.
 - **In a document you're reading**, the editor opens with the answer after the section you were reading. Nothing is saved until you choose **Save changes**.
 
