@@ -22,6 +22,8 @@ export interface EditorServices {
   ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
   /** "/person" and an empty person chip: an `@` that opens the people picker (menus/people.tsx). */
   openPeople?: (e: Editor, r: Range) => void;
+  /** "/meetings": the page's "From meetings" panel (components/pages/memory), set while it is mounted. */
+  openMeetings?: (e: Editor, r: Range) => void;
 }
 
 export function services(editor: Editor): EditorServices {
