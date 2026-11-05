@@ -228,7 +228,8 @@ await step("delete-while-open", async () => {
   await p.locator(".pb-live .ProseMirror").click();
   await p.keyboard.type(" typed after delete");
   await p.waitForTimeout(1000);
-  if (/Saving/.test(await p.locator(".pb-save").first().innerText().catch(() => ""))) fail("still pretending to save");
+  const saving = await p.evaluate(() => /Saving/.test(document.querySelector(".pb-save")?.textContent || ""));
+  if (saving) fail("still pretending to save");
 });
 
 /* ── 8. Removed from the workspace while editing: no further saves, told why ── */
@@ -240,8 +241,10 @@ await step("lose-access", async () => {
   if (r.status >= 300) fail(`remove member → ${r.status} ${JSON.stringify(r.body)}`);
   try {
     await p.waitForTimeout(3000);
-    await caretAfter(p, "Alpha paragraph.").catch(() => {});
-    await p.keyboard.type(" Should not save.");
+    if (await p.locator(".pb-live .ProseMirror").count()) {
+      await caretAfter(p, "Alpha paragraph.").catch(() => {});
+      await p.keyboard.type(" Should not save.");
+    }
     await p.waitForTimeout(5000);
     const x = await content(slug);
     const txt = await p.locator("body").innerText();
