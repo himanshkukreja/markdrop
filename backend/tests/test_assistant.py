@@ -311,5 +311,30 @@ class Context(AssistantWorld):
         self.assertIsNone(c["workspace"])
 
 
+class Mcp(AssistantWorld):
+    async def test_ask_documents_page_and_folder(self):
+        await self.seed_all()
+        prd = await self.prd()
+        f = await folder_service.create_folder(self.db, self.W, "Specs", None)
+        inside = await self.mkdoc("W", slug="spec-in", title="Launch spec inside", content="Launch plan inside.", grants=False)
+        await self.mkdoc("W", slug="spec-out", title="Launch spec outside", content="Launch plan outside.", grants=False)
+        await self.db["documents"].update_one({"slug": inside["slug"]}, {"$set": {"folder_id": f.id}})
+        await search_index.drain()
+        tok = await self.mcp_token("wm", write=False)
+        code, res = await self.mcp_call(tok, "ask_documents", {"question": "When did we decide on Stripe Checkout?",
+                                                               "page": f"https://markdrop.in/{prd['slug']}"})
+        self.assertFalse(res.get("isError"), res)
+        self.assertEqual(res["structuredContent"]["intent"], "page")
+        self.fake.calls.clear()
+        code, res = await self.mcp_call(tok, "ask_documents", {"question": "What is the launch plan?",
+                                                               "scope": f"workspace:{self.W}", "folder": f.id})
+        self.assertFalse(res.get("isError"), res)
+        p = "\n".join(prompt_of(c) for c in self.calls("You are Ask Markdrop"))
+        self.assertIn("Launch spec inside", p)
+        self.assertNotIn("Launch spec outside", p)
+        code, res = await self.mcp_call(tok, "ask_documents", {"question": "What?", "folder": f.id})
+        self.assertTrue(res.get("isError"))
+
+
 if __name__ == "__main__":
     unittest.main()
