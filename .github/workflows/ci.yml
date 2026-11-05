@@ -81,11 +81,16 @@ jobs:
 
       # ffmpeg/ffprobe: the media probe tests. redis-server: the rate-limit store the app expects on
       # localhost:6379 (as on the dev Mac) and the binary the Redis fallback test starts itself.
+      # A slow apt mirror once held this step for 9 minutes: try the image's package lists first, then
+      # refresh them, each bounded; without the packages those tests skip (and say so) rather than hang.
       - name: System packages (ffmpeg, redis)
+        timeout-minutes: 6
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg redis-server >/dev/null
-          redis-cli ping
+          pkgs="ffmpeg redis-server"
+          inst() { timeout 150 sudo apt-get install -y -qq --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $pkgs >/dev/null; }
+          inst || { timeout 120 sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && inst; } \
+            || echo "::warning::couldn't install $pkgs: the ffmpeg / redis-server tests skip in this shard"
+          redis-cli ping || true
 
       - name: Install backend requirements
         run: pip install -r backend/requirements.txt -r backend/requirements-test.txt
@@ -298,8 +303,9 @@ jobs:
 
       - name: System packages (zsh for up.sh, ffmpeg) and acme.localhost
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends zsh ffmpeg >/dev/null
+          pkgs="zsh ffmpeg"
+          inst() { timeout 150 sudo apt-get install -y -qq --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $pkgs >/dev/null; }
+          inst || { timeout 120 sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && inst; }
           echo "127.0.0.1 acme.localhost" | sudo tee -a /etc/hosts
 
       # up.sh and lib.mjs run <checkout>/backend/.venv/bin/python.

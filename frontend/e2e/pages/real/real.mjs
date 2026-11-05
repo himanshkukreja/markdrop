@@ -538,7 +538,8 @@ await step("lock-mcp", async () => {
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.waitForTimeout(1500);
   // Opening takes nothing: the first click takes the lock.
-  if ((await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin)).status !== 200) fail("opening the editor took the lock");
+  const lk = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (lk.status !== 200) fail(`opening the editor took the lock (${lk.status} ${JSON.stringify(lk.body).slice(0, 300)})`);
   await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   await p.locator(".pb-live .ProseMirror p").first().click();
   await p.waitForTimeout(1500);
