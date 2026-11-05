@@ -269,7 +269,11 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
   const show = useCallback((focusSearch = false) => {
     setOpen(true);
     window.dispatchEvent(new CustomEvent(SIDE_EVENT, { detail: "memory" }));
-    if (focusSearch || !phone) window.setTimeout(() => search.current?.focus({ preventScroll: true }), 60);
+    if (!focusSearch && phone) return;
+    // The "/" menu hands focus back to the editor as it closes: focus the search after it, and again if lost.
+    const focus = () => search.current?.focus({ preventScroll: true });
+    window.setTimeout(focus, 60);
+    if (focusSearch) window.setTimeout(() => { if (document.activeElement !== search.current) focus(); }, 250);
   }, [phone]);
   const close = useCallback(() => setOpen(false), []);
   useEffect(() => {
@@ -283,7 +287,7 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
     if (!editor || !workspaceId) return;
     const s = services(editor as never);
     s.openMeetings = (e, r) => {
-      e.chain().focus().deleteRange(r).run();
+      e.chain().deleteRange(r).run();
       show(true);
     };
     return () => {

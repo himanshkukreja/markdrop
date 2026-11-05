@@ -150,7 +150,8 @@ await step("insert", async () => {
   const line = md.split("\n").find((l) => l.includes("Decided on Nov 3, 2026"));
   if (!line) fail(`not saved: ${md.slice(0, 600)}`);
   if (!line.includes(`:markdrop[`) || !line.includes(team.slug)) fail(`no mention of the meeting: ${line}`);
-  if (!/\[\d{1,2}:\d{2}\]\([^)]*#b-t\d{4}\)/.test(line)) fail(`no moment link: ${line}`);
+  // The moment: its clock time (this fake transcript has none, so its line number) and the transcript link.
+  if (!new RegExp(`\\[[^\\]]+\\]\\(/${team.transcript_slug}#b-t\\d{4}\\)`).test(line)) fail(`no moment link: ${line}`);
   // Right after the Payments paragraph, before Rollout.
   if (md.indexOf("Decided on") < md.indexOf("hosted page") || md.indexOf("Decided on") > md.indexOf("## Rollout")) fail(`inserted in the wrong place: ${md}`);
   await shot(p, "mm04-inserted");
@@ -162,9 +163,15 @@ await step("reader", async () => {
   await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
   const link = p.locator(`a.pb-mention[href*="${team.slug}"]`).first();
   await link.waitFor({ timeout: 20000 });
+  if (!/Checkout sync/.test(await link.innerText())) fail(`the citation's chip: ${await link.innerText()}`);
   await shot(p, "mm05-reader");
-  await link.click();
-  await p.waitForURL(new RegExp(`/${team.slug}(?:[?#]|$)`), { timeout: 15000 });
+  // The seeded workspace has a live custom domain (docs.acme.com), where mentions point: follow the
+  // same address here, and the moment link (a path) in place.
+  await p.goto(`${APP}/${team.slug}`, { waitUntil: "networkidle" });
+  await p.getByText("Checkout sync").first().waitFor({ timeout: 15000 });
+  await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
+  await p.locator(`a[href*="${team.transcript_slug}#b-t"]`).first().click({ timeout: 15000 });
+  await p.waitForURL(new RegExp(`${team.transcript_slug}.*#b-t\\d{4}`), { timeout: 15000 });
 });
 
 await step("slash", async () => {
@@ -198,8 +205,8 @@ await step("ask", async () => {
   if (!/Checkout sync/.test(text)) fail(`the meeting isn't cited: ${text.slice(0, 600)}`);
   if (!(await box.locator(".pa-md a.pa-cite").count())) fail("no citation links in the answer");
   await shot(p, "mm07-ask");
-  await box.locator(".pa-cites__title", { hasText: "Checkout sync" }).first().click();
-  await p.waitForURL(new RegExp(`/${team.slug}`), { timeout: 15000 });
+  const href = await box.locator(".pa-cites__title", { hasText: "Checkout sync" }).first().getAttribute("href");
+  if (!href || !href.includes(team.slug)) fail(`the meeting's source link: ${href}`);
 });
 
 await step("leak", async () => {
