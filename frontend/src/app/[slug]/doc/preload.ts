@@ -24,7 +24,13 @@ const load = (key: string, f: () => Promise<unknown>) => {
 };
 
 export function preloadView(kind: OpeningKind | "any" | null | undefined): Promise<unknown> {
-  if (kind === "file") return load("file", () => import("../ArtifactView").then((m) => { ready.ArtifactView = m.default; }));
+  if (kind === "file") {
+    // The view, and its framed bar (a page's bar, its own chunk) for when full screen is left.
+    return load("file", () => Promise.all([
+      import("../ArtifactView").then((m) => { ready.ArtifactView = m.default; }),
+      import("../artifact/ArtifactTopBar"),
+    ]));
+  }
   if (kind === "page") {
     return load("page", () => Promise.all([
       import("@/components/pages/PageChrome"),

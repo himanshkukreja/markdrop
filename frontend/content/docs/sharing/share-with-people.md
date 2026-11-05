@@ -14,7 +14,7 @@ Add people by email when a document or file is for them and not for everyone wit
 
 ::::steps
 ### Open Share
-From **My files**, choose **Share…** in the row's menu. Or open the document or file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share** (on a file, **More artifact actions › Share**).
+From **My files**, choose **Share…** in the row's menu. Or open the document or file, press :kbd[Esc] or choose **Show details** to leave full screen, and choose **Share** in the bar at the top.
 
 ### Type their addresses
 Under **People with access**, type an address in **Add people by email** and press :kbd[Enter]. Add as many as you like. Suggestions come from people you've shared with before and from your workspaces, never from a search of other Markdrop users.
@@ -72,7 +72,7 @@ People you added can take themselves off: they choose **Remove me** from the ite
 
 ## Let people share it on
 
-Turn on **Let people I share with add others** to let the people you added share it with others. They open **Share** the same way you do (on a file, **More artifact actions › Share**). They can never give more access than they have: someone with **Can view** can only add people with **Can view**.
+Turn on **Let people I share with add others** to let the people you added share it with others. They open **Share** the same way you do. They can never give more access than they have: someone with **Can view** can only add people with **Can view**.
 
 If you remove someone, everyone they added loses the access that came through them.
 

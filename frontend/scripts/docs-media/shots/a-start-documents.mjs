@@ -150,7 +150,8 @@ export default [
       await h.sleep(3000); // the page loads in its sandboxed frame
       await parkMouse(h);
     },
-    crop: { box: { x: 0, y: 56, width: 1440, height: 844 } },
+    // The file's one bar and the page under it.
+    crop: { box: { x: 0, y: 0, width: 1440, height: 844 } },
   },
 
   // ════ /get-started/accounts ═════════════════════════════════════════════════
@@ -216,11 +217,10 @@ export default [
       await h.sleep(600);
       await h.page.mouse.move(1000, 600);
     },
+    // One bar at the top (the app header and the file's bar are one): the bar and the open menu.
     crop: async (h) => {
-      const bar = await h.loc({ role: "heading", name: "Q3 Board Deck" }).boundingBox();
       const menu = await h.loc({ role: "menu", name: "More artifact actions" }).boundingBox();
-      const x = bar.x - 70;
-      return { box: { x, y: 56, width: menu.x + menu.width + 24 - x, height: menu.y + menu.height + 24 - 56 } };
+      return { box: { x: 0, y: 0, width: 1440, height: menu.y + menu.height + 24 } };
     },
   },
 

@@ -268,6 +268,8 @@ export default async function TenantDocumentPage({ params }: Props) {
           posterUrl={doc.poster_url ?? null}
           readTicket={doc.read_ticket ?? null}
           fileVersion={doc.file_version ?? null}
+          workspaceId={doc.workspace_id ?? null}
+          folderPath={doc.folder_path ?? []}
           viewerChrome={viewerChrome}
         />
       </Suspense>

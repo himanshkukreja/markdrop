@@ -56,12 +56,12 @@ Markdrop serves what you upload from a different domain than markdrop.in, inside
 
 ## Change it later
 
-The file is in **My files**, under **Artifacts**. Open it; it opens full screen, so press :kbd[Esc] or choose **Show details** to bring back its bar. Then choose **More artifact actions** (the `⋯` button):
+The file is in **My files**, under **Artifacts**. Open it; it opens full screen, so press :kbd[Esc] or choose **Show details** to bring back its bar. **Share** and **Download** are in the bar; the rest is under **More artifact actions** (the `⋯` button):
 
-![A file page with the More artifact actions menu open, showing Share, Settings and Delete artifact.](/docs-assets/get-started/first-file/artifact-actions-menu.webp)
+![A file page's top bar with Download, Read full screen and Share, and the More artifact actions menu open, showing the file's size, views and date, then Copy link, Settings and Delete artifact.](/docs-assets/get-started/first-file/artifact-actions-menu.webp)
 
-- **Settings** changes the title, link, password and expiry, and lets you replace the file. The link stays the same. See [Replace a file and restore versions](/files/replace-and-versions).
 - **Share** chooses who can open it and adds people by email. See [Share with specific people](/sharing/share-with-people).
+- **Settings** changes the title, link, password and expiry, and lets you replace the file and restore an earlier version. The link stays the same. See [Replace a file and restore versions](/files/replace-and-versions).
 - **Delete artifact** removes it and its link for everyone.
 
 ## Next steps

@@ -397,6 +397,8 @@ export default function DocumentView(props: DocumentViewProps) {
         docRef={artifactDoc.ref ?? null}
         readTicket={artifactDoc.read_ticket ?? null}
         fileVersion={artifactDoc.file_version ?? null}
+        workspaceId={artifactDoc.workspace_id ?? null}
+        folderPath={artifactDoc.folder_path ?? []}
         viewerChrome={viewerChrome === "none" ? "none" : "full"}
       />
     );

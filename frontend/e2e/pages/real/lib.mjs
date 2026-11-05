@@ -202,3 +202,35 @@ export async function topBars(p) {
     return top.map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(/\s+/).slice(0, 3).join(".")}@${Math.round(el.getBoundingClientRect().top)}`);
   });
 }
+
+/** Upload a file as an artifact (upload-url → PUT the bytes → create) → the create response. */
+export async function uploadFile(token, { bytes, filename, mime, title, slug, ...filing }) {
+  const u = await api("POST", "/api/v1/artifacts/upload-url", token, { filename, content_type: mime, size_bytes: bytes.length });
+  if (u.status !== 200 && u.status !== 201) fail(`upload-url ${filename} → ${u.status} ${JSON.stringify(u.body).slice(0, 200)}`);
+  const put = await fetch(u.body.upload_url, { method: "PUT", body: bytes, headers: { "Content-Type": u.body.required_content_type } });
+  if (!put.ok) fail(`PUT ${filename} → ${put.status}`);
+  const r = await api("POST", "/api/v1/artifacts", token, { blob_key: u.body.blob_key, title, filename, ...(slug ? { custom_slug: slug } : {}), ...filing });
+  if (r.status !== 200 && r.status !== 201) fail(`create ${filename} → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+  return r.body;
+}
+
+/**
+ * The framed file view's layout: its bars (topBars), whether the app header (SiteHeader or
+ * TenantHeader) is on the screen, and how far the file's frame starts below the lowest bar. One bar
+ * with the frame right under it is the single-bar layout; the app header over a file bar is two.
+ */
+export async function fileLayout(p) {
+  const bars = await topBars(p);
+  const more = await p.evaluate(() => {
+    const vis = (el) => !!el && el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+    const bar = [...document.querySelectorAll("header")].filter(vis).map((h) => h.getBoundingClientRect().bottom).sort((a, b) => b - a)[0] ?? 0;
+    const frame = document.querySelector("main iframe, main .md-artframe");
+    const box = frame?.closest(".md-artframe") || frame?.parentElement;
+    return {
+      headers: [...document.querySelectorAll("header")].filter(vis).map((h) => String(h.className).split(/\s+/).slice(0, 2).join(".")),
+      frameTop: box ? Math.round(box.getBoundingClientRect().top) : null,
+      barBottom: Math.round(bar),
+    };
+  });
+  return { bars, ...more, gap: more.frameTop == null ? null : more.frameTop - more.barBottom };
+}
