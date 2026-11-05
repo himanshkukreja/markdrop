@@ -1,0 +1,100 @@
+/* The assistant (AssistantPanel): a non-modal floating side panel docked right on desktop and tablets, a
+   bottom sheet over a scrim on phones. Mist tokens only (light and dark follow the theme); motion on
+   transform/opacity, 220 ms in, none with reduced motion. */
+
+.as-panel {
+  --as-bg: color-mix(in srgb, var(--surface) 70%, var(--surface-raised));
+  position: fixed; z-index: calc(var(--z-sticky) + 5);
+  top: 64px; right: 16px; bottom: 16px; width: 420px; max-width: calc(100vw - 32px);
+  display: flex; flex-direction: column; min-height: 0;
+  border: 1px solid var(--border); border-radius: var(--radius-2xl);
+  background: var(--as-bg); color: var(--text); box-shadow: var(--shadow-xl); overflow: hidden;
+  animation: as-in 220ms var(--ease-out);
+}
+[data-theme="light"] .as-panel { --as-bg: #FFFFFF; }
+.as-panel .ch { --ch-bg: var(--as-bg); }
+
+/* Wide screens: the page makes room beside the open panel. */
+@media (min-width: 1280px) {
+  body:has(.as-panel[data-layout="panel"]) .pb-paper,
+  body:has(.as-panel[data-layout="panel"]) .md-docgrid { padding-right: 436px; }
+}
+
+.as-panel[data-layout="sheet"] {
+  top: auto; left: 0; right: 0; bottom: var(--as-kb, 0px); width: auto; max-width: none;
+  height: min(88dvh, calc(100dvh - var(--as-kb, 0px) - 20px));
+  border-width: 1px 0 0; border-radius: var(--radius-2xl) var(--radius-2xl) 0 0;
+  animation: as-up 260ms var(--ease-out);
+}
+.as-panel[data-layout="sheet"]::before {
+  content: ""; flex: none; align-self: center; width: 36px; height: 4px; margin: 8px 0 0;
+  border-radius: var(--radius-full); background: var(--border-strong);
+}
+.as-scrim { position: fixed; inset: 0; z-index: calc(var(--z-sticky) + 4); background: var(--overlay); animation: as-fade 220ms var(--ease-out); }
+
+.as-head { display: flex; align-items: center; gap: 8px; flex: none; padding: 10px 10px 6px 16px; }
+.as-head__title { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font: 650 14.5px/20px var(--font-sans); letter-spacing: -0.005em; }
+.as-head__glyph {
+  display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; flex: none;
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #8b5cf6)); color: var(--on-accent, #fff);
+}
+.as-head__glyph svg { width: 14px; height: 14px; }
+.as-head__kbd {
+  padding: 1px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-inset);
+  font: 500 11px/16px var(--font-sans); color: var(--text-muted);
+}
+.as-panel[data-layout="sheet"] .as-head__kbd { display: none; }
+.as-icon {
+  display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: var(--radius-md);
+  background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.as-icon:hover { background: var(--surface-hover, var(--surface-inset)); color: var(--text); }
+.as-icon:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.as-icon svg { width: 16px; height: 16px; }
+.as-panel[data-layout="sheet"] .as-icon { width: 44px; height: 44px; }
+
+.as-scopes {
+  display: flex; gap: 6px; flex: none; padding: 4px 12px 10px; overflow-x: auto; scrollbar-width: none;
+  border-bottom: 1px solid var(--border);
+}
+.as-scopes::-webkit-scrollbar { display: none; }
+.as-scopes__wait { display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px; font-size: 12.5px; color: var(--text-muted); white-space: nowrap; }
+.as-scope {
+  display: inline-flex; align-items: center; gap: 6px; flex: none; height: 30px; padding: 0 11px;
+  border: 1px solid var(--border); border-radius: var(--radius-full); background: transparent;
+  color: var(--text-muted); font: 500 12.5px/1 var(--font-sans); white-space: nowrap; cursor: pointer;
+  transition: background-color 100ms var(--ease-out), border-color 100ms var(--ease-out), color 100ms var(--ease-out);
+}
+.as-scope svg { width: 13px; height: 13px; }
+.as-scope:hover { border-color: var(--border-strong); color: var(--text); }
+.as-scope:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.as-scope--on { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); color: var(--accent-text); }
+.as-panel[data-layout="sheet"] .as-scope { height: 36px; padding: 0 13px; font-size: 13.5px; }
+
+.as-chat { flex: 1; min-height: 0; }
+.as-banner {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 12px; padding: 9px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-inset);
+  font-size: 13px; line-height: 18px; color: var(--text-muted);
+}
+.as-banner svg { width: 14px; height: 14px; flex: none; }
+
+/* ✦ Ask in a top bar (AssistantButton). */
+.as-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-full); background: transparent;
+  color: var(--text); font: 550 13px/1 var(--font-sans); cursor: pointer; white-space: nowrap;
+  transition: background-color 100ms var(--ease-out), border-color 100ms var(--ease-out);
+}
+.as-btn svg { width: 14px; height: 14px; color: var(--accent-text); }
+.as-btn:hover { border-color: var(--border-strong); background: var(--surface-inset); }
+.as-btn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.as-btn[aria-expanded="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); color: var(--accent-text); }
+.as-btn--icon { width: 32px; padding: 0; justify-content: center; }
+@media (max-width: 639px) { .as-btn { height: 36px; } .as-btn__label { display: none; } .as-btn { width: 36px; padding: 0; justify-content: center; } }
+
+@keyframes as-in { from { opacity: 0; transform: translate3d(12px, 0, 0) scale(0.985); } }
+@keyframes as-up { from { transform: translate3d(0, 100%, 0); } }
+@keyframes as-fade { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .as-panel, .as-scrim { animation: none; } }
+@media print { .as-panel, .as-scrim { display: none !important; } }
