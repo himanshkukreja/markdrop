@@ -14,7 +14,7 @@ import path from "node:path";
 import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars, uploadFile, fileLayout } from "./lib.mjs";
 
 const browser = await launch();
-const { step, results } = stepper(browser);
+const { step, results } = stepper(browser, { after: (name) => lockLeft(name) });
 const S = process.env.NO_RESEED ? seedNow() : reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
 const WS = S.ws;
@@ -22,6 +22,29 @@ const FOLDER = S.folder;
 const statePath = path.join(SHOTS, "state.json");
 const state = process.env.NO_RESEED && fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
 const save = () => fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+// After every step: an editor of the main page that didn't let go of its edit lock (it would hold off
+// the later steps' editors for two minutes) is named here, by the step that left it.
+/** The main page's edit lock is free (an earlier step's editor that didn't let go times out in two
+ * minutes: wait for that, and say so; this step's checks start from a free page). */
+async function lockFree(why) {
+  const t0 = Date.now();
+  for (;;) {
+    const r = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+    if (r.status === 200) {
+      await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+      if (Date.now() - t0 > 1000) log(`(${why}: waited ${Math.round((Date.now() - t0) / 1000)} s for an earlier editor's edit lock to time out)`);
+      return;
+    }
+    if (Date.now() - t0 > 150000) fail(`${why}: an earlier editor's edit lock never timed out (${r.status} ${JSON.stringify(r.body).slice(0, 200)})`);
+    await new Promise((res) => setTimeout(res, 5000));
+  }
+}
+const lockLeft = async (name) => {
+  if (!state.slug) return;
+  const r = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (r.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  else log(`(the edit lock of ${state.slug} is still taken after ${name}: ${r.status} ${JSON.stringify(r.body).slice(0, 120)})`);
+};
 const SECRET_TITLES = ["Team offsite photo", "Q3 report", "Pricing calculator", "Launch plan"];
 const content = async (slug) => (await docOf(slug, T.owner)).content;
 
@@ -492,6 +515,9 @@ await step("trash", async () => {
   await dlg.getByRole("button", { name: /Move to Trash/ }).click();
   await p.locator(".md-toast", { hasText: /to Trash/ }).first().waitFor({ timeout: 10000 });
   await waitStatus(inner, 404);
+  // The deleted folder's page moves on to its parent by itself: let it, or it cuts the next goto short.
+  await p.waitForURL((u) => !u.pathname.endsWith(`/f/${sub}`), { timeout: 10000 }).catch(() => {});
+  await p.waitForLoadState("networkidle").catch(() => {});
   await p.goto(`${APP}/trash`, { waitUntil: "networkidle" });
   const frow = p.locator("li", { hasText: "Old handbook" }).first();
   await frow.waitFor({ timeout: 20000 });
@@ -516,11 +542,24 @@ for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]]) {
   });
 }
 await step("editor-dark-390", async () => {
+  await lockFree("editor-dark-390");
   const { c, p } = await ctx(browser, { token: T.owner, theme: "dark", width: 390, height: 844 });
+  const locks = [];
+  p.on("request", (r) => {
+    if (r.method() === "POST" && /\/lock(\?|$)/.test(r.url())) locks.push(r.url());
+  });
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
   await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
   await shot(p, "17-editor-390-dark", { wait: 2000 });
+  // Opening takes nothing here either (a lock left behind would hold the next steps' editors off).
+  const lk = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (lk.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  const focus = await p.evaluate(() => {
+    const a = document.activeElement;
+    return a ? `${a.tagName.toLowerCase()}${a.className ? `.${String(a.className).split(" ").slice(0, 3).join(".")}` : ""}` : "none";
+  });
   await c.close();
+  if (lk.status !== 200) fail(`opening the editor at 390 px took the lock (${lk.status}); it sent ${locks.length} lock requests; focus on ${focus}`);
 });
 await step("anonymous-dark", async () => {
   const { c, p } = await ctx(browser, { theme: "dark" });
@@ -533,12 +572,24 @@ await step("anonymous-dark", async () => {
 /* ── 5. the edit lock, MCP update (423) and append (live) ── */
 await step("lock-mcp", async () => {
   const tok = mcpToken("ada@acme.test");
+  await lockFree("lock-mcp");
   const { c, p } = await ctx(browser, { token: T.owner });
+  const locks = [];
+  p.on("request", (r) => {
+    if (r.method() === "POST" && /\/lock(\?|$)/.test(r.url())) locks.push(Date.now());
+  });
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.waitForTimeout(1500);
   // Opening takes nothing, and neither does a click: the first change takes the lock.
-  if ((await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin)).status !== 200) fail("opening the editor took the lock");
+  const lk = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (lk.status !== 200) {
+    const focus = await p.evaluate(() => {
+      const a = document.activeElement;
+      return a ? `${a.tagName.toLowerCase()}${a.className ? `.${String(a.className).split(" ").join(".")}` : ""}` : "none";
+    });
+    fail(`opening the editor took the lock (${lk.status} ${JSON.stringify(lk.body).slice(0, 300)}); this editor sent ${locks.length} lock requests; focus on ${focus}`);
+  }
   await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   await p.locator(".pb-live .ProseMirror p").first().click();
   await p.waitForTimeout(1500);

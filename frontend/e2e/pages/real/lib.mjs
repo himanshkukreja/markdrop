@@ -154,7 +154,7 @@ export async function shot(p, name, opts = {}) {
   log("shot", name);
 }
 
-export function stepper(browser) {
+export function stepper(browser, { after } = {}) {
   const results = [];
   async function step(name, fn) {
     if (ONLY && !ONLY.has(name)) return;
@@ -169,6 +169,7 @@ export function stepper(browser) {
       console.error(`✗ ${name}:`, e.message.slice(0, 2000));
     }
     for (const cx of browser.contexts()) await cx.close().catch(() => {});
+    if (after) await after(name).catch((e) => log(`(after ${name}: ${e.message.slice(0, 200)})`));
   }
   return { step, results };
 }

@@ -683,11 +683,11 @@ class CN8RequireAuthToggleRace(AccessWorld):
         a = await self.mkdoc("RL", kind="artifact")
         orig = ws_service.update_workspace
         b_read, a_written, b_written = asyncio.Event(), asyncio.Event(), asyncio.Event()
-        calls = {"n": 0}
 
         async def upd(db, wid, **kw):
-            calls["n"] += 1
-            if calls["n"] == 1:      # A: OFF
+            # Each request's part by what it sets, not by which one gets here first (the two requests
+            # race to this point: on a slower machine B can arrive first).
+            if (kw.get("settings") or {}).get("require_auth_to_view") is False:      # A: OFF
                 await b_read.wait()
                 out = await orig(db, wid, **kw)
                 a_written.set()

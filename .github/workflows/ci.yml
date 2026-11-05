@@ -1,0 +1,415 @@
+name: CI
+
+# The release checks, in the cloud (free for a public repo): the backend suite in parallel shards,
+# each with its own MongoDB, and the frontend / docs / worker checks. Runs on pushes to work
+# branches (release/**, fix/**, feat/**, ci/**) and by hand on any ref; main isn't tested again
+# here (it is what was already checked and deployed). These branches don't build on Vercel
+# (frontend/vercel.json turns Git deployments off), so a push here costs nothing there.
+#
+#   .work/ci/run.sh <branch>   pushes a branch and follows its run (the lead's shortcut)
+#
+# Backend shards: .github/scripts/backend_shard.py splits backend/tests/test_*.py by recorded
+# duration (.github/scripts/backend-durations.json); every module runs in its own process (240 s cap: a
+# module that hangs is run once more, with its asyncio task tree in the logs and a warning). Refresh
+# the durations after a suite change grows a module a lot:
+#   gh run download <run-id> -p 'backend-timings-*' -D /tmp/t
+#   python .github/scripts/backend_shard.py --merge-timings /tmp/t/*/timings.json
+
+on:
+  push:
+    branches: ["release/**", "fix/**", "feat/**", "ci/**"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to test (blank: the branch picked above)"
+        required: false
+        default: ""
+      cli:
+        description: "Also run the Go CLI tests"
+        type: boolean
+        default: false
+      e2e:
+        description: "Also run the real-stack Playwright e2e (always on release/** and ci/** pushes)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14"   # production (EC2, Ubuntu 26.04) runs Python 3.14
+  NODE_VERSION: "22"       # what the release checks run on locally
+  SHARDS: 8
+
+jobs:
+  backend:
+    name: Backend ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    services:
+      # mongo:7.0, not 8: MongoDB 8's TCMalloc refuses to start on the runners' Linux 6.19+ kernels
+      # (SERVER-121912: "Linux kernel versions 6.19 and newer has a known incompatibility").
+      mongo:
+        image: mongo:7.0
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MARKDROP_TEST_MONGODB_URI: mongodb://localhost:27017
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      # ffmpeg/ffprobe: the media probe tests. redis-server: the rate-limit store the app expects on
+      # localhost:6379 (as on the dev Mac) and the binary the Redis fallback test starts itself.
+      # The Ubuntu mirror has held this step for 5-9 minutes: the .debs are cached per runner image
+      # (apt-cached.sh installs them with dpkg, no network); without the packages those tests skip.
+      # The runner image's name and version (process env, not the workflow's env context) key the cache.
+      - name: apt cache key
+        id: aptkey
+        run: echo "key=apt-$ImageOS-$ImageVersion-ffmpeg-redis-v1" >> "$GITHUB_OUTPUT"
+      - name: Restore the apt .debs
+        id: debs
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
+      - name: System packages (ffmpeg, redis)
+        id: apt
+        timeout-minutes: 7
+        run: |
+          bash .github/scripts/apt-cached.sh ~/apt-debs ffmpeg redis-server
+          redis-cli ping || true
+      - name: Save the apt .debs
+        if: steps.apt.outputs.save == 'true' && steps.debs.outputs.cache-hit != 'true' && matrix.shard == 1
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
+
+      - name: Install backend requirements
+        run: pip install -r backend/requirements.txt -r backend/requirements-test.txt
+
+      - name: Shard ${{ matrix.shard }} modules
+        run: python .github/scripts/backend_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARDS }} --list
+
+      # SEARCH_P95_MS: tests/test_search.py's bar is p95 < 150 ms on the dev Mac (M-series), where the
+      # 5k-item test reads ~80 ms. The same code reads ~190 ms on a GitHub runner (~2.3x slower per
+      # core), so the bar here keeps the same ~1.8x headroom over this machine's baseline: 350 ms.
+      # A real 2x regression still fails here and on the Mac.
+      - name: Run shard ${{ matrix.shard }}
+        env:
+          SEARCH_P95_MS: "350"
+        run: python .github/scripts/backend_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARDS }}
+
+      - name: Upload timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-timings-${{ matrix.shard }}
+          path: ci-out/timings.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload summary and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs-${{ matrix.shard }}
+          path: |
+            ci-out/summary.md
+            ci-out/failed/
+            ci-out/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # docs:openapi --check imports the backend to compare the API reference snapshot. The snapshot
+      # is generated on the dev Mac (Python 3.12), and Python 3.13+ dedents docstrings at compile
+      # time, which changes the generated descriptions: check it with the Python that writes it.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install backend requirements (for docs:openapi --check)
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: docs:test
+        run: npm run -s docs:test
+
+      - name: docs:editor-test
+        run: npm run -s docs:editor-test
+
+      - name: pages-ai:test
+        run: npm run -s pages-ai:test
+
+      - name: docs:check (content + API reference freshness)
+        env:
+          PYTHON: python
+        run: |
+          set -o pipefail
+          npm run -s docs:check 2>&1 | tee /tmp/docs-check.log || {
+            if grep -q "is STALE" /tmp/docs-check.log; then
+              npm run -s docs:openapi >/dev/null 2>&1 || true
+              echo "::group::openapi.json diff (backend here vs the committed snapshot)"
+              git diff --stat -- content/docs/openapi.json; git diff -U2 -- content/docs/openapi.json | head -n 150
+              echo "::endgroup::"
+              pip freeze | grep -iE "^(pydantic|fastapi|starlette)" || true
+            fi
+            exit 1
+          }
+          # docs:openapi only warns when it can't import the backend; in CI that is a failure.
+          if grep -q "SKIPPED the freshness check" /tmp/docs-check.log; then
+            echo "::error::docs:openapi --check couldn't import the backend"; exit 1
+          fi
+
+      - name: docs:media-manifest --check
+        run: npm run -s docs:media-manifest -- --check
+
+      - name: TypeScript
+        run: npx tsc --noEmit -p .
+
+  worker:
+    name: Worker tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+          sparse-checkout: worker
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: node --test worker
+        run: node --test worker/test/*.test.mjs
+
+  cli:
+    name: CLI tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Did cli/ change?
+        id: changed
+        env:
+          FORCE: ${{ inputs.cli }}
+        run: |
+          if [ "$FORCE" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          git fetch --no-tags --depth=200 origin main
+          base=$(git merge-base origin/main HEAD || true)
+          if [ -z "$base" ] || ! git diff --quiet "$base" HEAD -- cli/; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "cli/ unchanged since main: skipped"
+          fi
+      - uses: actions/setup-go@v5
+        if: steps.changed.outputs.run == 'true'
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - name: go test ./...
+        if: steps.changed.outputs.run == 'true'
+        working-directory: cli
+        run: go test ./...
+
+  # Phase 2: the page builder's real-stack Playwright runs (frontend/e2e/pages/real: up.sh starts the
+  # sandbox API on the real backend app with fake R2/DNS/email, the artifact Worker under Node and a
+  # production `next start`), one job per browser × script. MongoDB on :27019 is the service
+  # container (up.sh only starts its own mongod when nothing listens there). No secrets: the sandbox
+  # copies stack/.env.example, and every AI feature runs against its fake (PB_FAKE_*).
+  e2e:
+    name: E2E ${{ matrix.browser }} ${{ matrix.script }}
+    if: >-
+      (github.event_name == 'workflow_dispatch' && inputs.e2e) ||
+      startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/heads/ci/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+        script: [real, bughunt]
+    services:
+      mongo:
+        image: mongo:7.0
+        ports: ["27019:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PB_STACK_ID: "5"
+      PB_WORK: ${{ github.workspace }}/.work/pb
+      PB_FAKE_MEETINGS_AI: "1"
+      PB_FAKE_SLACK: "1"
+      PB_FAKE_ANALYTICS_AI: "1"
+      PB_FAKE_ASK_AI: "1"
+      PB_FAKE_SEARCH_AI: "1"
+      BROWSER: ${{ matrix.browser }}
+      # bughunt's perf-typing throttles the CPU (CPU, default 4x on the dev Mac) and fails on a long task
+      # over 100 ms. A runner core is ~2.3x slower than the Mac's (see SEARCH_P95_MS above), so 2x here
+      # is about the Mac's 4x: the same bar. At 4x it read 0–3 tasks of 52–65 ms, and once 121 ms.
+      CPU: "2"
+      NEXT_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      # The runner image's name and version (process env, not the workflow's env context) key the cache.
+      - name: apt cache key
+        id: aptkey
+        run: echo "key=apt-$ImageOS-$ImageVersion-zsh-ffmpeg-v1" >> "$GITHUB_OUTPUT"
+      - name: Restore the apt .debs
+        id: debs
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
+      - name: System packages (zsh for up.sh, ffmpeg) and acme.localhost
+        id: apt
+        timeout-minutes: 7
+        run: |
+          bash .github/scripts/apt-cached.sh ~/apt-debs zsh ffmpeg
+          command -v zsh >/dev/null || { echo "::error::no zsh: up.sh can't run"; exit 1; }
+          echo "127.0.0.1 acme.localhost" | sudo tee -a /etc/hosts
+      - name: Save the apt .debs
+        if: steps.apt.outputs.save == 'true' && steps.debs.outputs.cache-hit != 'true' && matrix.browser == 'chromium' && matrix.script == 'real'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
+
+      # up.sh and lib.mjs run <checkout>/backend/.venv/bin/python.
+      - name: Backend venv
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/pip install -q -r backend/requirements.txt
+
+      - name: npm ci
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Playwright ${{ matrix.browser }}
+        working-directory: frontend
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      # seed.py uploads demo files (a PDF deck, images) from scripts/docs-media/.data/fixtures, which
+      # is git-ignored: make_fixtures.mjs renders them (system Chrome + ffmpeg), cached by its hash.
+      - name: Fixtures cache
+        id: fixtures
+        uses: actions/cache@v4
+        with:
+          path: frontend/scripts/docs-media/.data/fixtures
+          key: e2e-fixtures-${{ hashFiles('frontend/scripts/docs-media/make_fixtures.mjs') }}
+
+      - name: Make fixtures
+        if: steps.fixtures.outputs.cache-hit != 'true'
+        working-directory: frontend
+        run: node scripts/docs-media/make_fixtures.mjs && ls -la scripts/docs-media/.data/fixtures
+
+      - name: Next.js build cache
+        uses: actions/cache@v4
+        with:
+          path: frontend/.next/cache
+          key: e2e-next-${{ hashFiles('frontend/package-lock.json') }}-${{ github.sha }}
+          restore-keys: e2e-next-${{ hashFiles('frontend/package-lock.json') }}-
+
+      - name: Build (next build for the sandbox ports)
+        working-directory: frontend/e2e/pages/real
+        run: |
+          out=$(zsh up.sh build); echo "$out"
+          tail -n 25 "$PB_WORK/stack/build.log"
+          [ "$out" = "build exit 0" ] || { tail -n 120 "$PB_WORK/stack/build.log"; exit 1; }
+
+      - name: Start the stack and seed
+        working-directory: frontend/e2e/pages/real
+        run: |
+          zsh up.sh start
+          zsh up.sh status
+          node -e 'import("./lib.mjs").then(m=>{m.reseed();console.log("seeded")})'
+
+      - name: ${{ matrix.script }}.mjs on ${{ matrix.browser }}
+        working-directory: frontend/e2e/pages/real
+        run: node ${{ matrix.script }}.mjs
+
+      - name: Stack logs
+        if: failure()
+        run: for f in api worker web; do echo "== $f"; tail -n 80 "$PB_WORK/stack/$f.log" 2>/dev/null; done
+
+      - name: Upload screenshots and logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-${{ matrix.browser }}-${{ matrix.script }}
+          path: |
+            ${{ env.PB_WORK }}/real-shots/
+            ${{ env.PB_WORK }}/stack/*.log
+          if-no-files-found: ignore
+          retention-days: 14
