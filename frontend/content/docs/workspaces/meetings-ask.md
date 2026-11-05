@@ -12,6 +12,8 @@ Ask a question about one meeting, or about all the meetings you can open in a wo
 
 On a meeting page, select **Ask this meeting** in the bar under the meeting's properties (or the button at the bottom right). Pick a suggested question or ask your own, for example "What did we decide about pricing?" or "What did Priya take on?".
 
+![The meeting bar under a meeting's properties: who was there, who can open it, Transcript and Ask this meeting.](/docs-assets/workspaces/meetings-ask/meeting-bar.webp)
+
 The answer streams in with numbered sources, like **1** and **2**. Select a number, or **2 sources** under the answer, to see each source: the meeting, its date and series, who spoke and when (**Ben Member · 12:34**), and the line itself. **Jump to the moment** opens the transcript at that line.
 
 Ask follow-ups in the same conversation, or pick one of the follow-up questions under the answer. The conversation is kept: reopen the meeting later, even on another day, and it's still there. **New chat** starts over.
@@ -29,6 +31,10 @@ If the meeting has only Google's notes, without a transcript, the answer comes f
 ## Ask across meetings
 
 Open the workspace's Meetings page: select **Ask meetings** in the Meetings folder, or go to **All meetings** from a meeting's **Details**. Select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What's blocking the release?" or "What are my open action items?". The conversation opens beside your meetings on a computer, and full screen on a phone. Select **Expand** to read it page-wide, with the sources beside the answer.
+
+![Ask across meetings beside the Meetings page: the question, an answer with numbered sources, and follow-up questions under it.](/docs-assets/workspaces/meetings-ask/ask-across.webp)
+
+![The sources of an answer: the meeting, its date, who spoke and when, the line itself, and Jump to the moment.](/docs-assets/workspaces/meetings-ask/sources.webp)
 
 Markdrop finds the meetings that match with the same search as [Search](/workspaces/search), then answers from them. Answers say when and where something was said, for example "On 28 Oct, in Daily Standup, Bo said…", and cite each meeting and the moment in it. When meetings disagree, the later one wins and the answer says so. Questions about the current state, like "What's the latest on pricing?" or "Is the release still on Friday?", look at the most recent meetings first.
 

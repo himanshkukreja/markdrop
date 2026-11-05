@@ -16,11 +16,14 @@
  *              Shift+Enter / ↑ / Esc, follow-ups, a saved conversation (reload), new chat, expand, the phone
  *              sheet (16px box, 44px send, no sideways scroll), the meeting bar's Ask, ?ask=1
  *
+ *   docs-media DOCS_MEDIA=1: the Ask docs' screenshots (public/docs-assets/workspaces/meetings-ask)
+ *
  *   PB_FAKE_MEETINGS_AI=1 PB_STACK_ID=37 PB_WORK=… BROWSER=chromium|webkit [ONLY=paste,ask] node meetings.mjs
  *
  * Screenshots go to $MEETINGS_SHOTS (default <PB_WORK>/../shots).
  */
 import fs from "node:fs";
+import { execFileSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { APP, BROWSER, WORK, log, fail, reseed, seedNow, api, launch, ctx, captureApi, stepper } from "./lib.mjs";
@@ -380,6 +383,57 @@ await step("ux", async () => {
     // ?ask=1 (a card's Ask) opens the panel.
     await p.goto(`${APP}/${meeting.slug}?ask=1`);
     await p.locator(".mt-panel[data-open]").waitFor({ timeout: 20000 });
+  }
+});
+
+// The docs' screenshots (DOCS_MEDIA=1): /workspaces/meetings-ask — Ask across meetings with an answer and its
+// sources, and Ask this meeting on a meeting page. WebP, light and dark, ≤180 KB.
+const DOCS_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../public/docs-assets/workspaces/meetings-ask");
+await step("docs-media", async () => {
+  if (!process.env.DOCS_MEDIA) return log("(DOCS_MEDIA unset: docs screenshots skipped)");
+  if (!meeting) fail("no meeting");
+  fs.mkdirSync(DOCS_DIR, { recursive: true });
+  const raw = path.join(OUT, "docs");
+  fs.mkdirSync(raw, { recursive: true });
+  const webp = (png, name) => {
+    let q = 82;
+    for (;;) {
+      execFileSync("cwebp", ["-quiet", "-q", String(q), png, "-o", path.join(DOCS_DIR, `${name}.webp`)]);
+      if (fs.statSync(path.join(DOCS_DIR, `${name}.webp`)).size <= 180 * 1024 || q <= 50) break;
+      q -= 8;
+    }
+    log("docs", `${name}.webp`, fs.statSync(path.join(DOCS_DIR, `${name}.webp`)).size);
+  };
+  for (const theme of ["light", "dark"]) {
+    const suffix = theme === "dark" ? ".dark" : "";
+    const c = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: theme });
+    await c.addInitScript(([t, th]) => {
+      localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th);
+      localStorage.setItem("md_theme_beta", "1"); localStorage.setItem("md_consent", "denied");
+    }, [T.owner, theme]);
+    const p = await c.newPage();
+    await p.goto(HUB);
+    await p.getByTestId("ask-across-open").click();
+    const box = p.getByTestId("ask-across-panel");
+    await box.getByTestId("chat-new").click({ timeout: 3000 }).catch(() => {});
+    await box.locator("textarea").fill("When do we ship the release?");
+    await box.locator("textarea").press("Enter");
+    await box.getByTestId("chat-followups").waitFor({ timeout: 25000 });
+    await p.waitForTimeout(600);
+    await p.mouse.move(5, 5);
+    await box.screenshot({ path: path.join(raw, `ask-across${suffix}.png`) });
+    webp(path.join(raw, `ask-across${suffix}.png`), `ask-across${suffix}`);
+    await box.getByTestId("chat-cite").first().click();
+    await box.getByTestId("chat-sources").waitFor();
+    await p.waitForTimeout(400);
+    await box.screenshot({ path: path.join(raw, `sources${suffix}.png`) });
+    webp(path.join(raw, `sources${suffix}.png`), `sources${suffix}`);
+    await p.goto(`${APP}/${meeting.slug}`);
+    await p.getByTestId("meeting-header").waitFor({ timeout: 20000 });
+    await p.waitForTimeout(500);
+    await p.getByTestId("meeting-header").screenshot({ path: path.join(raw, `meeting-bar${suffix}.png`) });
+    webp(path.join(raw, `meeting-bar${suffix}.png`), `meeting-bar${suffix}`);
+    await c.close();
   }
 });
 
