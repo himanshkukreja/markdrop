@@ -115,7 +115,7 @@ export function AdminShell({ section, counts, onSelect, onSignOut, children }: {
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="sticky top-0 z-(--z-sticky) flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 sm:px-4 lg:hidden">
+        <div className="sticky top-0 z-(--z-sticky) flex min-h-[calc(3.5rem+var(--safe-top))] pt-(--safe-top) items-center gap-2 border-b border-border bg-surface px-2 sm:px-4 lg:hidden">
           <IconButton icon="menu" label="Open admin navigation" className="size-11" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} />
           <Brand />
           <span className="ml-auto min-w-0 truncate pr-2 text-body-strong text-text-secondary" aria-hidden>{SECTION_LABEL[section]}</span>

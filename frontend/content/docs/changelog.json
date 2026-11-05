@@ -124,6 +124,18 @@
       ]
     },
     {
+      "id": "install-markdrop-app",
+      "date": "2026-11-05",
+      "title": "Install Markdrop as an app",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop installs on your phone, tablet or computer: its own icon and window, straight to your dashboard, a branded offline screen, and a Reload prompt when a new version is out. Markdrop Guides installs as its own app too.",
+      "body": "- **Install app** in the account menu installs Markdrop in Chrome, Edge and Android browsers in one click, and shows the Add to Home Screen steps on iPhone and iPad (and File › Add to Dock in Safari on a Mac).\n- The installed app opens on your **dashboard** (through sign-in when you're signed out), never the marketing pages, with shortcuts for **New page**, **Search**, **Markdrop Guides** and **Analytics** on its icon.\n- Offline, it shows **You're offline** and reloads by itself when you're back. It keeps only its own code and icons on your device, never your documents or anything private.\n- A new version shows **A new version of Markdrop is ready** with **Reload**, so you update when it suits you.\n- On phones, bars, sheets and toasts stay clear of the notch and the home indicator.\n- **Markdrop Guides** (guides.markdrop.in) installs as its own app that opens on your guides.\n- See [Install Markdrop as an app](/get-started/install-app)."
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",

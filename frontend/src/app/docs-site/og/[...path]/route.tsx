@@ -7,7 +7,7 @@ import { ogLook } from "@/docs/themeSite";
 /**
  * Open Graph cards (1200×630), one per page, the home (`/og/index`), the changelog and each entry.
  * Colours and mark from site.json `brand.og`: with `mark: "markdrop"` it is drawn like the app's
- * icon (apple-icon.tsx), the navy mark, the mono "m", the blue dot; otherwise just the site name.
+ * icon (app/apple-icon.png), the navy mark, the mono "m", the blue dot; otherwise just the site name.
  * A site with a theme gets its palette (ground, text, accent eyebrow), its corners on the mark, an
  * accent rule, and its initial on an accent tile when it has no mark (themeSite.ts ogLook).
  */

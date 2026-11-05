@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>You're offline · Markdrop</title>
+<meta name="theme-color" content="#E3E7ED">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<!-- The service worker's answer when a page can't load (lib/pwaWorker.ts). Self-contained: no
+     scripts or styles from the network, the theme from the app's own setting (lib/themeScript). -->
+<script>
+(function () {
+  var t = "light";
+  try {
+    var s = localStorage.getItem("md_theme");
+    t = s === "dark" || s === "light" ? s : s === "system" && matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  } catch (e) {}
+  document.documentElement.setAttribute("data-theme", t);
+  document.querySelector('meta[name="theme-color"]').content = t === "dark" ? "#030712" : "#E3E7ED";
+})();
+</script>
+<style>
+  :root { --bg: #E3E7ED; --surface: #EBEEF2; --border: #CDD4DE; --text: #111A2C; --muted: #4A5567; --accent: #2150D8; --accent-text: #fff; color-scheme: light; }
+  :root[data-theme="dark"] { --bg: #030712; --surface: #101828; --border: #1e2939; --text: #f3f4f6; --muted: #99a1af; --accent: #155dfc; --accent-text: #fff; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    min-height: 100dvh; display: grid; place-items: center; background: var(--bg); color: var(--text);
+    font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    padding: max(24px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  }
+  main { width: 100%; max-width: 400px; text-align: center; }
+  .mark { width: 56px; height: 56px; margin: 0 auto 22px; display: block; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 600; }
+  .chip svg { width: 14px; height: 14px; }
+  h1 { margin: 0 0 8px; font-size: 22px; line-height: 1.25; letter-spacing: -0.01em; }
+  p { margin: 0 0 22px; color: var(--muted); }
+  button {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 44px; padding: 0 20px;
+    border: 0; border-radius: 10px; background: var(--accent); color: var(--accent-text); font: inherit; font-weight: 600; cursor: pointer;
+  }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .hint { margin-top: 14px; font-size: 13px; }
+</style>
+</head>
+<body>
+<main>
+  <svg class="mark" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0f172a"/><text x="3" y="23" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="18" font-weight="700" fill="#f1f5f9">m</text><circle cx="27" cy="20" r="4" fill="#3b82f6"/></svg>
+  <span class="chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2l20 20M8.5 16.5a5 5 0 0 1 7 0M2 8.82a15 15 0 0 1 4.17-2.65M10.66 5c4.01-.36 8.14.9 11.34 3.76M16.85 11.25a10 10 0 0 1 2.22 1.68M5 12.86a10 10 0 0 1 5.17-2.69M12 20h.01"/></svg>Offline</span>
+  <h1>You're offline</h1>
+  <p>Markdrop can&rsquo;t reach the internet right now. Check your connection: this page reloads by itself when you&rsquo;re back online.</p>
+  <button type="button" id="retry">Try again</button>
+  <p class="hint" id="status" role="status" aria-live="polite"></p>
+</main>
+<script>
+(function () {
+  var status = document.getElementById("status");
+  function retry() {
+    status.textContent = "Trying again…";
+    location.reload();
+  }
+  document.getElementById("retry").addEventListener("click", retry);
+  addEventListener("online", retry);
+})();
+</script>
+</body>
+</html>

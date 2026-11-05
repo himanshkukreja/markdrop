@@ -1,0 +1,57 @@
+/*
+ * Safe areas and the installed app (lib/pwa.ts). The viewport is viewport-fit=cover (app/layout.tsx),
+ * so pages reach the notch, the home indicator and the rounded corners; anything that sits on an
+ * edge pads itself by the inset there. Every inset is 0 where there is nothing in the way (desktop,
+ * Android, a phone held upright in the browser), so none of this changes those.
+ *
+ * Top: iOS keeps the installed app below the status bar (statusBarStyle "default", in the page's
+ * theme-color), so the top inset is 0 today; the app bars still pad by it (SiteHeader, StudioHeader,
+ * the admin bar), so a status bar that overlaps the page later can't cover them.
+ * Bottom: bars, sheets and toasts already add env(safe-area-inset-bottom) where they are defined.
+ * Sides: a phone on its side puts the notch on the left or right.
+ */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* The page's own content clears a side notch; full-width bars below handle themselves. */
+body {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Side panels: their header clears the top, their content the notch side. */
+.md-drawer.md-drawer--right,
+.md-drawer.md-drawer--left {
+  padding-top: var(--safe-top);
+}
+.md-drawer.md-drawer--right { padding-right: var(--safe-right); }
+.md-drawer.md-drawer--left { padding-left: var(--safe-left); }
+.md-drawer.md-drawer--bottom {
+  padding-left: var(--safe-left);
+  padding-right: var(--safe-right);
+}
+
+/* Dialogs stay inside the safe area. */
+.md-scrim {
+  padding: max(var(--space-4), var(--safe-top)) max(var(--space-4), var(--safe-right)) max(var(--space-4), var(--safe-bottom)) max(var(--space-4), var(--safe-left));
+}
+
+/* Toasts: clear the notch side as well as the home indicator. */
+.md-toasts {
+  left: max(var(--space-4), var(--safe-left));
+}
+
+/* The page editor's phone toolbar (components/pages/pages.css) clears a side notch too. */
+body .pb-phonebar {
+  padding-left: max(6px, var(--safe-left));
+  padding-right: max(6px, var(--safe-right));
+}
+
+/* Running as the installed app: no grey flash on tap, like a native app. Text stays selectable. */
+@media (display-mode: standalone) {
+  html { -webkit-tap-highlight-color: transparent; }
+}

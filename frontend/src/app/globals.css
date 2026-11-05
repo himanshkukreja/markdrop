@@ -9,6 +9,8 @@
 @import "../styles/prose.css";
 @import "../styles/print.css";
 @import "../styles/legacy.css";
+/* Safe-area insets (notch, home indicator) and the installed app (lib/pwa.ts). */
+@import "../styles/safe-area.css";
 
 /* During the migration both theme markers are set by the head script: data-theme (tokens) and
    .dark (legacy dark: variants). Once no dark: class remains, this becomes [data-theme=dark]. */
