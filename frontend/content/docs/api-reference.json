@@ -12,6 +12,7 @@
     { "id": "trash", "title": "Trash", "tags": ["trash"] },
     { "id": "access", "title": "Sharing and access", "tags": ["access"] },
     { "id": "notifications", "title": "Notifications", "tags": ["notifications"] },
+    { "id": "home", "title": "Home", "tags": ["home"] },
     { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
@@ -202,6 +203,22 @@
     "MarkRead.all": "`true` marks every notification read."
   },
   "operations": {
+    "GET /api/v1/home": {
+      "title": "Get your home",
+      "description": "What the app's home shows, decided for you now: unread notifications and access requests waiting on you (`attention`), the open to-dos that @mention you in pages you can read (`actions`, with `can_tick` when you may edit the page), the latest meetings across your workspaces (`meetings`), your workspaces with people, item and meeting counts (`workspaces`), and whether Google Meet is connected (`meet`). No AI is used.",
+      "guide": { "label": "Your home", "href": "/get-started/tour#your-home" }
+    },
+    "POST /api/v1/home/actions/tick": {
+      "title": "Tick one of your to-dos",
+      "description": "Marks a to-do that @mentions you done (`- [ ]` becomes `- [x]`, found by its block id) through the normal save path, as you. Send `\"done\": false` to open it again. You need to be able to edit the page.",
+      "example": { "slug": "launch-week-plan", "block": "b-a1b2c3d4" },
+      "responses": { "200": "Done. Returns `{done}`.", "403": "You can't edit the page, or the to-do doesn't mention you.", "404": "The page or the to-do is gone, or you can't open it.", "409": "It's already that way.", "423": "Someone is editing the page." }
+    },
+    "POST /api/v1/me/previews": {
+      "title": "Preview items anywhere",
+      "description": "Card previews (the start of a page or document, a file's first page or cells, a thumbnail) for items in any place you can open: your own, shared with you, in any workspace. Each answers `locked` unless you can open it right now, `encrypted` for end-to-end encrypted documents and `pending` while a picture is being made.",
+      "example": { "slugs": ["launch-week-plan", "q3-board-deck"] }
+    },
     "POST /api/v1/documents": {
       "title": "Publish a document",
       "description": "Creates a Markdown document and returns its link. Works without an account: send a token to own it. Keep the `edit_secret` from a call without a token: it is the only way to change or delete that document later.",

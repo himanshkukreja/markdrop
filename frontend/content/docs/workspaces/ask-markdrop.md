@@ -1,7 +1,7 @@
 ---
 title: Ask Markdrop
 description: One assistant everywhere. Ask about the doc you're in, your meetings, a folder, a workspace or everything you can open, with cited sources, follow-ups and ⌘J.
-updated: 2026-11-05
+updated: 2026-11-06
 keywords: [ask markdrop, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---
 
@@ -11,7 +11,7 @@ keywords: [ask markdrop, ask, assistant, ai, question, answer, cmd j, ctrl j, �
 
 - **✦ Ask** in the top bar of any document, page, workspace or folder.
 - **⌘ J** (**Ctrl J** on Windows and Linux) from anywhere in Markdrop, and again to close it. Inside a page you're editing, **⌘ J** keeps its own job, [Ask AI on your writing](/pages/ai#rewrite-a-selection): click outside the text first, or use **✦ Ask**.
-- **The box at the top of your home**, **My files**. It's the same assistant and the same conversation.
+- **The Ask bar on your [home](/get-started/tour#your-home)**: type a question and press **Enter**, or choose **Catch me up**, **My action items** or **Ask my meetings**. It's the same assistant and the same conversation.
 - **Ask this meeting** on a meeting page, and the **Ask** box on the Meetings page.
 
 On a computer it opens as a panel beside what you're reading, so you can keep scrolling, select text and click links while it answers. On a phone it opens as a sheet from the bottom. **Esc** closes it.
@@ -86,7 +86,7 @@ You can also type these. "What did I miss?" catches you up and "What's on my pla
 
 ## Recent conversations
 
-Your last conversations are listed under the box on your home. Select one to open it and continue asking, here or anywhere with **⌘ J**. Select **×** to forget one, or **Clear** to forget them all.
+On your home, **Recent questions** (beside the Ask bar) lists your last conversations. Select one to open it and continue asking, there or anywhere with **⌘ J**. Select **×** to forget one, or **Clear all** to forget them all.
 
 Only you can see your conversations. Markdrop keeps them for 90 days after your last question in each, then deletes them. See [Privacy](/security/privacy#what-ask-markdrop-keeps).
 
@@ -123,7 +123,7 @@ On a phone, Ask Markdrop opens as a sheet that stays above the keyboard. The chi
 
 | Shortcut | What it does |
 | --- | --- |
-| **⌘ J** | Open or close Ask Markdrop (on your home: go to its box) |
+| **⌘ J** | Open or close Ask Markdrop |
 | **Enter** | Ask; **Shift Enter** starts a new line |
 | **↑** in an empty box | Bring back your last question to edit |
 | **Esc** | Stop an answer that is still being written, close the sources, or close the panel |

@@ -16106,6 +16106,124 @@
         }
       }
     },
+    "/api/v1/home": {
+      "get": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Get Home",
+        "description": "What the home shows, decided for you: unread notifications and access requests waiting on you\n(``attention``), the open to-dos that mention you in pages you can read (``actions``; ``can_tick``\nwhen you may edit the page), the latest meetings across your workspaces (``meetings``), your\nworkspaces with people, item and meeting counts (``workspaces``) and whether Google Meet is\nconnected (``meet``). No AI.",
+        "operationId": "get_home_api_v1_home_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/home/actions/tick": {
+      "post": {
+        "tags": [
+          "home"
+        ],
+        "summary": "Tick Action",
+        "description": "Mark one of your to-dos done (``- [ ]`` → ``- [x]``, found by its block id) through the normal\nsave path; ``done: false`` opens it again. 404: the page or to-do is gone (or you can't open it);\n403: you can't edit the page, or the to-do doesn't mention you; 409: already that way; 423: someone\nis editing the page.",
+        "operationId": "tick_action_api_v1_home_actions_tick_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TickBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/previews": {
+      "post": {
+        "tags": [
+          "home"
+        ],
+        "summary": "My Previews",
+        "description": "Card previews (as ``POST /workspaces/{id}/items/previews``) for items anywhere: your own, shared\nwith you, in any workspace. Each answers ``locked`` unless you can open it right now.",
+        "operationId": "my_previews_api_v1_me_previews_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/oauth/requests/{request_id}": {
       "get": {
         "tags": [
@@ -22518,6 +22636,24 @@
         ],
         "title": "PreviewRequest"
       },
+      "PreviewsBody": {
+        "properties": {
+          "slugs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Slugs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slugs"
+        ],
+        "title": "PreviewsBody"
+      },
       "RelatedBody": {
         "properties": {
           "page": {
@@ -23586,6 +23722,33 @@
         },
         "type": "object",
         "title": "TestPush"
+      },
+      "TickBody": {
+        "properties": {
+          "slug": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Slug"
+          },
+          "block": {
+            "type": "string",
+            "pattern": "^b-[0-9A-Za-z_-]{1,40}$",
+            "title": "Block"
+          },
+          "done": {
+            "type": "boolean",
+            "title": "Done",
+            "description": "false: open it again (Undo)",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "slug",
+          "block"
+        ],
+        "title": "TickBody"
       },
       "TokenCreateRequest": {
         "properties": {
