@@ -275,6 +275,26 @@ class Review(BackfillWorld):
         r = await self.call("POST", f"/{job['id']}/sources", who="wm", json={"sources": [{"name": "x", "text": "Ada: hi"}]})
         self.assertEqual(r.status_code, 404)
 
+    async def test_duplicates_of_auto_and_picked_docs(self):
+        # A call the Google Meet script brought in (via inbox), and a Google Doc picked earlier (its Drive id).
+        user = await bf._owner(self.db, {"user_id": self.uid["owner"], "workspace_id": self.W})
+        name = g_title("Ops sync", ago(4))
+        await meetings.import_meetings(self.db, user, self.W, [meetings.Incoming(name=name, text=standup(), origin="google",
+                                                                                  file_id="1AutoDocAbcdefghijklmnop")],
+                                       via="inbox", dedupe="all", wait=True, notify=False)
+        job, _ = await bf.create_job(self.db, user, self.W)
+        job = await bf.add_sources(self.db, job, [
+            {"name": name, "text": standup() + "Ada Lovelace: (a re-export, edited)\n", "origin": "upload"},   # same call by name/date/time
+            {"name": "Picked again", "text": standup(" and more"), "origin": "google", "file_id": "1AutoDocAbcdefghijklmnop",
+             "created": ago(30).isoformat()},
+        ])
+        dups = sorted((r["dup"]["status"], r["dup"].get("why")) for r in job["rows"])
+        self.assertEqual(dups, [("duplicate", "call"), ("duplicate", "file")])
+        self.assertTrue(all(not r["include"] for r in job["rows"]))
+        with self.assertRaises(HTTPException) as cm:
+            await bf.start(self.db, job)
+        self.assertEqual(cm.exception.status_code, 422)
+
     async def test_viewer_cant_import(self):
         r = await self.http.post("/api/v1/meetings/backfill", headers=self.session("wv"), json={"workspace": self.W})
         self.assertEqual(r.status_code, 403)
