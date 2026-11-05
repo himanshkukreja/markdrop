@@ -69,6 +69,18 @@ function mongo(js) {
 }
 /** The lock's TTL ran out (a laptop asleep for minutes): nobody holds the page any more. */
 const expireLock = (slug) => mongo(`db["documents"].update_one({"slug": ${JSON.stringify(slug)}, "edit_lock": {"$ne": None}}, {"$set": {"edit_lock.expires_at": datetime.now(timezone.utc) - timedelta(seconds=5)}})`);
+/** Remember the page's WebSockets (to drop them like a network cut would). */
+const trackSockets = (c) => c.addInitScript(() => {
+  const W = window.WebSocket;
+  window.__mdSockets = [];
+  window.WebSocket = class extends W {
+    constructor(...a) {
+      super(...a);
+      window.__mdSockets.push(this);
+    }
+  };
+});
+const dropSockets = (p) => p.evaluate(() => window.__mdSockets.forEach((w) => w.readyState < 2 && w.close()));
 const banner = (p) => p.locator(".pb-banner, [role=alert]").allInnerTexts().then((t) => t.join(" | "));
 
 /* ── 1. An AI app rewrites the page while someone has it open (not typing) ── */
@@ -92,15 +104,24 @@ await step("mcp-while-open", async () => {
 await step("catch-up-after-offline", async () => {
   const slug = await newPage(`Catch up ${run}`);
   const { c, p } = await ctx(browser, { token: T.owner });
+  await trackSockets(c);
   await open(p, `${APP}/${slug}`);
-  await c.setOffline(true);
-  await p.waitForTimeout(1500);
+  // The socket drops (it reconnects after 3 s); the change lands while nobody's listening.
+  await dropSockets(p);
   const d = await doc(slug);
   const r = await mcp(BEN_MCP, "update_page", { document: slug, markdown: d.content.replace("Gamma paragraph.", "Gamma changed while you slept."), base_rev: d.rev });
   if (r.isError) fail(`update_page: ${r.text}`);
-  await p.waitForTimeout(1500);
-  await c.setOffline(false);
   if (!(await shows(p, "Gamma changed while you slept.", 20000))) fail("after reconnecting, the editor still shows the old page");
+  // A reader catches up the same way.
+  const b = await ctx(browser, { token: T.reader });
+  await trackSockets(b.c);
+  await b.p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await b.p.locator(".pb-page").getByText("Alpha paragraph.").waitFor({ timeout: 20000 });
+  await dropSockets(b.p);
+  const d2 = await doc(slug);
+  const r2 = await mcp(BEN_MCP, "update_page", { document: slug, markdown: d2.content.replace("Alpha paragraph.", "Alpha seen by a reader after a gap."), base_rev: d2.rev });
+  if (r2.isError) fail(`update_page 2: ${r2.text}`);
+  await b.p.locator(".pb-page").getByText("Alpha seen by a reader after a gap.").waitFor({ timeout: 20000 }).catch(() => fail("the reader never caught up"));
 });
 
 /* ── 3. Typed while offline, someone else changed another paragraph meanwhile: both kept ── */
@@ -166,16 +187,12 @@ await step("true-conflict", async () => {
   const b = await banner(p);
   await shot(p, "c05-true-conflict");
   log("banner:", b);
-  if (!/changed|conflict/i.test(b)) fail(`no conflict notice: ${b}`);
-  // Whatever the choice, the other version must stay reachable: keep mine.
-  const keep = p.getByRole("button", { name: /Keep mine|Keep both|Keep my version/ }).first();
-  await keep.click();
-  await waitSaved(p).catch(() => {});
+  if (!/same part of this page/i.test(b)) fail(`no conflict notice: ${b}`);
+  await p.getByRole("button", { name: "Keep both" }).click();
+  await waitSaved(p);
   const x = await content(slug);
-  const v = await api("GET", `/api/v1/documents/${slug}/versions`, T.owner);
-  const hist = JSON.stringify(v.body);
-  if (!x.includes("Beta paragraph. XY")) fail("Keep mine didn't keep mine");
-  if (!x.includes("Beta rewritten elsewhere.") && !hist.includes("Beta rewritten elsewhere")) fail("their version is gone (not on the page, not in history)");
+  if (!x.includes("Beta paragraph. XY") || !x.includes("Beta rewritten elsewhere.")) fail(`Keep both: ${JSON.stringify(x)}`);
+  if (x.indexOf("Beta rewritten elsewhere.") > x.indexOf("Beta paragraph. XY")) fail("Keep both: theirs should come first");
 });
 
 /* ── 6. Renamed (set_slug) while open: the tab follows, typing still saves ── */
@@ -207,7 +224,11 @@ await step("delete-while-open", async () => {
   await p.waitForTimeout(5000);
   const txt = await p.locator("body").innerText();
   await shot(p, "c07-deleted");
-  if (!/deleted|trash|isn't here|not found|no longer/i.test(txt)) fail("nothing says the page was deleted");
+  if (!/was deleted/i.test(txt)) fail("nothing says the page was deleted");
+  await p.locator(".pb-live .ProseMirror").click();
+  await p.keyboard.type(" typed after delete");
+  await p.waitForTimeout(1000);
+  if (/Saving/.test(await p.locator(".pb-save").first().innerText().catch(() => ""))) fail("still pretending to save");
 });
 
 /* ── 8. Removed from the workspace while editing: no further saves, told why ── */
@@ -226,7 +247,7 @@ await step("lose-access", async () => {
     const txt = await p.locator("body").innerText();
     await shot(p, "c08-lose-access");
     if (x.includes("Should not save.")) fail("a removed member's edit saved");
-    if (!/can't edit|sign in|no access|don't have access|not saved|removed/i.test(txt)) fail("nothing tells the removed member");
+    if (!/can't edit|can no longer|no access|don't have access|not saved|request access|ask for access|isn't available|only members|sign in to read/i.test(txt)) fail(`nothing tells the removed member: ${txt.slice(0, 300)}`);
   } finally {
     mongo(`db["memberships"].insert_one({"workspace_id": ${JSON.stringify(S.ws)}, "user_id": ${JSON.stringify(ID.member)}, "role": "member", "created_at": datetime.now(timezone.utc), "email": "ben@acme.test", "name": "Ben Member"}) if not db["memberships"].find_one({"workspace_id": ${JSON.stringify(S.ws)}, "user_id": ${JSON.stringify(ID.member)}}) else None`);
   }
@@ -333,6 +354,44 @@ await step("classic", async () => {
   // Without base_rev (the public API, the generic MCP update_document): last write wins.
   const m = await mcp(BEN_MCP, "update_document", { document: slug, content: "# Classic\n\nOverwritten by an AI that read rev 1.\n", base_rev: d.rev });
   if (!m.isError) fail("MCP update_document with a stale base_rev overwrote the newer version");
+});
+
+/* ── 15. Made a viewer while editing: the editor goes back to reading ── */
+await step("demoted", async () => {
+  const slug = await newPage(`Demoted ${run}`);
+  const { p } = await ctx(browser, { token: T.member });
+  await open(p, `${APP}/${slug}`);
+  try {
+    const r = await api("PUT", `/api/v1/workspaces/${S.ws}/members/${ID.member}`, T.owner, { role: "viewer" });
+    if (r.status >= 300) fail(`demote → ${r.status} ${JSON.stringify(r.body)}`);
+    const gone = await until(async () => (await p.locator('.pb-live .ProseMirror[contenteditable="true"]').count()) === 0, 15000);
+    await shot(p, "c15-demoted");
+    if (!gone) fail("a viewer still has an editable page");
+    await p.locator(".pb-page").getByText("Alpha paragraph.").waitFor({ timeout: 10000 });
+  } finally {
+    await api("PUT", `/api/v1/workspaces/${S.ws}/members/${ID.member}`, T.owner, { role: "member" });
+  }
+});
+
+/* ── 16. Someone adds a sub-page: open copies of the parent list it ── */
+await step("children-live", async () => {
+  const slug = await newPage(`Parent ${run}`);
+  const { p } = await ctx(browser, { token: T.owner });
+  await open(p, `${APP}/${slug}`);
+  const r = await api("POST", "/api/v1/pages", T.member, { title: `Kid from Ben ${run}`, parent: slug });
+  if (r.status >= 300) fail(`sub-page → ${r.status}`);
+  await p.getByText(`Kid from Ben ${run}`).first().waitFor({ timeout: 10000 }).catch(() => fail("the parent's open copy doesn't list the new sub-page"));
+});
+
+/* ── 17. Folder views: two people at once, both changes kept ── */
+await step("views", async () => {
+  const path = `/api/v1/workspaces/${S.ws}/folders/${S.folder}`;
+  const db0 = (await api("GET", `${path}/database?rows=false`, T.owner)).body;
+  const v1 = { id: "vaaa", name: "Ada's view", type: "table" };
+  const a = await api("PUT", `${path}/views`, T.owner, { views: [...(db0.views || []), v1], base_rev: db0.rev });
+  if (a.status !== 200) fail(`views A → ${a.status} ${JSON.stringify(a.body)}`);
+  const b = await api("PUT", `${path}/views`, T.admin, { views: [...(db0.views || []), { id: "vbbb", name: "Wes's view", type: "board" }], base_rev: db0.rev });
+  if (b.status !== 409) fail(`a stale views save → ${b.status} (want 409)`);
 });
 
 /* ── 14. On the workspace's own domain: an AI change reaches the open editor ── */
