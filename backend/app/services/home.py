@@ -83,7 +83,13 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
         can_tick = (await access.can(actor, raw, "edit_content", ctx)).allowed
         title = md_outline.display_title(raw)
         ws_id = raw.get("workspace_id")
-        for text, anchor in tasks:
+        # "@Bo Order the banners" → "Order the banners": on your own list, your own mention is noise.
+        me = {f"@{n}" for n in re.findall(r':person\[([^\]\n]*)\]\{id="' + re.escape(uid) + '"', raw.get("content") or "")}
+        for full, anchor in tasks:
+            text = full
+            for m in me:
+                text = text.replace(m, " ")
+            text = re.sub(r"\s+", " ", text).strip(" ,;:-") or full
             if len(out) >= ACTIONS_MAX:
                 more = True
                 break
