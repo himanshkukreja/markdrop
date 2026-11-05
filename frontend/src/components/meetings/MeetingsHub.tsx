@@ -9,22 +9,24 @@
  * restricted meetings exist (no title) so they can delete them. Phones get one column, full-width
  * buttons and the imports as bottom sheets.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
-  Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Select, Skeleton, Spinner,
+  Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner,
   copyText, useToast, type MenuEntry,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
-  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, listBackfills, listMeetings, listSeries, monthLabel, organizeMeetings,
-  meetingsHref,
-  type BackfillJob, type HiddenMeeting, type MeetConnection, type Meeting, type MeetingSeries, type MeetingsStatus,
+  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, getOrganize, getOrganizeRun, listBackfills, listMeetings, listSeries,
+  monthLabel, meetingsHref,
+  type BackfillJob, type OrganizeJob, type HiddenMeeting, type MeetConnection, type Meeting, type MeetingSeries, type MeetingsStatus,
 } from "@/lib/meetings";
 import { ImportMeeting } from "./ImportMeeting";
 import { BulkImport } from "./BulkImport";
 import { BackfillProgress } from "./BackfillProgress";
+import { OrganizeMeetings } from "./OrganizeMeetings";
+import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { ConnectGoogleMeet, MeetConnectionStatus } from "./ConnectGoogleMeet";
 import { AskMeetingsDock } from "./AskMeetingsDock";
 import { useAssistantHere } from "@/components/assistant/store";
@@ -51,6 +53,9 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const [series, setSeries] = useState<MeetingSeries[]>([]);
   const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
   const [organizing, setOrganizing] = useState(false);
+  // The "Organize meetings" run this page follows (a background job on the server; polled while it runs).
+  const [orgJob, setOrgJob] = useState<OrganizeJob | null>(null);
+  const phone = useMediaQuery(PHONE_QUERY);
   // The list's order, remembered on this device (like a folder's listing view).
   const [sort, setSortState] = useState<MeetingSort>("date_desc");
   useEffect(() => {
@@ -83,6 +88,41 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     .then((r) => setJob(r.jobs.find((j) => j.state !== "draft") ?? null)).catch(() => {}), [workspaceId]);
 
   useEffect(() => { if (user) { void load(); void loadConn(); void loadJob(); } }, [user, load, loadConn, loadJob]);
+  // Admins: a run already going (started in another tab, or by another admin) shows its progress here too.
+  const canOrganize = !!status?.can_organize;
+  useEffect(() => {
+    if (!canOrganize) return;
+    getOrganize(workspaceId).then((r) => { if (r.job?.state === "running") setOrgJob(r.job); }).catch(() => {});
+  }, [canOrganize, workspaceId]);
+  const orgRunning = orgJob?.state === "running";
+  const orgId = orgJob?.id;
+  useEffect(() => {
+    if (!orgRunning || !orgId) return;
+    let lastFiled = -1;
+    const t = window.setInterval(() => {
+      getOrganizeRun(orgId).then((r) => {
+        setOrgJob(r.job);
+        if (r.job.state !== "running") {
+          void load();
+          return;
+        }
+        if (r.job.filed !== lastFiled) { lastFiled = r.job.filed; reloadList(); }
+      }).catch(() => {});
+    }, 1200);
+    return () => window.clearInterval(t);
+  }, [orgRunning, orgId, load, reloadList]);
+  // Finished while the dialog was closed: say so.
+  const orgOpen = useRef(false);
+  orgOpen.current = organizing;
+  const orgState = orgJob?.state;
+  useEffect(() => {
+    if (!orgJob || orgState === "running" || orgOpen.current) return;
+    if (orgState === "done") toast.success(`${orgJob.total} meeting${orgJob.total === 1 ? "" : "s"} organized: ${orgJob.filed} moved into ${orgJob.folders} folder${orgJob.folders === 1 ? "" : "s"}.`);
+    else toast.error(orgJob.message || "Organizing the meetings stopped. Try again.");
+    setOrgJob(null);
+    // Only on the transition out of "running".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgState]);
   // A summary is being written: refresh the list now and then.
   const pending = items?.some((m) => m.ai.state === "pending");
   useEffect(() => {
@@ -131,12 +171,17 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const pastButton = canImport && (
     <Button variant="ghost" iconLeft="history" onClick={() => setBulk(true)} data-testid="import-past">Import past meetings</Button>
   );
+  // The ⋯ menu: what isn't a button already (on phones the header's secondary buttons fold into it).
+  const folded = phone || !any;
   const more: MenuEntry[] = [
-    ...(canImport && !connectedHere ? [{ label: "Connect Google Meet", icon: "refresh", onClick: () => setConnecting(true) }] : []),
-    ...(canImport ? [{ label: "Import past meetings", icon: "history", onClick: () => setBulk(true) }] : []),
-    ...(folderHref ? [{ label: "Open the Meetings folder", icon: "folder", href: folderHref, separated: canImport }] : []),
-    ...(status?.can_organize && any ? [{ label: "Organize into folders", icon: "listTree", onClick: () => setOrganizing(true),
-      description: "A folder per series, the rest in Other meetings" }] : []),
+    ...(canImport && !connectedHere && phone ? [{ label: "Connect Google Meet", icon: "refresh", onClick: () => setConnecting(true),
+      description: "Every call arrives by itself" }] : []),
+    ...(canImport && folded ? [{ label: "Import past meetings", icon: "history", onClick: () => setBulk(true),
+      description: "Bring in a backlog at once" }] : []),
+    ...(folderHref ? [{ label: "Open the Meetings folder", icon: "folder", href: folderHref, separated: canImport && folded,
+      description: "Browse them as pages, a table or a board" }] : []),
+    ...(canOrganize && any ? [{ label: "Organize meetings", icon: "listTree", onClick: () => setOrganizing(true),
+      description: orgRunning ? `Running: ${orgJob?.done ?? 0} of ${orgJob?.total ?? 0}` : "A folder per series, the rest in Other meetings" }] : []),
   ];
   const filtered = !!filter || seriesFilter !== null;
 
@@ -156,8 +201,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
           <span className="mt-hub__secondary">{connectButton}{any && pastButton}</span>
           {canImport && <Button iconLeft="plus" onClick={() => setImporting(true)} data-testid="import-meeting">Import meeting</Button>}
           {more.length > 0 && (
-            <Dropdown align="right" aria-label="More" items={more}
-              trigger={<IconButton icon="more" label="More" variant="secondary" data-testid="meetings-more" />} />
+            <Dropdown align="right" aria-label="More meeting actions" items={more} portal minWidth={300}
+              trigger={<IconButton icon="more" label="More meeting actions" variant="secondary" data-testid="meetings-more" />} />
           )}
         </div>
       </header>
@@ -166,6 +211,15 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
 
       {error && <Alert tone="danger" className="mb-4">{error}</Alert>}
       {job && <BackfillProgress job={job} onChange={setJob} onProgress={reloadList} />}
+      {orgJob?.state === "running" && !organizing && (
+        <div className="mt-orgbar" data-testid="organize-bar">
+          <Icon name="listTree" />
+          <Progress size="sm" value={orgJob.done} max={Math.max(1, orgJob.total)}
+            label={orgJob.done ? `Organizing ${orgJob.done} of ${orgJob.total} meetings…` : "Organizing meetings…"}
+            indeterminate={!orgJob.done} valueText={`${orgJob.done} of ${orgJob.total} meetings`} />
+          <Button size="sm" variant="secondary" onClick={() => setOrganizing(true)}>Details</Button>
+        </div>
+      )}
 
       {any && <AskMeetingsDock count={items?.length ?? 0}
         aiMessage={status?.ai.enabled === false ? status.ai.message : null} />}
@@ -262,17 +316,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         seriesNames={series.map((x) => x.name)} onStarted={(j) => setJob(j)} />
       <ConnectGoogleMeet open={connecting} onClose={() => { setConnecting(false); void load(); }} workspaceId={workspaceId}
         workspaceName={ws?.name ?? null} current={conn.mine} onConnected={(c) => setConn((x) => ({ ...x, mine: c }))} />
-      <ConfirmDialog open={organizing} onClose={() => setOrganizing(false)} title="Organize meetings?"
-        description="Every meeting is filed the way new ones are: a recurring meeting (a name that came up on two or more days) in its own folder inside Meetings, anything else in Meetings › Other meetings. Series people set are kept."
-        confirmLabel="Organize"
-        onConfirm={async () => {
-          const r = await organizeMeetings(workspaceId);
-          const series = r.series ? ` · ${r.series} series` : "";
-          toast.success(r.moved ? `${r.moved} of ${r.meetings} meeting${r.meetings === 1 ? "" : "s"} filed in ${r.folders} folder${r.folders === 1 ? "" : "s"}${series}.`
-            : `Every meeting is already in its folder (${r.meetings} meeting${r.meetings === 1 ? "" : "s"}${series}).`);
-          setOrganizing(false);
-          void load();
-        }} />
+      <OrganizeMeetings open={organizing} workspaceId={workspaceId} job={orgJob} onJob={setOrgJob} folderHref={folderHref}
+        onClose={() => { setOrganizing(false); if (orgJob && orgJob.state !== "running") setOrgJob(null); }} />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} tone="danger" title="Delete this meeting?"
         description="Its pages go to the Trash for 30 days and its stored transcript is deleted now."
         confirmLabel="Delete meeting"

@@ -25,7 +25,7 @@ from fastapi import HTTPException
 
 from app.services import ai_usage, background, meeting_backfill as bf, meeting_scope, meetings, meetings_ai
 from app.services import meeting_backfill_detect as det
-from app.services import meeting_series
+from app.services import meeting_organize, meeting_series
 
 TODAY = datetime.now(timezone.utc).date()
 
@@ -180,9 +180,23 @@ class BackfillWorld(MeetingsWorld):
         await bf.ensure_indexes(self.db)
 
     async def asyncTearDown(self):
-        for t in list(bf._tasks.values()):
-            await asyncio.wait({t}, timeout=20)
+        for t in [*bf._tasks.values(), *meeting_organize._tasks.values()]:
+            await asyncio.wait({t}, timeout=60)
         await super().asyncTearDown()
+
+    async def organize(self, who="wa") -> dict:
+        """Organize meetings (a background job): start it, wait for it, its result."""
+        r = await self.http.post("/api/v1/meetings/organize", headers=self.session(who), json={"workspace": self.W})
+        self.assertEqual(r.status_code, 202, r.text)
+        job = r.json()["job"]
+        t = meeting_organize._tasks.get(self.W)
+        if t is not None:
+            await asyncio.wait({t}, timeout=120)
+        r = await self.http.get(f"/api/v1/meetings/organize/{job['id']}", headers=self.session(who))
+        self.assertEqual(r.status_code, 200, r.text)
+        out = r.json()["job"]
+        self.assertEqual(out["state"], "done", out)
+        return out
 
     async def settle(self):
         for _ in range(100):
@@ -625,14 +639,11 @@ class Organise(BackfillWorld):
             await self.db["documents"].update_one({"slug": m["slug"]}, {"$set": {"folder_id": str(root["_id"])}})
         r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wm"), json={"workspace": self.W})
         self.assertEqual(r.status_code, 403)                                          # members can't (admins can)
-        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
-        self.assertEqual(r.status_code, 200, r.text)
-        out = r.json()
+        out = await self.organize()
         self.assertEqual((out["meetings"], out["moved"], out["series_set"]), (2, 2, 2))
         for m in ms:
             self.assertEqual(await self.folder_name(m["id"]), "Weekly ops")
-        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
-        self.assertEqual(r.json()["moved"], 0)                                        # idempotent
+        self.assertEqual((await self.organize())["moved"], 0)                         # idempotent
 
     async def test_existing_folder_gets_series_property_once(self):
         await self.imported()
@@ -885,9 +896,7 @@ class OneItemCoversSeries(BackfillWorld):
                 "series": s, "series_from": "auto" if s else None, "folder_id": str(root["_id"])}, "$unset": {"series_key": ""}})
             await self.db["documents"].update_one({"slug": m["slug"]}, {"$set": {"folder_id": str(root["_id"])}})
             await self.db["documents"].update_one({"slug": m["transcript_slug"]}, {"$set": {"folder_id": str(root["_id"])}})
-        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
-        self.assertEqual(r.status_code, 200, r.text)
-        out = r.json()
+        out = await self.organize()
         self.assertEqual((out["meetings"], out["moved"]), (3, 3))
         ra = await self.db[meetings.COLL].find_one({"_id": bf._oid(a["id"])})
         rb = await self.db[meetings.COLL].find_one({"_id": bf._oid(b["id"])})
@@ -899,5 +908,5 @@ class OneItemCoversSeries(BackfillWorld):
         for row in (ra, rb, rc):
             t = await self.db["documents"].find_one({"_id": row["transcript_doc_id"]})
             self.assertEqual(t["folder_id"], row["folder_id"])             # the transcript moved with its page
-        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
-        self.assertEqual((r.json()["moved"], r.json()["covers"]), (0, 0))  # idempotent
+        again = await self.organize()
+        self.assertEqual((again["moved"], again["covers"]), (0, 0))        # idempotent

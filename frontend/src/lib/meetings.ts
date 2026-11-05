@@ -427,10 +427,48 @@ export function backfillAction(id: string, action: "start" | "pause" | "resume")
 export function retryBackfillRow(id: string, row: string) {
   return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/rows/${encodeURIComponent(row)}/retry`, { method: "POST" });
 }
+/** "Organize meetings" (admins): what a run would do now. */
+export interface OrganizePreview {
+  meetings: number;
+  /** Series folders the meetings end up in (Meetings/<Series>); the rest go to Other meetings. */
+  series: number;
+  other: number;
+  to_move: number;
+  series_set: number;
+  transcripts_to_hide: number;
+  series_names: Array<{ name: string; count: number }>;
+}
+/** A run of "Organize meetings": a background job on the server (one per workspace). */
+export interface OrganizeJob {
+  id: string;
+  workspace: string;
+  state: "running" | "done" | "failed";
+  phase: "prepare" | "files" | "done" | null;
+  total: number;
+  done: number;
+  /** Meetings moved into another folder. */
+  filed: number;
+  series_set: number;
+  covers: number;
+  errors: number;
+  folders: number;
+  series: number;
+  transcripts_hidden: number;
+  duplicates_removed: number;
+  error_samples: Array<{ title: string; error: string }>;
+  message: string | null;
+  started_at: string | null;
+  done_at: string | null;
+}
+export function getOrganize(workspace: string) {
+  return request<{ preview: OrganizePreview; job: OrganizeJob | null }>(`/api/v1/meetings/organize?workspace=${encodeURIComponent(workspace)}`);
+}
+/** Starts a run (202), or joins the one already running. */
 export function organizeMeetings(workspace: string) {
-  return request<{ meetings: number; moved: number; series_set: number; folders: number; series?: number; covers?: number }>(`/api/v1/meetings/organize`, {
-    method: "POST", body: JSON.stringify({ workspace }),
-  });
+  return request<{ job: OrganizeJob }>(`/api/v1/meetings/organize`, { method: "POST", body: JSON.stringify({ workspace }) });
+}
+export function getOrganizeRun(id: string) {
+  return request<{ job: OrganizeJob }>(`/api/v1/meetings/organize/${encodeURIComponent(id)}`);
 }
 
 export function discardBackfill(id: string) {
