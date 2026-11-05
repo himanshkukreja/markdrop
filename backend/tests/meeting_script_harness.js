@@ -74,6 +74,8 @@ function fileObj(f) {
     getUrl: () => `https://docs.google.com/document/d/${f.id}/edit`,
     getOwner: () => (f.owned === false ? { getName: () => "Gautam", getEmail: () => "gautam@acme.test" }
       : { getName: () => "Me", getEmail: () => "me@acme.test" }),
+    getMimeType: () => f.mime || "application/vnd.google-apps.document",
+    getBlob: () => ({ getDataAsString: () => f.text || "" }),
   };
 }
 
@@ -103,6 +105,11 @@ const sandbox = {
     getOAuthToken: () => "fake-oauth",
   },
   DriveApp: {
+    getFileById: (id) => {
+      const f = sc.files.find((x) => x.id === id);
+      if (!f) throw new Error("No item with the given ID could be found.");
+      return fileObj(f);
+    },
     searchFiles: (q) => {
       report.searches.push(q);
       const since = /modifiedDate > '([^']+)'/.exec(q)[1];

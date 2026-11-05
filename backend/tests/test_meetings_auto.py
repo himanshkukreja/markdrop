@@ -828,6 +828,24 @@ class Script(unittest.TestCase):
         self.assertEqual(sorted((f["file_id"], f["error"]) for f in done["queue_failed"]),
                          [("1APdfInDriveXyzwvut", "not_a_doc"), ("1MissingFileXyzwvut", "not_found")])
 
+    def test_queued_links_with_the_drive_api_off(self):
+        # The owner's project has the Drive API off: a Doc asked for by link is still read (DriveApp).
+        old = (datetime.now(timezone.utc) - timedelta(days=200)).isoformat().replace("+00:00", "Z")
+        files = [{"id": "1AskedForByLinkXyzwv", "name": "Board call", "created": old, "modified": old, "owned": False,
+                  "listed": False, "text": "Ada: hi\nBo: yes\n"},
+                 {"id": "1AVttInDriveXyzwvut", "name": "call.vtt", "mime": "text/vtt", "created": old, "modified": old,
+                  "listed": False, "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n<v Ada>hi\n"}]
+        out = self.run_script({"files": files, "docsFails": True, "driveOff": True, "runs": ["syncMeetings"],
+                               "queue": ["1AskedForByLinkXyzwv", "1AVttInDriveXyzwvut", "1MissingFileXyzwvut"]})
+        self.assertEqual([(p["body"]["file_id"], p["body"]["requested"]) for p in out["posts"]],
+                         [("1AskedForByLinkXyzwv", True), ("1AVttInDriveXyzwvut", True)])
+        self.assertEqual(out["posts"][1]["body"]["text"].split("\n")[0], "WEBVTT")
+        done = out["statuses"][-1]
+        self.assertEqual(done["queue_done"], ["1AskedForByLinkXyzwv", "1AVttInDriveXyzwvut"])
+        self.assertEqual([(f["file_id"], f["error"]) for f in done["queue_failed"]], [("1MissingFileXyzwvut", "not_found")])
+        self.assertEqual(done["shared_drives"], "off")
+        self.assertFalse(any(l.startswith("WARN") for l in out["logs"]), out["logs"])
+
     def test_drive_api_off_falls_back_to_driveapp(self):
         at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
         files = [{"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n", "owned": False}]

@@ -330,8 +330,10 @@ function fromV3_(f, folders) {
 function fromDriveApp_(file) {
   var owner = null;
   try { owner = file.getOwner(); } catch (e) { owner = null; }
+  var mime = DOC_MIME;
+  try { mime = (file.getMimeType && file.getMimeType()) || DOC_MIME; } catch (e) { mime = DOC_MIME; }
   return {
-    id: file.getId(), name: file.getName(), mime: DOC_MIME, created: file.getDateCreated(), modified: file.getLastUpdated(),
+    id: file.getId(), name: file.getName(), mime: mime, created: file.getDateCreated(), modified: file.getLastUpdated(),
     // DriveApp can't tell whose it is without another permission: the search above already left out
     // other people's Docs when INCLUDE_SHARED is off.
     url: file.getUrl(), mine: true,
@@ -438,8 +440,16 @@ function sendQueued_(props, queue, st, budget) {
     try {
       c = fromV3_(drive_('files/' + encodeURIComponent(id), { supportsAllDrives: 'true', fields: FIELDS }), []);
     } catch (e) {
-      st.queue_failed.push({ file_id: id, error: /\b404\b/.test(String(e)) ? 'not_found' : 'unreadable' });
-      continue;
+      // The Drive API is off for this project (optional): DriveApp reads the file just as well.
+      var viaApp = null;
+      if (driveOff_(e, st)) {
+        try { viaApp = fromDriveApp_(DriveApp.getFileById(id)); } catch (e2) { viaApp = null; }
+      }
+      if (!viaApp) {
+        st.queue_failed.push({ file_id: id, error: /\b404\b/.test(String(e)) || e.driveOff ? 'not_found' : 'unreadable' });
+        continue;
+      }
+      c = viaApp;
     }
     c.kind = c.mime === DOC_MIME ? (kindOf_(c) || 'unknown') : 'unknown';
     if (c.mime !== DOC_MIME && !/^text\/|subrip|vtt/.test(c.mime)) {
@@ -553,7 +563,11 @@ function docText_(id) {
 function fileText_(id) {
   var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) +
     '?alt=media&supportsAllDrives=true', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
-  if (res.getResponseCode() !== 200) throw new Error('Drive answered ' + res.getResponseCode());
+  if (res.getResponseCode() !== 200) {
+    // The Drive API is off for this project: DriveApp has the same file.
+    try { return DriveApp.getFileById(id).getBlob().getDataAsString().slice(0, 2000000); } catch (e) { /* below */ }
+    throw new Error('Drive answered ' + res.getResponseCode());
+  }
   return res.getContentText().slice(0, 2000000);
 }
 
