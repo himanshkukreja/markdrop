@@ -135,9 +135,13 @@ async function registration(): Promise<ServiceWorkerRegistration | null> {
   return (await withTimeout(navigator.serviceWorker.ready, 10_000)) ?? reg;
 }
 
-/** This browser's current subscription, if any (no prompt). */
+/**
+ * This browser's current subscription, if any (no prompt). None without permission: browsers drop
+ * a site's subscriptions when its permission is revoked or reset, and asking anyway can stall the
+ * page in some WebKit builds (Playwright's WebKit blocks the page on getSubscription()).
+ */
 export async function currentSubscription(): Promise<PushSubscription | null> {
-  if (pushSupport() !== "ok") return null;
+  if (pushSupport() !== "ok" || permission() !== "granted") return null;
   const reg = (await navigator.serviceWorker.getRegistration("/").catch(() => null)) ?? null;
   return reg ? reg.pushManager.getSubscription().catch(() => null) : null;
 }
