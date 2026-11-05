@@ -439,7 +439,9 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                     t = mp.clock(s.get("t")) if s.get("t") is not None else "-"
                     txt.append(f"[{n}-s{k}] {t} {s.get('speaker') or 'Unknown'}: {s.get('text') or ''}")
                     src.lines[k] = {"moment": meetings.seg_label(s),
-                                    "url": urls.markdrop_url(f"{tslug}#{meetings.anchor(k)}"), "slug": tslug}
+                                    "url": urls.markdrop_url(f"{tslug}#{meetings.anchor(k)}"), "slug": tslug,
+                                    "quote": quote(s.get("text")), "speaker": s.get("speaker") or None,
+                                    "at": mp.clock(s.get("t")) if s.get("t") is not None else None}
                 src.text = (src.text + "\n\nTranscript lines:\n" if src.text else "Transcript lines:\n") + "\n".join(txt)
         out.append(src)
     return out
@@ -462,16 +464,49 @@ def _known(sources: list[Source]) -> set[str]:
     return known
 
 
+QUOTE_CHARS = 280
+
+
+def quote(text: str | None) -> str | None:
+    """What a cited line or passage says, for the sources list (shortened on a word)."""
+    t = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(t) <= QUOTE_CHARS:
+        return t or None
+    return t[:QUOTE_CHARS].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+
+
+def _subtitle(src: Source) -> str | None:
+    """"Nov 2, 2026 · Daily Standup · Acme" — when and where the item is, for the sources list."""
+    a = src.attrs
+    bits = []
+    day = a.get("date") or a.get("updated")
+    if day:
+        try:
+            d = datetime.strptime(str(day)[:10], "%Y-%m-%d")
+            bits.append(f"{d.strftime('%b')} {d.day}, {d.year}")
+        except ValueError:
+            pass
+    if a.get("series"):
+        bits.append(str(a["series"]))
+    if a.get("where") and a.get("kind") != "this page":
+        bits.append(str(a["where"]))
+    return " · ".join(bits) or None
+
+
 def _citation(src: Source, label: str) -> dict:
     it = src.item
+    sn = it.get("snippet") if isinstance(it.get("snippet"), dict) else None
     out = {"label": label, "n": src.n, "key": it["key"], "title": it.get("title") or src.attrs.get("title"),
            "url": it.get("url"), "web_url": it.get("web_url") or it.get("url"), "kind": it.get("kind"),
-           "slug": it.get("slug"), "moment": None, "text": it.get("task")}
+           "slug": it.get("slug"), "moment": None, "text": it.get("task"),
+           "quote": quote(it.get("task") or (sn or {}).get("text")), "subtitle": _subtitle(src),
+           "source_kind": src.attrs.get("kind")}
     if "-s" in label:
         k = int(label.split("-s", 1)[1])
         line = src.lines.get(k) or {}
         out.update(moment=line.get("moment"), url=line.get("url"), web_url=line.get("url"), slug=line.get("slug"),
-                   kind="page")
+                   kind="page", quote=line.get("quote"), speaker=line.get("speaker"), at=line.get("at"),
+                   source_kind="moment")
     return out
 
 
@@ -530,7 +565,7 @@ async def _decide_turns(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
         withheld = any(c.get("key") and c["key"] not in ok for c in cites)
         out.append({"question": t.get("q") or "", "intent": t.get("intent") or "ask", "at": t.get("at"),
                     "answer": None if withheld else t.get("a") or "", "citations": [] if withheld else cites,
-                    "withheld": withheld, "request_id": t.get("request_id")})
+                    "withheld": withheld, "request_id": t.get("request_id"), "scope": t.get("scope")})
     return out
 
 
@@ -542,8 +577,9 @@ def _thread_card(row: dict) -> dict:
 
 
 async def list_threads(db: AsyncIOMotorDatabase, user_id: str, *, limit: int = 20) -> list[dict]:
-    # Ask AI in a page (intent "page") keeps its conversations to the page: not on the home.
-    rows = await db[COLL].find({"user_id": user_id, "via": {"$ne": "page"}}, {"turns.citations": 0, "turns.a": 0}).sort(
+    # One assistant everywhere (services/assistant.py): a conversation started in a page, the meetings
+    # or the home continues anywhere, so every one is listed.
+    rows = await db[COLL].find({"user_id": user_id}, {"turns.citations": 0, "turns.a": 0}).sort(
         "updated_at", -1).limit(max(1, min(limit, MAX_THREADS))).to_list(length=MAX_THREADS)
     return [_thread_card(r) for r in rows]
 
@@ -634,8 +670,10 @@ async def _ai_off(db: AsyncIOMotorDatabase, cands: list[search.Cand]) -> tuple[l
 
 
 async def _catchup_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
-                           scope: str | None) -> tuple[list[Source], int]:
+                           scope: str | None, keep=None) -> tuple[list[Source], int]:
     cands, w = await search.doc_and_guide_cands(db, actor, ctx, search.Query(q="", scope=scope, snippets=False))
+    if keep is not None:
+        cands = [c for c in cands if keep(c)]
     since = ctx.now - timedelta(days=CATCHUP_DAYS)
     recent = [c for c in cands if c.updated and c.updated >= since and c.kind in ("page", "doc", "file", "guide")
               and not (c.kind in search.DOC_KINDS and c.raw.get("encrypted"))]
@@ -687,12 +725,14 @@ def task_lines(content: str, user_id: str) -> list[tuple[str, str | None]]:
 
 
 async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
-                         scope: str | None) -> tuple[list[Source], int]:
+                         scope: str | None, folders: set[str] | None = None) -> tuple[list[Source], int]:
     uid = actor.user_id
     w = await search.world_of(db, actor, ctx)
     filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q="", scope=scope))
     if filt is None:
         return [], 0
+    if folders is not None:
+        filt["$and"].append({"folder_id": {"$in": sorted(folders)}})
     filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
     # Mentions (:person[…]{id=…}) live in block pages only; the rest of the filter is search's wall 1.
     filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
@@ -752,9 +792,9 @@ async def _expand(run: search_ai.Run, question: str, history: str) -> tuple[str,
 
 
 async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, standalone: str,
-                       terms: list[str], scope: str | None) -> tuple[list[Source], int, int]:
+                       terms: list[str], scope: str | None, keep=None) -> tuple[list[Source], int, int]:
     q = search.Query(q=standalone, scope=scope, snippets=True)
-    cands, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms])
+    cands, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms], keep=keep)
     cands = cands[:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)
     return await _sources_from(db, actor, ctx, w, kept, standalone), len(cands), withheld
@@ -821,6 +861,38 @@ async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     return sources, len(cands), withheld
 
 
+async def folder_subtree(db: AsyncIOMotorDatabase, workspace_id: str | None, folder_id: str) -> set[str] | None:
+    """The folder and every folder below it (ids), or None when it isn't a folder of ``workspace_id``."""
+    from app.services import folder as folder_service
+
+    if not workspace_id or not folder_id:
+        return None
+    folders = await folder_service.list_folders(db, workspace_id)
+    if not any(f.id == folder_id for f in folders):
+        return None
+    return set(folder_service.subtree_ids(folders, folder_id))
+
+
+CONTEXT_HEADING = 200
+CONTEXT_SELECTION = 1500
+
+
+def where_in_page(context: dict | None) -> str:
+    """The reader's place in the page (the section's heading, the text they selected), for the prompt.
+    The selection is the page's own text: it goes inside an untrusted tag."""
+    if not isinstance(context, dict):
+        return ""
+    out = ""
+    heading = re.sub(r"\s+", " ", str(context.get("heading") or "")).strip()[:CONTEXT_HEADING]
+    selection = str(context.get("selection") or "").replace("\x00", "").strip()[:CONTEXT_SELECTION]
+    if heading:
+        out += f"They are at the section headed: {heading}\n"
+    if selection:
+        out += ("They selected this passage of the page (the question is probably about it):\n"
+                + pages_ai.wrap("selection", selection) + "\n")
+    return out
+
+
 # ── The request ───────────────────────────────────────────────────────────────
 
 EMPTY = {
@@ -834,13 +906,16 @@ WITHHELD = "The items that match are in a workspace with AI turned off."
 
 async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str, *,
               thread_id: str | None = None, intent: str | None = None, scope: str | None = None,
-              via: str = "home", save: bool = True, page: str | None = None) -> AsyncIterator[tuple[str, dict]]:
+              via: str = "home", save: bool = True, page: str | None = None, folder: str | None = None,
+              context: dict | None = None, turn_extra: dict | None = None) -> AsyncIterator[tuple[str, dict]]:
     """Events: ``status {stage}``, ``results {items}``, ``delta {text}``,
     ``done {request_id, thread_id, intent, answer, citations, ranked, usage, truncated}``,
     ``limit {reason, message}``, ``error {detail, code}``.
 
     ``page`` (a slug, with intent "page"): Ask AI in that page with its workspace's meeting memory;
-    ``scope`` becomes the page's workspace."""
+    ``scope`` becomes the page's workspace. ``context`` ({heading, selection}): where the reader is in
+    that page. ``folder`` (with ``scope``, a workspace): only items filed in that folder or below it.
+    ``turn_extra``: kept on the saved turn (the assistant's scope, services/assistant.py)."""
     question = re.sub(r"[ \t]+", " ", (question or "").replace("\x00", "")).strip()[:MAX_QUESTION]
     uid = actor.user_id
     if not uid:
@@ -853,10 +928,19 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     page_raw = None
     if intent == "page" or page:
         page_raw = await db["documents"].find_one({"slug": (page or "").strip()}) if page else None
-        if page_raw is None or not (await access.can(actor, page_raw, "read", ctx)).allowed or page_raw.get("encrypted"):
+        if (page_raw is None or page_raw.get("deleted_at") or page_raw.get("encrypted")
+                or not (await access.can(actor, page_raw, "read", ctx)).allowed):
             yield ev("error", detail="Page not found", code="not_found")
             return
-        intent, scope, via = "page", page_raw.get("workspace_id"), "page"
+        intent, scope, folder = "page", page_raw.get("workspace_id"), None
+        via = "page" if via == "home" else via
+    folders: set[str] | None = None
+    if folder:
+        folders = await folder_subtree(db, scope, folder)
+        if folders is None:
+            yield ev("error", detail="Folder not found", code="not_found")
+            return
+    keep = (lambda c: (c.raw or {}).get("folder_id") in folders) if folders is not None else None
     thread = None
     turns: list[dict] = []
     if thread_id:
@@ -874,7 +958,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         tid = None
         if save:
             tid = await _save_turn(db, uid, thread, {"q": question or EMPTY_Q[intent], "a": answer, "intent": intent,
-                                                     "citations": citations, "request_id": run.request_id}, via)
+                                                     "citations": citations, "request_id": run.request_id,
+                                                     **(turn_extra or {})}, via)
         if record:
             await run.record(outcome, stop_reason=stop, chars_out=len(answer), cited=len(citations), **extra)
         return ev("done", request_id=run.request_id, thread_id=tid, intent=intent, answer=answer,
@@ -885,7 +970,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     withheld = 0
     if intent == "my_actions":
         yield ev("status", stage="searching")
-        action_sources, withheld = await _action_sources(db, actor, ctx, scope)
+        action_sources, withheld = await _action_sources(db, actor, ctx, scope, folders)
         if not action_sources:
             yield ev("results", items=[])
             yield await finish(WITHHELD if withheld else EMPTY["my_actions"], [], [], stop="no_candidates", record=False)
@@ -914,12 +999,12 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 sources, _found, withheld = await _page_sources(db, actor, ctx, page_raw, standalone, terms, scope)
                 system = PAGE_SYSTEM
             else:
-                sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope)
+                sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope, keep)
                 system = ANSWER_SYSTEM
             run.meta.update(candidates=len(sources), terms=len(terms), withheld=withheld)
         elif intent == "catch_up":
             yield ev("status", stage="searching")
-            sources, withheld = await _catchup_sources(db, actor, ctx, scope)
+            sources, withheld = await _catchup_sources(db, actor, ctx, scope, keep)
             system = CATCHUP_SYSTEM
             run.meta.update(candidates=len(sources), withheld=withheld)
         else:
@@ -937,7 +1022,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                  + (f"\n(As a standalone question: {standalone})" if standalone != question else "")
                  + (f"\nToday is {ctx.now.strftime('%Y-%m-%d')}." if intent != "ask" else ""))
         if intent == "page":
-            asked = f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n" + asked
+            asked = (f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n"
+                     + where_in_page(context) + asked)
         params = _params(system, [_context(sources), "\n\n".join(x for x in (history, asked) if x)], ANSWER_MAX_TOKENS)
         raw, stop, ranked = "", None, []
         try:

@@ -217,10 +217,13 @@ def parse_terms(raw: str, question: str) -> list[str]:
 
 
 async def retrieve(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q: search.Query,
-                   texts: list[str]) -> tuple[list[search.Cand], search.World]:
+                   texts: list[str], keep=None) -> tuple[list[search.Cand], search.World]:
     """Fuse the fuzzy rankings of the question and each term (reciprocal rank); keep the first
-    MAX_CANDIDATES that pass ``access.can`` now."""
+    MAX_CANDIDATES that pass ``access.can`` now. ``keep`` (a predicate): only those candidates (a
+    narrower scope, e.g. one folder: it never widens what access allows)."""
     cands, w = await search.doc_and_guide_cands(db, actor, ctx, q)
+    if keep is not None:
+        cands = [c for c in cands if keep(c)]
     fused: dict[str, float] = {}
     by_key: dict[str, search.Cand] = {}
     for i, text in enumerate(texts):
