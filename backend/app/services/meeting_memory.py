@@ -64,7 +64,7 @@ MAX_TEXT = 4000                # characters of section / selection text read
 CHECK_TTL = timedelta(days=30)
 CHECK_MAX_FACTS = 6
 CHECK_SECTION_CHARS = 6000
-CHECK_MAX_TOKENS = 600
+CHECK_MAX_TOKENS = 2000           # Haiku 5.5 thinks at effort low and thinking counts here (600 could cut the JSON)
 RESERVE_CHECK = 0.01
 KIND_BOOST = {"decision": 1.25, "action_item": 1.0, "open_question": 0.9, "topic": 0.85}
 LEAD = {"decision": "Decided on", "action_item": "Action item from", "open_question": "Open question from",
