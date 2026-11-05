@@ -45,6 +45,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.models.user import User
+from app.services import ai_output
 from app.services import ai_usage
 from app.services import docs_agent
 from app.services import docs_site_store as store
@@ -326,14 +327,23 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
     _inflight_by_site[site_id] = _inflight_by_site.get(site_id, 0) + 1
     ai_usage.hold_request(FEATURE, RESERVE_USD)
     try:
+        # A ceiling for thinking plus the rewrite (thinking counts against max_tokens, services/ai_output).
+        cap = max(ai_output.MIN_ANSWER_CAP, s.docs_editor_ai_max_tokens)
         try:
-            message = await docs_agent.get_client().messages.create(
-                model=model,
-                max_tokens=max(256, s.docs_editor_ai_max_tokens),
-                system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-                messages=[{"role": "user", "content": [{"type": "text", "text": user_turn(action, text, language)}]}],
-                output_config={"effort": "low"},
-            )
+            for attempt in range(2):
+                message = await docs_agent.get_client().messages.create(
+                    model=model,
+                    max_tokens=cap,
+                    system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
+                    messages=[{"role": "user", "content": [{"type": "text", "text": user_turn(action, text, language)}]}],
+                    output_config={"effort": "low"},
+                )
+                if attempt or not ai_output.was_cut(getattr(message, "stop_reason", None)):
+                    break
+                # Cut short: once more with more room (both calls are metered).
+                meter.add(getattr(message, "usage", None))
+                meta["retried"] = True
+                cap = ai_output.retry_cap(cap, sync=True)
         except Exception as exc:
             import anthropic
 

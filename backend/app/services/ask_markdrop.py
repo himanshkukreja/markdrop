@@ -52,6 +52,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.services import access, ai_usage, docs_agent, meetings, pages_ai, search, search_ai, search_index, urls
 from app.services import search_text as st
+from app.services import ai_output
 
 log = logging.getLogger("markdrop.ask")
 
@@ -778,7 +779,9 @@ async def _action_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
 
 async def _expand(run: search_ai.Run, question: str, history: str) -> tuple[str, list[str]]:
     content = (history + "\n\n" if history else "") + f"Search: {question}"
-    raw, _stop = await _stream(run, _params(EXPAND_SYSTEM, [content], EXPAND_MAX_TOKENS))
+    # Thinking off: a few dozen tokens of JSON, and Haiku 5.5's thinking would share the small cap.
+    params = {**_params(EXPAND_SYSTEM, [content], EXPAND_MAX_TOKENS), "thinking": dict(ai_output.NO_THINKING)}
+    raw, _stop = await _stream(run, params)
     standalone = question
     m = re.search(r"\{.*\}", raw or "", re.S)
     if m:

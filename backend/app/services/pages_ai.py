@@ -48,14 +48,14 @@ import json
 import logging
 import re
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Callable
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
-from app.services import ai_usage, docs_agent, heading_ids
+from app.services import ai_output, ai_usage, docs_agent, heading_ids
 
 log = logging.getLogger("markdrop.pages_ai")
 
@@ -87,8 +87,10 @@ _LANG_BY_KEY = {k.lower(): k for k in LANGUAGES} | {v.lower(): k for k, v in NAT
 # Effort: low for the quick ones (selection, action items, meta, alt text), medium otherwise.
 EFFORT = {"transform": "low", "action_items": "low", "meta": "low", "alt_text": "low",
           "write": "medium", "notes": "medium", "summary": "medium", "ask": "medium", "translate": "medium"}
-MAX_TOKENS = {"transform": 1500, "write": 3000, "notes": 3000, "action_items": 1500, "summary": 600,
-              "ask": 1200, "meta": 200, "alt_text": 200, "translate": 8000}
+# Ceilings, thinking included: Haiku 5.5 thinks before it answers (even at effort "low") and the
+# thinking counts against max_tokens (services/ai_output). The prompts bound the visible output.
+MAX_TOKENS = {"transform": 4000, "write": 6000, "notes": 8000, "action_items": 3000, "summary": 2500,
+              "ask": 3000, "meta": 1500, "alt_text": 1500, "translate": 8000}
 # Held against the spend caps while a request runs (each is well above what it costs at Haiku 5.5 prices).
 RESERVE = {"transform": 0.01, "write": 0.01, "notes": 0.01, "action_items": 0.01, "summary": 0.01,
            "ask": 0.01, "meta": 0.005, "alt_text": 0.005}
@@ -970,9 +972,15 @@ def ev(event: str, **data) -> tuple[str, dict]:
 async def stream_suggestion(job: Job, prompt: Prompt, *, trimmed: bool = False,
                             prefix: str = "", suffix: str = "",
                             finish: Callable[[str], str] | None = None,
-                            empty_detail: str = "AI came back empty. Try again.") -> AsyncIterator[tuple[str, dict]]:
+                            empty_detail: str = "AI came back empty. Try again.",
+                            cut_note: bool = False) -> AsyncIterator[tuple[str, dict]]:
     """The common streaming request: limits, the call (deltas as they arrive), the final clean-up
-    (a ``reset`` delta when it changed what was shown), the ledger row, ``done``."""
+    (a ``reset`` delta when it changed what was shown), the ledger row, ``done``.
+
+    Cut short (``stop_reason == "max_tokens"``: thinking and the reply share the cap): asked once
+    more with a higher cap (what was shown is reset). Still cut: ``cut_note`` (a chat answer) keeps
+    the partial text with a note saying so; otherwise the partial suggestion is offered with
+    ``truncated``; nothing at all is an ``error``, never an empty suggestion."""
     lim = await job.limit()
     if lim:
         if lim.reason not in ("off", "not_configured"):
@@ -990,40 +998,57 @@ async def stream_suggestion(job: Job, prompt: Prompt, *, trimmed: bool = False,
         def on_text(piece: str) -> None:
             queue.put_nowait(piece)
 
-        task = asyncio.create_task(call(job, prompt, on_text))
-        try:
-            while True:
-                getter = asyncio.ensure_future(queue.get())
-                done, _ = await asyncio.wait({getter, task}, return_when=asyncio.FIRST_COMPLETED)
-                if getter in done:
-                    piece = getter.result()
-                    shown.append(piece)
-                    yield ev("delta", text=piece)
-                    continue
-                getter.cancel()
-                while not queue.empty():
-                    piece = queue.get_nowait()
-                    shown.append(piece)
-                    yield ev("delta", text=piece)
+        attempt_prompt = prompt
+        retried = False
+        while True:
+            task = asyncio.create_task(call(job, attempt_prompt, on_text))
+            try:
+                while True:
+                    getter = asyncio.ensure_future(queue.get())
+                    done, _ = await asyncio.wait({getter, task}, return_when=asyncio.FIRST_COMPLETED)
+                    if getter in done:
+                        piece = getter.result()
+                        shown.append(piece)
+                        yield ev("delta", text=piece)
+                        continue
+                    getter.cancel()
+                    while not queue.empty():
+                        piece = queue.get_nowait()
+                        shown.append(piece)
+                        yield ev("delta", text=piece)
+                    break
+                raw, stop = task.result()
+            except Upstream as exc:
+                await job.record("error", error_code=exc.code, retried=retried)
+                yield ev("error", detail=exc.detail, code="upstream")
+                return
+            finally:
+                if not task.done():
+                    task.cancel()
+            if not ai_output.was_cut(stop) or retried:
                 break
-            raw, stop = task.result()
-        except Upstream as exc:
-            await job.record("error", error_code=exc.code)
-            yield ev("error", detail=exc.detail, code="upstream")
-            return
-        finally:
-            if not task.done():
-                task.cancel()
+            # Cut short: once more with more room (the first attempt's usage stays on the meter).
+            retried = True
+            cap = attempt_prompt.max_tokens or MAX_TOKENS[attempt_prompt.action]
+            attempt_prompt = replace(attempt_prompt, max_tokens=ai_output.retry_cap(cap))
+            shown[:] = [prefix] if prefix else []
+            yield ev("delta", text=prefix, reset=True)
+        if retried:
+            job.meta["retried"] = True
         if stop == "refusal":
             await job.record("refused", stop_reason=stop)
             yield ev("delta", text="", reset=True)
             yield ev("error", detail="AI can't help with this one.", code="refused")
             return
         body = finish(raw) if finish else clean(raw, job.source)
+        if cut_note:
+            body = ai_output.finish(body, stop)
         if not body.strip():
-            await job.record("error", stop_reason=stop, error_code="empty_output")
+            cut = ai_output.was_cut(stop)
+            await job.record("error", stop_reason=stop, error_code="cut_short" if cut else "empty_output")
             yield ev("delta", text="", reset=True)
-            yield ev("error", detail=empty_detail, code="empty")
+            yield ev("error", detail=("AI ran out of room before it wrote anything. Try again, or with less text."
+                                      if cut else empty_detail), code="empty")
             return
         final = f"{prefix}{body}{suffix}"
         if final != "".join(shown):
@@ -1046,12 +1071,20 @@ async def run_json(job: Job, prompt: Prompt, parse: Callable[[str], Any], *, tri
     try:
         try:
             raw, stop = await call(job, prompt)
+            if ai_output.was_cut(stop):
+                # Thinking and the reply share max_tokens: once more with more room.
+                job.meta["retried"] = True
+                cap = prompt.max_tokens or MAX_TOKENS[prompt.action]
+                raw, stop = await call(job, replace(prompt, max_tokens=ai_output.retry_cap(cap)))
         except Upstream as exc:
             await job.record("error", error_code=exc.code)
             raise AIError(502, "upstream", exc.detail)
         if stop == "refusal":
             await job.record("refused", stop_reason=stop)
             raise AIError(422, "refused", "AI can't help with this one.")
+        if ai_output.was_cut(stop) and not (raw or "").strip():
+            await job.record("error", stop_reason=stop, error_code="cut_short")
+            raise AIError(502, "bad_output", "AI ran out of room before it answered. Try again.")
         try:
             out = parse(raw)
         except AIError as exc:
@@ -1197,7 +1230,7 @@ async def ask(job: Job, *, question: str, history: list | None = None):
     def finish(raw: str) -> str:
         return filter_links(clean(raw), allowed, context)
 
-    return stream_suggestion(job, p, trimmed=trimmed, finish=finish)
+    return stream_suggestion(job, p, trimmed=trimmed, finish=finish, cut_note=True)
 
 
 async def meta(job: Job) -> dict:
@@ -1474,8 +1507,12 @@ async def _translate_one(job: Job, chunk: str, lang: str, syntax: str) -> str:
     if not core or not re.search(r"[^\W\d_]", re.sub(r"```[\s\S]*?```", "", core)):
         return chunk
     note = None
+    cap = None
     for _attempt in range(2):
-        raw, stop = await call(job, translate_prompt(core, lang, syntax, note))
+        prompt = translate_prompt(core, lang, syntax, note)
+        if cap:
+            prompt = replace(prompt, max_tokens=cap)
+        raw, stop = await call(job, prompt)
         if stop == "refusal":
             raise AIError(422, "refused", "AI can't translate this page.")
         out = clean(raw, core)
@@ -1483,7 +1520,9 @@ async def _translate_one(job: Job, chunk: str, lang: str, syntax: str) -> str:
             # The fragment went out with look-alike tags defused (wrap); put them back as written.
             out = _UNTAG.sub(lambda m: f"<{m.group(1)}{m.group(2)}", out)
         if stop == "max_tokens":
+            # Thinking and the translation share max_tokens: the retry gets more room.
             note = "it was cut off"
+            cap = ai_output.retry_cap(MAX_TOKENS["translate"])
             continue
         diff = structure_diff(core, out)
         if diff is None:

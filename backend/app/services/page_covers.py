@@ -48,7 +48,7 @@ from types import SimpleNamespace
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import ai_usage, page_props
+from app.services import ai_output, ai_usage, page_props
 
 log = logging.getLogger("markdrop.page_covers")
 
@@ -62,7 +62,9 @@ LIGHT: tuple[str, ...] = tuple(c["id"] for c in CATALOG if c["tint"] == "light")
 FEATURE = "pages_ai"
 ACTION = "cover"
 EFFORT = "low"
-MAX_TOKENS = 64            # the reply is one short JSON object
+# The reply is one short JSON object, with thinking off: Haiku 5.5 otherwise thinks first even at
+# effort "low" and the thinking counts against max_tokens (a 64-token cap came back empty).
+MAX_TOKENS = 200
 RESERVE = 0.002            # held against the caps while a pick runs (one costs ~$0.0003)
 TIMEOUT = 8.0              # seconds before the fallback answers instead
 EXCERPT_CHARS = 1500
@@ -221,6 +223,7 @@ class _CoverPrompt:
             "system": [{"type": "text", "text": _SYSTEM, "cache_control": {"type": "ephemeral"}}],
             "messages": [{"role": "user", "content": [{"type": "text", "text": self.instruction}]}],
             "output_config": {"effort": EFFORT},
+            "thinking": dict(ai_output.NO_THINKING),
         }
 
 

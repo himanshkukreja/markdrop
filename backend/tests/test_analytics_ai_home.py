@@ -23,9 +23,10 @@ from unittest import mock
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
 from tests.test_pages_ai import AIEnv, parse_sse, usage
+from tests._thinking_fake import ThinkingModel
 
 from app.config import get_settings
-from app.services import ai_usage, analytics_digest, docs_agent, guide_insights, pages_ai, search_index, search_log
+from app.services import ai_output, ai_usage, analytics_digest, docs_agent, guide_insights, pages_ai, search_index, search_log
 from app.services import analytics_ai_home as aah
 
 settings = get_settings()
@@ -221,6 +222,25 @@ class Story(World):
         self.assertEqual(rows[0]["outcome"], "ok")
         self.assertEqual(rows[0]["via"], "web")
         self.report("story")
+
+    async def test_thinking_heavy_story(self):
+        # About 200 tokens of JSON after 1,100 of thinking: past the old 900-token cap.
+        self.model = ThinkingModel(json.dumps(STORY_REPLY), think=1100)
+        s = await self.get(range="7d")
+        self.assertEqual(s["status"], "ok", s)
+        self.assertEqual(self.model.caps(), [aah.STORY_MAX_TOKENS])
+        self.assertEqual(len(s["bullets"]), 5)
+
+    async def test_story_cut_short_twice_is_an_error_not_an_empty_story(self):
+        self.model = ThinkingModel(json.dumps(STORY_REPLY), think=10 ** 6)
+        s = await self.get(range="7d")
+        self.assertEqual(s["status"], "error")
+        self.assertTrue(s["message"])
+        self.assertEqual(self.model.caps(), [aah.STORY_MAX_TOKENS, ai_output.retry_cap(aah.STORY_MAX_TOKENS)])
+        row = (await self.ledger("story"))[-1]
+        self.assertEqual((row["outcome"], row["error_code"], row["retried"]), ("error", "bad_output", True))
+        self.assertEqual(row["usage"]["output"], self.model.output_tokens())
+        self.assertEqual(ai_usage._reserved, {})
 
     async def test_cache_and_refresh(self):
         s1 = await self.get(range="7d")
@@ -420,6 +440,33 @@ class Ask(World):
                     ("totals", "not an object"), ("daily", {"range": {"$gt": ""}, "doc": ""})]:
             with self.assertRaises(aah.ToolError, msg=bad):
                 await tools.run(*bad)
+
+    # Haiku 5.5 thinks before it answers and the thinking counts against max_tokens.
+
+    async def test_cut_before_a_word_is_asked_again_with_more_room(self):
+        reply = "Launch notes had 25 views this week, most from news.ycombinator.com."
+        # The first round's whole cap goes on thinking; the retry has room.
+        self.model = ThinkingModel(reply, think=lambda kw: aah.ASK_MAX_TOKENS if kw["max_tokens"] == aah.ASK_MAX_TOKENS
+                                   else 1100)
+        events = await self.ask("owner", "how is launch notes doing?")
+        self.assertEqual(events[-1][0], "done")
+        self.assertIn("25 views", events[-1][1]["answer"])
+        self.assertEqual(self.model.caps(), [aah.ASK_MAX_TOKENS, ai_output.retry_cap(aah.ASK_MAX_TOKENS)])
+        self.assertEqual(self.model.calls[1]["params"]["messages"], self.model.calls[0]["params"]["messages"])
+        row = (await self.ledger("ask"))[-1]
+        self.assertEqual((row["outcome"], row["retried"], row["calls"]), ("ok", True, 2))
+        self.assertEqual(row["usage"]["output"], self.model.output_tokens())
+
+    async def test_cut_always_is_never_an_empty_answer(self):
+        self.model = ThinkingModel("Launch notes had 25 views.", think=10 ** 6)
+        events = await self.ask("owner", "how is launch notes doing?")
+        self.assertEqual(events[-1][0], "done")
+        self.assertEqual(events[-1][1]["answer"], ai_output.CUT_EMPTY)
+        self.assertEqual(len(self.model.calls), 2)
+        self.model.assert_caps_honoured(self)
+        # A cut answer isn't cached: asking again asks the model again.
+        await self.ask("owner", "how is launch notes doing?")
+        self.assertEqual(len(self.model.calls), 4)
 
     async def test_round_cap(self):
         self.model.script = lambda kw: ([tool_use("totals", {"range": "7d"})], "tool_use") \

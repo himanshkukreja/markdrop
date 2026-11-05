@@ -326,6 +326,9 @@ class Threads(AskWorld):
         second = self.done(await self.ask("wm", "and the discount?", thread_id=tid))
         self.assertEqual(second["thread_id"], tid)
         expand, ans = self.ask_calls()
+        # The expansion runs with thinking off (Haiku 5.5's thinking would share its small cap).
+        self.assertEqual(expand["thinking"], {"type": "disabled"})
+        self.assertNotIn("thinking", ans)
         self.assertIn("Earlier in this conversation", prompt_of(expand))
         self.assertIn("What is our pricing for Europe?", prompt_of(expand))
         self.assertIn("Earlier in this conversation", prompt_of(ans))

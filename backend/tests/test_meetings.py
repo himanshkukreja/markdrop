@@ -515,6 +515,21 @@ class Import(MeetingsWorld):
         self.assertIn("MY OWN NOTE", c)
         self.assertIn("## Decisions", c)
 
+    async def test_notes_cut_by_thinking_are_asked_again(self):
+        # Haiku 5.5 thinks before it answers and the thinking counts against max_tokens: a cut JSON
+        # can't be used, so the notes are asked for once more with more room.
+        from tests._thinking_fake import ThinkingModel
+
+        from app.services import ai_output
+
+        script = self.fake.script
+        cap = meetings_ai.GEN_MAX_TOKENS
+        self.fake = ThinkingModel(lambda kw: script(kw), think=lambda kw: cap - 20 if kw["max_tokens"] == cap else 1500)
+        m = await self.imported()
+        self.assertEqual(m["ai"]["state"], "done")
+        self.assertEqual(self.fake.caps(), [cap, ai_output.retry_cap(cap)])
+        self.assertIn("## Decisions", (await self.doc(m["slug"]))["content"])
+
     async def test_regenerate(self):
         m = await self.imported()
         r = await self.http.post(f"/api/v1/meetings/{m['id']}/regenerate", headers=self.session("wm"))

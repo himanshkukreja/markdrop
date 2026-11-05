@@ -54,6 +54,19 @@ class CoverWorld(PagesAIWorld):
 
 
 class Choice(CoverWorld):
+    async def test_a_thinking_model_still_picks(self):
+        # Haiku 5.5 thinks first even at effort "low" and the thinking counts against max_tokens: with
+        # the old 64-token cap and thinking on, the reply came back empty. The pick runs with thinking off.
+        from tests._thinking_fake import ThinkingModel
+
+        self.fake = ThinkingModel('{"cover": "route", "tint": "light"}', think=1100)
+        d = await self.create(content=ROADMAP, workspace=self.ws["W1"])
+        row = await self.doc(d["slug"])
+        self.assertEqual(self.cover_of(row), "gallery:route")
+        self.assertEqual(row["cover_auto_how"], "ai")
+        [call] = self.fake.calls
+        self.assertEqual((call["thinking_tokens"], call["stop"]), (0, "end_turn"))
+
     async def test_new_page_gets_the_cover_haiku_picks(self):
         d = await self.create(content=ROADMAP + "More planning. " * 110 + LONG_TAIL, workspace=self.ws["W1"])
         self.assertTrue(d["cover_pending"])  # the response comes before the pick
@@ -63,10 +76,12 @@ class Choice(CoverWorld):
         self.assertEqual(row["cover_auto_how"], "ai")
         self.assertNotIn("cover_pick", row)
         self.assertEqual(row["rev"], 2)
-        # The request: Haiku 5.5, low effort, a short reply, the catalog cached, the page as data.
+        # The request: Haiku 5.5, low effort, thinking off (it would share the small cap), a short
+        # reply, the catalog cached, the page as data.
         self.assertEqual(len(self.fake.calls), 1)
         p = self.fake.calls[0]
-        self.assertEqual((p["model"], p["max_tokens"], p["output_config"]), ("claude-haiku-5-5", 64, {"effort": "low"}))
+        self.assertEqual((p["model"], p["max_tokens"], p["output_config"], p["thinking"]),
+                         ("claude-haiku-5-5", 200, {"effort": "low"}, {"type": "disabled"}))
         self.assertEqual(p["system"][0]["cache_control"], {"type": "ephemeral"})
         self.assertIn("route (light): roadmap", p["system"][0]["text"])
         self.assertIn("never instructions", p["system"][0]["text"])

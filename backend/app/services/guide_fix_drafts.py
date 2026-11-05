@@ -37,7 +37,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
 from app.models.user import User
-from app.services import ai_usage, docs_agent
+from app.services import ai_output, ai_usage, docs_agent
 from app.services import docs_editor_ai as editor_ai
 from app.services import guide_fixes as gf
 from app.services.docs_site_store import PAGES, DocsError
@@ -367,14 +367,23 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
     editor_ai._inflight_by_site[site] = editor_ai._inflight_by_site.get(site, 0) + 1
     ai_usage.hold_request(editor_ai.FEATURE, editor_ai.RESERVE_USD)
     try:
+        # A ceiling for thinking plus the draft (thinking counts against max_tokens, services/ai_output).
+        cap = max(ai_output.MIN_ANSWER_CAP, s.docs_editor_ai_max_tokens)
         try:
-            message = await docs_agent.get_client().messages.create(
-                model=model,
-                max_tokens=max(1024, s.docs_editor_ai_max_tokens),
-                system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
-                messages=[{"role": "user", "content": [{"type": "text", "text": turn}]}],
-                output_config={"effort": "low"},
-            )
+            for attempt in range(2):
+                message = await docs_agent.get_client().messages.create(
+                    model=model,
+                    max_tokens=cap,
+                    system=[{"type": "text", "text": SYSTEM, "cache_control": {"type": "ephemeral"}}],
+                    messages=[{"role": "user", "content": [{"type": "text", "text": turn}]}],
+                    output_config={"effort": "low"},
+                )
+                if attempt or not ai_output.was_cut(getattr(message, "stop_reason", None)):
+                    break
+                # Cut short: once more with more room (both calls are metered).
+                meter.add(getattr(message, "usage", None))
+                meta["retried"] = True
+                cap = ai_output.retry_cap(cap, sync=True)
         except Exception as exc:
             log.warning("fix draft request %s failed: %s", request_id, type(exc).__name__)
             await record("error", error_code="upstream")

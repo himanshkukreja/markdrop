@@ -50,7 +50,7 @@ from urllib.parse import quote, urlsplit
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import ai_usage, docs_agent, engage, pages_ai
+from app.services import ai_output, ai_usage, docs_agent, engage, pages_ai
 from app.services import creator_analytics as ca
 from app.services.analytics import clean_referrer
 
@@ -75,9 +75,11 @@ HEADLINE_CHARS = 120
 MAX_GAPS = 5
 MAX_GAP_ITEMS = 80
 MAX_SITES = 25
-STORY_MAX_TOKENS = 900
-ASK_MAX_TOKENS = 1200
-GAPS_MAX_TOKENS = 1800
+# Ceilings, thinking included: Haiku 5.5 thinks before it answers (even at effort "low") and the
+# thinking counts against max_tokens (services/ai_output). The schemas and prompts bound the output.
+STORY_MAX_TOKENS = 3000
+ASK_MAX_TOKENS = 3000
+GAPS_MAX_TOKENS = 4000
 
 TABS = ("overview", "audience", "versions", "content", "pages", "media")
 KINDS = ("doc", "pdf", "video", "audio", "other")
@@ -187,7 +189,8 @@ class Run:
 
 async def _json_call(run: Run, system: str, content: str, schema: dict, max_tokens: int) -> dict:
     """One structured-output call: the parsed JSON object (raises pages_ai.Upstream, or ValueError
-    when the reply isn't the JSON asked for)."""
+    when the reply isn't the JSON asked for). Cut short (thinking and the JSON share max_tokens):
+    asked once more with a higher cap."""
     params = {
         "model": MODEL,
         "max_tokens": max_tokens,
@@ -195,21 +198,28 @@ async def _json_call(run: Run, system: str, content: str, schema: dict, max_toke
         "messages": [{"role": "user", "content": [{"type": "text", "text": content}]}],
         "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": schema}},
     }
-    try:
-        async with docs_agent.get_client().messages.stream(**params) as stream:
-            async for event in stream:
-                if getattr(event, "type", None) == "text" and getattr(event, "text", ""):
-                    run.watch.mark_first()
-            message = await stream.get_final_message()
-    except asyncio.CancelledError:
-        raise
-    except Exception as exc:
-        log.warning("analytics ai request %s failed: %s", run.request_id, type(exc).__name__)
-        raise pages_ai._upstream(exc) from None
-    run.meter.add(getattr(message, "usage", None))
-    stop = getattr(message, "stop_reason", None)
+    for attempt in range(2):
+        try:
+            async with docs_agent.get_client().messages.stream(**params) as stream:
+                async for event in stream:
+                    if getattr(event, "type", None) == "text" and getattr(event, "text", ""):
+                        run.watch.mark_first()
+                message = await stream.get_final_message()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            log.warning("analytics ai request %s failed: %s", run.request_id, type(exc).__name__)
+            raise pages_ai._upstream(exc) from None
+        run.meter.add(getattr(message, "usage", None))
+        stop = getattr(message, "stop_reason", None)
+        if not ai_output.was_cut(stop) or attempt:
+            break
+        run.meta["retried"] = True
+        params = {**params, "max_tokens": ai_output.retry_cap(max_tokens)}
     if stop == "refusal":
         raise ValueError("refusal")
+    if ai_output.was_cut(stop):
+        raise ValueError("cut short")
     text = pages_ai._text_of(message) or ""
     try:
         data = json.loads(text)
@@ -975,12 +985,14 @@ async def ask(db: AsyncIOMotorDatabase, user_id: str | None, question: str, *, r
     tools_log: list[dict] = []
     stop = None
     message = None
+    retried = False
     try:
         yield ev("status", stage="thinking", label="Looking at your numbers")
         rounds = 0
+        cap = ASK_MAX_TOKENS
         while True:
             final = rounds >= MAX_ROUNDS
-            params: dict = {"model": MODEL, "max_tokens": ASK_MAX_TOKENS, "system": system, "tools": ASK_TOOLS,
+            params: dict = {"model": MODEL, "max_tokens": cap, "system": system, "tools": ASK_TOOLS,
                             "messages": messages, "output_config": {"effort": "low"}}
             if final:
                 params["tool_choice"] = {"type": "none"}
@@ -1013,6 +1025,12 @@ async def ask(db: AsyncIOMotorDatabase, user_id: str | None, question: str, *, r
                 await run.record("refused", stop_reason=stop)
                 yield ev("error", detail="AI can't help with this one.", code="refused")
                 return
+            if ai_output.was_cut(stop) and not round_text and not retried:
+                # The cap went on thinking before a word or a whole tool call: this round once more,
+                # with more room (nothing was shown, nothing is appended).
+                retried = True
+                cap = ai_output.retry_cap(cap)
+                continue
             uses = [b for b in content if _block(b, "type") == "tool_use"]
             if not uses or stop != "tool_use" or final:
                 break
@@ -1050,14 +1068,16 @@ async def ask(db: AsyncIOMotorDatabase, user_id: str | None, question: str, *, r
             yield ev("status", stage="querying", label=_status_label(labels))
         raw = "".join(shown) or (pages_ai._text_of(message) if message is not None else "") or ""
         answer, links = clean_answer(raw, tools.hrefs)
-        if not answer:
+        cut = ai_output.was_cut(stop)
+        if cut:
+            answer = ai_output.finish(answer, stop)
+        elif not answer:
             answer = "I couldn't answer that from your analytics. Try asking about views, people, referrers or a document."
-        if stop == "max_tokens":
-            answer += "\n\n_(Cut short. Ask a narrower question for the rest.)_"
         await run.record("ok", stop_reason=stop, rounds=rounds, tools=tools_log, chars_out=len(answer),
-                         links=len(links))
+                         links=len(links), retried=retried)
         done = {"answer": answer, "links": links, "request_id": run.request_id}
-        await cache_put(db, key, user_id, "ask", done)
+        if not cut:
+            await cache_put(db, key, user_id, "ask", done)
         yield ev("done", **done, usage=run.usage(), cached=False)
     finally:
         run.release()
