@@ -63,6 +63,7 @@ from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
 from app.routers.search import router as search_router
 from app.routers.meetings import router as meetings_router
+from app.routers.meetings_backfill import router as meetings_backfill_router
 from app.routers.og import router as og_router
 from app.routers.share import router as share_router
 from app.routers.sync import router as sync_router
@@ -287,6 +288,9 @@ app.include_router(access_router)
 app.include_router(personal_router)
 app.include_router(search_router)
 # Meetings (routers/meetings.py): imported calls as pages, Ask this meeting / across meetings.
+# Import past meetings (routers/meetings_backfill.py): before meetings_router, whose /{meeting_id}
+# would take /backfill and /series.
+app.include_router(meetings_backfill_router)
 app.include_router(meetings_router)
 app.include_router(oauth_router)
 app.include_router(mcp_router)

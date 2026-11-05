@@ -389,7 +389,8 @@ async def props_values(db: AsyncIOMotorDatabase, meeting: dict, folder: dict | N
     schema = {p["key"]: p for p in ((folder or {}).get("properties") or [])}
     names = ", ".join(a["name"] for a in meeting.get("attendees") or [])[:page_db.TEXT_MAX]
     org = meeting.get("created_by") if any(m["id"] == meeting.get("created_by") for m in people.members) else None
-    want = {"date": meeting.get("date"), "type": meeting.get("type"), "attendees": names or None,
+    want = {"date": meeting.get("date"), "type": meeting.get("type"), "series": meeting.get("series"),
+            "attendees": names or None,
             "organizer": org, "duration": fmt_duration(meeting.get("duration_s")),
             "action_items": meeting.get("action_items")}
     out = {}
@@ -438,6 +439,10 @@ async def ensure_folder(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
         except HTTPException as exc:
             log.info("meetings: folder properties not set (%s)", exc.detail)
         f = await db["folders"].find_one({"_id": f["_id"]})
+    if not f.get("meetings_views"):
+        from app.services import meeting_series
+
+        f = await meeting_series.organise_folder(db, f, user_id)
     return f
 
 
@@ -500,14 +505,20 @@ def preview(incoming: list[Incoming]) -> list[dict]:
 async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
                           title: str | None = None, date_: str | None = None, type_: str | None = None,
                           restricted: bool = False, wait: bool = False, via: str = "web",
-                          dedupe: str | None = None) -> list[dict]:
+                          dedupe: str | None = None, series: str | None = None, series_from: str | None = None,
+                          quiet: bool = False) -> list[dict]:
     """Make a meeting per group of sources (notes + transcript of one call pair up). Returns the rows,
     each with ``_status``: "imported" (new), "attached" (it filled the other half of a meeting that was
     already here) or "duplicate" (already here; nothing changed).
 
     ``dedupe``: None (always new meetings), "file" (a Google Doc already imported into this workspace
     is that meeting), "all" (also a meeting with the same name, date and start time: see
-    :func:`find_existing`)."""
+    :func:`find_existing`).
+
+    ``series``/``series_from``: the meeting's series as decided elsewhere (the bulk import's review:
+    "auto" detected, "user" set by the person, None for none); otherwise it is detected here
+    (services/meeting_series.py). ``quiet``: the pages' mentions notify nobody (past meetings
+    imported in bulk, services/meeting_backfill.py)."""
     from app.services import workspace as ws_service
 
     await require_member(db, workspace_id, user.id)
@@ -561,13 +572,14 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
                 rows.append(hit)
                 continue
             if action == "attach":
-                row = await attach_sources(db, user, hit, g, wait=wait)
+                row = await attach_sources(db, user, hit, g, wait=wait, quiet=quiet)
                 row["_status"] = "attached"
                 rows.append(row)
                 continue
         row = await _create(db, user, workspace_id, folder, people, g,
                             title=title if one else None, date_=date_ if one else None,
-                            type_=type_, restricted=restricted, wait=wait, via=via)
+                            type_=type_, restricted=restricted, wait=wait, via=via,
+                            series=series if one else None, series_from=series_from if one else None, quiet=quiet)
         row["_status"] = "imported"
         rows.append(row)
     return rows
@@ -621,7 +633,7 @@ async def find_existing(db: AsyncIOMotorDatabase, workspace_id: str, *, title: s
 
 
 async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *,
-                         wait: bool = False) -> dict:
+                         wait: bool = False, quiet: bool = False) -> dict:
     """The other half of a call into its meeting: the transcript (segments and the Transcript
     sub-page) or Google's notes, whichever the meeting doesn't have yet; attendees and sources merged.
     The page is written again when nobody edited it since (else the new parts are added at the end),
@@ -663,6 +675,8 @@ async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
     sets.update(attendees=attendees[:100], sources=sources, updated_at=now_utc())
+    if quiet:
+        sets["quiet"] = True
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
     row = await db[COLL].find_one({"_id": row["_id"]})
     busy = (row.get("ai") or {}).get("state") == "pending" and ai_view(row)["state"] == "pending"
@@ -673,7 +687,7 @@ async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[
         if int(page.get("rev") or 1) == int(row.get("base_rev") or 0):
             try:
                 after = await _save(db, page, await full_markdown(db, row, row.get("generated"), people), actor, ctx,
-                                    base_rev=int(page.get("rev") or 1))
+                                    base_rev=int(page.get("rev") or 1), quiet=bool(row.get("quiet")))
                 if after is not None:
                     await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
             except HTTPException as exc:
@@ -685,7 +699,7 @@ async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[
                 cur = page.get("content") or ""
                 try:
                     await pages.check_page_lock(page, actor, ctx, pages.appended(cur, block))
-                    await _save(db, page, pages.appended(cur, block), actor, ctx)
+                    await _save(db, page, pages.appended(cur, block), actor, ctx, quiet=bool(row.get("quiet")))
                 except HTTPException as exc:
                     log.info("meetings: couldn't add to %s (%s)", page.get("slug"), exc.detail)
     if not reason:
@@ -731,14 +745,24 @@ async def _regenerate_when_free(db: AsyncIOMotorDatabase, meeting_id: str, user)
 
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
-                  restricted: bool, wait: bool, via: str) -> dict:
+                  restricted: bool, wait: bool, via: str, series: str | None = None,
+                  series_from: str | None = None, quiet: bool = False) -> dict:
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
-    from app.services import meetings_ai, page_covers, pages
+    from app.services import meeting_series, meetings_ai, page_covers, pages
 
     m = mp.merge(group)
     name = " ".join((title or m.title or "Meeting").split())[:150]
     d = date_ or m.date or now_utc().date().isoformat()
+    # The series: as given (the bulk import's review), else detected from the workspace's meetings.
+    if series_from in ("auto", "user"):
+        sname, skey = meeting_series.clean_name(series), meeting_series.det.series_key(name)
+    else:
+        sname, skey = await meeting_series.detect(db, workspace_id, name)
+        series_from = "auto"
+    if sname:
+        folder = await meeting_series.ensure_option(db, folder, sname, user.id)
+        sname = meeting_series.option_name(folder, sname) or sname
     attendees = []
     for a in m.attendees:
         mem = people.match(a["name"], a.get("email"))
@@ -757,6 +781,7 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
+        "series": sname, "series_from": series_from, "series_key": skey, "quiet": bool(quiet),
     }
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
@@ -787,12 +812,15 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         "doc_id": row["doc_id"], "slug": row["slug"], "transcript_doc_id": row["transcript_doc_id"],
         "transcript_slug": row.get("transcript_slug"), "ai": row["ai"]}})
     fresh = await db["documents"].find_one({"_id": raw["_id"]})
-    after = await _save(db, fresh, await full_markdown(db, row, None, people), actor, ctx)
+    after = await _save(db, fresh, await full_markdown(db, row, None, people), actor, ctx, quiet=bool(quiet))
     row["base_rev"] = int((after or fresh).get("rev") or 1)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": row["base_rev"]}})
     if restricted:
         await set_restricted(db, row, True, actor, ctx)
         row = await db[COLL].find_one({"_id": row["_id"]})
+    if sname and series_from == "auto":
+        # The earlier one-off of this name is the same series now.
+        await meeting_series.adopt(db, user, workspace_id, skey, sname, skip_id=row["_id"])
     if not reason:
         if wait:
             await meetings_ai.generate(db, str(row["_id"]), user)
@@ -823,13 +851,17 @@ def spawn(coro) -> None:
     task.add_done_callback(_bg.discard)
 
 
-async def _save(db: AsyncIOMotorDatabase, raw: dict, content: str, actor, ctx, *, base_rev: int | None = None) -> dict | None:
-    """Through the website's save path: the edit lock, revisions, search, mention notifications."""
+async def _save(db: AsyncIOMotorDatabase, raw: dict, content: str, actor, ctx, *, base_rev: int | None = None,
+                quiet: bool = False) -> dict | None:
+    """Through the website's save path: the edit lock, revisions, search, mention notifications
+    (none with ``quiet``: a past meeting imported in bulk)."""
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
+    from app.services import notifications
 
     data = DocumentUpdate(title=raw.get("title"), content=content or "\n", base_rev=base_rev)
-    return await doc_service.update_document(db, raw["slug"], data, actor, ctx)
+    with notifications.quietly(quiet):
+        return await doc_service.update_document(db, raw["slug"], data, actor, ctx)
 
 
 async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
@@ -847,7 +879,8 @@ async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | N
     content = await full_markdown(db, meeting, gen, people)
     if int(raw.get("rev") or 1) == int(meeting.get("base_rev") or 0):
         try:
-            after = await _save(db, raw, content, actor, ctx, base_rev=int(raw.get("rev") or 1))
+            after = await _save(db, raw, content, actor, ctx, base_rev=int(raw.get("rev") or 1),
+                                quiet=bool(meeting.get("quiet")))
             if after is not None:
                 await db[COLL].update_one({"_id": meeting["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
             return
@@ -862,7 +895,7 @@ async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | N
     cur = raw.get("content") or ""
     try:
         await pages.check_page_lock(raw, actor, ctx, pages.appended(cur, block))
-        await _save(db, raw, pages.appended(cur, block), actor, ctx)
+        await _save(db, raw, pages.appended(cur, block), actor, ctx, quiet=bool(meeting.get("quiet")))
     except HTTPException as exc:
         log.info("meetings: couldn't add the AI sections to %s (%s)", raw.get("slug"), exc.detail)
 
@@ -938,6 +971,7 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "can_manage": can_manage, "can_delete": can_delete, "can_regenerate": (await access.can(actor, raw, "edit_content", ctx)).allowed,
         "approx_times": bool(row.get("approx_times")),
         "source": source_of(row),
+        "series": row.get("series") or None,
     }
     if full:
         from app.services import urls
@@ -957,12 +991,13 @@ def source_of(row: dict) -> str:
 
 async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,
                         limit: int = 100, q: str | None = None, source: str | None = None,
-                        since: str | None = None) -> dict:
+                        since: str | None = None, until: str | None = None, series: str | None = None) -> dict:
     """The meetings of a workspace the caller can open, newest first. A workspace admin also sees
     restricted meetings they can't open, without their title (so they can delete them).
 
-    ``source``: only those that came in that way (:data:`SOURCES`); ``since``: only meetings on or
-    after that date (YYYY-MM-DD)."""
+    ``source``: only those that came in that way (:data:`SOURCES`); ``since`` / ``until``: only
+    meetings on or after / on or before that date (YYYY-MM-DD); ``series``: only that series (any
+    case; "none": meetings without one)."""
     await require_member(db, workspace_id, actor.user_id, write=False)
     admin = await is_ws_admin(db, workspace_id, actor.user_id)
     limit = max(1, min(limit, MAX_LIST))
@@ -972,13 +1007,20 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
         if source not in SOURCES:
             raise HTTPException(status_code=422, detail=f"source is one of {', '.join(SOURCES)}.")
         query["via"] = _VIA[source]
-    if since:
+    for name, v, op in (("since", since, "$gte"), ("until", until, "$lte")):
+        if not v:
+            continue
         try:
-            date.fromisoformat(since)
+            date.fromisoformat(v)
         except ValueError:
-            raise HTTPException(status_code=422, detail="since is a date, YYYY-MM-DD.")
-        query["date"] = {"$gte": since}
-    filtered = bool(q or source or since)
+            raise HTTPException(status_code=422, detail=f"{name} is a date, YYYY-MM-DD.")
+        query.setdefault("date", {})[op] = v
+    if series:
+        if series.strip().casefold() == "none":
+            query["series"] = {"$in": [None, ""]}
+        else:
+            query["series"] = {"$regex": f"^{re.escape(series.strip())}$", "$options": "i"}
+    filtered = bool(q or source or since or until or series)
     cursor = db[COLL].find(query, {"segments": 0}).sort([("date", -1), ("created_at", -1)])
     async for row in cursor:
         raw = await page_of(db, row)
