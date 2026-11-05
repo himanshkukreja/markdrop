@@ -543,9 +543,12 @@ await step("lock-mcp", async () => {
   await p.locator(".pb-live .ProseMirror p").first().click();
   await p.waitForTimeout(1500);
   if ((await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin)).body?.holder) fail("a click took the lock");
+  // A change (typed, then taken back once the editor has seen it) takes it.
   await p.keyboard.type("x");
+  await p.waitForTimeout(1200);
   await p.keyboard.press("Backspace");
   await p.waitForTimeout(1500);
+  if ((await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin)).body?.holder?.name !== "Ada Owner") fail("a change didn't take the lock");
   // A second editor (Ben, a member) is told "Ada Owner is editing" (now, or on his first click) and stays read only.
   const b = await ctx(browser, { token: T.member });
   await b.p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
