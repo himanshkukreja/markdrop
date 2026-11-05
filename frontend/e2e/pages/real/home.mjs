@@ -409,7 +409,7 @@ await step("audit", async () => {
     await home(p);
     for (const f of await p.evaluate(measure, { checkTargets: true })) findings.push({ dev, theme, state: "home", ...f });
     await snap(p, `${dev}-${theme}`);
-    if (theme === "light") await snap(p, `${dev}-${theme}-full`, true);
+    // (No full-page shot here: in Chromium it resizes the emulated screen and drops pointer: coarse.)
     if (isPhone(dev)) {
       await p.getByTestId("app-menu").click();
       const drawer = p.locator('[role="dialog"]').filter({ has: p.locator('nav[aria-label="Your drive"]') });
