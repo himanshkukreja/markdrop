@@ -12,6 +12,10 @@
   animation: as-in 220ms var(--ease-out);
 }
 [data-theme="light"] .as-panel { --as-bg: #FFFFFF; }
+/* Over a full-screen reader (a classic document's immersive view), and its menus over the panel. */
+html[data-md-immersive] .as-panel { z-index: calc(var(--z-immersive) + 2); }
+html[data-md-immersive] .as-scrim { z-index: calc(var(--z-immersive) + 1); }
+html[data-md-immersive]:has(.as-panel) { --z-dropdown: calc(var(--z-immersive) + 3); }
 .as-panel .ch { --ch-bg: var(--as-bg); }
 
 /* Wide screens: the page makes room beside the open panel. */

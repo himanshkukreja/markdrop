@@ -37,20 +37,28 @@ export function AssistantPanel() {
   const [failed, setFailed] = useState(false);
   const [scope, setScope] = useState<ChatScope>({ kind: "everything" });
   const hereKey = JSON.stringify(here ?? {});
+  const ctxFor = useRef<string | null>(null);
 
   // What the assistant offers here (the scopes you can open), once per place.
   useEffect(() => {
     if (!open) return;
     let live = true;
     setFailed(false);
+    const same = ctxFor.current === hereKey;
+    if (!same) setCtx(null); // another place: its own chips, not the last one's
+    ctxFor.current = hereKey;
     const h = here ?? {};
     getAssistantContext({ page: h.page, workspace: h.workspace, folder: h.folder, meeting: h.meeting })
       .then((c) => {
         if (!live) return;
         setCtx(c);
         const pend = takePending();
-        const kind = initialScope(c, pend?.scope ?? h.scope ?? null);
-        setScope({ kind, meeting: kind === "meetings" && c.meeting && h.meeting ? "this" : "" });
+        // Reopened in the same place: the chip picked last stays (unless something asked for one).
+        if (!same || pend?.scope) {
+          const kind = initialScope(c, pend?.scope ?? h.scope ?? null);
+          // On a meeting (its page, its transcript, or named), Meetings starts on This meeting.
+          setScope({ kind, meeting: c.meeting && (h.meeting || c.page?.meeting_id) ? "this" : "" });
+        }
         if (pend?.question) window.setTimeout(() => chat.current?.ask(pend.question!), 0);
       })
       .catch(() => { if (live) setFailed(true); });
@@ -93,7 +101,8 @@ export function AssistantPanel() {
   }, [phone, open]);
 
   const kind = (scope.kind || "everything") as AssistantScopeKind;
-  const chips = useMemo(() => scopeChips(ctx), [ctx]);
+  // No chips until the place is known (a guess would flash "Everything" first).
+  const chips = useMemo(() => (ctx || failed ? scopeChips(ctx) : []), [ctx, failed]);
   const options = useMemo(() => (kind === "meetings" ? meetingOptions(ctx) : undefined), [kind, ctx]);
   const status = kind === "meetings" ? ctx?.status.meetings : ctx?.status.search;
   const context = useMemo<AssistantChatContext>(() => ({ ctx }), [ctx]);
