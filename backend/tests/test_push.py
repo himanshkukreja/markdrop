@@ -251,6 +251,23 @@ class Devices(PushWorld):
         rows = await self.db[push.SUBS].find({"endpoint": b.endpoint}).to_list(length=None)
         self.assertEqual([r["user_id"] for r in rows], [self.uid["wa"]])
 
+    async def test_the_app_opening_only_keeps_a_device_already_turned_on(self):
+        b = Browser()
+        h = {**self.session("wm"), "User-Agent": UA_ANDROID}
+        r = await self.http.post("/api/v1/push/subscriptions", json=b.subscription(refresh=True), headers=h)
+        self.assertEqual(r.json(), {"device": None})  # never adds one
+        self.assertEqual(await self.db[push.SUBS].count_documents({}), 0)
+        d = await self.device("wm", browser=b)
+        await self.db[push.SUBS].update_one({"_id": ObjectId(d["id"])}, {"$set": {"seen_at": now() - timedelta(days=30)}})
+        r = await self.http.post("/api/v1/push/subscriptions", json=b.subscription(refresh=True), headers=h)
+        self.assertEqual(r.json()["device"]["id"], d["id"])
+        seen = (await self.db[push.SUBS].find_one({"_id": ObjectId(d["id"])}))["seen_at"]
+        self.assertGreater(seen.replace(tzinfo=None), (now() - timedelta(minutes=1)).replace(tzinfo=None))
+        # Someone else signed in on that browser: the old claim goes, and it isn't theirs either.
+        r = await self.http.post("/api/v1/push/subscriptions", json=b.subscription(refresh=True), headers=self.session("wa"))
+        self.assertEqual(r.json(), {"device": None})
+        self.assertEqual(await self.db[push.SUBS].count_documents({}), 0)
+
     async def test_refused_subscriptions(self):
         b = Browser("https://169.254.169.254/")
         r = await self.http.post("/api/v1/push/subscriptions", json=b.subscription(), headers=self.session("wm"))
