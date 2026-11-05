@@ -32,7 +32,7 @@ BACKEND = ROOT / "backend"
 TESTS = BACKEND / "tests"
 DURATIONS = Path(__file__).with_name("backend-durations.json")
 DEFAULT_SECONDS = 15.0
-MODULE_TIMEOUT = int(os.environ.get("CI_MODULE_TIMEOUT", "400"))
+MODULE_TIMEOUT = int(os.environ.get("CI_MODULE_TIMEOUT", "240"))
 
 
 def modules() -> list[str]:

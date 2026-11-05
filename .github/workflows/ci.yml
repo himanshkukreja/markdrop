@@ -9,7 +9,7 @@ name: CI
 #   .work/ci/run.sh <branch>   pushes a branch and follows its run (the lead's shortcut)
 #
 # Backend shards: .github/scripts/backend_shard.py splits backend/tests/test_*.py by recorded
-# duration (.github/scripts/backend-durations.json); every module runs in its own process (400 s cap: a
+# duration (.github/scripts/backend-durations.json); every module runs in its own process (240 s cap: a
 # module that hangs is run once more, with its asyncio task tree in the logs and a warning). Refresh
 # the durations after a suite change grows a module a lot:
 #   gh run download <run-id> -p 'backend-timings-*' -D /tmp/t
@@ -82,16 +82,31 @@ jobs:
 
       # ffmpeg/ffprobe: the media probe tests. redis-server: the rate-limit store the app expects on
       # localhost:6379 (as on the dev Mac) and the binary the Redis fallback test starts itself.
-      # A slow apt mirror once held this step for 9 minutes: try the image's package lists first, then
-      # refresh them, each bounded; without the packages those tests skip (and say so) rather than hang.
+      # The Ubuntu mirror has held this step for 5-9 minutes: the .debs are cached per runner image
+      # (apt-cached.sh installs them with dpkg, no network); without the packages those tests skip.
+      # The runner image's name and version (process env, not the workflow's env context) key the cache.
+      - name: apt cache key
+        id: aptkey
+        run: echo "key=apt-$ImageOS-$ImageVersion-ffmpeg-redis-v1" >> "$GITHUB_OUTPUT"
+      - name: Restore the apt .debs
+        id: debs
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
       - name: System packages (ffmpeg, redis)
-        timeout-minutes: 6
+        id: apt
+        timeout-minutes: 7
         run: |
-          pkgs="ffmpeg redis-server"
-          inst() { timeout 150 sudo apt-get install -y -qq --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $pkgs >/dev/null; }
-          inst || { timeout 120 sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && inst; } \
-            || echo "::warning::couldn't install $pkgs: the ffmpeg / redis-server tests skip in this shard"
+          bash .github/scripts/apt-cached.sh ~/apt-debs ffmpeg redis-server
           redis-cli ping || true
+      - name: Save the apt .debs
+        if: steps.apt.outputs.save == 'true' && steps.debs.outputs.cache-hit != 'true' && matrix.shard == 1
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
 
       - name: Install backend requirements
         run: pip install -r backend/requirements.txt -r backend/requirements-test.txt
@@ -306,12 +321,30 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements*.txt
 
+      # The runner image's name and version (process env, not the workflow's env context) key the cache.
+      - name: apt cache key
+        id: aptkey
+        run: echo "key=apt-$ImageOS-$ImageVersion-zsh-ffmpeg-v1" >> "$GITHUB_OUTPUT"
+      - name: Restore the apt .debs
+        id: debs
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
       - name: System packages (zsh for up.sh, ffmpeg) and acme.localhost
+        id: apt
+        timeout-minutes: 7
         run: |
-          pkgs="zsh ffmpeg"
-          inst() { timeout 150 sudo apt-get install -y -qq --no-install-recommends -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $pkgs >/dev/null; }
-          inst || { timeout 120 sudo apt-get update -qq -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && inst; }
+          bash .github/scripts/apt-cached.sh ~/apt-debs zsh ffmpeg
+          command -v zsh >/dev/null || { echo "::error::no zsh: up.sh can't run"; exit 1; }
           echo "127.0.0.1 acme.localhost" | sudo tee -a /etc/hosts
+      - name: Save the apt .debs
+        if: steps.apt.outputs.save == 'true' && steps.debs.outputs.cache-hit != 'true' && matrix.browser == 'chromium' && matrix.script == 'real'
+        uses: actions/cache/save@v4
+        continue-on-error: true
+        with:
+          path: ~/apt-debs
+          key: ${{ steps.aptkey.outputs.key }}
 
       # up.sh and lib.mjs run <checkout>/backend/.venv/bin/python.
       - name: Backend venv
