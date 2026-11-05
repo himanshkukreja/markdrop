@@ -13008,6 +13008,98 @@
         }
       }
     },
+    "/api/v1/meetings/import-link": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Import Link",
+        "description": "Google Docs / Drive links → one result each: imported | attached | duplicate (a meeting), queued\n(the Doc isn't public: your Google Meet script fetches it on its next run) or needs_access (with what\nto do). Only docs.google.com / drive.google.com links; Markdrop fetches Google's export itself.",
+        "operationId": "import_link_api_v1_meetings_import_link_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      },
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Link Requests",
+        "description": "Your recent link requests in a workspace (queued for your script, sent, failed).",
+        "operationId": "link_requests_api_v1_meetings_import_link_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings/google/token": {
       "post": {
         "tags": [
@@ -19398,6 +19490,40 @@
         },
         "type": "object",
         "title": "LibraryFolderRequest"
+      },
+      "LinkBody": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Workspace"
+          },
+          "urls": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Urls"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "wait": {
+            "type": "boolean",
+            "title": "Wait",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace",
+          "urls"
+        ],
+        "title": "LinkBody"
       },
       "LinkStartIn": {
         "properties": {

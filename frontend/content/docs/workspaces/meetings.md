@@ -32,7 +32,7 @@ The first meeting creates a folder called **Meetings** in the workspace. Every m
 - **Date**
 - **Type** (Standup, Planning, Review, 1:1, Interview, Customer or Other)
 - **Attendees**
-- **Organizer**
+- **Organizer** (who ran the call, when Markdrop knows: see [Organizer and imported by](/workspaces/meetings-import#organizer-and-imported-by))
 - **Duration**
 - **Action items**
 

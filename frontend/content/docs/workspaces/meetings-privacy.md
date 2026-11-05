@@ -8,7 +8,8 @@ keywords: [meetings privacy, restrict to attendees, attendees only, restricted m
 
 ## Who can see a meeting
 
-- **The team, by default.** Everyone in the workspace can open a meeting page and its transcript, like any page set to **Workspace**. See [Privacy](/workspaces/privacy).
+- **The team, for meetings of three or more.** Everyone in the workspace can open a meeting page and its transcript, like any page set to **Workspace**. See [Privacy](/workspaces/privacy).
+- **1:1s and two-person calls are restricted.** A call with one or two people in it (the attendees, plus the organizer) is [restricted to its attendees](#restricted-meetings) when it's imported, whichever way it comes in. Switch it back to the team in **Details**.
 - **Answers follow your access.** Ask this meeting and Ask across meetings use only the meetings you can open. Each meeting is checked again when you ask, and every source in an answer is checked again before you see it. A meeting restricted from you never reaches the AI when you ask.
 - **Past meetings are quiet.** Meetings brought in from your Drive's history when you [connect Google Meet](/workspaces/meetings-auto-import#past-meetings) notify nobody; their @mentions stay links.
 - **Automatic imports are yours.** A meeting that [Connect Google Meet](/workspaces/meetings-auto-import) imported belongs to the person who connected it, as if they had imported it by hand.
@@ -17,6 +18,7 @@ keywords: [meetings privacy, restrict to attendees, attendees only, restricted m
 
 Restrict a meeting to its attendees and only the attendees who are members of the workspace can open it, its transcript, and its answers.
 
+- **By itself** for 1:1s and two-person calls, on every import: manual, automatic, Drive links and AI apps. **Details** says when that happened.
 - **When you import manually**, switch on **Restrict to attendees** in the import dialog.
 - **For automatic imports**, switch on **Only the people in each meeting can open its page** when you connect Google Meet. Every meeting the script imports is then restricted. To change it, make a new script.
 - **Later**, from the meeting's **Details**. Only the person who imported it can switch this.

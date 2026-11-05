@@ -103,7 +103,7 @@ That's expected for a script you wrote yourself: only apps published to other pe
 :::details[Nothing shows up]
 - Look at the line under **Google Meet connected**: it says what the last run found and why it skipped Docs. No line at all means the script hasn't run yet, or it's an older script: [update it](#update-the-script).
 - *shared with you (not included)*: the meetings were organized by someone else. Make a new script with **Include meetings shared with me** on.
-- *not titled like Meet*: Google's own names ("… - Transcript", "Notes by Gemini") are what the script looks for. A renamed Doc is skipped; [import it manually](/workspaces/meetings-import) instead.
+- *not titled like Meet*: Google's own names ("… - Transcript", "Notes by Gemini") are what the script looks for. A renamed Doc is skipped; [import it manually](/workspaces/meetings-import) or [paste its link](/workspaces/meetings-import#paste-a-google-drive-link) instead.
 - Found 0 and nothing skipped: no Meet Docs reached your Drive in that time. Check that transcripts or **Take notes for me** are on in your calls, and that the organizer shares the notes with attendees (Google's default for people in the same organization).
 - In Apps Script, run `check` to see the list, or open **Executions** to see each run's log: what it sent and what Markdrop answered.
 - A Doc without a transcript or notes in it (an empty one, or a shopping list called "… - Notes") is skipped and counted as ignored.

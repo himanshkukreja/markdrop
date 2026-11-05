@@ -1375,6 +1375,19 @@
       "description": "Revokes your connection's token at once: the script's next delivery gets 401 and it removes its own schedule. Meetings it imported stay. Returns `{disconnected}`.",
       "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
     },
+    "POST /api/v1/meetings/import-link": {
+      "title": "Import meetings from Google Drive links",
+      "description": "Up to 20 Google Docs or Drive links (`urls`: docs.google.com/document/d/…, drive.google.com/file/d/…, drive.google.com/open?id=…) into `workspace` (members and up), one result each in `results`: `{url, file_id, status, meeting?, meeting_id?, message?}`. `status`: `imported`, `attached` or `duplicate` (with the `meeting`), `queued` (the Doc isn't shared with \"anyone with the link\" and your Google Meet script is connected to this workspace: it fetches the Doc with your own Google access on its next run), `needs_access` (with what to do), or `error` (not a Google link). Markdrop fetches only Google's export of that file, following redirects only to Google's own hosts, with a timeout and a 4 MB cap. 1:1s and two-person calls are restricted to their attendees. 20 a minute.",
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "urls": ["https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit"]},
+      "mcp": "import_meeting",
+      "guide": {"label": "Paste a Google Drive link", "href": "/workspaces/meetings-import#paste-a-google-drive-link"}
+    },
+    "GET /api/v1/meetings/import-link": {
+      "title": "Your Drive link requests",
+      "description": "Your recent Drive link requests in `workspace` (newest first): `file_id`, `url`, `state` (`queued`, `sent` or `failed`), `error` (`not_found`, `unreadable`, `not_a_doc`), `requested_at`, `done_at` and `meeting_id`.",
+      "paramNotes": {"workspace": "The workspace's id."},
+      "guide": {"label": "Paste a Google Drive link", "href": "/workspaces/meetings-import#paste-a-google-drive-link"}
+    },
     "POST /api/v1/meetings/inbox": {
       "title": "Meetings inbox (the Google Meet script)",
       "description": "Where the Connect Google Meet script sends one Google Doc: `{source: \"google-meet-script\", version, file_id, title, created, kind_hint, text, doc_url, owner, backfill, requested}`. `kind_hint` is `transcript`, `notes` or `unknown` (a Doc in a Meet Recordings folder: Markdrop decides). `owner` is the Doc's owner in Drive (`name`, `email`, `me`): who organized the call. `requested: true` marks a Doc someone asked for by pasting its link: it's imported like a manual import (notified unless the call is more than a day old). `backfill: true` marks a past meeting from the script's backfill: it's imported as history, and nobody is notified about it (its @mentions stay links). The meeting is dated by the date in Google's title, else by `created` in the connector's time zone. Authenticated with the script's `meetings:import` token (Bearer `mdk_…`), which works here and nowhere else and is pinned to one workspace; its owner must still be a member. Idempotent on `file_id`: returns `{status, meeting_id?, url?}` with `status` `imported` (a new meeting), `attached` (the other half of a call already in the workspace: notes for a transcript, or the other way round), `duplicate` (already here: the same Doc, a Doc imported by hand, or the same call by name, date and start time) or `ignored` (no transcript or notes in it). 401 when disconnected, 403 when no longer a member, 409 while the same Doc is being imported, 413 over 1,500,000 characters, 422 for a malformed delivery. Rate limited per token: 30 a minute, 600 a day.",
