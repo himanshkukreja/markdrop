@@ -63,6 +63,7 @@ from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
 from app.routers.search import router as search_router
 from app.routers.meetings import router as meetings_router
+from app.routers.meetings_backfill import router as meetings_backfill_router
 from app.routers.slack import router as slack_router
 from app.routers.ask import router as ask_router
 from app.routers.og import router as og_router
@@ -289,6 +290,9 @@ app.include_router(access_router)
 app.include_router(personal_router)
 app.include_router(search_router)
 # Meetings (routers/meetings.py): imported calls as pages, Ask this meeting / across meetings.
+# Import past meetings (routers/meetings_backfill.py): before meetings_router, whose /{meeting_id}
+# would take /backfill and /series.
+app.include_router(meetings_backfill_router)
 app.include_router(meetings_router)
 app.include_router(slack_router)
 # Ask Markdrop (routers/ask.py): the home's question box, threads, suggestions.

@@ -13,6 +13,8 @@
  *   manual      a meeting imported by hand, then sent by the script → duplicate (no second meeting)
  *   folder      the Meetings folder's banner shows the connection; a member sees "Also importing here"
  *               and their own Connect Google Meet
+ *   v2          the script reports a run (/inbox/status) → "Script ran … · found 0 meeting Docs · 14 skipped: …" and the
+ *               hint about shared meetings; a Drive link in the import dialog → Queued for the script (start hands it out)
  *   disconnect  Disconnect → the line goes, the token gets 401
  *   shots       light/dark × desktop/phone of the dialog, the script and the connected hub
  *
@@ -94,6 +96,7 @@ await step("connect", async () => {
   await dlg.getByText("Read-only: it never edits, moves or deletes anything in your Drive.").waitFor();
   await snap(p, "connect-dialog");
   if ((await dlg.getByTestId("meet-past").inputValue()) !== "30") fail("past meetings: not 30 days by default");
+  if (!(await dlg.getByTestId("meet-shared").isChecked())) fail("Include meetings shared with me: not on by default");
   await dlg.getByTestId("meet-past").selectOption("7");
   await dlg.getByTestId("meet-create").click();
   await dlg.getByTestId("meet-script").waitFor({ timeout: 15000 });
@@ -103,6 +106,7 @@ await step("connect", async () => {
   if (!token) fail("no token in the script");
   if (!/var MARKDROP_ENDPOINT = "https?:\/\/[^"]+\/api\/v1\/meetings\/inbox";/.test(script)) fail("no endpoint in the script");
   if (!script.includes("var BACKFILL_DAYS = 7;")) fail("the past-meetings choice isn't in the script");
+  if (!script.includes("var INCLUDE_SHARED = true;") || !script.includes("var SCRIPT_VERSION = 3;")) fail("v3 script: shared meetings not on");
   await dlg.getByText("It imports your last 7 days of meetings now").waitFor();
   try { new vm.Script(script, { filename: "Code.gs" }); } catch (e) { fail(`the script isn't valid JavaScript: ${e.message}`); }
   const man = JSON.parse(manifest);
@@ -175,6 +179,44 @@ await step("manual", async () => {
   const r = ok(await send(token, delivery("1E2eDesignReviewAbcdefghij", "Design review (2026-11-03 15:00 GMT+05:30) - Transcript", text, "transcript")), "script");
   if (r.status !== "duplicate" || r.meeting_id !== made.meetings[0].id) fail(`script after manual → ${JSON.stringify(r)}`);
   if ((await meetings()).length !== 2) fail("a second Design review");
+});
+
+await step("v2", async () => {
+  if (!token) fail("no token");
+  const st = (body) => api("POST", "/api/v1/meetings/inbox/status", token, body);
+  ok(await st({ phase: "start", version: 3, mode: "run", include_shared: false }), "status start");
+  ok(await st({ phase: "done", version: 3, mode: "run", include_shared: false, found: 0, sent: 0, results: {},
+    skipped: { title: 12, not_yours: 2, already_sent: 3 }, errors: [] }), "status done");
+  const { p } = await ctx(browser, { token: T.owner });
+  await p.goto(HUB);
+  const run = p.getByTestId("meet-script-run");
+  await run.getByText(/Script ran (just now|\d+ (second|minute)s? ago) · found 0 meeting Docs/).waitFor({ timeout: 20000 });
+  await run.getByText("14 skipped: 12 not titled like Meet, 2 shared with you (not included)", { exact: false }).waitFor();
+  await p.getByTestId("meet-script-hint").getByText("Include meetings shared with me", { exact: false }).waitFor();
+  if (await p.getByTestId("meet-needs-update").count()) fail("a v3 script told to update");
+  await snap(p, "script-run");
+  // A backlog bigger than one run, with the Drive API off for the script's project (owner's live run).
+  ok(await st({ phase: "start", version: 3, mode: "run", include_shared: true }), "status start (backlog)");
+  ok(await st({ phase: "done", version: 3, mode: "run", include_shared: true, found: 79, sent: 60, remaining: 19,
+    results: { imported: 60 }, skipped: { already_sent: 4 }, errors: [], shared_drives: "off", drive_project: "1034426400429" }), "status done (backlog)");
+  await p.reload();
+  await p.getByTestId("meet-script-run").getByText("sent 60 of 79 · 19 more in the next run (every 15 min)", { exact: false }).waitFor({ timeout: 20000 });
+  await p.getByText("Shared drives aren't searched", { exact: false }).first().waitFor({ timeout: 10000 });
+  await snap(p, "script-backlog");
+  // A private Drive link → queued for this script; the script's next run gets it first.
+  await p.getByTestId("import-meeting").first().click();
+  const dlg = p.getByRole("dialog");
+  await dlg.getByRole("tab", { name: "Drive link" }).click();
+  await dlg.getByTestId("import-link-input").fill("https://docs.google.com/document/d/1E2ePrivateLinkAbcdefghijklm/edit");
+  await dlg.getByTestId("import-submit").click();
+  await dlg.getByTestId("import-link-results").getByText("queued: your Google Meet script imports it", { exact: false }).waitFor({ timeout: 30000 });
+  await snap(p, "link-queued");
+  const hello = ok(await st({ phase: "start", version: 3 }), "status start 2");
+  if (!hello.queue.some((q) => q.file_id === "1E2ePrivateLinkAbcdefghijklm")) fail(`queue ${JSON.stringify(hello)}`);
+  // Not a Google link: said before anything is sent.
+  await dlg.getByTestId("import-link-input").fill("https://example.com/notes");
+  await dlg.getByText("Not a Google Docs or Drive link", { exact: false }).waitFor();
+  if (await dlg.getByTestId("import-submit").isEnabled()) fail("Import enabled for a non-Google link");
 });
 
 await step("folder", async () => {

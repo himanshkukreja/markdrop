@@ -177,6 +177,9 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
         return {"posted": False, "reason": "no_channel"}
     if not again and inst.get("post_meetings") is False:
         return {"posted": False, "reason": "off"}
+    if not again and row.get("history"):
+        # A past meeting brought in quietly (Import past meetings): no channel post on its own; by hand still.
+        return {"posted": False, "reason": "history"}
     token = slack.bot_token(inst)
     if not token:
         return {"posted": False, "reason": "token"}

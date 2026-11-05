@@ -183,6 +183,83 @@ class ParserTests(unittest.TestCase):
         self.assertGreater(len(s.segments), 3)
 
 
+class GoogleMetaLines(unittest.TestCase):
+    """Google's "Transcription ended after …" footer was glued onto the last speaker's turn (a final
+    question became a "fact" ending in "Transcription ended…"). Footer and header are metadata."""
+
+    HEAD = ("Weekly sync (2026-11-04 10:00 GMT+05:30) - Transcript\nAttendees\nAda Lovelace, Bo Chen\nTranscript\n"
+            "This editable transcript was computer generated and might contain errors. People can also change the text after it was created.\n"
+            "00:00:00\nAda Lovelace: Shall we ship Friday?\nBo Chen: Can we decide that next week?")
+
+    def test_footer_on_its_own_line(self):
+        for gap in ("\n", "\n\n"):
+            s = mp.parse_source("x", self.HEAD + gap + "Transcription ended after 00:12:30\n")
+            self.assertEqual([x["text"] for x in s.segments], ["Shall we ship Friday?", "Can we decide that next week?"])
+            self.assertEqual(s.duration_s, 750)
+            self.assertEqual(s.format, "google_meet")
+
+    def test_footer_on_the_last_line(self):
+        s = mp.parse_source("x", self.HEAD + " Transcription ended after 00:12:30\n")
+        self.assertEqual(s.segments[-1], {**s.segments[-1], "speaker": "Bo Chen", "text": "Can we decide that next week?"})
+
+    def test_notice_and_footer_never_a_turn(self):
+        s = mp.parse_source("x", self.HEAD + "\nTranscription ended after 00:12:30\nThis editable transcript was computer generated and might contain errors.\n")
+        self.assertFalse(any("transcri" in x["text"].lower() or "computer generated" in x["text"] for x in s.segments))
+        # Plain prose too.
+        p = mp.parse_source("x", "We talked about the launch.\n\nIt moves to the 11th.\nTranscription ended after 00:05:00\n")
+        self.assertFalse(any("Transcription ended" in x["text"] for x in p.segments))
+
+
+class Retrieval(unittest.TestCase):
+    """Real-model eval 2026-11-05 (.work/meetings/eval): "Which email provider did we choose?" matched
+    only the line saying "email"; the line with who migrates to Postmark (no word in common with the
+    question) wasn't sent, so the model cited a neighbouring line for it."""
+
+    SEGS = [{"speaker": s, "text": t} for s, t in [
+        ("Ada", "Morning everyone. Main topic today is the v3 launch date."),
+        ("Bo", "The search rewrite is late."),
+        ("Bo", "Also, we picked Postmark over SendGrid for transactional email, right?"),
+        ("Ada", "Yes, Postmark. Cheaper at our volume and better deliverability in India."),
+        ("Ravi", "Unrelated: lunch is at one."),
+        ("Priya", "I'll migrate the templates to Postmark by October 31."),
+        ("Ada", "Thanks all, the Markdrop demo rocks."),
+    ]]
+
+    def test_names(self):
+        self.assertEqual(meetings_ai._names("Also, we picked Postmark over SendGrid. Cheaper too"), {"postmark", "sendgrid"})
+        self.assertEqual(meetings_ai._names("I'll go. Okay then"), set())
+
+    def test_follow_brings_lines_naming_the_same_thing(self):
+        q = "Which email provider did we choose and why?"
+        self.assertEqual(meetings_ai.best_segments(self.SEGS, q, 10, neighbours=0), [2])
+        self.assertEqual(meetings_ai.best_segments(self.SEGS, q, 10, neighbours=0, follow=3), [2, 3, 5])
+        self.assertEqual(meetings_ai.best_segments(self.SEGS, q, 10, neighbours=0, follow=1), [2, 3])
+
+    def test_follow_skips_common_names(self):
+        segs = self.SEGS + [{"speaker": "Bo", "text": f"So Markdrop item {i}."} for i in range(5)]
+        got = meetings_ai.best_segments(segs, "Who said rocks?", 10, neighbours=0, follow=3)
+        self.assertEqual(got, [6])   # "Markdrop" is on 6 lines: following it would add noise
+        self.assertEqual(meetings_ai.best_segments(self.SEGS + segs[7:9], "Who said rocks?", 10, neighbours=0, follow=3), [6, 7, 8])
+
+    def test_answer_cut_off_in_its_ranking_line(self):
+        # Eval run 2: Haiku 5.5's thinking used the whole max_tokens; the answer was "<ranking>6,1,2</ranking".
+        from app.services import ask_markdrop
+
+        for text in ("<ranking>6,1,2,4</ranking", "<ranking>6,1</rank", "<ranking>6,", "  <ranking>"):
+            self.assertEqual(meetings_ai.clean_answer(text), "", text)
+            self.assertEqual(ask_markdrop.clean_answer(text, set()), "", text)
+        self.assertEqual(meetings_ai.clean_answer("<ranking>1</ranking>\n\nShip Friday [M1]."), "Ship Friday [M1].")
+        self.assertEqual(ask_markdrop._RANKING_CUT.search("<ranking>3,1</rank").group(1), "3,1")
+        # Headroom for thinking (the prompts bound the visible answer).
+        self.assertGreaterEqual(meetings_ai.ASK_MAX_TOKENS, 3000)
+        self.assertGreaterEqual(ask_markdrop.ANSWER_MAX_TOKENS, 3000)
+
+    def test_prompts_cite_lines_only_for_what_they_say(self):
+        self.assertIn("Cite a line only for what that line itself says", meetings_ai.ASK_SYSTEM)
+        self.assertIn("Cite a transcript line only for what that line itself says", meetings_ai.ACROSS_SYSTEM)
+        self.assertIn('never call a meeting "Meeting 2" or "M2"', meetings_ai.ACROSS_SYSTEM)
+
+
 # ── The world ─────────────────────────────────────────────────────────────────
 
 GEN = {
@@ -287,9 +364,15 @@ class Import(MeetingsWorld):
         # The folder and its properties.
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
         self.assertEqual(folder["name"], "Meetings")
-        self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "attendees", "organizer", "duration", "action_items"])
-        self.assertEqual(page["folder_id"], str(folder["_id"]))
-        self.assertIn(f'organizer: "{self.uid["owner"]}"', c)
+        self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "series", "attendees", "organizer", "duration", "action_items"])
+        # Filed in Meetings/Other meetings (a one-off), with the Meetings folder's properties.
+        sub = await self.db["folders"].find_one({"_id": __import__("bson").ObjectId(page["folder_id"])})
+        self.assertEqual((sub["name"], sub["parent_id"], sub["meetings_other"]), ("Other meetings", str(folder["_id"]), True))
+        self.assertEqual([p["key"] for p in sub["properties"]], [p["key"] for p in folder["properties"]])
+        # Who organized it isn't in a pasted transcript: unknown, never the importer.
+        self.assertNotIn("organizer:", c)
+        self.assertIsNone(m["organizer"])
+        self.assertEqual(m["imported_by"]["user_id"], self.uid["owner"])
         self.assertIn('duration: "13 min"', c)
         # The transcript sub-page: anchored paragraphs.
         tr = await self.doc(ts)
@@ -522,7 +605,7 @@ class Access(MeetingsWorld):
         self.assertEqual(lst["hidden"][0]["id"], m["id"])
         self.assertNotIn("title", lst["hidden"][0])
         # Ask across meetings as Ravi: the restricted meeting's words never reach the model.
-        await self.imported(sources=[{"name": "Open sync", "text": "Ada Lovelace: Release on Friday.\nBo Chen: Fine."}])
+        await self.imported(sources=[{"name": "Open sync", "text": "Ada Lovelace: Release on Friday.\nBo Chen: Fine.\nRavi Kumar: Ok."}])
         self.fake.calls.clear()
         r = await self.http.post("/api/v1/meetings/ask", headers=self.session("wv"), json={"workspace": self.W, "question": "what is the secret plan codename?"})
         evs = parse_sse(r.text)

@@ -350,7 +350,12 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
             best = max(segs, key=lambda x: len(_words(x[2]) & _words(q)), default=None)
             cite = f" [{best[0]}]" if best else ""
             said = f"{best[1]} said {best[2]}" if best else "The meetings don't say"
-            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{said}{cite} — see [M1].")
+            # Says when and where, like the real model is asked to ("On 28 Oct, in Daily Standup, …").
+            n = best[0].split("-")[0][1:] if best else (ns[0] if ns else None)
+            head = _re.search(rf'<untrusted_meeting n="{n}" title="([^"]*)"[^>]*? day="\w+ (\d+ \w+)', user) if n else None
+            ser = _re.search(rf'<untrusted_meeting n="{n}"[^>]*? series="([^"]*)"', user) if n else None
+            where = f"On {head.group(2)}, in {ser.group(1) if ser else head.group(1)}, " if head else ""
+            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{where}{said}{cite} — see [M1].")
 
     _mclient = _NS(messages=_MMessages())
     meetings_ai.docs_agent = _NS(get_client=lambda: _mclient, configured=lambda: True)

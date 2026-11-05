@@ -127,20 +127,23 @@ class ScriptStatus(AutoWorld):
     async def test_runs_are_reported_and_shown(self):
         out = await self.connect(include_shared=False)
         self.assertIn("var INCLUDE_SHARED = false;", out["script"])
-        self.assertIn("var SCRIPT_VERSION = 2;", out["script"])
+        self.assertIn("var SCRIPT_VERSION = 3;", out["script"])
         c = out["connection"]
-        # Nothing reported yet: it was just given v2, nothing to update.
-        self.assertEqual((c["script"], c["script_version"], c["latest_script_version"], c["needs_update"]), (None, 2, 2, False))
+        # Nothing reported yet: it was just given v3, nothing to update.
+        self.assertEqual((c["script"], c["script_version"], c["latest_script_version"], c["needs_update"]), (None, 3, 3, False))
         self.assertFalse(c["include_shared"])
         tok = out["token"]
         # A connection made before v2 (never given a version, never reports) is told to get the new script.
         await self.db["api_tokens"].update_one({"scope": "meetings:import"}, {"$unset": {"script_given": 1}})
         r = await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))
         self.assertEqual((r.json()["connection"]["script_version"], r.json()["connection"]["needs_update"]), (1, True))
+        # A v2 script reports: it is told a newer one exists (and the page says so).
         r = await self.status(tok, phase="start", version=2, mode="run", include_shared=False)
         self.assertEqual(r.status_code, 200, r.text)
-        self.assertEqual(r.json(), {"ok": True, "latest_version": 2, "queue": []})
-        r = await self.status(tok, phase="done", version=2, mode="run", include_shared=False, found=0, sent=0,
+        self.assertEqual(r.json(), {"ok": True, "latest_version": 3, "queue": []})
+        r = await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))
+        self.assertEqual((r.json()["connection"]["script_version"], r.json()["connection"]["needs_update"]), (2, True))
+        r = await self.status(tok, phase="done", version=3, mode="run", include_shared=False, found=0, sent=0,
                               results={"imported": 0}, skipped={"not_yours": 14, "title": 3, "bogus": 9},
                               errors=[{"title": "X - Transcript", "error": "Could not read it"}], search="drive-v3")
         self.assertEqual(r.status_code, 200, r.text)
@@ -148,7 +151,9 @@ class ScriptStatus(AutoWorld):
         c = r.json()["connection"]
         self.assertFalse(c["needs_update"])
         sc = c["script"]
-        self.assertEqual((sc["version"], sc["found"], sc["sent"], sc["mode"]), (2, 0, 0, "run"))
+        self.assertEqual((sc["version"], sc["found"], sc["sent"], sc["mode"]), (3, 0, 0, "run"))
+        # Nothing waits, and it didn't say whether it searches shared drives.
+        self.assertEqual((sc["remaining"], sc["shared_drives"], sc["drive_api_url"]), (0, None, None))
         self.assertEqual(sc["skipped"], {"already_sent": 0, "too_old": 0, "not_yours": 14, "title": 3, "writing": 0})
         self.assertEqual(sc["errors"], [{"title": "X - Transcript", "error": "Could not read it"}])
         self.assertTrue(sc["ran_at"] and sc["started_at"])
@@ -161,6 +166,37 @@ class ScriptStatus(AutoWorld):
         await self.http.delete("/api/v1/meetings/connection", headers=self.session("owner"))
         r = await self.status(tok, phase="start", version=2)
         self.assertEqual(r.status_code, 401)
+
+    async def test_v3_run_reports_what_waits_and_shared_drives(self):
+        tok = (await self.connect())["token"]
+        r = await self.status(tok, phase="done", version=3, mode="run", found=79, sent=60, remaining=19,
+                              shared_drives="off", drive_project="1034426400429", search="driveapp")
+        self.assertEqual(r.status_code, 200, r.text)
+        c = (await self.http.get(f"/api/v1/meetings/connection?workspace={self.W}", headers=self.session("owner"))).json()["connection"]
+        sc = c["script"]
+        self.assertEqual((sc["found"], sc["sent"], sc["remaining"], sc["shared_drives"]), (79, 60, 19, "off"))
+        # The link that turns the Drive API on is built by Markdrop, for that project only.
+        self.assertEqual(sc["drive_api_url"], "https://console.developers.google.com/apis/api/drive.googleapis.com/overview"
+                                              "?project=1034426400429")
+        self.assertNotIn("drive_project", sc)
+        # Without a project: the page without one. A project id that isn't one is dropped.
+        r = await self.status(tok, phase="done", version=3, shared_drives="off", drive_project="evil&x=<b>")
+        self.assertEqual(r.status_code, 200, r.text)
+        sc = (await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))).json()["connection"]["script"]
+        self.assertEqual(sc["drive_api_url"], "https://console.developers.google.com/apis/api/drive.googleapis.com/overview")
+        self.assertEqual(sc["remaining"], 0)
+        # Searching shared drives: no link; the next run's counts replace the last's.
+        r = await self.status(tok, phase="done", version=3, shared_drives="on", drive_project="1034426400429", remaining=2)
+        sc = (await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))).json()["connection"]["script"]
+        self.assertEqual((sc["shared_drives"], sc["drive_api_url"], sc["remaining"]), ("on", None, 2))
+        # The body is checked: a negative count, an unknown state, an overlong project.
+        for bad in ({"remaining": -1}, {"shared_drives": "maybe"}, {"drive_project": "x" * 41}, {"remaining": "lots"}):
+            r = await self.status(tok, phase="done", version=3, **bad)
+            self.assertEqual(r.status_code, 422, (bad, r.text))
+        # 'start' leaves the last run's report alone.
+        await self.status(tok, phase="start", version=3)
+        sc = (await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))).json()["connection"]["script"]
+        self.assertEqual((sc["shared_drives"], sc["remaining"]), ("on", 2))
 
     async def test_v2_delivery_fields(self):
         tok = (await self.connect())["token"]
@@ -544,8 +580,9 @@ class Script(unittest.TestCase):
                 self.assertEqual(p.returncode, 0, p.stderr)
         out = self.run_script({"files": [], "runs": []})
         self.assertEqual(out["constants"], {"endpoint": "https://api.example.test/api/v1/meetings/inbox",
-                                            "token": "mdk_" + "A" * 43, "lookback": 48, "version": 2, "shared": True})
-        self.assertEqual(meetings_inbox.script_version(), 2)
+                                            "token": "mdk_" + "A" * 43, "lookback": 48, "version": 3, "maxPerRun": 0,
+                                            "shared": True})
+        self.assertEqual(meetings_inbox.script_version(), 3)
         self.assertNotIn("{{", self.render())
         # The manifest is JSON and asks for nothing that writes to Drive.
         man = json.loads(meetings_inbox.manifest())
@@ -598,12 +635,13 @@ class Script(unittest.TestCase):
         self.assertEqual(out["sent"], sorted([FID_N, FID_T, "1SharedMeet"]))
         shared = next(p for p in out["posts"] if p["body"]["file_id"] == "1SharedMeet")["body"]
         self.assertEqual(shared["owner"], {"name": "Gautam", "email": "gautam@acme.test", "me": False})
-        self.assertEqual((shared["version"], shared["requested"]), (2, False))
+        self.assertEqual((shared["version"], shared["requested"]), (3, False))
         # Each run told Markdrop how it went: start, then done with the counts.
         self.assertEqual([(st["phase"], st["mode"]) for st in out["statuses"]],
                          [("start", "setup"), ("done", "setup"), ("start", "run"), ("done", "run")])
         first = out["statuses"][1]
-        self.assertEqual((first["found"], first["sent"], first["version"], first["include_shared"]), (3, 3, 2, True))
+        self.assertEqual((first["found"], first["sent"], first["version"], first["include_shared"]), (3, 3, 3, True))
+        self.assertEqual((first["remaining"], first["shared_drives"], first["drive_project"]), (0, "on", None))
         self.assertEqual(first["results"]["imported"], 3)
         self.assertEqual(first["skipped"]["title"], 2)       # "Quarterly plan", "Theirs - Transcript"
         self.assertEqual(first["skipped"]["too_old"], 1)
@@ -671,14 +709,55 @@ class Script(unittest.TestCase):
                   "created": (now - timedelta(days=i)).isoformat().replace("+00:00", "Z"),
                   "modified": (now - timedelta(days=i)).isoformat().replace("+00:00", "Z"), "text": "A: hi\n"}
                  for i in range(1, 26)]
-        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)"]})
-        self.assertEqual(len(out["posts"]), 20)                       # MAX_PER_RUN
+        # Each send takes 15 s: 18 fit in the 4.5-minute budget.
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)"], "sendMs": 15_000})
+        self.assertEqual(len(out["posts"]), 18)
         # The last 48 hours first (yesterday's call), then the past, oldest first.
         self.assertEqual([p["body"]["file_id"] for p in out["posts"][:3]], ["1Day01", "1Day25", "1Day24"])
         self.assertIn("backfill_since", out["props"])
-        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)", "syncMeetings"]})
+        self.assertEqual((out["statuses"][-1]["found"], out["statuses"][-1]["remaining"]), (25, 7))
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)", "syncMeetings"], "sendMs": 15_000})
         self.assertEqual(len(out["posts"]), 25)
         self.assertNotIn("backfill_since", out["props"])
+        self.assertEqual(out["statuses"][-1]["remaining"], 0)
+
+    def test_time_budget_and_what_waits(self):
+        now = datetime.now(timezone.utc)
+        files = [{"id": f"1Doc{i:010d}", "name": f"Call {i} (2026-11-04) - Transcript",
+                  "created": (now - timedelta(hours=2, minutes=79 - i)).isoformat().replace("+00:00", "Z"),
+                  "modified": (now - timedelta(hours=1)).isoformat().replace("+00:00", "Z"), "text": "A: hi\n"}
+                 for i in range(79)]
+        # 79 Docs, each send takes 4.5 s: 60 fit in the 4.5-minute budget (a run has 6); 19 wait.
+        out = self.run_script({"files": files, "docsFails": True, "sendMs": 4_500, "runs": ["syncMeetings"]})
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [f"1Doc{i:010d}" for i in range(60)])
+        done = out["statuses"][-1]
+        self.assertEqual((done["phase"], done["found"], done["sent"], done["remaining"]), ("done", 79, 60, 19))
+        self.assertIn("Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now. "
+                      "Skipped: none.", out["logs"])
+        # At about 3.5 s a send, 78 fit.
+        out = self.run_script({"files": files, "docsFails": True, "sendMs": 3_500, "runs": ["syncMeetings"]})
+        self.assertEqual((len(out["posts"]), out["statuses"][-1]["remaining"]), (78, 1))
+        # The next run (15 minutes later) sends the rest, and nothing waits.
+        out = self.run_script({"files": files, "docsFails": True, "sendMs": 4_500, "runGapMs": 15 * 60_000,
+                               "runs": ["syncMeetings", "syncMeetings"]})
+        self.assertEqual(len(out["posts"]), 79)
+        self.assertEqual(len(out["sent"]), 79)
+        self.assertEqual([(s["found"], s["sent"], s["remaining"]) for s in out["statuses"] if s["phase"] == "done"],
+                         [(79, 60, 19), (19, 19, 0)])
+        # Fast sends: 200 at most a run, whatever the time.
+        many = [dict(f, id=f"1Many{i:010d}") for i, f in enumerate(files * 3)][:230]
+        out = self.run_script({"files": many, "docsFails": True, "sendMs": 50, "runs": ["syncMeetings"]})
+        self.assertEqual((len(out["posts"]), out["statuses"][-1]["remaining"]), (200, 30))
+        # MAX_PER_RUN, when set, caps a run too.
+        code = self.render().replace("var MAX_PER_RUN = 0;", "var MAX_PER_RUN = 5;")
+        self.assertNotEqual(code, self.render())
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"]}, code=code)
+        self.assertEqual((len(out["posts"]), out["statuses"][-1]["remaining"]), (5, 74))
+        # Docs asked for by link count against the budget too, and wait with the rest.
+        out = self.run_script({"files": files, "docsFails": True, "queue": ["1Doc0000000078", "1Doc0000000077"],
+                               "runs": ["syncMeetings"]}, code=code.replace("var MAX_PER_RUN = 5;", "var MAX_PER_RUN = 1;"))
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], ["1Doc0000000078"])
+        self.assertEqual(out["statuses"][-1]["remaining"], 78)     # the other asked-for one is among the 78 found
 
     def test_shared_off_skips_other_peoples_docs(self):
         at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
@@ -749,13 +828,64 @@ class Script(unittest.TestCase):
         self.assertEqual(sorted((f["file_id"], f["error"]) for f in done["queue_failed"]),
                          [("1APdfInDriveXyzwvut", "not_a_doc"), ("1MissingFileXyzwvut", "not_found")])
 
+    def test_queued_links_with_the_drive_api_off(self):
+        # The owner's project has the Drive API off: a Doc asked for by link is still read (DriveApp).
+        old = (datetime.now(timezone.utc) - timedelta(days=200)).isoformat().replace("+00:00", "Z")
+        files = [{"id": "1AskedForByLinkXyzwv", "name": "Board call", "created": old, "modified": old, "owned": False,
+                  "listed": False, "text": "Ada: hi\nBo: yes\n"},
+                 {"id": "1AVttInDriveXyzwvut", "name": "call.vtt", "mime": "text/vtt", "created": old, "modified": old,
+                  "listed": False, "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n<v Ada>hi\n"}]
+        out = self.run_script({"files": files, "docsFails": True, "driveOff": True, "runs": ["syncMeetings"],
+                               "queue": ["1AskedForByLinkXyzwv", "1AVttInDriveXyzwvut", "1MissingFileXyzwvut"]})
+        self.assertEqual([(p["body"]["file_id"], p["body"]["requested"]) for p in out["posts"]],
+                         [("1AskedForByLinkXyzwv", True), ("1AVttInDriveXyzwvut", True)])
+        self.assertEqual(out["posts"][1]["body"]["text"].split("\n")[0], "WEBVTT")
+        done = out["statuses"][-1]
+        self.assertEqual(done["queue_done"], ["1AskedForByLinkXyzwv", "1AVttInDriveXyzwvut"])
+        self.assertEqual([(f["file_id"], f["error"]) for f in done["queue_failed"]], [("1MissingFileXyzwvut", "not_found")])
+        self.assertEqual(done["shared_drives"], "off")
+        self.assertFalse(any(l.startswith("WARN") for l in out["logs"]), out["logs"])
+
     def test_drive_api_off_falls_back_to_driveapp(self):
         at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
         files = [{"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n", "owned": False}]
+        # Some other Drive error: said as a warning, DriveApp instead.
         out = self.run_script({"files": files, "docsFails": True, "driveFails": True, "runs": ["syncMeetings"]})
         self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [FID_T])
         self.assertNotIn("'me' in owners", out["searches"][0])
         self.assertEqual(out["statuses"][-1]["search"], "driveapp")
+        self.assertEqual(out["statuses"][-1]["shared_drives"], None)
+        self.assertTrue(any(l.startswith("WARN Drive search:") for l in out["logs"]), out["logs"])
+        self.assertFalse(any(l.startswith("INFO") for l in out["logs"]))
+
+    def test_drive_api_disabled_is_one_friendly_line_a_day(self):
+        noon = datetime.now(timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+        at = (noon - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        files = [{"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n", "owned": False},
+                 {"id": FID_N, "name": NOTES, "created": at, "modified": at, "text": "Summary\nok"}]
+        scen = {"files": files, "docsFails": True, "driveOff": True, "now": noon.isoformat(), "runGapMs": 15 * 60_000,
+                "runs": ["syncMeetings", "syncMeetings"]}
+        out = self.run_script(scen)
+        # The shared-with-me meeting and mine still come in (DriveApp).
+        self.assertEqual(sorted(p["body"]["file_id"] for p in out["posts"]), sorted([FID_N, FID_T]))
+        self.assertNotIn("'me' in owners", out["searches"][0])
+        # The folder lookup and the search both met it: one line, information (not a warning), and not
+        # again in the second run the same day.
+        self.assertFalse([l for l in out["logs"] if l.startswith("WARN")], out["logs"])
+        info = [l for l in out["logs"] if l.startswith("INFO")]
+        self.assertEqual(info, ["INFO Shared-drive search is off (optional: enable the Drive API for this script's project: "
+                                "https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=1034426400429). "
+                                "Using your Drive and files shared with you — meetings shared with you are still imported."])
+        self.assertEqual(out["propValues"]["drive_off_said"], noon.date().isoformat())
+        # Every run still tells Markdrop (the Meetings page shows the optional hint).
+        for done in [s for s in out["statuses"] if s["phase"] == "done"]:
+            self.assertEqual((done["shared_drives"], done["drive_project"], done["search"]), ("off", "1034426400429", "driveapp"))
+        # The next day: said once more.
+        out = self.run_script(dict(scen, runGapMs=24 * 3600_000))
+        self.assertEqual(len([l for l in out["logs"] if l.startswith("INFO Shared-drive search is off")]), 2)
+        # check (run by hand to see what the script sees) always says it.
+        out = self.run_script(dict(scen, runs=["syncMeetings", "check"]))
+        self.assertEqual(len([l for l in out["logs"] if l.startswith("INFO Shared-drive search is off")]), 2)
 
     def test_disconnected_status_stops_before_sending(self):
         at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")

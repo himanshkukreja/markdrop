@@ -38,6 +38,10 @@ MAX_ITEMS_PAGE = 100
 NAV_PER_PLACE = 50
 # Listing rows never need a document's body.
 LIST_PROJECTION = {"content": 0}
+# Sub-pages that belong to their page and aren't items of their own (a meeting's Transcript,
+# services/meetings.py): left out of folder views, counts and public folder pages; still a child
+# of their page in the rail and on the page itself.
+NOT_HIDDEN = {"hidden_in_listings": {"$ne": True}}
 
 
 # ── Opaque handles for redacted rows ──────────────────────────────────────────
@@ -291,7 +295,7 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     ws = await ctx.workspace(workspace_id)
     folders = await folder_service.list_folders(db, workspace_id)
     paths = folder_service.paths_by_id(folders)
-    rows = await readable_rows(db, actor, ctx, workspace_id,
+    rows = await readable_rows(db, actor, ctx, workspace_id, NOT_HIDDEN,
                                projection={"folder_id": 1, "access_level": 1, "read_password_hash": 1,
                                            "owner_id": 1, "updated_at": 1})
     direct, total, root = counts(rows, folders)
@@ -329,6 +333,7 @@ async def tree(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
                 "people": people(f.id),
                 "people_count": len(activity[f.id]["owners"]),
                 **({"meetings": True} if f.meetings else {}),
+                **({"meetings_sub": True} if f.meetings_sub else {}),
             }
             for f in ordered
         ],
@@ -412,7 +417,7 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
                 cursor: str | None = None, limit: int = 50) -> dict:
     limit = max(1, min(MAX_ITEMS_PAGE, int(limit or 50)))
     rf = await access.readable_filter(actor, workspace_id, ctx)
-    extra: list[dict | None] = [kind_clause(kind), search_filter(q), decode_cursor(cursor)]
+    extra: list[dict | None] = [kind_clause(kind), search_filter(q), decode_cursor(cursor), NOT_HIDDEN]
     if folder in ("root", "unfiled"):
         extra.append({"folder_id": None})
     elif folder and folder != "all":
@@ -488,7 +493,7 @@ async def folder_listing(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
     folders = await folder_service.list_folders(db, workspace_id)
     # Counts need only the folder of each readable row; full rows are fetched
     # for the one folder being shown.
-    rows = await readable_rows(db, actor, ctx, workspace_id, projection={"folder_id": 1})
+    rows = await readable_rows(db, actor, ctx, workspace_id, NOT_HIDDEN, projection={"folder_id": 1})
     _direct, total, _root = counts(rows, folders)
     paths = folder_service.paths_by_id(folders)
     in_scope = set(folder_service.subtree_ids(folders, root_id)) if root_id else None
@@ -505,7 +510,7 @@ async def folder_listing(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
     subs.sort(key=lambda f: f.name.lower())
     hosts = urls.HostCache(db)
     rf = await access.readable_filter(actor, workspace_id, ctx)
-    docs = await db["documents"].find(rf.query({"folder_id": folder_id or None})).sort(
+    docs = await db["documents"].find(rf.query({"folder_id": folder_id or None}, NOT_HIDDEN)).sort(
         "updated_at", -1).to_list(length=5000)
     documents = []
     for r in docs:

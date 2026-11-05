@@ -3419,6 +3419,10 @@ TOOLS += ANALYTICS_AI_TOOLS
 from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
 
 TOOLS += MEETING_TOOLS
+# Import past meetings in bulk: app/mcp/meeting_backfill_tools.py.
+from app.mcp.meeting_backfill_tools import BACKFILL_TOOLS  # noqa: E402
+
+TOOLS += BACKFILL_TOOLS
 
 # Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
 # answers with the first call's result instead of writing twice.
