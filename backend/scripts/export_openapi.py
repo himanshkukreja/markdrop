@@ -14,7 +14,8 @@ Each operation gains an `x-markdrop` object the schema can't express:
 
 - `auth`: "token" (a bearer token is required), "optional" (a token changes
   the result: ownership, private documents), "session" (only markdrop.in's
-  own sign-in works, not an API token) or "none".
+  own sign-in works, not an API token) or "none"; a route that checks its own
+  token says so in `openapi_extra={"x-markdrop": {"auth": "…"}}`.
 - `rateLimits`: the slowapi limits on the route, as written in the code
   (`"10/minute"`), per client IP. Production may configure some differently.
 """
@@ -69,13 +70,14 @@ def main() -> int:
         path_item = spec["paths"].get(route.path_format)
         if not path_item:
             continue
-        extra = {"auth": _auth(route.dependant)}
         limits = _limits(route.endpoint)
-        if limits:
-            extra["rateLimits"] = limits
         for method in route.methods:
             op = path_item.get(method.lower())
             if op is not None:
+                # A route that authenticates itself (no auth dependency) says how in openapi_extra.
+                extra = {"auth": (op.get("x-markdrop") or {}).get("auth") or _auth(route.dependant)}
+                if limits:
+                    extra["rateLimits"] = limits
                 op["x-markdrop"] = extra
     json.dump(spec, sys.stdout, indent=2, sort_keys=False, ensure_ascii=False)
     sys.stdout.write("\n")

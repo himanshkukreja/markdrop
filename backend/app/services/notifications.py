@@ -40,6 +40,10 @@ email: ``email: "seen"``).
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Iterator
+
 import hashlib
 import hmac
 import html
@@ -360,9 +364,30 @@ async def _excerpt_for(db: AsyncIOMotorDatabase, user_id: str, page: dict, line:
     return _plain(line) or None
 
 
+_quiet: ContextVar[bool] = ContextVar("notifications_quiet", default=False)
+
+
+@contextmanager
+def quiet() -> Iterator[None]:
+    """Writes inside this (and tasks spawned from it) notify nobody: history being imported (a past
+    meeting's @mentions stay links; services/meetings.py ``notify=False``)."""
+    token = _quiet.set(True)
+    try:
+        yield
+    finally:
+        _quiet.reset(token)
+
+
+def is_quiet() -> bool:
+    return _quiet.get()
+
+
 async def on_page_saved(db: AsyncIOMotorDatabase, before: dict | None, after: dict | None, actor: Any) -> int:
     """After a write of a page: notify each person newly mentioned (or newly
-    named on a sign-off block). Returns how many were notified. Never raises."""
+    named on a sign-off block). Returns how many were notified. Never raises.
+    Nobody is notified inside :func:`quiet`."""
+    if _quiet.get():
+        return 0
     try:
         if not after or after.get("encrypted") or after.get("kind") == "artifact" \
                 or after.get("editor") != "blocks":
