@@ -149,6 +149,7 @@ await step("markdrop", async () => {
   await w.p.goto(url, { waitUntil: "networkidle" });
   const banner = w.p.locator(".pb-banner").filter({ hasText: "Ben Member" });
   await banner.waitFor({ timeout: 20000 });
+  await banner.filter({ hasText: "unsaved changes" }).waitFor({ timeout: 20000 });
   log("admin sees:", (await banner.innerText()).replace(/\s+/g, " "));
   const editAnyway = w.p.getByRole("button", { name: "Edit anyway" });
   await editAnyway.waitFor({ timeout: 20000 });

@@ -278,6 +278,18 @@ export function usePageEditSession({
     lastActive.current = Date.now();
   }, []);
 
+  /** Nothing unsaved here: show the page's newest version if someone wrote one meanwhile. */
+  const catchUp = useCallback(async () => {
+    if (dirty.current || saving.current) return;
+    try {
+      const latest = await fetchLatest();
+      if (dirty.current || saving.current) return;
+      if (typeof latest.rev === "number" && (baseRev.current === null || latest.rev > baseRev.current)) adopt(latest);
+    } catch {
+      /* the next live change or save brings it */
+    }
+  }, [fetchLatest, adopt]);
+
   /**
    * The lock went to someone else, or was taken over. Taken over with text not saved yet: that text
    * is kept as a version in the page's history first (never dropped), then the page shows theirs.
@@ -309,19 +321,25 @@ export function usePageEditSession({
       setLock({ kind: "idle" });
       if (takenBy) setNotice({ by: takenBy, kept });
     }
-  }, [slug, secret, adopt, fetchLatest, setLock]);
+    // Their change may have landed while this editor still thought the lock was its own.
+    void catchUp();
+  }, [slug, secret, adopt, fetchLatest, setLock, catchUp]);
 
-  /** Nothing unsaved here: show the page's newest version if someone wrote one meanwhile. */
-  const catchUp = useCallback(async () => {
-    if (dirty.current || saving.current) return;
+  /**
+   * Who's viewing says someone else is editing (before this editor asked for the lock): ask the
+   * server how idle they are, whether they have unsaved changes and whether we may take over. It
+   * takes nothing; from then on the page follows the "theirs" poll.
+   */
+  const probe = useCallback(async () => {
+    if (lockRef.current.kind !== "idle") return;
     try {
-      const latest = await fetchLatest();
-      if (dirty.current || saving.current) return;
-      if (typeof latest.rev === "number" && (baseRev.current === null || latest.rev > baseRev.current)) adopt(latest);
+      const st = await lockStatus(slug, secret);
+      applyTimers(st.timers);
+      if (st.holder && !st.mine && lockRef.current.kind === "idle") setLock({ kind: "theirs", name: st.holder.name, facts: lockFacts(st) });
     } catch {
-      /* the next live change or save brings it */
+      /* who's viewing still says so */
     }
-  }, [fetchLatest, adopt]);
+  }, [slug, secret, setLock]);
 
   /** Renew the lock (`intent=heartbeat`): never takes back one that lapsed or was taken over. */
   const beat = useCallback(async () => {
@@ -633,7 +651,7 @@ export function usePageEditSession({
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, takeOver, notice, dismissNotice };
+  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, takeOver, notice, dismissNotice, probe };
 }
 
 /** The cover `latest` added when that is all that differs from `base` (else null). */
