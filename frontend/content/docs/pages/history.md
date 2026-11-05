@@ -1,9 +1,9 @@
 ---
 title: Version history
 description: Every page keeps its earlier versions. See what changed, and bring any version back. A restore can be undone.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [version history, versions, history, restore, undo, revert, roll back, changes, diff, compare, earlier version, ai edits, mcp]
+keywords: [version history, unsaved changes, kept, take over, versions, history, restore, undo, revert, roll back, changes, diff, compare, earlier version, ai edits, mcp]
 ---
 
 Markdrop keeps earlier versions of every page as it's edited. Open them from the page's **⋯** menu › **Version history**.
@@ -13,6 +13,7 @@ Markdrop keeps earlier versions of every page as it's edited. Open them from the
 - **While you edit:** one version per 10 minutes of editing, and one when you leave the page or close it.
 - **Before and after an AI edit:** every change an AI app makes through [MCP](/ai/tools#pages) is its own version, labelled with the app's name, and the page as it was just before is kept too.
 - **When you restore a version** (below).
+- **When someone takes over editing from you:** what you hadn't saved yet is kept as its own version, labelled **Your name's unsaved changes, kept when … took over editing**. The page itself doesn't change: open the version to copy from it or restore it. See [Editing together](/pages/editing-together#edit-anyway).
 
 You don't need to save anything yourself. A page that was last changed outside the editor (from [VS Code](/vscode/sync), say) gets that state saved as **Earlier version** the next time it changes.
 

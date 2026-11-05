@@ -21,6 +21,7 @@ from app.schemas.document import (
     EditorSwitchRequest,
     EmbedsRequest,
     EventRequest,
+    LockKeepRequest,
     ParentMoveRequest,
     ReportRequest,
     SlugChangeRequest,
@@ -605,15 +606,64 @@ async def resolve_page_embeds(
 async def take_page_lock(
     request: Request,
     slug: str,
+    intent: Literal["edit", "heartbeat"] | None = Query(None),
+    edited: bool = Query(False),
+    hidden: bool | None = Query(None),
+    dirty: bool | None = Query(None),
+    take_over: bool = Query(False),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Take (or renew) the page's edit lock: ``{holder: {name}, expires_at}``,
-    two minutes past the last call (the editor sends one every 30 s). 423
-    ``{code: "locked", holder: {name}}`` while someone else holds it."""
+    """Take, renew or take over the page's edit lock (services/pages.acquire_lock).
+
+    The block editor takes it with its first real change (``intent=edit``) and renews it every
+    30 s (``intent=heartbeat`` with ``edited``: it changed something since, ``hidden``: its tab is
+    hidden, ``dirty``: it has unsaved changes). It holds until 2 minutes after the last heartbeat,
+    2 minutes after the last change or 60 seconds after the tab was hidden, whichever is first.
+    Answers ``{holder: {name}, expires_at, mine: true, rev, timers}``; a heartbeat for a lock that
+    lapsed or was taken over answers ``{mine: false, released: true, reason}`` (it never takes it
+    back). 423 ``{code: "locked", holder, idle_s, dirty, releases_in_s, can_take_over, …}`` while
+    someone else holds it. ``take_over=true``: the page's owner or a workspace admin takes it (403
+    ``take_over_forbidden`` for anyone else); the other editor is told and keeps its unsaved text."""
     actor = access.actor_from_request(request, user)
     raw = await db["documents"].find_one({"slug": slug})
-    return await pages.acquire_lock(db, raw, actor, _ctx(db, request))
+    return await pages.acquire_lock(db, raw, actor, _ctx(db, request), intent=intent, edited=edited,
+                                    hidden=hidden, dirty=dirty, take_over=take_over)
+
+
+@router.get("/{slug}/lock")
+@limiter.limit(settings.rate_limit_read)
+async def page_lock_status(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Who holds the page's edit lock, without taking it (can(edit_content)): ``{holder: null}``
+    when it's free, else the holder, ``idle_s``, ``dirty``, ``releases_in_s``, ``mine`` and
+    ``can_take_over``; ``taken_over`` when the caller's own lock was taken in the last hour."""
+    actor = access.actor_from_request(request, user)
+    raw = await db["documents"].find_one({"slug": slug})
+    return await pages.lock_status(db, raw, actor, _ctx(db, request))
+
+
+@router.post("/{slug}/lock/keep")
+@limiter.limit(settings.rate_limit_edit)
+async def keep_unsaved_page_text(
+    request: Request,
+    slug: str,
+    data: LockKeepRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Keep an editor's unsaved text that it can't save (its lock was taken over, or someone else
+    holds the page now) as a version in the page's history, labelled as such. The page itself is
+    unchanged. ``{version, kept}`` (``kept: false`` when the text is already the page or its newest
+    version)."""
+    actor = access.actor_from_request(request, user)
+    raw = await db["documents"].find_one({"slug": slug})
+    return await pages.keep_unsaved(db, raw, actor, _ctx(db, request), title=data.title,
+                                    content=data.content, reason=data.reason)
 
 
 @router.delete("/{slug}/lock", status_code=204)

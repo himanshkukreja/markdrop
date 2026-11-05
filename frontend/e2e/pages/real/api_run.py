@@ -21,6 +21,11 @@ mod.settings.page_revalidate_enabled = True
 # The workspace domain used in the E2E is acme.localhost (WebKit can't map a real host name to
 # 127.0.0.1); the domain service refuses *.localhost as reserved, so its origin is allowed statically.
 mod.settings.cors_origins.append(f"http://acme.localhost:{NEXT_PORT}")
+# Short page edit-lock timers for editlock.mjs (services/pages.py: idle, hidden, heartbeat TTL; the
+# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S.
+for _k in ("idle", "hidden", "ttl"):
+    if os.environ.get(f"PB_LOCK_{_k.upper()}_S"):
+        setattr(mod.settings, f"page_lock_{_k}_s", float(os.environ[f"PB_LOCK_{_k.upper()}_S"]))
 
 
 async def _post(payload: dict) -> int:

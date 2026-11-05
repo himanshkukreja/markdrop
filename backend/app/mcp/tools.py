@@ -100,6 +100,27 @@ class ToolError(Exception):
         self.data = data
 
 
+# The fields of a refusal worth giving an AI app as structuredContent (the edit lock: who holds the
+# page, how long they've been idle, unsaved changes, when it releases, whether it may take over).
+_ERROR_FIELDS = ("code", "holder", "idle_s", "idle_text", "dirty", "hidden", "releases_in_s", "releases_at",
+                 "releases_text", "can_take_over", "retryable")
+
+
+def error_fields(exc: BaseException) -> dict | None:
+    """``{"error": code, ...}`` from the API error a ToolError was raised over (its
+    ``__cause__``/``__context__``) when that error carries a lock refusal; else None."""
+    seen = 0
+    cur: BaseException | None = exc
+    while cur is not None and seen < 5:
+        body = getattr(cur, "body", None)
+        if isinstance(body, dict) and body.get("code") in ("locked", "take_over_forbidden"):
+            out = {k: body[k] for k in _ERROR_FIELDS if k in body}
+            return {"error": body["code"], "message": str(exc), **out}
+        cur = cur.__cause__ or cur.__context__
+        seen += 1
+    return None
+
+
 @dataclass
 class Context:
     db: AsyncIOMotorDatabase
@@ -2296,6 +2317,13 @@ _DOC_REF = {
     "description": ("The document's slug (e.g. 'q3-report') or its link: https://markdrop.in/q3-report, "
                     "or its address on a workspace's custom domain (https://docs.acme.com/guides/q3-report)."),
 }
+TAKE_OVER_ARG = {
+    "type": "boolean", "default": False,
+    "description": ("Someone has the page open in the editor and the write was refused (error 'locked'): "
+                    "take it from them and write anyway. Only for the page's owner or a workspace admin; "
+                    "their editor is told and keeps its unsaved changes in the page's version history. "
+                    "Ask the user before using it."),
+}
 _ACCESS_OUT = {"type": "string", "enum": ["link", "private", "password", "workspace"]}
 _URL_PROPS = {
     "url": {"type": "string", "description": "Canonical link: the workspace's own domain when the "
@@ -2498,6 +2526,7 @@ TOOLS: list[Tool] = [
                 "base_rev": {"type": "integer", "minimum": 1,
                              "description": "The rev get_document returned. Recommended: the update is refused "
                                             "if the document changed since (no silent overwrite)."},
+                "take_over": TAKE_OVER_ARG,
             },
             "required": ["document", "content"],
         },

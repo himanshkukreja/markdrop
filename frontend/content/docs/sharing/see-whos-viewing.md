@@ -45,7 +45,7 @@ Markdrop decides who appears by name on its servers, from the document's access 
 
 ## Who's editing a page
 
-On a [page](/pages/overview), the person who's editing it gets the pencil, and the page's bar says **Riya is editing**. People with access to the page see who it is by name. Anyone else, whether anonymous or signed in without access, sees an anonymous animal with the pencil, such as **Anonymous Fox is editing**, and never the editor's name. If the editor turned on **Show me as anonymous**, everyone sees an animal. When they stop editing, the pencil goes, for everyone at once. Over MCP, `get_viewers` marks the editor the same way.
+On a [page](/pages/overview), the person who's editing it gets the pencil, and the page's bar says **Riya is editing**. People with access to the page see who it is by name. Anyone else, whether anonymous or signed in without access, sees an anonymous animal with the pencil, such as **Anonymous Fox is editing**, and never the editor's name. If the editor turned on **Show me as anonymous**, everyone sees an animal. When they stop editing, the pencil goes, for everyone at once: that's when they leave, and also 2 minutes after their last change or 60 seconds after their tab went to the background, so someone who's away is never shown as editing for long. See [Editing together](/pages/editing-together). Over MCP, `get_viewers` marks the editor the same way.
 
 ## Show me as anonymous
 

@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "edit-lock-idle",
+      "date": "2026-11-05",
+      "title": "An open page you've left alone no longer blocks anyone",
+      "kind": "fixed",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A page counts as being edited only while someone is actually editing it: from their first change until 2 minutes without one, or 60 seconds with their tab in the background. The page's owner and workspace admins can take over with Edit anyway, and nothing the other person typed is lost.",
+      "body": "- **Opening a page takes nothing.** Clicking into a page, scrolling or selecting text no longer marks you as editing. Only a real change does, so a tab left open on a page never blocks your teammates or their AI apps.\n- **Idle and away release it.** 2 minutes without a change, or 60 seconds with the tab in the background, and the page is free for others. What you typed is saved first, and your next change makes it yours again. The pencil in who's viewing goes at the same moment.\n- **Edit anyway.** The page's owner and workspace admins can take a page from whoever is editing it. The other person's editor says who took over, and anything they hadn't saved is kept as a version in the page's history.\n- **Clearer refusals.** \"Venkat is editing this page (idle for 1 min, unsaved changes). It releases in about 1 min.\" The same facts come as fields over the API (`idle_s`, `dirty`, `releases_in_s`, `can_take_over`) and MCP.\n- **AI apps can take over too.** `update_page`, `replace_section`, `insert_embed`, `set_page_properties`, `set_slug`, `restore_page_version`, `summarize_page` and `update_document` take `take_over: true` for the page's owner or a workspace admin. `get_page` says how idle the person editing is.",
+      "docs": [
+        "/pages/editing-together",
+        "/ai/tools#pages",
+        "/pages/history"
+      ]
+    },
+    {
       "id": "meetings-drive-links-organizer",
       "date": "2026-11-05",
       "title": "Import a meeting from a Google Drive link; Organizer is who ran the call; 1:1s stay private",

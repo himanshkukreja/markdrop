@@ -17,6 +17,7 @@ from fastapi import HTTPException
 from app.mcp.auth import WRITE
 from app.mcp.tools import (
     _DOC_REF,
+    TAKE_OVER_ARG,
     SLUG_ARG,
     _URL_PROPS,
     Context,
@@ -64,12 +65,14 @@ SLUG_TOOLS: list[Tool] = [
                      "one on markdrop.in and on the workspace's domain; embeds and mentions of the old slug "
                      "keep working too. Slugs: 3-50 letters, digits, - or _. A slug another document has (or "
                      "had), or that was deleted less than 30 days ago, is refused with an error naming it. "
-                     "Refused while someone has the page open in the editor. Always give the user the new url."),
+                     "Refused while someone is editing the page (take_over: true for its owner or a workspace "
+                     "admin). Always give the user the new url."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": {**_DOC_REF, "description": "The page or document (slug, old slug or link)."},
             "slug": {**SLUG_ARG, "description": "The new slug."},
+            "take_over": TAKE_OVER_ARG,
         }, "required": ["document", "slug"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"},
                             "previous_slug": {"type": ["string", "null"]},

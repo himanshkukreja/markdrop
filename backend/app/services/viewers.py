@@ -150,6 +150,7 @@ class Room:
     titles_at: float = 0.0
     flush_handle: asyncio.TimerHandle | None = None
     last_flush: float = 0.0
+    editor_seen: str | None = None                   # the lock holder the sweeper last saw
 
 
 _rooms: dict[str, Room] = {}
@@ -506,6 +507,7 @@ async def handle(db, slug: str, raw: dict | None, conn: Conn, text: str) -> str 
         v = msg.get("v")
         if v in _STATES and v != conn.state:
             conn.state, changed = v, True
+            await _editor_away(db, r, conn)
     elif kind == "sec":
         if r.enabled:
             ok, sec = await _section(db, r, msg.get("sec"))
@@ -521,6 +523,22 @@ async def handle(db, slug: str, raw: dict | None, conn: Conn, text: str) -> str 
     if changed and conn.present:
         _schedule(r)
     return None
+
+
+async def _editor_away(db, r: Room, conn: Conn) -> None:
+    """The lock holder's tabs on the page all went hidden (or one came back): the page's edit lock
+    lets go after its hidden time (services/pages.presence_away), whatever their editor says."""
+    if not conn.user_id or editor_of(r.slug) != conn.user_id:
+        return
+    from app.services import pages
+
+    away = all(c.state == "away" for c in r.conns.values() if c.joined and c.user_id == conn.user_id)
+    await pages.presence_away(db, r.slug, conn.user_id, away)
+    if away:
+        hit = _editors.get(r.slug)
+        hidden_s = float(pages.lock_timers()["hidden_s"])
+        if hit is not None and hit[1] - _now() > hidden_s:
+            _editors[r.slug] = (hit[0], _now() + hidden_s)
 
 
 async def _hello(db, slug: str, raw: dict, conn: Conn, msg: dict, now: float) -> None:
@@ -650,10 +668,12 @@ def editor_of(slug: str | None) -> str | None:
 
 def sweep(now: float | None = None) -> None:
     """Drop tabs that stopped pinging (their sockets stay open: a later ping
-    lists them again)."""
+    lists them again), and tell the room when its editor's lock lapsed."""
     now = _now() if now is None else now
     for r in list(_rooms.values()):
-        changed = False
+        editor = editor_of(r.slug)
+        changed = editor != r.editor_seen
+        r.editor_seen = editor
         for c in r.conns.values():
             limit = AWAY_TIMEOUT_S if c.state == "away" else TIMEOUT_S
             if c.present and now - c.last > limit:

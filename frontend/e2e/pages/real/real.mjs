@@ -537,11 +537,18 @@ await step("lock-mcp", async () => {
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.waitForTimeout(1500);
-  // Opening takes nothing: the first click takes the lock.
+  // Opening takes nothing, and neither does a click: the first change takes the lock.
   if ((await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin)).status !== 200) fail("opening the editor took the lock");
   await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   await p.locator(".pb-live .ProseMirror p").first().click();
   await p.waitForTimeout(1500);
+  if ((await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin)).body?.holder) fail("a click took the lock");
+  // A change (typed, then taken back once the editor has seen it) takes it.
+  await p.keyboard.type("x");
+  await p.waitForTimeout(1200);
+  await p.keyboard.press("Backspace");
+  await p.waitForTimeout(1500);
+  if ((await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin)).body?.holder?.name !== "Ada Owner") fail("a change didn't take the lock");
   // A second editor (Ben, a member) is told "Ada Owner is editing" (now, or on his first click) and stays read only.
   const b = await ctx(browser, { token: T.member });
   await b.p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });

@@ -14,6 +14,7 @@ from fastapi import HTTPException
 from app.mcp.auth import READ, WRITE
 from app.mcp.tools import (
     _DOC_REF,
+    TAKE_OVER_ARG,
     _NULLABLE_STR,
     _URL_PROPS,
     ENCRYPTED_READ,
@@ -133,7 +134,8 @@ HISTORY_TOOLS: list[Tool] = [
         title="Read a page version",
         description="One saved version of a page (see list_page_versions): its Markdown, when and who.",
         scope=READ,
-        input_schema={"type": "object", "properties": {"document": _DOC_REF, "version": _VERSION},
+        input_schema={"type": "object", "properties": {"document": _DOC_REF, "version": _VERSION,
+                                                       "take_over": TAKE_OVER_ARG},
                       "required": ["document", "version"]},
         output_schema=_out({"slug": {"type": "string"}, "url": {"type": "string"}, "version": {"type": "integer"},
                             "ts": _NULLABLE_STR, "author": {"type": "object"}, "title": _NULLABLE_STR,
@@ -149,10 +151,12 @@ HISTORY_TOOLS: list[Tool] = [
         title="Restore a page version",
         description=("Make an earlier version of a page the page again. The page as it is now is kept in the "
                      "history first, so a restore can be undone by restoring that one. Refused while someone "
-                     "has the page open in the editor (try again in a minute). Confirm with the user first."),
+                     "is editing the page (error 'locked'; its owner or a workspace admin may pass take_over: "
+                     "true). Confirm with the user first."),
         scope=WRITE,
         writes=True,
-        input_schema={"type": "object", "properties": {"document": _DOC_REF, "version": _VERSION},
+        input_schema={"type": "object", "properties": {"document": _DOC_REF, "version": _VERSION,
+                                                       "take_over": TAKE_OVER_ARG},
                       "required": ["document", "version"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
                             "restored_from": {"type": "integer"}, "version": {"type": ["integer", "null"]}},

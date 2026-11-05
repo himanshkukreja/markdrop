@@ -25,11 +25,20 @@ image links die with it, and their live sockets get ``access``.
 
 One editor at a time
 --------------------
-``POST /documents/{slug}/lock`` holds the page for :data:`LOCK_TTL` past the
-last heartbeat (the editor sends one every 30 s). While someone holds it, a save
-from anyone else — and every MCP write except ``append_blocks`` — is a 423
-``{code: "locked", holder: {name}}``. The holder appears as ``editing`` in the
-page's presence list.
+``documents.edit_lock`` (``{user_id, name, at, edited_at, expires_at, hidden_since, dirty}``) is
+held only while someone is actually editing. The block editor takes it with its first real change
+(``POST /documents/{slug}/lock?intent=edit``; opening a page, clicking or moving the caret take
+nothing) and heartbeats it (``intent=heartbeat``, every 30 s, saying whether it changed anything,
+whether its tab is hidden and whether it has unsaved changes). It stops holding at the first of
+(:func:`_lapse`): ``page_lock_ttl_s`` after the last heartbeat (the tab went away), ``page_lock_idle_s``
+after the last change (idle) or ``page_lock_hidden_s`` after the tab was hidden (settings; 2 min, 2 min,
+60 s). A heartbeat never takes back a lock that lapsed; the next change does. While someone holds it,
+a save from anyone else — and every MCP write except ``append_blocks`` — is a 423 ``{code: "locked",
+holder: {name}, idle_s, dirty, releases_in_s, can_take_over, …}`` (:func:`locked_error`). The page's
+owner and its workspace's admins can take over (``?take_over=true``; MCP write tools'
+``take_over: true``): the holder's editor is told (live ``lock``) and keeps its unsaved text in the
+page's version history (``POST …/lock/keep``). The holder appears as ``editing`` in the page's
+presence list only while the lock holds.
 """
 
 from __future__ import annotations
@@ -37,6 +46,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from contextvars import ContextVar
 from typing import Any
 
 from bson import ObjectId
@@ -47,7 +57,7 @@ from app.services import access, live, publicity
 
 log = logging.getLogger(__name__)
 
-LOCK_TTL = timedelta(minutes=2)
+LOCK_TTL = timedelta(minutes=2)  # the default page_lock_ttl_s (see lock_timers)
 MAX_CHILDREN = 500
 MAX_EMBEDS = 100
 EXCERPT_CHARS = 300
@@ -306,19 +316,96 @@ async def _audience(db: AsyncIOMotorDatabase, doc: dict) -> tuple[tuple, str]:
 # ── Locks ─────────────────────────────────────────────────────────────────────
 
 
+def lock_timers() -> dict:
+    """How long a lock holds (settings ``page_lock_*``), sent to the editor with every lock answer
+    so its own timers follow the server's (tests shorten them)."""
+    from app.config import get_settings
+
+    st = get_settings()
+    ttl, idle, hidden = float(st.page_lock_ttl_s), float(st.page_lock_idle_s), float(st.page_lock_hidden_s)
+    return {"ttl_s": ttl, "idle_s": idle, "hidden_s": hidden,
+            "heartbeat_s": max(1.0, min(30.0, ttl / 4))}
+
+
+def _lapse(lock: dict) -> tuple[datetime | None, str]:
+    """When a lock record stops holding, and why: ``expired`` (no heartbeat for the TTL), ``idle``
+    (no change for the idle time) or ``hidden`` (its tab hidden that long)."""
+    t = lock_timers()
+    exp, why = aware(lock.get("expires_at")), "expired"
+    edited = aware(lock.get("edited_at"))
+    if edited is not None:
+        by_idle = edited + timedelta(seconds=t["idle_s"])
+        if exp is None or by_idle < exp:
+            exp, why = by_idle, "idle"
+    hidden = aware(lock.get("hidden_since"))
+    if hidden is not None:
+        by_hidden = hidden + timedelta(seconds=t["hidden_s"])
+        if exp is None or by_hidden < exp:
+            exp, why = by_hidden, "hidden"
+    return exp, why
+
+
 def lock_view(lock: dict | None) -> dict | None:
+    """The lock as it stands now, or None when nobody holds the page (no record, or it lapsed:
+    see :func:`_lapse`)."""
     if not isinstance(lock, dict):
         return None
-    exp = aware(lock.get("expires_at"))
+    exp, why = _lapse(lock)
     if exp is None or exp <= now_utc():
         return None
-    return {"user_id": lock.get("user_id"), "name": lock.get("name") or "Someone", "expires_at": exp}
+    return {"user_id": lock.get("user_id"), "name": lock.get("name") or "Someone", "expires_at": exp,
+            "lapse": why, "edited_at": aware(lock.get("edited_at")) or aware(lock.get("at")),
+            "hidden": aware(lock.get("hidden_since")) is not None, "dirty": bool(lock.get("dirty"))}
 
 
-def locked_error(lock: dict) -> PageError:
+def _ago(seconds: float) -> str:
+    s = max(0, int(round(seconds)))
+    if s < 60:
+        return f"{s} s"
+    m = int(round(s / 60))
+    if m < 60:
+        return f"{m} min"
+    h = s // 3600
+    return f"{h} h" if h < 24 else f"{h // 24} d"
+
+
+def lock_facts(lock: dict) -> dict:
+    """What a refusal says about a lock (``lock_view``'s shape): how long its holder has been
+    idle, whether they have unsaved changes, and when it releases by itself."""
+    now = now_utc()
+    edited = lock.get("edited_at")
+    idle_s = max(0, int((now - edited).total_seconds())) if edited else None
+    releases_in = max(0, int((lock["expires_at"] - now).total_seconds() + 0.999))
+    return {"idle_s": idle_s, "dirty": bool(lock.get("dirty")), "hidden": bool(lock.get("hidden")),
+            "releases_in_s": releases_in, "releases_at": iso(lock["expires_at"])}
+
+
+def locked_error(lock: dict, *, can_take_over: bool | None = None, mcp: bool = False,
+                 taken: dict | None = None) -> PageError:
+    """423 ``locked``: who holds the page, how long they've been idle, whether they have unsaved
+    changes, when it releases by itself and whether the caller may take over."""
     name = lock.get("name") or "Someone"
-    return PageError(423, {"detail": f"{name} is editing this page. Try again in a minute.",
-                           "code": "locked", "holder": {"name": name}, "retryable": True})
+    f = lock_facts(lock)
+    bits = []
+    if f["idle_s"] is not None:
+        bits.append("editing right now" if f["idle_s"] < 20 else f"idle for {_ago(f['idle_s'])}")
+    if f["hidden"]:
+        bits.append("tab in the background")
+    bits.append("unsaved changes" if f["dirty"] else "no unsaved changes")
+    text = f"{name} is editing this page ({', '.join(bits)}). It releases in about {_ago(f['releases_in_s'])}"
+    text += " unless they keep editing." if f["idle_s"] is not None and f["idle_s"] < 20 else "."
+    if can_take_over:
+        text += (" You can take over: call the tool again with take_over: true (their unsaved changes are "
+                 "kept in the page's version history)." if mcp else
+                 " As the page's owner or a workspace admin you can take over (Edit anyway).")
+    elif can_take_over is False:
+        text += " Try again then, or ask its owner or a workspace admin to take over."
+    body = {"detail": text, "code": "locked", "holder": {"name": name}, "retryable": True, **f,
+            "idle_text": None if f["idle_s"] is None else _ago(f["idle_s"]),
+            "releases_text": _ago(f["releases_in_s"]), "can_take_over": can_take_over}
+    if taken:
+        body["taken_over"] = taken
+    return PageError(423, body)
 
 
 async def may_edit_locked(actor: access.Actor, raw: dict, ctx: access.Ctx) -> bool:
@@ -353,20 +440,130 @@ async def check_page_lock(raw: dict, actor: access.Actor, ctx: access.Ctx,
                           "code": "page_locked"})
 
 
-def check_write_lock(raw: dict, actor: access.Actor) -> None:
+# Set by an MCP write tool called with ``take_over: true`` (app/mcp/protocol.py): the write
+# takes the page from whoever holds it when the caller may (see :func:`check_write_lock`).
+TAKE_OVER: ContextVar[bool] = ContextVar("page_take_over", default=False)
+
+
+async def may_take_over(actor: access.Actor, raw: dict, ctx: access.Ctx | None) -> bool:
+    """The page's owner (or its edit secret) and its workspace's admins and owners."""
+    if ctx is None:
+        return False
+    try:
+        return await may_edit_locked(actor, raw, ctx)
+    except HTTPException:
+        return False
+
+
+async def _take_from(db: AsyncIOMotorDatabase, raw: dict, held: dict, actor: access.Actor,
+                     new_lock: dict | None, *, via: str) -> bool:
+    """Replace ``held`` (someone else's lock) with ``new_lock`` (None: nobody, for an MCP write),
+    remembering whose it was so their editor can say so and keep their unsaved text. False when
+    the lock changed in between."""
+    from app.services import viewers
+
+    taken = {"from_user_id": held["user_id"], "from_name": held["name"], "by_user_id": actor.user_id,
+             "by_name": viewers.display_name(actor.user) if actor.user is not None else "Someone",
+             "at": now_utc(), "via": via, "dirty": bool(held.get("dirty"))}
+    res = await db["documents"].update_one(
+        {"_id": raw["_id"], "edit_lock.user_id": held["user_id"]},
+        {"$set": {"edit_lock": new_lock, "edit_lock_taken": taken}})
+    if not res.modified_count:
+        return False
+    if new_lock is None:
+        viewers.set_editor(raw.get("slug"), None, 0)
+    # No names on the socket (readers listen too): the editors ask the API what happened.
+    live.notify(raw.get("slug"), {"type": "lock", "taken_over": True})
+    log.info("page lock taken over (%s)", via)
+    return True
+
+
+def _taken_for(raw: dict, user_id: str | None) -> dict | None:
+    """The take-over that took ``user_id``'s lock (in the last hour), for their editor."""
+    t = raw.get("edit_lock_taken")
+    if not isinstance(t, dict) or not user_id or t.get("from_user_id") != user_id:
+        return None
+    at = aware(t.get("at"))
+    if at is None or at < now_utc() - timedelta(hours=1):
+        return None
+    return {"by": t.get("by_name") or "Someone", "at": iso(at), "via": t.get("via")}
+
+
+async def check_write_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
+                           ctx: access.Ctx | None = None) -> None:
     """423 when someone holds the page and this write isn't theirs. An MCP
     write is refused whenever anyone holds it (its own user's open editor
-    would overwrite it on the next autosave); ``append_blocks`` never asks."""
+    would overwrite it on the next autosave); ``append_blocks`` never asks.
+    An MCP write with ``take_over`` (:data:`TAKE_OVER`) by someone who may
+    (:func:`may_take_over`) clears the lock first and goes ahead."""
     lock = lock_view(raw.get("edit_lock"))
     if lock is None:
         return
-    if actor.cred != "mcp" and actor.user_id and lock["user_id"] == actor.user_id:
+    mcp = actor.cred == "mcp"
+    if not mcp and actor.user_id and lock["user_id"] == actor.user_id:
         return
-    raise locked_error(lock)
+    allowed = await may_take_over(actor, raw, ctx) if ctx is not None else None
+    if mcp and TAKE_OVER.get() and allowed:
+        if await _take_from(db, raw, lock, actor, None, via="mcp"):
+            raw["edit_lock"] = None
+            return
+        fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"edit_lock": 1})
+        return await check_write_lock(db, {**raw, "edit_lock": (fresh or {}).get("edit_lock")}, actor, ctx)
+    if mcp and TAKE_OVER.get() and allowed is False:
+        raise PageError(403, {"detail": f"{lock['name']} is editing this page, and only the page's owner or a "
+                                        "workspace admin can take over. " + locked_error(lock).body["detail"],
+                              "code": "take_over_forbidden", "holder": {"name": lock["name"]},
+                              **lock_facts(lock), "can_take_over": False})
+    raise locked_error(lock, can_take_over=allowed, mcp=mcp)
 
 
-async def acquire_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> dict:
-    """Take or renew the page's edit lock (can(edit_content), signed in)."""
+async def touch_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor) -> None:
+    """A save by the lock's holder: that's an edit (the idle clock restarts) and nothing is
+    unsaved any more."""
+    if actor.cred == "mcp" or not actor.user_id:
+        return
+    lock = lock_view(raw.get("edit_lock"))
+    if lock is None or lock["user_id"] != actor.user_id:
+        return
+    now = now_utc()
+    await db["documents"].update_one(
+        {"_id": raw["_id"], "edit_lock.user_id": actor.user_id},
+        {"$set": {"edit_lock.edited_at": now, "edit_lock.dirty": False,
+                  "edit_lock.expires_at": now + timedelta(seconds=lock_timers()["ttl_s"])}})
+
+
+def _free_filter(user_id: str | None, now: datetime) -> dict:
+    """The lock is free for ``user_id`` (nobody's, lapsed, or theirs)."""
+    t = lock_timers()
+    return {"$or": [{"edit_lock": None}, {"edit_lock": {"$exists": False}},
+                    {"edit_lock.expires_at": {"$lte": now}},
+                    {"edit_lock.edited_at": {"$lte": now - timedelta(seconds=t["idle_s"])}},
+                    {"edit_lock.hidden_since": {"$lte": now - timedelta(seconds=t["hidden_s"])}},
+                    {"edit_lock.user_id": user_id}]}
+
+
+def _answer(lock: dict, raw: dict, **extra) -> dict:
+    exp, _why = _lapse(lock)
+    return {"holder": {"name": lock.get("name") or "Someone"}, "expires_at": iso(exp), "mine": True,
+            "rev": int(raw.get("rev") or 1), "timers": lock_timers(), **extra}
+
+
+async def acquire_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx, *,
+                       intent: str | None = None, edited: bool = False, hidden: bool | None = None,
+                       dirty: bool | None = None, take_over: bool = False) -> dict:
+    """Take, renew or take over the page's edit lock (can(edit_content), signed in).
+
+    ``intent``:
+      * ``edit`` — the editor's first real change: take it (the idle clock starts now);
+      * ``heartbeat`` — renew one this editor holds. Never takes a lock it lost: the answer is
+        ``{mine: false, released: true, reason}`` when nobody holds it (``idle``, ``hidden``,
+        ``expired`` or ``taken_over``), a 423 when someone else does;
+      * None — editors from before idle release: take or renew (a heartbeat can't revive a lock
+        that lapsed while they were idle).
+    ``edited``: a change since the last heartbeat. ``hidden``: its tab is hidden now. ``dirty``: it
+    has changes the server doesn't. ``take_over``: the page's owner or a workspace admin takes it
+    from whoever holds it (:func:`may_take_over`); their editor is told, and keeps what it had.
+    """
     from app.services import viewers
 
     await access.require(actor, raw, "edit_content", ctx)
@@ -375,21 +572,144 @@ async def acquire_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
     if not is_page_capable(raw):
         raise HTTPException(status_code=422, detail="Only Markdown documents open in the block editor.")
     await check_page_lock(raw, actor, ctx)
-    now = now_utc()
-    name = viewers.display_name(actor.user)
-    lock = {"user_id": actor.user_id, "name": name, "expires_at": now + LOCK_TTL, "at": now}
-    after = await db["documents"].find_one_and_update(
-        {"_id": raw["_id"], "$or": [{"edit_lock": None}, {"edit_lock.expires_at": {"$lte": now}},
-                                    {"edit_lock.user_id": actor.user_id}]},
-        {"$set": {"edit_lock": lock}}, projection={"edit_lock": 1, "slug": 1}, return_document=True)
-    if after is None:
-        fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"edit_lock": 1})
-        held = lock_view((fresh or {}).get("edit_lock"))
-        if held is None:  # released in between: try once more
-            return await acquire_lock(db, {**raw, "edit_lock": None}, actor, ctx)
-        raise locked_error(held)
-    viewers.set_editor(raw.get("slug"), actor.user_id, LOCK_TTL.total_seconds())
-    return {"holder": {"name": name}, "expires_at": iso(lock["expires_at"]), "mine": True}
+    for _ in range(4):
+        fresh = await db["documents"].find_one({"_id": raw["_id"]}, {"edit_lock": 1, "edit_lock_taken": 1,
+                                                                    "rev": 1, "slug": 1})
+        if fresh is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        prev = fresh.get("edit_lock") if isinstance(fresh.get("edit_lock"), dict) else None
+        held = lock_view(prev)
+        mine = held is not None and held["user_id"] == actor.user_id
+        now = now_utc()
+        t = lock_timers()
+        name = viewers.display_name(actor.user)
+
+        if held is not None and not mine:
+            if not take_over:
+                raise locked_error(held, can_take_over=await may_take_over(actor, raw, ctx),
+                                   taken=_taken_for(fresh, actor.user_id))
+            if not await may_take_over(actor, raw, ctx):
+                raise PageError(403, {"detail": f"{held['name']} is editing this page. Only the page's owner or a "
+                                                "workspace admin can take over.",
+                                      "code": "take_over_forbidden", "holder": {"name": held["name"]},
+                                      **lock_facts(held), "can_take_over": False})
+            lock = {"user_id": actor.user_id, "name": name, "at": now, "edited_at": now,
+                    "expires_at": now + timedelta(seconds=t["ttl_s"]), "hidden_since": None,
+                    "dirty": bool(dirty)}
+            if not await _take_from(db, raw, held, actor, lock, via="app"):
+                continue
+            viewers.set_editor(raw.get("slug"), actor.user_id, t["idle_s"])
+            return _answer(lock, fresh, took_over={"from": held["name"], "dirty": bool(held.get("dirty"))})
+
+        if intent == "heartbeat" and not mine:
+            if held is None and viewers.editor_of(raw.get("slug")) == actor.user_id:
+                viewers.set_editor(raw.get("slug"), None, 0)  # lapsed: off the presence list now
+            taken = _taken_for(fresh, actor.user_id)
+            reason = "taken_over" if taken else (
+                _lapse(prev)[1] if prev is not None and prev.get("user_id") == actor.user_id else "expired")
+            return {"mine": False, "released": True, "reason": reason, "holder": None,
+                    "rev": int(fresh.get("rev") or 1), "timers": t, **({"taken_over": taken} if taken else {})}
+
+        if mine:
+            edited_at = now if (edited or intent == "edit") else (aware(prev.get("edited_at")) or aware(prev.get("at")))
+            if hidden is None:
+                hidden_since = aware(prev.get("hidden_since"))
+            else:
+                hidden_since = (aware(prev.get("hidden_since")) or now) if hidden else None
+            if intent == "edit":
+                hidden_since = None
+            lock = {**prev, "name": name, "expires_at": now + timedelta(seconds=t["ttl_s"]),
+                    "edited_at": edited_at, "hidden_since": hidden_since,
+                    "dirty": bool(prev.get("dirty")) if dirty is None else bool(dirty)}
+            cond = {"_id": raw["_id"], "edit_lock.user_id": actor.user_id}
+        else:
+            # Free. A legacy editor's renewal of a lock that lapsed while it sat idle stays lapsed
+            # (its idle and hidden clocks carry over): only a change takes the page again.
+            edited_at, hidden_since = now, None
+            if intent is None and prev is not None and prev.get("user_id") == actor.user_id \
+                    and _lapse(prev)[1] in ("idle", "hidden"):
+                edited_at, hidden_since = aware(prev.get("edited_at")) or now, aware(prev.get("hidden_since"))
+            lock = {"user_id": actor.user_id, "name": name, "at": now, "edited_at": edited_at,
+                    "expires_at": now + timedelta(seconds=t["ttl_s"]), "hidden_since": hidden_since,
+                    "dirty": bool(dirty)}
+            cond = {"_id": raw["_id"], **_free_filter(actor.user_id, now)}
+        sets: dict = {"edit_lock": lock}
+        if not mine and (fresh.get("edit_lock_taken") or {}).get("from_user_id") == actor.user_id:
+            sets["edit_lock_taken"] = None  # they're back: the take-over is behind them
+        res = await db["documents"].update_one(cond, {"$set": sets})
+        if not res.modified_count and not res.matched_count:
+            continue
+        view = lock_view(lock)
+        if view is None:  # a legacy renewal of a lapsed lock: nobody holds it
+            viewers.set_editor(raw.get("slug"), None, 0)
+            return {"mine": False, "released": True, "reason": _lapse(lock)[1], "holder": None,
+                    "rev": int(fresh.get("rev") or 1), "timers": t}
+        viewers.set_editor(raw.get("slug"), actor.user_id,
+                           max(0.0, (view["expires_at"] - now).total_seconds()))
+        return _answer(lock, fresh)
+    raise PageError(409, {"detail": "The page's lock kept changing. Try again.", "code": "lock_busy",
+                          "retryable": True})
+
+
+async def lock_status(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> dict:
+    """Who holds the page now (``GET …/lock``), without taking it: ``{holder: null}`` when it's
+    free, else the holder and :func:`lock_facts`, ``mine`` and whether the caller may take over."""
+    await access.require(actor, raw, "edit_content", ctx)
+    held = lock_view(raw.get("edit_lock"))
+    out: dict = {"holder": None, "mine": False, "rev": int(raw.get("rev") or 1), "timers": lock_timers()}
+    if held is not None:
+        out.update(holder={"name": held["name"]}, mine=held["user_id"] == actor.user_id, **lock_facts(held),
+                   can_take_over=held["user_id"] != actor.user_id and await may_take_over(actor, raw, ctx))
+    taken = _taken_for(raw, actor.user_id)
+    if taken:
+        out["taken_over"] = taken
+    return out
+
+
+async def keep_unsaved(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx, *,
+                       title: str | None, content: str, reason: str) -> dict:
+    """An editor's text it couldn't save (``POST …/lock/keep``): a version in the page's history
+    (services/page_history.py) saying whose it is and why, so taking over never loses anyone's
+    work. The page is unchanged."""
+    from app.config import get_settings
+    from app.services import page_history, viewers
+
+    await access.require(actor, raw, "edit_content", ctx)
+    if not actor.user_id:
+        raise HTTPException(status_code=401, detail="Sign in to edit this page.")
+    if not page_history.has_history(raw):
+        raise HTTPException(status_code=409, detail="This page has no version history.")
+    if len(content) > get_settings().max_content_chars:
+        raise HTTPException(status_code=413, detail="That text is longer than a page may be.")
+    title = raw.get("title") if title is None else (title or None)
+    taken = _taken_for(raw, actor.user_id)
+    who = viewers.display_name(actor.user)
+    text = {"taken_over": f"{who}'s unsaved changes, kept when {(taken or {}).get('by') or 'someone'} took over editing",
+            "lost": f"{who}'s unsaved changes, kept when someone else started editing",
+            "conflict": f"{who}'s unsaved changes, kept when the page changed under them"}.get(
+        reason, f"{who}'s unsaved changes")
+    kept = await page_history.keep(db, raw, actor, title=title, markdown=content, text=text, reason=reason)
+    return {"kept": kept is not None, "version": int(kept["n"]) if kept else None}
+
+
+async def presence_away(db: AsyncIOMotorDatabase, slug: str | None, user_id: str | None, away: bool) -> None:
+    """Who's viewing says the lock holder's tabs on the page are all hidden (or one is back): the
+    lock's hidden clock follows, for editors that don't say so themselves."""
+    if not slug or not user_id:
+        return
+    try:
+        if away:
+            await db["documents"].update_one(
+                {"slug": slug, "edit_lock.user_id": user_id, "edit_lock.hidden_since": None},
+                {"$set": {"edit_lock.hidden_since": now_utc()}})
+        else:
+            # Back within the hidden time: still theirs. Later than that it lapsed, and stays so.
+            since = now_utc() - timedelta(seconds=lock_timers()["hidden_s"])
+            await db["documents"].update_one(
+                {"slug": slug, "edit_lock.user_id": user_id, "edit_lock.hidden_since": {"$gt": since}},
+                {"$set": {"edit_lock.hidden_since": None}})
+    except Exception:  # pragma: no cover - presence never fails on the lock
+        log.warning("page lock: presence update failed", exc_info=True)
 
 
 async def release_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> None:

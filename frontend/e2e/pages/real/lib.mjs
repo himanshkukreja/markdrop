@@ -61,11 +61,20 @@ export async function api(method, p, token, body, headers = {}) {
 let rpcId = 0;
 /** MCP tools/call over the hosted endpoint → {status, isError, text, data}. */
 export async function mcp(token, name, args) {
-  const r = await fetch(`${API}/mcp`, {
+  const send = () => fetch(`${API}/mcp`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, Accept: "application/json, text/event-stream", "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method: "tools/call", params: { name, arguments: args } }),
   });
+  let r;
+  try {
+    r = await send();
+  } catch (e) {
+    // A kept-alive socket the server had just closed (ECONNRESET before any answer): the call never
+    // reached the API, so sending it again on a fresh one is safe.
+    if (e?.cause?.code !== "ECONNRESET") throw e;
+    r = await send();
+  }
   if (r.status !== 200) return { status: r.status, isError: true, text: await r.text() };
   const j = await r.json();
   const res = j.result ?? {};

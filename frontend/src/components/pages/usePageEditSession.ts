@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, getDocument } from "@/lib/api";
-import { lockHolder, lockPage, pagesErrorStatus, savePage, unlockPage, PagesApiError, type PageDocument } from "@/lib/pages";
+import { keepUnsaved, lockFacts, lockHolder, lockPage, lockStatus, pagesErrorStatus, savePage, unlockPage, PagesApiError, type LockFacts, type LockInfo, type LockTimers, type PageDocument } from "@/lib/pages";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
 import { readPageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
@@ -14,9 +14,11 @@ const pageLocked = (e: unknown) => e instanceof PagesApiError && e.info.code ===
 export const HEARTBEAT_MS = 30_000;
 /** Autosave this long after the last change. */
 export const AUTOSAVE_MS = 2000;
-/** Let go of the lock after this long without a key, a click or a change (someone else may edit). */
-export const IDLE_MS = 3 * 60_000;
-/** While someone else edits: ask for the lock this often. */
+/** Let go of the lock after this long without a change (someone else may edit). The server does too. */
+export const IDLE_MS = 2 * 60_000;
+/** Let go of the lock after the tab has been hidden this long. The server does too. */
+export const HIDDEN_MS = 60_000;
+/** While someone else edits: ask whether it's free this often (asking never takes it). */
 export const RETRY_MS = 15_000;
 
 export type SaveState =
@@ -33,8 +35,12 @@ export type LockState =
   | { kind: "idle" }
   | { kind: "acquiring" }
   | { kind: "mine" }
-  /** Someone else is editing: read only, following their changes live. `lost`: it was ours. */
-  | { kind: "theirs"; name: string | null; lost?: boolean }
+  /**
+   * Someone else is editing: read only, following their changes live. `lost`: it was ours.
+   * `takenBy`: they took it over (`kept`: the version in history holding what wasn't saved here).
+   * `facts`: how long they've been idle, unsaved changes, when it releases, whether we may take over.
+   */
+  | { kind: "theirs"; name: string | null; lost?: boolean; takenBy?: string | null; kept?: number | null; facts?: LockFacts | null }
   /** The API refused the lock for another reason (no edit rights any more, the page is locked). */
   | { kind: "readonly"; message: string };
 
@@ -55,12 +61,18 @@ const errStatus = (e: unknown): number => (e instanceof PagesApiError || e insta
  * One page open in the block editor (one editor at a time). A page is always editable for the
  * people who can edit it (no Edit / Done), so the edit lock follows what they do:
  *
- * - the first key, click or change (`activity`, `update`) takes the lock; it's heartbeated every
- *   30 s, let go of after 3 minutes without activity (what's pending is saved first) and on leave;
+ * - the first real change (`update`) takes the lock — opening, clicking, moving the caret or
+ *   selecting never do (`activity` only notes the person is here); it's heartbeated every 30 s
+ *   (saying whether anything changed, whether the tab is hidden, whether something is unsaved) and
+ *   let go of 2 minutes after the last change, 60 s after the tab was hidden, and on leave (what's
+ *   pending is saved first). The server lets it lapse on the same clocks, so a frozen or throttled
+ *   tab never holds a page; the next change takes it again;
+ * - the page's owner and workspace admins can take over (`takeOver`); the editor it was taken from
+ *   keeps its unsaved text as a version in the page's history (POST …/lock/keep) and says so;
  * - autosaves 2 s after the last change through PUT /documents/{slug} with `base_rev`;
  * - 423 (someone else holds the lock): read only, "X is editing", following their changes live;
- *   asks again every 15 s, and when it's free the page is editable again (keeping the lock only
- *   when this person was busy here);
+ *   asks whether it's free every 15 s (GET …/lock never takes it), and when it is the page is
+ *   editable again (taking the lock only when there is text of ours to save);
  * - 409 (a newer version): this editor's unsaved changes are merged onto it line by line
  *   (lib/pageMerge.mjs: an AI app's append_blocks, someone's edit to another paragraph) and the
  *   save retried; only when both changed the same lines: a banner with Keep both / Use theirs /
@@ -111,6 +123,8 @@ export function usePageEditSession({
     conflictRef.current = c;
     setConflictState(c);
   }, []);
+  /** Someone took this editor's lock over and nobody holds it now (an AI app's write): say so. */
+  const [notice, setNotice] = useState<{ by: string; kept: number | null } | null>(null);
 
   const lockRef = useRef<LockState>(lock);
   const setLock = useCallback((l: LockState) => {
@@ -124,9 +138,22 @@ export function usePageEditSession({
   const dirty = useRef(false);
   const saving = useRef(false);
   const timer = useRef<number | null>(null);
-  /** The last key, click or change here (for letting go of an idle lock). */
+  /** The last key, click or focus here (the person is here; it takes nothing). */
   const lastActive = useRef(0);
+  /** The last real change here (the idle clock: the lock goes 2 minutes after it). */
+  const lastEdit = useRef(0);
+  /** When the last heartbeat went (a change after it is reported as `edited`). */
+  const lastBeat = useRef(0);
+  /** The server's timings (lock answers carry them; tests shorten them). */
+  const timers = useRef({ heartbeat: HEARTBEAT_MS, idle: IDLE_MS, hidden: HIDDEN_MS });
+  const applyTimers = (t: LockTimers | undefined) => {
+    if (!t) return;
+    const ms = (v: unknown, d: number) => (typeof v === "number" && v > 0 ? v * 1000 : d);
+    timers.current = { heartbeat: ms(t.heartbeat_s, HEARTBEAT_MS), idle: ms(t.idle_s, IDLE_MS), hidden: ms(t.hidden_s, HIDDEN_MS) };
+  };
   const acquiring = useRef<Promise<boolean> | null>(null);
+  /** Taking the lock failed for want of a network (or a server error) with text to save: try again. */
+  const acquireRetry = useRef<number | null>(null);
   const cbs = useRef({ onSaved, onAppend, onRemote, onCover, onMoved });
   cbs.current = { onSaved, onAppend, onRemote, onCover, onMoved };
   /** Where this page is now: its slug, or the new one after a rename while open. */
@@ -275,7 +302,10 @@ export function usePageEditSession({
     setLock({ kind: "acquiring" });
     const p = (async () => {
       try {
-        await lockPage(slugRef.current, secret);
+        const r = await lockPage(slugRef.current, secret, { intent: "edit", dirty: dirty.current });
+        applyTimers(r.timers);
+        lastBeat.current = Date.now();
+        setNotice(null);
         setLock({ kind: "mine" });
         // What was typed while the lock was on its way saves now.
         if (dirty.current && !timer.current) timer.current = window.setTimeout(() => void doSave(), 300);
@@ -283,13 +313,20 @@ export function usePageEditSession({
       } catch (e) {
         const status = pagesErrorStatus(e);
         if (status === 423 && pageLocked(e)) setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
-        else if (status === 423) setLock({ kind: "theirs", name: lockHolder(e), lost: dirty.current || undefined });
+        else if (status === 423) setLock({ kind: "theirs", name: lockHolder(e), lost: dirty.current || undefined, facts: lockFacts(e) });
         else if (status === 403 || status === 401) setLock({ kind: "readonly", message: e instanceof Error ? e.message : "You can't edit this page." });
+        // Offline or a server error: stay editable, and ask again shortly while there's text to save
+        // (the first change may well have been made offline).
         else {
-          // Offline or a server error: stay editable; the next key or change asks again (and the
-          // network coming back does, below). 404: renamed, deleted or no longer readable.
           setLock({ kind: "idle" });
+          // 404: renamed, deleted or no longer readable.
           if (status === 404) void checkGone.current();
+          if (status !== 404 && dirty.current && acquireRetry.current === null) {
+            acquireRetry.current = window.setTimeout(() => {
+              acquireRetry.current = null;
+              if (lockRef.current.kind === "idle" && dirty.current) void acquireRef.current();
+            }, 5000);
+          }
         }
         return false;
       } finally {
@@ -299,6 +336,11 @@ export function usePageEditSession({
     acquiring.current = p;
     return p;
   }, [slug, secret, setLock, doSave]);
+  const acquireRef = useRef(acquire);
+  acquireRef.current = acquire;
+  useEffect(() => () => {
+    if (acquireRetry.current !== null) window.clearTimeout(acquireRetry.current);
+  }, []);
 
   /** Let go of the lock (after saving what's pending): the page stays editable. */
   const release = useCallback(async () => {
@@ -310,13 +352,134 @@ export function usePageEditSession({
     void unlockPage(slugRef.current, { secret }).catch(() => {});
   }, [slug, secret, doSave, setLock]);
 
-  /** A key, a click or a focus in the page: take the lock if we haven't. */
+  /**
+   * A key, a click or a focus in the page: the person is here. It takes nothing: only a real
+   * change (`update`) takes the lock, so a page opened and left alone blocks no one.
+   */
   const activity = useCallback(() => {
     lastActive.current = Date.now();
-    if (lockRef.current.kind === "idle") void acquire();
-  }, [acquire]);
+  }, []);
 
-  // Leave: save what's pending, then let go of the lock. (Opening takes nothing; activity does.)
+  /**
+   * Our text (`mine`, typed on top of `was`) goes on top of their newer version (`latest`, already
+   * adopted): merged line by line (lib/pageMerge). Where both changed the same lines theirs stays on
+   * the page and ours is kept in version history first — never dropped. Marks it to save.
+   */
+  const putMineOnTop = useCallback(async (was: { title: string; content: string }, mine: { title: string; content: string }, latest: PageDocument) => {
+    const theirs = { title: latest.title ?? "", content: latest.content ?? "" };
+    const m = merge3(was.content, mine.content, theirs.content);
+    let content = m.content;
+    if (!m.clean) {
+      try {
+        await keepUnsaved(slugRef.current, { title: mine.title, content: m.mineContent, base_rev: baseRev.current, reason: "conflict" }, secret);
+      } catch {
+        content = mine.content; /* couldn't keep it: our text stays as it was, and saves */
+      }
+    }
+    const title = mine.title !== was.title ? mine.title : theirs.title;
+    fields.current = { title, content };
+    cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
+  }, [slug, secret]);
+
+  /**
+   * The lock went to someone else, or was taken over. Taken over with text not saved yet: that text
+   * is kept as a version in the page's history first (never dropped), then the page shows theirs.
+   * When the lock is someone's now: read only, following them; when nobody's (an AI app's write
+   * took it): editable, with a notice.
+   */
+  const lose = useCallback(async (holder: string | null, takenBy: string | null, facts: LockFacts | null = null) => {
+    clearTimer();
+    let kept: number | null = null;
+    let keptAll = !dirty.current;
+    if (takenBy && dirty.current) {
+      const f = { ...fields.current };
+      try {
+        kept = (await keepUnsaved(slugRef.current, { title: f.title, content: f.content, base_rev: baseRev.current, reason: "taken_over" }, secret)).version;
+        keptAll = true;
+      } catch {
+        /* couldn't reach the server: the text stays on screen (and in this browser) */
+      }
+      if (keptAll) {
+        try {
+          adopt(await fetchLatest());
+        } catch {
+          /* the live socket brings theirs */
+        }
+      }
+    }
+    if (holder) setLock({ kind: "theirs", name: holder, lost: !keptAll || undefined, takenBy, kept, facts });
+    else {
+      setLock({ kind: "idle" });
+      if (takenBy) setNotice({ by: takenBy, kept });
+    }
+    // Their change may have landed while this editor still thought the lock was its own.
+    void catchUp.current();
+  }, [secret, adopt, fetchLatest, setLock]);
+
+  /**
+   * Who's viewing changed its mind about someone else editing: ask the server where the lock stands
+   * (it takes nothing). Someone holds it: read only, with how idle they are, whether they have
+   * unsaved changes and whether we may take over. Free while we were following someone: editable
+   * again at once (showing their newest version) instead of on the next 15 s poll.
+   */
+  const probe = useCallback(async () => {
+    const k = lockRef.current.kind;
+    if (k !== "idle" && k !== "theirs") return;
+    try {
+      const st = await lockStatus(slugRef.current, secret);
+      applyTimers(st.timers);
+      const now = lockRef.current;
+      if (st.holder && !st.mine) {
+        if (now.kind === "idle") setLock({ kind: "theirs", name: st.holder.name, facts: lockFacts(st) });
+        else if (now.kind === "theirs") setLock({ ...now, name: st.holder.name ?? now.name, facts: lockFacts(st) });
+      } else if (now.kind === "theirs" && !now.lost && !dirty.current) {
+        try {
+          adopt(await fetchLatest());
+        } catch {
+          /* the next change or live event brings it */
+        }
+        if (lockRef.current.kind === "theirs") setLock({ kind: "idle" });
+      }
+    } catch {
+      /* who's viewing still says so */
+    }
+  }, [secret, setLock, adopt, fetchLatest]);
+
+  /** Renew the lock (`intent=heartbeat`): never takes back one that lapsed or was taken over. */
+  const beat = useCallback(async () => {
+    if (lockRef.current.kind !== "mine") return;
+    const edited = lastEdit.current > lastBeat.current;
+    lastBeat.current = Date.now();
+    let r: LockInfo;
+    try {
+      r = await lockPage(slugRef.current, secret, { intent: "heartbeat", edited, hidden: document.visibilityState === "hidden", dirty: dirty.current || saving.current });
+    } catch (e) {
+      const status = pagesErrorStatus(e);
+      if (status === 423 && !pageLocked(e)) {
+        const f = lockFacts(e);
+        await lose(lockHolder(e), f?.takenOverBy ?? null, f);
+      } else if (status === 423) {
+        clearTimer();
+        setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
+      } else if (status === 401 || status === 403 || status === 404) {
+        // No edit rights any more, or renamed or deleted: checkGone says which (and follows a rename).
+        clearTimer();
+        void checkGone.current();
+      }
+      return;
+    }
+    applyTimers(r.timers);
+    if (r.mine !== false || lockRef.current.kind !== "mine") return;
+    if (r.reason === "taken_over") await lose(null, r.taken_over?.by ?? "Someone");
+    // Lapsed (idle, hidden, no heartbeat): nobody's now, and someone may have written since. The
+    // next change takes it again.
+    else if (!saving.current) {
+      setLock({ kind: "idle" });
+      void catchUp.current();
+    }
+  }, [secret, lose, setLock]);
+
+  // Leave: save what's pending, then let go of the lock. (Opening takes nothing; a change does.)
   useEffect(() => {
     return () => {
       clearTimer();
@@ -334,46 +497,102 @@ export function usePageEditSession({
     };
   }, [slug, secret]);
 
-  // Heartbeat while we hold it, or let it go when nobody's been busy here; someone took it over:
-  // stop editing (the text stays on screen).
+  // Heartbeat while we hold it, or let it go 2 minutes after the last change (what's pending is
+  // saved first). Someone took it over: `lose` (the text is kept).
   useEffect(() => {
     if (lock.kind !== "mine") return;
-    const id = window.setInterval(async () => {
-      if (Date.now() - lastActive.current > IDLE_MS && !saving.current) {
+    if (!lastEdit.current) lastEdit.current = Date.now();
+    const id = window.setInterval(() => {
+      if (Date.now() - lastEdit.current > timers.current.idle && !saving.current) {
         void release();
         return;
       }
-      try {
-        await lockPage(slugRef.current, secret);
-      } catch (e) {
-        if (pagesErrorStatus(e) === 423) {
-          clearTimer();
-          setLock({ kind: "theirs", name: lockHolder(e), lost: true });
-        }
-      }
-    }, HEARTBEAT_MS);
+      void beat();
+    }, timers.current.heartbeat);
     return () => window.clearInterval(id);
-  }, [slug, secret, lock.kind, setLock, release]);
+  }, [lock.kind, release, beat]);
+
+  // The tab hidden: save what's pending and say so (the server lets the lock go 60 s later); still
+  // hidden then, let go here too. Back: say so (the answer may be that it lapsed meanwhile).
+  useEffect(() => {
+    if (lock.kind !== "mine") return;
+    let hideTimer = 0;
+    const onVisibility = () => {
+      window.clearTimeout(hideTimer);
+      if (lockRef.current.kind !== "mine") return;
+      if (document.visibilityState === "hidden") {
+        void (async () => {
+          if (dirty.current && !saving.current) await doSave();
+          await beat();
+        })();
+        hideTimer = window.setTimeout(() => {
+          if (document.visibilityState === "hidden") void release();
+        }, timers.current.hidden);
+      } else void beat();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearTimeout(hideTimer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [lock.kind, doSave, beat, release]);
+
+  // Live `lock` (someone took a lock over; no names on the socket), or someone else's version while
+  // we think we hold it (it lapsed and they wrote): ask the server where we stand.
+  useEffect(() => {
+    if (!subscribeLive) return;
+    return subscribeLive((msg) => {
+      if (lockRef.current.kind !== "mine") return;
+      const rev = typeof msg.rev === "number" ? msg.rev : null;
+      if (msg.type === "lock" || (msg.type === "changed" && rev !== null && baseRev.current !== null && rev > baseRev.current && !saving.current)) void beat();
+    });
+  }, [subscribeLive, beat]);
 
   // Someone else is editing: ask again every 15 s. When it's free, load the newest; keep the lock
   // only when this person was busy here (or has text from before it was lost).
   useEffect(() => {
     if (lock.kind !== "theirs") return;
     const id = window.setInterval(async () => {
+      // Asking never takes it: a tab left open on someone else's edit never grabs the page.
       try {
-        await lockPage(slugRef.current, secret);
+        const st = await lockStatus(slugRef.current, secret);
+        applyTimers(st.timers);
+        if (st.holder && !st.mine) {
+          const l = lockRef.current;
+          if (l.kind === "theirs") setLock({ ...l, name: st.holder.name ?? l.name, facts: lockFacts(st) });
+          return; /* still theirs: try again next time */
+        }
       } catch {
-        return; /* still theirs: try again next time */
+        return;
+      }
+      // Free. Nothing of ours to save: show the newest and wait for a change.
+      if (!dirty.current) {
+        try {
+          adopt(await fetchLatest());
+        } catch {
+          /* the next change loads it */
+        }
+        setLock({ kind: "idle" });
+        return;
+      }
+      try {
+        const r = await lockPage(slugRef.current, secret, { intent: "edit", dirty: true });
+        applyTimers(r.timers);
+        lastEdit.current = Date.now();
+      } catch {
+        return; /* taken again meanwhile */
       }
       try {
         const latest = await fetchLatest();
         const mine = dirty.current ? { ...fields.current } : null;
+        const was = { ...base.current };
         adopt(latest);
         setLock({ kind: "mine" });
-        // Text typed before the lock was lost: keep it on screen and save it as the next version.
+        // Text typed before the lock was lost: merged into their newer version (lib/pageMerge) and
+        // saved as the next version. Where both changed the same lines, theirs stays on the page and
+        // ours is kept in version history first — never dropped.
         if (mine && mine.content !== latest.content) {
-          fields.current = mine;
-          cbs.current.onRemote({ ...mine, rev: baseRev.current });
+          await putMineOnTop(was, mine, latest);
           dirty.current = true;
           setSave({ state: "dirty" });
           timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
@@ -385,7 +604,7 @@ export function usePageEditSession({
       }
     }, RETRY_MS);
     return () => window.clearInterval(id);
-  }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock, release]);
+  }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock, release, putMineOnTop]);
 
   /**
    * An auto cover the server wrote at `rev` (a live `cover` event or a poll): into the editor, as part
@@ -579,6 +798,7 @@ export function usePageEditSession({
       return;
     }
     lastActive.current = Date.now();
+    lastEdit.current = Date.now();
     setSave({ state: "dirty" });
     clearTimer();
     // Not ours yet: take it, and the save follows (acquire).
@@ -628,10 +848,49 @@ export function usePageEditSession({
     else void doSave();
   }, [doSave, acquire]);
 
+  /**
+   * Edit anyway (the page's owner, a workspace admin): take the lock from whoever holds it. Their
+   * editor is told and keeps what it hadn't saved. Here the page is loaded fresh first (unless this
+   * editor has text of its own on screen), then it's ours. A refusal comes back as its message.
+   */
+  const takeOver = useCallback(async (): Promise<string | null> => {
+    try {
+      const r = await lockPage(slugRef.current, secret, { intent: "edit", takeOver: true, dirty: dirty.current });
+      applyTimers(r.timers);
+      lastEdit.current = Date.now();
+      lastBeat.current = Date.now();
+      setNotice(null);
+      try {
+        const mine = dirty.current ? { ...fields.current } : null;
+        const was = { ...base.current };
+        const latest = await fetchLatest();
+        adopt(latest);
+        // Text of ours on screen (typed before someone else had the page): on top of theirs.
+        if (mine && mine.content !== (latest.content ?? "")) {
+          await putMineOnTop(was, mine, latest);
+          dirty.current = true;
+          setSave({ state: "dirty" });
+        }
+      } catch {
+        /* editing what's on screen; a save that meets a newer version asks */
+      }
+      setLock({ kind: "mine" });
+      if (dirty.current && !timer.current) timer.current = window.setTimeout(() => void doSave(), 300);
+      return null;
+    } catch (e) {
+      if (pagesErrorStatus(e) === 423 && pageLocked(e)) {
+        setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
+      }
+      return e instanceof Error ? e.message : "Couldn't take over editing.";
+    }
+  }, [slug, secret, adopt, fetchLatest, doSave, setLock, putMineOnTop]);
+
+  const dismissNotice = useCallback(() => setNotice(null), []);
+
   /** What the server holds as far as this editor knows (a local draft's base). */
   const baseline = useCallback(() => ({ ...base.current, rev: baseRev.current }), []);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, baseline };
+  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, baseline, takeOver, notice, dismissNotice, probe };
 }
 
 /** The cover `latest` added when that is all that differs from `base` (else null). */

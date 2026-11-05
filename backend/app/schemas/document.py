@@ -387,3 +387,13 @@ class ParentMoveRequest(BaseModel):
 
 class EmbedsRequest(BaseModel):
     slugs: list[str] = Field(..., max_length=100)
+
+
+class LockKeepRequest(BaseModel):
+    """An editor's unsaved text it can't save (its lock was taken over, or someone else holds the
+    page now): kept as a version in the page's history (services/pages.keep_unsaved)."""
+
+    title: str | None = Field(None, max_length=500)
+    content: str = Field(..., max_length=2_000_000)
+    base_rev: int | None = None
+    reason: Literal["taken_over", "lost", "conflict"] = "taken_over"

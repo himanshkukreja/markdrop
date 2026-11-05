@@ -12,8 +12,9 @@
  *                  resolved for the author through POST /documents/{slug}/embeds
  *   read only    → while someone else holds the edit lock, or the page is locked
  *
- * One editor at a time (usePageEditSession): the lock is taken on the first key, click or change
- * and let go of after a few idle minutes; autosave runs 2 s after the last change with `base_rev`,
+ * One editor at a time (usePageEditSession): the lock is taken on the first change (never by opening
+ * or clicking) and let go of 2 minutes after the last change or 60 s in a hidden tab; the owner and
+ * workspace admins can Edit anyway; autosave runs 2 s after the last change with `base_rev`,
  * and every change is kept in this browser until the server has it (restored after a crash or a
  * reload); an AI app's append_blocks arrives live and goes in at the end without disturbing the
  * caret. On phones, a bottom toolbar (PagePhoneBar) and bottom sheets.
@@ -31,6 +32,7 @@ import { uploadArtifact } from "@/lib/api";
 import { assetId, fillTemplate, pagePath } from "@/lib/pageBlocks.mjs";
 import { rememberSecret } from "./TemplateGallery";
 import { filterPeople } from "@/components/docs-editor/menus/peopleMatch";
+import { lockDuration, type LockFacts } from "@/lib/pages";
 import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, pageMentionable, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
@@ -279,6 +281,13 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     };
   }, [pendingCover, props.cover, slug, secret, remoteCover]);
   const lockedForMe = props.locked && !isOwner && !mayEditLocked;
+  // Who's viewing says someone else is editing: ask how idle they are (and offer Edit anyway).
+  // Nobody else editing any more while we follow someone: ask again now (not on the next poll).
+  const probeLock = session.probe;
+  const lockKind = session.lock.kind;
+  useEffect(() => {
+    if ((othersEditing && lockKind === "idle") || (!othersEditing && lockKind === "theirs")) void probeLock();
+  }, [othersEditing, lockKind, probeLock]);
   // Who's viewing already says someone else is editing: read only before anyone clicks.
   const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
   const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
@@ -589,7 +598,17 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     }
   }, [mode, onReady]);
 
-  // A key, a click or a focus in the head or the body takes the edit lock (not the top bar).
+  // Edit anyway (the page's owner, a workspace admin): take the lock from whoever holds it.
+  const [takingOver, setTakingOver] = useState(false);
+  const editAnyway = async () => {
+    setTakingOver(true);
+    const problem = await session.takeOver();
+    setTakingOver(false);
+    if (problem) toast.error(problem);
+  };
+
+  // A key, a click or a focus in the head or the body: the person is here (it takes no lock: only
+  // a real change does, usePageEditSession).
   const onActivity = (e: React.SyntheticEvent) => {
     // Read only because who's viewing says someone else is editing: a click still asks (it may be free).
     if (readOnly && !(session.lock.kind === "idle" && othersEditing)) return;
@@ -646,9 +665,28 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
 
   const banner =
     lock.kind === "theirs" ? (
-      <PageBanner icon="edit">
-        <strong className="ph-mask">{lock.name ?? "Someone else"}</strong> is editing — you&apos;ll be able to edit when they&apos;re done.
-        {lock.lost ? " What you typed is still on screen and saves once it's yours again." : ""}
+      <PageBanner
+        icon="edit"
+        actions={(isOwner || mayEditLocked) && !lockedForMe ? (
+          <Button size="sm" variant="secondary" disabled={takingOver} onClick={() => void editAnyway()}>Edit anyway</Button>
+        ) : undefined}
+      >
+        {"takenBy" in lock && lock.takenBy ? (
+          <>
+            <strong className="ph-mask">{lock.takenBy}</strong> took over editing.
+            {lock.kept ? <> What you hadn&apos;t saved is kept in <strong>Version history</strong> (version {lock.kept}).</> : lock.lost ? " What you typed is still on screen." : ""}
+          </>
+        ) : (
+          <>
+            <strong className="ph-mask">{lock.name ?? "Someone else"}</strong> is editing{lockDetail("facts" in lock ? lock.facts : null)} — you&apos;ll be able to edit when they&apos;re done.
+            {lock.lost ? " What you typed is still on screen and saves once it's yours again." : ""}
+          </>
+        )}
+      </PageBanner>
+    ) : session.notice ? (
+      <PageBanner icon="edit" actions={<Button size="sm" variant="ghost" onClick={session.dismissNotice}>OK</Button>}>
+        <strong className="ph-mask">{session.notice.by}</strong> took over editing and changed the page.
+        {session.notice.kept ? <> What you hadn&apos;t saved is kept in <strong>Version history</strong> (version {session.notice.kept}).</> : ""}
       </PageBanner>
     ) : lock.kind === "readonly" ? (
       <PageBanner icon="lock">{lock.message}</PageBanner>
@@ -806,3 +844,14 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
 }
 
 export default PageEditor;
+
+/** " (idle for 3 min, unsaved changes · free in about 1 min)" from a lock refusal's facts. */
+function lockDetail(f: LockFacts | null | undefined): string {
+  if (!f) return "";
+  const bits: string[] = [];
+  if (f.idleS !== null && f.idleS >= 20) bits.push(`idle for ${lockDuration(f.idleS)}`);
+  if (f.hidden) bits.push("in another tab");
+  if (f.dirty) bits.push("unsaved changes");
+  const free = f.releasesInS !== null && f.idleS !== null && f.idleS >= 20 ? ` · free in about ${lockDuration(f.releasesInS)}` : "";
+  return bits.length || free ? ` (${bits.join(", ")}${bits.length ? free : free.slice(3)})` : "";
+}
