@@ -392,7 +392,7 @@ async def restore(db: AsyncIOMotorDatabase, raw: dict, n: int, actor, ctx) -> tu
     row = await get_version(db, raw, n)
     if row is None:
         raise HTTPException(status_code=404, detail="That version doesn't exist (any more).")
-    pages.check_write_lock(raw, actor)
+    await pages.check_write_lock(db, raw, actor, ctx)
     await pages.check_page_lock(raw, actor, ctx, row.get("markdown") or "")
     if len(row.get("markdown") or "") > get_settings().max_content_chars:  # pragma: no cover - cap moved
         raise HTTPException(status_code=413, detail="That version is longer than a page may be now.")

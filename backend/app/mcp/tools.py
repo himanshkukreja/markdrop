@@ -93,6 +93,27 @@ class ToolError(Exception):
     """A failure to report to the model as `isError: true`."""
 
 
+# The fields of a refusal worth giving an AI app as structuredContent (the edit lock: who holds the
+# page, how long they've been idle, unsaved changes, when it releases, whether it may take over).
+_ERROR_FIELDS = ("code", "holder", "idle_s", "idle_text", "dirty", "hidden", "releases_in_s", "releases_at",
+                 "releases_text", "can_take_over", "retryable")
+
+
+def error_fields(exc: BaseException) -> dict | None:
+    """``{"error": code, ...}`` from the API error a ToolError was raised over (its
+    ``__cause__``/``__context__``) when that error carries a lock refusal; else None."""
+    seen = 0
+    cur: BaseException | None = exc
+    while cur is not None and seen < 5:
+        body = getattr(cur, "body", None)
+        if isinstance(body, dict) and body.get("code") in ("locked", "take_over_forbidden"):
+            out = {k: body[k] for k in _ERROR_FIELDS if k in body}
+            return {"error": body["code"], "message": str(exc), **out}
+        cur = cur.__cause__ or cur.__context__
+        seen += 1
+    return None
+
+
 @dataclass
 class Context:
     db: AsyncIOMotorDatabase

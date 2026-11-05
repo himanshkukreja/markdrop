@@ -106,9 +106,9 @@ def _check_embeds(new: str, old: str | None = None) -> None:
                         f"{bad[0]!r} isn't one. Use '::bookmark{{url=\"…\"}}' or a plain link for other sites.")
 
 
-def _lock_check(raw: dict, ctx: Context) -> None:
+async def _lock_check(raw: dict, ctx: Context) -> None:
     try:
-        pages.check_write_lock(raw, actor_of(ctx))
+        await pages.check_write_lock(ctx.db, raw, actor_of(ctx), _actx(ctx))
     except HTTPException as exc:
         raise ToolError(http_message(exc))
 
@@ -407,7 +407,7 @@ async def append_blocks(ctx: Context, args: dict) -> tuple[str, dict]:
 async def replace_section(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     _editable_page(raw)
-    _lock_check(raw, ctx)
+    await _lock_check(raw, ctx)
     markdown, left = await _people(ctx, raw, args["markdown"])
     content = pages.replace_section(raw.get("content") or "", args["heading"], markdown)
     if content is None:
@@ -436,7 +436,7 @@ async def insert_embed(ctx: Context, args: dict) -> tuple[str, dict]:
         block = pages.embed_block(item["slug"], mode)
     heading = args.get("after_heading")
     if heading:
-        _lock_check(raw, ctx)
+        await _lock_check(raw, ctx)
         content = pages.insert_after_section(raw.get("content") or "", heading, block)
         if content is None:
             raise ToolError(f"There's no heading {heading!r} on that page.")
@@ -562,7 +562,7 @@ async def set_page_properties(ctx: Context, args: dict) -> tuple[str, dict]:
         if args.get("template") is not None:
             raise ToolError('Pass cover="auto" without template (one change at a time).')
         if not changes and not args.get("properties"):
-            _lock_check(raw, ctx)
+            await _lock_check(raw, ctx)
             return await _auto_cover(ctx, raw, "")
     as_template = args.get("template")
     custom = args.get("properties")
@@ -720,7 +720,7 @@ async def summarize_page(ctx: Context, args: dict) -> tuple[str, dict]:
     if not insert:
         return (f"Summary of {raw['slug']} (not inserted; call again with insert: true to put it at the top):"
                 f"\n\n{block}"), out
-    _lock_check(raw, ctx)
+    await _lock_check(raw, ctx)
     fresh = await ctx.db["documents"].find_one({"_id": raw["_id"]})
     after = await _save(ctx, fresh, pages_ai.with_summary(fresh.get("content") or "", block),
                         int(fresh.get("rev") or 1))

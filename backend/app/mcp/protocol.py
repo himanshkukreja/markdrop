@@ -345,14 +345,23 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
         from app.services import page_history
 
         page_history.MCP_CLIENT.set(principal.client_id)
-        text, structured = await tool.handler(ctx, args)
+        # A write with take_over: true takes the page from whoever is editing it, when the caller
+        # may (services/pages.check_write_lock).
+        from app.services import pages as pages_service
+
+        take = pages_service.TAKE_OVER.set(bool(args.get("take_over")) and "take_over" in (
+            tool.input_schema.get("properties") or {}))
+        try:
+            text, structured = await tool.handler(ctx, args)
+        finally:
+            pages_service.TAKE_OVER.reset(take)
         ok = True
         result = _tool_result(text, structured, False, modern)
         if isinstance(structured, dict) and isinstance(structured.get("slug"), str):
             tools.audit_result(slug=structured["slug"])
     except tools.ToolError as exc:
         error = str(exc)
-        result = _tool_result(str(exc), None, True, modern)
+        result = _tool_result(str(exc), tools.error_fields(exc), True, modern)
     except Exception:
         log.exception("MCP tool %s failed", tool.name)
         error = "internal error"

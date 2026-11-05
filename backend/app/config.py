@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     # lock: the block editor autosaves 2 s after typing stops and heartbeats
     # every 30 s, which the create limit above would refuse within a minute.
     rate_limit_edit: str = "60/minute"
+    # A page's edit lock (services/pages.py): held only while someone is actually editing. It lapses
+    # page_lock_ttl_s after the editor's last heartbeat, page_lock_idle_s after their last change, and
+    # page_lock_hidden_s after their tab was hidden. Tests and the e2e stack shorten them.
+    page_lock_ttl_s: float = 120.0
+    page_lock_idle_s: float = 120.0
+    page_lock_hidden_s: float = 60.0
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

@@ -468,7 +468,7 @@ async def update_document(
         await access.require(actor, raw, "edit_settings", ctx)
     # One editor at a time (services/pages.py): someone else holding the page's
     # edit lock makes this a 423; the holder's own autosaves pass.
-    pages.check_write_lock(raw, actor)
+    await pages.check_write_lock(db, raw, actor, ctx)
     # A page locked by its ``locked`` property: its owner and workspace admins only.
     if raw.get("kind") != "artifact" and not raw.get("encrypted"):
         await pages.check_page_lock(raw, actor, ctx, data.content)
@@ -553,6 +553,8 @@ async def update_document(
     from app.services import page_history
 
     await page_history.on_save(db, raw, after, actor, **(history or {}))
+    # The lock holder's save is an edit: their idle clock starts again (services/pages.py).
+    await pages.touch_lock(db, raw, actor)
     if signoffs_removed:
         from app.services import signoffs
 
@@ -726,7 +728,7 @@ async def change_slug(db: AsyncIOMotorDatabase, slug: str, new_slug: str, actor,
     problem = await new_slug_problem(db, raw, new_slug)
     if problem is not None:
         raise HTTPException(status_code=problem[0], detail=problem[2])
-    pages.check_write_lock(raw, actor)
+    await pages.check_write_lock(db, raw, actor, ctx)
 
     now = datetime.now(timezone.utc)
     old_slugs = [s for s in (raw.get("old_slugs") or []) if s != new_slug]
