@@ -14,6 +14,10 @@
  *
  *   PB_FAKE_SLACK=1 PB_STACK_ID=38 PB_WORK=… BROWSER=chromium|webkit [ONLY=connect,member] node slack.mjs
  *
+ * Without PB_FAKE_SLACK (the API started with no MARKDROP_SLACK_* keys, as production is until the owner
+ * creates the Slack app) only `unset` runs: the card says "Not set up yet" calmly (no Add to Slack, no
+ * error), for the owner and a member, light/dark × desktop/phone, and the Slack routes answer 503.
+ *
  * Screenshots go to $SLACK_SHOTS (default <PB_WORK>/../shots).
  */
 import fs from "node:fs";
@@ -66,7 +70,37 @@ async function connect() {
   return { c, p };
 }
 
-await step("connect", async () => {
+const FAKE = !!process.env.PB_FAKE_SLACK;
+
+if (!FAKE) await step("unset", async () => {
+  const st = await status("owner");
+  if (st.configured !== false || st.install !== null) fail(`status without Slack keys: ${JSON.stringify(st)}`);
+  for (const [path, body] of [["/api/v1/slack/install", { workspace_id: WS }], ["/api/v1/slack/link/start", { workspace_id: WS }]]) {
+    const r = await api("POST", path, T.owner, body);
+    if (r.status !== 503) fail(`POST ${path} without Slack keys → ${r.status}`);
+  }
+  for (const [who, theme, w, h, tag] of [["owner", "light", 1440, 900, "desktop"], ["owner", "dark", 1440, 900, "desktop"],
+    ["owner", "light", 390, 844, "phone"], ["owner", "dark", 390, 844, "phone"], ["member", "light", 1440, 900, "desktop"]]) {
+    const { p } = await ctx(browser, { token: T[who], theme, width: w, height: h });
+    const errors = [];
+    p.on("pageerror", (e) => errors.push(e.message));
+    await p.goto(TAB);
+    const card = p.getByTestId("slack-card");
+    await card.waitFor({ timeout: 30000 });
+    await card.locator(".md-badge", { hasText: "Not set up yet" }).waitFor({ timeout: 15000 });
+    await card.getByText("isn't switched on for this server yet").waitFor();
+    if (await p.getByRole("button", { name: /Add to Slack|Disconnect|Link my Slack account/ }).count()) fail(`${who}: a Slack action shows while Slack isn't set up`);
+    if (await p.getByText("Couldn't load Slack").count()) fail(`${who}: an error shows while Slack isn't set up`);
+    if (await p.getByTestId("slack-me").count()) fail(`${who}: "Your Slack account" shows while Slack isn't set up`);
+    const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    if (overflow > 1) fail(`${tag} ${theme}: the page scrolls sideways by ${overflow}px`);
+    if (errors.length) fail(`page errors: ${errors.join(" | ").slice(0, 300)}`);
+    if (who === "owner") await snap(p, `unset-${theme}-${tag}`, true);
+    await p.context().close();
+  }
+});
+
+if (FAKE) await step("connect", async () => {
   const { p } = await connect();
   const st = await status("owner");
   if (st.install?.team_name !== "Acme Slack") fail(`install: ${JSON.stringify(st.install)}`);
@@ -84,7 +118,7 @@ await step("connect", async () => {
   await p.getByTestId("slack-me").getByRole("button", { name: "Unlink" }).waitFor();
 });
 
-await step("member", async () => {
+if (FAKE) await step("member", async () => {
   if (!(await status("owner")).install) await (await connect()).c.close();
   const { c, p } = await ctx(browser, { token: T.member });
   await fakeSlack(c);
@@ -111,7 +145,7 @@ await step("member", async () => {
   if (r.status !== 403) fail(`member PATCH settings → ${r.status}`);
 });
 
-await step("linkpage", async () => {
+if (FAKE) await step("linkpage", async () => {
   if (!(await status("owner")).install) await (await connect()).c.close();
   const team = (await status("owner")).install.team_id;
   const { c, p } = await ctx(browser, { token: T.stranger });
@@ -126,7 +160,7 @@ await step("linkpage", async () => {
   if (!info.linked) fail("the stranger isn't linked");
 });
 
-await step("cancel", async () => {
+if (FAKE) await step("cancel", async () => {
   const { c, p } = await ctx(browser, { token: T.admin });
   await fakeSlack(c, { deny: true });
   const r = ok(await api("POST", "/api/v1/slack/install", T.admin, { workspace_id: WS }), "install url");
@@ -135,7 +169,7 @@ await step("cancel", async () => {
   await p.getByRole("link", { name: "Back to settings" }).waitFor();
 });
 
-await step("disconnect", async () => {
+if (FAKE) await step("disconnect", async () => {
   if (!(await status("owner")).install) await (await connect()).c.close();
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(TAB);
@@ -147,7 +181,7 @@ await step("disconnect", async () => {
   if (st.install !== null || st.me.linked) fail(`after disconnect: ${JSON.stringify(st)}`);
 });
 
-await step("shots", async () => {
+if (FAKE) await step("shots", async () => {
   if (!(await status("owner")).install) {
     const { p, c } = await connect();
     await p.getByTestId("slack-channel").selectOption("C2").catch(() => {});
