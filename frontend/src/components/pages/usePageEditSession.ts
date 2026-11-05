@@ -63,14 +63,14 @@ const errStatus = (e: unknown): number => (e instanceof PagesApiError || e insta
  *   when this person was busy here);
  * - 409 (a newer version): this editor's unsaved changes are merged onto it line by line
  *   (lib/pageMerge.mjs: an AI app's append_blocks, someone's edit to another paragraph) and the
- *   save retried; only when both changed the same lines: "This page changed", with Keep both /
- *   Use theirs / Use mine (nothing is dropped without being asked);
+ *   save retried; only when both changed the same lines: a banner with Keep both / Use theirs /
+ *   Use mine (nothing is dropped without being asked; no saves until it's answered);
  * - catching up (fix/collab-audit): the live socket reconnecting (`resync`), the network coming
  *   back and the tab being shown again re-read the page; a newer version is shown, or merged
  *   under unsaved changes the same way, and pending text is saved;
  * - renamed while open (`gone` + the old address answering `moved`): saves follow the new
  *   address and `onMoved` takes the tab there; deleted, or no longer readable: read only, saying
- *   why (`onGone`), the text stays on screen and in this browser's draft;
+ *   why, the text stays on screen and in this browser's draft;
  * - a live `appended` event goes straight into the editor at the end (`onAppend`); while the lock
  *   isn't ours, any change is shown as it lands (unless this editor has text on its way);
  * - an auto cover (live `cover`, or `remoteCover` from a poll) goes into the page's front matter
@@ -104,7 +104,13 @@ export function usePageEditSession({
 }) {
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
   const [lock, setLockState] = useState<LockState>({ kind: "idle" });
-  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [conflict, setConflictState] = useState<Conflict | null>(null);
+  /** A conflict waiting for its answer: nothing saves meanwhile (each try would only meet it again). */
+  const conflictRef = useRef<Conflict | null>(null);
+  const setConflict = useCallback((c: Conflict | null) => {
+    conflictRef.current = c;
+    setConflictState(c);
+  }, []);
 
   const lockRef = useRef<LockState>(lock);
   const setLock = useCallback((l: LockState) => {
@@ -175,7 +181,7 @@ export function usePageEditSession({
   const checkGone = useRef<() => Promise<void>>(async () => {});
   const doSave = useCallback(async (): Promise<void> => {
     clearTimer();
-    if (!dirty.current || saving.current || lockRef.current.kind !== "mine") return;
+    if (!dirty.current || saving.current || lockRef.current.kind !== "mine" || conflictRef.current) return;
     const sent = { ...fields.current };
     saving.current = true;
     dirty.current = false;
@@ -260,7 +266,7 @@ export function usePageEditSession({
       saving.current = false;
       if (dirty.current && lockRef.current.kind === "mine" && !timer.current) timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
     }
-  }, [slug, secret, fetchLatest, setLock, rebase]);
+  }, [slug, secret, fetchLatest, setLock, rebase, setConflict]);
 
   /** Take the lock (once at a time). True when it's ours. */
   const acquire = useCallback((): Promise<boolean> => {
@@ -447,7 +453,7 @@ export function usePageEditSession({
    */
   const catchUp = useRef<() => Promise<void>>(async () => {});
   catchUp.current = async () => {
-    if (saving.current || lockRef.current.kind === "readonly") return;
+    if (saving.current || lockRef.current.kind === "readonly" || conflictRef.current) return;
     let latest: PageDocument;
     try {
       latest = await fetchLatest();
@@ -597,15 +603,18 @@ export function usePageEditSession({
       adopt(c.doc);
       return;
     }
-    base.current = { title: c.doc.title ?? "", content: c.doc.content ?? "" };
+    // Merged again now: what was typed while the banner showed counts too.
+    const was = base.current, mine = fields.current;
+    const theirs = { title: c.doc.title ?? "", content: c.doc.content ?? "" };
+    const m = merge3(was.content, mine.content, theirs.content);
+    const title = mine.title !== was.title ? mine.title : theirs.title;
+    base.current = theirs;
     baseRev.current = typeof c.doc.rev === "number" ? c.doc.rev : baseRev.current;
-    if (c.merged) {
-      fields.current = { title: c.merged.title, content: choice === "both" ? c.merged.both : c.merged.mine };
-      cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
-    }
+    fields.current = { title, content: choice === "both" ? m.bothContent : m.mineContent };
+    cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
     dirty.current = true;
     await doSave();
-  }, [conflict, adopt, doSave]);
+  }, [conflict, adopt, doSave, setConflict]);
 
   const flush = useCallback(async () => {
     if (!dirty.current) return;
