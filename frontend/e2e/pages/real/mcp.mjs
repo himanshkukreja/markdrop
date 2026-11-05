@@ -137,10 +137,17 @@ await step("tools", async () => {
   if (g.data.markdown !== ALL) fail(`get_page markdown differs from what update_page wrote\n${g.data.markdown}`);
   const states = Object.fromEntries((g.data.embeds || []).map((e) => [e.slug, e.state]));
   log("get_page embeds", JSON.stringify(states));
-  // A stranger's MCP read: locked items have no title or label.
+  // A stranger's MCP read: locked items have no title or label. This script reads seed.json without
+  // reseeding, and real.mjs's artifact-onebar opens pricing-calc and q3-report to anyone with the link (a
+  // stranger may then rightly see their titles): put the three back to workspace-only first.
+  for (const s of ["launch-plan", "q3-report", "pricing-calc"]) {
+    const r = await api("PUT", `/api/v1/documents/${s}/access/level`, T.owner, { level: "workspace" });
+    if (r.status !== 204) fail(`access level ${s} → ${r.status}`);
+  }
   await api("PUT", `/api/v1/documents/${st.slug}/access/level`, T.owner, { level: "link" });
   const gc = await ok(cy, "get_page", { document: st.slug });
   for (const t of ["Launch plan", "Q3 report", "Pricing calculator"]) if (JSON.stringify(gc.data).includes(t)) fail(`stranger's get_page names ${t}`);
+  if ((gc.data.embeds || []).some((e) => e.state === "ok")) fail(`stranger's get_page resolves a locked item: ${JSON.stringify(gc.data.embeds)}`);
   // stale base_rev
   await refused(ada, "update_page", { document: st.slug, markdown: "x", base_rev: 1 }, /rev|changed|newer|stale/i);
   // append_blocks
