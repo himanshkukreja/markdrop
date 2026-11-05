@@ -21,14 +21,17 @@
  *   PB_PUSH=1 zsh up.sh restart-api, then  [BROWSER=webkit] [ONLY=…] node push.mjs   (existing seed)
  */
 import crypto from "node:crypto";
+import { chromium as chromiumType } from "@playwright/test";
 import { APP, API, BROWSER, log, fail, seedNow, api, launch, ctx, stepper, shot } from "./lib.mjs";
 
 const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
 const ID = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.id]));
-const browser = await launch();
-const { step, results } = stepper(browser);
 const chromium = BROWSER === "chromium";
+// Chromium's new headless mode: the old headless shell reports Notification.permission "denied"
+// whatever was granted, and has no notification centre for showNotification.
+const browser = chromium ? await chromiumType.launch({ channel: "chromium" }) : await launch();
+const { step, results } = stepper(browser);
 const run = Date.now().toString(36).slice(-5);
 const IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1";
 
@@ -126,6 +129,16 @@ async function mentionPage(who, label) {
   return { slug, block, title };
 }
 
+/** The page is under the worker (the first load registers it; claim() or a reload takes over). */
+async function controlled(p) {
+  await p.evaluate(() => navigator.serviceWorker.ready.then(() => true));
+  await p.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 5000 }).catch(() => {});
+  if (!(await p.evaluate(() => !!navigator.serviceWorker.controller))) {
+    await p.reload({ waitUntil: "networkidle" });
+    await p.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 });
+  }
+}
+
 /** The worker's registration id for the app (DevTools), to deliver a push message to it. */
 async function registrationId(c, p) {
   const cdp = await c.newCDPSession(p);
@@ -220,8 +233,7 @@ if (chromium) {
     if (!delivered) fail("needs deliver");
     const { c, p } = await pushCtx("member", PHONE);
     await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
-    await p.evaluate(() => navigator.serviceWorker.ready.then(() => true));
-    await p.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 20000 }).catch(() => p.reload({ waitUntil: "networkidle" }));
+    await controlled(p);
     const bell = p.locator('header button[aria-label^="Notifications"]').first();
     await bell.waitFor({ timeout: 20000 });
     const unreadBefore = (await api("GET", "/api/v1/notifications/unread-count", T.member)).body.unread_count;
@@ -255,7 +267,13 @@ if (chromium) {
     }, delivered.msg.tag);
     await p.waitForURL((u) => u.pathname === `/${delivered.slug}` && u.hash === `#${delivered.block}`, { timeout: 20000 });
     if (!(await p.evaluate(() => window.__mdNoReload === true))) fail("the page reloaded instead of navigating");
-    await p.locator(`[id="${delivered.block}"], [data-block-id="${delivered.block}"]`).first().waitFor({ timeout: 20000 }).catch(() => log("(block element not found by id; URL checked)"));
+    // The page scrolled to the block and flashed it (components/pages/anchors.ts).
+    await p.locator(`[data-bid="${delivered.block}"]`).first().waitFor({ timeout: 20000 });
+    await p.waitForFunction((b) => {
+      const el = document.querySelector(`[data-bid="${b}"]`);
+      const r = el?.getBoundingClientRect();
+      return !!r && r.top >= 0 && r.bottom <= window.innerHeight;
+    }, delivered.block, { timeout: 10000 });
     await shot(p, "push-clicked-page");
     const ids = delivered.msg.ids;
     let read = false;
@@ -288,7 +306,8 @@ await step("prefs", async () => {
   await openSettings(p);
   const sw = p.getByRole("switch", { name: "Mentions", exact: true });
   if (!(await sw.isChecked())) fail("Mentions not on");
-  await sw.uncheck({ force: true });
+  const toggle = () => sw.evaluate((el) => el.click()); // the input sits under the switch's track
+  await toggle();
   for (let i = 0; i < 30 && (await api("GET", "/api/v1/push", T.member)).body.prefs.mention !== false; i++) await p.waitForTimeout(200);
   if ((await api("GET", "/api/v1/push", T.member)).body.prefs.mention !== false) fail("Mentions didn't turn off");
   const before = (await received(PHONE)).length;
@@ -296,7 +315,7 @@ await step("prefs", async () => {
   const out = await flush();
   if (out.sent) fail(`sent with Mentions off: ${JSON.stringify(out)}`);
   if ((await received(PHONE)).length !== before) fail("a push went with Mentions off");
-  await sw.check({ force: true });
+  await toggle();
   for (let i = 0; i < 30 && (await api("GET", "/api/v1/push", T.member)).body.prefs.mention !== true; i++) await p.waitForTimeout(200);
   if ((await api("GET", "/api/v1/push", T.member)).body.prefs.mention !== true) fail("Mentions didn't turn back on");
   await c.close();
