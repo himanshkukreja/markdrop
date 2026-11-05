@@ -183,6 +183,33 @@ class ParserTests(unittest.TestCase):
         self.assertGreater(len(s.segments), 3)
 
 
+class GoogleMetaLines(unittest.TestCase):
+    """Google's "Transcription ended after …" footer was glued onto the last speaker's turn (a final
+    question became a "fact" ending in "Transcription ended…"). Footer and header are metadata."""
+
+    HEAD = ("Weekly sync (2026-11-04 10:00 GMT+05:30) - Transcript\nAttendees\nAda Lovelace, Bo Chen\nTranscript\n"
+            "This editable transcript was computer generated and might contain errors. People can also change the text after it was created.\n"
+            "00:00:00\nAda Lovelace: Shall we ship Friday?\nBo Chen: Can we decide that next week?")
+
+    def test_footer_on_its_own_line(self):
+        for gap in ("\n", "\n\n"):
+            s = mp.parse_source("x", self.HEAD + gap + "Transcription ended after 00:12:30\n")
+            self.assertEqual([x["text"] for x in s.segments], ["Shall we ship Friday?", "Can we decide that next week?"])
+            self.assertEqual(s.duration_s, 750)
+            self.assertEqual(s.format, "google_meet")
+
+    def test_footer_on_the_last_line(self):
+        s = mp.parse_source("x", self.HEAD + " Transcription ended after 00:12:30\n")
+        self.assertEqual(s.segments[-1], {**s.segments[-1], "speaker": "Bo Chen", "text": "Can we decide that next week?"})
+
+    def test_notice_and_footer_never_a_turn(self):
+        s = mp.parse_source("x", self.HEAD + "\nTranscription ended after 00:12:30\nThis editable transcript was computer generated and might contain errors.\n")
+        self.assertFalse(any("transcri" in x["text"].lower() or "computer generated" in x["text"] for x in s.segments))
+        # Plain prose too.
+        p = mp.parse_source("x", "We talked about the launch.\n\nIt moves to the 11th.\nTranscription ended after 00:05:00\n")
+        self.assertFalse(any("Transcription ended" in x["text"] for x in p.segments))
+
+
 class Retrieval(unittest.TestCase):
     """Real-model eval 2026-11-05 (.work/meetings/eval): "Which email provider did we choose?" matched
     only the line saying "email"; the line with who migrates to Postmark (no word in common with the

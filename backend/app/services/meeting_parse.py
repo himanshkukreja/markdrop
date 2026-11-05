@@ -58,6 +58,12 @@ _BRACKET_TS = re.compile(r"^\s*[\[(]?(?P<ts>\d{1,2}:\d{2}(?::\d{2})?)[\])]?\s*[-
 _NAME_TS = re.compile(r"^(?P<name>[^:\n\[\]()]{1,60}?)\s*[\[(](?P<ts>\d{1,2}:\d{2}(?::\d{2})?)[\])]\s*:?\s*(?P<text>.*)$")
 _SPEAKER = re.compile(r"^(?P<name>[^:\n]{1,60}?)\s*:\s+(?P<text>\S.*)$")
 _ENDED = re.compile(r"transcription ended after\s+(\d{1,2}:\d{2}:\d{2})", re.I)
+# Google's own lines around a transcript (metadata, never anyone's words): the closing "Transcription
+# ended after 00:42:13" and the header notice. They end the speaker's turn instead of joining it.
+_GOOGLE_META = re.compile(
+    r"^(?:transcription ended after\b|transcript(?:ion)? (?:has )?ended\b|this editable transcript was computer generated"
+    r"|people can also change the text after it was created|meeting ended after\b)", re.I)
+_ENDED_TAIL = re.compile(r"\s*\btranscription ended after\s+\d{1,2}:\d{2}:\d{2}\b.*$", re.I)
 _HEADING = re.compile(r"^\s{0,3}#{1,6}\s+(.*?)\s*#*\s*$")
 _BULLET = re.compile(r"^\s*(?:[-*•●▪◦]|\d{1,3}[.)])\s+(?:\[[ xX]\]\s+)?(.*)$")
 _CHECK = re.compile(r"^\s*(?:[-*•]\s+)?\[[ xX]\]\s+(.*)$")
@@ -432,7 +438,15 @@ def _speaker_lines(lines: list[str]) -> tuple[list[dict], bool]:
         line = _clean_line(raw).strip()
         if not line:
             continue
+        if _GOOGLE_META.match(line):
+            cur = None
+            continue
         if _GEMINI_BOILER.match(line) and not _SPEAKER.match(line):
+            continue
+        # The footer pasted onto the last line ("… sounds good. Transcription ended after 00:42:13").
+        line = _ENDED_TAIL.sub("", line)
+        if not line:
+            cur = None
             continue
         bm = _BARE_TS.match(line)
         if bm:
@@ -611,10 +625,11 @@ def _transcript_of(lines: list[str]) -> tuple[list[dict], str, bool, int | None]
         approx = _interpolate(segs, end_s) if google_marks else False
         is_google = google_marks or bool(ended) or re.search(r"-\s*transcript\b", head, re.I) is not None
         return segs, "google_meet" if is_google else "speaker_lines", approx, end_s
-    # Plain prose: a segment per paragraph.
-    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    # Plain prose: a segment per paragraph (Google's footer and notice are not paragraphs of it).
+    body = "\n".join(_ENDED_TAIL.sub("", x) for x in lines if not _GOOGLE_META.match(_clean_line(x).strip()))
+    paras = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
     if len(paras) <= 1:
-        paras = [x.strip() for x in lines if x.strip()]
+        paras = [x.strip() for x in body.split("\n") if x.strip()]
     return [{"speaker": None, "t": None, "text": p} for p in paras], "plain", False, end_s
 
 
