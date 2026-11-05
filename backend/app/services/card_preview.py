@@ -656,11 +656,15 @@ def with_payload(base: dict, payload: dict) -> dict:
 # -- The batch -----------------------------------------------------------------
 
 
-async def _load(db: AsyncIOMotorDatabase, workspace_id: str, slugs: list[str]) -> dict[str, dict]:
-    """The rows (in this workspace only), everything a read decision needs, and of a document's
-    body only its first characters: a long document never crosses the wire whole."""
+async def _load(db: AsyncIOMotorDatabase, workspace_id: str | None, slugs: list[str]) -> dict[str, dict]:
+    """The rows (in this workspace only; ``None``: wherever they are, the home's "Continue" cards),
+    everything a read decision needs, and of a document's body only its first characters: a long
+    document never crosses the wire whole."""
+    match: dict = {"slug": {"$in": slugs}, "deleted_at": None}
+    if workspace_id is not None:
+        match = {"slug": {"$in": slugs}, "workspace_id": workspace_id}
     pipeline = [
-        {"$match": {"slug": {"$in": slugs}, "workspace_id": workspace_id}},
+        {"$match": match},
         {"$addFields": {"content": {"$cond": [
             {"$eq": [{"$type": "$content"}, "string"]},
             {"$substrCP": ["$content", 0, CONTENT_PEEK + 1]}, None]}}},
@@ -669,7 +673,7 @@ async def _load(db: AsyncIOMotorDatabase, workspace_id: str, slugs: list[str]) -
     return {r["slug"]: r for r in rows}
 
 
-async def previews(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
+async def previews(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str | None,
                    slugs: list[str], *, wait: float = WAIT_S) -> dict[str, dict]:
     """``{slug: preview}`` for ``slugs``; past the first MAX_SLUGS they answer ``locked``."""
     from app.services.pages import SLUG_RE
