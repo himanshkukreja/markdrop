@@ -29,7 +29,7 @@ Slack may say the **Event Subscriptions** request URL isn't verified yet. That's
 can't answer Slack until it has the signing secret (step 3). You verify it in step 4.
 
 The manifest asks for these bot scopes: `commands`, `chat:write`, `chat:write.public`, `links:read`,
-`links:write`, `im:write`, `channels:read`, `groups:read`, and the user scope `openid` (Sign in with
+`links:write`, `im:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, and the user scope `openid` (Sign in with
 Slack, used once to link a person's account; Markdrop keeps no user token).
 
 ## 2. Copy the three secrets (1 minute)

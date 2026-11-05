@@ -54,6 +54,8 @@ oauth_config:
       - im:write          # open the direct message for notifications
       - channels:read     # list public channels for the meetings-channel picker; spot Slack Connect channels
       - groups:read       # private channels the app was invited to, for the same picker
+      - im:read           # is a direct message shared with another organization? (unfurls there)
+      - mpim:read         # the same for group direct messages
 settings:
   event_subscriptions:
     request_url: https://api.markdrop.in/api/v1/slack/events

@@ -136,11 +136,11 @@ async def action_items(db: AsyncIOMotorDatabase, team_id: str, md: str) -> list[
         def person(pm: re.Match) -> str:
             sid = slack_ids.get(pm.group(2))
             marks.append(f"<@{sid}>" if sid else f"*{kit.esc(pm.group(1))}*")
-            return f"\x00{len(marks) - 1}\x00"
+            return f"MDPERSON{len(marks) - 1}MDPERSON"
 
         rest = _PERSON.sub(person, rest)
         text = kit.esc(search_text.markdown_text(rest).replace("\n", " "))
-        text = re.sub(r"\x00(\d+)\x00", lambda x: marks[int(x.group(1))], text)
+        text = re.sub(r"MDPERSON(\d+)MDPERSON", lambda x: marks[int(x.group(1))], text)
         out.append({"block": m.group("block"), "done": m.group("mark") in "xX", "text": kit.cut(text, 600)})
     return out
 
