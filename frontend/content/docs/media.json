@@ -2959,6 +2959,42 @@
     "bytes": 82600,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings-ask/ask-across.dark.webp": {
+    "w": 880,
+    "h": 1632,
+    "bytes": 41434,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/ask-across.webp": {
+    "w": 880,
+    "h": 1632,
+    "bytes": 47900,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/meeting-bar.dark.webp": {
+    "w": 1442,
+    "h": 102,
+    "bytes": 9172,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/meeting-bar.webp": {
+    "w": 1442,
+    "h": 102,
+    "bytes": 9532,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/sources.dark.webp": {
+    "w": 880,
+    "h": 1632,
+    "bytes": 30738,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/sources.webp": {
+    "w": 880,
+    "h": 1632,
+    "bytes": 34336,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/meetings-auto-import/connect-dialog.dark.webp": {
     "w": 1280,
     "h": 1192,

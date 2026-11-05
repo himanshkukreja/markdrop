@@ -85,7 +85,7 @@
 .mt-dock__titles p { margin: 0; font-size: 12px; line-height: 16px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Wide screens: the list makes room beside the open panel. */
 @media (min-width: 1280px) {
-  body:has(.mt-dock[data-open][data-layout="panel"]) main#main { max-width: none; margin-right: 456px; }
+  body:has(.mt-dock[data-open][data-layout="panel"]) main#main { width: auto; max-width: none; margin-left: 0; margin-right: 456px; }
 }
 
 /* the list's tools */
