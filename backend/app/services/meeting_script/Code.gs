@@ -7,7 +7,8 @@
  * What it does, every 15 minutes:
  *   1. Looks for Google Docs in your Drive, created in the last LOOKBACK_HOURS, whose title looks
  *      like a Meet transcript ("… - Transcript") or Gemini's notes ("… - Notes by Gemini").
- *   2. Skips the ones it already sent (it remembers their ids in this project's properties).
+ *   2. Skips the ones it already sent (it remembers their ids in this project's properties), and
+ *      waits for a Doc that changed in the last QUIET_MINUTES (Google may still be writing it).
  *   3. Reads each one's text (every tab) and sends it to Markdrop. A failure is tried again next run.
  *
  * What it can't do: change, move or delete anything in your Drive. It asks Google for read-only
@@ -24,6 +25,7 @@ var MARKDROP_TOKEN = '{{TOKEN}}';
 var LOOKBACK_HOURS = 48;      // how far back to look (raise it once to import older meetings)
 var INCLUDE_SHARED = false;   // true: also Docs other people shared with you (e.g. a teammate's call)
 var MAX_PER_RUN = 20;         // a run has 6 minutes; the rest wait for the next one
+var QUIET_MINUTES = 10;       // a Doc changed this recently may still be being written: next run
 var TRANSCRIPT_TITLE = /[-–—]\s*Transcript\s*$/i;
 var NOTES_TITLE = /(Notes by Gemini|[-–—]\s*Notes)\s*$/i;
 
@@ -53,6 +55,7 @@ function syncMeetings() {
       var title = file.getName();
       var kind = TRANSCRIPT_TITLE.test(title) ? 'transcript' : NOTES_TITLE.test(title) ? 'notes' : null;
       if (!kind || file.getDateCreated() < since || props.getProperty('sent:' + id)) continue;
+      if (file.getLastUpdated() > new Date(Date.now() - QUIET_MINUTES * 60 * 1000)) continue;  // next run
       var result = send_(file, kind);
       if (result === 'stop') return;
       if (result === 'done') {

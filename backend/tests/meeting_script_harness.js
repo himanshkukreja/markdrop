@@ -19,6 +19,7 @@ function fileObj(f) {
     getId: () => f.id,
     getName: () => f.name,
     getDateCreated: () => new Date(f.created),
+    getLastUpdated: () => new Date(f.modified),
     getUrl: () => `https://docs.google.com/document/d/${f.id}/edit`,
   };
 }

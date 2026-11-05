@@ -517,7 +517,7 @@ class Script(unittest.TestCase):
         self.assertEqual(next(p for p in out["posts"] if p["body"]["file_id"] == FID_T)["body"]["kind_hint"], "transcript")
 
     def test_failures_retry_and_disconnect_stops(self):
-        now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        now = (datetime.now(timezone.utc) - timedelta(minutes=20)).isoformat().replace("+00:00", "Z")
         files = [{"id": FID_T, "name": TRANSCRIPT, "created": now, "modified": now, "text": "Ada: hi\nBo: yo\n"},
                  {"id": FID_N, "name": NOTES, "created": now, "modified": now, "text": "Summary\nok"}]
         # A 500 stops the run and nothing is marked sent; the next run sends both.
@@ -534,6 +534,12 @@ class Script(unittest.TestCase):
         # A 409 (being imported) is retried next run without stopping this one.
         out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"], "responses": [409, 200]})
         self.assertEqual((len(out["posts"]), len(out["sent"])), (2, 1))
+
+    def test_waits_for_a_doc_still_being_written(self):
+        just = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        files = [{"id": FID_N, "name": NOTES, "created": just, "modified": just, "text": "Summary\nok"}]
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"], "responses": [200]})
+        self.assertEqual((out["posts"], out["sent"]), ([], []))   # Gemini may still be writing it: next run
 
 
 if __name__ == "__main__":
