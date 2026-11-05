@@ -168,6 +168,13 @@ async function device(name, { token = T.owner, theme = "light", standalone = fal
   return { c, p, d };
 }
 
+/** Every animation finished (a drawer's slide-in scales its text while it runs). */
+async function settled(p) {
+  await p.waitForTimeout(250);
+  await p.waitForFunction(() => document.getAnimations().every((a) => a.playState !== "running" || a.effect?.getComputedTiming().iterations === Infinity), null, { timeout: 5000 }).catch(() => {});
+  await p.waitForTimeout(150);
+}
+
 const isPhone = (name) => name.startsWith("phone");
 const isTablet = (name) => name.startsWith("ipad") && DEVICES[name].w < 1024;
 
@@ -227,9 +234,11 @@ await step("continue", async () => {
   await home(p);
   const card = p.getByTestId("home-continue-card").first();
   const href = await card.getAttribute("href");
+  // An item in a workspace with a live domain opens there (openHref, like Recent); the rest here.
   const slug = new URL(href, APP).pathname;
   await card.click();
-  await p.waitForURL((u) => u.pathname === slug, { timeout: 15000 });
+  await p.waitForURL((u) => u.pathname !== "/dashboard", { timeout: 15000 });
+  await p.waitForFunction((s) => location.href.includes(s.slice(1)) || location.hostname !== "localhost", slug, { timeout: 15000 });
 });
 
 await step("tick", async () => {
@@ -405,10 +414,12 @@ await step("audit", async () => {
       await p.getByTestId("app-menu").click();
       const drawer = p.locator('[role="dialog"]').filter({ has: p.locator('nav[aria-label="Your drive"]') });
       await drawer.waitFor({ timeout: 5000 });
-      await p.waitForTimeout(700); // the slide-in
       const acme = drawer.getByRole("treeitem", { name: /Acme/ }).first();
       if ((await acme.getAttribute("aria-expanded")) !== "true") await acme.press("ArrowRight").catch(() => {});
       await drawer.locator(`a[href="/meetings/${WS}"]`).waitFor({ timeout: 8000 }).catch(() => fail(`${dev}: no Meetings in the drawer`));
+      // The keyboard focus (it shows the row's + and ⋯) goes; the slide-in finishes.
+      await p.evaluate(() => document.activeElement instanceof HTMLElement && document.activeElement.blur());
+      await settled(p);
       for (const f of await p.evaluate(measure, { checkTargets: true })) findings.push({ dev, theme, state: "drawer", ...f });
       await snap(p, `${dev}-${theme}-drawer`);
     } else if (isTablet(dev)) {
@@ -418,7 +429,7 @@ await step("audit", async () => {
       await rail.getByTestId("rail-expand").click();
       const drawer = p.locator('[role="dialog"]').filter({ has: p.locator('nav[aria-label="Your drive"]') });
       await drawer.waitFor({ timeout: 5000 });
-      await p.waitForTimeout(700);
+      await settled(p);
       for (const f of await p.evaluate(measure, { checkTargets: true })) findings.push({ dev, theme, state: "drawer", ...f });
       await snap(p, `${dev}-${theme}-drawer`);
     }

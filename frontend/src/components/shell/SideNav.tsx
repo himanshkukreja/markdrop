@@ -530,7 +530,7 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(() => toggleAssistant())}
           aria-haspopup="dialog" aria-keyshortcuts="Meta+J Control+J" data-testid="rail-ask">
           <Icon name="sparkle" size={18} className="text-accent-text" /> <span className="truncate">Ask Markdrop</span>
-          <span className="ml-auto hidden shrink-0 text-caption text-text-muted pointer-fine:inline" aria-hidden>⌘J</span>
+          <span className="ml-auto hidden shrink-0 text-caption text-text-muted lg:pointer-fine:inline" aria-hidden>⌘J</span>
         </button>
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(openNotifications)}
           aria-haspopup="dialog" aria-label={unread ? `Inbox, ${unread} unread` : "Inbox"} data-testid="rail-inbox">
