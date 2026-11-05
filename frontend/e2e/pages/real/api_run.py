@@ -478,4 +478,9 @@ if os.environ.get("PB_FAKE_SLACK"):
 
 import uvicorn  # noqa: E402
 
-uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning")
+# Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
+# At uvicorn's default 5 s the scripts' first request after a blocking step (mcpToken / reseed run
+# Python with execFileSync, which holds Node's event loop for 2–5 s, so its 4 s timer never fires)
+# went out on a socket the server had just closed: "fetch failed" (ECONNRESET on macOS,
+# UND_ERR_SOCKET "other side closed" on Linux), e.g. bughunt draft-after-append's append_blocks.
+uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning", timeout_keep_alive=60)

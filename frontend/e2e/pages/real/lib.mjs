@@ -70,9 +70,11 @@ export async function mcp(token, name, args) {
   try {
     r = await send();
   } catch (e) {
-    // A kept-alive socket the server had just closed (ECONNRESET before any answer): the call never
-    // reached the API, so sending it again on a fresh one is safe.
-    if (e?.cause?.code !== "ECONNRESET") throw e;
+    // A kept-alive socket the server had just closed (ECONNRESET on macOS, UND_ERR_SOCKET "other
+    // side closed" on Linux, before any answer): the call never reached the API, so sending it again
+    // on a fresh one is safe. A safety net: api_run.py keeps idle connections for 60 s, so the
+    // first call after a blocking mcpToken() no longer meets one (see there).
+    if (e?.cause?.code !== "ECONNRESET" && e?.cause?.code !== "UND_ERR_SOCKET") throw e;
     r = await send();
   }
   if (r.status !== 200) return { status: r.status, isError: true, text: await r.text() };
