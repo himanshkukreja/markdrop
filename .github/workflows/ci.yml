@@ -9,7 +9,8 @@ name: CI
 #   .work/ci/run.sh <branch>   pushes a branch and follows its run (the lead's shortcut)
 #
 # Backend shards: .github/scripts/backend_shard.py splits backend/tests/test_*.py by recorded
-# duration (.github/scripts/backend-durations.json); every module runs in its own process. Refresh
+# duration (.github/scripts/backend-durations.json); every module runs in its own process (400 s cap: a
+# module that hangs is run once more, with its asyncio task tree in the logs and a warning). Refresh
 # the durations after a suite change grows a module a lot:
 #   gh run download <run-id> -p 'backend-timings-*' -D /tmp/t
 #   python .github/scripts/backend_shard.py --merge-timings /tmp/t/*/timings.json

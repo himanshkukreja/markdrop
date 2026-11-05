@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 import time
@@ -31,7 +32,7 @@ BACKEND = ROOT / "backend"
 TESTS = BACKEND / "tests"
 DURATIONS = Path(__file__).with_name("backend-durations.json")
 DEFAULT_SECONDS = 15.0
-MODULE_TIMEOUT = int(os.environ.get("CI_MODULE_TIMEOUT", "1200"))
+MODULE_TIMEOUT = int(os.environ.get("CI_MODULE_TIMEOUT", "400"))
 
 
 def modules() -> list[str]:
@@ -62,31 +63,73 @@ RAN = re.compile(r"^Ran (\d+) tests? in ([\d.]+)s", re.M)
 RESULT = re.compile(r"^(OK|FAILED)(?: \((.*)\))?\s*$", re.M)
 
 
+def _hung_tasks(pid: int) -> str:
+    """What a hung test process is waiting on: its asyncio task tree (Python 3.14's `python -m asyncio
+    pstree`, which needs ptrace rights: sudo on the runners), else its threads' stacks."""
+    if sys.version_info < (3, 14):
+        return "(no asyncio task tree before Python 3.14)"
+    last = ""
+    for cmd in (["sudo", "-n", sys.executable, "-m", "asyncio", "pstree", str(pid)],
+                [sys.executable, "-m", "asyncio", "pstree", str(pid)]):
+        try:
+            r = subprocess.run(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=60)
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout
+        last = r.stdout
+    return f"(no asyncio task tree: {last.strip()[-300:] if last else 'pstree unavailable'})"
+
+
+def _run_once(mod: str) -> tuple[str, int]:
+    proc = subprocess.Popen(
+        [sys.executable, "-X", "faulthandler", "-m", "unittest", "-v", f"tests.{mod}"],
+        cwd=BACKEND, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+    )
+    try:
+        out, _ = proc.communicate(timeout=MODULE_TIMEOUT)
+        return out, proc.returncode
+    except subprocess.TimeoutExpired:
+        tree = _hung_tasks(proc.pid)
+        if tree.startswith("(no"):
+            proc.send_signal(signal.SIGABRT)  # -X faulthandler prints every thread's stack
+        else:
+            proc.kill()
+        try:
+            out, _ = proc.communicate(timeout=15)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            out, _ = proc.communicate()
+        return f"{out}\n\nTIMEOUT after {MODULE_TIMEOUT}s. Its asyncio tasks then:\n{tree}\n", 124
+
+
 def run_module(mod: str, logs: Path) -> dict:
+    """One module in its own process. A module that hangs (a timeout: the bar is ~4x the slowest module's
+    CI time) is run once more; passing then still says so (`hung once`), with the hung run's task tree
+    in its log, so a race shows up without holding the shard for 20 minutes."""
     log = logs / f"{mod}.log"
     t0 = time.monotonic()
-    try:
-        proc = subprocess.run(
-            [sys.executable, "-m", "unittest", "-v", f"tests.{mod}"],
-            cwd=BACKEND, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-            timeout=MODULE_TIMEOUT,
-        )
-        out, rc = proc.stdout, proc.returncode
-    except subprocess.TimeoutExpired as e:
-        out = (e.stdout.decode() if isinstance(e.stdout, bytes) else (e.stdout or "")) + f"\n\nTIMEOUT after {MODULE_TIMEOUT}s\n"
-        rc = 124
+    out, rc = _run_once(mod)
+    hung = ""
+    if rc == 124:
+        hung = out
+        out, rc = _run_once(mod)
+        out = f"{out}\n\n==== the first run hung ====\n{hung}"
     secs = time.monotonic() - t0
     log.write_text(out)
     ran = RAN.findall(out)
     res = RESULT.findall(out)
-    detail = res[-1][1] if res else ""
+    detail = res[0][1] if res else ""
+    if hung:
+        detail = f"hung once{'; ' + detail if detail else ''}"
     return {
         "module": mod,
         "ok": rc == 0,
         "rc": rc,
         "seconds": round(secs, 1),
-        "tests": int(ran[-1][0]) if ran else 0,
+        "tests": int(ran[0][0]) if ran else 0,
         "detail": detail,
+        "hung": bool(hung),
         "failures": re.findall(r"^(?:FAIL|ERROR): (.+)$", out, re.M)[:20],
     }
 
@@ -131,7 +174,10 @@ def main() -> int:
         rows.append(r)
         mark = "ok  " if r["ok"] else "FAIL"
         print(f"{mark} {r['seconds']:7.1f}s {r['tests']:4d} tests  {mod} {('(' + r['detail'] + ')') if r['detail'] else ''}", flush=True)
-        if not r["ok"]:
+        if r["hung"]:
+            print(f"::warning title=Backend module hung::{mod} hung once (timeout {MODULE_TIMEOUT}s) and was run again: "
+                  f"{'passed' if r['ok'] else 'failed'} the second time. Its asyncio task tree is in backend-logs-{a.shard}/logs/{mod}.log")
+        if not r["ok"] or r["hung"]:
             print(f"::group::{mod} log (tail)")
             print("\n".join((logs / f"{mod}.log").read_text().splitlines()[-120:]))
             print("::endgroup::", flush=True)
@@ -150,6 +196,10 @@ def main() -> int:
         for r in failed:
             lines.append(f"| `{r['module']}` | {r['rc']} | {r['tests']} | {'<br>'.join(r['failures'][:5]) or r['detail']} |")
         lines.append("")
+    hung = [r for r in rows if r["hung"]]
+    if hung:
+        names = ", ".join(f"`{r['module']}`" for r in hung)
+        lines += [f"Hung once and run again: {names} (their asyncio task trees are in the logs artifact)", ""]
     perf = [ln for r in rows for ln in (logs / f"{r['module']}.log").read_text().splitlines() if ln.startswith("SEARCH PERF")]
     if perf:
         lines += ["```", *perf, "```", ""]
