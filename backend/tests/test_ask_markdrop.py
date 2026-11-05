@@ -282,6 +282,37 @@ class Asking(AskWorld):
         self.assertEqual(row["dropped"], 1)
 
 
+class Cost(AskWorld):
+    async def test_full_candidate_set_cost(self):
+        """The heaviest ask: 30 candidates with excerpts, a meeting's transcript lines and a follow-up's
+        history; usage counted from the prompt (pages_ai.est_tokens), priced by the ledger."""
+        from app.services import pages_ai
+        from tests.test_pages_ai import usage
+
+        await self.import_meeting()
+        for i in range(45):
+            await self.put(f"rel{i}", f"Release note {i}", "Release ship Friday staging " + "text " * 300)
+        await self.index_all()
+        base = self.script
+
+        def metered(params):
+            reply = base(params)
+            self.fake.u = usage(i=pages_ai.est_tokens(prompt_of(params)), o=pages_ai.est_tokens(reply))
+            return reply
+
+        self.fake.script = metered
+        first = self.done(await self.ask("wm", "When do we ship the release after staging?"))
+        self.done(await self.ask("wm", "and who runs the dry run?", thread_id=first["thread_id"]))
+        rows = sorted(await self.ledger(), key=lambda r: r["follow_up"])
+        self.assertEqual(rows[0]["candidates"], ask_markdrop.MAX_CANDIDATES)
+        report = [{"calls": r["calls"], "input": r["usage"]["input"], "output": r["usage"]["output"],
+                   "cost_usd": r["cost_usd"], "follow_up": r["follow_up"]} for r in rows]
+        print("\nASK COST (30 candidates + transcript lines)", json.dumps(report))
+        for r in rows:
+            self.assertLess(r["usage"]["input"], 30_000)
+            self.assertLess(r["cost_usd"], 0.01)
+
+
 class Threads(AskWorld):
     async def test_follow_up_carries_the_conversation(self):
         await self.put("pricing", "Pricing for Europe", "# Pricing for Europe\n\nVAT is included for EU buyers.")
