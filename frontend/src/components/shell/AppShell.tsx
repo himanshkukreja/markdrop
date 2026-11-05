@@ -104,7 +104,7 @@ function useExpanded() {
 }
 
 /** Wide pages (the drive views) get the Main board's 960px column; settings keep 880. */
-const WIDE = /^\/(w\/|shared$|recent$|trash$)/;
+const WIDE = /^\/(w\/|meetings\/|shared$|recent$|trash$)/;
 /** Analytics pages use the analytics boards' 1180px column. */
 const ANALYTICS = /^\/dashboard\/(analytics(\/|$)|live$)/;
 /** A workspace's folder view (/w/<ws> and /w/<ws>/f/<folder>), which brings its own phone header. */
