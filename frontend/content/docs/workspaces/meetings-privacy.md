@@ -39,7 +39,7 @@ Transcripts are sent only to the AI model, Claude Haiku 5.5, and only to answer 
 
 Meetings uses its own budget, **Meetings AI**: $5 a day and $50 a month across Markdrop. A summary costs about a fifth of a cent for an hour-long call, and a question costs less. Automatic imports count towards the same budget.
 
-When a limit is reached, imports still work, manual and automatic, but without the AI sections. Select **Write it again** later. Meetings AI is also off in a workspace whose AI features are turned off. In that case meetings import with their transcript and Google's notes only.
+When a limit is reached, imports still work, manual and automatic, but without the AI sections. Select **Write it again** later. [Import past meetings](/workspaces/meetings-import#import-past-meetings) is the exception: it waits for the budget to reset and then carries on, so every past meeting gets its summary. Meetings AI is also off in a workspace whose AI features are turned off. In that case meetings import with their transcript and Google's notes only.
 
 ## Related
 

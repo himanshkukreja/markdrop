@@ -1,28 +1,149 @@
 {
   "$comment": "Prose for the generated API reference (src/docs/openapi.mjs). Shapes, types, limits, auth and rate limits come from openapi.json (npm run docs:openapi); this file only titles, explains, groups and hides. Keys are \"METHOD /path\" exactly as in openapi.json. docs:check validates it.",
   "groups": [
-    { "id": "documents", "title": "Documents", "tags": ["documents", "og-image"] },
-    { "id": "pages", "title": "Pages", "tags": ["pages"] },
-    { "id": "templates", "title": "Templates", "tags": [] },
-    { "id": "page-history", "title": "Version history", "tags": ["page history"] },
-    { "id": "page-ai", "title": "Page AI", "tags": ["page-ai"] },
-    { "id": "properties", "title": "Properties and views", "tags": ["page properties"] },
-    { "id": "sign-off", "title": "Sign-off", "tags": [] },
-    { "id": "files", "title": "Files", "tags": ["files", "artifacts"] },
-    { "id": "trash", "title": "Trash", "tags": ["trash"] },
-    { "id": "access", "title": "Sharing and access", "tags": ["access"] },
-    { "id": "notifications", "title": "Notifications", "tags": ["notifications"] },
-    { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
-    { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
-    { "id": "search", "title": "Search", "tags": ["search"] },
-    { "id": "meetings", "title": "Meetings", "tags": ["meetings"] },
-    { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
-    { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai"] },
-    { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
+    {
+      "id": "documents",
+      "title": "Documents",
+      "tags": [
+        "documents",
+        "og-image"
+      ]
+    },
+    {
+      "id": "pages",
+      "title": "Pages",
+      "tags": [
+        "pages"
+      ]
+    },
+    {
+      "id": "templates",
+      "title": "Templates",
+      "tags": []
+    },
+    {
+      "id": "page-history",
+      "title": "Version history",
+      "tags": [
+        "page history"
+      ]
+    },
+    {
+      "id": "page-ai",
+      "title": "Page AI",
+      "tags": [
+        "page-ai"
+      ]
+    },
+    {
+      "id": "properties",
+      "title": "Properties and views",
+      "tags": [
+        "page properties"
+      ]
+    },
+    {
+      "id": "sign-off",
+      "title": "Sign-off",
+      "tags": []
+    },
+    {
+      "id": "files",
+      "title": "Files",
+      "tags": [
+        "files",
+        "artifacts"
+      ]
+    },
+    {
+      "id": "trash",
+      "title": "Trash",
+      "tags": [
+        "trash"
+      ]
+    },
+    {
+      "id": "access",
+      "title": "Sharing and access",
+      "tags": [
+        "access"
+      ]
+    },
+    {
+      "id": "notifications",
+      "title": "Notifications",
+      "tags": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "workspaces",
+      "title": "Workspaces",
+      "tags": [
+        "workspaces",
+        "invitations"
+      ]
+    },
+    {
+      "id": "folders",
+      "title": "Folders and filing",
+      "tags": [
+        "folders",
+        "workspace-items",
+        "library",
+        "folder-pages"
+      ]
+    },
+    {
+      "id": "search",
+      "title": "Search",
+      "tags": [
+        "search"
+      ]
+    },
+    {
+      "id": "meetings",
+      "title": "Meetings",
+      "tags": [
+        "meetings"
+      ]
+    },
+    {
+      "id": "domains",
+      "title": "Custom domains",
+      "tags": [
+        "domains"
+      ]
+    },
+    {
+      "id": "analytics",
+      "title": "Analytics",
+      "tags": [
+        "creator-analytics",
+        "analytics-ai"
+      ]
+    },
+    {
+      "id": "account",
+      "title": "Account",
+      "tags": [
+        "auth",
+        "me",
+        "personal",
+        "oauth"
+      ]
+    }
   ],
   "hide": {
     "$comment": "Endpoints only markdrop.in's own pages, emails or apps call: sign-in redirects, email links, Google Docs export, the VS Code extension's sync protocol, the docs site's own endpoints, the Guides studio's page AI (the rest of the Guides studio API isn't public), a page editor's on-close lock release (a browser beacon), the export download links the MCP tool hands out, the MCP transport (documented under AI and MCP) and the health check.",
-    "tags": ["google-docs", "sync", "feedback", "docs", "mcp", ""],
+    "tags": [
+      "google-docs",
+      "sync",
+      "feedback",
+      "docs",
+      "mcp",
+      ""
+    ],
     "operations": [
       "GET /api/v1/artifacts/status",
       "POST /api/v1/auth/logout",
@@ -63,7 +184,9 @@
     "name": "Acme",
     "host": "docs.acme.com",
     "new_slug": "release-notes",
-    "slugs": ["k3x9q2m"],
+    "slugs": [
+      "k3x9q2m"
+    ],
     "confirm_name": "Acme",
     "blob_key": "BLOB_KEY",
     "version": 1,
@@ -204,41 +327,75 @@
       "title": "Publish a document",
       "description": "Creates a Markdown document and returns its link. Works without an account: send a token to own it. Keep the `edit_secret` from a call without a token: it is the only way to change or delete that document later.",
       "mcp": "publish_document",
-      "example": { "title": "Release notes", "content": "# Release notes\n\nPublished from the API.", "expires_in": "7d" },
-      "responses": { "201": "Created. Returns the document with its `slug`, `url` and `edit_secret`.", "409": "The custom address is taken, or reserved." },
-      "guide": { "label": "Publish your first document", "href": "/get-started/first-document" }
+      "example": {
+        "title": "Release notes",
+        "content": "# Release notes\n\nPublished from the API.",
+        "expires_in": "7d"
+      },
+      "responses": {
+        "201": "Created. Returns the document with its `slug`, `url` and `edit_secret`.",
+        "409": "The custom address is taken, or reserved."
+      },
+      "guide": {
+        "label": "Publish your first document",
+        "href": "/get-started/first-document"
+      }
     },
     "GET /api/v1/documents/{slug}": {
       "title": "Read a document",
       "description": "Returns a document's content and details, if you may read it. For a private or workspace document, send a token; for a password-protected one, send the password in `X-Read-Password`.\n\nA document whose address changed answers at its old address too, but only to someone who can read it: `200` with `\"moved\": true` and the current `slug`.",
       "mcp": "get_document",
-      "responses": { "401": "It needs a token, or the right password.", "404": "No such document, or you can't open it." }
+      "responses": {
+        "401": "It needs a token, or the right password.",
+        "404": "No such document, or you can't open it."
+      }
     },
     "PUT /api/v1/documents/{slug}": {
       "title": "Update a document",
       "description": "Replaces a document's content, and optionally its title, password and expiry. Send a token as the owner or an editor, or the document's edit secret in `X-Edit-Secret`.",
       "mcp": "update_document",
-      "example": { "title": "Release notes", "content": "# Release notes\n\nUpdated from the API." },
-      "guide": { "label": "Edit key", "href": "/documents/edit-key" }
+      "example": {
+        "title": "Release notes",
+        "content": "# Release notes\n\nUpdated from the API."
+      },
+      "guide": {
+        "label": "Edit key",
+        "href": "/documents/edit-key"
+      }
     },
     "DELETE /api/v1/documents/{slug}": {
       "title": "Delete a document",
       "description": "Moves a document to the trash for 30 days. Its link stops working at once; [Restore from the trash](/api/trash/restore-from-the-trash) brings it back as it was. Send a token as the owner, or the document's edit secret in `X-Edit-Secret`.\n\nA page with sub-pages needs `children`: `delete` sends them to the trash with it, `lift` moves them up a level.",
       "mcp": "delete_document",
-      "paramNotes": { "children": "For a page with sub-pages: `delete` (they go to the trash too) or `lift` (they move up a level)." },
-      "responses": { "409": "The page has sub-pages and `children` is missing: `code` is `has_children`, with their `count`." },
-      "guide": { "label": "Trash", "href": "/documents/trash" }
+      "paramNotes": {
+        "children": "For a page with sub-pages: `delete` (they go to the trash too) or `lift` (they move up a level)."
+      },
+      "responses": {
+        "409": "The page has sub-pages and `children` is missing: `code` is `has_children`, with their `count`."
+      },
+      "guide": {
+        "label": "Trash",
+        "href": "/documents/trash"
+      }
     },
     "POST /api/v1/documents/{slug}/edit-secret/rotate": {
       "title": "Rotate the edit secret",
       "description": "Replaces a document's edit secret, for when the old one leaked. The old secret stops working at once; the new one is in the response, once. Owner only.",
-      "guide": { "label": "If the secret leaks", "href": "/documents/edit-key#if-the-secret-leaks" }
+      "guide": {
+        "label": "If the secret leaks",
+        "href": "/documents/edit-key#if-the-secret-leaks"
+      }
     },
     "POST /api/v1/documents/{slug}/claim": {
       "title": "Claim a document",
       "description": "Adds a document you published without an account to your account. Send its edit secret in `X-Edit-Secret`.",
-      "responses": { "409": "Another account already owns it." },
-      "guide": { "label": "Save it to your account", "href": "/documents/edit-key#save-it-to-your-account" }
+      "responses": {
+        "409": "Another account already owns it."
+      },
+      "guide": {
+        "label": "Save it to your account",
+        "href": "/documents/edit-key#save-it-to-your-account"
+      }
     },
     "POST /api/v1/documents/{slug}/copy": {
       "title": "Copy a document",
@@ -247,69 +404,115 @@
     "PATCH /api/v1/documents/{slug}/slug": {
       "title": "Change the address",
       "description": "Gives a document a new address. Its old address keeps working for people who can read it.",
-      "example": { "new_slug": "release-notes" },
-      "responses": { "409": "That address is taken, or reserved." },
-      "guide": { "label": "Addresses", "href": "/documents/addresses" }
+      "example": {
+        "new_slug": "release-notes"
+      },
+      "responses": {
+        "409": "That address is taken, or reserved."
+      },
+      "guide": {
+        "label": "Addresses",
+        "href": "/documents/addresses"
+      }
     },
     "GET /api/v1/documents/{slug}/slug-check": {
       "title": "Check an address",
       "description": "Whether a document could move to `new_slug`, without changing anything: `available`, or a `code` that says why not (`same`, `invalid`, `reserved`, `taken` or `folder`), plus the links it would have on markdrop.in and on its workspace's domain. For people who may change its address.",
-      "params": { "new_slug": "release-notes" },
-      "paramNotes": { "new_slug": "The address to check." },
-      "guide": { "label": "Addresses", "href": "/documents/addresses" }
+      "params": {
+        "new_slug": "release-notes"
+      },
+      "paramNotes": {
+        "new_slug": "The address to check."
+      },
+      "guide": {
+        "label": "Addresses",
+        "href": "/documents/addresses"
+      }
     },
     "PATCH /api/v1/documents/{slug}/settings": {
       "title": "Set password and expiry",
       "description": "Changes a document's password or expiry without sending its content. Every field is optional: leave one out to keep it. `\"read_password\": \"\"` removes the password. Send a token as the owner, or the edit secret.",
-      "example": { "expires_in": "7d" },
-      "guide": { "label": "Passwords and expiry", "href": "/documents/passwords-and-expiry" }
+      "example": {
+        "expires_in": "7d"
+      },
+      "guide": {
+        "label": "Passwords and expiry",
+        "href": "/documents/passwords-and-expiry"
+      }
     },
     "POST /api/v1/documents/{slug}/report": {
       "title": "Report a document",
       "description": "Flags a document for abuse. Always answers `202`, whether or not the address exists.",
-      "example": { "reason": "Phishing page" }
+      "example": {
+        "reason": "Phishing page"
+      }
     },
     "GET /api/v1/me/documents": {
       "title": "List your documents",
       "group": "documents",
       "description": "The documents and files you own, a page at a time, with counts of each kind.",
       "mcp": "list_documents",
-      "paramNotes": { "q": "Only titles or addresses containing this text.", "kind": "`document` (or `markdown`) for documents, `artifact` for files.", "per_page": "Same as `limit`, up to 50; wins when both are sent." }
+      "paramNotes": {
+        "q": "Only titles or addresses containing this text.",
+        "kind": "`document` (or `markdown`) for documents, `artifact` for files.",
+        "per_page": "Same as `limit`, up to 50; wins when both are sent."
+      }
     },
     "GET /api/v1/og/{slug}.png": {
       "title": "Get the preview image",
       "description": "The 1200×630 image link previews show for a document, as PNG.",
       "returns": "image/png",
-      "paramNotes": { "host": "Draw the card for this address (a workspace's own domain) instead of markdrop.in." },
-      "guide": { "label": "Link previews", "href": "/documents/link-previews" }
+      "paramNotes": {
+        "host": "Draw the card for this address (a workspace's own domain) instead of markdrop.in."
+      },
+      "guide": {
+        "label": "Link previews",
+        "href": "/documents/link-previews"
+      }
     },
-
     "POST /api/v1/pages": {
       "title": "Create a page",
       "description": "Creates a page: a document that opens in the block editor. `template` fills it from a template, or `content` gives its Markdown. `workspace` and `folder` file it (members and up); `parent` puts it inside a page you can edit, with that page's workspace, folder and access. Unless it has a cover, or `auto_cover` is `false`, a cover is picked for it in the background.",
       "mcp": "create_page",
-      "example": { "title": "Weekly sync", "workspace": "WORKSPACE_ID", "template": "meeting-notes" },
+      "example": {
+        "title": "Weekly sync",
+        "workspace": "WORKSPACE_ID",
+        "template": "meeting-notes"
+      },
       "responses": {
         "201": "Created. Returns the page as `document`, with its `slug` and `url`.",
         "409": "`slug` is taken, or reserved. Nothing is created."
       },
-      "guide": { "label": "Pages and the block editor", "href": "/pages/overview" }
+      "guide": {
+        "label": "Pages and the block editor",
+        "href": "/pages/overview"
+      }
     },
     "GET /api/v1/documents/{slug}/children": {
       "title": "List sub-pages",
       "group": "pages",
       "description": "The pages inside a page that you can open, oldest first, each saying whether it has sub-pages of its own.",
       "mcp": "list_subpages",
-      "guide": { "label": "Sub-pages", "href": "/pages/sub-pages" }
+      "guide": {
+        "label": "Sub-pages",
+        "href": "/pages/sub-pages"
+      }
     },
     "PUT /api/v1/documents/{slug}/parent": {
       "title": "Move a page",
       "group": "pages",
       "description": "Puts a page inside another page (`parent`: its address) or at the top level (`null`). If that changes who can read it, the answer is `409` with `code: \"access_change\"` and the readers before and after; send `confirm_access_change: true` to move it anyway.",
       "mcp": "move_page",
-      "example": { "parent": "team-handbook" },
-      "responses": { "409": "The move changes who can read the page. Send `confirm_access_change: true` to go ahead." },
-      "guide": { "label": "Sub-pages", "href": "/pages/sub-pages" }
+      "example": {
+        "parent": "team-handbook"
+      },
+      "responses": {
+        "409": "The move changes who can read the page. Send `confirm_access_change: true` to go ahead."
+      },
+      "guide": {
+        "label": "Sub-pages",
+        "href": "/pages/sub-pages"
+      }
     },
     "GET /api/v1/documents/{slug}/backlinks": {
       "title": "List backlinks",
@@ -321,20 +524,30 @@
       "group": "pages",
       "description": "Who you can @-mention on a page you can edit: the members of its workspace, sorted by name, with their email address when you're a signed-in member on markdrop.in (never on a workspace's own domain). `state` is `ok`, or says why no one is listed: `personal` (the page is in no workspace), `signin` (an edit link with no account) or `not_member` (you edit it but aren't in its workspace). Write a mention as `:person[Name]{id=\"<id>\"}`.",
       "mcp": "list_workspace_members",
-      "guide": { "label": "Mentions and notifications", "href": "/pages/mentions-and-notifications" }
+      "guide": {
+        "label": "Mentions and notifications",
+        "href": "/pages/mentions-and-notifications"
+      }
     },
     "PUT /api/v1/documents/{slug}/editor": {
       "title": "Switch the editor",
       "group": "pages",
       "description": "Opens a document in the block editor (`blocks`) or the classic Markdown editor (`classic`). The Markdown doesn't change. Not for files or end-to-end encrypted documents.",
-      "example": { "editor": "blocks" }
+      "example": {
+        "editor": "blocks"
+      }
     },
     "POST /api/v1/documents/{slug}/lock": {
       "title": "Take the edit lock",
       "group": "pages",
       "description": "Takes, or renews, a page's edit lock, so nobody else edits it at the same time. It lasts two minutes past your last call: renew it every 30 seconds while you edit.",
-      "responses": { "423": "Someone else is editing: `code` is `locked`, with the `holder`'s name." },
-      "guide": { "label": "Pages and the block editor", "href": "/pages/overview" }
+      "responses": {
+        "423": "Someone else is editing: `code` is `locked`, with the `holder`'s name."
+      },
+      "guide": {
+        "label": "Pages and the block editor",
+        "href": "/pages/overview"
+      }
     },
     "DELETE /api/v1/documents/{slug}/lock": {
       "title": "Release the edit lock",
@@ -348,50 +561,81 @@
     "POST /api/v1/pages/{slug}/cover/suggest": {
       "title": "Suggest a cover",
       "description": "Picks a cover from the built-in gallery for what the page is about, the way new pages get one, without saving it: `cover` is `gallery:<id>`. For people who can edit the page.",
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/documents/{slug}/assets": {
       "title": "Upload a page image",
       "group": "pages",
       "description": "Uploads a PNG, JPEG, GIF or WebP image of up to 10 MB to a page, as `multipart/form-data`. Use the `id` it returns in the page as `![alt](asset:<id>)`. The image shows to exactly the page's readers.",
       "mcp": "upload_page_image",
-      "guide": { "label": "Images in pages", "href": "/pages/images" }
+      "guide": {
+        "label": "Images in pages",
+        "href": "/pages/images"
+      }
     },
     "GET /api/v1/documents/{slug}/assets/urls": {
       "title": "Get image links",
       "group": "pages",
       "description": "Fresh links for the images a page uses, by image id, each with when it expires.",
-      "guide": { "label": "Images in pages", "href": "/pages/images" }
+      "guide": {
+        "label": "Images in pages",
+        "href": "/pages/images"
+      }
     },
     "POST /api/v1/documents/{slug}/embeds": {
       "title": "Resolve embedded items",
       "group": "pages",
       "description": "What you may see of each Markdrop item embedded in a page you can read. Each item is checked with its own access: one you can't open comes back without its title, excerpt or link.",
-      "example": { "slugs": ["k3x9q2m"] },
-      "guide": { "label": "Embed and mention", "href": "/pages/embed-and-mention" }
+      "example": {
+        "slugs": [
+          "k3x9q2m"
+        ]
+      },
+      "guide": {
+        "label": "Embed and mention",
+        "href": "/pages/embed-and-mention"
+      }
     },
     "POST /api/v1/bookmarks/preview": {
       "title": "Preview a bookmark",
       "description": "Fetches a link's title, description, site name, icon and image, for a bookmark block. The limits count per account, not per IP address.",
-      "example": { "url": "https://example.com/blog/launch" },
-      "responses": { "422": "That address may not be fetched: a private network, another scheme or port, or credentials in the URL." }
+      "example": {
+        "url": "https://example.com/blog/launch"
+      },
+      "responses": {
+        "422": "That address may not be fetched: a private network, another scheme or port, or credentials in the URL."
+      }
     },
     "POST /api/v1/link-preview": {
       "title": "Preview a link",
       "description": "The same as [Preview a bookmark](/api/pages/preview-a-bookmark), with limits of its own.",
-      "example": { "url": "https://example.com/blog/launch" }
+      "example": {
+        "url": "https://example.com/blog/launch"
+      }
     },
     "GET /api/v1/web-embeds/providers": {
       "title": "List embed providers",
       "description": "The sites a page can embed directly, such as YouTube, Vimeo, Loom, Figma, Google Maps and CodePen, each with an example link.",
-      "guide": { "label": "Embed and mention", "href": "/pages/embed-and-mention" }
+      "guide": {
+        "label": "Embed and mention",
+        "href": "/pages/embed-and-mention"
+      }
     },
     "GET /api/v1/web-embeds/resolve": {
       "title": "Resolve an embed link",
       "description": "The embeddable address and aspect ratio for a link from a supported site. Worked out from the link alone: nothing is fetched.",
-      "params": { "url": "https://vimeo.com/76979871" },
-      "paramNotes": { "url": "The link to embed." },
-      "responses": { "422": "Not a link from a supported site." }
+      "params": {
+        "url": "https://vimeo.com/76979871"
+      },
+      "paramNotes": {
+        "url": "The link to embed."
+      },
+      "responses": {
+        "422": "Not a link from a supported site."
+      }
     },
     "GET /api/v1/documents/{slug}/export": {
       "title": "Export a page",
@@ -399,27 +643,41 @@
       "description": "Downloads a page as portable Markdown (`md`), one self-contained HTML file (`html`), or a `.zip` with its images (`zip`). With `subpages=true` its sub-pages come too, in a `.zip`. Editors can always export; readers can unless the page turns exporting off.",
       "returns": "text/markdown",
       "mcp": "export_page",
-      "paramNotes": { "format": "`md` (the default), `html` or `zip`.", "subpages": "Include its sub-pages." },
+      "paramNotes": {
+        "format": "`md` (the default), `html` or `zip`.",
+        "subpages": "Include its sub-pages."
+      },
       "responses": {
         "413": "Too many pages to export at once.",
         "422": "The document is end-to-end encrypted: export it from the page in your browser."
       },
-      "guide": { "label": "Export a page", "href": "/pages/export" }
+      "guide": {
+        "label": "Export a page",
+        "href": "/pages/export"
+      }
     },
-
     "GET /api/v1/page-templates": {
       "title": "List built-in templates",
       "group": "templates",
       "description": "The built-in page templates, each with its id, name, description, icon, category and Markdown.",
-      "guide": { "label": "Templates", "href": "/pages/templates" }
+      "guide": {
+        "label": "Templates",
+        "href": "/pages/templates"
+      }
     },
     "GET /api/v1/page-templates/all": {
       "title": "List every template",
       "group": "templates",
       "description": "Every template you can start a page from: the built-ins, your personal templates and, with `workspace`, that workspace's templates (members and up). With `folder` too, the folder's default template.",
       "mcp": "list_page_templates",
-      "paramNotes": { "workspace": "A workspace's id.", "folder": "A folder of `workspace`: its id or path." },
-      "guide": { "label": "Templates", "href": "/pages/templates" }
+      "paramNotes": {
+        "workspace": "A workspace's id.",
+        "folder": "A folder of `workspace`: its id or path."
+      },
+      "guide": {
+        "label": "Templates",
+        "href": "/pages/templates"
+      }
     },
     "GET /api/v1/page-templates/{template_id}": {
       "title": "Get a template",
@@ -431,27 +689,45 @@
       "group": "templates",
       "description": "Saves a copy of a page, with its images, as a template: the workspace's (members and up) or your own (`scope: \"personal\"`). `include_subpages` copies the sub-pages you can open too.",
       "mcp": "save_page_as_template",
-      "example": { "name": "Weekly sync", "scope": "workspace" },
-      "guide": { "label": "Templates", "href": "/pages/templates" }
+      "example": {
+        "name": "Weekly sync",
+        "scope": "workspace"
+      },
+      "guide": {
+        "label": "Templates",
+        "href": "/pages/templates"
+      }
     },
     "PUT /api/v1/documents/{slug}/template": {
       "title": "Make a page a template",
       "group": "templates",
       "description": "`true` turns the page itself into a template, sub-pages included: it leaves every list and search and shows when people make a new page. `false` turns it back into a page. Pages already made from it never change.",
-      "example": { "template": true },
-      "guide": { "label": "Templates", "href": "/pages/templates" }
+      "example": {
+        "template": true
+      },
+      "guide": {
+        "label": "Templates",
+        "href": "/pages/templates"
+      }
     },
     "PATCH /api/v1/page-templates/{template_id}": {
       "title": "Update a template",
       "group": "templates",
       "description": "Renames a template, or changes its description or icon (an empty `icon` clears it). A workspace template: its admins and whoever saved it.",
-      "example": { "name": "Weekly sync" }
+      "example": {
+        "name": "Weekly sync"
+      }
     },
     "PUT /api/v1/page-templates/order": {
       "title": "Reorder templates",
       "group": "templates",
       "description": "Sets the order of a workspace's templates (admins) or, with `workspace` left out, of your personal ones.",
-      "example": { "workspace": "WORKSPACE_ID", "ids": ["TEMPLATE_ID"] }
+      "example": {
+        "workspace": "WORKSPACE_ID",
+        "ids": [
+          "TEMPLATE_ID"
+        ]
+      }
     },
     "DELETE /api/v1/page-templates/{template_id}": {
       "title": "Delete a template",
@@ -463,171 +739,295 @@
       "group": "templates",
       "description": "The template new pages in a folder start from: a built-in template's id or a workspace template's id, or `null` for a blank page. Admins only. People can still choose another template.",
       "mcp": "set_folder_default_template",
-      "example": { "template": "meeting-notes" },
-      "guide": { "label": "Templates", "href": "/pages/templates" }
+      "example": {
+        "template": "meeting-notes"
+      },
+      "guide": {
+        "label": "Templates",
+        "href": "/pages/templates"
+      }
     },
-
     "GET /api/v1/documents/{slug}/versions": {
       "title": "List page versions",
       "description": "A page's saved versions, newest first, with who made each one and when. For people who can edit the page. An end-to-end encrypted document has no history: `available` is `false`.",
       "mcp": "list_page_versions",
-      "paramNotes": { "cursor": "The `next_cursor` of the previous page.", "limit": "How many to return, up to 100." },
-      "guide": { "label": "Version history", "href": "/pages/history" }
+      "paramNotes": {
+        "cursor": "The `next_cursor` of the previous page.",
+        "limit": "How many to return, up to 100."
+      },
+      "guide": {
+        "label": "Version history",
+        "href": "/pages/history"
+      }
     },
     "GET /api/v1/documents/{slug}/versions/{n}": {
       "title": "Get a page version",
       "description": "One version's Markdown and image links, with the page as it is now (`current_doc`) to compare.",
       "mcp": "get_page_version",
-      "guide": { "label": "Version history", "href": "/pages/history" }
+      "guide": {
+        "label": "Version history",
+        "href": "/pages/history"
+      }
     },
     "POST /api/v1/documents/{slug}/versions/{n}/restore": {
       "title": "Restore a page version",
       "description": "Makes version `n` the page again, as a new version. The page as it was is saved first, so a restore can be undone.",
       "mcp": "restore_page_version",
-      "responses": { "423": "Someone else has the page open in the editor." },
-      "guide": { "label": "Version history", "href": "/pages/history" }
+      "responses": {
+        "423": "Someone else has the page open in the editor."
+      },
+      "guide": {
+        "label": "Version history",
+        "href": "/pages/history"
+      }
     },
-
     "GET /api/v1/ai/pages/status": {
       "title": "Check AI availability",
       "description": "Which AI features you can use, on a page (`slug`) or for a new page in a workspace (`workspace`). When they're off, `enabled` is `false` and `reason` says why: `signin`, `encrypted`, `off`, `not_configured`, `workspace_off`, `blocked`, `daily` or `monthly`. It also lists the actions, tones and languages the other endpoints take.",
-      "paramNotes": { "slug": "A page's address.", "workspace": "A workspace's id, for a new page there." },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "paramNotes": {
+        "slug": "A page's address.",
+        "workspace": "A workspace's id, for a new page there."
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/notes": {
       "title": "Draft a page from notes",
       "description": "Turns rough notes into a page in Markdown. Streams the result as server-sent events: `delta` events with text as it's written, then `done` (or `limit` when a limit stops it). Nothing is saved: create the page with [Create a page](/api/pages/create-a-page).",
       "returns": "text/event-stream",
-      "example": { "notes": "kickoff thurs, sam owns api, ship by 20th", "template": "auto" },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "example": {
+        "notes": "kickoff thurs, sam owns api, ship by 20th",
+        "template": "auto"
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/transform": {
       "title": "Rewrite a selection",
       "description": "Rewrites text from a page you can edit: improves, shortens or fixes it, changes its tone, translates it, or turns it into a checklist, a table or an explanation. Streams the result as server-sent events: `delta` events with text as it's written, then `done` (or `limit` when a limit stops it). Nothing changes on the page: the result is a suggestion.",
       "returns": "text/event-stream",
-      "example": { "action": "shorten", "text": "We are going to be shipping the new release at some point next week." },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "example": {
+        "action": "shorten",
+        "text": "We are going to be shipping the new release at some point next week."
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/write": {
       "title": "Write with a prompt",
       "description": "Writes new Markdown for a page you can edit, from `prompt` and the text around the cursor. Streams the result as server-sent events: `delta` events with text as it's written, then `done` (or `limit` when a limit stops it). Nothing changes on the page: the result is a suggestion.",
       "returns": "text/event-stream",
-      "example": { "prompt": "A short FAQ about the new pricing" },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "example": {
+        "prompt": "A short FAQ about the new pricing"
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/action-items": {
       "title": "Find action items",
       "description": "Finds the action items in a page you can edit (or in `text`) and writes them as a checklist, naming workspace members where it can. Streams the result as server-sent events: `delta` events with text as it's written, then `done` (or `limit` when a limit stops it). Nothing changes on the page: the result is a suggestion.",
       "returns": "text/event-stream",
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/summary": {
       "title": "Summarize a page",
       "description": "Writes a short summary of a page you can edit, as a note titled Summary. Streams the result as server-sent events: `delta` events with text as it's written, then `done` (or `limit` when a limit stops it). Nothing changes on the page: the result is a suggestion.",
       "returns": "text/event-stream",
       "mcp": "summarize_page",
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/meta": {
       "title": "Suggest a title and icon",
       "description": "Suggests a title, a one-sentence description and an emoji icon for a page you can edit. Nothing is saved.",
       "mcp": "suggest_page_meta",
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/translate": {
       "title": "Translate a page",
       "description": "Translates a page you can edit into `lang` as a new page next to it, titled with the language's name, with the same blocks, embeds and properties. The original doesn't change. Returns the new page's `slug`, `url` and `title`; send `Accept: text/event-stream` to get `progress` events while it works.",
       "mcp": "translate_page",
-      "example": { "lang": "Spanish" },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "example": {
+        "lang": "Spanish"
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/alt-text": {
       "title": "Suggest alt text",
       "description": "Suggests alt text for one of the images in a page you can edit. Nothing is saved.",
-      "example": { "asset_id": "ASSET_ID" },
-      "responses": { "501": "Image descriptions aren't available." },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "example": {
+        "asset_id": "ASSET_ID"
+      },
+      "responses": {
+        "501": "Image descriptions aren't available."
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
     "POST /api/v1/ai/pages/{slug}/ask": {
       "title": "Ask about a page",
       "description": "Answers a question about a page you can read, from its content and the embedded items you can open. Send earlier turns in `history` to follow up. Streams the answer as server-sent events: `delta` events, then `done`.",
       "returns": "text/event-stream",
-      "example": { "question": "What's still open?" },
-      "guide": { "label": "AI in pages", "href": "/pages/ai" }
+      "example": {
+        "question": "What's still open?"
+      },
+      "guide": {
+        "label": "AI in pages",
+        "href": "/pages/ai"
+      }
     },
-
     "GET /api/v1/workspaces/{workspace_id}/folders/{folder_id}/database": {
       "title": "Get a folder's database",
       "description": "A folder as a database: its properties, saved views and rows. The rows are the pages filed directly in the folder that you can read, newest first, up to 500. Any member.",
       "mcp": "list_folder_pages",
-      "paramNotes": { "rows": "`false` leaves the rows out." },
-      "guide": { "label": "Properties and views", "href": "/pages/properties-and-views" }
+      "paramNotes": {
+        "rows": "`false` leaves the rows out."
+      },
+      "guide": {
+        "label": "Properties and views",
+        "href": "/pages/properties-and-views"
+      }
     },
     "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}/properties": {
       "title": "Set a folder's properties",
       "description": "Replaces a folder's properties, and optionally its views. Members and admins. Pages' values never change: a property you leave out keeps its values, hidden.",
       "mcp": "set_folder_properties",
-      "example": { "properties": [{ "name": "Status", "type": "select", "options": ["Draft", "Done"] }] },
-      "responses": { "409": "Someone changed the properties since your `base_rev`." },
-      "guide": { "label": "Properties and views", "href": "/pages/properties-and-views" }
+      "example": {
+        "properties": [
+          {
+            "name": "Status",
+            "type": "select",
+            "options": [
+              "Draft",
+              "Done"
+            ]
+          }
+        ]
+      },
+      "responses": {
+        "409": "Someone changed the properties since your `base_rev`."
+      },
+      "guide": {
+        "label": "Properties and views",
+        "href": "/pages/properties-and-views"
+      }
     },
     "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}/views": {
       "title": "Set a folder's views",
       "description": "Replaces a folder's saved views: tables and boards, up to 20. Members and admins.",
-      "responses": { "409": "Someone changed the views since your `base_rev`." },
-      "guide": { "label": "Properties and views", "href": "/pages/properties-and-views" }
+      "responses": {
+        "409": "Someone changed the views since your `base_rev`."
+      },
+      "guide": {
+        "label": "Properties and views",
+        "href": "/pages/properties-and-views"
+      }
     },
     "GET /api/v1/documents/{slug}/properties": {
       "title": "Get a page's property values",
       "description": "A page's properties and their values, as you see them: people's names and linked pages' titles only where you may see them. `null` when its folder has no properties.",
-      "guide": { "label": "Properties and views", "href": "/pages/properties-and-views" }
+      "guide": {
+        "label": "Properties and views",
+        "href": "/pages/properties-and-views"
+      }
     },
     "PATCH /api/v1/documents/{slug}/properties": {
       "title": "Set a page's property values",
       "description": "Sets some of a page's property values, by key. `null` clears one. For people who can edit the page.",
-      "example": { "values": { "status": "Done" } },
+      "example": {
+        "values": {
+          "status": "Done"
+        }
+      },
       "responses": {
         "409": "The page changed since your `base_rev`.",
         "422": "A value doesn't fit its property, or it isn't a page.",
         "423": "Someone else is editing the page, or it's locked."
       },
-      "guide": { "label": "Properties and views", "href": "/pages/properties-and-views" }
+      "guide": {
+        "label": "Properties and views",
+        "href": "/pages/properties-and-views"
+      }
     },
-
     "GET /api/v1/documents/{slug}/signoffs": {
       "title": "List sign-offs",
       "group": "sign-off",
       "description": "The sign-off blocks on a page you can read: each one's options, the decision and who made it, and whether you can sign it. Names show only to people inside the page's circle.",
       "mcp": "list_signoffs",
-      "guide": { "label": "Sign-off", "href": "/pages/sign-off" }
+      "guide": {
+        "label": "Sign-off",
+        "href": "/pages/sign-off"
+      }
     },
     "POST /api/v1/documents/{slug}/signoffs/{block}": {
       "title": "Sign off",
       "group": "sign-off",
       "description": "Records your decision on a sign-off block that names you: `option` is one of its options, or `null` to clear it. Returns the block as you see it.",
       "mcp": "sign_off",
-      "example": { "option": "Approved" },
+      "example": {
+        "option": "Approved"
+      },
       "responses": {
         "403": "The block names someone else.",
         "404": "No such block on the page.",
         "422": "The block doesn't offer that option."
       },
-      "guide": { "label": "Sign-off", "href": "/pages/sign-off" }
+      "guide": {
+        "label": "Sign-off",
+        "href": "/pages/sign-off"
+      }
     },
-
     "POST /api/v1/files/uploads": {
       "title": "Start a file upload",
       "description": "Starts publishing a file of any size: send its name, size and SHA-256, and get back presigned URLs to `PUT` each part to. Then [finish the upload](/api/files/finish-a-file-upload). With `target_slug`, the file replaces the one behind an existing link instead, keeping the link, its access and its views.\n\nThe CLI does all of this, with resume, in one command.",
       "cli": "markdrop upload deck.pdf --title \"Q3 deck\"",
       "mcp": "create_upload",
-      "example": { "file_name": "deck.pdf", "size_bytes": 1048576, "sha256": "SHA256_OF_THE_FILE", "title": "Q3 deck" },
-      "responses": { "409": "The address you asked for is taken, or reserved.", "413": "The file is over the size limit for its type.", "507": "Your storage is full." },
-      "guide": { "label": "Large uploads", "href": "/files/large-uploads" }
+      "example": {
+        "file_name": "deck.pdf",
+        "size_bytes": 1048576,
+        "sha256": "SHA256_OF_THE_FILE",
+        "title": "Q3 deck"
+      },
+      "responses": {
+        "409": "The address you asked for is taken, or reserved.",
+        "413": "The file is over the size limit for its type.",
+        "507": "Your storage is full."
+      },
+      "guide": {
+        "label": "Large uploads",
+        "href": "/files/large-uploads"
+      }
     },
     "POST /api/v1/files/uploads/{upload_id}/urls": {
       "title": "Get fresh part URLs",
       "description": "New presigned URLs for parts of an upload in progress, for when the first ones expired before you used them.",
-      "example": { "part_numbers": [1, 2] }
+      "example": {
+        "part_numbers": [
+          1,
+          2
+        ]
+      }
     },
     "GET /api/v1/files/uploads/{upload_id}": {
       "title": "Check an upload",
@@ -643,8 +1043,18 @@
       "description": "Publishes the file once every part is uploaded. The server checks the SHA-256 first. `200` returns the link. `202` (`{\"state\": \"verifying\"}`) means the check is still running: [check the upload](/api/files/check-an-upload) until `state` is `done`. Calling it again on a finished upload returns the same result.",
       "cli": "markdrop upload deck.pdf",
       "mcp": "complete_upload",
-      "example": { "parts": [{ "part_number": 1, "etag": "ETAG_FROM_THE_PUT" }] },
-      "responses": { "200": "Published. Returns the link.", "202": "Still checking the file. Poll the upload's status." }
+      "example": {
+        "parts": [
+          {
+            "part_number": 1,
+            "etag": "ETAG_FROM_THE_PUT"
+          }
+        ]
+      },
+      "responses": {
+        "200": "Published. Returns the link.",
+        "202": "Still checking the file. Poll the upload's status."
+      }
     },
     "GET /api/v1/files/{slug}": {
       "title": "Get file details",
@@ -657,14 +1067,20 @@
       "description": "Every version of a file you own or can edit. Replacing a file keeps the previous version.",
       "cli": "markdrop versions k3x9q2m",
       "mcp": "list_file_versions",
-      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+      "guide": {
+        "label": "Replace and versions",
+        "href": "/files/replace-and-versions"
+      }
     },
     "POST /api/v1/files/{slug}/versions/{version}/restore": {
       "title": "Restore a file version",
       "description": "Makes an earlier version current again, at the same link. Versions start at 1.",
       "cli": "markdrop restore k3x9q2m 1",
       "mcp": "restore_file_version",
-      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+      "guide": {
+        "label": "Replace and versions",
+        "href": "/files/replace-and-versions"
+      }
     },
     "DELETE /api/v1/files/{slug}/versions/{version}": {
       "title": "Delete a file version",
@@ -675,46 +1091,77 @@
         "404": "That version isn't kept.",
         "409": "That's the current version. Restore another one first, or delete the file."
       },
-      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+      "guide": {
+        "label": "Replace and versions",
+        "href": "/files/replace-and-versions"
+      }
     },
     "POST /api/v1/artifacts/paste": {
       "title": "Publish an HTML page",
       "description": "Publishes HTML you send in the request as a page that renders. Up to 10 MB; anything larger goes through [Start a file upload](/api/files/start-a-file-upload).",
       "mcp": "publish_page",
-      "example": { "title": "Launch page", "content": "<!doctype html><title>Launch</title><h1>Hello</h1>" },
-      "responses": { "413": "The HTML is over 10 MB.", "507": "Your storage is full." },
-      "guide": { "label": "HTML pages", "href": "/files/html-pages" }
+      "example": {
+        "title": "Launch page",
+        "content": "<!doctype html><title>Launch</title><h1>Hello</h1>"
+      },
+      "responses": {
+        "413": "The HTML is over 10 MB.",
+        "507": "Your storage is full."
+      },
+      "guide": {
+        "label": "HTML pages",
+        "href": "/files/html-pages"
+      }
     },
     "POST /api/v1/artifacts/upload-url": {
       "title": "Get a single upload URL",
       "description": "The one-request upload markdrop.in uses for smaller files: returns a presigned URL to `PUT` the whole file to, then [publish it](/api/files/publish-an-uploaded-file). For anything large, or to resume, use [Start a file upload](/api/files/start-a-file-upload).",
-      "responses": { "413": "The file is over the size limit for its type.", "415": "That file type isn't supported." }
+      "responses": {
+        "413": "The file is over the size limit for its type.",
+        "415": "That file type isn't supported."
+      }
     },
     "POST /api/v1/artifacts": {
       "title": "Publish an uploaded file",
       "description": "Publishes a file uploaded with [Get a single upload URL](/api/files/get-a-single-upload-url), after checking its real size and type.",
-      "example": { "blob_key": "BLOB_KEY", "title": "Q3 deck" }
+      "example": {
+        "blob_key": "BLOB_KEY",
+        "title": "Q3 deck"
+      }
     },
     "PATCH /api/v1/artifacts/{slug}": {
       "title": "Update a file's settings",
       "description": "Changes a file's title, password or expiry. Every field is optional. The owner may change all of them; editors may change the title.",
-      "example": { "title": "Q3 deck (final)" }
+      "example": {
+        "title": "Q3 deck (final)"
+      }
     },
     "PUT /api/v1/artifacts/{slug}/file": {
       "title": "Replace a file",
       "description": "Swaps the file behind a link for one uploaded with [Get a single upload URL](/api/files/get-a-single-upload-url), keeping the link and its settings. The previous file is kept as a version.",
       "cli": "markdrop replace k3x9q2m deck-v2.pdf",
-      "example": { "blob_key": "BLOB_KEY" },
-      "responses": { "507": "The owner's storage is full." },
-      "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
+      "example": {
+        "blob_key": "BLOB_KEY"
+      },
+      "responses": {
+        "507": "The owner's storage is full."
+      },
+      "guide": {
+        "label": "Replace and versions",
+        "href": "/files/replace-and-versions"
+      }
     },
-
     "GET /api/v1/trash": {
       "title": "List the trash",
       "description": "What you can restore: your own deleted documents, pages, files and folders, and everything deleted from workspaces you administer. Newest first; a folder deleted with its contents is one row. Items stay 30 days.",
       "mcp": "list_trash",
-      "paramNotes": { "workspace": "Only what was deleted from this workspace (its id)." },
-      "guide": { "label": "Trash", "href": "/documents/trash" }
+      "paramNotes": {
+        "workspace": "Only what was deleted from this workspace (its id)."
+      },
+      "guide": {
+        "label": "Trash",
+        "href": "/documents/trash"
+      }
     },
     "GET /api/v1/documents/{slug}/delete-preview": {
       "title": "Preview a delete",
@@ -724,73 +1171,119 @@
       "title": "Restore from the trash",
       "description": "Puts a deleted item back where it was, with the same link, access and people, together with what was deleted with it: a page's sub-pages, or a folder's folders and items. If the place it came from is gone, it comes back as close as it can and `notes` says where. Send a token as its owner or an admin of its workspace, or the document's edit secret.",
       "mcp": "restore_document",
-      "paramNotes": { "slug": "The item's address, or a deleted folder's id, from [List the trash](/api/trash/list-the-trash)." },
-      "guide": { "label": "Trash", "href": "/documents/trash" }
+      "paramNotes": {
+        "slug": "The item's address, or a deleted folder's id, from [List the trash](/api/trash/list-the-trash)."
+      },
+      "guide": {
+        "label": "Trash",
+        "href": "/documents/trash"
+      }
     },
     "DELETE /api/v1/trash/{slug}": {
       "title": "Delete forever",
       "description": "Deletes an item in the trash, and what was deleted with it, for good. This can't be undone. `items` lists what was deleted.",
-      "paramNotes": { "slug": "The item's address, or a deleted folder's id, from [List the trash](/api/trash/list-the-trash)." },
-      "guide": { "label": "Trash", "href": "/documents/trash" }
+      "paramNotes": {
+        "slug": "The item's address, or a deleted folder's id, from [List the trash](/api/trash/list-the-trash)."
+      },
+      "guide": {
+        "label": "Trash",
+        "href": "/documents/trash"
+      }
     },
     "GET /api/v1/trash/lookup/{slug}": {
       "title": "Look up a deleted item",
       "description": "What a link to a deleted item says to someone who could edit it: what it was, who deleted it and when, when it's deleted for good, and whether you can restore it. Anyone else gets `404`, the same as an address that doesn't exist."
     },
-
     "GET /api/v1/documents/{slug}/access": {
       "title": "Get sharing settings",
       "description": "Who can open a document and the people it is shared with. People with a role on the document can call it; the list of people is for the owner and editors.",
-      "guide": { "label": "Who can open a document", "href": "/sharing/who-can-open" }
+      "guide": {
+        "label": "Who can open a document",
+        "href": "/sharing/who-can-open"
+      }
     },
     "PUT /api/v1/documents/{slug}/access/level": {
       "title": "Set who can open it",
       "description": "Sets a document's access level. Narrowing it takes effect at once, for every address the document has.",
       "mcp": "set_access",
-      "example": { "level": "private" },
-      "guide": { "label": "Who can open a document", "href": "/sharing/who-can-open" }
+      "example": {
+        "level": "private"
+      },
+      "guide": {
+        "label": "Who can open a document",
+        "href": "/sharing/who-can-open"
+      }
     },
     "POST /api/v1/documents/access/level": {
       "title": "Set access for several documents",
       "description": "Sets the access level of many documents you own at once. Each one is checked on its own: the response has a result per address.",
-      "example": { "slugs": ["k3x9q2m", "q3-report"], "level": "private" }
+      "example": {
+        "slugs": [
+          "k3x9q2m",
+          "q3-report"
+        ],
+        "level": "private"
+      }
     },
     "PUT /api/v1/documents/{slug}/access/resharing": {
       "title": "Let editors share",
       "description": "Whether editors may share the document with more people.",
-      "example": { "allow": false }
+      "example": {
+        "allow": false
+      }
     },
     "PUT /api/v1/documents/{slug}/access/presence": {
       "title": "Show who's viewing",
       "description": "Turns the document's **Show who's viewing** on or off. Owner only. Off, nobody on the page sees anyone, not even a count.",
       "mcp": "set_presence",
-      "example": { "show": false },
-      "guide": { "label": "See who's viewing", "href": "/sharing/see-whos-viewing" }
+      "example": {
+        "show": false
+      },
+      "guide": {
+        "label": "See who's viewing",
+        "href": "/sharing/see-whos-viewing"
+      }
     },
     "POST /api/v1/documents/{slug}/access/people": {
       "title": "Share with a person",
       "description": "Gives one person access by email, and optionally emails them. If the email fails, the access stays: the response says whether it was sent.",
-      "example": { "email": "sam@example.com", "role": "viewer", "notify": true },
-      "guide": { "label": "Share with people", "href": "/sharing/share-with-people" }
+      "example": {
+        "email": "sam@example.com",
+        "role": "viewer",
+        "notify": true
+      },
+      "guide": {
+        "label": "Share with people",
+        "href": "/sharing/share-with-people"
+      }
     },
     "DELETE /api/v1/documents/{slug}/access/people/{email}": {
       "title": "Remove a person",
       "description": "Takes away one person's access.",
-      "params": { "email": "sam@example.com" }
+      "params": {
+        "email": "sam@example.com"
+      }
     },
     "POST /api/v1/documents/{slug}/access-requests": {
       "title": "Request access",
       "group": "access",
       "description": "Asks the owner of a document you can't open for access, or, with `role: \"editor\"`, for edit access to one you can read. The owner can approve or decline it.",
-      "example": { "message": "Could I see the Q3 numbers?" },
+      "example": {
+        "message": "Could I see the Q3 numbers?"
+      },
       "mcp": "request_edit_access",
-      "guide": { "label": "Request access", "href": "/sharing/request-access" }
+      "guide": {
+        "label": "Request access",
+        "href": "/sharing/request-access"
+      }
     },
     "GET /api/v1/documents/{slug}/access-requests/mine": {
       "title": "Check your request",
       "group": "access",
       "description": "Whether your request for access to a document is pending, approved or declined.",
-      "paramNotes": { "role": "`editor` checks your request for edit access instead." }
+      "paramNotes": {
+        "role": "`editor` checks your request for edit access instead."
+      }
     },
     "GET /api/v1/me/access-requests": {
       "group": "access",
@@ -807,16 +1300,24 @@
       "group": "access",
       "title": "Answer an access request",
       "description": "Approves a request as a viewer or editor, or declines it.",
-      "example": { "decision": "view" },
+      "example": {
+        "decision": "view"
+      },
       "mcp": "decide_access_request"
     },
-
     "GET /api/v1/notifications": {
       "title": "List notifications",
       "description": "Your notifications from the last 90 days, newest first: someone mentioned you, asked for your sign-off or shared a page with you. One about a page you can no longer open has no title or link.",
       "mcp": "list_notifications",
-      "paramNotes": { "unread_only": "Only unread ones.", "limit": "How many to return, up to 100.", "before": "The `next_before` of the previous page." },
-      "guide": { "label": "Mentions and notifications", "href": "/pages/mentions-and-notifications" }
+      "paramNotes": {
+        "unread_only": "Only unread ones.",
+        "limit": "How many to return, up to 100.",
+        "before": "The `next_before` of the previous page."
+      },
+      "guide": {
+        "label": "Mentions and notifications",
+        "href": "/pages/mentions-and-notifications"
+      }
     },
     "GET /api/v1/notifications/unread-count": {
       "title": "Count unread notifications",
@@ -826,14 +1327,17 @@
       "title": "Mark notifications read",
       "description": "Marks some notifications read (`ids`), or all of them (`all: true`). Returns how many changed and the new unread count.",
       "mcp": "mark_notifications_read",
-      "example": { "all": true }
+      "example": {
+        "all": true
+      }
     },
     "POST /api/v1/notifications/{notification_id}/open": {
       "title": "Open a notification",
       "description": "Marks a notification read and returns the link to the page and block it's about, if you can open that page now.",
-      "responses": { "403": "You can't open the page now, or it's gone." }
+      "responses": {
+        "403": "You can't open the page now, or it's gone."
+      }
     },
-
     "GET /api/v1/workspaces": {
       "title": "List workspaces",
       "description": "The workspaces you belong to, with your role in each and their live domains.",
@@ -843,8 +1347,13 @@
     "POST /api/v1/workspaces": {
       "title": "Create a workspace",
       "description": "Creates a workspace with you as its owner.",
-      "example": { "name": "Acme" },
-      "guide": { "label": "Create a workspace", "href": "/workspaces/create" }
+      "example": {
+        "name": "Acme"
+      },
+      "guide": {
+        "label": "Create a workspace",
+        "href": "/workspaces/create"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}": {
       "title": "Get a workspace",
@@ -853,13 +1362,20 @@
     "PUT /api/v1/workspaces/{workspace_id}": {
       "title": "Update a workspace",
       "description": "Changes a workspace's name, branding or settings. Every field is optional. Turning `require_auth_to_view` on or off takes effect for readers at once; files, page images and cached pages follow in the background, and the answer's `access_sync` says how many items are still applying (`GET` the workspace to follow it).",
-      "example": { "name": "Acme Inc." },
-      "guide": { "label": "Branding", "href": "/workspaces/branding" }
+      "example": {
+        "name": "Acme Inc."
+      },
+      "guide": {
+        "label": "Branding",
+        "href": "/workspaces/branding"
+      }
     },
     "DELETE /api/v1/workspaces/{workspace_id}": {
       "title": "Delete a workspace",
       "description": "Deletes a workspace, its folders and its domains. Documents filed in it are not deleted: they go back to their owners. Send the workspace's name to confirm.",
-      "example": { "confirm_name": "Acme" }
+      "example": {
+        "confirm_name": "Acme"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}/members": {
       "title": "List members",
@@ -868,8 +1384,13 @@
     "PUT /api/v1/workspaces/{workspace_id}/members/{member_user_id}": {
       "title": "Change a member's role",
       "description": "Makes a member an admin, a member or a viewer.",
-      "example": { "role": "admin" },
-      "guide": { "label": "Members and roles", "href": "/workspaces/members-and-roles" }
+      "example": {
+        "role": "admin"
+      },
+      "guide": {
+        "label": "Members and roles",
+        "href": "/workspaces/members-and-roles"
+      }
     },
     "DELETE /api/v1/workspaces/{workspace_id}/members/{member_user_id}": {
       "title": "Remove a member",
@@ -878,9 +1399,16 @@
     "GET /api/v1/workspaces/{workspace_id}/members/search": {
       "title": "Find members to mention",
       "description": "Up to 20 members of a workspace whose name or email contains `q`, for mentioning in a page: their id, name and picture, never their email. Any member can search.",
-      "params": { "q": "sam" },
-      "paramNotes": { "q": "Part of a name or email. Leave it empty for everyone." },
-      "guide": { "label": "Mentions and notifications", "href": "/pages/mentions-and-notifications" }
+      "params": {
+        "q": "sam"
+      },
+      "paramNotes": {
+        "q": "Part of a name or email. Leave it empty for everyone."
+      },
+      "guide": {
+        "label": "Mentions and notifications",
+        "href": "/pages/mentions-and-notifications"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}/invitations": {
       "title": "List invitations",
@@ -889,8 +1417,14 @@
     "POST /api/v1/workspaces/{workspace_id}/invitations": {
       "title": "Invite someone",
       "description": "Emails someone an invitation to join the workspace.",
-      "example": { "email": "sam@example.com", "role": "member" },
-      "guide": { "label": "Members and roles", "href": "/workspaces/members-and-roles" }
+      "example": {
+        "email": "sam@example.com",
+        "role": "member"
+      },
+      "guide": {
+        "label": "Members and roles",
+        "href": "/workspaces/members-and-roles"
+      }
     },
     "DELETE /api/v1/workspaces/{workspace_id}/invitations/{invite_id}": {
       "title": "Revoke an invitation",
@@ -899,38 +1433,55 @@
     "POST /api/v1/workspaces/{workspace_id}/branding/{kind}": {
       "title": "Upload a logo or favicon",
       "description": "Uploads an image and returns its URL. It isn't used until you save that URL in the workspace's branding with [Update a workspace](/api/workspaces/update-a-workspace).",
-      "params": { "kind": "logo" },
-      "paramNotes": { "kind": "`logo` or `favicon`." },
-      "guide": { "label": "Branding", "href": "/workspaces/branding" }
+      "params": {
+        "kind": "logo"
+      },
+      "paramNotes": {
+        "kind": "`logo` or `favicon`."
+      },
+      "guide": {
+        "label": "Branding",
+        "href": "/workspaces/branding"
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/transfer": {
       "title": "Transfer ownership",
       "description": "Makes another member the owner. You become an admin. Documents, sharing and domains don't change. Owner only.",
-      "example": { "user_id": "USER_ID" }
+      "example": {
+        "user_id": "USER_ID"
+      }
     },
     "GET /api/v1/og/w/{workspace_id}.png": {
       "title": "Get a workspace's preview image",
       "group": "workspaces",
       "description": "The 1200×630 image link previews show for a workspace's address, as PNG. It names the workspace only when a signed-out visitor could see it: it has a live domain and doesn't require sign-in. Otherwise the card is blank.",
       "returns": "image/png",
-      "guide": { "label": "Link previews", "href": "/documents/link-previews" }
+      "guide": {
+        "label": "Link previews",
+        "href": "/documents/link-previews"
+      }
     },
     "GET /api/v1/invites/{token}": {
       "title": "Preview an invitation",
       "description": "What an invitation link is for: the workspace, the role and whether it is still open. Answers `200` for invitations already accepted or withdrawn too, saying so.",
-      "paramNotes": { "token": "The token from the invitation link." }
+      "paramNotes": {
+        "token": "The token from the invitation link."
+      }
     },
     "POST /api/v1/invites/{token}/accept": {
       "title": "Accept an invitation",
       "description": "Joins the workspace with the role the invitation offers, as the account the token belongs to.",
-      "paramNotes": { "token": "The token from the invitation link." }
+      "paramNotes": {
+        "token": "The token from the invitation link."
+      }
     },
     "POST /api/v1/invites/{token}/decline": {
       "title": "Decline an invitation",
       "description": "Turns an invitation down. No token needed: the invitation link is enough.",
-      "paramNotes": { "token": "The token from the invitation link." }
+      "paramNotes": {
+        "token": "The token from the invitation link."
+      }
     },
-
     "GET /api/v1/workspaces/{workspace_id}/folders": {
       "title": "List folders",
       "description": "Every folder in a workspace.",
@@ -939,24 +1490,38 @@
     "POST /api/v1/workspaces/{workspace_id}/folders": {
       "title": "Create a folder",
       "description": "Creates a folder at the top level, or inside another folder with `parent_id`.",
-      "example": { "name": "Guides" },
-      "guide": { "label": "Folders", "href": "/workspaces/folders" }
+      "example": {
+        "name": "Guides"
+      },
+      "guide": {
+        "label": "Folders",
+        "href": "/workspaces/folders"
+      }
     },
     "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Update a folder",
       "description": "Renames a folder, or moves it with `parent_id` and `reparent: true`.",
-      "example": { "name": "Handbook" }
+      "example": {
+        "name": "Handbook"
+      }
     },
     "PATCH /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Rename or move a folder",
       "description": "Renames a folder, changes its address, moves it (`parent_id`; `null` is the top level) or sets the access new documents in it start with. Admins and the owner. Every document below it moves to its new address.",
-      "example": { "name": "Handbook" }
+      "example": {
+        "name": "Handbook"
+      }
     },
     "DELETE /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Delete a folder",
       "description": "Deletes a folder. By default (`mode=trash`) the folder, every folder inside it and everything filed in them go to the trash for 30 days, and come back together if you restore the folder. With `unfile` or `move_up` only the folder goes: what was in it moves to the top of the workspace, or into the parent folder.",
-      "paramNotes": { "mode": "`trash` (the default), `unfile` or `move_up`." },
-      "guide": { "label": "Trash", "href": "/documents/trash" }
+      "paramNotes": {
+        "mode": "`trash` (the default), `unfile` or `move_up`."
+      },
+      "guide": {
+        "label": "Trash",
+        "href": "/documents/trash"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}/tree": {
       "title": "Get the folder tree",
@@ -979,35 +1544,65 @@
       "title": "File documents",
       "description": "Files documents you own into the workspace. Their access stays the same unless you send `access`.",
       "mcp": "add_to_workspace",
-      "example": { "slugs": ["k3x9q2m"], "folder_id": "FOLDER_ID" }
+      "example": {
+        "slugs": [
+          "k3x9q2m"
+        ],
+        "folder_id": "FOLDER_ID"
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/items/previews": {
       "title": "Preview items",
       "description": "What the Cards view shows of each item, for up to 12 items at a time. Each answers `locked` unless you can open it right now, `encrypted` for an end-to-end encrypted document, and `pending` while a picture is being made (ask again). Otherwise `ok` with plain-text `blocks` (pages, documents, HTML and Word files), a sheet's first `rows`, a text file's first `lines`, or `src`, a small WebP thumbnail as a data URI (images, a PDF's first page, a video's poster, a page's cover). An HTML file also has `live`, its signed address on the files origin. Any member.",
       "mcp": "list_workspace_items",
-      "example": { "slugs": ["k3x9q2m", "q3-report"] },
-      "guide": { "label": "Browse a workspace", "href": "/workspaces/folders#browse-a-workspace" }
+      "example": {
+        "slugs": [
+          "k3x9q2m",
+          "q3-report"
+        ]
+      },
+      "guide": {
+        "label": "Browse a workspace",
+        "href": "/workspaces/folders#browse-a-workspace"
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/items/move": {
       "title": "Move documents",
       "description": "Moves documents to another folder. Every document is checked first: if you can't move one, none move.",
-      "example": { "slugs": ["k3x9q2m"], "folder_id": "FOLDER_ID" }
+      "example": {
+        "slugs": [
+          "k3x9q2m"
+        ],
+        "folder_id": "FOLDER_ID"
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/items/remove": {
       "title": "Take documents out",
       "description": "Takes documents out of the workspace. They go back to their owners. A document with `workspace` access becomes `private`.",
-      "example": { "slugs": ["k3x9q2m"] }
+      "example": {
+        "slugs": [
+          "k3x9q2m"
+        ]
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/documents/move": {
       "title": "Move a document",
       "description": "Moves one document to a folder (`folder_id`), or to the top level (`null`).",
-      "example": { "slug": "k3x9q2m", "folder_id": "FOLDER_ID" }
+      "example": {
+        "slug": "k3x9q2m",
+        "folder_id": "FOLDER_ID"
+      }
     },
     "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}/share": {
       "title": "Share a folder",
       "description": "Creates a link to a folder. Each visitor sees only the documents they could already open: sharing a folder never changes any document's access. `hidden` lists what the link's audience can't see.",
-      "example": { "level": "link" },
-      "guide": { "label": "Share a folder", "href": "/workspaces/share-a-folder" }
+      "example": {
+        "level": "link"
+      },
+      "guide": {
+        "label": "Share a folder",
+        "href": "/workspaces/share-a-folder"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}/folders/{folder_id}/share": {
       "title": "Get a folder's link",
@@ -1026,15 +1621,23 @@
       "group": "folders",
       "description": "The 1200×630 image link previews show for a folder's address, as PNG. It names the folder only when a signed-out visitor could already see it: the folder is shared with anyone with the link, or it holds items anyone can open on a workspace with a live domain. Otherwise the card is blank.",
       "returns": "image/png",
-      "guide": { "label": "Link previews", "href": "/documents/link-previews" }
+      "guide": {
+        "label": "Link previews",
+        "href": "/documents/link-previews"
+      }
     },
     "GET /api/v1/og/f/{share_id}.png": {
       "title": "Get a shared folder's preview image",
       "group": "folders",
       "description": "The image link previews show for a shared folder's link (`markdrop.in/f/<share-id>`), as PNG, with the same rules as [Get a folder's preview image](/api/folders/get-a-folder-s-preview-image).",
       "returns": "image/png",
-      "paramNotes": { "path": "A subfolder's path below the shared folder." },
-      "guide": { "label": "Share a folder", "href": "/workspaces/share-a-folder" }
+      "paramNotes": {
+        "path": "A subfolder's path below the shared folder."
+      },
+      "guide": {
+        "label": "Share a folder",
+        "href": "/workspaces/share-a-folder"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}/documents": {
       "title": "List workspace documents",
@@ -1043,7 +1646,9 @@
     "POST /api/v1/workspaces/{workspace_id}/documents": {
       "title": "Add a document",
       "description": "Files one of your documents in the workspace, by its id.",
-      "example": { "document_id": "DOCUMENT_ID" }
+      "example": {
+        "document_id": "DOCUMENT_ID"
+      }
     },
     "GET /api/v1/workspaces/{workspace_id}/documents/counts": {
       "title": "Count workspace documents",
@@ -1056,19 +1661,29 @@
     "PUT /api/v1/workspaces/{workspace_id}/documents/{document_id}/folder": {
       "title": "File in a folder",
       "description": "Puts a workspace document in a folder, or at the top level with `null`.",
-      "example": { "folder_id": "FOLDER_ID" }
+      "example": {
+        "folder_id": "FOLDER_ID"
+      }
     },
-
     "GET /api/v1/workspaces/{workspace_id}/domains": {
       "title": "List domains",
       "description": "A workspace's custom domains and where each one stands.",
-      "guide": { "label": "Custom domain", "href": "/workspaces/custom-domain" }
+      "guide": {
+        "label": "Custom domain",
+        "href": "/workspaces/custom-domain"
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/domains": {
       "title": "Add a domain",
       "description": "Adds a domain to a workspace and returns the DNS records to create at your DNS provider.",
-      "example": { "host": "docs.acme.com", "kind": "app" },
-      "guide": { "label": "Custom domain", "href": "/workspaces/custom-domain" }
+      "example": {
+        "host": "docs.acme.com",
+        "kind": "app"
+      },
+      "guide": {
+        "label": "Custom domain",
+        "href": "/workspaces/custom-domain"
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/domains/{domain_id}/verify": {
       "title": "Verify a domain",
@@ -1077,7 +1692,9 @@
     "POST /api/v1/workspaces/{workspace_id}/domains/{domain_id}/attach": {
       "title": "Turn on a domain",
       "description": "Starts serving a verified domain, with HTTPS.",
-      "responses": { "501": "Domains can't be turned on automatically here. Finish the step by hand." }
+      "responses": {
+        "501": "Domains can't be turned on automatically here. Finish the step by hand."
+      }
     },
     "POST /api/v1/workspaces/{workspace_id}/domains/{domain_id}/detach": {
       "title": "Take a domain offline",
@@ -1095,44 +1712,72 @@
       "title": "Remove a domain",
       "description": "Removes a domain from the workspace. Links on it stop working; the documents keep their markdrop.in addresses."
     },
-
     "GET /api/v1/me/analytics": {
       "title": "Analytics for everything",
       "description": "Totals across every document and file you own.",
-      "guide": { "label": "Analytics", "href": "/analytics/overview" }
+      "guide": {
+        "label": "Analytics",
+        "href": "/analytics/overview"
+      }
     },
     "GET /api/v1/me/analytics/live": {
       "title": "Who is reading now",
       "description": "People reading or watching your documents right now.",
-      "guide": { "label": "Live now", "href": "/analytics/live" }
+      "guide": {
+        "label": "Live now",
+        "href": "/analytics/live"
+      }
     },
     "GET /api/v1/me/analytics/ai/status": {
       "title": "Check Analytics AI availability",
       "description": "Whether Insights, Ask and Write this next can run now. When they can't, `enabled` is `false`, `reason` says why (`off`, `not_configured`, `blocked`, `burst`, `user_daily`, `daily` or `monthly`) and `message` says it in words. `gap_scopes` lists where you may see content gaps: each workspace you own or admin (`workspace:<id>`) and `personal` when you have Guides of your own.",
-      "guide": { "label": "Insights and Ask", "href": "/analytics/overview#insights-and-ask" }
+      "guide": {
+        "label": "Insights and Ask",
+        "href": "/analytics/overview#insights-and-ask"
+      }
     },
     "GET /api/v1/me/analytics/ai/story": {
       "title": "What changed (AI)",
       "description": "Insights for the analytics home: a `headline` and 3 to 5 `bullets`, each a sentence on what changed against the period before and the likely cause, with an `href` to the analytics page to look at (and `doc` when it's about one of your links). Claude Haiku 5.5 writes it from totals and your own titles only. Kept for the day (`cached: true`); `fresh=1` writes it again. `status` is `thin` when there are fewer than 20 views to go on, `limit` when an AI limit stops it (with `reason` and `message`), or `error`. Counts towards your AI limits.",
-      "params": { "range": "7d" },
-      "paramNotes": { "range": "`7d` (the default), `30d` or `90d`.", "fresh": "`1` writes it again instead of using today's copy." },
+      "params": {
+        "range": "7d"
+      },
+      "paramNotes": {
+        "range": "`7d` (the default), `30d` or `90d`.",
+        "fresh": "`1` writes it again instead of using today's copy."
+      },
       "mcp": "analytics_story",
-      "guide": { "label": "Insights and Ask", "href": "/analytics/overview#insights-and-ask" }
+      "guide": {
+        "label": "Insights and Ask",
+        "href": "/analytics/overview#insights-and-ask"
+      }
     },
     "POST /api/v1/me/analytics/ai/ask": {
       "title": "Ask your analytics (AI)",
       "description": "Answers a question about your own analytics with Claude Haiku 5.5, which picks from a fixed set of queries that Markdrop runs on the documents you own (totals, top links, a link's numbers, referrers, channels, devices, countries, views by day, period comparisons, file versions). Streams server-sent events: `status` (what it's checking), `delta` (answer text; `reset: true` clears what was shown), then `done` with `answer` and `links` (only analytics pages the queries returned); or `limit`, or `error`. The same question the same day is answered from the copy kept (`cached: true`) unless `fresh` is `true`. Counts towards your AI limits.",
       "returns": "text/event-stream",
-      "example": { "question": "Which link did best this month?", "range": "30d" },
+      "example": {
+        "question": "Which link did best this month?",
+        "range": "30d"
+      },
       "mcp": "ask_analytics",
-      "guide": { "label": "Insights and Ask", "href": "/analytics/overview#insights-and-ask" }
+      "guide": {
+        "label": "Insights and Ask",
+        "href": "/analytics/overview#insights-and-ask"
+      }
     },
     "GET /api/v1/me/analytics/ai/gaps": {
       "title": "What people couldn't find (AI)",
       "description": "Content gaps for a workspace you own or admin (`scope=workspace:<id>`, else `403`) or your own Guides (`scope=personal`): searches that found nothing or that nobody opened, and guide questions Ask AI couldn't answer, over the last 30 days, grouped by Claude Haiku 5.5 into up to 5 `gaps`. Each has `topic`, `count` (counted by Markdrop), `why`, `outline`, `examples` and `markdown` ready to create a page in `create.workspace`. `status` is `thin` under 5 searches and questions. Counts towards your AI limits.",
-      "paramNotes": { "scope": "`workspace:<workspace id>` or `personal`.", "fresh": "`1` groups them again instead of using today's copy." },
+      "paramNotes": {
+        "scope": "`workspace:<workspace id>` or `personal`.",
+        "fresh": "`1` groups them again instead of using today's copy."
+      },
       "mcp": "content_gaps",
-      "guide": { "label": "What people couldn't find", "href": "/analytics/content-gaps" }
+      "guide": {
+        "label": "What people couldn't find",
+        "href": "/analytics/content-gaps"
+      }
     },
     "GET /api/v1/me/analytics.csv": {
       "title": "Export all analytics",
@@ -1149,28 +1794,42 @@
       "title": "Document overview",
       "description": "The headline numbers for one document or file you own.",
       "mcp": "get_document_analytics",
-      "guide": { "label": "Analytics", "href": "/analytics/overview" }
+      "guide": {
+        "label": "Analytics",
+        "href": "/analytics/overview"
+      }
     },
     "GET /api/v1/me/documents/{slug}/analytics/media": {
       "title": "Video and audio retention",
       "description": "How many people are still watching or listening through a video or audio file.",
-      "guide": { "label": "Video and audio", "href": "/analytics/video-and-audio" }
+      "guide": {
+        "label": "Video and audio",
+        "href": "/analytics/video-and-audio"
+      }
     },
     "GET /api/v1/me/documents/{slug}/analytics/frame": {
       "title": "Video frame",
       "description": "A frame of your video at `t` seconds, as JPEG. `404` when the file isn't a video.",
       "returns": "image/jpeg",
-      "params": { "t": 30 }
+      "params": {
+        "t": 30
+      }
     },
     "GET /api/v1/me/documents/{slug}/analytics/content": {
       "title": "Reading depth",
       "description": "How far readers get through a Markdown document, section by section.",
-      "guide": { "label": "Documents and PDFs", "href": "/analytics/documents-and-pdfs" }
+      "guide": {
+        "label": "Documents and PDFs",
+        "href": "/analytics/documents-and-pdfs"
+      }
     },
     "GET /api/v1/me/documents/{slug}/analytics/pages": {
       "title": "PDF pages reached",
       "description": "How many readers reach each page of a PDF.",
-      "guide": { "label": "Documents and PDFs", "href": "/analytics/documents-and-pdfs" }
+      "guide": {
+        "label": "Documents and PDFs",
+        "href": "/analytics/documents-and-pdfs"
+      }
     },
     "GET /api/v1/me/documents/{slug}/analytics/audience": {
       "title": "Audience",
@@ -1183,17 +1842,31 @@
     "GET /api/v1/me/documents/{slug}/analytics/ai/{kind}": {
       "title": "Get AI insights",
       "description": "The saved AI analysis of one of your documents or files, never a new one. `kind` is `content` (documents and pages), `media` (video and audio), `pages` (PDFs) or `versions` (files with several versions). `state` is `ready` (with `result`: `summary` and 3 to 5 `findings`), `empty` (nothing yet: `POST` to analyse), `thin` (fewer than 20 sessions with data: `sample` says how many), `encrypted` or `unsupported`. `stale` is `true` when the document changed since; `limit` says why AI can't run right now.",
-      "params": { "kind": "content", "range": "30d" },
+      "params": {
+        "kind": "content",
+        "range": "30d"
+      },
       "mcp": "analyze_document_engagement",
-      "guide": { "label": "AI insights for one link", "href": "/analytics/ai-insights" }
+      "guide": {
+        "label": "AI insights for one link",
+        "href": "/analytics/ai-insights"
+      }
     },
     "POST /api/v1/me/documents/{slug}/analytics/ai/{kind}": {
       "title": "Analyse with AI",
       "description": "Claude Haiku 5.5 reads the numbers (and your own content) and returns 3 to 5 findings that point at a section, timestamp, page or version, with rewrites (`content`), chapters (`media`) and a verdict with a confidence Markdrop computes (`versions`). Returns the saved analysis when there is one; send `{\"refresh\": true}` to analyse again. Below 20 sessions the model isn't called (`state: thin`). Counts towards your AI limits: `429` with `code: limit` and a `reason` when one is reached.",
-      "params": { "kind": "content", "range": "30d" },
-      "example": { "refresh": true },
+      "params": {
+        "kind": "content",
+        "range": "30d"
+      },
+      "example": {
+        "refresh": true
+      },
       "mcp": "analyze_document_engagement",
-      "guide": { "label": "AI insights for one link", "href": "/analytics/ai-insights" }
+      "guide": {
+        "label": "AI insights for one link",
+        "href": "/analytics/ai-insights"
+      }
     },
     "GET /api/v1/me/documents/{slug}/analytics.csv": {
       "title": "Export document analytics",
@@ -1205,28 +1878,42 @@
       "slug": "set-the-weekly-email",
       "group": "analytics",
       "description": "Turns the weekly analytics email (`analytics_digest`) and the emails about mentions and sign-off requests (`mention_emails`) on or off. Send either or both.",
-      "example": { "analytics_digest": "off" },
-      "guide": { "label": "Weekly email", "href": "/analytics/weekly-email" }
+      "example": {
+        "analytics_digest": "off"
+      },
+      "guide": {
+        "label": "Weekly email",
+        "href": "/analytics/weekly-email"
+      }
     },
-
     "GET /api/v1/auth/me": {
       "title": "Get your account",
       "description": "The account a token belongs to: id, email, name and sign-in methods. A quick way to check a token works."
     },
     "PATCH /api/v1/auth/me": {
       "title": "Set your name",
-      "example": { "name": "Sam Lee" }
+      "example": {
+        "name": "Sam Lee"
+      }
     },
     "GET /api/v1/me/tokens": {
       "title": "List API tokens",
       "description": "Your API tokens: name, first characters, when each was created and last used. Never the tokens themselves.",
-      "guide": { "label": "API tokens", "href": "/account/api-tokens" }
+      "guide": {
+        "label": "API tokens",
+        "href": "/account/api-tokens"
+      }
     },
     "POST /api/v1/me/tokens": {
       "title": "Create an API token",
       "description": "Creates an API token (`mdk_…`). It is shown only in this response.",
-      "example": { "name": "Build server" },
-      "guide": { "label": "API tokens", "href": "/account/api-tokens" }
+      "example": {
+        "name": "Build server"
+      },
+      "guide": {
+        "label": "API tokens",
+        "href": "/account/api-tokens"
+      }
     },
     "DELETE /api/v1/me/tokens/{token_id}": {
       "title": "Revoke an API token",
@@ -1235,12 +1922,16 @@
     "GET /api/v1/me/contacts": {
       "title": "Suggest people",
       "description": "Up to 50 people you can share with: people you shared documents with before, and members of your workspaces. Never a search of every account.",
-      "paramNotes": { "q": "Only people whose email or name contains this text." }
+      "paramNotes": {
+        "q": "Only people whose email or name contains this text."
+      }
     },
     "GET /api/v1/me/shared": {
       "title": "Shared with you",
       "description": "Documents other people shared with you, a page at a time.",
-      "paramNotes": { "cursor": "The `next_cursor` of the previous page." }
+      "paramNotes": {
+        "cursor": "The `next_cursor` of the previous page."
+      }
     },
     "GET /api/v1/me/recent": {
       "title": "Recently opened",
@@ -1249,7 +1940,9 @@
     "GET /api/v1/search": {
       "title": "Search everything",
       "description": "Fuzzy search over everything you can open: titles, headings, the text of pages and documents, the text of HTML files and PDFs, folders, workspaces, the Guides pages you have a role on and, at the end, your Trash. Typos, partial words and any word order match. `items` is the ranked page of results; `groups` holds the first few of each kind, for a grouped list; `trash` lists matching items you can restore. Each result has its `kind`, `title`, `workspace`, `folder`, `owner` (named only when you're related to the item), `updated_at`, a `snippet` with the matched words' ranges in `marks`, `match` (`title`, `heading` or `body`), `url` (what the app opens) and `web_url` (always a full link). Encrypted and password-protected items match by title only and never have a snippet. Pass `next_cursor` back as `cursor` for more. `ai_suggested` is `true` when `q` reads like a question. The first page of a search in a workspace (a `scope` or `current` you're a member of) is recorded without who ran it, for What people couldn't find; `log_id` names that record (else `null`).",
-      "params": { "q": "onbording plyabook" },
+      "params": {
+        "q": "onbording plyabook"
+      },
       "paramNotes": {
         "q": "What to look for.",
         "scope": "`all` (the default) or `workspace:<workspace id>` for one workspace.",
@@ -1264,36 +1957,57 @@
       },
       "cli": "markdrop search \"onbording plyabook\"",
       "mcp": "search",
-      "guide": { "label": "Search", "href": "/workspaces/search" }
+      "guide": {
+        "label": "Search",
+        "href": "/workspaces/search"
+      }
     },
     "GET /api/v1/search/ai-status": {
       "title": "Check AI search availability",
       "description": "Whether Ask AI can answer now, for everything (no `scope`) or for one workspace. When it can't, `enabled` is `false`, `reason` says why (`off`, `not_configured`, `workspace_off`, `blocked`, `burst`, `user_daily`, `daily` or `monthly`) and `message` says it in words. `model` names the model it uses.",
-      "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
+      "guide": {
+        "label": "Ask AI",
+        "href": "/workspaces/search#ask-ai"
+      }
     },
     "POST /api/v1/search/ask": {
       "title": "Ask AI about your items",
       "description": "Answers a question from the items you can open, with Claude Haiku 5.5: AI turns the question into search terms, search finds up to 40 matching items, and AI picks the relevant ones and writes a short answer that cites them as [n]. Only text you can open is sent, never an encrypted item. Streams server-sent events: `status` (the stage), `results` (the matching items), `delta` (answer text as it's written), then `done` with `answer`, `citations` and `ranked`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI limits.",
       "returns": "text/event-stream",
-      "example": { "question": "How do we onboard contractors?" },
+      "example": {
+        "question": "How do we onboard contractors?"
+      },
       "mcp": "ask_documents",
-      "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
+      "guide": {
+        "label": "Ask AI",
+        "href": "/workspaces/search#ask-ai"
+      }
     },
     "POST /api/v1/search/click": {
       "title": "Record an opened result",
       "description": "Marks the search `log_id` (from `GET /api/v1/search`) as having had a result opened, for What people couldn't find. Nothing else is recorded. Answers `204`.",
-      "example": { "log_id": "3f0c2a9b7d1e4c5f8a6b2d9e0f1a2b3c" },
-      "guide": { "label": "What people couldn't find", "href": "/analytics/content-gaps" }
+      "example": {
+        "log_id": "3f0c2a9b7d1e4c5f8a6b2d9e0f1a2b3c"
+      },
+      "guide": {
+        "label": "What people couldn't find",
+        "href": "/analytics/content-gaps"
+      }
     },
     "GET /api/v1/search/quick": {
       "title": "Quick search",
       "description": "Finds files, folders and workspaces you can open by title, address or file name. Never searches content.",
-      "params": { "q": "release" }
+      "params": {
+        "q": "release"
+      }
     },
     "GET /api/v1/me/connections": {
       "title": "List connected apps",
       "description": "AI apps you connected to Markdrop through its approval screen.",
-      "guide": { "label": "Connected apps", "href": "/account/connected-apps" }
+      "guide": {
+        "label": "Connected apps",
+        "href": "/account/connected-apps"
+      }
     },
     "DELETE /api/v1/me/connections/{client_id}": {
       "title": "Disconnect an app",
@@ -1302,93 +2016,301 @@
     "GET /api/v1/meetings/status": {
       "title": "Meetings status",
       "description": "What the Meetings page of a workspace needs: whether Meetings AI can run for you (`ai.enabled`, and `ai.reason` / `ai.message` when it can't), whether the Google Docs picker is set up and connected (`google`), the Meetings folder's id (`folder_id`, null before the first import), whether you can import (`can_import`: members and up) and the meeting `types`.",
-      "paramNotes": {"workspace": "The workspace's id."},
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "paramNotes": {
+        "workspace": "The workspace's id."
+      },
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "POST /api/v1/meetings/preview": {
       "title": "Preview an import",
       "description": "What an import would make, without writing anything: the meetings the sources become (notes and a transcript of the same call pair into one), each with its detected `title`, `date`, `duration_s`, `attendees`, number of transcript `segments` and whether Google's notes were found. Each source is `{name, text}` or `{name, data_b64}` (a .txt, .vtt, .srt, .sbv, .docx or .md file, base64).",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "POST /api/v1/meetings/import": {
       "title": "Import a meeting",
       "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; `restricted: true` limits it to attendees who are members. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`, each with a `status`: `imported` (new), or `duplicate` (a Google Doc already imported into this workspace: that meeting, unchanged).",
-      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "sources": [{"name": "Weekly sync - Transcript", "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed."}]},
+      "example": {
+        "workspace": "665f1c2ab3e4d5f6a7b8c9d0",
+        "sources": [
+          {
+            "name": "Weekly sync - Transcript",
+            "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed."
+          }
+        ]
+      },
       "mcp": "import_meeting",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "POST /api/v1/meetings/google/token": {
       "title": "Google Picker token",
       "description": "A short-lived Google access token (scope drive.file) and the Picker's keys, so the browser can open the Google Picker on your own Drive. Markdrop can then read only the Docs you pick. 428 `reconnect_required` when Google Docs isn't connected.",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "GET /api/v1/meetings/connection": {
       "title": "Google Meet connection",
       "description": "Your Connect Google Meet connection (`connection`, null when you haven't connected), wherever it sends meetings, and, with `workspace`, the other members' connections into that workspace (`others`). Each has the `workspace_id` and `workspace_name`, `restricted`, `connected_by`, `created_at`, `last_received_at`, `last_imported_at`, counts (`received`, `imported`, `attached`, `duplicates`, `ignored`) and `last_error`. Never the token or the script.",
-      "paramNotes": {"workspace": "The workspace's id (optional)."},
+      "paramNotes": {
+        "workspace": "The workspace's id (optional)."
+      },
       "mcp": "meetings_connection",
-      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+      "guide": {
+        "label": "Import meetings automatically",
+        "href": "/workspaces/meetings-auto-import"
+      }
     },
     "POST /api/v1/meetings/connection": {
       "title": "Connect Google Meet",
       "description": "Makes your Google Apps Script for automatic import into `workspace` (members and up): a new token with the `meetings:import` scope, pinned to that workspace, shown once inside the `script` (Code.gs) with the endpoint filled in, plus the Apps Script `manifest` (appsscript.json) and the inbox `endpoint`. `restricted: true` restricts every meeting it imports to its attendees. `backfill_days` (0, 7, 30 or 90) makes the script's setup also bring in that many days of past meetings, oldest first and without notifying anyone. `tz` (the browser's IANA time zone) dates a Doc without a date in its title. Connecting again replaces your earlier connection: its token stops working. 10 an hour.",
-      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "restricted": false},
-      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+      "example": {
+        "workspace": "665f1c2ab3e4d5f6a7b8c9d0",
+        "restricted": false
+      },
+      "guide": {
+        "label": "Import meetings automatically",
+        "href": "/workspaces/meetings-auto-import"
+      }
     },
     "DELETE /api/v1/meetings/connection": {
       "title": "Disconnect Google Meet",
       "description": "Revokes your connection's token at once: the script's next delivery gets 401 and it removes its own schedule. Meetings it imported stay. Returns `{disconnected}`.",
-      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+      "guide": {
+        "label": "Import meetings automatically",
+        "href": "/workspaces/meetings-auto-import"
+      }
     },
     "POST /api/v1/meetings/inbox": {
       "title": "Meetings inbox (the Google Meet script)",
       "description": "Where the Connect Google Meet script sends one Google Doc: `{source: \"google-meet-script\", file_id, title, created, kind_hint, text, doc_url, backfill}`. `backfill: true` marks a past meeting from the script's backfill: it's imported as history, and nobody is notified about it (its @mentions stay links). The meeting is dated by the date in Google's title, else by `created` in the connector's time zone. Authenticated with the script's `meetings:import` token (Bearer `mdk_…`), which works here and nowhere else and is pinned to one workspace; its owner must still be a member. Idempotent on `file_id`: returns `{status, meeting_id?, url?}` with `status` `imported` (a new meeting), `attached` (the other half of a call already in the workspace: notes for a transcript, or the other way round), `duplicate` (already here: the same Doc, a Doc imported by hand, or the same call by name, date and start time) or `ignored` (no transcript or notes in it). 401 when disconnected, 403 when no longer a member, 409 while the same Doc is being imported, 413 over 1,500,000 characters, 422 for a malformed delivery. Rate limited per token: 30 a minute, 600 a day.",
-      "example": {"source": "google-meet-script", "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz", "title": "Weekly sync (2026-11-04 10:00 GMT+05:30) - Transcript", "created": "2026-11-04T05:20:00.000Z", "kind_hint": "transcript", "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed.", "doc_url": "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit"},
-      "guide": {"label": "Import meetings automatically", "href": "/workspaces/meetings-auto-import"}
+      "example": {
+        "source": "google-meet-script",
+        "file_id": "1AbCdEfGhIjKlMnOpQrStUvWxYz",
+        "title": "Weekly sync (2026-11-04 10:00 GMT+05:30) - Transcript",
+        "created": "2026-11-04T05:20:00.000Z",
+        "kind_hint": "transcript",
+        "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed.",
+        "doc_url": "https://docs.google.com/document/d/1AbCdEfGhIjKlMnOpQrStUvWxYz/edit"
+      },
+      "guide": {
+        "label": "Import meetings automatically",
+        "href": "/workspaces/meetings-auto-import"
+      }
     },
     "GET /api/v1/meetings": {
       "title": "List meetings",
-      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
-      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300).", "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).", "since": "Only meetings on or after this date (YYYY-MM-DD)."},
+      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date` (the day it happened), `series`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
+      "paramNotes": {
+        "workspace": "The workspace's id.",
+        "q": "Only titles containing this.",
+        "limit": "At most this many (1-300).",
+        "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).",
+        "since": "Only meetings on or after this date (YYYY-MM-DD).",
+        "until": "Only meetings on or before this date (YYYY-MM-DD).",
+        "series": "Only this series (any case), or `none` for meetings without one."
+      },
       "mcp": "list_meetings",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "POST /api/v1/meetings/ask": {
       "title": "Ask across meetings",
-      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. Claude Haiku 5.5 answers in English; each cited meeting is checked against your access again. Counts towards Meetings AI.",
+      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first, and the `scope`), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. `series`, `since` and `until` ask only those meetings; without them, a series or period named in the question is used (\"in Daily Standups last month\"), and `scope` says so (`detected: true`, with a `label`). Answers say when and in which meeting each point was made, and questions about the latest state prefer recent meetings. Claude Haiku 5.5 answers in English; each cited meeting is checked against your access again. Counts towards Meetings AI.",
       "returns": "text/event-stream",
-      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "question": "What did we decide about pricing?"},
+      "example": {
+        "workspace": "665f1c2ab3e4d5f6a7b8c9d0",
+        "question": "What did we decide about pricing?",
+        "series": "Daily Standup",
+        "since": "2026-10-01"
+      },
       "mcp": "ask_meetings",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "GET /api/v1/meetings/{meeting_id}": {
       "title": "Get a meeting",
       "description": "One meeting you can open, with what you may do to it: `can_manage` (restrict to attendees: the page's owner), `can_delete` (the importer or a workspace admin) and `can_regenerate` (anyone who can edit the page). 404 when it doesn't exist or you can't open it.",
       "mcp": "get_meeting",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "PATCH /api/v1/meetings/{meeting_id}": {
       "title": "Update a meeting",
-      "description": "`restricted: true` makes the meeting page private with access for the attendees who are workspace members; `false` gives it back to the team and removes exactly those grants (the page's owner only). `type` changes the meeting's type (anyone who can edit the page).",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "description": "`restricted: true` makes the meeting page private with access for the attendees who are workspace members; `false` gives it back to the team and removes exactly those grants (the page's owner only). `type` changes the meeting's type (anyone who can edit the page). `series` puts the meeting in a series (or takes it out with `null` or \"\"); detection never changes it back.",
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "DELETE /api/v1/meetings/{meeting_id}": {
       "title": "Delete a meeting",
       "description": "The person who imported it, or a workspace admin or owner (any meeting, even one restricted from them): the meeting page and its transcript go to the Trash for 30 days and the stored transcript is deleted at once.",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "POST /api/v1/meetings/{meeting_id}/regenerate": {
       "title": "Write the summary again",
       "description": "Writes the meeting's AI sections again (summary, decisions, action items, open questions, topics) and waits for them. When nobody has edited the page since, it's rewritten; otherwise the new sections are added at the end. Anyone who can edit the page. Counts towards Meetings AI.",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
     },
     "POST /api/v1/meetings/{meeting_id}/ask": {
       "title": "Ask a meeting",
       "description": "Asks one meeting, as Server-Sent Events (`delta`, then `done` with the `answer` and its `citations`, or `limit` / `error`). The answer comes from the meeting's transcript (when you can open it) and its page, including edits, in English; citations open the transcript at that moment. `history` carries the last turns of the conversation (`{question, answer}`, up to 6). Counts towards Meetings AI.",
       "returns": "text/event-stream",
-      "example": {"question": "What did we decide?"},
+      "example": {
+        "question": "What did we decide?"
+      },
       "mcp": "ask_meetings",
-      "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+      "guide": {
+        "label": "Meetings",
+        "href": "/workspaces/meetings"
+      }
+    },
+    "GET /api/v1/meetings/backfill": {
+      "title": "List your past-meeting imports",
+      "description": "Your imports of past meetings into `workspace` that are open or finished and not dismissed, newest first. Looking at a running import also picks it up again after a server restart. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: the Meetings AI budget), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (the AI cost of what's left, and whether today's budget covers it) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
+      "paramNotes": {
+        "workspace": "The workspace's id."
+      },
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "POST /api/v1/meetings/backfill": {
+      "title": "Start an import of past meetings",
+      "description": "A draft import into `workspace` (members and up). Your open draft there is returned instead when you have one, so a review survives a reload. `quiet` (default `true`): nobody is notified about the meetings' action items; meetings older than a day are imported quietly either way. `restricted`: each meeting is restricted to its attendees.",
+      "example": {
+        "workspace": "665f1c2ab3e4d5f6a7b8c9d0",
+        "quiet": true
+      },
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "GET /api/v1/meetings/backfill/{job_id}": {
+      "title": "Get a past-meeting import",
+      "description": "One of your imports: the review before it starts, its progress after. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: the Meetings AI budget), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (the AI cost of what's left, and whether today's budget covers it) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "PATCH /api/v1/meetings/backfill/{job_id}": {
+      "title": "Change the review",
+      "description": "Before the import starts: per row (`rows: [{id, title?, date?, series?, include?}]`) its name, date (YYYY-MM-DD, not in the future), series (`null` for none) and whether it's imported; and the `quiet` and `restricted` switches. A duplicate of a meeting already here can't be included.",
+      "example": {
+        "rows": [
+          {
+            "id": "r3f2a9c1d0e",
+            "date": "2026-10-28",
+            "series": "Daily Standup"
+          }
+        ]
+      },
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "DELETE /api/v1/meetings/backfill/{job_id}": {
+      "title": "Discard or stop an import",
+      "description": "A draft or a finished import is deleted (`deleted: true`). A running, paused or waiting one is stopped (`stopped: true`): the meetings already imported stay, the rest are left out.",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/sources": {
+      "title": "Add meetings to the review",
+      "description": "Adds up to 25 sources at a time to a draft and returns the review: `{name, text}`, a file as `{name, data_b64}` (.txt, .vtt, .srt, .sbv, .docx, .md; 4 MB each), or a Google Doc picked in the Drive picker as `{google_file_id}` (read with your Google Docs connection; it's dated by the day Google created it when its name has no date, in your time zone: `tz_offset_min`, minutes east of UTC). Up to 300 sources per import. The same text twice, an empty file or one without a transcript or meeting notes is listed under `problems` instead.",
+      "example": {
+        "sources": [
+          {
+            "name": "Daily Standup – 2026_10_28 10_00 IST – Transcript.txt",
+            "text": "Ada Lovelace: Morning all…",
+            "origin": "upload"
+          }
+        ],
+        "tz_offset_min": 330
+      },
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "DELETE /api/v1/meetings/backfill/{job_id}/rows/{row_id}": {
+      "title": "Remove a meeting from the review",
+      "description": "Takes a row, and its files, out of a draft.",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/start": {
+      "title": "Run the import",
+      "description": "Starts importing the included rows in the background, oldest first, one at a time, each with its AI summary (Meetings AI). Every included row needs a date (422 otherwise). It keeps going when the page is closed. When today's (or the month's) Meetings AI budget runs out it waits (`state: waiting`) and carries on by itself when the budget resets.",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/pause": {
+      "title": "Pause an import",
+      "description": "Stops after the meeting being imported now; `resume` carries on.",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/resume": {
+      "title": "Resume an import",
+      "description": "Carries on with a paused import, or one waiting for the AI budget (it waits again if the budget is still used up).",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/rows/{row_id}/retry": {
+      "title": "Retry a meeting",
+      "description": "Imports a meeting that failed again (its `error` said why). A finished import runs again for it.",
+      "guide": {
+        "label": "Import past meetings",
+        "href": "/workspaces/meetings-import#import-past-meetings"
+      }
+    },
+    "GET /api/v1/meetings/series": {
+      "title": "List meeting series",
+      "description": "The series of the meetings you can open in `workspace` (recurring meetings such as \"Daily Standup\"): `name`, how many meetings (`count`) and the latest one's date (`last`), most meetings first.",
+      "paramNotes": {
+        "workspace": "The workspace's id."
+      },
+      "guide": {
+        "label": "How meetings are organised",
+        "href": "/workspaces/meetings#how-meetings-are-organised"
+      }
     }
   }
 }

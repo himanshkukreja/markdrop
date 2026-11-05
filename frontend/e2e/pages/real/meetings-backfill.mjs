@@ -42,7 +42,8 @@ async function snap(p, name, full = false) {
 // Dates: two calls last month, one the month before (so there are at least two months).
 const now = new Date();
 const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const slash = (d) => ymd(d).replaceAll("-", "/");
+// A Google Doc downloaded from Drive keeps its name with "_" for "/" and ":" (a file name can't hold them).
+const slash = (d) => ymd(d).replaceAll("-", "_");
 const D1 = new Date(now.getFullYear(), now.getMonth() - 1, 10);
 const D2 = new Date(now.getFullYear(), now.getMonth() - 1, 20);
 const D0 = new Date(now.getFullYear(), now.getMonth() - 2, 14);
@@ -74,9 +75,9 @@ const VTT = `WEBVTT
 <v Ben Member>I will ship the new onboarding copy next week.
 `;
 const FILES = [
-  [`Daily Standup – ${slash(D1)} 10:00 IST – Transcript.txt`, standup(" (one)")],
-  [`Daily Standup – ${slash(D1)} 10:00 IST – Notes by Gemini.txt`, NOTES],
-  [`Daily Standup – ${slash(D2)} 10:00 IST – Transcript.txt`, standup(" (two), and the pricing page")],
+  [`Daily Standup – ${slash(D1)} 10_00 IST – Transcript.txt`, standup(" (one)")],
+  [`Daily Standup – ${slash(D1)} 10_00 IST – Notes by Gemini.txt`, NOTES],
+  [`Daily Standup – ${slash(D2)} 10_00 IST – Transcript.txt`, standup(" (two), and the pricing page")],
   [`Design sync ${ymd(D0)}.vtt`, VTT],
   ["hallway.txt", "Ada Owner: Quick hallway chat about the offsite.\nBen Member: I will book the venue for the offsite.\n"],
 ];
@@ -271,9 +272,9 @@ await step("docs-media", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "mtg-docs-"));
     const later = [new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 3)), new Date(now.getFullYear(), now.getMonth(), Math.max(1, now.getDate() - 2))];
     const files = [
-      [`Daily Standup – ${slash(later[0])} 10:00 IST – Transcript.txt`, standup(" (three)")],
-      [`Daily Standup – ${slash(later[0])} 10:00 IST – Notes by Gemini.txt`, NOTES],
-      [`Daily Standup – ${slash(later[1])} 10:00 IST – Transcript.txt`, standup(" (four)")],
+      [`Daily Standup – ${slash(later[0])} 10_00 IST – Transcript.txt`, standup(" (three)")],
+      [`Daily Standup – ${slash(later[0])} 10_00 IST – Notes by Gemini.txt`, NOTES],
+      [`Daily Standup – ${slash(later[1])} 10_00 IST – Transcript.txt`, standup(" (four)")],
       FILES[0],
       ["retro-notes.txt", "Ada Owner: What went well this sprint?\nBen Member: The billing rollout went smoothly.\n"],
     ].map(([n, t]) => { const f = path.join(dir, n); fs.writeFileSync(f, t); return f; });

@@ -310,7 +310,7 @@ function MeetingCard({ m }: { m: Meeting }) {
           {m.title || "Meeting"}
         </p>
         <div className="mt-card__meta">
-          {m.series && <span className="mt-card__series" data-testid="card-series">{m.series}</span>}
+          {m.series && m.series !== m.title && <span className="mt-card__series" data-testid="card-series">{m.series}</span>}
           {m.type && <span><Icon name="calendar" />{m.type}{m.duration_s ? ` · ${fmtDuration(m.duration_s)}` : ""}</span>}
           {names.length > 0 && <span title={names.join(", ")}><Icon name="users" />{names.slice(0, 3).join(", ")}{names.length > 3 ? ` +${names.length - 3}` : ""}</span>}
           <span><Icon name="checkSquare" />{m.action_items} action {m.action_items === 1 ? "item" : "items"}</span>

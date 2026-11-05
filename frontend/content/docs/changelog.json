@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-backfill",
+      "date": "2026-11-05",
+      "title": "Import past meetings, organised by date and series",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Bring in weeks of earlier calls at once: drop all your transcripts and Gemini notes, check the dates in a review, and they import in the background, oldest first, each on the day it happened and without notifying anyone about old action items. Meetings now have a series, the Meetings folder opens by month, and Ask across meetings can stick to one series or period.",
+      "body": "- **Import past meetings** on the Meetings page: drop or choose up to 300 files (transcripts and Gemini notes mixed), pick several Google Docs at once, or paste several meetings with a `===` line between them.\n- **A review before anything is created**: each meeting's date (from Google's file name, the Doc's creation day or the text), its name and series, whether the notes and the transcript were both found, and whether it's already in the workspace. A meeting without a date is flagged until it gets one.\n- **Runs in the background**, oldest first, and survives closing the page: \"12 of 40\", Pause, Resume, Stop, and Retry for a meeting that failed. A backlog bigger than today's Meetings AI budget waits for tomorrow's and carries on by itself.\n- **Quiet**: action items in past meetings still @mention people, but nobody is notified about them.\n- **Series**: recurring meetings (\"Daily Standup\", \"Sprint 23 review\" and \"Sprint 24 review\") get a **Series**, set by Markdrop and editable in a meeting's Details. The Meetings folder opens on **All meetings**, newest first and grouped by month, with **By series** as a board. The Meetings page lists meetings by month with a chip per series.\n- **Ask one series or a period**: pick them above the question, or say it (\"What came up in the Daily Standups last month?\"). Answers say when and where (\"On 28 Oct, in Daily Standup…\") and prefer recent meetings for questions about the latest state.\n- **MCP**: `import_meetings_bulk` (77 tools), and `list_meetings` and `ask_meetings` take a series and dates.",
+      "docs": [
+        "/workspaces/meetings-import",
+        "/workspaces/meetings",
+        "/workspaces/meetings-ask"
+      ]
+    },
+    {
       "id": "meetings-auto-import",
       "date": "2026-11-05",
       "title": "Meetings import themselves: Connect Google Meet",

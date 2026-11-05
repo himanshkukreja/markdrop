@@ -270,8 +270,8 @@ async def rebuild(db: AsyncIOMotorDatabase, job: dict) -> dict:
             if e["date"] != d:
                 row["time"] = None
         rows.append(row)
-    await _series_for(db, job["workspace_id"], rows, edits)
     await _dupes_for(db, job["workspace_id"], rows)
+    await _series_for(db, job["workspace_id"], rows, edits)
     for r in rows:
         e = edits.get(r["id"]) or {}
         if r["dup"]["status"] == "duplicate":
@@ -285,10 +285,19 @@ async def rebuild(db: AsyncIOMotorDatabase, job: dict) -> dict:
 
 
 async def _series_for(db: AsyncIOMotorDatabase, workspace_id: str, rows: list[dict], edits: dict) -> None:
+    """Each new row's series: its namesakes' in the workspace, else its name without numbers when it
+    isn't the only one of its name (here or in this import). A row that is (half of) a meeting already
+    here shows that meeting's series, and doesn't count as another meeting of its name."""
     known = await meeting_series.known(db, workspace_id)
     by_key: dict[str, list[dict]] = {}
     for r in rows:
         r["series_key"] = det.series_key(r["title"])
+        if r["dup"]["status"] != "new" and r["dup"].get("meeting_id"):
+            hit = await db[meetings.COLL].find_one({"_id": _oid(r["dup"]["meeting_id"])}, {"series": 1})
+            r["series"] = (hit or {}).get("series")
+            continue
+        if r["dup"]["status"] != "new":
+            continue
         if r["series_key"]:
             by_key.setdefault(r["series_key"], []).append(r)
     for key, rs in by_key.items():
