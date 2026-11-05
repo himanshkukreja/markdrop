@@ -168,6 +168,10 @@ export default function Home() {
   const firstName = (user.name || "").trim().split(/\s+/)[0] || null;
   const loaded = !!data && recent !== null;
   const meetingsToday = data?.meetings.items.filter((m) => m.date === today) ?? [];
+  // An empty Today or action items shrinks to a one-line strip above the other, full width, so a tall list
+  // beside an empty card doesn't leave a hole under it.
+  const todayEmpty = !!data && meetingsToday.length + data.attention.requests.length + data.attention.notifications.length === 0;
+  const actionsEmpty = !!data && data.actions.items.length === 0;
   const newcomer = loaded && !recent!.length && !data!.workspaces.length && !data!.meetings.items.length && !data!.actions.items.length;
   const facts: string[] = [];
   if (data) {
@@ -211,9 +215,9 @@ export default function Home() {
       ) : (
         <>
           <ContinueSection items={recent} />
-          <div className="hm-pair">
-            <TodaySection data={data} meetings={meetingsToday} today={today} />
-            <ActionsSection data={data} toast={toast}
+          <div className={cx("hm-pair", todayEmpty !== actionsEmpty && "hm-pair--one")}>
+            <TodaySection data={data} meetings={meetingsToday} today={today} compact={todayEmpty && !actionsEmpty} />
+            <ActionsSection data={data} toast={toast} compact={actionsEmpty && !todayEmpty}
               onTicked={(a) => setData((d) => d && { ...d, actions: { ...d.actions, items: d.actions.items.filter((x) => x !== a) } })}
               onUndone={() => { getHome().then(setData).catch(() => {}); }} />
           </div>
@@ -427,7 +431,7 @@ type TodayRow =
   | { k: "note"; n: AppNotification }
   | { k: "request"; r: HomeData["attention"]["requests"][number] };
 
-function TodaySection({ data, meetings, today }: { data: HomeData | null; meetings: HomeMeeting[]; today: string }) {
+function TodaySection({ data, meetings, today, compact }: { data: HomeData | null; meetings: HomeMeeting[]; today: string; compact?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [all, setAll] = useState(false);
@@ -453,6 +457,7 @@ function TodaySection({ data, meetings, today }: { data: HomeData | null; meetin
     <Section
       id="today"
       title="Today"
+      className={compact ? "hm-sec--compact" : undefined}
       count={rows.length || null}
       action={unread > 0 ? <SeeAll onClick={openNotifications}>All notifications</SeeAll> : null}
     >
@@ -514,8 +519,8 @@ function TodaySection({ data, meetings, today }: { data: HomeData | null; meetin
 
 /* ── Action items ──────────────────────────────────────────────────────── */
 
-function ActionsSection({ data, onTicked, onUndone, toast }: {
-  data: HomeData | null; onTicked: (a: HomeAction) => void; onUndone: () => void; toast: ReturnType<typeof useToast>;
+function ActionsSection({ data, onTicked, onUndone, toast, compact }: {
+  data: HomeData | null; onTicked: (a: HomeAction) => void; onUndone: () => void; toast: ReturnType<typeof useToast>; compact?: boolean;
 }) {
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -553,7 +558,7 @@ function ActionsSection({ data, onTicked, onUndone, toast }: {
   };
 
   return (
-    <Section id="actions" title="Your action items" count={items.length || null}>
+    <Section id="actions" title="Your action items" count={items.length || null} className={compact ? "hm-sec--compact" : undefined}>
       {!data ? <RowsSkeleton n={3} /> : items.length === 0 ? (
         <Quiet icon="check" title="No open action items" text="To-dos that @mention you, in meeting notes or any page, show up here." />
       ) : (

@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "home-quiet-strip",
+      "date": "2026-11-06",
+      "title": "Home: an empty Today no longer leaves a gap beside your action items",
+      "kind": "improved",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "When Today (or your action items) has nothing in it, it shrinks to a one-line \"all caught up\" strip and the other section uses the full width. When both have something, the two cards are the same height. Meeting cards' attendee initials no longer run together.",
+      "body": "- **Nothing today**: Today becomes a one-line strip above your action items, which use the full width.\n- **No action items**: the same, the other way round.\n- **Both have items**: they sit side by side at the same height.\n- **Meeting cards**: attendee avatars overlap less, so each person's initials are readable."
+    },
+    {
       "id": "meetings-organizer-not-a-speaker",
       "date": "2026-11-06",
       "title": "\"Organizer: …\" in a transcript's header is the organizer, not a speaker",

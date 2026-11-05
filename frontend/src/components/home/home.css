@@ -67,7 +67,15 @@
 
 .hm-pair { display: grid; min-width: 0; gap: 28px; }
 .hm-pair > .hm-sec { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-xl); background: var(--surface); }
-@media (min-width: 744px) { .hm-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; } }
+@media (min-width: 744px) { .hm-pair { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; } }
+/* One side is empty: stack, the empty one a one-line strip (title + "all caught up") over the full-width other. */
+@media (min-width: 744px) { .hm-pair--one { grid-template-columns: minmax(0, 1fr); } }
+.hm-pair--one > .hm-sec--compact { order: -1; }
+.hm-pair > .hm-sec--compact { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 4px 16px; padding: 12px 16px; }
+.hm-sec--compact > .hm-sec__head { flex: none; }
+.hm-sec--compact .hm-quiet { flex: 1 1 280px; align-items: center; gap: 10px; }
+.hm-sec--compact .hm-quiet__icon { width: 28px; height: 28px; }
+.hm-sec--compact .hm-quiet__text { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
 
 .hm-error {
   display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--danger);
@@ -134,6 +142,8 @@
 .hm-card--today { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .hm-today { font-weight: 700; color: var(--accent-text); }
 .hm-card__people { flex: none; }
+/* Two-letter initials on 24 px avatars: overlap less than the default 8 px so each one stays readable. */
+.hm-card__people .md-avatar:not(:first-child), .hm-wscard__people .md-avatar:not(:first-child) { margin-left: -4px; }
 .hm-meet-foot { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 4px 16px; }
 
 /* ── Lists (Today, Action items) ──────────────────────────────────────── */
