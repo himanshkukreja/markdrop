@@ -133,6 +133,13 @@ class StatusBody(BaseModel):
     queue_failed: list[dict[str, Any]] | None = Field(None, max_length=100)
 
 
+class LinkBody(BaseModel):
+    workspace: str = Field(..., max_length=40)
+    urls: list[str] = Field(..., min_length=1, max_length=20)
+    restricted: bool = False
+    wait: bool = False
+
+
 class PatchBody(BaseModel):
     restricted: bool | None = None
     type: str | None = Field(None, max_length=20)
@@ -166,7 +173,8 @@ async def _incoming(db, user: User, sources: list[SourceIn], *, allow_google: bo
                 raise HTTPException(status_code=422, detail=str(exc))
             except gdocs.ReconnectRequired as exc:
                 raise HTTPException(status_code=428, detail={"error": "reconnect_required", "message": str(exc)})
-            out.append(meetings.Incoming(name=title, text=text, origin="google", file_id=s.google_file_id, url=url))
+            out.append(meetings.Incoming(name=title, text=text, origin="google", file_id=s.google_file_id, url=url,
+                                         owner=await meeting_google.owner(token, s.google_file_id)))
             continue
         if not (s.text or s.data_b64):
             raise HTTPException(status_code=422, detail="Each source needs text, a file or a Google Doc.")
@@ -221,6 +229,46 @@ async def import_meeting(request: Request, body: ImportBody, db: AsyncIOMotorDat
         raise HTTPException(status_code=409, detail="That Google Doc is already a meeting in this workspace, "
                                                     "restricted to its attendees.")
     return {"meetings": out}
+
+
+@router.post("/import-link")
+@limiter.limit("20/minute")
+async def import_link(request: Request, body: LinkBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                      user: User = Depends(require_user)):
+    """Google Docs / Drive links → one result each: imported | attached | duplicate (a meeting), queued
+    (the Doc isn't public: your Google Meet script fetches it on its next run) or needs_access (with what
+    to do). Only docs.google.com / drive.google.com links; Markdrop fetches Google's export itself."""
+    from app.services import meeting_links
+
+    ws = _ws(body.workspace)
+    await meetings.require_member(db, ws, user.id)
+    actor, ctx = _ac(request, db, user)
+    results = []
+    for url in body.urls:
+        url = (url or "").strip()[:2000]
+        try:
+            got = await meeting_links.import_link(db, user, ws, url, restricted=body.restricted, wait=body.wait)
+        except HTTPException as exc:
+            results.append({"url": url, "status": "error", "message": exc.detail if isinstance(exc.detail, str) else "Couldn't import it."})
+            continue
+        row = got.pop("row", None)
+        if row is not None:
+            raw = await meetings.readable(db, row, actor, ctx)
+            got["meeting"] = await meetings.shape(db, row, raw, actor, ctx) if raw is not None else None
+        results.append(got)
+    return {"results": results}
+
+
+@router.get("/import-link")
+@limiter.limit("60/minute")
+async def link_requests(request: Request, workspace: str = Query(..., max_length=40),
+                        db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Your recent link requests in a workspace (queued for your script, sent, failed)."""
+    from app.services import meeting_links
+
+    ws = _ws(workspace)
+    await meetings.require_member(db, ws, user.id, write=False)
+    return {"requests": await meeting_links.requests_of(db, user.id, ws)}
 
 
 @router.post("/google/token")

@@ -374,7 +374,7 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         # The meeting's own date: from Google's title when it has one, else when the Doc was made.
         date_ = None if src.date else meeting_date(item.get("created"), rec.get("tz"))
         inc = meetings.Incoming(name=title, text=text, origin="google", file_id=file_id,
-                                url=_doc_url(item.get("doc_url"), file_id))
+                                url=_doc_url(item.get("doc_url"), file_id), owner=_owner(item.get("owner")))
         # A past meeting sent by the script's backfill is history: nobody is notified about it. A Doc asked
         # for by link is a manual import: notified as usual unless the call is more than a day old.
         notify = not item.get("backfill")

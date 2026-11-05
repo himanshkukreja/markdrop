@@ -55,6 +55,23 @@ def doc_url(file_id: str) -> str:
     return f"https://docs.google.com/document/d/{file_id}/edit"
 
 
+async def owner(access_token: str, file_id: str) -> dict | None:
+    """The picked file's owner in Drive ({name, email}): who organized the call. None when Google
+    doesn't say (a shared drive, an error)."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(f"{DRIVE_API}/{file_id}", params={"fields": "owners(displayName,emailAddress)",
+                                                                    "supportsAllDrives": "true"},
+                                 headers={"Authorization": f"Bearer {access_token}"})
+        if r.status_code != 200:
+            return None
+        o = (r.json().get("owners") or [None])[0] or {}
+        name, email = o.get("displayName"), (o.get("emailAddress") or "").lower() or None
+        return {"name": name, "email": email} if (name or email) else None
+    except (httpx.HTTPError, ValueError):
+        return None
+
+
 async def fetch(access_token: str, file_id: str) -> tuple[str, str, str]:
     """(title, text, link) of a picked Google Doc. Raises :class:`PickError`."""
     if not file_id or not all(c.isalnum() or c in "-_" for c in file_id) or len(file_id) > 200:

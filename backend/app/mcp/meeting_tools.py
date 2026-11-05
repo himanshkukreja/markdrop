@@ -73,8 +73,32 @@ async def _ws(ctx: Context, value: str) -> str:
     return ws_id
 
 
+async def _import_link(ctx: Context, ws_id: str, args: dict) -> tuple[str, dict]:
+    from app.services import meeting_links
+
+    try:
+        got = await meeting_links.import_link(ctx.db, ctx.user, ws_id, str(args["drive_url"]),
+                                              restricted=bool(args.get("restricted")), via="mcp", wait=True)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    row = got.pop("row", None)
+    if row is None:
+        # queued (the user's Google Meet script fetches it) or needs_access: say what happens next.
+        return got.get("message") or got["status"], {"meetings": [], "link": {k: got.get(k) for k in ("status", "file_id", "message")}}
+    actor, actx = actor_of(ctx), _actx(ctx)
+    raw = await meetings.readable(ctx.db, row, actor, actx)
+    if raw is None:
+        return "That Doc is already a meeting in this workspace, restricted to attendees the user isn't one of.", {"meetings": []}
+    m = {**_meeting_out(await meetings.shape(ctx.db, row, raw, actor, actx)), "status": got["status"]}
+    return f"1 meeting:\n{_line(m)} — {m['status']}\nAlways give the user the page url.", {"meetings": [m]}
+
+
 async def import_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id = await _ws(ctx, args["workspace"])
+    if args.get("drive_url"):
+        if args.get("text") or args.get("notes_text") or args.get("content_base64"):
+            raise ToolError("Pass drive_url on its own (not with text, notes_text or content_base64).")
+        return await _import_link(ctx, ws_id, args)
     incoming: list[meetings.Incoming] = []
     try:
         if args.get("content_base64"):
@@ -248,7 +272,10 @@ MEETING_TOOLS: list[Tool] = [
                      "date and start time) is returned with status 'duplicate', and Google's notes for a call whose "
                      "transcript is already there (or the other way round) are added to it (status 'attached'). "
                      "Waits for the summary (a few seconds); counts towards the "
-                     "user's 'Meetings AI' limit. Always give the user the returned url."),
+                     "user's 'Meetings AI' limit. Or pass drive_url, a Google Docs/Drive link: Markdrop reads a Doc "
+                     "shared with 'anyone with the link' itself; otherwise, when the user's Google Meet script is "
+                     "connected to this workspace, it is queued for that script (status 'queued', imported within "
+                     "15 minutes), else the answer says how to give access. Always give the user the returned url."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
@@ -261,9 +288,13 @@ MEETING_TOOLS: list[Tool] = [
             "date": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: YYYY-MM-DD."},
             "type": {"type": "string", "enum": list(meetings.TYPES)},
             "restricted": {"type": "boolean", "default": False},
+            "drive_url": {"type": "string", "maxLength": 2000,
+                          "description": "A Google Docs or Drive link to the transcript or Gemini notes (docs.google.com/document/d/…, drive.google.com/file/d/…)."},
         }, "required": ["workspace"]},
         output_schema=_out({"meetings": {"type": "array", "items": {**_MEETING_OUT, "properties": {
-            **_MEETING_OUT["properties"], "status": {"type": "string", "enum": ["imported", "attached", "duplicate"]}}}}}),
+            **_MEETING_OUT["properties"], "status": {"type": "string", "enum": ["imported", "attached", "duplicate"]}}}},
+            "link": {"type": "object", "properties": {"status": {"type": "string", "enum": ["queued", "needs_access"]},
+                                                      "file_id": {"type": "string"}, "message": {"type": "string"}}}}),
         annotations=_ann(False, False, False),
         handler=import_meeting,
     ),

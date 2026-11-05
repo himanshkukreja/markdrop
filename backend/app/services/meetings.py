@@ -388,7 +388,9 @@ async def props_values(db: AsyncIOMotorDatabase, meeting: dict, folder: dict | N
 
     schema = {p["key"]: p for p in ((folder or {}).get("properties") or [])}
     names = ", ".join(a["name"] for a in meeting.get("attendees") or [])[:page_db.TEXT_MAX]
-    org = meeting.get("created_by") if any(m["id"] == meeting.get("created_by") for m in people.members) else None
+    # Who ran the meeting (never simply the importer): a member, else nobody (the name is on Details).
+    oid_ = (meeting.get("organizer") or {}).get("user_id")
+    org = oid_ if oid_ and any(m["id"] == oid_ for m in people.members) else None
     want = {"date": meeting.get("date"), "type": meeting.get("type"), "attendees": names or None,
             "organizer": org, "duration": fmt_duration(meeting.get("duration_s")),
             "action_items": meeting.get("action_items")}
@@ -455,6 +457,8 @@ class Incoming:
     origin: str = "paste"            # paste | upload | google | mcp
     file_id: str | None = None
     url: str | None = None
+    # The Drive file's owner ({name, email}) when Google said: who organized the call.
+    owner: dict | None = None
 
 
 def incoming_from(item: dict, origin: str) -> Incoming:
@@ -689,6 +693,10 @@ async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list
             attendees.append({"name": a["name"], "user_id": mem["id"] if mem else None})
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
+    if not row.get("organizer"):
+        org = organizer_of(group, people)
+        if org:
+            sets["organizer"] = org
     sets.update(attendees=attendees[:100], sources=sources, updated_at=now_utc())
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
     row = await db[COLL].find_one({"_id": row["_id"]})
@@ -756,6 +764,44 @@ async def _regenerate_when_free(db: AsyncIOMotorDatabase, meeting_id: str, user)
     await meetings_ai.generate(db, meeting_id, user)
 
 
+def organizer_of(group: list[mp.Source], people: People) -> dict | None:
+    """Who organized the call: the Drive file's owner (the script, the Picker, a Drive link), else where
+    the text says so ("Organizer: …"); a member when the name or address is one. None when unknown:
+    never the person who imported it."""
+    found, how = None, None
+    for s in group:
+        inc = getattr(s, "_incoming", None)
+        own = getattr(inc, "owner", None) or None
+        if own and (own.get("name") or own.get("email")):
+            found, how = {"name": own.get("name"), "email": own.get("email")}, "drive"
+            break
+    if found is None:
+        for s in group:
+            inc = getattr(s, "_incoming", None)
+            hit = mp.organizer_in(getattr(inc, "text", "") or "")
+            if hit:
+                found, how = hit, "content"
+                break
+    if found is None:
+        return None
+    mem = people.match(found.get("name"), found.get("email"))
+    name = (mem or {}).get("name") or found.get("name") or (found.get("email") or "").split("@")[0] or None
+    return {"name": name, "email": (found.get("email") or (mem or {}).get("email") or None),
+            "user_id": mem["id"] if mem else None, "from": how}
+
+
+SMALL_CALL = 2   # 1:1s and two-person calls are restricted to their attendees on import (owner, 2026-11-05)
+
+
+def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool:
+    """A call with one or two known people (attendees, plus the organizer when not among them)."""
+    names = {(a.get("name") or "").casefold() for a in attendees if a.get("name")}
+    if organizer and organizer.get("name") and organizer["name"].casefold() not in names \
+            and not any(organizer.get("user_id") and a.get("user_id") == organizer["user_id"] for a in attendees):
+        names.add(organizer["name"].casefold())
+    return 1 <= len(names) <= SMALL_CALL
+
+
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
                   restricted: bool, wait: bool, via: str, history: bool = False) -> dict:
@@ -776,10 +822,15 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
+    organizer = organizer_of(group, people)
+    small = auto_restricts(attendees, organizer)
+    if small:
+        restricted = True
     now = now_utc()
     row = {
         "workspace_id": workspace_id, "folder_id": str(folder["_id"]), "doc_id": None, "transcript_doc_id": None,
-        "created_by": user.id, "created_at": now, "updated_at": now, "title": name, "date": d, "time": m.time,
+        "created_by": user.id, "imported_by": user.id, "organizer": organizer, "auto_restricted": small,
+        "created_at": now, "updated_at": now, "title": name, "date": d, "time": m.time,
         "duration_s": m.duration_s, "type": type_ or guess_type(name), "attendees": attendees,
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
@@ -787,13 +838,19 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     }
     if history:
         row["history"] = True
+    # Where it goes (one function for every import path: services/meeting_place.py).
+    from app.services import meeting_place
+
+    placed = await meeting_place.place_meeting(db, workspace_id, row)
+    if placed and placed != str(folder["_id"]):
+        row["folder_id"] = placed
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
     actor, ctx = access.Actor.of(user), access.Ctx(db)
     display = f"{name} · {fmt_date(d)}"[:200]
     try:
         raw, _secret, _err = await pages.create_page(db, user, actor, ctx, title=display, workspace=workspace_id,
-                                                     folder=str(folder["_id"]), content="\n")
+                                                     folder=row["folder_id"], content="\n")
     except HTTPException:
         await db[COLL].delete_one({"_id": row["_id"]})
         raise
@@ -974,6 +1031,11 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "has_transcript": bool(row.get("segments")),
         "sources": [{k: s.get(k) for k in ("kind", "origin", "name", "url", "format")} for s in row.get("sources") or []],
         "ai": ai_view(row), "created_at": iso(row.get("created_at")), "created_by": row.get("created_by"),
+        # Who ran the call (Drive owner or stated in the text; None: unknown) and who brought it in.
+        "organizer": ({k: (row.get("organizer") or {}).get(k) for k in ("name", "user_id", "from")}
+                      if row.get("organizer") else None),
+        "imported_by": await _person(db, row.get("imported_by") or row.get("created_by")),
+        "auto_restricted": bool(row.get("auto_restricted")),
         "can_manage": can_manage, "can_delete": can_delete, "can_regenerate": (await access.can(actor, raw, "edit_content", ctx)).allowed,
         "approx_times": bool(row.get("approx_times")),
         "source": source_of(row),
@@ -984,6 +1046,63 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
 
         out["url"] = urls.markdrop_url(raw["slug"])
     return out
+
+
+async def repair_organizers(db: AsyncIOMotorDatabase, *, apply: bool = False, workspace_id: str | None = None) -> dict:
+    """Meetings imported before Organizer and Imported by were separate had the importer as Organizer.
+    For each: the organizer is the Google Doc's owner when the Google Meet script reported it (its
+    inbox row), else unknown; the page's Organizer property is corrected when it still says the importer
+    (a value someone set by hand stays). ``apply=False``: only count."""
+    from app.services import page_db, user as user_service
+
+    q: dict[str, Any] = {"organizer": {"$exists": False}}
+    if workspace_id:
+        q["workspace_id"] = workspace_id
+    out = {"checked": 0, "from_drive": 0, "unknown": 0, "props_fixed": 0, "errors": 0}
+    people_cache: dict[str, People] = {}
+    async for row in db[COLL].find(q):
+        out["checked"] += 1
+        ws = row["workspace_id"]
+        people = people_cache.get(ws) or await people_of(db, ws)
+        people_cache[ws] = people
+        fids = [s.get("file_id") for s in row.get("sources") or [] if s.get("file_id")]
+        org = None
+        if fids:
+            ib = await db["meeting_inbox"].find_one({"workspace_id": ws, "file_id": {"$in": fids},
+                                                    "owner": {"$type": "object"}})
+            own = (ib or {}).get("owner") or None
+            if own:
+                mem = people.match(own.get("name"), own.get("email"))
+                org = {"name": (mem or {}).get("name") or own.get("name") or (own.get("email") or "").split("@")[0],
+                       "email": own.get("email"), "user_id": mem["id"] if mem else None, "from": "drive"}
+        out["from_drive" if org else "unknown"] += 1
+        if not apply:
+            continue
+        try:
+            await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"organizer": org,
+                                                                     "imported_by": row.get("imported_by") or row.get("created_by")}})
+            page = await page_of(db, row)
+            want = (org or {}).get("user_id")
+            if page is not None and page_db.read_values(page.get("content")).get("organizer") == row.get("created_by") \
+                    and want != row.get("created_by"):
+                user = await user_service.get_user_by_id(db, row.get("created_by"))
+                if user is not None:
+                    content = page_db.write_values(page.get("content"), {"organizer": want})
+                    await _save(db, page, content, access.Actor.of(user), access.Ctx(db))
+                    out["props_fixed"] += 1
+        except Exception:
+            log.warning("meetings: organizer repair failed for %s", row.get("_id"), exc_info=True)
+            out["errors"] += 1
+    return out
+
+
+async def _person(db: AsyncIOMotorDatabase, user_id: str | None) -> dict | None:
+    if not user_id or not ObjectId.is_valid(user_id):
+        return None
+    u = await db["users"].find_one({"_id": ObjectId(user_id)}, {"name": 1, "email": 1})
+    if u is None:
+        return {"user_id": user_id, "name": None}
+    return {"user_id": user_id, "name": u.get("name") or (u.get("email") or "").split("@")[0] or None}
 
 
 SOURCES = ("manual", "auto", "mcp")

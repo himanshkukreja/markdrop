@@ -118,3 +118,134 @@ async def requests_of(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str,
     return [{"file_id": r["file_id"], "url": r.get("url"), "state": r.get("state"), "error": r.get("error"),
              "requested_at": meetings.iso(r.get("requested_at")), "done_at": meetings.iso(r.get("done_at")),
              "meeting_id": r.get("meeting_id")} for r in rows]
+
+
+# ── The public export ─────────────────────────────────────────────────────────
+
+FETCH_TIMEOUT = 15.0
+MAX_HOPS = 4
+MAX_BYTES = 4_000_000
+
+
+def _allowed_host(host: str | None) -> bool:
+    """Google's own hosts only: the Doc's, and where Google hands the file out from."""
+    h = (host or "").lower().rstrip(".")
+    return h in ("docs.google.com", "drive.google.com", "drive.usercontent.google.com") or h.endswith(".googleusercontent.com")
+
+
+def _filename(disposition: str | None) -> str | None:
+    """The file name in a Content-Disposition header (Google puts the Doc's title there)."""
+    from urllib.parse import unquote
+
+    d = disposition or ""
+    m = re.search(r"filename\*\s*=\s*UTF-8''([^;]+)", d, re.I)
+    if m:
+        return unquote(m.group(1)).strip().strip('"') or None
+    m = re.search(r'filename\s*=\s*"([^"]+)"', d) or re.search(r"filename\s*=\s*([^;]+)", d)
+    return m.group(1).strip() if m else None
+
+
+class NotPublic(Exception):
+    """Google wants a sign-in (the file isn't shared with "anyone with the link") or it doesn't exist."""
+
+
+async def fetch_public(file_id: str, *, client=None) -> tuple[str, str]:
+    """(title, text) of a Doc (or a text file) shared with "anyone with the link", through Google's
+    export. Only Google's hosts are followed (no other redirect), with a timeout and a size cap.
+    Raises :class:`NotPublic`, or ValueError (too big, not text)."""
+    import httpx
+
+    if not _ID.match(file_id or ""):
+        raise ValueError("That isn't a Google Drive file id.")
+    own = client is None
+    client = client or httpx.AsyncClient(timeout=FETCH_TIMEOUT, follow_redirects=False,
+                                         headers={"User-Agent": "Markdrop meetings import"})
+    try:
+        for start in (f"https://docs.google.com/document/d/{file_id}/export?format=txt",
+                      f"https://drive.google.com/uc?export=download&id={file_id}"):
+            url = start
+            for _hop in range(MAX_HOPS + 1):
+                async with client.stream("GET", url) as r:
+                    if r.status_code in (301, 302, 303, 307, 308):
+                        nxt = r.headers.get("location") or ""
+                        nxt = str(httpx.URL(url).join(nxt))
+                        if not _allowed_host(httpx.URL(nxt).host) or not nxt.startswith("https://"):
+                            break        # a sign-in page (accounts.google.com) or anything else: not public
+                        url = nxt
+                        continue
+                    if r.status_code != 200:
+                        break
+                    ctype = (r.headers.get("content-type") or "").lower()
+                    if "text/html" in ctype:
+                        break            # a page (sign in, "can't preview"), not the file
+                    if ctype and not (ctype.startswith("text/") or "subrip" in ctype or "vtt" in ctype
+                                      or "octet-stream" in ctype or "json" in ctype):
+                        raise ValueError("That file isn't a transcript or Google Doc Markdrop can read.")
+                    size = int(r.headers.get("content-length") or 0)
+                    if size > MAX_BYTES:
+                        raise ValueError("That file is too big to import.")
+                    buf = bytearray()
+                    async for chunk in r.aiter_bytes():
+                        buf.extend(chunk)
+                        if len(buf) > MAX_BYTES:
+                            raise ValueError("That file is too big to import.")
+                    text = bytes(buf).decode("utf-8", "replace").lstrip("﻿")
+                    title = _filename(r.headers.get("content-disposition")) or "Google Doc"
+                    title = re.sub(r"\.(txt)$", "", title, flags=re.I)
+                    return title, text
+        raise NotPublic(file_id)
+    finally:
+        if own:
+            await client.aclose()
+
+
+def doc_url(file_id: str) -> str:
+    return f"https://docs.google.com/document/d/{file_id}/edit"
+
+
+# ── Import by link ────────────────────────────────────────────────────────────
+
+NEEDS_ACCESS = ("Markdrop can't open that Doc: it isn't shared with \"anyone with the link\". Connect Google Meet "
+                "(Markdrop then fetches it with your own Google access), share the Doc with \"anyone with the link\", "
+                "or download it and upload the file.")
+
+
+async def import_link(db: AsyncIOMotorDatabase, user, workspace_id: str, url: str, *, restricted: bool = False,
+                      via: str = "web", wait: bool = False, client=None) -> dict:
+    """One Google Docs / Drive link → {status: imported | attached | duplicate | queued | needs_access,
+    url, file_id, meeting_id?, message?}. Raises HTTPException 422 for a link that isn't Google's."""
+    from fastapi import HTTPException
+
+    from app.services import meetings, meetings_inbox
+
+    await meetings.require_member(db, workspace_id, user.id)
+    fid = file_id_of(url)
+    if fid is None:
+        raise HTTPException(status_code=422, detail="Paste a Google Docs or Google Drive link "
+                                                    "(docs.google.com/document/d/… or drive.google.com/file/d/…).")
+    out: dict[str, Any] = {"url": url, "file_id": fid}
+    hit = await db[meetings.COLL].find_one({"workspace_id": workspace_id, "sources.file_id": fid})
+    if hit is not None:
+        return {**out, "status": "duplicate", "meeting_id": str(hit["_id"]), "row": hit}
+    try:
+        title, text = await fetch_public(fid, client=client)
+    except NotPublic:
+        rec = await meetings_inbox.mine(db, user.id)
+        if rec is not None and rec.get("workspace_id") == workspace_id:
+            await queue(db, rec, user.id, workspace_id, fid, url=url, restricted=restricted)
+            return {**out, "status": "queued",
+                    "message": "Queued: your Google Meet script imports it within 15 minutes (or Run it now in Apps Script)."}
+        msg = NEEDS_ACCESS
+        if rec is not None:
+            msg = ("Markdrop can't open that Doc, and your Google Meet script sends meetings to another workspace. "
+                   "Share the Doc with \"anyone with the link\", or download it and upload the file.")
+        return {**out, "status": "needs_access", "message": msg, "connected": rec is not None}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    if len(text) > meetings.MAX_PASTE_CHARS:
+        raise HTTPException(status_code=413, detail="That Doc is too long to import.")
+    inc = meetings.Incoming(name=title, text=text, origin="google", file_id=fid, url=doc_url(fid))
+    rows = await meetings.import_meetings(db, user, workspace_id, [inc], restricted=restricted, via=via,
+                                          dedupe="all", wait=wait)
+    row = rows[0]
+    return {**out, "status": row.get("_status") or "imported", "meeting_id": str(row["_id"]), "row": row}

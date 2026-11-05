@@ -241,3 +241,13 @@
 @media (prefers-reduced-motion: reduce) {
   .mt-card, .mt-cite, .mt-chip, .mt-drop { transition: none; }
 }
+
+/* Paste a Google Drive link */
+.mt-links { display: grid; gap: 10px; min-width: 0; }
+.mt-linkres { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mt-linkres__row { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; font-size: 13px; line-height: 19px; color: var(--text-secondary); }
+.mt-linkres__row svg { width: 16px; height: 16px; margin-top: 2px; color: var(--text-muted); }
+.mt-linkres__row[data-status="imported"] svg, .mt-linkres__row[data-status="attached"] svg, .mt-linkres__row[data-status="duplicate"] svg { color: var(--success-text, var(--accent-text)); }
+.mt-linkres__row[data-status="needs_access"] svg, .mt-linkres__row[data-status="error"] svg { color: var(--danger-text, var(--danger)); }
+.mt-linkres__row a { color: var(--accent-text); }
+.mt-linkres__url { overflow-wrap: anywhere; font-weight: 500; color: var(--text); }

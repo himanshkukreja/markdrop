@@ -14,12 +14,13 @@ import {
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { connectGoogleDocs } from "@/lib/api";
 import {
-  ACCEPT, MAX_FILE_BYTES, MEETING_TYPES, fileToSource, fmtDuration, googlePickerToken, importMeeting, previewMeeting,
+  ACCEPT, MAX_FILE_BYTES, MEETING_TYPES, driveFileId, fileToSource, fmtDuration, googlePickerToken, importLinks, importMeeting,
+  previewMeeting, type LinkResult,
   type DetectedMeeting, type Meeting, type MeetingsStatus, type SourceIn,
 } from "@/lib/meetings";
 import "./meetings.css";
 
-type Tab = "paste" | "upload" | "google";
+type Tab = "paste" | "upload" | "link" | "google";
 
 interface Picked { id: string; name: string }
 
@@ -48,6 +49,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
+  const [links, setLinks] = useState("");
+  const [linkResults, setLinkResults] = useState<LinkResult[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const touched = useRef({ title: false, date: false });
 
@@ -55,11 +58,15 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
     if (open) return;
     // Closed: start clean next time.
     setText(""); setFiles([]); setPicked([]); setDetected(null); setTitle(""); setDate(""); setType("");
-    setRestricted(false); setError(null); setBusy(false); setTab("paste");
+    setRestricted(false); setError(null); setBusy(false); setTab("paste"); setLinks(""); setLinkResults(null);
     touched.current = { title: false, date: false };
   }, [open]);
 
+  const linkList = useMemo(() => links.split(/[\s,]+/).map((l) => l.trim()).filter(Boolean).slice(0, 20), [links]);
+  const badLinks = linkList.filter((l) => !driveFileId(l));
+
   const sources: SourceIn[] = useMemo(() => {
+    if (tab === "link") return [];
     if (tab === "paste") return text.trim() ? [{ name: "Pasted text", text }] : [];
     if (tab === "upload") return files.map((f) => f.source);
     return picked.map((p) => ({ name: p.name, google_file_id: p.id }));
@@ -67,7 +74,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
 
   // What the server would make of it (paste and upload; Google Docs are read at import).
   useEffect(() => {
-    if (!open || tab === "google" || sources.length === 0) { setDetected(null); return; }
+    if (!open || tab === "google" || tab === "link" || sources.length === 0) { setDetected(null); return; }
     let live = true;
     setDetecting(true);
     const t = window.setTimeout(() => {
@@ -106,7 +113,32 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
     }
   };
 
+  const submitLinks = async () => {
+    if (!linkList.length || badLinks.length || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await importLinks({ workspace: workspaceId, urls: linkList, restricted });
+      const made = r.results.filter((x) => x.meeting).map((x) => x.meeting!) ;
+      if (made.length) onImported?.(made);
+      const waiting = r.results.filter((x) => !x.meeting);
+      if (!waiting.length && made.length === 1) {
+        const st = r.results[0].status;
+        toast[st === "duplicate" ? "info" : "success"](st === "duplicate" ? "Already imported: here's that meeting." : "Meeting imported. The summary is on its way.");
+        onClose();
+        router.push(`/${made[0].slug}`);
+        return;
+      }
+      setLinkResults(r.results);
+      setBusy(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Import failed. Try again.");
+      setBusy(false);
+    }
+  };
+
   const submit = async () => {
+    if (tab === "link") return submitLinks();
     if (!sources.length || busy) return;
     setBusy(true);
     setError(null);
@@ -140,6 +172,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
   const tabs = [
     { value: "paste", label: "Paste", icon: "clipboard" },
     { value: "upload", label: "Upload", icon: "upload" },
+    { value: "link", label: "Drive link", icon: "link" },
     ...(googleReady ? [{ value: "google", label: "Google Docs", icon: "google" }] : []),
   ];
   const aiOff = status && !status.ai.enabled;
@@ -176,6 +209,36 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
             </ul>
           )}
         </>
+      )}
+      {tab === "link" && (
+        <div className="mt-links" data-testid="import-link">
+          <Field label="Google Docs or Drive links" htmlFor="mt-links"
+            hint="One per line: the call's transcript Doc, Gemini's notes, or a .vtt / .txt file in Drive. Several links make several meetings.">
+            <Textarea id="mt-links" value={links} rows={3} spellCheck={false} data-testid="import-link-input"
+              onChange={(e) => { setLinks(e.target.value); setLinkResults(null); }}
+              placeholder="https://docs.google.com/document/d/…" />
+          </Field>
+          {badLinks.length > 0 && <Alert tone="warning">Not a Google Docs or Drive link: {badLinks.slice(0, 3).join(", ")}</Alert>}
+          <p className="mt-connect__fine">
+            A Doc shared with “anyone with the link” is read right away. Otherwise, if your Google Meet script is connected here, it
+            fetches the Doc with your own Google access within 15 minutes.
+          </p>
+          {linkResults && (
+            <ul className="mt-linkres" aria-live="polite" data-testid="import-link-results">
+              {linkResults.map((r, i) => (
+                <li key={i} className="mt-linkres__row" data-status={r.status}>
+                  <Icon name={r.meeting ? "checkCircle" : r.status === "queued" ? "clock" : "alert"} />
+                  <span>
+                    {r.meeting ? <a href={`/${r.meeting.slug}`}><b>{r.meeting.title || "Meeting"}</b></a> : <b className="mt-linkres__url">{r.url}</b>}
+                    {" · "}
+                    {LINK_SAID[r.status]}
+                    {r.message && !r.meeting ? <><br />{r.message}</> : null}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
       {tab === "google" && (
         <div className="mt-google">
@@ -229,7 +292,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         </div>
       )}
 
-      {(one || tab === "google" || (detected === null && sources.length > 0)) && (
+      {tab !== "link" && (one || tab === "google" || (detected === null && sources.length > 0)) && (
         <div className="mt-grid2">
           <Field label="Title" htmlFor="mt-title">
             <Input id="mt-title" value={title} placeholder="From the transcript" onChange={(e) => { touched.current.title = true; setTitle(e.target.value); }} />
@@ -239,14 +302,14 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
           </Field>
         </div>
       )}
-      <Field label="Type" htmlFor="mt-type">
+      {tab !== "link" && <Field label="Type" htmlFor="mt-type">
         <Select id="mt-type" value={type} onChange={(e) => setType(e.target.value)}
           options={[{ value: "", label: "Guess from the title" }, ...MEETING_TYPES.map((t) => ({ value: t, label: t }))]} />
-      </Field>
+      </Field>}
       <div className="mt-switchrow">
         <span className="mt-switchrow__text">
           <b>Only the people who were there</b>
-          The team sees every meeting by default. This keeps it to attendees who are members of this workspace.
+          The team sees meetings of three or more people. 1:1s and two-person calls are kept to their attendees automatically; this keeps any meeting to attendees who are members.
         </span>
         <Switch checked={restricted} onChange={(e) => setRestricted(e.target.checked)} aria-label="Restrict to attendees" />
       </div>
@@ -258,8 +321,10 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
   const footer = (
     <>
       <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-      <Button onClick={() => void submit()} loading={busy} disabled={!sources.length || busy || (tab !== "google" && detected !== null && detected.length === 0)}>
-        {busy ? "Importing…" : detected && detected.length > 1 ? `Import ${detected.length} meetings` : "Import meeting"}
+      <Button onClick={() => void submit()} loading={busy} data-testid="import-submit"
+        disabled={tab === "link" ? !linkList.length || badLinks.length > 0 || busy : !sources.length || busy || (tab !== "google" && detected !== null && detected.length === 0)}>
+        {busy ? "Importing…" : tab === "link" ? (linkList.length > 1 ? `Import ${linkList.length} links` : "Import from link")
+          : detected && detected.length > 1 ? `Import ${detected.length} meetings` : "Import meeting"}
       </Button>
     </>
   );
@@ -278,6 +343,15 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
     </Dialog>
   );
 }
+
+const LINK_SAID: Record<LinkResult["status"], string> = {
+  imported: "imported",
+  attached: "added to the meeting already here",
+  duplicate: "already imported",
+  queued: "queued: your Google Meet script imports it within 15 minutes (or Run it now in Apps Script)",
+  needs_access: "Markdrop can't open it",
+  error: "couldn't import it",
+};
 
 /** Today in the person's own time zone (a call without a date in it happened today, where they are). */
 function localToday(): string {

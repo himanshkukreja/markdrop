@@ -512,6 +512,28 @@ def _interpolate(segs: list[dict], end_s: int | None) -> bool:
     return changed
 
 
+_ORGANIZER = re.compile(r"^(?:#+\s*)?(?:[-*]\s*)?(?:\*\*)?(?:meeting\s+)?(?:organi[sz]er|organi[sz]ed\s+by|host|hosted\s+by)"
+                        r"(?:\*\*)?\s*:?(?:\*\*)?\s+(.+)$", re.I)
+
+
+def organizer_in(text: str) -> dict | None:
+    """Who organized the call, where the text says so ("Organizer: Gautam Rao <gautam@…>",
+    "Hosted by …"), in its first lines: {name, email} or None. Never guessed from anything else."""
+    for raw in (text or "").split("\n")[:80]:
+        m = _ORGANIZER.match(_clean_line(raw).strip())
+        if not m:
+            continue
+        part = re.split(r"[,;]|\s+and\s+", m.group(1).strip())[0].strip()
+        em = re.search(r"<?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)>?", part)
+        email = em.group(1).lower() if em else None
+        name = clean_speaker(re.sub(r"<?[\w.+-]+@[\w-]+(?:\.[\w-]+)+>?", "", part)) or None
+        if name and not _plausible_name(name):
+            name = None
+        if name or email:
+            return {"name": name or (email or "").split("@")[0], "email": email}
+    return None
+
+
 def _attendees_from(lines: list[str]) -> list[dict]:
     """The names on an "Attendees" / "Invited" / "Participants" line (or the line under it)."""
     out: list[dict] = []

@@ -181,6 +181,13 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
         </dd>
         <dt>Transcript</dt><dd>{m.has_transcript ? <a href={`/${m.transcript_slug}`}>{m.segments} lines</a> : "None (Google's notes only)"}{m.approx_times ? " · times every 5 min, estimated between" : ""}</dd>
         <dt>Action items</dt><dd>{m.action_items}</dd>
+        <dt>Organizer</dt>
+        <dd data-testid="meeting-organizer">
+          {m.organizer?.name
+            ? <>{m.organizer.name}{m.organizer.from === "drive" ? <span className="mt-cost"> · owns the Google Doc</span> : null}</>
+            : <span className="mt-cost">Not known{m.can_regenerate ? " (set it in the page's Organizer property)" : ""}</span>}
+        </dd>
+        {m.imported_by?.name && <><dt>Imported by</dt><dd data-testid="meeting-imported-by">{m.imported_by.name}</dd></>}
       </dl>
 
       <div>
@@ -219,6 +226,7 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
         <span className="mt-switchrow__text">
           <b>Only the people who were there</b>
           {m.can_manage ? "Off: everyone in the workspace can open it. On: only attendees who are members." : m.restricted ? "Only attendees who are members can open it." : "Everyone in the workspace can open it."}
+          {m.auto_restricted && m.restricted ? " Turned on by itself: a 1:1 or two-person call." : ""}
         </span>
         <Switch checked={m.restricted} disabled={!m.can_manage || !!busy} aria-label="Restrict to attendees" data-testid="meeting-restrict"
           onChange={(e) => void run("restrict", () => patchMeeting(m.id, { restricted: e.target.checked }), e.target.checked ? "Only attendees can open it now." : "The team can open it again.")} />

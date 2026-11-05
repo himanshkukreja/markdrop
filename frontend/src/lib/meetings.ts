@@ -72,6 +72,12 @@ export interface Meeting {
   status?: "imported" | "attached" | "duplicate";
   /** A past meeting brought in by a backfill: imported quietly (nobody was notified). */
   history?: boolean;
+  /** Who ran the call (the Google Doc's owner, or named in the text); null: unknown. */
+  organizer?: { name: string | null; user_id: string | null; from: "drive" | "content" | null } | null;
+  /** Who brought it into Markdrop. */
+  imported_by?: { user_id: string; name: string | null } | null;
+  /** Restricted on import because it was a 1:1 or a two-person call. */
+  auto_restricted?: boolean;
 }
 
 /** A "Connect Google Meet" connection (never its token). */
@@ -182,6 +188,29 @@ export function previewMeeting(sources: SourceIn[]) {
 
 export function importMeeting(body: { workspace: string; sources: SourceIn[]; title?: string; date?: string; type?: string; restricted?: boolean }) {
   return request<{ meetings: Meeting[] }>(`/api/v1/meetings/import`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/** One pasted Google Docs / Drive link's outcome. */
+export interface LinkResult {
+  url: string;
+  file_id?: string;
+  status: "imported" | "attached" | "duplicate" | "queued" | "needs_access" | "error";
+  message?: string;
+  meeting_id?: string;
+  meeting?: Meeting | null;
+  connected?: boolean;
+}
+
+/** Up to 20 Google Docs / Drive links: Markdrop reads public ones; private ones go to your Google Meet script. */
+export function importLinks(body: { workspace: string; urls: string[]; restricted?: boolean }) {
+  return request<{ results: LinkResult[] }>(`/api/v1/meetings/import-link`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/** Pulls the Drive file id out of a Docs / Drive link (the server checks again). */
+export function driveFileId(url: string): string | null {
+  const u = url.trim();
+  const m = /^(?:https?:\/\/)?(?:docs|drive)\.google\.com\/.*?(?:\/d\/|[?&]id=)([A-Za-z0-9_-]{20,})/.exec(u);
+  return m ? m[1] : /^[A-Za-z0-9_-]{25,}$/.test(u) ? u : null;
 }
 
 export function patchMeeting(id: string, body: { restricted?: boolean; type?: string }) {

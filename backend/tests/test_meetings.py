@@ -289,7 +289,10 @@ class Import(MeetingsWorld):
         self.assertEqual(folder["name"], "Meetings")
         self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "attendees", "organizer", "duration", "action_items"])
         self.assertEqual(page["folder_id"], str(folder["_id"]))
-        self.assertIn(f'organizer: "{self.uid["owner"]}"', c)
+        # Who organized it isn't in a pasted transcript: unknown, never the importer.
+        self.assertNotIn("organizer:", c)
+        self.assertIsNone(m["organizer"])
+        self.assertEqual(m["imported_by"]["user_id"], self.uid["owner"])
         self.assertIn('duration: "13 min"', c)
         # The transcript sub-page: anchored paragraphs.
         tr = await self.doc(ts)
@@ -522,7 +525,7 @@ class Access(MeetingsWorld):
         self.assertEqual(lst["hidden"][0]["id"], m["id"])
         self.assertNotIn("title", lst["hidden"][0])
         # Ask across meetings as Ravi: the restricted meeting's words never reach the model.
-        await self.imported(sources=[{"name": "Open sync", "text": "Ada Lovelace: Release on Friday.\nBo Chen: Fine."}])
+        await self.imported(sources=[{"name": "Open sync", "text": "Ada Lovelace: Release on Friday.\nBo Chen: Fine.\nRavi Kumar: Ok."}])
         self.fake.calls.clear()
         r = await self.http.post("/api/v1/meetings/ask", headers=self.session("wv"), json={"workspace": self.W, "question": "what is the secret plan codename?"})
         evs = parse_sse(r.text)
