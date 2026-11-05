@@ -40,7 +40,7 @@ const folderPaths = async () => {
 await step("mcp", async () => {
   await ok(ada, "create_folder", { workspace: WS, path: "product-hub/prds" });
   const pub = await ok(ada, "publish_document", {
-    content: "# Talent pool\n\nThe PRD.", title: "Talent pool PRD", slug: `feat-talent-${Date.now() % 100000}`,
+    markdown: "# Talent pool\n\nThe PRD.", title: "Talent pool PRD", slug: `feat-talent-${Date.now() % 100000}`,
     workspace: WS, folder: "product-hub/prds", access: "link",
   });
   const slug = pub.slug;
