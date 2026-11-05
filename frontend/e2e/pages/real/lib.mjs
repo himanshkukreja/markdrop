@@ -116,6 +116,18 @@ export async function ctx(browser, { token = null, theme = "light", width = 1440
   );
   const p = await c.newPage();
   p.on("pageerror", (e) => console.log("  [pageerror]", e.message.slice(0, 300)));
+  // Closing a WebKit context doesn't run the pages' pagehide (Chromium's does), so an editor closed
+  // that way never lets go of its edit lock and holds the page for the next steps until the lock times
+  // out. Leave the pages first, as a closed tab does.
+  if (BROWSER === "webkit") {
+    const close = c.close.bind(c);
+    c.close = async (...a) => {
+      const open = c.pages().filter((pg) => !pg.isClosed() && pg.url().startsWith("http"));
+      for (const pg of open) await pg.goto("about:blank", { timeout: 5000 }).catch(() => {});
+      if (open.length) await new Promise((r) => setTimeout(r, 300));
+      return close(...a);
+    };
+  }
   return { c, p };
 }
 

@@ -84,54 +84,26 @@ await step("typing-undo", async () => {
   const want = "First line typed fast with **bold** words\n\n## A heading\n\n- one\n- two\n\nLast paragraph 1234567890 the quick brown fox.\n";
   let md = await settle(p, slug, (m) => m === want);
   if (md !== want) fail(`fast typing saved ${JSON.stringify(md)}`);
-  // Undo everything (history across blocks), then redo everything.
-  // The editor's undo history (Tiptap puts the editor on its element) and every document change from
-  // here on, to say what happened when the redo comes up short.
+  // Undo everything (history across blocks), then redo everything. The redo key is Shift+Z, as a real
+  // keyboard reports it: Playwright on Linux sends Control+Shift+z as key "z" with Shift, which no real
+  // keyboard does, and ProseMirror's keymap then falls back from Shift-Ctrl-z (redo, nothing left) to
+  // Ctrl-z (undo): every extra press undid the last step again, so the result hung on the press count.
+  // The editor's undo history (Tiptap puts the editor on its element) says what happened if it comes up short.
   const history = () => p.locator(".pb-live .ProseMirror").evaluate((el) => {
     const ed = el.editor;
     const h = ed?.state.plugins.find((pl) => pl.key.startsWith("history$"))?.getState(ed.state);
-    return h ? { done: h.done.eventCount, undone: h.undone.eventCount } : null;
+    return h ? `${h.done.eventCount} done / ${h.undone.eventCount} to redo` : "?";
   });
-  await p.locator(".pb-live .ProseMirror").evaluate((el) => {
-    const t0 = performance.now();
-    const at = () => `${Math.round(performance.now() - t0)}`;
-    window.__pbLog = [];
-    const ed = el.editor;
-    const hist = () => {
-      const h = ed?.state.plugins.find((pl) => pl.key.startsWith("history$"))?.getState(ed.state);
-      return h ? `${h.done.eventCount}/${h.undone.eventCount}` : "?";
-    };
-    ed?.on("transaction", ({ transaction: tr, appendedTransactions: more }) => {
-      if (![tr, ...(more ?? [])].some((t) => t.docChanged)) return;
-      const keys = (t) => Object.keys(t.meta ?? {}).filter((k) => k !== "appendedTransaction").join(",");
-      window.__pbLog.push(`${at()} tr${tr.docChanged ? "" : "(nodoc)"}[${keys(tr)}]${more?.length ? `+[${more.map(keys).join("|")}]` : ""} h=${hist()}`);
-    });
-    // What the browser did with the keys after the editor saw them (bubbling to the window).
-    window.addEventListener("keydown", (e) => {
-      if (e.key.length === 1) window.__pbLog.push(`${at()} key ${e.ctrlKey ? "C-" : ""}${e.metaKey ? "M-" : ""}${e.shiftKey ? "S-" : ""}${e.key}${e.defaultPrevented ? " handled" : " UNHANDLED"}`);
-    });
-    for (const t of ["beforeinput", "input"]) window.addEventListener(t, (e) => window.__pbLog.push(`${at()} ${t} ${e.inputType}`), true);
-  });
-  const before = await history();
+  const typed = await history();
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+z`);
   md = await settle(p, slug, (m) => !m.trim());
   if (md.trim()) fail(`undo all left ${JSON.stringify(md)}`);
   const undone = await history();
-  await p.evaluate(() => (window.__pbLog = []));
-  for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+z`);
+  for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+Z`);
   md = await settle(p, slug, (m) => m === want);
   if (md !== want) {
-    // Say more: is it the count (more redos finish it) or a lost history item (nothing more to redo),
-    // and what changed the document during the redos besides the redos themselves.
     const shown = await p.locator(".pb-live .ProseMirror").innerText();
-    const after = await history();
-    // The redo log from the first press that didn't move the history forward.
-    const log = await p.evaluate(() => window.__pbLog);
-    const firstKeys = log.findIndex((l, i) => i > 0 && / key /.test(l) && / key /.test(log[i - 1]));
-    const trs = log.slice(0, 40).concat(firstKeys > 40 ? ["…", ...log.slice(firstKeys - 6, firstKeys + 6)] : []);
-    for (let i = 0; i < 40; i++) await p.keyboard.press(`${mod}+Shift+z`);
-    const more = await settle(p, slug, (m) => m === want, 8000);
-    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; 40 more redos saved ${JSON.stringify(more.slice(-60))}; history typed ${JSON.stringify(before)} undone ${JSON.stringify(undone)} redone ${JSON.stringify(after)}; the redos: ${trs.join(" ; ")}`);
+    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; history after typing ${typed}, after undo all ${undone}, after redo all ${await history()}`);
   }
   await c.close();
 });

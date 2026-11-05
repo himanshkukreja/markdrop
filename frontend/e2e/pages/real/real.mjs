@@ -519,6 +519,10 @@ for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]]) {
   });
 }
 await step("editor-dark-390", async () => {
+  // Nobody holds the page's edit lock now (every earlier editor let go when it closed).
+  const pre = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (pre.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  else fail(`an earlier step's editor still holds the edit lock (${pre.status} ${JSON.stringify(pre.body).slice(0, 200)})`);
   const { c, p } = await ctx(browser, { token: T.owner, theme: "dark", width: 390, height: 844 });
   const locks = [];
   p.on("request", (r) => {
