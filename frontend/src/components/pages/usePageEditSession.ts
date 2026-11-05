@@ -417,20 +417,33 @@ export function usePageEditSession({
   }, [secret, adopt, fetchLatest, setLock]);
 
   /**
-   * Who's viewing says someone else is editing (before this editor asked for the lock): ask the
-   * server how idle they are, whether they have unsaved changes and whether we may take over. It
-   * takes nothing; from then on the page follows the "theirs" poll.
+   * Who's viewing changed its mind about someone else editing: ask the server where the lock stands
+   * (it takes nothing). Someone holds it: read only, with how idle they are, whether they have
+   * unsaved changes and whether we may take over. Free while we were following someone: editable
+   * again at once (showing their newest version) instead of on the next 15 s poll.
    */
   const probe = useCallback(async () => {
-    if (lockRef.current.kind !== "idle") return;
+    const k = lockRef.current.kind;
+    if (k !== "idle" && k !== "theirs") return;
     try {
       const st = await lockStatus(slugRef.current, secret);
       applyTimers(st.timers);
-      if (st.holder && !st.mine && lockRef.current.kind === "idle") setLock({ kind: "theirs", name: st.holder.name, facts: lockFacts(st) });
+      const now = lockRef.current;
+      if (st.holder && !st.mine) {
+        if (now.kind === "idle") setLock({ kind: "theirs", name: st.holder.name, facts: lockFacts(st) });
+        else if (now.kind === "theirs") setLock({ ...now, name: st.holder.name ?? now.name, facts: lockFacts(st) });
+      } else if (now.kind === "theirs" && !now.lost && !dirty.current) {
+        try {
+          adopt(await fetchLatest());
+        } catch {
+          /* the next change or live event brings it */
+        }
+        if (lockRef.current.kind === "theirs") setLock({ kind: "idle" });
+      }
     } catch {
       /* who's viewing still says so */
     }
-  }, [slug, secret, setLock]);
+  }, [secret, setLock, adopt, fetchLatest]);
 
   /** Renew the lock (`intent=heartbeat`): never takes back one that lapsed or was taken over. */
   const beat = useCallback(async () => {

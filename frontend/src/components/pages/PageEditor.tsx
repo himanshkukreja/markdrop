@@ -282,11 +282,12 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   }, [pendingCover, props.cover, slug, secret, remoteCover]);
   const lockedForMe = props.locked && !isOwner && !mayEditLocked;
   // Who's viewing says someone else is editing: ask how idle they are (and offer Edit anyway).
+  // Nobody else editing any more while we follow someone: ask again now (not on the next poll).
   const probeLock = session.probe;
-  const idleLock = session.lock.kind === "idle";
+  const lockKind = session.lock.kind;
   useEffect(() => {
-    if (othersEditing && idleLock) void probeLock();
-  }, [othersEditing, idleLock, probeLock]);
+    if ((othersEditing && lockKind === "idle") || (!othersEditing && lockKind === "theirs")) void probeLock();
+  }, [othersEditing, lockKind, probeLock]);
   // Who's viewing already says someone else is editing: read only before anyone clicks.
   const lock = session.lock.kind === "idle" && othersEditing ? { kind: "theirs" as const, name: othersEditing, lost: false } : session.lock;
   const readOnly = lock.kind === "theirs" || lock.kind === "readonly" || lockedForMe;
