@@ -228,7 +228,27 @@ async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     from app.services import slack_notify
 
     await slack_notify.queue_access_request(db, raw, row)
+    # And a push notification on their devices (services/push).
+    from app.services import push
+
+    await push.queue_access_request(db, raw, row)
     return row
+
+
+async def deciders(db: AsyncIOMotorDatabase, raw: dict, row: dict) -> list[str]:
+    """Who decides ``row`` (user ids): the page's owner, or, for an edit request whose owner can't
+    be reached, the workspace's admins. Never the person who asked."""
+    if row.get("admin_workspace_id"):
+        mem = await db["memberships"].find({"workspace_id": row["admin_workspace_id"],
+                                            "role": {"$in": ["admin", "owner"]}}, {"user_id": 1}).to_list(length=50)
+        ids = [m["user_id"] for m in mem]
+    else:
+        ids = [raw.get("owner_id")] if raw.get("owner_id") else []
+    out: list[str] = []
+    for uid in ids:
+        if uid and uid != row.get("requester_user_id") and uid not in out:
+            out.append(uid)
+    return out
 
 
 async def reachable_owner(db: AsyncIOMotorDatabase, raw: dict) -> dict | None:

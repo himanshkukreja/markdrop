@@ -322,16 +322,11 @@ async def queue_notification(db: AsyncIOMotorDatabase, row: dict) -> None:
 
 async def queue_access_request(db: AsyncIOMotorDatabase, raw: dict, row: dict) -> None:
     """access_requests.create() made ``row``: DM whoever decides it (the owner, or the workspace's admins)."""
+    from app.services import access_requests
+
     try:
-        if row.get("admin_workspace_id"):
-            mem = await db["memberships"].find({"workspace_id": row["admin_workspace_id"],
-                                                "role": {"$in": ["admin", "owner"]}}, {"user_id": 1}).to_list(length=50)
-            deciders = [m["user_id"] for m in mem]
-        else:
-            deciders = [raw.get("owner_id")] if raw.get("owner_id") else []
-        for uid in deciders:
-            if uid and uid != row.get("requester_user_id"):
-                await _queue(db, uid, "access_request", str(row["_id"]))
+        for uid in await access_requests.deciders(db, raw, row):
+            await _queue(db, uid, "access_request", str(row["_id"]))
     except Exception:
         log.warning("slack: couldn't queue access request %s", row.get("_id"), exc_info=True)
 

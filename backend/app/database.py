@@ -321,6 +321,13 @@ async def connect() -> None:
         await _notifications.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] notification indexes skipped: {exc}")
+    # Push notifications (services/push.py): devices, the outbox (7-day TTL), the per-page gap log.
+    try:
+        from app.services import push as _push
+
+        await _push.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] push indexes skipped: {exc}")
 
     # Bug reports / feature requests
     await db["feedback"].create_index([("created_at", -1)])

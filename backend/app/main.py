@@ -59,6 +59,7 @@ from app.routers.creator_analytics import router as creator_analytics_router
 from app.routers.analytics_ai_home import router as analytics_ai_home_router
 from app.routers.analytics_ai_doc import router as analytics_ai_doc_router
 from app.routers.notifications import router as notifications_router
+from app.routers.push import router as push_router
 from app.routers.oauth import router as oauth_router
 from app.routers.personal import router as personal_router
 from app.routers.search import router as search_router
@@ -257,6 +258,7 @@ app.include_router(creator_analytics_router)
 app.include_router(analytics_ai_home_router)
 app.include_router(analytics_ai_doc_router)
 app.include_router(notifications_router)
+app.include_router(push_router)
 app.include_router(sync_router)
 app.include_router(og_router)
 app.include_router(live_router)
