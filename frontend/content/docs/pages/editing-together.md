@@ -21,6 +21,8 @@ You stop editing, and others can edit, when:
 
 What you typed is saved first, so nothing is lost when you stop. When you come back and type again, the page is yours again. If someone changed it in the meantime, you see their changes first and yours go on top.
 
+Your own tabs count as one editor: with the same page open in two tabs, both stay editable and each shows what the other saved. If both change the same lines before either saves, the second save asks which version to keep.
+
 ## When someone else is editing
 
 The page shows a banner such as **Venkat is editing (idle for 1 min, unsaved changes · free in about 1 min)**, and it's read only for you until they stop. You don't need to reload: when the page is free, it becomes editable again by itself.

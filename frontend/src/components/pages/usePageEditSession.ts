@@ -128,6 +128,8 @@ export function usePageEditSession({
     timers.current = { heartbeat: ms(t.heartbeat_s, HEARTBEAT_MS), idle: ms(t.idle_s, IDLE_MS), hidden: ms(t.hidden_s, HIDDEN_MS) };
   };
   const acquiring = useRef<Promise<boolean> | null>(null);
+  /** Taking the lock failed for want of a network (or a server error) with text to save: try again. */
+  const acquireRetry = useRef<number | null>(null);
   const cbs = useRef({ onSaved, onAppend, onRemote, onCover });
   cbs.current = { onSaved, onAppend, onRemote, onCover };
 
@@ -250,8 +252,17 @@ export function usePageEditSession({
         if (status === 423 && pageLocked(e)) setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
         else if (status === 423) setLock({ kind: "theirs", name: lockHolder(e), lost: dirty.current || undefined, facts: lockFacts(e) });
         else if (status === 403 || status === 401) setLock({ kind: "readonly", message: e instanceof Error ? e.message : "You can't edit this page." });
-        // Offline or a server error: stay editable; the next change asks again.
-        else setLock({ kind: "idle" });
+        // Offline or a server error: stay editable, and ask again shortly while there's text to save
+        // (the first change may well have been made offline).
+        else {
+          setLock({ kind: "idle" });
+          if (dirty.current && acquireRetry.current === null) {
+            acquireRetry.current = window.setTimeout(() => {
+              acquireRetry.current = null;
+              if (lockRef.current.kind === "idle" && dirty.current) void acquireRef.current();
+            }, 5000);
+          }
+        }
         return false;
       } finally {
         acquiring.current = null;
@@ -260,6 +271,19 @@ export function usePageEditSession({
     acquiring.current = p;
     return p;
   }, [slug, secret, setLock, doSave]);
+  const acquireRef = useRef(acquire);
+  acquireRef.current = acquire;
+  useEffect(() => () => {
+    if (acquireRetry.current !== null) window.clearTimeout(acquireRetry.current);
+  }, []);
+  // Back online with text to save that never got the lock: ask now.
+  useEffect(() => {
+    const online = () => {
+      if (lockRef.current.kind === "idle" && dirty.current) void acquireRef.current();
+    };
+    window.addEventListener("online", online);
+    return () => window.removeEventListener("online", online);
+  }, []);
 
   /** Let go of the lock (after saving what's pending): the page stays editable. */
   const release = useCallback(async () => {
@@ -290,6 +314,27 @@ export function usePageEditSession({
       /* the next live change or save brings it */
     }
   }, [fetchLatest, adopt]);
+
+  /**
+   * Our text (`mine`, typed on top of `was`) goes on top of their newer version (`latest`, already
+   * adopted): merged line by line (lib/pageMerge). Where both changed the same lines theirs stays on
+   * the page and ours is kept in version history first — never dropped. Marks it to save.
+   */
+  const putMineOnTop = useCallback(async (was: { title: string; content: string }, mine: { title: string; content: string }, latest: PageDocument) => {
+    const theirs = { title: latest.title ?? "", content: latest.content ?? "" };
+    const m = merge3(was.content, mine.content, theirs.content);
+    let content = m.content;
+    if (!m.clean) {
+      try {
+        await keepUnsaved(slug, { title: mine.title, content: m.mineContent, base_rev: baseRev.current, reason: "conflict" }, secret);
+      } catch {
+        content = mine.content; /* couldn't keep it: our text stays as it was, and saves */
+      }
+    }
+    const title = mine.title !== was.title ? mine.title : theirs.title;
+    fields.current = { title, content };
+    cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
+  }, [slug, secret]);
 
   /**
    * The lock went to someone else, or was taken over. Taken over with text not saved yet: that text
@@ -351,9 +396,17 @@ export function usePageEditSession({
     try {
       r = await lockPage(slug, secret, { intent: "heartbeat", edited, hidden: document.visibilityState === "hidden", dirty: dirty.current || saving.current });
     } catch (e) {
-      if (pagesErrorStatus(e) === 423 && !pageLocked(e)) {
+      const status = pagesErrorStatus(e);
+      if (status === 423 && !pageLocked(e)) {
         const f = lockFacts(e);
         await lose(lockHolder(e), f?.takenOverBy ?? null, f);
+      } else if (status === 423) {
+        clearTimer();
+        setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
+      } else if (status === 401 || status === 403 || status === 404) {
+        // No edit rights any more, or the page is gone: stop holding it here.
+        clearTimer();
+        setLock({ kind: "readonly", message: status === 404 ? "This page was deleted or moved." : e instanceof Error ? e.message : "You can't edit this page any more." });
       }
       return;
     }
@@ -480,19 +533,7 @@ export function usePageEditSession({
         // saved as the next version. Where both changed the same lines, theirs stays on the page and
         // ours is kept in version history first — never dropped.
         if (mine && mine.content !== latest.content) {
-          const theirs = { title: latest.title ?? "", content: latest.content ?? "" };
-          const m = merge3(was.content, mine.content, theirs.content);
-          if (!m.clean) {
-            try {
-              await keepUnsaved(slug, { title: mine.title, content: m.mineContent, base_rev: baseRev.current, reason: "conflict" }, secret);
-            } catch {
-              /* couldn't keep it: leave our text on screen as it was, and save it */
-              m.content = mine.content;
-            }
-          }
-          const title = mine.title !== was.title ? mine.title : theirs.title;
-          fields.current = { title, content: m.content };
-          cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
+          await putMineOnTop(was, mine, latest);
           dirty.current = true;
           setSave({ state: "dirty" });
           timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
@@ -504,7 +545,7 @@ export function usePageEditSession({
       }
     }, RETRY_MS);
     return () => window.clearInterval(id);
-  }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock, release]);
+  }, [slug, secret, lock.kind, fetchLatest, adopt, doSave, setLock, release, putMineOnTop]);
 
   /**
    * An auto cover the server wrote at `rev` (a live `cover` event or a poll): into the editor, as part
@@ -646,12 +687,19 @@ export function usePageEditSession({
       lastEdit.current = Date.now();
       lastBeat.current = Date.now();
       setNotice(null);
-      if (!dirty.current) {
-        try {
-          adopt(await fetchLatest());
-        } catch {
-          /* editing what's on screen; a save that meets a newer version asks */
+      try {
+        const mine = dirty.current ? { ...fields.current } : null;
+        const was = { ...base.current };
+        const latest = await fetchLatest();
+        adopt(latest);
+        // Text of ours on screen (typed before someone else had the page): on top of theirs.
+        if (mine && mine.content !== (latest.content ?? "")) {
+          await putMineOnTop(was, mine, latest);
+          dirty.current = true;
+          setSave({ state: "dirty" });
         }
+      } catch {
+        /* editing what's on screen; a save that meets a newer version asks */
       }
       setLock({ kind: "mine" });
       if (dirty.current && !timer.current) timer.current = window.setTimeout(() => void doSave(), 300);
@@ -662,7 +710,7 @@ export function usePageEditSession({
       }
       return e instanceof Error ? e.message : "Couldn't take over editing.";
     }
-  }, [slug, secret, adopt, fetchLatest, doSave, setLock]);
+  }, [slug, secret, adopt, fetchLatest, doSave, setLock, putMineOnTop]);
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
