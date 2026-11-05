@@ -1,16 +1,18 @@
 ---
 title: Ask your meetings
 nav: Ask meetings
-description: Ask one meeting or every meeting in a workspace. Answers are in English and link to the moment it was said.
+description: Ask one meeting or every meeting in a workspace with Ask Markdrop. Answers are in English and link to the moment it was said.
 updated: 2026-11-05
-keywords: [ask this meeting, ask across meetings, ask meetings, meeting questions, what did we decide, action items, citations, sources, transcript moment, jump to the moment, follow-ups, new chat, stop, conversation, details, write it again, series, last month, date range, latest, keyboard]
+keywords: [ask markdrop, cmd j, ask this meeting, ask across meetings, ask meetings, meeting questions, what did we decide, action items, citations, sources, transcript moment, jump to the moment, follow-ups, new chat, stop, conversation, details, write it again, series, last month, date range, latest, keyboard]
 ---
 
 Ask a question about one meeting, or about all the meetings you can open in a workspace. Answers come from the transcripts and the meeting pages, including your edits, and every answer links to where it came from.
 
+You ask with [Ask Markdrop](/workspaces/ask-markdrop), the one assistant in Markdrop, on its **Meetings** chip. **⌘ J** opens it from anywhere; on a meeting page and on the Meetings page it starts on **Meetings**.
+
 ## Ask a meeting
 
-On a meeting page, select **Ask this meeting** in the bar under the meeting's properties (or the button at the bottom right). Pick a suggested question or ask your own, for example "What did we decide about pricing?" or "What did Priya take on?".
+On a meeting page, select **Ask this meeting** in the bar under the meeting's properties, or **✦ Ask** in the top bar. Ask Markdrop opens on **Meetings** with **This meeting** picked. Pick a suggested question or ask your own, for example "What did we decide about pricing?" or "What did Priya take on?". Switch to **All meetings**, a series or a period in the question box to widen the question, or to **This doc** to ask about the page itself.
 
 ![The meeting bar under a meeting's properties: who was there, who can open it, Transcript and Ask this meeting.](/docs-assets/workspaces/meetings-ask/meeting-bar.webp)
 
@@ -20,7 +22,7 @@ Ask follow-ups in the same conversation, or pick one of the follow-up questions 
 
 If the meeting has only Google's notes, without a transcript, the answer comes from the notes.
 
-**Details**, next to **Ask**, shows:
+**Meeting**, at the bottom right of a meeting page, opens its details:
 
 - who was there, and where the meeting came from (imported by hand, by [Connect Google Meet](/workspaces/meetings-auto-import), or by an AI app);
 - the cost of its AI summary;
@@ -30,7 +32,7 @@ If the meeting has only Google's notes, without a transcript, the answer comes f
 
 ## Ask across meetings
 
-Open the workspace's Meetings page: select **Ask meetings** in the Meetings folder, or go to **All meetings** from a meeting's **Details**. Select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What's blocking the release?" or "What are my open action items?". The conversation opens beside your meetings on a computer, and full screen on a phone. Select **Expand** to read it page-wide, with the sources beside the answer.
+Open the workspace's Meetings page: select **Ask meetings** in the Meetings folder, or go to **All meetings** from a meeting's details. Select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What did we decide this week?" or "Which questions are still open?". Ask Markdrop opens on **Meetings**, beside your meetings on a computer and as a sheet on a phone.
 
 ![Ask across meetings beside the Meetings page: the question, an answer with numbered sources, and follow-up questions under it.](/docs-assets/workspaces/meetings-ask/ask-across.webp)
 
@@ -40,7 +42,7 @@ Markdrop finds the meetings that match with the same search as [Search](/workspa
 
 ### One series, or a period
 
-In the question box, pick a series (such as **Daily Standup**) and a period (**Last 7 days**, **Last 30 days**, **This month** or **Last month**) to ask only those meetings.
+In the question box, pick a series (such as **Daily Standup**) and a period (**This week**, **Last 7 days**, **This month**, **Last month** or **Last 90 days**) to ask only those meetings.
 
 You can also say it in the question: "What came up in the Daily Standups last month?" asks only that series, in that month. The answer starts with what it looked at, such as **From your question: Daily Standup · October 2026**. Names Markdrop doesn't know as a series are ignored, so the question still gets an answer from all your meetings.
 
@@ -50,17 +52,20 @@ Answers always use only the meetings you can open. See [Privacy and cost](/works
 
 - **Enter** sends; **Shift+Enter** starts a new line.
 - **↑** in an empty box brings back your last question to edit.
-- **Esc** stops an answer that is still being written, or closes the sources.
+- **Esc** stops an answer that is still being written, closes the sources, or closes Ask Markdrop.
+- **⌘ J** opens or closes Ask Markdrop.
 
-A saved conversation is yours alone. If you can no longer open a meeting an answer used, that answer is hidden when you come back to it.
+The conversation is one with the rest of Ask Markdrop: it's kept, it follows you to other pages, and a saved conversation is yours alone. If you can no longer open a meeting an answer used, that answer is hidden when you come back to it.
 
-To ask across meetings and everything else at once, use [Ask Markdrop](/workspaces/ask-markdrop) at the top of your home. It cites meeting moments the same way, and **My open action items** lists the action items assigned to you across meetings.
+To ask across meetings and everything else at once, pick **Everything**, or use the box at the top of your home. It cites meeting moments the same way, and **What are my open action items?** lists the action items assigned to you across meetings.
+
+Meeting questions count towards the **Meetings AI** limit; see [AI limits](/workspaces/ask-markdrop#ai-limits).
 
 ## From an AI app
 
 `ask_meetings` asks one meeting or a whole workspace from an AI app connected to the [hosted MCP server](/ai/hosted-mcp), optionally only one `series` or dates (`since`, `until`). It counts towards the same **Meetings AI** limit. See [MCP tools](/ai/tools#meetings).
 
-While you write a page, [Meeting memory](/pages/meeting-memory) shows what was decided about it, and **Ask** in the page can answer from your meetings.
+While you write a page, [Meeting memory](/pages/meeting-memory) shows what was decided about it, and Ask Markdrop's **This doc** answers from your meetings too.
 
 ## Related
 

@@ -24,6 +24,27 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-markdrop-everywhere",
+      "date": "2026-11-05",
+      "title": "Ask Markdrop everywhere: one assistant, ⌘J, and answers you can insert",
+      "kind": "new",
+      "area": "AI",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "One assistant replaces Ask in page, Ask this meeting and Ask across meetings: ✦ Ask in every top bar or ⌘J from anywhere opens Ask Markdrop beside what you're reading, on the right scope (This doc, Meetings, This folder, Workspace or Everything), with one conversation that follows you and Insert to put an answer into the doc.",
+      "body": "- **One assistant, everywhere.** ✦ Ask in the top bar of documents, pages, workspaces and folders, ⌘J (Ctrl J) from anywhere, the box on your home, Ask this meeting and the Meetings page all open the same Ask Markdrop: a panel beside what you're reading, a sheet on phones.\n- **Scope chips at the top**: This doc, Meetings, This folder, Workspace, Everything. It starts on the one that fits where you are; switch any time. Meetings adds This meeting, a series and a period in the question box.\n- **This doc** answers from the doc first, then what your meetings decided about it, then the workspace, and knows the section you're in and what you selected. It works in pages and classic Markdown documents.\n- **Insert** puts an answer into the doc, with its sources as links: blocks after your cursor in a page, a paragraph at your cursor in a document you're editing, or the editor opened with it after the section you were reading. Only when you choose it; editors only.\n- **One conversation**: ask on your home, open a page, press ⌘J and keep going. Conversations are kept 90 days and listed under the home's box.\n- **Ask about this** in From meetings asks about one decision, action item or question.\n- Same rules: only what you can open, every source checked again; restricted meetings never reach anyone else. This doc, This folder, Workspace and Everything count towards AI search, Meetings towards Meetings AI, as before.\n- **API and MCP**: `POST /api/v1/ask` takes `scope` and `context`; `GET /api/v1/ask/context` lists the scopes offered where you are; `ask_documents` takes `page` and `folder`.",
+      "docs": [
+        "/workspaces/ask-markdrop",
+        "/workspaces/meetings-ask",
+        "/pages/ai",
+        "/pages/meeting-memory",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "meetings-chat-and-cards",
       "date": "2026-11-05",
       "title": "Asking meetings is a real conversation; the Meetings page shows what each meeting was about",

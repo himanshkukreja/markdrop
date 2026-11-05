@@ -13,7 +13,7 @@ It works in every page of a workspace that has meetings, for the workspace's mem
 
 ## From meetings
 
-Select **From meetings** at the bottom right of the page, beside **Ask**. The number on it is how many related items it found. A panel opens beside the page (a sheet from the bottom on a phone).
+Select **From meetings** at the bottom right of the page. The number on it is how many related items it found. A panel opens beside the page (a sheet from the bottom on a phone).
 
 The panel follows what you're writing: the page's title, the heading of the section you're in, and your selection. Move to another section and the list changes. It shows:
 
@@ -53,13 +53,14 @@ Both are on by default and are yours alone: they follow you to every page and ev
 
 ## Ask the page with your meetings
 
-[Ask this page](/pages/ai#ask-this-page) can answer from your meetings too. In a workspace page, **Meetings** under the question box is on by default: answers use the page itself first, then the decisions, action items and transcripts of the workspace's meetings, then its other documents.
+[Ask Markdrop](/workspaces/ask-markdrop) answers from your meetings too. In a workspace page, choose **✦ Ask** in the top bar (or press **⌘ J** outside the text): on **This doc**, answers use the page itself first, then the decisions, action items and transcripts of the workspace's meetings, then its other documents.
 
 - Ask "When did we decide to drop the free plan?", "Why are we using Stripe?" or "What was the team working on for checkout last week?". For when, why and who questions, the answer comes from the meetings and names the meeting and its date.
-- Numbered citations link to the item; a citation like **1·1** opens the transcript at the moment. The items used are listed under the answer.
-- Select **Meetings** to turn it off and ask the page only. Questions about when or why something was decided still use your meetings.
+- Numbered sources open the item, and a meeting line opens the transcript at the moment.
+- **Ask about this** on an item in **From meetings** asks Ask Markdrop about that decision, action item or question: why it was decided and whether it changed, its status, whether it was answered.
+- Switch to **Meetings** to ask only the meetings, with a series or a period.
 
-Asking with meetings counts towards your **AI search** limit, the same as [Ask Markdrop](/workspaces/ask-markdrop).
+Asking on **This doc** counts towards your **AI search** limit; on **Meetings**, towards **Meetings AI**. See [AI limits](/workspaces/ask-markdrop#ai-limits).
 
 ## Privacy
 

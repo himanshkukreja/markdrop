@@ -15330,6 +15330,112 @@
         }
       }
     },
+    "/api/v1/ask/context": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask Context",
+        "description": "What the assistant offers where you are: its scopes (This doc, Meetings, This folder, Workspace,\nEverything) for things you can open, the default one, the workspace's meeting series, whether you\ncan insert answers into the doc, and whether AI can answer now (AI search and Meetings AI).",
+        "operationId": "ask_context_api_v1_ask_context_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder"
+            }
+          },
+          {
+            "name": "meeting",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meeting"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/ask/threads": {
       "get": {
         "tags": [
@@ -17462,6 +17568,36 @@
           "contacts"
         ],
         "title": "ContactListResponse"
+      },
+      "ContextBody": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection"
+          }
+        },
+        "type": "object",
+        "title": "ContextBody"
       },
       "CreateBody": {
         "properties": {
@@ -21943,6 +22079,115 @@
         ],
         "title": "SchemaPut"
       },
+      "ScopeBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "doc",
+              "meetings",
+              "folder",
+              "workspace",
+              "everything"
+            ],
+            "title": "Kind",
+            "default": "everything"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "doc: the document or page (its slug)"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "meetings / folder / workspace: the workspace id"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder",
+            "description": "folder: the folder id (its sub-folders too)"
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting",
+            "description": "meetings: one meeting (its id)"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series",
+            "description": "meetings: only this series"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since",
+            "description": "meetings: from this day (YYYY-MM-DD)"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until",
+            "description": "meetings: to this day (YYYY-MM-DD)"
+          }
+        },
+        "type": "object",
+        "title": "ScopeBody"
+      },
       "SettingsIn": {
         "properties": {
           "workspace_id": {
@@ -23715,6 +23960,28 @@
             ],
             "title": "Page",
             "description": "Ask AI in this page (its slug): the page, then its workspace's meetings (recorded decisions first) and documents. Implies intent \"page\"."
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeBody"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What to answer from (the assistant). Without it: everything (or `page`)."
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextBody"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the reader is in the doc (scope doc)."
           }
         },
         "type": "object",

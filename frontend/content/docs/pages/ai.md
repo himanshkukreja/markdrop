@@ -20,7 +20,7 @@ Markdrop's AI uses Anthropic's Claude. Pages are in beta, and so is AI in pages.
 | [Start from notes](#start-a-page-from-notes) | Editors | **New page** |
 | [Find action items](#find-action-items) | Editors | **⋯** menu, **Ask AI** |
 | [Summarize a page](#summarize-a-page) | Editors | **⋯** menu |
-| [Ask this page](#ask-this-page) | Signed-in readers | **✦ Ask** |
+| [Ask this page](#ask-this-page) | Signed-in readers | **✦ Ask** in the top bar |
 | [Title and icon](#suggest-a-title-description-and-icon) | Editors | **⋯** menu |
 | [Translate a page](#translate-a-page) | Editors | **⋯** menu |
 | [Alt text](#alt-text-for-images) | Editors | Adding an image |
@@ -61,17 +61,20 @@ Choose **Summarize page** in the page's **⋯** menu. A short summary, a note ti
 
 ## Ask this page
 
-Anyone signed in who can open a page can ask it questions. Choose **✦ Ask** at the bottom right of the page. It opens a panel beside the page (a sheet from the bottom on a phone).
+Anyone signed in who can open a page can ask it questions with [Ask Markdrop](/workspaces/ask-markdrop), the one assistant in Markdrop. Choose **✦ Ask** in the page's top bar, or press **⌘ J** when you're not typing in the page. It opens beside the page (a sheet from the bottom on a phone), on **This doc**.
 
-- Start with a suggestion, **Summarize this page**, **What are the key decisions?** or **What's still open?**, or type your own question and press **Enter** (**Shift Enter** for a new line).
-- Answers stream in and link to the sections they come from. Choose a link, or a section under **Sections**, to scroll to that heading; it's highlighted for a moment.
-- Ask follow-ups: your last six questions and answers go with each new question. **Stop** ends an answer early, and **Clear** starts again. Closing the panel keeps the conversation until you leave the page.
+- Start with a suggestion, **Summarize this doc**, **What did we decide about this in meetings?** or **What's still open here?**, or type your own question and press **Enter** (**Shift Enter** for a new line).
+- Ask Markdrop knows which section you're in and what you selected: select a paragraph and ask "Is this still true?".
+- Answers stream in with numbered sources: the page itself, and the meetings and documents they also used. Select a number to see what the source says, and open it.
+- Ask follow-ups in the same conversation. **Stop** ends an answer early, and **New chat** starts again. The conversation is kept when you close the panel, and follows you to other pages.
 
-In a workspace page, **Meetings** under the question box (on by default) lets answers use the workspace's meetings too, with the meeting, its date and a link to the moment: "When did we decide this?" See [Meeting memory while writing](/pages/meeting-memory#ask-the-page-with-your-meetings).
+In a workspace page, **This doc** answers from the page first, then what the workspace's meetings decided about it (with the meeting, its date and a link to the moment: "When did we decide this?"), then the workspace's other documents. See [Meeting memory while writing](/pages/meeting-memory#ask-the-page-with-your-meetings). Switch to **Meetings**, **Workspace** or **Everything** to ask more widely.
 
-Without **Meetings**, answers use only this page and the Markdrop items it embeds that you can open yourself. An embedded item you can't open is never read for your answer. AI can be wrong, so check what matters on the page itself.
+If you can edit the page, **Insert** under an answer puts it into the page after the line where your cursor is, with its sources as links. Nothing goes into the page unless you choose **Insert**.
 
-**Ask** works on a workspace's [own domain](/workspaces/custom-domain) too, once you're [signed in there](/workspaces/sign-in-on-your-domain). Visitors who aren't signed in don't see it.
+AI can be wrong, so check what matters on the page itself. Asking counts towards your **AI search** limit; see [AI limits](/workspaces/ask-markdrop#ai-limits).
+
+**✦ Ask** works on a workspace's [own domain](/workspaces/custom-domain) too, once you're [signed in there](/workspaces/sign-in-on-your-domain). Visitors who aren't signed in don't see it.
 
 ## Suggest a title, description and icon
 
@@ -99,10 +102,10 @@ A new page gets one of Markdrop's covers, chosen for what it's about: see [Autom
 
 | Shortcut | What it does |
 | --- | --- |
-| **⌘ J** | With text selected: **Ask AI** for the selection. Otherwise: draft with `/ai` at the caret |
+| **⌘ J** | In the text you're editing: with text selected, **Ask AI** for the selection, otherwise draft with `/ai` at the caret. Anywhere else: open [Ask Markdrop](/workspaces/ask-markdrop) |
 | **Space** on an empty line | Draft with `/ai` |
 | **Enter** | Run the prompt, or ask the question |
-| **Esc** | Discard a suggestion, or close the Ask panel |
+| **Esc** | Discard a suggestion, or close Ask Markdrop |
 
 On Windows and Linux, use **Ctrl** where this page says **⌘**. All of the page editor's shortcuts are in [Keyboard shortcuts](/pages/keyboard-shortcuts).
 
