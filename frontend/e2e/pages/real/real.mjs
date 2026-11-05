@@ -772,6 +772,10 @@ await step("tenant-edit", async () => {
 
   // The owner on the domain: delete / access / link open markdrop.in.
   const o = await ctx(browser, { token: T.owner });
+  const ownerLocks = [];
+  o.p.on("request", (q) => {
+    if (q.method() === "POST" && /\/lock(\?|$)/.test(q.url())) ownerLocks.push(`${new Date().toISOString().slice(17, 23)} ${q.url().split("/documents/")[1]}`);
+  });
   await tenantSignIn(o.p, addr);
   await o.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await pageMenu(o.p);
@@ -799,6 +803,9 @@ await step("tenant-edit", async () => {
   if (!(acc.body?.grants || []).some((g) => g.email === who)) fail(`the person added on the domain has no grant: ${JSON.stringify(acc.body).slice(0, 300)}`);
   if (acc.body?.level !== d.access_level && d.access_level) log(`(level ${d.access_level} → ${acc.body?.level})`);
   await api("DELETE", `/api/v1/documents/${state.slug}/access/people/${encodeURIComponent(who)}`, T.owner);
+  // The owner only looked and shared: no lock was asked for (the lock probe after the step says
+  // whether one stayed).
+  if (ownerLocks.length) log(`(the owner's editor on the domain asked for the lock: ${ownerLocks.join(" | ")})`);
   await o.c.close();
 });
 

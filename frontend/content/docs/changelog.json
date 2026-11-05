@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "edit-lock-leave",
+      "date": "2026-11-05",
+      "title": "Leaving a page frees it for others at once",
+      "kind": "fixed",
+      "area": "Documents",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "When you stop editing a page by leaving it, others can edit it straight away instead of up to 2 minutes later: going to another page, adding a sub-page, closing the tab, and on a workspace's own domain too.",
+      "body": "- **Leave and it's free.** Going to another page, opening the sub-page you just added or closing the tab lets go of the page at once. Before, the page could stay marked as yours for up to 2 minutes, and your teammates and their AI apps had to wait.\n- **Nothing typed is lost on the way out.** What you typed in the last moment before leaving is saved first, then the page is free.\n- **Even when the browser can't say goodbye.** If your browser quits without a word (a crash, a laptop that shut down), the page is free about 10 seconds later.\n- **AI apps can write right after you leave.** `update_page` and the other writing tools no longer meet \"is editing\" from a tab that's already gone.",
+      "docs": [
+        "/pages/editing-together"
+      ]
+    },
+    {
       "id": "edit-lock-idle",
       "date": "2026-11-05",
       "title": "An open page you've left alone no longer blocks anyone",
