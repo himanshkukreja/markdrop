@@ -24,6 +24,21 @@ const state = process.env.NO_RESEED && fs.existsSync(statePath) ? JSON.parse(fs.
 const save = () => fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
 // After every step: an editor of the main page that didn't let go of its edit lock (it would hold off
 // the later steps' editors for two minutes) is named here, by the step that left it.
+/** The main page's edit lock is free (an earlier step's editor that didn't let go times out in two
+ * minutes: wait for that, and say so; this step's checks start from a free page). */
+async function lockFree(why) {
+  const t0 = Date.now();
+  for (;;) {
+    const r = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+    if (r.status === 200) {
+      await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+      if (Date.now() - t0 > 1000) log(`(${why}: waited ${Math.round((Date.now() - t0) / 1000)} s for an earlier editor's edit lock to time out)`);
+      return;
+    }
+    if (Date.now() - t0 > 150000) fail(`${why}: an earlier editor's edit lock never timed out (${r.status} ${JSON.stringify(r.body).slice(0, 200)})`);
+    await new Promise((res) => setTimeout(res, 5000));
+  }
+}
 const lockLeft = async (name) => {
   if (!state.slug) return;
   const r = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
@@ -527,10 +542,7 @@ for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]]) {
   });
 }
 await step("editor-dark-390", async () => {
-  // Nobody holds the page's edit lock now (every earlier editor let go when it closed).
-  const pre = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
-  if (pre.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
-  else fail(`an earlier step's editor still holds the edit lock (${pre.status} ${JSON.stringify(pre.body).slice(0, 200)})`);
+  await lockFree("editor-dark-390");
   const { c, p } = await ctx(browser, { token: T.owner, theme: "dark", width: 390, height: 844 });
   const locks = [];
   p.on("request", (r) => {
@@ -560,9 +572,7 @@ await step("anonymous-dark", async () => {
 /* ── 5. the edit lock, MCP update (423) and append (live) ── */
 await step("lock-mcp", async () => {
   const tok = mcpToken("ada@acme.test");
-  // Free before this editor opens? (An earlier step's editor may not have let go.)
-  const pre = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
-  if (pre.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  await lockFree("lock-mcp");
   const { c, p } = await ctx(browser, { token: T.owner });
   const locks = [];
   p.on("request", (r) => {
@@ -578,7 +588,7 @@ await step("lock-mcp", async () => {
       const a = document.activeElement;
       return a ? `${a.tagName.toLowerCase()}${a.className ? `.${String(a.className).split(" ").join(".")}` : ""}` : "none";
     });
-    fail(`opening the editor took the lock (${lk.status} ${JSON.stringify(lk.body).slice(0, 300)}); before opening: ${pre.status}; this editor sent ${locks.length} lock requests; focus on ${focus}`);
+    fail(`opening the editor took the lock (${lk.status} ${JSON.stringify(lk.body).slice(0, 300)}); this editor sent ${locks.length} lock requests; focus on ${focus}`);
   }
   await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
   await p.locator(".pb-live .ProseMirror p").first().click();
