@@ -50,8 +50,9 @@ async def create_page(
         # On a workspace's own domain: a sub-page of a page this person can edit, and nothing else.
         # The parent's can(edit_content) is pinned to the token's workspace (access.can), and a
         # sub-page always lives in its parent's workspace — so the new page is in that workspace
-        # too. No top-level pages, no filing into a workspace or folder by id, no workspace or
-        # personal template (those are read by id from anywhere); a built-in template is fine.
+        # too. No top-level pages, no filing into a workspace or folder by id; a built-in template
+        # or one of this workspace's own templates (a personal one, or another workspace's, are
+        # read by id from anywhere: those stay on markdrop.in).
         if not data.parent:
             raise HTTPException(status_code=403, detail="On the workspace's own domain you can add pages "
                                                         "inside a page you can edit. Create other pages on "
@@ -60,7 +61,13 @@ async def create_page(
             raise HTTPException(status_code=422, detail="A sub-page lives in its parent's workspace and "
                                                         "folder; leave workspace and folder out.")
         if data.template and page_templates.get(data.template) is None:
-            raise HTTPException(status_code=403, detail="Workspace templates are available on markdrop.in.")
+            # This workspace's own templates are fine (its members make sub-pages from them here, as
+            # on markdrop.in); another workspace's, or a personal one, stay on markdrop.in.
+            from app.routers.auth import tenant_workspace
+
+            tpl = await page_user_templates.find(db, data.template)
+            if tpl is None or not tpl.get("workspace_id") or tpl.get("workspace_id") != tenant_workspace(request):
+                raise HTTPException(status_code=403, detail="That template is available on markdrop.in.")
     raw, secret, error = await pages.create_page(
         db, user, actor, ctx, title=data.title, workspace=data.workspace, folder=data.folder,
         parent=data.parent, template=data.template, content=data.content, slug=data.slug)
@@ -182,14 +189,29 @@ async def list_all_templates(
     request: Request,
     workspace: str | None = None,
     folder: str | None = None,
+    parent: str | None = None,
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """The New page gallery: ``{builtin, workspace, personal, workspace_role,
-    can_save_workspace, can_reorder_workspace, folder}``. ``workspace`` lists
-    that workspace's templates when you're a member (not a viewer) of it;
-    ``folder`` (an id or path of it) adds ``folder: {id, name,
-    default_template, can_set_default}``."""
+    """The New page gallery: ``{builtin, workspace, personal, workspace_id,
+    workspace_name, workspace_role, can_save_workspace, can_reorder_workspace,
+    folder}``. ``workspace`` lists that workspace's templates when you're a
+    member (not a viewer) of it; ``folder`` (an id or path of it) adds
+    ``folder: {id, name, default_template, can_set_default}``. ``parent`` (a
+    page's slug: Add a sub-page) reads both from that page instead, which you
+    must be able to read. On a workspace's own domain ``parent`` is required,
+    and the gallery offers the built-ins and that workspace's templates."""
+    from app.routers.auth import is_tenant_request
+    from app.routers.documents import _ctx
+
+    tenant = is_tenant_request(request)
+    if parent:
+        actor = access.actor_from_request(request, user)
+        return await page_user_templates.listing_for_parent(
+            db, user, actor, _ctx(db, request), parent, workspace_id=workspace, tenant=tenant)
+    if tenant:
+        raise HTTPException(status_code=403, detail="On the workspace's own domain, templates are listed "
+                                                    "for a sub-page: pass parent.")
     return await page_user_templates.listing(db, user, workspace, folder)
 
 
@@ -201,9 +223,18 @@ async def get_template(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """One workspace or personal template with its Markdown and image links (the preview)."""
+    """One workspace or personal template with its Markdown and image links (the preview). On a
+    workspace's own domain: that workspace's templates only."""
+    from app.routers.auth import is_tenant_request, tenant_workspace
+
     raw = await page_user_templates.load(db, template_id, user)
-    return await page_user_templates.view(db, raw, user, content=True)
+    tenant = is_tenant_request(request)
+    if tenant and raw.get("workspace_id") != tenant_workspace(request):
+        raise HTTPException(status_code=404, detail="Template not found")
+    out = await page_user_templates.view(db, raw, user, content=True)
+    if tenant:
+        out["can_manage"] = False
+    return out
 
 
 @router.patch("/page-templates/{template_id}")

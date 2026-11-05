@@ -265,33 +265,68 @@ async def _rows(db: AsyncIOMotorDatabase, ws_id: str | None, user) -> list[dict]
         [("template_order", 1), ("created_at", 1), ("_id", 1)]).to_list(length=MAX_PER_SCOPE)
 
 
-async def listing(db: AsyncIOMotorDatabase, user, workspace_id: str | None, folder: str | None = None) -> dict:
-    """``{builtin, workspace, personal, workspace_role, can_save_workspace,
-    can_reorder_workspace}`` for the New page gallery. ``workspace`` is empty
-    unless the caller is a member+ of ``workspace_id``."""
+async def listing(db: AsyncIOMotorDatabase, user, workspace_id: str | None, folder: str | None = None, *,
+                  personal: bool = True, manage: bool = True) -> dict:
+    """``{builtin, workspace, personal, workspace_id, workspace_name, workspace_role,
+    can_save_workspace, can_reorder_workspace, folder}`` for the New page gallery.
+    ``workspace`` is empty unless the caller is a member+ of ``workspace_id``.
+    ``personal=False`` leaves the caller's own templates out and ``manage=False``
+    every way to change one (the workspace's own domain: it reads, it doesn't manage)."""
     from app.services import page_templates
+    from app.services import workspace as ws_service
 
     out: dict = {"builtin": page_templates.all_templates(), "workspace": [], "personal": [],
-                 "workspace_id": None, "workspace_role": None, "can_save_workspace": False,
-                 "can_reorder_workspace": False, "folder": None}
+                 "workspace_id": None, "workspace_name": None, "workspace_role": None,
+                 "can_save_workspace": False, "can_reorder_workspace": False, "folder": None}
     if user is None:
         return out
     if workspace_id and folder:
         out["folder"] = await folder_info(db, user, workspace_id, folder)
+        if out["folder"] is not None and not manage:
+            out["folder"]["can_set_default"] = False
     role = await _role(db, workspace_id, user) if workspace_id else None
     if workspace_id and role is not None:
+        ws = await ws_service.get_workspace(db, workspace_id)
         out["workspace_id"] = workspace_id
+        out["workspace_name"] = ws.name if ws else None
         out["workspace_role"] = role
-        out["can_save_workspace"] = role_allows(role, "member")
-        out["can_reorder_workspace"] = role_allows(role, "admin")
+        out["can_save_workspace"] = manage and role_allows(role, "member")
+        out["can_reorder_workspace"] = manage and role_allows(role, "admin")
         if role_allows(role, "member"):
             rows = await _rows(db, workspace_id, user)
             names = await _names(db, [r.get("owner_id") for r in rows])
             out["workspace"] = [await view(db, r, user, names=names) for r in rows]
-    rows = await _rows(db, None, user)
-    names = await _names(db, [user.id])
-    out["personal"] = [await view(db, r, user, names=names) for r in rows]
+    if personal:
+        rows = await _rows(db, None, user)
+        names = await _names(db, [user.id])
+        out["personal"] = [await view(db, r, user, names=names) for r in rows]
+    if not manage:
+        for t in out["workspace"]:
+            t["can_manage"] = False
     return out
+
+
+async def listing_for_parent(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: access.Ctx,
+                             parent: str, *, workspace_id: str | None = None, tenant: bool = False) -> dict:
+    """The gallery for a sub-page of ``parent`` (a slug): the parent's
+    workspace's templates (members and up only, as ever) and its folder's
+    default, read from the parent itself, so every way to add a sub-page offers
+    the same. 404 unless the caller can read the parent (pinned to the token's
+    workspace on a workspace's own domain, ``access.can``); 422 when
+    ``workspace_id`` is another workspace than the parent's. ``tenant``: the
+    workspace's own domain, which offers that workspace's templates and the
+    built-ins only (personal templates stay on markdrop.in) and manages none."""
+    from app.services import document as doc_service
+
+    raw, _moved = await doc_service.find_for_read(db, parent)
+    await access.require(actor, raw, "read", ctx)
+    ws_id = raw.get("workspace_id")
+    if workspace_id and workspace_id != ws_id:
+        raise HTTPException(status_code=422, detail="A sub-page lives in its parent's workspace; leave "
+                                                    "workspace out.")
+    folder_id = raw.get("folder_id")
+    return await listing(db, user, ws_id, str(folder_id) if ws_id and folder_id else None,
+                         personal=not tenant, manage=not tenant)
 
 
 async def all_usable(db: AsyncIOMotorDatabase, user) -> list[dict]:
