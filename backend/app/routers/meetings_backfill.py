@@ -12,7 +12,9 @@
     POST   /api/v1/meetings/backfill/{id}/rows/{row}/retry
     DELETE /api/v1/meetings/backfill/{id}                  discard (a draft / a finished one) or stop (a running one)
     GET    /api/v1/meetings/series?workspace=              {series: [{name, count, last}]} of the meetings the caller can open
-    POST   /api/v1/meetings/organize                       {workspace} "Organize meetings" (admins): series + Meetings/<Series> folders
+    GET    /api/v1/meetings/organize?workspace=            {preview, job} what "Organize meetings" would do; the current / last run (admins)
+    POST   /api/v1/meetings/organize                       {workspace} → 202 {job}: starts the background run (or joins it)
+    GET    /api/v1/meetings/organize/{run}                 {job}: progress {done, total, filed, folders, series, covers, errors}
 
 Signed-in workspace members (importing: member+). An import is its owner's alone: anyone else gets 404.
 """
@@ -31,7 +33,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.meetings import SourceIn, _ac, _ws
-from app.services import gdocs, meeting_backfill, meeting_google, meeting_series, meetings
+from app.services import gdocs, meeting_backfill, meeting_google, meeting_organize, meeting_series, meetings
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
 
@@ -254,12 +256,36 @@ class OrganizeBody(BaseModel):
     workspace: str = Field(..., max_length=40)
 
 
-@router.post("/organize")
-@limiter.limit("6/minute")
+@router.get("/organize")
+@limiter.limit("120/minute")
+async def organize_status(request: Request, workspace: str = Query(..., max_length=40),
+                          db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """What "Organize meetings" would do now, and the current (or last) run: admins."""
+    ws = _ws(workspace)
+    await meetings.require_member(db, ws, user.id, write=False)
+    await meeting_organize.require_admin(db, ws, user)
+    job = await meeting_organize.get(db, ws)
+    return {"preview": await meeting_organize.preview(db, ws), "job": meeting_organize.view(job)}
+
+
+@router.post("/organize", status_code=202)
+@limiter.limit("12/minute")
 async def organize(request: Request, body: OrganizeBody, db: AsyncIOMotorDatabase = Depends(get_db),
                    user: User = Depends(require_user)):
-    """The meetings already here get their series and move into Meetings/<Series> (or Meetings/Other
-    meetings): workspace admins and owners."""
+    """Start "Organize meetings" (admins): a background job, so this answers at once (202) with the
+    run; a click while one is running joins it. Poll GET /organize/{run} for progress."""
     ws = _ws(body.workspace)
     await meetings.require_member(db, ws, user.id, write=False)
-    return await meeting_series.organize(db, ws, user)
+    job = await meeting_organize.start(db, ws, user)
+    return {"job": meeting_organize.view(job)}
+
+
+@router.get("/organize/{run}")
+@limiter.limit("240/minute")
+async def organize_progress(request: Request, run: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                            user: User = Depends(require_user)):
+    """A run's progress {done, total, filed, folders, series, covers, errors}: the workspace's admins."""
+    job = await meeting_organize.get_run(db, run[:40])
+    if job is None or not await meetings.is_ws_admin(db, job["_id"], user.id):
+        raise HTTPException(status_code=404, detail="That organize run isn't here.")
+    return {"job": meeting_organize.view(job)}

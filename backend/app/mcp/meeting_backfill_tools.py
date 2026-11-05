@@ -161,17 +161,33 @@ async def import_meetings_bulk(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, {"job": v["id"], "state": v["state"], "counts": v["counts"], "items": rows}
 
 
+ORGANIZE_WAIT_S = 50.0
+
+
 async def organize_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
-    from app.services import meeting_series
+    from app.services import meeting_organize as mo
 
     ws_id, _w, _r = await resolve_workspace(ctx, args["workspace"])
     try:
-        out = await meeting_series.organize(ctx.db, ws_id, ctx.user)
+        job = await mo.start(ctx.db, ws_id, ctx.user)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
-    return (f"Organized {out['meetings']} meetings: {out['moved']} moved, {out['series_set']} put in a series, "
-            f"{out['folders']} folders in use (Meetings/<series>, Meetings/Other meetings), {out.get('series', 0)} series, "
-            f"{out.get('covers', 0)} covers set."), out
+    job = await mo.wait(ctx.db, ws_id, job["run"], ORGANIZE_WAIT_S) or job
+    v = mo.view(job)
+    if v["state"] == "running":
+        text = (f"Organizing meetings in the background: {v['done']} of {v['total']} done so far "
+                f"({v['filed']} moved, {v['series_set']} put in a series). Call organize_meetings again with the same "
+                f"workspace to check on it (it joins this run, job {v['id']}, rather than starting another).")
+    elif v["state"] == "failed":
+        raise ToolError(v.get("message") or "Organizing the meetings stopped. Try again.")
+    else:
+        text = (f"Organized {v['total']} meetings: {v['filed']} moved, {v['series_set']} put in a series, "
+                f"{v['folders']} folders in use (Meetings/<series>, Meetings/Other meetings), {v['series']} series, "
+                f"{v['covers']} covers set.")
+        if v["errors"]:
+            text += f" {v['errors']} couldn't be organized: " + "; ".join(
+                f"{e['title']} ({e['error']})" for e in v["error_samples"])
+    return text, v
 
 
 _ITEM = {"type": "object", "properties": {
@@ -216,12 +232,18 @@ BACKFILL_TOOLS: list[Tool] = [
         title="Organize meetings",
         description=("Workspace admins: files every meeting in a workspace by the rule new meetings follow — a recurring "
                      "call (a name seen on two or more days) in Meetings/<series>, anything else in Meetings/Other "
-                     "meetings — setting the series where a person hasn't. Safe to run again. Returns how many moved."),
+                     "meetings — setting the series where a person hasn't. Safe to run again. It runs in the "
+                     "background: this waits up to ~50 s and returns the result, or, for a big workspace, the job id "
+                     "and progress so far (state 'running'); call it again with the same workspace to check on it "
+                     "(it joins the running job instead of starting another)."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
-        output_schema=_out({"meetings": {"type": "integer"}, "moved": {"type": "integer"}, "series_set": {"type": "integer"}, "series": {"type": "integer"}, "covers": {"type": "integer"},
-                            "folders": {"type": "integer"}}),
+        output_schema=_out({"id": {"type": ["string", "null"]}, "state": {"type": "string"},
+                            "done": {"type": "integer"}, "total": {"type": "integer"}, "filed": {"type": "integer"},
+                            "meetings": {"type": "integer"}, "moved": {"type": "integer"}, "series_set": {"type": "integer"},
+                            "series": {"type": "integer"}, "covers": {"type": "integer"}, "folders": {"type": "integer"},
+                            "errors": {"type": "integer"}}),
         annotations=_ann(False, False, True),
         handler=organize_meetings,
     ),

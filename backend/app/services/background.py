@@ -23,7 +23,8 @@ one API worker runs it (§5.1, §5.5, A6):
                              hook, extract file contents (HTML / PDF text, a few files per pass), and
                              every 10 minutes drop rows whose document is gone (services/search_index.py)
     meetings_backfill every 10 s  pick up "Import past meetings" queues a stopped process left
-                             running, wake those that waited for the AI budget (services/meeting_backfill.py)
+                             running, wake those that waited for the AI budget (services/meeting_backfill.py),
+                             and "Organize meetings" runs likewise (services/meeting_organize.py)
     meeting_memory  every 15 s  meetings' decisions, action items… as facts for the editor's "From
                              meetings" panel: re-derive a batch of meetings changed since (or never
                              derived: the backfill), drop facts of deleted meetings (services/meeting_memory.py)
@@ -186,9 +187,11 @@ async def _page_covers(db: AsyncIOMotorDatabase) -> None:
 
 
 async def _meetings_backfill(db: AsyncIOMotorDatabase) -> None:
-    from app.services import meeting_backfill, meetings
+    from app.services import meeting_backfill, meeting_organize, meetings
 
     await meeting_backfill.background(db)
+    # "Organize meetings" runs a stopped process left behind.
+    await meeting_organize.background(db)
     # Meetings from before covers and hidden transcripts: a batch per tick until none are left.
     await meetings.upgrade_tick(db)
 
