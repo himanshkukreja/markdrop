@@ -524,7 +524,8 @@ def _thread_card(row: dict) -> dict:
 
 
 async def list_threads(db: AsyncIOMotorDatabase, user_id: str, *, limit: int = 20) -> list[dict]:
-    rows = await db[COLL].find({"user_id": user_id}, {"turns.citations": 0, "turns.a": 0}).sort(
+    # Conversations kept by another surface (Ask meetings: kind "meetings") open there, not on the home.
+    rows = await db[COLL].find({"user_id": user_id, "kind": None}, {"turns.citations": 0, "turns.a": 0}).sort(
         "updated_at", -1).limit(max(1, min(limit, MAX_THREADS))).to_list(length=MAX_THREADS)
     return [_thread_card(r) for r in rows]
 
@@ -547,7 +548,8 @@ async def clear_threads(db: AsyncIOMotorDatabase, user_id: str) -> int:
     return (await db[COLL].delete_many({"user_id": user_id})).deleted_count
 
 
-async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None, turn: dict, via: str) -> str:
+async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None, turn: dict, via: str,
+                     extra: dict | None = None) -> str:
     now = now_utc()
     turn = {**turn, "at": now}
     if thread is not None:
@@ -556,7 +558,7 @@ async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None
             "$set": {"updated_at": now, "expires_at": now + THREAD_TTL}})
         return str(thread["_id"])
     title = re.sub(r"\s+", " ", turn["q"]).strip()[:120]
-    res = await db[COLL].insert_one({"user_id": user_id, "title": title, "turns": [turn], "via": via,
+    res = await db[COLL].insert_one({"user_id": user_id, "title": title, "turns": [turn], "via": via, **(extra or {}),
                                      "created_at": now, "updated_at": now, "expires_at": now + THREAD_TTL})
     # Keep the newest MAX_THREADS per person.
     old = await db[COLL].find({"user_id": user_id}, {"_id": 1}).sort("updated_at", -1).skip(MAX_THREADS).to_list(length=1000)

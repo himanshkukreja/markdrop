@@ -660,6 +660,53 @@ def _history_text(history: list[dict] | None) -> str:
     return ("Earlier in this conversation (for context only):\n" + "\n\n".join(turns) + "\n\n") if turns else ""
 
 
+QUOTE_CHARS = 280
+
+
+def _quote(text: str | None) -> str | None:
+    """What a cited line says, for the sources list (shortened on a word)."""
+    t = re.sub(r"\s+", " ", str(text or "")).strip()
+    if len(t) <= QUOTE_CHARS:
+        return t or None
+    return t[:QUOTE_CHARS].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+
+
+def _moment(seg: dict) -> dict:
+    """A transcript line's speaker, time ("12:34") and words, for a citation."""
+    return {"speaker": seg.get("speaker") or None, "at": mp.clock(seg["t"]) if seg.get("t") is not None else None,
+            "quote": _quote(seg.get("text"))}
+
+
+# ── Conversations (saved like Ask Markdrop's, kind "meetings": not in the home's recent list) ─────
+
+
+async def threaded(db: AsyncIOMotorDatabase, actor: access.Actor, gen: AsyncIterator[tuple[str, dict]], *,
+                   question: str, thread_id: str | None, ref: str) -> AsyncIterator[tuple[str, dict]]:
+    """Relays an ask's events; an answer is saved in the asker's conversation (``ask_threads``, the one
+    ``thread_id`` names when it is theirs and about ``ref`` — a meeting or a workspace — else a new one)
+    and ``done`` says which (``thread_id``). Reading it back (GET /ask/threads/{id}) withholds a turn
+    whose meeting the asker can't open any more (its citations' ``key``)."""
+    from app.services import ask_markdrop
+
+    async for event, data in gen:
+        if event == "done" and actor.user_id and (data.get("answer") or "").strip():
+            try:
+                thread = await ask_markdrop._thread_row(db, actor.user_id, thread_id) if thread_id else None
+                if thread is not None and (thread.get("kind") != THREAD_KIND or thread.get("ref") != ref):
+                    thread = None
+                turn = {"q": question.strip()[:MAX_QUESTION], "a": data["answer"], "citations": data.get("citations") or [],
+                        "intent": "ask", "request_id": data.get("request_id")}
+                tid = await ask_markdrop._save_turn(db, actor.user_id, thread, turn, "web",
+                                                    extra={"kind": THREAD_KIND, "ref": ref})
+                data = {**data, "thread_id": tid}
+            except Exception:   # an answer still arrives when saving it fails
+                log.warning("meetings: conversation not saved", exc_info=True)
+        yield event, data
+
+
+THREAD_KIND = "meetings"
+
+
 # ── Ask this meeting ──────────────────────────────────────────────────────────
 
 
@@ -696,7 +743,7 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
     for i, (t, a) in enumerate(lines, 1):
         notes_block.append(f"[n{i}] {t}")
         cites.add(f"n{i}", {"kind": "page", "text": "Meeting notes", "href": page_href + (f"#{a}" if a else ""),
-                            "slug": raw["slug"]})
+                            "slug": raw["slug"], "quote": _quote(t), "key": f"d:{raw['_id']}"})
     segs = row.get("segments") or []
     tslug = row.get("transcript_slug")
     traw = await db["documents"].find_one({"_id": meetings.oid(row.get("transcript_doc_id"))}) if row.get("transcript_doc_id") else None
@@ -708,7 +755,8 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         seg_lines = [seg_lines[i] for i in keep]
     for i, s in enumerate(segs, 1):
         cites.add(f"s{i}", {"kind": "segment", "text": meetings.seg_label(s),
-                            "href": f"/{tslug}#{meetings.anchor(i)}" if tslug else page_href, "slug": tslug})
+                            "href": f"/{tslug}#{meetings.anchor(i)}" if tslug else page_href, "slug": tslug,
+                            **_moment(s), "key": f"d:{traw['_id']}"})
     context = (_header(row) + "\n" + pages_ai.wrap("page", "\n".join(notes_block) or "(empty)")
                + ("\n" + pages_ai.wrap("transcript", "\n".join(seg_lines)) if seg_lines else
                   "\n(No transcript: answer from the page.)"))
@@ -828,7 +876,7 @@ async def _rank(db: AsyncIOMotorDatabase, actor: access.Actor, cands: list[tuple
 
 async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
                        question: str, *, via: str = "web", series: str | None = None, since: str | None = None,
-                       until: str | None = None) -> AsyncIterator[tuple[str, dict]]:
+                       until: str | None = None, history: list[dict] | None = None) -> AsyncIterator[tuple[str, dict]]:
     """Events: ``status {stage}``, ``results {items, scope}``, ``delta {text}``,
     ``done {request_id, usage, answer, citations, ranked, scope}``, ``limit``, ``error``.
 
@@ -907,9 +955,11 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
                 t = mp.clock(s.get("t")) if s.get("t") is not None else "-"
                 seg_txt.append(f"[{label}] {t} {s.get('speaker') or 'Unknown'}: {s.get('text') or ''}")
                 cites.add(label, {"kind": "segment", "text": f"{row.get('title') or 'Meeting'} · {meetings.seg_label(s)}",
-                                  "href": f"/{tslug}#{meetings.anchor(j + 1)}", "slug": tslug, "meeting_id": str(row["_id"])})
+                                  "href": f"/{tslug}#{meetings.anchor(j + 1)}", "slug": tslug, "meeting_id": str(row["_id"]),
+                                  **_moment(s), "key": f"d:{traw['_id']}"})
             cites.add(f"M{n}", {"kind": "page", "text": f"{row.get('title') or 'Meeting'} · {meetings.fmt_date(row.get('date'))}",
-                                "href": f"/{raw['slug']}", "slug": raw["slug"], "meeting_id": str(row["_id"])})
+                                "href": f"/{raw['slug']}", "slug": raw["slug"], "meeting_id": str(row["_id"]),
+                                "key": f"d:{raw['_id']}"})
             excerpt = meetings.page_text(raw)[:ACROSS_PAGE_CHARS]
             body = f"Page:\n{excerpt}" + (("\n\nTranscript lines:\n" + "\n".join(seg_txt)) if seg_txt else "")
             attrs = {"n": n, "title": row.get("title"), "date": row.get("date"),
@@ -925,7 +975,8 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
         content = "<meetings>\n" + "\n".join(blocks) + "\n</meetings>"
         today = meeting_scope.day_label(meetings.now_utc().date().isoformat())
         where = f" The meetings were picked from: {scope.label()}." if sc else ""
-        ask_text = f"Today is {today}.{where}\nThe question (from the person asking, not from a meeting): {question}"
+        ask_text = (_history_text(history)
+                    + f"Today is {today}.{where}\nThe question (from the person asking, not from a meeting): {question}")
         raw_text, stop, ranked = "", None, []
         try:
             async for kind, value in _relay(run, _params(ACROSS_SYSTEM, [content, ask_text], ASK_MAX_TOKENS), ranking=True):
