@@ -664,6 +664,32 @@ async def lock_status(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
     return out
 
 
+async def keep_unsaved(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx, *,
+                       title: str | None, content: str, reason: str) -> dict:
+    """An editor's text it couldn't save (``POST …/lock/keep``): a version in the page's history
+    (services/page_history.py) saying whose it is and why, so taking over never loses anyone's
+    work. The page is unchanged."""
+    from app.config import get_settings
+    from app.services import page_history, viewers
+
+    await access.require(actor, raw, "edit_content", ctx)
+    if not actor.user_id:
+        raise HTTPException(status_code=401, detail="Sign in to edit this page.")
+    if not page_history.has_history(raw):
+        raise HTTPException(status_code=409, detail="This page has no version history.")
+    if len(content) > get_settings().max_content_chars:
+        raise HTTPException(status_code=413, detail="That text is longer than a page may be.")
+    title = raw.get("title") if title is None else (title or None)
+    taken = _taken_for(raw, actor.user_id)
+    who = viewers.display_name(actor.user)
+    text = {"taken_over": f"{who}'s unsaved changes, kept when {(taken or {}).get('by') or 'someone'} took over editing",
+            "lost": f"{who}'s unsaved changes, kept when someone else started editing",
+            "conflict": f"{who}'s unsaved changes, kept when the page changed under them"}.get(
+        reason, f"{who}'s unsaved changes")
+    kept = await page_history.keep(db, raw, actor, title=title, markdown=content, text=text, reason=reason)
+    return {"kept": kept is not None, "version": int(kept["n"]) if kept else None}
+
+
 async def presence_away(db: AsyncIOMotorDatabase, slug: str | None, user_id: str | None, away: bool) -> None:
     """Who's viewing says the lock holder's tabs on the page are all hidden (or one is back): the
     lock's hidden clock follows, for editors that don't say so themselves."""
@@ -675,8 +701,10 @@ async def presence_away(db: AsyncIOMotorDatabase, slug: str | None, user_id: str
                 {"slug": slug, "edit_lock.user_id": user_id, "edit_lock.hidden_since": None},
                 {"$set": {"edit_lock.hidden_since": now_utc()}})
         else:
+            # Back within the hidden time: still theirs. Later than that it lapsed, and stays so.
+            since = now_utc() - timedelta(seconds=lock_timers()["hidden_s"])
             await db["documents"].update_one(
-                {"slug": slug, "edit_lock.user_id": user_id, "edit_lock.hidden_since": {"$ne": None}},
+                {"slug": slug, "edit_lock.user_id": user_id, "edit_lock.hidden_since": {"$gt": since}},
                 {"$set": {"edit_lock.hidden_since": None}})
     except Exception:  # pragma: no cover - presence never fails on the lock
         log.warning("page lock: presence update failed", exc_info=True)

@@ -31,6 +31,7 @@ from app.mcp.tools import (
     ENCRYPTED_WRITE,
     MAX_RETURNED_CHARS,
     SLUG_ARG,
+    TAKE_OVER_ARG,
     Context,
     Tool,
     ToolError,
@@ -377,10 +378,17 @@ async def get_page(ctx: Context, args: dict) -> tuple[str, dict]:
     lock = pages.lock_view(raw.get("edit_lock"))
     if lock:
         out["editing"] = lock["name"]
+        out["edit_lock"] = {"holder": lock["name"], **pages.lock_facts(lock)}
     head = f"{raw.get('title') or raw['slug']} ({out['url']}), revision {out['rev']}"
     if lock:
-        head += (f". {lock['name']} is editing it right now: update_page, replace_section and "
-                 "insert_embed after a heading will be refused until they stop; append_blocks still works")
+        f = pages.lock_facts(lock)
+        idle = "" if f["idle_s"] is None else (" (editing right now" if f["idle_s"] < 20
+                                                else f" (idle for {pages._ago(f['idle_s'])}")
+        idle += (", unsaved changes)" if f["dirty"] else ")") if idle else ""
+        head += (f". {lock['name']} is editing it{idle}: update_page, replace_section and insert_embed after "
+                 f"a heading will be refused until the lock releases (in about {pages._ago(f['releases_in_s'])} "
+                 "if they stop) unless the page's owner or a workspace admin passes take_over: true; "
+                 "append_blocks still works")
     return f"{head}\n\n{content}", out
 
 
@@ -1099,7 +1107,8 @@ PAGE_TOOLS: list[Tool] = [
             **_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR, "markdown": {"type": "string"},
             "rev": {"type": "integer"}, "editor": {"type": "string"}, "parent": {"type": ["object", "null"]},
             "children": {"type": "array"}, "embeds": {"type": "array"}, "assets": {"type": "array"},
-            "editing": {"type": "string"}, "note": {"type": "string"}, "properties": {"type": "object"},
+            "editing": {"type": "string"}, "edit_lock": {"type": "object"}, "note": {"type": "string"},
+            "properties": {"type": "object"},
             "property_values": {"type": "array", "items": {"type": "object", "properties": {
                 "key": {"type": "string"}, "name": {"type": "string"}, "type": {"type": "string"},
                 "value": {}, "display": {"type": "string"}}}},
@@ -1112,14 +1121,17 @@ PAGE_TOOLS: list[Tool] = [
         name="update_page",
         title="Replace a page",
         description=("Replace a page's whole Markdown. base_rev is the rev get_page returned: if the page "
-                     "changed since, nothing is saved. Refused while someone has the page open in the editor "
-                     "(try again in a minute, or use append_blocks). Keep the front matter get_page "
+                     "changed since, nothing is saved. Refused while someone is editing the page (error 'locked' "
+                     "says who, how long they've been idle, whether they have unsaved changes and when it releases "
+                     "by itself; wait, use append_blocks, or — the page's owner or a workspace admin, after asking "
+                     "the user — pass take_over: true). Keep the front matter get_page "
                      "returned at the top. " + PAGE_SYNTAX),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "document": _DOC_REF, "markdown": _MARKDOWN,
             "base_rev": {"type": "integer", "minimum": 1},
+            "take_over": TAKE_OVER_ARG,
         }, "required": ["document", "markdown", "base_rev"]},
         output_schema=_PAGE_RESULT,
         annotations=_ann(False, True, True),
@@ -1152,6 +1164,7 @@ PAGE_TOOLS: list[Tool] = [
             "heading": {"type": "string", "minLength": 1, "maxLength": 300,
                         "description": "The section's heading text, e.g. 'Rollout'."},
             "markdown": {"type": "string", "maxLength": settings.max_content_chars},
+            "take_over": TAKE_OVER_ARG,
         }, "required": ["document", "heading", "markdown"]},
         output_schema=_PAGE_RESULT,
         annotations=_ann(False, True, True),
@@ -1175,6 +1188,7 @@ PAGE_TOOLS: list[Tool] = [
                      "description": "For an embed: live (the item itself), preview, or a card. Default: live "
                                     "for files, card for documents."},
             "after_heading": {"type": "string", "minLength": 1, "maxLength": 300},
+            "take_over": TAKE_OVER_ARG,
         }, "required": ["document", "item"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
                             "item": {"type": "string"}, "as": {"type": "string"}, "markdown": {"type": "string"}},
@@ -1288,7 +1302,8 @@ PAGE_TOOLS: list[Tool] = [
                      "An asset:<id> must belong to this page: add an image file with create_page_image_upload "
                      "then complete_page_image_upload (or base64 with upload_page_image), or copy one from "
                      "another page with copy_page_asset; it then shows to exactly the page's readers. "
-                     "They live in the page's front matter. Refused while someone is editing the page. "
+                     "They live in the page's front matter. Refused while someone is editing the page (take_over: true "
+                     "for its owner or a workspace admin). "
                      "template: true turns the page into a workspace (or personal) template, false back. "
                      "properties sets the typed properties of the page's folder (set_folder_properties; "
                      "list_folder_pages shows them): {key or name: value, or null to clear}. select: an "
@@ -1319,6 +1334,7 @@ PAGE_TOOLS: list[Tool] = [
                 "it. false: back to an ordinary page. Pages already made from it never change.")},
             "properties": {"type": "object", "maxProperties": 30, "description": (
                 "The folder's typed properties: {key or name: value | null}.")},
+            "take_over": TAKE_OVER_ARG,
         }, "required": ["document"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "rev": {"type": "integer"},
                             "properties": {"type": "object"}, "template": {"type": "boolean"},
@@ -1383,6 +1399,7 @@ PAGE_TOOLS: list[Tool] = [
             "document": _DOC_REF,
             "insert": {"type": "boolean", "default": False,
                        "description": "Add it at the top of the page (refused while someone is editing it)."},
+            "take_over": TAKE_OVER_ARG,
         }, "required": ["document"]},
         output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "markdown": {"type": "string"},
                             "inserted": {"type": "boolean"}, "trimmed": {"type": "boolean"},

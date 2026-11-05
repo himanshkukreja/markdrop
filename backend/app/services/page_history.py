@@ -283,6 +283,29 @@ async def record_event(db: AsyncIOMotorDatabase, raw: dict, actor, *, text: str,
         log.warning("version history: event failed", exc_info=True)
 
 
+async def keep(db: AsyncIOMotorDatabase, raw: dict, actor, *, title: str | None, markdown: str,
+               text: str, reason: str) -> dict | None:
+    """Someone's text that never became the page (an editor whose lock was taken over:
+    services/pages.keep_unsaved): its own sealed version, ``event`` ``{type: "kept", text}``, with
+    the page as it is captured first so the newest version stays the page's. None when it's
+    already the page or a version just like it is the newest."""
+    if not records(raw):
+        return None
+    fresh = await db["documents"].find_one({"_id": raw["_id"]})
+    if fresh is None:
+        return None
+    sha = _sha(title, markdown or "")
+    if sha == _sha(fresh.get("title"), fresh.get("content") or ""):
+        return None
+    await capture(db, fresh, reason="before_keep")
+    top = await latest(db, str(fresh["_id"]), {"sha": 1, "event": 1})
+    if top is not None and top.get("sha") == sha:
+        return None
+    return await _insert(db, {**fresh, "title": title, "content": markdown}, kind="user",
+                         author_id=getattr(actor, "user_id", None), author_name=_author_name(actor),
+                         sealed=True, reason=f"kept_{reason}", event={"type": "kept", "text": text[:300]})
+
+
 async def forget_document(db: AsyncIOMotorDatabase, doc_id: str) -> None:
     await db[COLL].delete_many({"doc_id": doc_id})
 

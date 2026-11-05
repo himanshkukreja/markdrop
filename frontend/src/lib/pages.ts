@@ -159,9 +159,52 @@ export interface UploadedAsset {
   height?: number | null;
 }
 
+/** The server's lock timings (settings page_lock_*): the editor's own timers follow them. */
+export interface LockTimers {
+  ttl_s: number;
+  idle_s: number;
+  hidden_s: number;
+  heartbeat_s: number;
+}
+
 export interface LockInfo {
-  holder: { name: string | null };
+  holder: { name: string | null } | null;
   expires_at?: string | null;
+  /** False on a heartbeat for a lock that lapsed or was taken over (`released`, `reason`). */
+  mine?: boolean;
+  released?: boolean;
+  reason?: "idle" | "hidden" | "expired" | "taken_over";
+  /** The page's revision now. */
+  rev?: number;
+  timers?: LockTimers;
+  /** This person's lock was taken over: by whom. */
+  taken_over?: { by: string; at: string | null; via?: string | null };
+  /** This call took it over from someone. */
+  took_over?: { from: string; dirty: boolean };
+}
+
+/** What a 423 `locked` (or GET …/lock) says about the person holding the page. */
+export interface LockFacts {
+  name: string | null;
+  idleS: number | null;
+  dirty: boolean;
+  hidden: boolean;
+  releasesInS: number | null;
+  canTakeOver: boolean;
+  takenOverBy: string | null;
+}
+
+export interface LockStatus {
+  holder: { name: string | null } | null;
+  mine: boolean;
+  rev: number;
+  timers?: LockTimers;
+  idle_s?: number | null;
+  dirty?: boolean;
+  hidden?: boolean;
+  releases_in_s?: number;
+  can_take_over?: boolean;
+  taken_over?: { by: string; at: string | null; via?: string | null };
 }
 
 /* ── pages ──────────────────────────────────────────────────────────────── */
@@ -294,8 +337,33 @@ export function savePage(slug: string, input: { title: string | null; content: s
 }
 
 /** Take (or refresh) the edit lock: held 2 minutes, refreshed every 30 s. 423 when someone else has it. */
-export function lockPage(slug: string, secret?: string | null) {
-  return call<LockInfo>(`/api/v1/documents/${enc(slug)}/lock`, { method: "POST", secret });
+/**
+ * Take, renew or take over the page's edit lock. `intent: "edit"` (the first real change) takes it;
+ * `"heartbeat"` renews one this editor holds and never takes back one it lost (`released`).
+ */
+export function lockPage(
+  slug: string,
+  secret?: string | null,
+  opts: { intent?: "edit" | "heartbeat"; edited?: boolean; hidden?: boolean; dirty?: boolean; takeOver?: boolean } = {},
+) {
+  const q = new URLSearchParams();
+  if (opts.intent) q.set("intent", opts.intent);
+  if (opts.edited) q.set("edited", "true");
+  if (opts.hidden !== undefined) q.set("hidden", String(opts.hidden));
+  if (opts.dirty !== undefined) q.set("dirty", String(opts.dirty));
+  if (opts.takeOver) q.set("take_over", "true");
+  const qs = q.toString();
+  return call<LockInfo>(`/api/v1/documents/${enc(slug)}/lock${qs ? `?${qs}` : ""}`, { method: "POST", secret });
+}
+
+/** Who holds the page's edit lock, without taking it. */
+export function lockStatus(slug: string, secret?: string | null) {
+  return call<LockStatus>(`/api/v1/documents/${enc(slug)}/lock`, { secret });
+}
+
+/** Unsaved text this editor can't save (its lock was taken over): kept in the page's version history. */
+export function keepUnsaved(slug: string, body: { title: string | null; content: string; base_rev: number | null; reason: "taken_over" | "lost" | "conflict" }, secret?: string | null) {
+  return call<{ kept: boolean; version: number | null }>(`/api/v1/documents/${enc(slug)}/lock/keep`, { method: "POST", body: JSON.stringify(body), secret });
 }
 
 export function unlockPage(slug: string, opts?: { keepalive?: boolean; secret?: string | null }) {
@@ -320,6 +388,37 @@ export function lockHolder(e: unknown): string | null {
   if (!(e instanceof PagesApiError) || e.status !== 423) return null;
   const h = e.info.holder as { name?: unknown } | undefined;
   return typeof h?.name === "string" && h.name.trim() ? h.name : null;
+}
+
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+
+/** The lock facts of a 423 `locked` refusal, or of a lock status. Null for anything else. */
+export function lockFacts(src: unknown): LockFacts | null {
+  let info: Record<string, unknown> | null = null;
+  if (src instanceof PagesApiError) {
+    if (src.status !== 423 || src.info.code !== "locked") return null;
+    info = src.info;
+  } else if (src && typeof src === "object") info = src as Record<string, unknown>;
+  if (!info || !info.holder) return null;
+  const h = info.holder as { name?: unknown };
+  const taken = info.taken_over as { by?: unknown } | undefined;
+  return {
+    name: typeof h?.name === "string" && h.name.trim() ? h.name : null,
+    idleS: num(info.idle_s),
+    dirty: info.dirty === true,
+    hidden: info.hidden === true,
+    releasesInS: num(info.releases_in_s),
+    canTakeOver: info.can_take_over === true,
+    takenOverBy: typeof taken?.by === "string" ? taken.by : null,
+  };
+}
+
+/** "45 s", "3 min", "2 h". */
+export function lockDuration(s: number): string {
+  const v = Math.max(0, Math.round(s));
+  if (v < 60) return `${v} s`;
+  const m = Math.round(v / 60);
+  return m < 60 ? `${m} min` : `${Math.floor(v / 3600)} h`;
 }
 
 /* ── images ─────────────────────────────────────────────────────────────── */

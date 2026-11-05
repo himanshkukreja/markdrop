@@ -2265,6 +2265,13 @@ _DOC_REF = {
     "description": ("The document's slug (e.g. 'q3-report') or its link: https://markdrop.in/q3-report, "
                     "or its address on a workspace's custom domain (https://docs.acme.com/guides/q3-report)."),
 }
+TAKE_OVER_ARG = {
+    "type": "boolean", "default": False,
+    "description": ("Someone has the page open in the editor and the write was refused (error 'locked'): "
+                    "take it from them and write anyway. Only for the page's owner or a workspace admin; "
+                    "their editor is told and keeps its unsaved changes in the page's version history. "
+                    "Ask the user before using it."),
+}
 _ACCESS_OUT = {"type": "string", "enum": ["link", "private", "password", "workspace"]}
 _URL_PROPS = {
     "url": {"type": "string", "description": "Canonical link: the workspace's own domain when the "
@@ -2457,6 +2464,7 @@ TOOLS: list[Tool] = [
                 "content": {"type": "string", "minLength": 1,
                             "description": "The new full content (markdown for documents, the file text for files)."},
                 "title": {"type": "string", "maxLength": 200, "description": "Optional new title."},
+                "take_over": TAKE_OVER_ARG,
             },
             "required": ["document", "content"],
         },
