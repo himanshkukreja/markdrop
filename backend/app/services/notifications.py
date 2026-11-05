@@ -225,6 +225,10 @@ async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, bl
     from app.services import slack_notify
 
     await slack_notify.queue_notification(db, row)
+    # And a push notification on their devices (services/push).
+    from app.services import push
+
+    await push.queue_notification(db, row)
     return row
 
 

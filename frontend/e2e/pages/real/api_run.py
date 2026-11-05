@@ -521,6 +521,59 @@ if os.environ.get("PB_FAKE_SLACK"):
 
     _slack_api.TRANSPORT = httpx.MockTransport(_slack)
 
+# Push notifications (services/push.py) for push.mjs: PB_PUSH=1. A VAPID pair made for this run only
+# (never a real one), and a fake push service inside this API: /__sandbox/fakepush/<id> keeps what it
+# was sent (encrypted, as a real push service would get it), GET /__sandbox/fakepush lists it (the test
+# decrypts with its browser's key), /__sandbox/push/flush runs one delivery pass now (background loops
+# are off here). /__sandbox/fakepush/answer {status} makes it answer 410 etc.
+if os.environ.get("PB_PUSH"):
+    import base64 as _b64
+    from datetime import datetime as _dt, timedelta as _td, timezone as _tz
+
+    from fastapi import Request as _Req
+
+    from app import database as _database
+    from app.services import push as _push, webpush as _webpush
+
+    _keys = _webpush.generate_keys()
+    mod.settings.vapid_private_key = _keys["private"]
+    mod.settings.vapid_public_key = _keys["public"]
+    mod.settings.vapid_subject = "mailto:e2e@example.com"
+    mod.settings.push_endpoint_hosts_extra = f"127.0.0.1:{8180 + 10 * STACK_ID}"
+    _received: list[dict] = []
+    _answer = {"status": 201}
+
+    @mod.app.post("/__sandbox/fakepush/answer", include_in_schema=False)
+    async def _fakepush_answer(request: _Req):
+        _answer["status"] = int((await request.json()).get("status") or 201)
+        return {"status": _answer["status"]}
+
+    @mod.app.post("/__sandbox/fakepush/{sub_id}", include_in_schema=False)
+    async def _fakepush(sub_id: str, request: _Req):
+        from fastapi.responses import Response as _Resp
+
+        _received.append({"id": sub_id, "body": _b64.b64encode(await request.body()).decode(),
+                          "headers": {k: v for k, v in request.headers.items()
+                                      if k in ("authorization", "ttl", "content-encoding", "topic", "urgency")}})
+        return _Resp(status_code=_answer["status"])
+
+    @mod.app.get("/__sandbox/fakepush", include_in_schema=False)
+    async def _fakepush_list():
+        return {"received": _received}
+
+    @mod.app.delete("/__sandbox/fakepush", include_in_schema=False)
+    async def _fakepush_clear():
+        _received.clear()
+        _answer["status"] = 201
+        return {"ok": True}
+
+    @mod.app.post("/__sandbox/push/flush", include_in_schema=False)
+    async def _push_flush():
+        db = _database.get_database()
+        _push._last_prune = None
+        await db[_push.PUSH_LOG].delete_many({})  # each step's page is new; no two-minute gap here
+        return await _push.flush(db, _dt.now(_tz.utc) + _td(minutes=5))
+
 import uvicorn  # noqa: E402
 
 # Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).

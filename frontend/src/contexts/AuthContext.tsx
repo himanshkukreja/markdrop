@@ -7,6 +7,7 @@ import { track } from "@/lib/track";
 import { identifyUser, resetIdentity } from "@/lib/thirdPartyAnalytics";
 import { forgetAllKeys, rememberedKeyCount } from "@/lib/e2e";
 import { clearStudioSession } from "@/lib/studioSession";
+import { forgetThisDevice } from "@/lib/push";
 import { Checkbox, ConfirmDialog } from "@/components/ui";
 
 interface AuthModalOptions {
@@ -88,6 +89,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const logout = useCallback(async () => {
+    // This browser stops getting the account's push notifications (lib/push; bounded to 2 s).
+    await forgetThisDevice();
     await logoutRequest();
     clearToken();
     setUser(null);

@@ -1,12 +1,14 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Button, Dialog, Drawer, useToast } from "@/components/ui";
 import { track } from "@/lib/track";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { docsUrl } from "@/components/shell/links";
 import { BUILD_ID, PWA_ENABLED, installPathFor, isAppRoute, isStandalone, pwaSurface, type InstallPath } from "@/lib/pwa";
+import { openInApp, refreshPush } from "@/lib/push";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Markdrop as an installed app (lib/pwa.ts), for the whole page:
@@ -19,6 +21,8 @@ import { BUILD_ID, PWA_ENABLED, installPathFor, isAppRoute, isStandalone, pwaSur
  *     over when this page already is that build);
  *   - the install UI's state: the browser's install prompt (caught early by PWA_BOOT_SCRIPT in the
  *     root layout), "installed", and the iPhone / iPad and Mac Safari instructions sheet.
+ *
+ *   - opens what a push notification's click asks for in this window (MD_OPEN from the worker).
  *
  * `usePwa()` gives the account menu its "Install app" item.
  */
@@ -74,6 +78,7 @@ function versionOf(worker: ServiceWorker): Promise<string | null> {
 
 export function PwaProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() || "/";
+  const router = useRouter();
   const { info, success } = useToast();
   const [surface, setSurface] = useState<"app" | "studio" | null>(null);
   const [standalone, setStandalone] = useState(false);
@@ -210,6 +215,29 @@ export function PwaProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("visibilitychange", onVisible);
     };
   }, [registerHere, offerUpdate]);
+
+  /* ── A click on a push notification (lib/pwaWorker.ts asks the open window to go there) ── */
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const sw = navigator.serviceWorker;
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type !== "MD_OPEN" || typeof e.data.url !== "string") return;
+      e.ports?.[0]?.postMessage("ok"); // "on it": the worker doesn't reload the page
+      openInApp(e.data.url, (h) => router.push(h));
+    };
+    sw.addEventListener("message", onMessage);
+    // Messages wait until the page says it listens (startMessages); harmless when already on.
+    sw.startMessages?.();
+    return () => sw.removeEventListener("message", onMessage);
+  }, [router]);
+
+  // Signed in on markdrop.in with notifications allowed: keep this device's subscription fresh.
+  const { user } = useAuth();
+  const userId = user?.id;
+  useEffect(() => {
+    if (!userId || !registerHere || pwaSurface(window.location.hostname) !== "app") return;
+    void refreshPush(userId).catch(() => {});
+  }, [userId, registerHere]);
 
   /* ── Install ──────────────────────────────────────────────────────────── */
   const installPath: InstallPath = useMemo(() => {

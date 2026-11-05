@@ -15,6 +15,7 @@ one API worker runs it (§5.1, §5.5, A6):
     trash        every 15 min  destroy what has been in the trash 30 days, or reached its own
                              expiry there (services/trash.py)
     notifications  every 30 s  send the batched mention / sign-off emails (services/notifications.py)
+    push            every 5 s  send push notifications to people's devices (services/push.py)
     page_covers     every 15 s  finish auto-cover picks a stopped process left pending, and run one
                              batch of the admin's cover backfill (services/page_covers.py)
     search_index    every 10 s  global search's content index: the one-time backfill (a slice of
@@ -172,6 +173,12 @@ async def _slack(db: AsyncIOMotorDatabase) -> None:
     await slack_notify.flush(db)
 
 
+async def _push(db: AsyncIOMotorDatabase) -> None:
+    from app.services import push
+
+    await push.flush(db)
+
+
 async def _page_covers(db: AsyncIOMotorDatabase) -> None:
     from app.services import page_covers
 
@@ -208,6 +215,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("page_history", 3600.0, _page_history), ("trash", TRASH_EVERY, _trash),
                               ("notifications", 30.0, _notifications), ("page_covers", 15.0, _page_covers),
                               ("search_index", 10.0, _search_index), ("slack_dm", 5.0, _slack),
+                              ("push", 5.0, _push),
                               ("meetings_backfill", 10.0, _meetings_backfill),
                               ("meeting_memory", 15.0, _meeting_memory)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))

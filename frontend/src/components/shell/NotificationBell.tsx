@@ -8,6 +8,8 @@
  * server again (`POST /notifications/{id}/open`: access is re-checked) and opens the page at the
  * block (`#b-…`), which the page scrolls to and flashes (components/pages/anchors.ts).
  *
+ * A push notification arriving on this device (lib/push.ts) refreshes the badge at once.
+ *
  * Desktop: a popover under the bell. Phones (< 640px): a bottom sheet. Not on workspace domains
  * (their header is TenantHeader) and only when signed in.
  */
@@ -19,6 +21,7 @@ import {
   NotificationError, listNotifications, markRead, openNotification, unreadCount,
   type AppNotification,
 } from "@/lib/notifications";
+import { openInApp } from "@/lib/push";
 import s from "./NotificationBell.module.css";
 
 const POLL_MS = 60_000;
@@ -49,10 +52,15 @@ function useUnread() {
     const back = () => { if (document.visibilityState === "visible") void refresh(); };
     window.addEventListener("focus", back);
     document.addEventListener("visibilitychange", back);
+    // A push notification just arrived on this device (the service worker tells open windows).
+    const sw = "serviceWorker" in navigator ? navigator.serviceWorker : null;
+    const pushed = (e: MessageEvent) => { if (e.data?.type === "MD_PUSH") void refresh(); };
+    sw?.addEventListener("message", pushed);
     return () => {
       window.clearInterval(tick);
       window.removeEventListener("focus", back);
       document.removeEventListener("visibilitychange", back);
+      sw?.removeEventListener("message", pushed);
     };
   }, [refresh]);
   return { count, setCount, refresh, supported };
@@ -166,16 +174,8 @@ function Panel({ phone, unread, onUnread, onDone }: {
   }
 
   function go(href: string) {
-    const url = new URL(href, window.location.origin);
     onDone();
-    if (url.pathname === window.location.pathname) {
-      if (!url.hash) return;
-      // Already on the page: re-setting the same hash wouldn't fire hashchange, so clear it first.
-      if (window.location.hash === url.hash) history.replaceState(history.state, "", url.pathname + url.search);
-      window.location.hash = url.hash;
-      return;
-    }
-    router.push(url.pathname + url.search + url.hash);
+    openInApp(href, (h) => router.push(h));
   }
 
   async function open(n: AppNotification) {
@@ -239,7 +239,7 @@ function Panel({ phone, unread, onUnread, onDone }: {
       )}
       <div className={s.foot}>
         <span>Kept for 90 days</span>
-        <a href="/settings/account#email" onClick={onDone}>Email settings</a>
+        <a href="/settings/account#notifications" onClick={onDone}>Notification settings</a>
       </div>
     </div>
   );
