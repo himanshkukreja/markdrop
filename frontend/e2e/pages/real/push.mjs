@@ -18,6 +18,9 @@
  *   blocked    notifications blocked for the site → the card explains, no button
  *   ios        an iPhone in a Safari tab (no PushManager): "install the app first" + Install app (390 px)
  *
+ * WebKit: settings / privacy / prefs / gone / signout / ios (DevTools push delivery is Chromium's);
+ * Playwright's WebKit can't grant notifications, so its permission prompt is answered "Allow" by a stub.
+ *
  *   PB_PUSH=1 zsh up.sh restart-api, then  [BROWSER=webkit] [ONLY=…] node push.mjs   (existing seed)
  */
 import crypto from "node:crypto";
@@ -74,7 +77,21 @@ function decrypt(dev, body) {
 /** A signed-in context whose PushManager hands out `dev`'s subscription (Chromium has no push service here). */
 async function pushCtx(who, dev, opts = {}) {
   const { c, p } = await ctx(browser, { token: T[who], ...opts });
-  if (opts.grant !== false) await c.grantPermissions(["notifications"], { origin: APP }).catch((e) => log(`(grant: ${e.message.slice(0, 80)})`));
+  if (opts.grant !== false) {
+    await c.grantPermissions(["notifications"], { origin: APP }).catch((e) => log(`(grant: ${e.message.slice(0, 80)})`));
+    // Playwright's WebKit ignores the grant (permission stays "default", the prompt answers "denied"):
+    // answer the prompt with Allow, as the person would in Safari.
+    if (!chromium) {
+      await c.addInitScript(() => {
+        if (!("Notification" in window)) return;
+        let state = "default";
+        try {
+          Object.defineProperty(Notification, "permission", { get: () => state, configurable: true });
+          Notification.requestPermission = async () => (state = "granted");
+        } catch {}
+      });
+    }
+  }
   await c.addInitScript(([endpoint, p256dh, auth]) => {
     if (!("PushManager" in window)) return;
     const KEY = "md_e2e_push_sub";
