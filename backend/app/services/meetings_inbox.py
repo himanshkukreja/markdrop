@@ -30,6 +30,7 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from bson import ObjectId
 from fastapi import HTTPException
@@ -75,12 +76,17 @@ def endpoint() -> str:
     return get_settings().api_base_url.rstrip("/") + "/api/v1/meetings/inbox"
 
 
-def script(token: str, workspace_name: str, *, url: str | None = None) -> str:
-    """Code.gs with the endpoint and token filled in (JSON string literals: always valid JS)."""
+BACKFILL_CHOICES = (0, 7, 30, 90)
+
+
+def script(token: str, workspace_name: str, *, url: str | None = None, backfill_days: int = 0) -> str:
+    """Code.gs with the endpoint and token filled in (JSON string literals: always valid JS), and how
+    many days of past meetings ``setup`` brings in once (0: none)."""
     name = re.sub(r"[\r\n  ]+", " ", workspace_name or "your workspace").replace("*/", "* /")[:80]
     src = (_DIR / "Code.gs").read_text()
     return (src.replace("'{{ENDPOINT}}'", json.dumps(url or endpoint()))
                .replace("'{{TOKEN}}'", json.dumps(token))
+               .replace("'{{BACKFILL_DAYS}}'", str(int(backfill_days) if int(backfill_days) in BACKFILL_CHOICES else 0))
                .replace("{{WORKSPACE_NAME}}", name))
 
 
@@ -96,7 +102,8 @@ async def mine(db: AsyncIOMotorDatabase, user_id: str) -> dict | None:
     return await db["api_tokens"].find_one({"user_id": user_id, "scope": SCOPE}, sort=[("created_at", -1)])
 
 
-async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restricted: bool = False) -> tuple[str, dict]:
+async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restricted: bool = False,
+                  tz: str | None = None) -> tuple[str, dict]:
     """A new connection (and token) for ``user`` into ``workspace_id``; an earlier one is revoked."""
     from app.services import workspace as ws_service
 
@@ -106,7 +113,7 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restrict
     await db["api_tokens"].delete_many({"user_id": user.id, "scope": SCOPE})
     raw, rec = await api_token.create_token(
         db, user.id, f"Google Meet → {getattr(ws, 'name', None) or 'Meetings'}"[:80], scope=SCOPE,
-        extra={"workspace_id": workspace_id, "restricted": bool(restricted), "provider": SOURCE,
+        extra={"workspace_id": workspace_id, "restricted": bool(restricted), "provider": SOURCE, "tz": _tz(tz),
                "stats": {"received": 0, "imported": 0, "attached": 0, "duplicates": 0, "ignored": 0,
                          "last_received_at": None, "last_imported_at": None, "last_meeting_id": None,
                          "last_title": None, "last_error": None}})
@@ -162,6 +169,28 @@ async def _stats(db: AsyncIOMotorDatabase, rec: dict, inc: dict[str, int], sets:
         upd["$set"] = {f"stats.{k}": v for k, v in sets.items()}
     if upd:
         await db["api_tokens"].update_one({"_id": rec["_id"]}, upd)
+
+
+def _tz(name: str | None) -> str | None:
+    """The connecting browser's time zone (a Doc without a date in its title is dated by when Google
+    made it, in that zone), when it's a real one."""
+    try:
+        return name if name and len(name) <= 64 and ZoneInfo(name) else None
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+
+
+def meeting_date(created: str | None, tz: str | None) -> str | None:
+    """YYYY-MM-DD of the Doc's creation (an ISO time), in ``tz`` when known (else as written)."""
+    raw = str(created or "").strip()
+    try:
+        at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        m = re.match(r"^(\d{4}-\d{2}-\d{2})", raw)
+        return m.group(1) if m else None
+    if at.tzinfo is not None and tz:
+        at = at.astimezone(ZoneInfo(tz))
+    return at.date().isoformat()
 
 
 def _doc_url(value: str | None, file_id: str) -> str:
@@ -231,14 +260,13 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
             await finish("ignored", reason="no_meeting")
             await _stats(db, rec, {"ignored": 1}, {})
             return {"status": "ignored", "reason": "No transcript or meeting notes found in it."}
-        date_ = None
-        if not src.date:
-            m = re.match(r"^(\d{4}-\d{2}-\d{2})", str(item.get("created") or ""))
-            date_ = m.group(1) if m else None
+        # The meeting's own date: from Google's title when it has one, else when the Doc was made.
+        date_ = None if src.date else meeting_date(item.get("created"), rec.get("tz"))
         inc = meetings.Incoming(name=title, text=text, origin="google", file_id=file_id,
                                 url=_doc_url(item.get("doc_url"), file_id))
+        # A past meeting sent by the script's backfill is history: nobody is notified about it.
         rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=bool(rec.get("restricted")),
-                                              via="inbox", dedupe="all")
+                                              via="inbox", dedupe="all", notify=not item.get("backfill"))
     except HTTPException as exc:
         await finish("failed", error=str(exc.detail)[:300])
         await _stats(db, rec, {}, {"last_error": str(exc.detail)[:300]})

@@ -500,14 +500,30 @@ def preview(incoming: list[Incoming]) -> list[dict]:
 async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
                           title: str | None = None, date_: str | None = None, type_: str | None = None,
                           restricted: bool = False, wait: bool = False, via: str = "web",
-                          dedupe: str | None = None) -> list[dict]:
+                          dedupe: str | None = None, notify: bool = True) -> list[dict]:
     """Make a meeting per group of sources (notes + transcript of one call pair up). Returns the rows,
     each with ``_status``: "imported" (new), "attached" (it filled the other half of a meeting that was
     already here) or "duplicate" (already here; nothing changed).
 
     ``dedupe``: None (always new meetings), "file" (a Google Doc already imported into this workspace
     is that meeting), "all" (also a meeting with the same name, date and start time: see
-    :func:`find_existing`)."""
+    :func:`find_existing`).
+
+    ``notify=False``: history (a past meeting brought in by a backfill). Its @mentions stay links and
+    nobody is notified, now or when its AI sections are written; the meeting is marked ``history``."""
+    from app.services import notifications
+
+    if not notify:
+        with notifications.quiet():
+            return await _import_meetings(db, user, workspace_id, incoming, title=title, date_=date_, type_=type_,
+                                          restricted=restricted, wait=wait, via=via, dedupe=dedupe, history=True)
+    return await _import_meetings(db, user, workspace_id, incoming, title=title, date_=date_, type_=type_,
+                                  restricted=restricted, wait=wait, via=via, dedupe=dedupe, history=False)
+
+
+async def _import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
+                           title: str | None, date_: str | None, type_: str | None, restricted: bool, wait: bool,
+                           via: str, dedupe: str | None, history: bool) -> list[dict]:
     from app.services import workspace as ws_service
 
     await require_member(db, workspace_id, user.id)
@@ -567,7 +583,7 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
                 continue
         row = await _create(db, user, workspace_id, folder, people, g,
                             title=title if one else None, date_=date_ if one else None,
-                            type_=type_, restricted=restricted, wait=wait, via=via)
+                            type_=type_, restricted=restricted, wait=wait, via=via, history=history)
         row["_status"] = "imported"
         rows.append(row)
     return rows
@@ -625,7 +641,18 @@ async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[
     """The other half of a call into its meeting: the transcript (segments and the Transcript
     sub-page) or Google's notes, whichever the meeting doesn't have yet; attendees and sources merged.
     The page is written again when nobody edited it since (else the new parts are added at the end),
-    and the AI sections are written again once a summary still being written has finished."""
+    and the AI sections are written again once a summary still being written has finished. A
+    ``history`` meeting stays quiet (no notifications)."""
+    from app.services import notifications
+
+    if row.get("history") and not notifications.is_quiet():
+        with notifications.quiet():
+            return await _attach_sources(db, user, row, group, wait=wait)
+    return await _attach_sources(db, user, row, group, wait=wait)
+
+
+async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *,
+                          wait: bool = False) -> dict:
     from app.services import meetings_ai, pages
 
     page = await page_of(db, row)
@@ -731,7 +758,7 @@ async def _regenerate_when_free(db: AsyncIOMotorDatabase, meeting_id: str, user)
 
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
-                  restricted: bool, wait: bool, via: str) -> dict:
+                  restricted: bool, wait: bool, via: str, history: bool = False) -> dict:
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
     from app.services import meetings_ai, page_covers, pages
@@ -758,6 +785,8 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
     }
+    if history:
+        row["history"] = True
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
     actor, ctx = access.Actor.of(user), access.Ctx(db)
@@ -834,7 +863,17 @@ async def _save(db: AsyncIOMotorDatabase, raw: dict, content: str, actor, ctx, *
 
 async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
     """The AI's sections into the meeting page: the whole page when nobody changed it since import,
-    else the new sections appended at the end (never over someone's edits)."""
+    else the new sections appended at the end (never over someone's edits). A ``history`` meeting's
+    mentions notify nobody."""
+    from app.services import notifications
+
+    if meeting.get("history") and not notifications.is_quiet():
+        with notifications.quiet():
+            return await _write_generated(db, meeting, gen, user)
+    return await _write_generated(db, meeting, gen, user)
+
+
+async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
     from app.services import pages
 
     raw = await db["documents"].find_one({"_id": oid(meeting.get("doc_id"))})
@@ -938,6 +977,7 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "can_manage": can_manage, "can_delete": can_delete, "can_regenerate": (await access.can(actor, raw, "edit_content", ctx)).allowed,
         "approx_times": bool(row.get("approx_times")),
         "source": source_of(row),
+        "history": bool(row.get("history")),   # a past meeting from a backfill (imported quietly)
     }
     if full:
         from app.services import urls

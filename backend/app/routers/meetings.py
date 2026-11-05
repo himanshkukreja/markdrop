@@ -87,6 +87,10 @@ class ImportBody(BaseModel):
 class ConnectBody(BaseModel):
     workspace: str = Field(..., max_length=40)
     restricted: bool = False
+    # Past meetings the script's setup brings in once (0, 7, 30 or 90 days; quietly: no notifications).
+    backfill_days: Literal[0, 7, 30, 90] = 0
+    # The browser's time zone (IANA), to date a Doc without a date in its title.
+    tz: str | None = Field(None, max_length=64)
 
 
 class InboxBody(BaseModel):
@@ -97,6 +101,8 @@ class InboxBody(BaseModel):
     kind_hint: Literal["transcript", "notes"] | None = None
     text: str = Field(...)
     doc_url: str | None = Field(None, max_length=500)
+    # Sent by the script's backfill: a past meeting, imported without notifying anyone.
+    backfill: bool = False
 
 
 class PatchBody(BaseModel):
@@ -226,9 +232,9 @@ async def connect(request: Request, body: ConnectBody, db: AsyncIOMotorDatabase 
     from app.services import workspace as ws_service
 
     ws = _ws(body.workspace)
-    raw, rec = await meetings_inbox.connect(db, user, ws, restricted=body.restricted)
+    raw, rec = await meetings_inbox.connect(db, user, ws, restricted=body.restricted, tz=body.tz)
     w = await ws_service.get_workspace(db, ws)
-    return {"token": raw, "script": meetings_inbox.script(raw, getattr(w, "name", "") or ""),
+    return {"token": raw, "script": meetings_inbox.script(raw, getattr(w, "name", "") or "", backfill_days=body.backfill_days),
             "manifest": meetings_inbox.manifest(), "endpoint": meetings_inbox.endpoint(),
             "connection": await meetings_inbox.view(db, rec, viewer_id=user.id)}
 

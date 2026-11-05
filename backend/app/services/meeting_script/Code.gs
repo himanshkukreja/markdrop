@@ -16,6 +16,9 @@
  * schedule itself (script.scriptapp). The token below only imports meetings into that one
  * workspace; it can't read or change anything else. Disconnect in Markdrop and it stops.
  *
+ * Past meetings: setup brings in the last BACKFILL_DAYS days once (oldest first; nobody is
+ * notified about them). To do it again later, run backfill (it uses BACKFILL_DAYS, else 30 days).
+ *
  * Set up: Run → setup (once), and allow. That's all.
  */
 
@@ -26,41 +29,52 @@ var LOOKBACK_HOURS = 48;      // how far back to look (raise it once to import o
 var INCLUDE_SHARED = false;   // true: also Docs other people shared with you (e.g. a teammate's call)
 var MAX_PER_RUN = 20;         // a run has 6 minutes; the rest wait for the next one
 var QUIET_MINUTES = 10;       // a Doc changed this recently may still be being written: next run
+var BACKFILL_DAYS = '{{BACKFILL_DAYS}}';  // setup also brings in this many days of past meetings (0: none)
 var TRANSCRIPT_TITLE = /[-–—]\s*Transcript\s*$/i;
 var NOTES_TITLE = /(Notes by Gemini|[-–—]\s*Notes)\s*$/i;
 
-/** Run this once: it schedules syncMeetings every 15 minutes, then runs it now. */
+/** Run this once: it schedules syncMeetings every 15 minutes, then runs it now (and, when
+ *  BACKFILL_DAYS is set, starts bringing in the past meetings too). */
 function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'syncMeetings') ScriptApp.deleteTrigger(t);
   });
   ScriptApp.newTrigger('syncMeetings').timeBased().everyMinutes(15).create();
+  if (BACKFILL_DAYS > 0) startBackfill_(BACKFILL_DAYS);
   syncMeetings();
 }
 
-/** Sends what's new. Safe to run by hand any time. */
+/**
+ * Imports past meetings once: the transcripts and Gemini notes of the last `days` days (when run
+ * from the editor: BACKFILL_DAYS, else 30), oldest first, MAX_PER_RUN at a time over the next runs.
+ * Markdrop skips the ones it already has, and notifies nobody about them.
+ */
+function backfill(days) {
+  var n = typeof days === 'number' && days > 0 ? days : (BACKFILL_DAYS > 0 ? BACKFILL_DAYS : 30);
+  startBackfill_(Math.min(n, 366));
+  syncMeetings();
+}
+
+function startBackfill_(days) {
+  PropertiesService.getScriptProperties()
+    .setProperty('backfill_since', new Date(Date.now() - days * 24 * 3600 * 1000).toISOString());
+}
+
+/** Sends what's new, then (while a backfill is going) the next past meetings. Safe to run by hand. */
 function syncMeetings() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;  // a run is still going
   try {
     var props = PropertiesService.getScriptProperties();
-    var since = new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000);
-    var q = "mimeType = 'application/vnd.google-apps.document' and trashed = false and modifiedDate > '" +
-      since.toISOString().slice(0, 19) + "'" + (INCLUDE_SHARED ? '' : " and 'me' in owners");
-    var files = DriveApp.searchFiles(q);
-    var sent = 0;
-    while (files.hasNext() && sent < MAX_PER_RUN) {
-      var file = files.next();
-      var id = file.getId();
-      var title = file.getName();
-      var kind = TRANSCRIPT_TITLE.test(title) ? 'transcript' : NOTES_TITLE.test(title) ? 'notes' : null;
-      if (!kind || file.getDateCreated() < since || props.getProperty('sent:' + id)) continue;
-      if (file.getLastUpdated() > new Date(Date.now() - QUIET_MINUTES * 60 * 1000)) continue;  // next run
-      var result = send_(file, kind);
-      if (result === 'stop') return;
-      if (result === 'done') {
-        props.setProperty('sent:' + id, String(Date.now()));
-        sent++;
+    var budget = { left: MAX_PER_RUN };
+    var recent = sendSince_(props, new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000), false, budget);
+    if (recent === 'stop') return;
+    var from = props.getProperty('backfill_since');
+    if (from && budget.left > 0) {
+      var past = sendSince_(props, new Date(from), true, budget);
+      if (past === 'all') {
+        props.deleteProperty('backfill_since');
+        console.log('Backfill finished.');
       }
     }
     forgetOld_(props);
@@ -69,8 +83,43 @@ function syncMeetings() {
   }
 }
 
+/**
+ * Sends the meeting Docs created after `since` that weren't sent yet, oldest first, while
+ * budget.left lasts → 'all' (nothing left), 'more' (some wait for the next run) or 'stop'.
+ */
+function sendSince_(props, since, backfill, budget) {
+  var q = "mimeType = 'application/vnd.google-apps.document' and trashed = false and modifiedDate > '" +
+    since.toISOString().slice(0, 19) + "' and (title contains 'Transcript' or title contains 'Notes')" +
+    (INCLUDE_SHARED ? '' : " and 'me' in owners");
+  var files = DriveApp.searchFiles(q);
+  var settled = new Date(Date.now() - QUIET_MINUTES * 60 * 1000);
+  var todo = [];
+  var more = false;
+  while (files.hasNext()) {
+    var file = files.next();
+    var title = file.getName();
+    var kind = TRANSCRIPT_TITLE.test(title) ? 'transcript' : NOTES_TITLE.test(title) ? 'notes' : null;
+    if (!kind || file.getDateCreated() < since || props.getProperty('sent:' + file.getId())) continue;
+    if (file.getLastUpdated() > settled) { more = true; continue; }  // Google may still be writing it
+    todo.push({ file: file, kind: kind, at: file.getDateCreated().getTime() });
+  }
+  todo.sort(function (a, b) { return a.at - b.at; });
+  for (var i = 0; i < todo.length; i++) {
+    if (budget.left <= 0) return 'more';
+    var result = send_(todo[i].file, todo[i].kind, backfill);
+    if (result === 'stop') return 'stop';
+    if (result === 'done') {
+      props.setProperty('sent:' + todo[i].file.getId(), String(Date.now()));
+      budget.left--;
+    } else {
+      more = true;
+    }
+  }
+  return more ? 'more' : 'all';
+}
+
 /** 'done' (sent, or Markdrop will never take it), 'retry' (next run) or 'stop'. */
-function send_(file, kind) {
+function send_(file, kind, backfill) {
   var text;
   try {
     text = docText_(file.getId());
@@ -92,7 +141,8 @@ function send_(file, kind) {
         created: file.getDateCreated().toISOString(),
         kind_hint: kind,
         text: text,
-        doc_url: file.getUrl()
+        doc_url: file.getUrl(),
+        backfill: backfill === true
       })
     });
   } catch (e) {
