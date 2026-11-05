@@ -48,7 +48,7 @@ interface Ctx {
 const CHECK_BUDGET = 10;
 const CHECK_IDLE_MS = 4000;
 const SIDE_EVENT = "md:sidepanel";
-const FILTERS: Array<[FactKind | "all", string]> = [["all", "All"], ["decision", "Decisions"], ["action_item", "Action items"], ["open_question", "Questions"], ["topic", "Discussed"]];
+const FILTERS: Array<[FactKind | "all", string]> = [["all", "All"], ["decision", "Decisions"], ["action_item", "Actions"], ["open_question", "Questions"], ["topic", "Topics"]];
 
 function blocksOf(editor: Editor): { blocks: BlockLine[]; index: number } {
   const blocks: BlockLine[] = [];

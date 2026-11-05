@@ -39,6 +39,7 @@ Ben Member: Stripe hosted payments passed the security review yesterday.
 Wes Admin: Then we agree to ship the checkout redesign with Stripe hosted payments on Friday.
 Ben Member: I will update the payments runbook before the launch.
 Ada Owner: Do we keep the old checkout as a fallback for a week?
+Wes Admin: Thanks, everyone.
 Transcription ended after 00:12:40
 `;
 const BOARD = `Pricing board (2026-11-04 16:00 GMT+05:30) - Transcript
@@ -47,6 +48,7 @@ Ada Owner, Ben Member
 Transcript
 Ada Owner: The ${SECRET} plan pricing for checkout, between us.
 Ben Member: We decide to price the ${SECRET} plan at ninety nine dollars for checkout.
+Ada Owner: Thanks.
 Transcription ended after 00:05:00
 `;
 const team = ok(await api("POST", "/api/v1/meetings/import", T.owner, { workspace: WS, wait: true, sources: [{ name: "Checkout sync (2026-11-03 10:00 GMT+05:30) - Transcript", text: TEAM }] }), "team meeting").meetings[0];
@@ -183,8 +185,8 @@ await step("slash", async () => {
   await item.waitFor({ timeout: 8000 });
   await p.keyboard.press("Enter");
   await panel(p).waitFor({ timeout: 8000 });
-  const focused = await p.evaluate(() => document.activeElement?.classList.contains("mm__search-input"));
-  if (!focused) fail("the search isn't focused");
+  const focused = await p.waitForFunction(() => document.activeElement?.classList.contains("mm__search-input"), null, { timeout: 2000 }).then(() => true, () => false);
+  if (!focused) fail(`the search isn't focused (${await p.evaluate(() => document.activeElement?.className)})`);
   if (/\/meetings/.test(await editorOf(p).innerText())) fail("the slash text stayed in the page");
   await p.keyboard.type("fallback");
   await factOf(p, "old checkout").waitFor({ timeout: 8000 });
