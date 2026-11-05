@@ -289,7 +289,8 @@ def clean_answer(text: str, known: set[str]) -> str:
     body = _RANKING.sub("", text or "", count=1).strip()
     body = re.sub(r"</?untrusted_\w+[^>]*>", "", body)
     body = _CITE.sub(lambda m: m.group(0) if m.group(0)[1:-1] in known else "", body)
-    return re.sub(r"[ \t]+([.,;:])", r"\1", body).strip()
+    body = re.sub(r"[ \t]+([.,;:])", r"\1", body)
+    return re.sub(r"[ \t]{2,}", " ", body).strip()
 
 
 def labels_in(answer: str) -> list[str]:
@@ -453,7 +454,9 @@ def _citation(src: Source, label: str) -> dict:
 
 
 async def still_readable(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, keys: list[str]) -> set[str]:
-    """The keys (``d:<doc id>`` / ``g:<Guides page id>``) the asker can read now."""
+    """The keys (``d:<doc id>`` / ``g:<Guides page id>``) the asker can read now (fresh rows, and the
+    request's cached access facts dropped first: this is the second decision)."""
+    ctx.forget()
     ok: set[str] = set()
     dids = [ObjectId(k[2:]) for k in keys if k.startswith("d:") and ObjectId.is_valid(k[2:])]
     if dids:
@@ -862,7 +865,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         citations = [_citation(by_n[int(lab.split("-", 1)[0])], lab) for lab in labels]
         gone = {k for k in cited_keys if k not in ok}
         ranked_items = [by_n[k].item for k in ranked if by_n[k].key not in gone]
-        yield await finish(answer, citations, ranked_items, stop=stop, record=True, ranked=len(ranked),
+        yield await finish(answer, citations, ranked_items, stop=stop, record=True, n_ranked=len(ranked),
                            dropped=len(dropped))
     finally:
         run.release()
