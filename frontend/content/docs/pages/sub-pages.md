@@ -1,7 +1,7 @@
 ---
 title: Sub-pages and access inheritance
 description: Nest pages inside pages. A sub-page lives with its parent and follows who can read it, until you set its own access.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/pages/overview]
 keywords: [sub-page, subpage, child page, nested, parent, breadcrumbs, inherit, access, move, move to, drag, reorder, page tree, delete]
 ---
@@ -10,7 +10,7 @@ A page can hold other pages. Sub-pages show at the bottom of their parent under 
 
 ## Add a sub-page
 
-- At the bottom of a page, choose **Add a sub-page**, pick a template and choose **Create page**.
+- At the bottom of a page, choose **Add a sub-page**, pick a template and choose **Create page**. The gallery offers the page's workspace templates (for its members), yours and the built-in ones, with the folder's default already chosen. See [Templates for a sub-page](/pages/templates#templates-for-a-sub-page).
 - In the page, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
 - In the page tree beside the page, or in your workspace's sidebar, point at a page and choose **+**.
 

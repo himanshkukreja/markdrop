@@ -1,9 +1,9 @@
 ---
 title: Templates
 description: Start pages from built-in, workspace or personal templates. Use any page as a template, with its sub-pages and images, and give a folder a default.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [template, templates, workspace templates, use as template, save as template, default template, folder template, "{{folder}}", personal templates, placeholders, "{{date}}", "{{author}}", "{{title}}", manage templates, prd, spec, runbook, meeting notes, release notes, how-to, qa, test plan, save_page_as_template, list_page_templates]
+keywords: [template, templates, sub-page templates, add a sub-page, workspace templates, use as template, save as template, default template, folder template, "{{folder}}", personal templates, placeholders, "{{date}}", "{{author}}", "{{title}}", manage templates, prd, spec, runbook, meeting notes, release notes, how-to, qa, test plan, save_page_as_template, list_page_templates]
 ---
 
 When you make a page, Markdrop offers templates: the built-in ones, your workspace's and your own. A template only fills in the page's first draft. After that the page is yours to change, and the template is never applied again.
@@ -15,6 +15,14 @@ When you make a page, Markdrop offers templates: the built-in ones, your workspa
 3. Type a title, or leave it empty to use the template's name, and choose **Create page**. Double-clicking a template creates the page straight away.
 
 A blank page also offers the built-in templates as chips under the title until you start typing.
+
+### Templates for a sub-page
+
+**Add a sub-page** offers the templates of the page you're adding it to: its workspace's templates (for members of that workspace), yours and the built-in ones. That's the same wherever you add it from: the page's **⋯** menu, **Pages inside** at the bottom of the page, the editor's menu, the **+** next to a page in the sidebar, or the page on your [workspace's own domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain). If the page is in a folder with a [default template](#a-folders-default-template), that template is already chosen for the sub-page too.
+
+On your workspace's own domain the gallery shows the workspace's templates and the built-in ones. Your personal templates, and managing templates, are on markdrop.in.
+
+A page added with the editor's **/page** block starts blank: rename it and write, or open it and pick **⋯** › **Add a sub-page** next time you want a template.
 
 ## Built-in templates
 
@@ -66,7 +74,7 @@ A folder can have a default template, so every new page there starts the same wa
 
 The default is only a starting point: whoever makes a page can still pick **Blank** or another template. A page that an AI app makes in the folder without naming a template or giving its own content starts from the default too. If the default template is deleted, new pages there start blank again.
 
-The default can be one of the workspace's templates or a built-in one. It applies to pages made directly in that folder, not in the folders inside it.
+The default can be one of the workspace's templates or a built-in one. It applies to pages made directly in that folder, not in the folders inside it. **Add a sub-page** on a page in the folder starts from it too, chosen in the gallery where you can change it. A sub-page made without the gallery (the editor's **/page** block, or an AI app that names no template) starts blank.
 
 ## Edit and manage templates
 
@@ -107,7 +115,7 @@ Templates never appear in lists, search, the sidebar, a folder page on your work
 
 AI apps connected to Markdrop can:
 
-- list the templates you can use, each with its `id`, with `list_page_templates`. Give it a `workspace` to list only that workspace's templates and the built-in ones;
+- list the templates you can use, each with its `id`, with `list_page_templates`. Give it a `workspace` to list only that workspace's templates and the built-in ones, or a `parent` page to list what a sub-page of it can start from, with its folder's default as `folder_default`;
 - start a page from one with `create_page` and the template's `id` or the template page's slug;
 - use a page as a template with `save_page_as_template`, which saves a copy;
 - turn a page itself into a template, or back, with `set_page_properties` and `template: true` or `false`;
