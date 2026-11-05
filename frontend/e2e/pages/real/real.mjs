@@ -39,11 +39,23 @@ async function lockFree(why) {
     await new Promise((res) => setTimeout(res, 5000));
   }
 }
+// Editors let go as they leave (fix/lock-release-on-leave): at once through the app or a closing tab,
+// within page_lock_gone_s (8 s) when the browser ran no script at all (the stepper closes contexts).
+// Still taken 20 s after the step: that step's editor leaked it — a failure of its own.
 const lockLeft = async (name) => {
   if (!state.slug) return;
-  const r = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
-  if (r.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
-  else log(`(the edit lock of ${state.slug} is still taken after ${name}: ${r.status} ${JSON.stringify(r.body).slice(0, 120)})`);
+  const t0 = Date.now();
+  for (;;) {
+    const r = await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin);
+    if (r.status !== 200 || !r.body?.holder) return;
+    if (Date.now() - t0 > 20000) {
+      const msg = `the edit lock of ${state.slug} is still ${r.body.holder.name}'s 20 s after ${name}`;
+      console.error(`✗ ${name} (lock left): ${msg}`);
+      results.push([`${name} (lock left)`, `FAIL ${msg}`, Date.now() - t0]);
+      return;
+    }
+    await new Promise((res) => setTimeout(res, 500));
+  }
 };
 const SECRET_TITLES = ["Team offsite photo", "Q3 report", "Pricing calculator", "Launch plan"];
 const content = async (slug) => (await docOf(slug, T.owner)).content;
@@ -272,6 +284,11 @@ await step("subpage", async () => {
   save();
   await p.locator(".pb-live .ProseMirror").waitFor();
   await p.locator(".pb-crumbs").waitFor();
+  // The parent's editor is gone: whatever it held is let go of now, not two minutes later.
+  for (let t0 = Date.now(); (await api("GET", `/api/v1/documents/${state.slug}/lock`, T.admin)).body?.holder; ) {
+    if (Date.now() - t0 > 4000) fail("the parent's edit lock outlived opening the new sub-page");
+    await p.waitForTimeout(250);
+  }
   await shot(p, "12-subpage-editor-breadcrumbs");
   await c.close();
   const v = await ctx(browser, { token: T.reader });
