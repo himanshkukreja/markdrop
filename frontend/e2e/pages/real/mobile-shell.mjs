@@ -195,7 +195,8 @@ const openPalette = async (p) => {
 };
 const openBrowse = async (p, dev) => {
   if (dev.w >= 1024) return "skip"; // the rail is on screen (lg)
-  const b = await visibleFirst(p, [p.getByRole("button", { name: "Browse" }), p.getByRole("button", { name: "Menu" })]);
+  // Phones: the header's Menu; tablets (≥ 720): the icon rail's Expand.
+  const b = await visibleFirst(p, [p.getByTestId("app-menu"), p.getByTestId("rail-expand"), p.getByRole("button", { name: "Browse" }), p.getByRole("button", { name: "Menu" })]);
   if (!b) return "skip";
   await b.tap().catch(() => b.click());
   await p.getByRole("dialog").first().waitFor({ timeout: 6000 });
@@ -205,9 +206,10 @@ const firstRowMenu = (p) => p.locator("main").getByRole("button", { name: /^(Mor
 
 /** [name, roles, url(role), ready locator(p), action?(p, dev)] — an action returning "skip" skips the state. */
 const STATES = [
-  ["files", ["owner", "member"], () => `${APP}/dashboard`, (p) => p.locator("main h1, main [role=tablist]").first()],
-  ["files-rowmenu", ["owner"], () => `${APP}/dashboard`, (p) => p.locator("main h1").first(), async (p) => click(p, firstRowMenu(p))],
-  ["files-share", ["owner"], () => `${APP}/dashboard`, (p) => p.locator("main h1").first(), async (p) => {
+  ["home", ["owner", "member"], () => `${APP}/dashboard`, (p) => p.getByTestId("home-workspaces")],
+  ["files", ["owner", "member"], () => `${APP}/dashboard/files`, (p) => p.locator("main h1, main [role=tablist]").first()],
+  ["files-rowmenu", ["owner"], () => `${APP}/dashboard/files`, (p) => p.locator("main h1").first(), async (p) => click(p, firstRowMenu(p))],
+  ["files-share", ["owner"], () => `${APP}/dashboard/files`, (p) => p.locator("main h1").first(), async (p) => {
     await click(p, firstRowMenu(p));
     await click(p, p.getByRole("menuitem", { name: /^Share|Who can open/ }));
     await p.getByRole("dialog").first().waitFor({ timeout: 8000 });

@@ -219,3 +219,7 @@
 @media (prefers-reduced-motion: reduce) {
   .hm-card, .hm-wscard, .hm-start__step, .hm-todo, .hm-ask__bar { transition: none; }
 }
+
+.hm-ask__off { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text-muted); }
+.hm-history { margin: 0 -8px; }
+.hm-history__row { display: flex; min-width: 0; align-items: center; gap: 4px; }

@@ -16,14 +16,17 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Anchor, Avatar, AvatarGroup, Button, Dropdown, Icon, Kbd, Skeleton, cx, useToast, type MenuEntry } from "@/components/ui";
+import { Anchor, Avatar, AvatarGroup, Button, ConfirmDialog, Dialog, Dropdown, Icon, IconButton, Kbd, Skeleton, cx, useToast, type MenuEntry } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
 import { openNotifications } from "@/components/shell/NotificationBell";
 import { WorkspaceTile } from "@/components/shell/SideNav";
 import NameCard from "@/components/dashboard/NameCard";
 import { relativeTime } from "@/components/dashboard/format";
-import { openAssistant, setAssistantThread, useAssistantHere } from "@/components/assistant/store";
+import { PERSIST_KEY, openAssistant, setAssistantThread, useAssistantHere } from "@/components/assistant/store";
+import { forgetChat } from "@/components/chat/useChat";
+import { askHome, clearAskThreads, deleteAskThread, type AskHomeData, type AskThreadCard } from "@/lib/ask";
+import { shortAgo } from "@/lib/searchCore.mjs";
 import { PreviewBand } from "@/components/workspace/folder/CardPreview";
 import { ItemIcon, tintOf } from "@/components/workspace/folder/Listing";
 import "@/components/workspace/folder/listing.css";
@@ -103,6 +106,7 @@ export default function Home() {
     const p = new URLSearchParams(window.location.search);
     const id = p.get("ask");
     if (!id || !/^[0-9a-f]{24}$/.test(id)) return;
+    forgetChat(PERSIST_KEY);
     setAssistantThread(id);
     openAssistant();
     p.delete("ask");
@@ -225,6 +229,12 @@ export default function Home() {
 
 function AskBar({ onAsk, onAskMeetings }: { onAsk: (q?: string) => void; onAskMeetings: (() => void) | null }) {
   const [q, setQ] = useState("");
+  const [askData, setAskData] = useState<AskHomeData | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const refreshAsk = useCallback(() => { askHome().then(setAskData).catch(() => {}); }, []);
+  useEffect(() => { refreshAsk(); }, [refreshAsk]);
+  const recent = askData?.recent ?? [];
+  const off = askData && askData.status.enabled === false ? askData.status.message || "AI isn't available right now." : null;
   const input = useRef<HTMLInputElement>(null);
   const mounted = useMounted();
   const mac = mounted && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
@@ -232,6 +242,7 @@ function AskBar({ onAsk, onAskMeetings }: { onAsk: (q?: string) => void; onAskMe
     { label: "Catch me up", icon: "calendar", run: () => onAsk("Catch me up on this week") },
     { label: "My action items", icon: "check", run: () => onAsk("What are my open action items?") },
     ...(onAskMeetings ? [{ label: "Ask my meetings", icon: "mic", run: onAskMeetings }] : []),
+    ...(recent.length ? [{ label: "Recent questions", icon: "history", run: () => setHistoryOpen(true) }] : []),
   ];
   return (
     <section className="hm-ask" aria-label="Ask Markdrop" data-testid="home-ask">
@@ -265,12 +276,60 @@ function AskBar({ onAsk, onAskMeetings }: { onAsk: (q?: string) => void; onAskMe
       </form>
       <div className="hm-ask__chips">
         {chips.map((c) => (
-          <button key={c.label} type="button" className="hm-chip md-focus" onClick={c.run}>
+          <button key={c.label} type="button" className="hm-chip md-focus" onClick={c.run} {...(c.icon === "history" ? { "aria-haspopup": "dialog" as const, "data-testid": "home-ask-history" } : {})}>
             <Icon name={c.icon} size={14} /> {c.label}
           </button>
         ))}
       </div>
+      {off && <p className="hm-ask__off" role="status"><Icon name="clock" size={14} /> {off}</p>}
+      <AskHistory open={historyOpen} onClose={() => setHistoryOpen(false)} recent={recent} onChanged={refreshAsk} />
     </section>
+  );
+}
+
+/** Recent questions (the conversations with Ask Markdrop): open one in the assistant, forget one, clear all. */
+function AskHistory({ open, onClose, recent, onChanged }: { open: boolean; onClose: () => void; recent: AskThreadCard[]; onChanged: () => void }) {
+  const toast = useToast();
+  const [clearing, setClearing] = useState(false);
+  const openThread = (id: string) => {
+    onClose();
+    forgetChat(PERSIST_KEY);
+    setAssistantThread(id);
+    openAssistant();
+  };
+  return (
+    <>
+      <Dialog open={open && !clearing} onClose={onClose} title="Recent questions" size="md"
+        footer={recent.length ? <Button variant="ghost" onClick={() => setClearing(true)}>Clear all</Button> : undefined}>
+        {recent.length === 0 ? <p className="text-body text-text-secondary">No questions yet.</p> : (
+          <ul className="hm-list hm-history" data-testid="home-ask-history-list">
+            {recent.map((r) => (
+              <li key={r.id} className="hm-history__row">
+                <button type="button" className="hm-row md-focus" onClick={() => openThread(r.id)}>
+                  <span className="hm-row__lead" aria-hidden><Icon name="message" size={16} /></span>
+                  <span className="hm-row__main">
+                    <span className="hm-row__title ph-sensitive" dir="auto">{r.title}</span>
+                    <span className="hm-row__meta">{r.turns > 1 ? `${r.turns} questions · ` : ""}{shortAgo(r.updated_at)}</span>
+                  </span>
+                </button>
+                <IconButton icon="x" label={`Forget “${r.title}”`} className="size-11 shrink-0"
+                  onClick={async () => {
+                    try { await deleteAskThread(r.id); onChanged(); } catch { toast.error("Couldn't remove it. Try again."); }
+                  }} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </Dialog>
+      <ConfirmDialog
+        open={clearing}
+        onClose={() => setClearing(false)}
+        title="Clear recent questions?"
+        body={<p className="text-body text-text-secondary">Every conversation you had with Ask Markdrop is deleted. Your documents aren&apos;t touched.</p>}
+        confirmLabel="Clear"
+        onConfirm={async () => { await clearAskThreads(); setAssistantThread(null); forgetChat(PERSIST_KEY); setClearing(false); onClose(); onChanged(); toast.success("Recent questions cleared"); }}
+      />
+    </>
   );
 }
 

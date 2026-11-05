@@ -239,12 +239,15 @@ await step("tick", async () => {
   await row.getByTestId("home-action-tick").click();
   await p.getByText("Marked done").first().waitFor({ timeout: 8000 });
   await row.waitFor({ state: "detached", timeout: 5000 });
+  if (!/open action item/.test(await p.getByTestId("home-facts").innerText())) fail("facts line lost its count");
   const doc = ok(await api("GET", `/api/v1/documents/${X.plan}`, T.owner), "plan");
   if (!/- \[x\] :person\[Ada Owner\][^\n]*Approve the launch budget/.test(doc.content)) fail("the line wasn't ticked on the page");
   if (/- \[x\][^\n]*Record the product demo/.test(doc.content)) fail("the wrong line was ticked");
-  // Put it back for the other steps.
-  const back = doc.content.replace(/- \[x\] (:person\[Ada Owner\][^\n]*Approve the launch budget)/, "- [ ] $1");
-  ok(await api("PUT", `/api/v1/documents/${X.plan}`, T.owner, { title: doc.title, content: back }), "untick");
+  // Undo (the toast's action) opens it again, and it comes back to the list.
+  await p.getByRole("button", { name: "Undo" }).first().click();
+  await p.getByTestId("home-action").filter({ hasText: "Approve the launch budget" }).waitFor({ timeout: 8000 });
+  const again = ok(await api("GET", `/api/v1/documents/${X.plan}`, T.owner), "plan");
+  if (!/- \[ \] :person\[Ada Owner\][^\n]*Approve the launch budget/.test(again.content)) fail("Undo didn't open the line again");
 });
 
 await step("meetings", async () => {

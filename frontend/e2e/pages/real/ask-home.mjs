@@ -1,10 +1,10 @@
 /**
- * Ask Markdrop on the home, on the REAL stack (up.sh with PB_FAKE_ASK_AI=1 and PB_FAKE_MEETINGS_AI=1, so
- * both run against the fake models in api_run.py): the box is the first thing on /dashboard, an answer
- * streams with numbered sources and a meeting's transcript moment, a follow-up stays in the thread (and
- * survives a reload through ?ask=), the suggested questions (my action items, catch me up), recent
- * questions (open, forget), a private document never reaches another member (not even in an API
- * response), and phones (no sideways scroll, 16px field, 44px targets).
+ * Ask Markdrop from the home, on the REAL stack (up.sh with PB_FAKE_ASK_AI=1 and PB_FAKE_MEETINGS_AI=1, so
+ * both run against the fake models in api_run.py): the home's Ask bar (right under the greeting) sends
+ * the question to the assistant panel, where an answer streams with numbered sources and a meeting's
+ * transcript moment; a follow-up stays in the thread (?ask=<id> opens it again), the chips (my action
+ * items, catch me up), Recent questions (open, forget), a private document never reaches another member
+ * (not even in an API response), and phones (no sideways scroll, 16px field, 44px targets).
  *
  *   PB_FAKE_ASK_AI=1 PB_FAKE_MEETINGS_AI=1 PB_STACK_ID=40 PB_WORK=… zsh up.sh start
  *   PB_STACK_ID=40 PB_WORK=… BROWSER=chromium|webkit [ONLY=ask,followup] node ask-home.mjs
@@ -61,22 +61,29 @@ const meeting = ok(await api("POST", "/api/v1/meetings/import", T.owner, {
 }), "meeting").meetings[0];
 await new Promise((r) => setTimeout(r, 1500)); // the content index follows each save off the request
 
-// The home's box is Ask Markdrop on the shared chat (components/chat): its test ids.
-const box = (p) => p.getByTestId("ask-home");
-const field = (p) => box(p).locator('textarea[aria-label="Your question"]');
+// The home's Ask bar sends to the assistant panel (components/assistant), the shared chat: its test ids.
+const box = (p) => p.getByTestId("assistant");
 const turnsOf = (p) => box(p).locator('ol[aria-label="Conversation"] > li');
 
 async function home(p) {
   await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
-  await box(p).waitFor({ timeout: 15000 });
+  await p.getByTestId("home-ask").waitFor({ timeout: 15000 });
 }
+/** From the home: the Ask bar (the panel opens with the question); in the panel: its own field. */
 async function ask(p, q) {
-  await field(p).fill(q);
-  await field(p).press("Enter");
+  if (await box(p).isVisible().catch(() => false)) {
+    const field = box(p).locator('textarea[aria-label="Your question"]');
+    await field.fill(q);
+    await field.press("Enter");
+    return;
+  }
+  await p.getByTestId("home-ask-input").fill(q);
+  await p.getByTestId("home-ask-input").press("Enter");
+  await box(p).waitFor({ timeout: 10000 });
 }
 /** Waits for the n-th answer (1-based) to finish. */
 async function answered(p, n = 1) {
-  await p.waitForFunction((k) => document.querySelectorAll('[data-testid="ask-home"] ol[aria-label="Conversation"] > li[data-state="done"] .ch-md:not([data-streaming])').length >= k, n, { timeout: 25000 });
+  await p.waitForFunction((k) => document.querySelectorAll('[data-testid="assistant"] ol[aria-label="Conversation"] > li[data-state="done"] .ch-md:not([data-streaming])').length >= k, n, { timeout: 25000 });
 }
 
 // ── Steps ────────────────────────────────────────────────────────────────────
@@ -84,20 +91,21 @@ async function answered(p, n = 1) {
 await step("first", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await home(p);
-  // The first thing in the page's content: above the "My files" heading.
+  // The Ask bar comes right after the greeting, before every section.
   const order = await p.evaluate(() => {
-    const ask = document.querySelector('[data-testid="ask-home"]');
+    const ask = document.querySelector('[data-testid="home-ask"]');
     const h1 = document.querySelector("main h1");
-    return ask && h1 ? !!(ask.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING) : null;
+    const first = document.querySelector('[data-testid="home"] .hm-sec');
+    return ask && h1 && first ? !!(h1.compareDocumentPosition(ask) & Node.DOCUMENT_POSITION_FOLLOWING) && !!(ask.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING) : null;
   });
-  if (order !== true) fail(`Ask Markdrop isn't above the page heading (${order})`);
-  const chips = await box(p).getByTestId("chat-starters").locator("button").allInnerTexts();
+  if (order !== true) fail(`the Ask bar isn't between the greeting and the sections (${order})`);
+  const chips = await p.getByTestId("home-ask").locator("button").allInnerTexts();
   if (!chips.some((c) => /Catch me up/.test(c)) || !chips.some((c) => /action items/.test(c))) fail(`chips: ${chips}`);
-  if (!chips.some((c) => /Release sync/.test(c))) fail(`no meeting suggestion: ${chips}`);
+  if (!chips.some((c) => /Ask my meetings/.test(c))) fail(`no meetings chip: ${chips}`);
   await snap(p, "home-light-1440");
 });
 
-let threadUrl = null;
+let threadId = null;
 await step("ask", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await home(p);
@@ -113,8 +121,8 @@ await step("ask", async () => {
   if (!/Release sync/.test(text)) fail("the meeting isn't a source");
   const moment = src.getByTestId("chat-source-link").filter({ hasText: "Jump to moment" }).first();
   await moment.waitFor({ timeout: 5000 });
-  if (!/[?&]ask=[0-9a-f]{24}/.test(p.url())) fail(`no ?ask= in ${p.url()}`);
-  threadUrl = p.url();
+  threadId = await p.evaluate(() => localStorage.getItem("md_assistant_thread"));
+  if (!/^[0-9a-f]{24}$/.test(threadId || "")) fail(`no saved conversation: ${threadId}`);
   await snap(p, "answer-light-1440");
   // A moment opens the transcript at that line.
   await moment.click();
@@ -122,55 +130,59 @@ await step("ask", async () => {
 });
 
 await step("followup", async () => {
-  if (!threadUrl) fail("no thread from the ask step");
+  if (!threadId) fail("no thread from the ask step");
   const { p } = await ctx(browser, { token: T.member, theme: "dark" });
-  await p.goto(threadUrl, { waitUntil: "networkidle" });
-  await answered(p, 1);                                   // reopened from the URL
+  // ?ask=<id> (a link to a conversation) opens it in the assistant.
+  await p.goto(`${APP}/dashboard?ask=${threadId}`, { waitUntil: "networkidle" });
+  await box(p).waitFor({ timeout: 15000 });
+  await answered(p, 1);
   if ((await turnsOf(p).count()) !== 1) fail("the thread didn't reopen");
+  if (/[?&]ask=/.test(p.url())) fail("?ask= stayed in the address");
   await ask(p, "and the annual discount?");
   await answered(p, 2);
   const qs = await turnsOf(p).locator(".ch-q__bubble").allInnerTexts();
   if (qs.length !== 2 || !/annual discount/.test(qs[1])) fail(`turns: ${qs}`);
   await snap(p, "followup-dark-1440");
-  await p.reload({ waitUntil: "networkidle" });
-  await answered(p, 2);
-  // New chat: back to the home's suggestions, and out of the address.
-  await box(p).getByTestId("chat-new").click();
-  await box(p).getByTestId("chat-starters").waitFor({ timeout: 5000 });
-  await p.waitForTimeout(300);
-  if (/[?&]ask=/.test(p.url())) fail("New chat kept ?ask=");
 });
 
 await step("chips", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await home(p);
-  await box(p).getByTestId("chat-starters").getByRole("button", { name: /open action items/ }).click();
+  await p.getByTestId("home-ask").getByRole("button", { name: /My action items/ }).click();
+  await box(p).waitFor({ timeout: 10000 });
   await answered(p);
   const text = await turnsOf(p).last().innerText();
   if (!/onboarding docs/i.test(text)) fail(`Ben's action item isn't listed: ${text.slice(0, 400)}`);
   if (/dry run tomorrow/i.test(text)) fail("Vic's action item is listed for Ben");
   await snap(p, "actions-light-1440");
-  await box(p).getByTestId("chat-new").click();
-  await box(p).getByTestId("chat-starters").getByRole("button", { name: /Catch me up/ }).click();
-  await answered(p);
-  if (!/week/i.test(await box(p).innerText())) fail("no catch-up");
+  // The home lists the same to-do, without the model.
+  await p.getByTestId("assistant-close").click();
+  const items = await p.getByTestId("home-action").allInnerTexts();
+  if (!items.some((t) => /onboarding docs/i.test(t))) fail(`home action items: ${items}`);
+  await p.getByTestId("home-ask").getByRole("button", { name: /Catch me up/ }).click();
+  await box(p).waitFor({ timeout: 10000 });
+  await p.waitForFunction(() => /week/i.test(document.querySelector('[data-testid="assistant"]')?.innerText || ""), null, { timeout: 25000 });
   await snap(p, "catchup-light-1440");
 });
 
 await step("recent", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await home(p);
-  const rows = box(p).locator("ul li", { has: p.locator('button[aria-label^="Forget"]') });
-  await rows.first().waitFor({ timeout: 10000 });
+  await p.getByTestId("home-ask-history").click();
+  const list = p.getByTestId("home-ask-history-list");
+  await list.waitFor({ timeout: 10000 });
+  const rows = list.locator("li");
   const n = await rows.count();
   if (n < 3) fail(`only ${n} recent questions`);
-  const first = await rows.first().innerText();
   await rows.first().locator('button[aria-label^="Forget"]').click();
-  await p.waitForFunction((k) => document.querySelectorAll('[data-testid="ask-home"] button[aria-label^="Forget"]').length === k, n - 1, { timeout: 10000 });
-  // Open one: the conversation comes back.
+  await p.waitForFunction((k) => document.querySelectorAll('[data-testid="home-ask-history-list"] li').length === k, n - 1, { timeout: 10000 });
+  // Open one: the conversation comes back in the assistant.
+  const title = (await rows.first().locator(".hm-row__title").innerText()).trim();
   await rows.first().locator("button").first().click();
+  await box(p).waitFor({ timeout: 10000 });
   await answered(p);
-  void first;
+  const q = await turnsOf(p).first().locator(".ch-q__bubble").innerText();
+  if (q.trim().slice(0, 20) !== title.slice(0, 20)) fail(`opened "${q}" for "${title}"`);
 });
 
 await step("private", async () => {
@@ -181,8 +193,6 @@ await step("private", async () => {
   await ask(p, "What are the release salaries zebra?");
   await answered(p).catch(() => {});
   await p.waitForTimeout(800);
-  // Only what's IN the private document counts (its slug, title, body); the question's own words come back
-  // as the search terms ("searching" status), which is the asker's text, not a leak.
   const leak = bodies.filter((b) => /release-salaries|Release salaries zebra|Confidential|bonus pool/.test(b.body));
   if (leak.length) fail(`a response carried the private document: ${leak[0].url}`);
   if (!bodies.some((b) => /\/api\/v1\/ask$/.test(b.url))) fail("no ask request was seen");
@@ -193,9 +203,9 @@ await step("phone", async () => {
     const { c, p } = await ctx(browser, { token: T.member, theme, width: 390, height: 844, mobile: true });
     await home(p);
     const m = await p.evaluate(() => {
-      const f = document.querySelector('[data-testid="ask-home"] textarea[aria-label="Your question"]');
-      const send = document.querySelector('[data-testid="ask-home"] [data-testid="chat-send"]');
-      const chip = document.querySelector('[data-testid="ask-home"] [data-testid="chat-starters"] button');
+      const f = document.querySelector('[data-testid="home-ask-input"]');
+      const send = document.querySelector('[data-testid="home-ask"] button[type="submit"]');
+      const chip = document.querySelector('[data-testid="home-ask"] .hm-chip');
       const r = (el) => el?.getBoundingClientRect();
       return {
         scroll: document.scrollingElement.scrollWidth, width: window.innerWidth,
@@ -205,7 +215,7 @@ await step("phone", async () => {
     });
     if (m.scroll > m.width + 1) fail(`sideways scroll on a phone: ${m.scroll} > ${m.width}`);
     if (m.font !== "16px") fail(`field font ${m.font}`);
-    if (BROWSER === "chromium" && (m.send[0] < 39 || m.send[1] < 39 || m.chip < 44)) fail(`small targets: send ${m.send}, chip ${m.chip}`);
+    if (BROWSER === "chromium" && (m.send[0] < 44 || m.send[1] < 44 || m.chip < 44)) fail(`small targets: send ${m.send}, chip ${m.chip}`);
     await snap(p, `home-${theme}-390`);
     await ask(p, "When do we ship the release?");
     await answered(p);

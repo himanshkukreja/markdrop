@@ -62,7 +62,6 @@ const CLASSIC = ok(await api("POST", "/api/v1/documents", T.admin, {
 await new Promise((r) => setTimeout(r, 2000)); // the content index follows each save off the request
 
 const panel = (p) => p.getByTestId("assistant");
-const homeBox = (p) => p.getByTestId("ask-home");
 const fieldIn = (root) => root.locator('textarea[aria-label="Your question"]');
 const turns = (root) => root.locator('ol[aria-label="Conversation"] > li');
 async function ask(root, q) {
@@ -86,16 +85,19 @@ const editorOf = (p) => p.locator('.pb-live .ProseMirror[contenteditable="true"]
 // ── Steps ────────────────────────────────────────────────────────────────────
 
 await step("home", async () => {
+  // The home's Ask bar sends the question to the assistant (the panel, Everything).
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
-  await homeBox(p).waitFor({ timeout: 20000 });
-  const starters = await homeBox(p).getByTestId("chat-starters").locator("button").allInnerTexts();
-  if (!starters.some((s) => /Catch me up/.test(s))) fail(`starters: ${starters}`);
+  await p.getByTestId("home-ask").waitFor({ timeout: 20000 });
+  const chips = await p.getByTestId("home-ask").locator("button").allInnerTexts();
+  if (!chips.some((s) => /Catch me up/.test(s))) fail(`chips: ${chips}`);
   await shot(p, "as01-home");
-  await ask(homeBox(p), "When do we ship the checkout redesign?");
-  await answered(homeBox(p));
-  if (!(await homeBox(p).getByTestId("chat-cite").count())) fail("no citation chips");
-  if (!/[?&]ask=[0-9a-f]{24}/.test(p.url())) fail(`no ?ask= in ${p.url()}`);
+  await p.getByTestId("home-ask-input").fill("When do we ship the checkout redesign?");
+  await p.getByTestId("home-ask-input").press("Enter");
+  await panel(p).waitFor({ timeout: 15000 });
+  await answered(panel(p));
+  if (!(await panel(p).getByTestId("chat-cite").count())) fail("no citation chips");
+  if ((await scopeOn(p)) !== "assistant-scope-everything") fail(`home asks on ${await scopeOn(p)}`);
   await shot(p, "as02-home-answer");
 });
 
@@ -103,10 +105,13 @@ await step("continue", async () => {
   // One conversation: asked on the home, continued on a page with ⌘J.
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
-  await homeBox(p).waitFor({ timeout: 20000 });
-  await ask(homeBox(p), "What did the team agree about the checkout?");
-  await answered(homeBox(p));
-  const tid = new URL(p.url()).searchParams.get("ask");
+  await p.getByTestId("home-ask").waitFor({ timeout: 20000 });
+  await p.getByTestId("home-ask-input").fill("What did the team agree about the checkout?");
+  await p.getByTestId("home-ask-input").press("Enter");
+  await panel(p).waitFor({ timeout: 15000 });
+  await answered(panel(p));
+  const tid = await p.evaluate(() => localStorage.getItem("md_assistant_thread"));
+  if (!tid) fail("no conversation saved");
   await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
   await p.locator(".pb-frame, .pb-live").first().waitFor({ timeout: 30000 });
   await p.locator("body").click({ position: { x: 5, y: 300 } }).catch(() => {});
