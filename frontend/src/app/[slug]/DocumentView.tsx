@@ -232,8 +232,9 @@ export default function DocumentView(props: DocumentViewProps) {
   useEffect(() => {
     if (!canEditPage || !v.flagsReady || pageMode?.slug === slug) return;
     const apply = new URLSearchParams(window.location.search).get("apply") === "insight";
-    setPageMode({ slug, mode: v.startInEdit || apply || pageBodyEmpty ? "edit" : "view" });
-  }, [canEditPage, v.flagsReady, slug, pageMode, v.startInEdit, pageBodyEmpty]);
+    // (`editing`: they asked for the editor before it could open, e.g. ⋯ › Edit and the edit secret.)
+    setPageMode({ slug, mode: v.startInEdit || apply || pageBodyEmpty || editing ? "edit" : "view" });
+  }, [canEditPage, v.flagsReady, slug, pageMode, v.startInEdit, pageBodyEmpty, editing]);
   const pageEditable = canEditPage && editMode && !showRaw;
   const [editorReady, setEditorReady] = useState(false);
   useEffect(() => {

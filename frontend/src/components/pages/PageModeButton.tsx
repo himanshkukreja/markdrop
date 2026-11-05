@@ -35,8 +35,9 @@ export function PageModeButton({ mode, onClick, busy = false }: { mode: "edit" |
 }
 
 /** Put the focus on the bar's mode button once it's on screen (after Edit or Done swapped the bar). */
-export function focusPageMode(which: "edit" | "done", tries = 40) {
-  const el = document.querySelector<HTMLElement>(`[data-page-mode="${which}"]`);
-  if (el) el.focus({ preventScroll: true });
-  else if (tries > 0) window.setTimeout(() => focusPageMode(which, tries - 1), 50);
+export function focusPageMode(which: "edit" | "done", tries = 200) {
+  // (The editor's bar is in the DOM, hidden, while the editor loads: focus only takes once it shows.)
+  const el = Array.from(document.querySelectorAll<HTMLElement>(`[data-page-mode="${which}"]`)).find((b) => !b.closest("[aria-hidden='true'], .pb-preload"));
+  el?.focus({ preventScroll: true });
+  if ((!el || document.activeElement !== el) && tries > 0) window.setTimeout(() => focusPageMode(which, tries - 1), 50);
 }
