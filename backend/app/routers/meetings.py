@@ -130,6 +130,9 @@ class StatusBody(BaseModel):
     skipped: dict[str, int] | None = None
     errors: list[dict[str, Any]] | None = Field(None, max_length=20)
     search: str | None = Field(None, max_length=20)
+    remaining: int | None = Field(None, ge=0, le=1_000_000)    # v3: Docs left for the next run (time budget)
+    shared_drives: Literal["on", "off"] | None = None          # v3: "off": the Drive API is off in the script's project
+    drive_project: str | None = Field(None, max_length=40)    # …and that project (for the link that turns it on)
     queue_done: list[str] | None = Field(None, max_length=100)
     queue_failed: list[dict[str, Any]] | None = Field(None, max_length=100)
 
