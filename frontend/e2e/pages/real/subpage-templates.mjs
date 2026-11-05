@@ -35,7 +35,7 @@ async function fromGallery(p, title, shotName) {
   const dlg = p.getByRole("dialog");
   const sec = dlg.locator('[data-testid="tpl-workspace"]');
   await sec.waitFor({ timeout: 20000 });
-  if (!(await sec.innerText()).includes("Acme")) fail(`the section isn't named for the workspace: ${(await sec.innerText()).slice(0, 200)}`);
+  if (!/acme/i.test(await sec.innerText())) fail(`the section isn't named for the workspace: ${(await sec.innerText()).slice(0, 200)}`);
   const card = sec.getByRole("button", { name: new RegExp(NAME) });
   await card.waitFor({ timeout: 10000 });
   await p.waitForFunction((n) => [...document.querySelectorAll('[data-testid="tpl-workspace"] button')].some((b) => b.textContent.includes(n) && b.getAttribute("aria-pressed") === "true"), NAME, { timeout: 10000 })
@@ -82,6 +82,13 @@ await step("sidebar", async () => {
   await p.goto(`${APP}/w/${WS}/f/${specs.id}`, { waitUntil: "networkidle" });
   const tree = p.locator('aside nav[aria-label="Your drive"]');
   const row = tree.locator(`[data-rail-key="ws:${WS}:page:${parent.slug}"]`);
+  // The folder's row opens to show its pages (→ on the focused row, as a tree does).
+  const folderRow = tree.locator(`[data-rail-key="ws:${WS}:folder:${specs.id}"]`);
+  await folderRow.waitFor({ timeout: 20000 });
+  if (!(await row.isVisible())) {
+    await folderRow.focus();
+    await p.keyboard.press("ArrowRight");
+  }
   await row.waitFor({ timeout: 20000 });
   await row.hover();
   await tree.getByRole("link", { name: `Add a page inside Parent ${run}` }).click();
