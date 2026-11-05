@@ -3,7 +3,10 @@
 // The scenario: {files: [{id, name, created, modified, owned, owner?, parents?, driveId?, mime?, doc?, text?}],
 // folders?: [{id, name}], responses: [code…] (the inbox's answers), statusResponses?: [{code, body}…],
 // queue?: [file ids] (handed out by the first 'start' status), runs: ["setup" | "syncMeetings" | "check" …],
-// docsFails?: bool, driveFails?: bool (Drive v3 errors: the script falls back to DriveApp). Prints a JSON report.
+// docsFails?: bool, driveFails?: bool (Drive v3 errors: the script falls back to DriveApp),
+// driveOff?: bool (Drive v3 answers Google's 403 "Drive API has not been used in project … or it is disabled").
+// The clock is fake: it starts at `now` (ISO; default the real time), each delivery to the inbox takes
+// `sendMs` (default 0) and `runGapMs` passes between runs (default 0). Prints a JSON report.
 const fs = require("fs");
 const vm = require("vm");
 
@@ -12,6 +15,18 @@ const code = fs.readFileSync(scriptPath, "utf8");
 const sc = JSON.parse(fs.readFileSync(scenarioPath, "utf8"));
 
 const report = { posts: [], statuses: [], triggers: [], deletedTriggers: 0, searches: [], v3: [], logs: [], exports: [] };
+const DRIVE_OFF = JSON.stringify({ error: { code: 403, message: "Google Drive API has not been used in project 1034426400429 " +
+  "before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=1034426400429 then retry.",
+  errors: [{ reason: "accessNotConfigured" }], status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } });
+
+// The fake clock: `new Date()` and `Date.now()` read it; explicit dates are real.
+let clock = sc.now ? new Date(sc.now).getTime() : Date.now();
+const RealDate = Date;
+class FakeDate extends RealDate {
+  constructor(...args) { super(...(args.length ? args : [clock])); }
+  static now() { return clock; }
+}
+
 const statusResponses = (sc.statusResponses || []).slice();
 let queue = (sc.queue || []).slice();
 
@@ -27,6 +42,7 @@ function v3File(f) {
 }
 
 function driveV3(url) {
+  if (sc.driveOff) return { getResponseCode: () => 403, getContentText: () => DRIVE_OFF };
   if (sc.driveFails) return { getResponseCode: () => 403, getContentText: () => "Drive API off" };
   const u = new URL(url);
   const q = u.searchParams.get("q") || "";
@@ -65,8 +81,9 @@ const sandbox = {
   console: {
     log: (m) => report.logs.push(String(m)),
     warn: (m) => report.logs.push("WARN " + String(m)),
+    info: (m) => report.logs.push("INFO " + String(m)),
   },
-  Date, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
+  Date: FakeDate, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
   LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
   PropertiesService: {
     getScriptProperties: () => ({
@@ -113,7 +130,7 @@ const sandbox = {
         const body = JSON.parse(opts.payload);
         report.statuses.push(Object.assign({ auth: opts.headers.Authorization }, body));
         const r = statusResponses.length ? statusResponses.shift() : { code: 200 };
-        let out = r.body || { ok: true, latest_version: 2 };
+        let out = r.body || { ok: true, latest_version: 3 };
         if (body.phase === "start" && !r.body) { out = Object.assign({ queue: queue.map((id) => ({ file_id: id })) }, out); queue = []; }
         return { getResponseCode: () => r.code, getContentText: () => JSON.stringify(out) };
       }
@@ -124,6 +141,7 @@ const sandbox = {
         return { getContentText: () => f.text || "", getResponseCode: () => 200 };
       }
       const status = responses.length ? responses.shift() : 200;
+      clock += sc.sendMs || 0;
       report.posts.push({ url, auth: opts.headers.Authorization, method: opts.method, body: JSON.parse(opts.payload), status });
       return { getResponseCode: () => status, getContentText: () => JSON.stringify({ status: status < 300 ? "imported" : "error" }) };
     },
@@ -131,9 +149,13 @@ const sandbox = {
 };
 vm.createContext(sandbox);
 vm.runInContext(code, sandbox, { filename: "Code.gs" });
-for (const fn of sc.runs || ["setup"]) vm.runInContext(fn.includes("(") ? fn : fn + "()", sandbox);
+(sc.runs || ["setup"]).forEach((fn, i) => {
+  if (i) clock += sc.runGapMs || 0;
+  vm.runInContext(fn.includes("(") ? fn : fn + "()", sandbox);
+});
 report.triggers = triggers.map((t) => ({ fn: t.fn, every: t.every }));
 report.props = Object.keys(props).filter((k) => !k.startsWith("sent:"));
+report.propValues = Object.fromEntries(report.props.map((k) => [k, props[k]]));
 report.sent = Object.keys(props).filter((k) => k.startsWith("sent:")).map((k) => k.slice(5)).sort();
-report.constants = vm.runInContext("({endpoint: MARKDROP_ENDPOINT, token: MARKDROP_TOKEN, lookback: LOOKBACK_HOURS, version: SCRIPT_VERSION, shared: INCLUDE_SHARED})", sandbox);
+report.constants = vm.runInContext("({endpoint: MARKDROP_ENDPOINT, token: MARKDROP_TOKEN, lookback: LOOKBACK_HOURS, version: SCRIPT_VERSION, maxPerRun: MAX_PER_RUN, shared: INCLUDE_SHARED})", sandbox);
 process.stdout.write(JSON.stringify(report));

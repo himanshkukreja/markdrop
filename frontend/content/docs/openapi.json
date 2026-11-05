@@ -21883,6 +21883,46 @@
             ],
             "title": "Search"
           },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 1000000,
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
+          },
+          "shared_drives": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "on",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Drives"
+          },
+          "drive_project": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Drive Project"
+          },
           "queue_done": {
             "anyOf": [
               {

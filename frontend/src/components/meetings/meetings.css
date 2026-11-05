@@ -234,6 +234,8 @@
 .mt-conn__run, .mt-conn__update { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
 .mt-conn__run > svg { width: 14px; height: 14px; flex: none; color: var(--text-muted); }
 .mt-conn__hint { flex-basis: 100%; font-size: 12.5px; line-height: 18px; color: var(--text-muted); }
+.mt-conn__hint a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.mt-conn__hint a:hover { color: var(--text-secondary); }
 .mt-connect__fine--tight { margin-top: -8px; }
 @media (max-width: 639px) { .mt-code__pre { font-size: 11.5px; } .mt-conn__err { max-width: 100%; } }
 @media (pointer: coarse), (max-width: 639px) { .mt-code__bar .md-btn, .mt-conn .md-btn { min-height: 44px; } }

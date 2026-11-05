@@ -124,6 +124,12 @@ export interface MeetScriptRun {
   skipped: Partial<Record<MeetSkipReason, number>>;
   errors: { title: string; error: string }[];
   search: string | null;
+  /** v3: Docs left for the next run (a run sends for about 4½ minutes). */
+  remaining?: number;
+  /** v3: "off": the Drive API is off in the script's project, so shared drives aren't searched (optional). */
+  shared_drives?: "on" | "off" | null;
+  /** Google Cloud's page that turns the Drive API on for that project (when shared_drives is "off"). */
+  drive_api_url?: string | null;
 }
 
 export function getMeetConnection(workspace: string) {

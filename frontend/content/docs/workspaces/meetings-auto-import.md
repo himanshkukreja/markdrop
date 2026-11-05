@@ -43,7 +43,7 @@ Then, in Google:
 ## What the script can see and do
 
 - **It reads only meeting Docs.** It looks at Google Docs whose title looks like a Meet transcript ("*Meeting name* (date) - Transcript") or Gemini's notes ("*Meeting name* - date - Notes by Gemini"), created in the last 48 hours. Google's titles in other languages count too ("Transcripción", "Notizen von Gemini" and so on), and so does any Doc in a **Meet Recordings** folder. Other files are never opened.
-- **Yours and the ones shared with you.** A meeting someone else organized lives in their Drive and is shared with the attendees: the script finds those too, and Docs in shared drives. Someone else's Doc must look like Meet's own (Gemini's notes, or the call's date and time in the title), so a teammate's "Plan - Notes" isn't sent. With **Include meetings shared with me** off (`INCLUDE_SHARED = false` at the top of the script), only Docs you own are sent.
+- **Yours and the ones shared with you.** A meeting someone else organized lives in their Drive and is shared with the attendees: the script finds those too, and Docs in shared drives (that part is optional: see [Shared-drive search is off](#troubleshooting)). Someone else's Doc must look like Meet's own (Gemini's notes, or the call's date and time in the title), so a teammate's "Plan - Notes" isn't sent. With **Include meetings shared with me** off (`INCLUDE_SHARED = false` at the top of the script), only Docs you own are sent.
 - **Once per call.** When several attendees connect, a call's Doc is imported once: the second script's copy is recognized as the same Drive file (or the same call) and skipped.
 - **Read-only.** Google grants it read-only Drive access (`drive.readonly`), permission to call Markdrop (`script.external_request`) and to schedule itself (`script.scriptapp`). It never edits, moves or deletes anything in your Drive.
 - **Its own token.** The token in the script can only send meetings to this workspace's inbox. It can't read your documents, act as you anywhere else, or be used with the API or MCP. It isn't listed with your [API tokens](/account/api-tokens), and the meetings it imports are yours, as if you had imported them.
@@ -57,13 +57,15 @@ Each run tells Markdrop how it went, and the Meetings page shows it under **Goog
 
 - **Found** is the meeting Docs the run could send; **sent** is how many it sent (Docs it sent before aren't counted again).
 - **Skipped** says why the other Docs it looked at were left out: *not titled like Meet*, *shared with you (not included)*, *older than it looks back*, *still being written* (sent next run). Markdrop only gets these counts, never the skipped Docs or their names.
+- **More in the next run**: a run sends for about 4½ minutes (Google stops a script at 6), so a big pile of Docs takes a run or two. The line then says how many wait: "sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now".
 - A Doc the script couldn't read, or Markdrop turned away, shows as an error with its title.
+- *Shared drives aren't searched* is a hint, not an error: see [Shared-drive search is off](#troubleshooting).
 
 To see the list itself, open the project in Apps Script, pick `check` next to **Run** and press **Run**. It lists every Doc it would send and why it skips the others, in the **Execution log**, and sends nothing.
 
 ## Update the script
 
-When Markdrop has a newer script than the one you installed, the Meetings page shows **New script** with **Get the new script**. Scripts installed before November 5, 2026 don't import meetings shared with you and don't report their runs, so update them:
+When Markdrop has a newer script than the one you installed, the Meetings page shows **New script** with **Get the new script**. Scripts installed before November 5, 2026 don't import meetings shared with you and don't report their runs, so update them. Version 3 (also November 5) sends as many Docs as a run has time for instead of 20, and says when the Drive API is off in one calm line:
 
 1. Select **Get the new script** (or **New script**), choose your options and select **Make a new script**. The old script's token stops working.
 2. Open your existing project at [script.google.com](https://script.google.com/home), replace everything in `Code.gs` with the new script and press **Save**. The manifest hasn't changed.
@@ -73,7 +75,7 @@ When Markdrop has a newer script than the one you installed, the Meetings page s
 
 When you connect, the script can also bring in the meetings already in your Drive: the last 7, 30 or 90 days.
 
-- **Oldest first**, 20 Docs a run, so a long history takes a few runs (15 minutes apart). The script's log in Apps Script says **Backfill finished** when it's done.
+- **Oldest first**, as many as a run has time for (about 4½ minutes, at most 200 Docs), so a long history takes a run or two, 15 minutes apart. To send the next batch right away, pick `syncMeetings` next to **Run** and press **Run**. The script's log in Apps Script says **Backfill finished** when it's done.
 - **Nobody is notified.** A past meeting's action items still name their owners, and the @mentions are links, but no one gets a notification or an email about a call that's long over. Meetings from the last 48 hours notify as usual.
 - **Dated by the call**, not by the import: the date in Google's title, or when Google made the Doc. The Meetings page lists them by date.
 - **No duplicates.** Meetings already in the workspace, imported by hand or by an earlier run, are skipped.
@@ -109,12 +111,26 @@ That's expected for a script you wrote yourself: only apps published to other pe
 - A Doc without a transcript or notes in it (an empty one, or a shopping list called "… - Notes") is skipped and counted as ignored.
 :::
 
+:::details[Shared-drive search is off (the Drive API message)]
+The script's log may start with: *Shared-drive search is off (optional: enable the Drive API for this script's project: …). Using your Drive and files shared with you — meetings shared with you are still imported.* The Meetings page shows the same as a small hint: **Shared drives aren't searched**.
+
+Nothing is wrong. Google leaves the Drive API off in a new script's own project, and the script only needs it to look in **shared drives** (and in **Meet Recordings** folders there). Without it, the script searches your Drive and the files shared with you, so your meetings and the ones someone else organized are still imported. The script says it once a day, not every run.
+
+If your team keeps meeting notes in a shared drive, turn it on: open the link in the log (or **enable the Drive API** on the Meetings page), check that the project number matches the one in the log, and select **Enable**. The next run searches shared drives too, and the hint goes away.
+:::
+
+:::details[It found more than it sent]
+"Sent 60 of 79 · 19 more in the next run" means the run used its time: a run sends for about 4½ minutes (at most 200 Docs; Google stops a script at 6), and the rest wait for the next run, 15 minutes later. Nothing is lost or sent twice. To send the next batch now, open the project in Apps Script, pick `syncMeetings` next to **Run** and press **Run**.
+
+To send fewer per run, set `var MAX_PER_RUN` at the top of the script (`0`, the default, lets the time decide).
+:::
+
 :::details[Import older meetings]
-Set `var BACKFILL_DAYS` at the top of the script to how many days to go back, for example `180` (up to 366), pick `backfill` and press **Run**. It continues on its own, 20 Docs every 15 minutes, until **Backfill finished** shows in the log. Meetings already in the workspace aren't imported twice, and nobody is notified about past ones. See [Past meetings](#past-meetings).
+Set `var BACKFILL_DAYS` at the top of the script to how many days to go back, for example `180` (up to 366), pick `backfill` and press **Run**. It continues on its own, a run's worth every 15 minutes, until **Backfill finished** shows in the log. Meetings already in the workspace aren't imported twice, and nobody is notified about past ones. See [Past meetings](#past-meetings).
 :::
 
 :::details[Google's quotas]
-Google limits how long scripts run each day (about 90 minutes for a personal account, 6 hours for Google Workspace) and how many calls they make. A run takes a few seconds, so a busy calendar stays far below them. Markdrop takes up to 30 Docs a minute and 600 a day from one script; more wait for the next run.
+Google limits how long scripts run each day (about 90 minutes for a personal account, 6 hours for Google Workspace) and how many calls they make. A run takes a few seconds (up to about 4½ minutes while it catches up on a backlog), so a busy calendar stays far below them. Markdrop takes up to 30 Docs a minute and 600 a day from one script; more wait for the next run.
 :::
 
 :::details[My teammate and I both connected]
