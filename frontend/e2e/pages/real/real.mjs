@@ -492,6 +492,9 @@ await step("trash", async () => {
   await dlg.getByRole("button", { name: /Move to Trash/ }).click();
   await p.locator(".md-toast", { hasText: /to Trash/ }).first().waitFor({ timeout: 10000 });
   await waitStatus(inner, 404);
+  // The deleted folder's page moves on to its parent by itself: let it, or it cuts the next goto short.
+  await p.waitForURL((u) => !u.pathname.endsWith(`/f/${sub}`), { timeout: 10000 }).catch(() => {});
+  await p.waitForLoadState("networkidle").catch(() => {});
   await p.goto(`${APP}/trash`, { waitUntil: "networkidle" });
   const frow = p.locator("li", { hasText: "Old handbook" }).first();
   await frow.waitFor({ timeout: 20000 });
@@ -517,10 +520,22 @@ for (const [theme, width] of [["dark", 1440], ["light", 390], ["dark", 390]]) {
 }
 await step("editor-dark-390", async () => {
   const { c, p } = await ctx(browser, { token: T.owner, theme: "dark", width: 390, height: 844 });
+  const locks = [];
+  p.on("request", (r) => {
+    if (r.method() === "POST" && /\/lock(\?|$)/.test(r.url())) locks.push(r.url());
+  });
   await p.goto(`${APP}/${state.slug}?edit=1`, { waitUntil: "networkidle" });
   await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 20000 });
   await shot(p, "17-editor-390-dark", { wait: 2000 });
+  // Opening takes nothing here either (a lock left behind would hold the next steps' editors off).
+  const lk = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (lk.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  const focus = await p.evaluate(() => {
+    const a = document.activeElement;
+    return a ? `${a.tagName.toLowerCase()}${a.className ? `.${String(a.className).split(" ").slice(0, 3).join(".")}` : ""}` : "none";
+  });
   await c.close();
+  if (lk.status !== 200) fail(`opening the editor at 390 px took the lock (${lk.status}); it sent ${locks.length} lock requests; focus on ${focus}`);
 });
 await step("anonymous-dark", async () => {
   const { c, p } = await ctx(browser, { theme: "dark" });

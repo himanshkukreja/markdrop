@@ -94,19 +94,30 @@ await step("typing-undo", async () => {
   });
   await p.locator(".pb-live .ProseMirror").evaluate((el) => {
     const t0 = performance.now();
-    window.__pbTrs = [];
-    el.editor?.on("transaction", ({ transaction: tr, appendedTransactions: more }) => {
+    const at = () => `${Math.round(performance.now() - t0)}`;
+    window.__pbLog = [];
+    const ed = el.editor;
+    const hist = () => {
+      const h = ed?.state.plugins.find((pl) => pl.key.startsWith("history$"))?.getState(ed.state);
+      return h ? `${h.done.eventCount}/${h.undone.eventCount}` : "?";
+    };
+    ed?.on("transaction", ({ transaction: tr, appendedTransactions: more }) => {
       if (![tr, ...(more ?? [])].some((t) => t.docChanged)) return;
       const keys = (t) => Object.keys(t.meta ?? {}).filter((k) => k !== "appendedTransaction").join(",");
-      window.__pbTrs.push(`${Math.round(performance.now() - t0)}ms ${tr.docChanged ? "doc" : "-"}[${keys(tr)}]${tr.getMeta("addToHistory") === false ? " nohist" : ""}${more?.length ? ` +${more.map(keys).join("|")}` : ""}`);
+      window.__pbLog.push(`${at()} tr${tr.docChanged ? "" : "(nodoc)"}[${keys(tr)}]${more?.length ? `+[${more.map(keys).join("|")}]` : ""} h=${hist()}`);
     });
+    // What the browser did with the keys after the editor saw them (bubbling to the window).
+    window.addEventListener("keydown", (e) => {
+      if (e.key.length === 1) window.__pbLog.push(`${at()} key ${e.ctrlKey ? "C-" : ""}${e.metaKey ? "M-" : ""}${e.shiftKey ? "S-" : ""}${e.key}${e.defaultPrevented ? " handled" : " UNHANDLED"}`);
+    });
+    for (const t of ["beforeinput", "input"]) window.addEventListener(t, (e) => window.__pbLog.push(`${at()} ${t} ${e.inputType}`), true);
   });
   const before = await history();
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+z`);
   md = await settle(p, slug, (m) => !m.trim());
   if (md.trim()) fail(`undo all left ${JSON.stringify(md)}`);
   const undone = await history();
-  await p.evaluate(() => (window.__pbTrs = []));
+  await p.evaluate(() => (window.__pbLog = []));
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+z`);
   md = await settle(p, slug, (m) => m === want);
   if (md !== want) {
@@ -114,10 +125,13 @@ await step("typing-undo", async () => {
     // and what changed the document during the redos besides the redos themselves.
     const shown = await p.locator(".pb-live .ProseMirror").innerText();
     const after = await history();
-    const trs = await p.evaluate(() => [`${window.__pbTrs.filter((t) => t.includes("history$")).length} redo changes`, ...window.__pbTrs.filter((t) => !t.includes("history$")).slice(0, 12)]);
+    // The redo log from the first press that didn't move the history forward.
+    const log = await p.evaluate(() => window.__pbLog);
+    const firstKeys = log.findIndex((l, i) => i > 0 && / key /.test(l) && / key /.test(log[i - 1]));
+    const trs = log.slice(0, 40).concat(firstKeys > 40 ? ["…", ...log.slice(firstKeys - 6, firstKeys + 6)] : []);
     for (let i = 0; i < 40; i++) await p.keyboard.press(`${mod}+Shift+z`);
     const more = await settle(p, slug, (m) => m === want, 8000);
-    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; 40 more redos saved ${JSON.stringify(more.slice(-60))}; history typed ${JSON.stringify(before)} undone ${JSON.stringify(undone)} redone ${JSON.stringify(after)}; changes during the redos: ${trs.join(" ; ")}`);
+    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; 40 more redos saved ${JSON.stringify(more.slice(-60))}; history typed ${JSON.stringify(before)} undone ${JSON.stringify(undone)} redone ${JSON.stringify(after)}; the redos: ${trs.join(" ; ")}`);
   }
   await c.close();
 });
