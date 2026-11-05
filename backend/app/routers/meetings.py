@@ -91,6 +91,14 @@ class ConnectBody(BaseModel):
     backfill_days: Literal[0, 7, 30, 90] = 0
     # The browser's time zone (IANA), to date a Doc without a date in its title.
     tz: str | None = Field(None, max_length=64)
+    # Also the meetings shared with this person (organized by someone else: the Docs live in their Drive).
+    include_shared: bool = True
+
+
+class DriveOwner(BaseModel):
+    name: str | None = Field(None, max_length=200)
+    email: str | None = Field(None, max_length=320)
+    me: bool | None = None
 
 
 class InboxBody(BaseModel):
@@ -98,11 +106,31 @@ class InboxBody(BaseModel):
     file_id: str = Field(..., min_length=1, max_length=200)
     title: str | None = Field(None, max_length=500)
     created: str | None = Field(None, max_length=40)
-    kind_hint: Literal["transcript", "notes"] | None = None
+    kind_hint: Literal["transcript", "notes", "unknown"] | None = None
     text: str = Field(...)
     doc_url: str | None = Field(None, max_length=500)
     # Sent by the script's backfill: a past meeting, imported without notifying anyone.
     backfill: bool = False
+    # v2: the script's version; the Doc's owner in Drive (who organized the call); a Doc someone asked for by link.
+    version: int | None = Field(None, ge=1, le=1000)
+    owner: DriveOwner | None = None
+    requested: bool = False
+
+
+class StatusBody(BaseModel):
+    phase: Literal["start", "done"] = "done"
+    version: int = Field(1, ge=1, le=1000)
+    mode: str | None = Field(None, max_length=12)
+    include_shared: bool | None = None
+    lookback_hours: int | None = None
+    found: int | None = None
+    sent: int | None = None
+    results: dict[str, int] | None = None
+    skipped: dict[str, int] | None = None
+    errors: list[dict[str, Any]] | None = Field(None, max_length=20)
+    search: str | None = Field(None, max_length=20)
+    queue_done: list[str] | None = Field(None, max_length=100)
+    queue_failed: list[dict[str, Any]] | None = Field(None, max_length=100)
 
 
 class PatchBody(BaseModel):
@@ -232,9 +260,11 @@ async def connect(request: Request, body: ConnectBody, db: AsyncIOMotorDatabase 
     from app.services import workspace as ws_service
 
     ws = _ws(body.workspace)
-    raw, rec = await meetings_inbox.connect(db, user, ws, restricted=body.restricted, tz=body.tz)
+    raw, rec = await meetings_inbox.connect(db, user, ws, restricted=body.restricted, tz=body.tz,
+                                            include_shared=body.include_shared)
     w = await ws_service.get_workspace(db, ws)
-    return {"token": raw, "script": meetings_inbox.script(raw, getattr(w, "name", "") or "", backfill_days=body.backfill_days),
+    return {"token": raw, "script": meetings_inbox.script(raw, getattr(w, "name", "") or "", backfill_days=body.backfill_days,
+                                                          include_shared=body.include_shared),
             "manifest": meetings_inbox.manifest(), "endpoint": meetings_inbox.endpoint(),
             "connection": await meetings_inbox.view(db, rec, viewer_id=user.id)}
 
@@ -277,6 +307,21 @@ async def inbox(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=f"That isn't a delivery from the Google Meet script ({str(exc)[:200]}).")
     return await meetings_inbox.receive(db, rec, body.model_dump())
+
+
+@router.post("/inbox/status", openapi_extra={"x-markdrop": {"auth": "token"}})
+@limiter.limit("30/minute", key_func=_inbox_key)
+@limiter.limit("600/day", key_func=_inbox_key)
+async def inbox_status(request: Request, body: StatusBody, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """How a run of the Google Meet script went (Bearer: its ``meetings:import`` token): 'start' →
+    {queue: the Docs asked for by link, to fetch first; latest_version}; 'done' → counts (found, sent,
+    skipped by reason), errors. Shown on the Meetings page."""
+    auth = request.headers.get("Authorization", "")
+    raw = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+    rec = await api_token.verify_scoped(db, raw, meetings_inbox.SCOPE) if raw else None
+    if rec is None:
+        raise HTTPException(status_code=401, detail="This script is disconnected. Connect Google Meet again in Markdrop.")
+    return await meetings_inbox.run_status(db, rec, body.model_dump())
 
 
 @router.get("")

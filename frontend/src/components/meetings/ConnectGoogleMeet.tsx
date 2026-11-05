@@ -18,7 +18,8 @@ import {
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { relativeTime } from "@/components/dashboard/format";
 import {
-  BACKFILL_DAYS, connectGoogleMeet, disconnectGoogleMeet, getMeetConnection, type MeetConnection,
+  BACKFILL_DAYS, connectGoogleMeet, disconnectGoogleMeet, getMeetConnection, type MeetConnection, type MeetScriptRun,
+  type MeetSkipReason,
 } from "@/lib/meetings";
 import "./meetings.css";
 
@@ -35,15 +36,16 @@ export interface ConnectGoogleMeetProps {
 export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, current, onConnected }: ConnectGoogleMeetProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const [restricted, setRestricted] = useState(false);
+  const [shared, setShared] = useState(true);
   const [past, setPast] = useState<(typeof BACKFILL_DAYS)[number]>(30);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [made, setMade] = useState<{ script: string; manifest: string; past: number } | null>(null);
+  const [made, setMade] = useState<{ script: string; manifest: string; past: number; update: boolean } | null>(null);
   const primary = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) return;
-    setRestricted(false); setPast(30); setBusy(false); setError(null); setMade(null);
+    setRestricted(false); setShared(true); setPast(30); setBusy(false); setError(null); setMade(null);
   }, [open]);
 
   const create = async () => {
@@ -52,8 +54,8 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
     try {
       let tz: string | undefined;
       try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* no zone: dated as Google wrote it */ }
-      const r = await connectGoogleMeet({ workspace: workspaceId, restricted, backfill_days: past, tz });
-      setMade({ script: r.script, manifest: r.manifest, past });
+      const r = await connectGoogleMeet({ workspace: workspaceId, restricted, backfill_days: past, tz, include_shared: shared });
+      setMade({ script: r.script, manifest: r.manifest, past, update: !!current });
       onConnected?.(r.connection);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't connect. Try again.");
@@ -70,6 +72,13 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
       <Alert tone="success" title="Your script is ready">
         It holds a token that only imports meetings into {wsName}. It's shown this once: copy it now (Connect again later for a new one).
       </Alert>
+      {made.update && (
+        <Alert tone="info" title="Updating your script?">
+          Open your existing project at <a href="https://script.google.com/home" target="_blank" rel="noreferrer">script.google.com</a>,
+          replace everything in <code>Code.gs</code> with the new script below (step 3), Save, and Run <code>setup</code> (step 4).
+          The manifest hasn't changed.
+        </Alert>
+      )}
       <ol className="mt-connect__steps">
         <li>
           <b>Open Apps Script.</b> Go to <a href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer">script.google.com</a> and
@@ -88,12 +97,13 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
           <b>Run setup once and allow.</b> Pick <code>setup</code> next to Run and press Run. Google asks you to allow it;
           as it's your own script it says “Google hasn't verified this app”: choose <b>Advanced › Go to … (unsafe)</b>, then Allow.
           It imports your last {made.past > 2 ? `${made.past} days` : "48 hours"} of meetings now (older ones first, over a few runs, without
-          notifying anyone) and checks every 15 minutes from then on.
+          notifying anyone) and checks every 15 minutes from then on. Markdrop shows how each run went here.
         </li>
       </ol>
       <p className="mt-connect__fine">
-        It reads only Docs in your Drive titled like a Meet transcript or Gemini's notes, never changes or deletes anything,
-        and stops when you Disconnect here.
+        It reads only Docs titled like a Meet transcript or Gemini's notes{shared ? ", yours and the ones shared with you," : " in your Drive"} never
+        changes or deletes anything, and stops when you Disconnect here. Not finding a meeting? Run <code>check</code>: it lists what it
+        would send and why it skips the rest.
       </p>
     </div>
   ) : (
@@ -103,7 +113,7 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
         in your Google account sends the transcript and Gemini's notes to Markdrop every 15 minutes.
       </p>
       <ul className="mt-connect__facts">
-        <li><Icon name="eye" /> It reads only Google Docs in your Drive titled like a Meet transcript (“… - Transcript”) or Gemini's notes (“Notes by Gemini”).</li>
+        <li><Icon name="eye" /> It reads only Google Docs titled like a Meet transcript (“… - Transcript”) or Gemini's notes (“Notes by Gemini”).</li>
         <li><Icon name="lock" /> Read-only: it never edits, moves or deletes anything in your Drive.</li>
         <li><Icon name="key" /> It gets its own token that can only import meetings into this workspace. Disconnect any time.</li>
         <li><Icon name="checkCircle" /> No duplicates: a meeting you already imported by hand is recognized, and notes and transcript of one call become one page.</li>
@@ -115,6 +125,12 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
           options={[{ value: "0", label: "No, only new meetings" }, { value: "7", label: "Last 7 days" },
             { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }]} />
       </Field>
+      <Switch checked={shared} onChange={(e) => setShared(e.target.checked)}
+        label="Include meetings shared with me" data-testid="meet-shared" />
+      <p className="mt-connect__fine mt-connect__fine--tight">
+        A meeting someone else organized is saved in their Drive and shared with the people invited. Leave this on to import every
+        meeting you attended; a call two of you send is imported once.
+      </p>
       <Switch checked={restricted} onChange={(e) => setRestricted(e.target.checked)}
         label="Only the people in each meeting can open its page" data-testid="meet-restricted" />
       {elsewhere && (
@@ -167,13 +183,15 @@ function CodeBox({ label, text, testid, tall }: { label: string; text: string; t
 }
 
 /** The connection line: mine (here) with Disconnect, and who else sends meetings here. */
-export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onReconnect, compact }: {
+export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onReconnect, compact, updateHref }: {
   mine: MeetConnection | null;
   others: MeetConnection[];
   workspaceId: string;
   onChanged?: () => void;
   onReconnect?: () => void;
   compact?: boolean;
+  /** Compact (the folder's banner): where "Get the new script" goes. */
+  updateHref?: string;
 }) {
   const toast = useToast();
   const [confirm, setConfirm] = useState(false);
@@ -191,10 +209,11 @@ export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onR
             {here.restricted ? " · attendees only" : ""}
           </span>
           {here.last_error && <span className="mt-conn__err" title={here.last_error}><Icon name="alert" /> {here.last_error}</span>}
-          {onReconnect && !compact && <Button size="sm" variant="ghost" onClick={onReconnect}>New script</Button>}
+          {onReconnect && !compact && !here.needs_update && <Button size="sm" variant="ghost" onClick={onReconnect}>New script</Button>}
           <Button size="sm" variant="ghost" onClick={() => setConfirm(true)} data-testid="meet-disconnect">Disconnect</Button>
         </span>
       )}
+      {here && <ScriptRunLine conn={here} compact={compact} onReconnect={onReconnect} updateHref={updateHref} />}
       {others.length > 0 && (
         <span className="mt-conn__others">
           <Icon name="users" /> Also importing here: {others.map((o) => o.connected_by.name || "a member").join(", ")}
@@ -213,6 +232,62 @@ export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onR
   );
 }
 
+const SKIP_LABELS: Record<MeetSkipReason, string> = {
+  title: "not titled like Meet",
+  not_yours: "shared with you (not included)",
+  too_old: "older than it looks back",
+  writing: "still being written",
+  already_sent: "already sent",
+};
+
+/** "Script ran 10:42 · found 0 meeting Docs · 14 skipped: 12 not titled like Meet, 2 shared with you" (+ errors). */
+export function scriptRunSummary(sc: MeetScriptRun): { line: string; skipped: string | null } {
+  const found = `found ${sc.found} meeting ${sc.found === 1 ? "Doc" : "Docs"}`;
+  const sent = sc.sent ? ` · sent ${sc.sent}` : "";
+  const parts = (Object.keys(SKIP_LABELS) as MeetSkipReason[])
+    .filter((k) => k !== "already_sent" && (sc.skipped[k] || 0) > 0)
+    .map((k) => `${sc.skipped[k]} ${SKIP_LABELS[k]}`);
+  const n = (Object.keys(SKIP_LABELS) as MeetSkipReason[]).filter((k) => k !== "already_sent")
+    .reduce((a, k) => a + (sc.skipped[k] || 0), 0);
+  const when = sc.ran_at ? `${sc.mode === "check" ? "Checked" : "Script ran"} ${relativeTime(sc.ran_at)}` : "Script running";
+  return { line: `${when} · ${found}${sent}`, skipped: n ? `${n} skipped: ${parts.join(", ")}` : null };
+}
+
+function ScriptRunLine({ conn, compact, onReconnect, updateHref }: {
+  conn: MeetConnection; compact?: boolean; onReconnect?: () => void; updateHref?: string;
+}) {
+  const sc = conn.script;
+  const update = conn.needs_update ? (
+    <span className="mt-conn__update" data-testid="meet-needs-update">
+      <Badge size="sm" tone="warning" icon="refresh">New script</Badge>
+      <span className="mt-conn__meta">
+        {sc ? "A newer script is available" : "Update your script: the new one also imports meetings shared with you and shows how each run went here"}
+      </span>
+      {onReconnect && !compact && <Button size="sm" variant="secondary" onClick={onReconnect} data-testid="meet-update">Get the new script</Button>}
+      {compact && updateHref && <Button size="sm" variant="secondary" href={updateHref} data-testid="meet-update">Get the new script</Button>}
+    </span>
+  ) : null;
+  if (!sc) return update;
+  const { line, skipped } = scriptRunSummary(sc);
+  const err = sc.errors[0];
+  const hint = sc.found === 0 && (sc.skipped.not_yours || 0) > 0
+    ? "Meetings someone else organized were left out: make a new script with “Include meetings shared with me” on."
+    : sc.found === 0 && !compact
+      ? "No Meet transcripts or Gemini notes yet. Is transcription or “Take notes with Gemini” on in your calls? In Apps Script, Run check to see what the script sees."
+      : null;
+  return (
+    <>
+      <span className="mt-conn__run" data-testid="meet-script-run">
+        <Icon name="clock" /> <span>{line}</span>
+        {skipped && <span className="mt-conn__meta" data-testid="meet-script-skipped">· {skipped}</span>}
+        {err && <span className="mt-conn__err" title={err.error}><Icon name="alert" /> {err.title ? `${err.title}: ` : ""}{err.error}</span>}
+      </span>
+      {hint && <span className="mt-conn__hint" data-testid="meet-script-hint">{hint}</span>}
+      {update}
+    </>
+  );
+}
+
 /** The Meetings folder's banner: "Connect Google Meet" beside "Import meeting", or the connection line. */
 export function FolderMeetConnect({ workspaceId, hubHref }: { workspaceId: string; hubHref: string }) {
   const [conn, setConn] = useState<{ mine: MeetConnection | null; others: MeetConnection[] } | null>(null);
@@ -221,7 +296,8 @@ export function FolderMeetConnect({ workspaceId, hubHref }: { workspaceId: strin
   useEffect(() => { void load(); }, [load]);
   if (!conn) return null;
   if (conn.mine && conn.mine.workspace_id === workspaceId) {
-    return <MeetConnectionStatus compact mine={conn.mine} others={conn.others} workspaceId={workspaceId} onChanged={() => void load()} />;
+    return <MeetConnectionStatus compact mine={conn.mine} others={conn.others} workspaceId={workspaceId} onChanged={() => void load()}
+      updateHref={`${hubHref}?connect=1`} />;
   }
   return (
     <>
