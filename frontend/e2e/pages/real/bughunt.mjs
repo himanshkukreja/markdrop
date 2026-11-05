@@ -90,7 +90,13 @@ await step("typing-undo", async () => {
   if (md.trim()) fail(`undo all left ${JSON.stringify(md)}`);
   for (let i = 0; i < 80; i++) await p.keyboard.press(`${mod}+Shift+z`);
   md = await settle(p, slug, (m) => m === want);
-  if (md !== want) fail(`redo all saved ${JSON.stringify(md)}`);
+  if (md !== want) {
+    // Say more: is it the count (more redos finish it) or a lost history item (nothing more to redo)?
+    const shown = await p.locator(".pb-live .ProseMirror").innerText();
+    for (let i = 0; i < 40; i++) await p.keyboard.press(`${mod}+Shift+z`);
+    const more = await settle(p, slug, (m) => m === want, 8000);
+    fail(`redo all saved ${JSON.stringify(md)}; editor showed ${JSON.stringify(shown.slice(-120))}; 40 more redos saved ${JSON.stringify(more.slice(-60))}`);
+  }
   await c.close();
 });
 
