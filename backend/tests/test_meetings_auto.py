@@ -120,6 +120,60 @@ class Connect(AutoWorld):
         self.assertIsNone(r.json()["connection"])
 
 
+class ScriptStatus(AutoWorld):
+    async def status(self, token: str, **body):
+        return await self.http.post("/api/v1/meetings/inbox/status", headers={"Authorization": f"Bearer {token}"}, json=body)
+
+    async def test_runs_are_reported_and_shown(self):
+        out = await self.connect(include_shared=False)
+        self.assertIn("var INCLUDE_SHARED = false;", out["script"])
+        self.assertIn("var SCRIPT_VERSION = 2;", out["script"])
+        c = out["connection"]
+        # Nothing reported yet: it was just given v2, nothing to update.
+        self.assertEqual((c["script"], c["script_version"], c["latest_script_version"], c["needs_update"]), (None, 2, 2, False))
+        self.assertFalse(c["include_shared"])
+        tok = out["token"]
+        # A connection made before v2 (never given a version, never reports) is told to get the new script.
+        await self.db["api_tokens"].update_one({"scope": "meetings:import"}, {"$unset": {"script_given": 1}})
+        r = await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))
+        self.assertEqual((r.json()["connection"]["script_version"], r.json()["connection"]["needs_update"]), (1, True))
+        r = await self.status(tok, phase="start", version=2, mode="run", include_shared=False)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json(), {"ok": True, "latest_version": 2, "queue": []})
+        r = await self.status(tok, phase="done", version=2, mode="run", include_shared=False, found=0, sent=0,
+                              results={"imported": 0}, skipped={"not_yours": 14, "title": 3, "bogus": 9},
+                              errors=[{"title": "X - Transcript", "error": "Could not read it"}], search="drive-v3")
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.http.get(f"/api/v1/meetings/connection?workspace={self.W}", headers=self.session("owner"))
+        c = r.json()["connection"]
+        self.assertFalse(c["needs_update"])
+        sc = c["script"]
+        self.assertEqual((sc["version"], sc["found"], sc["sent"], sc["mode"]), (2, 0, 0, "run"))
+        self.assertEqual(sc["skipped"], {"already_sent": 0, "too_old": 0, "not_yours": 14, "title": 3, "writing": 0})
+        self.assertEqual(sc["errors"], [{"title": "X - Transcript", "error": "Could not read it"}])
+        self.assertTrue(sc["ran_at"] and sc["started_at"])
+        # A teammate sees the same line on the owner's connection.
+        r = await self.http.get(f"/api/v1/meetings/connection?workspace={self.W}", headers=self.session("wm"))
+        self.assertEqual(r.json()["others"][0]["script"]["skipped"]["not_yours"], 14)
+        # Only the script's own token; a revoked one is told it's disconnected.
+        r = await self.http.post("/api/v1/meetings/inbox/status", headers=self.session("owner"), json={"phase": "start"})
+        self.assertEqual(r.status_code, 401)
+        await self.http.delete("/api/v1/meetings/connection", headers=self.session("owner"))
+        r = await self.status(tok, phase="start", version=2)
+        self.assertEqual(r.status_code, 401)
+
+    async def test_v2_delivery_fields(self):
+        tok = (await self.connect())["token"]
+        r = await self.deliver(tok, version=2, owner={"name": "Gautam Rao", "email": "Gautam@Acme.test", "me": False},
+                               kind="unknown")
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(r.json()["status"], "imported")
+        row = await self.db[meetings_inbox.COLL].find_one({"file_id": FID_T})
+        self.assertEqual(row["owner"], {"name": "Gautam Rao", "email": "gautam@acme.test", "me": False})
+        r = await self.deliver(tok, file_id=FID_N, title=NOTES, text=fixture("gemini_notes.txt"), kind="sideways")
+        self.assertEqual(r.status_code, 422)
+
+
 class Pinning(AutoWorld):
     async def test_the_token_does_nothing_else(self):
         tok = (await self.connect())["token"]
@@ -490,7 +544,8 @@ class Script(unittest.TestCase):
                 self.assertEqual(p.returncode, 0, p.stderr)
         out = self.run_script({"files": [], "runs": []})
         self.assertEqual(out["constants"], {"endpoint": "https://api.example.test/api/v1/meetings/inbox",
-                                            "token": "mdk_" + "A" * 43, "lookback": 48})
+                                            "token": "mdk_" + "A" * 43, "lookback": 48, "version": 2, "shared": True})
+        self.assertEqual(meetings_inbox.script_version(), 2)
         self.assertNotIn("{{", self.render())
         # The manifest is JSON and asks for nothing that writes to Drive.
         man = json.loads(meetings_inbox.manifest())
@@ -523,16 +578,37 @@ class Script(unittest.TestCase):
              "doc": {"title": TRANSCRIPT, "body": {"content": [{"paragraph": {"elements": [{"textRun": {"content": "Ada: hi\n"}}]}}]}}},
             {"id": "1Unrelated", "name": "Quarterly plan", "created": iso(1), "modified": iso(1), "doc": {}},
             {"id": "1OldTranscript", "name": "Old (2026-01-01) - Transcript", "created": iso(24 * 30), "modified": iso(1), "doc": {}},
-            {"id": "1Shared", "name": "Theirs - Transcript", "created": iso(1), "modified": iso(1), "owned": False, "doc": {}},
+            # Someone else's Doc that only says "Transcript" (not Meet's: no date, not Gemini): left alone.
+            {"id": "1SharedPlain", "name": "Theirs - Transcript", "created": iso(1), "modified": iso(1), "owned": False, "doc": {}},
+            # A call the manager organized: it lives in HIS Drive, shared with me. Sent (v1 missed it).
+            {"id": "1SharedMeet", "name": "Standup - 2026/11/04 10:00 IST - Transcript", "created": iso(3),
+             "modified": iso(2), "owned": False, "doc": {"body": {"content": [{"paragraph": {"elements": [{"textRun": {"content": "Gautam: hi\n"}}]}}]}}},
         ]
-        out = self.run_script({"files": files, "runs": ["setup", "syncMeetings"], "responses": [200, 200]})
+        out = self.run_script({"files": files, "runs": ["setup", "syncMeetings"], "responses": [200, 200, 200]})
         # setup scheduled itself once, every 15 minutes, and ran.
         self.assertEqual(out["triggers"], [{"fn": "syncMeetings", "every": 15}])
-        self.assertIn("'me' in owners", out["searches"][0])
-        self.assertIn("mimeType = 'application/vnd.google-apps.document'", out["searches"][0])
-        # Only the two meeting Docs, once each (the second run sent nothing).
-        self.assertEqual(sorted(p["body"]["file_id"] for p in out["posts"]), sorted([FID_N, FID_T]))
-        self.assertEqual(out["sent"], sorted([FID_N, FID_T]))
+        # Drive v3, every drive (shared drives too), shared-with-me included (no owner filter).
+        search = next(v for v in out["v3"] if "vnd.google-apps.document" in v["q"])
+        self.assertEqual((search["corpora"], search["all"]), ("allDrives", "true"))
+        self.assertNotIn("'me' in owners", search["q"])
+        self.assertIn("name contains 'Transcrip'", search["q"])
+        self.assertEqual(out["searches"], [])          # DriveApp only when Drive v3 fails
+        # The three meeting Docs, once each (the second run sent nothing).
+        self.assertEqual(sorted(p["body"]["file_id"] for p in out["posts"]), sorted([FID_N, FID_T, "1SharedMeet"]))
+        self.assertEqual(out["sent"], sorted([FID_N, FID_T, "1SharedMeet"]))
+        shared = next(p for p in out["posts"] if p["body"]["file_id"] == "1SharedMeet")["body"]
+        self.assertEqual(shared["owner"], {"name": "Gautam", "email": "gautam@acme.test", "me": False})
+        self.assertEqual((shared["version"], shared["requested"]), (2, False))
+        # Each run told Markdrop how it went: start, then done with the counts.
+        self.assertEqual([(st["phase"], st["mode"]) for st in out["statuses"]],
+                         [("start", "setup"), ("done", "setup"), ("start", "run"), ("done", "run")])
+        first = out["statuses"][1]
+        self.assertEqual((first["found"], first["sent"], first["version"], first["include_shared"]), (3, 3, 2, True))
+        self.assertEqual(first["results"]["imported"], 3)
+        self.assertEqual(first["skipped"]["title"], 2)       # "Quarterly plan", "Theirs - Transcript"
+        self.assertEqual(first["skipped"]["too_old"], 1)
+        self.assertEqual(out["statuses"][3]["skipped"]["already_sent"], 3)
+        self.assertEqual(out["statuses"][0]["auth"], "Bearer mdk_" + "A" * 43)
         post = next(p for p in out["posts"] if p["body"]["file_id"] == FID_N)
         self.assertEqual(post["auth"], "Bearer mdk_" + "A" * 43)
         self.assertEqual(post["url"], "https://api.example.test/api/v1/meetings/inbox")
@@ -603,6 +679,93 @@ class Script(unittest.TestCase):
         out = self.run_script({"files": files, "docsFails": True, "runs": ["backfill(30)", "syncMeetings"]})
         self.assertEqual(len(out["posts"]), 25)
         self.assertNotIn("backfill_since", out["props"])
+
+    def test_shared_off_skips_other_peoples_docs(self):
+        at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        files = [{"id": "1SharedMeetXyz", "name": NOTES, "created": at, "modified": at, "owned": False, "text": "Summary\nok"},
+                 {"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n"}]
+        code = meetings_inbox.script("mdk_" + "A" * 43, "Acme", url="https://api.example.test/api/v1/meetings/inbox",
+                                     include_shared=False)
+        self.assertIn("var INCLUDE_SHARED = false;", code)
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"]}, code=code)
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [FID_T])
+        self.assertEqual(out["statuses"][-1]["skipped"]["not_yours"], 1)
+        self.assertFalse(out["statuses"][-1]["include_shared"])
+
+    def test_titles_in_other_languages_and_the_meet_folder(self):
+        at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        names = {
+            "1GermanNotesXyz": ("Wochenrunde - 2026/11/04 10:00 MEZ - Notizen von Gemini", "notes"),
+            "1SpanishTransXy": ("Reunión (2026-11-04 10:00 GMT+1) - Transcripción", "transcript"),
+            "1PortugueseXyzw": ("Reunião - 2026/11/04 10:00 BRT - Transcrição", "transcript"),
+            "1GeminiJapanese": ("定例 - 2026/11/04 10:00 JST - Gemini によるメモ", "notes"),
+            "1MeetingStarted": ("Meeting started 2026/11/04 10:00 IST - Notes by Gemini", "notes"),
+            "1UntitledInMeet": ("Call with Bo", "unknown"),
+        }
+        files = [{"id": k, "name": v[0], "created": at, "modified": at, "text": "Summary\nok",
+                  "owned": k != "1GermanNotesXyz", "parents": ["fMeet"] if k == "1UntitledInMeet" else []}
+                 for k, v in names.items()]
+        # Not meetings: my "Notes", a Gemini research Doc, a plain shared "Notes".
+        files += [{"id": "1JustNotesXyzw", "name": "Notes", "created": at, "modified": at, "text": "x"},
+                  {"id": "1GeminiApiXyzw", "name": "Gemini API pricing", "created": at, "modified": at, "text": "x"},
+                  {"id": "1TheirNotesXyz", "name": "Q3 plan - Notes", "created": at, "modified": at, "owned": False, "text": "x"}]
+        out = self.run_script({"files": files, "docsFails": True, "folders": [{"id": "fMeet", "name": "Meet Recordings"},
+                                                                              {"id": "fOther", "name": "Meet ups"}],
+                               "runs": ["syncMeetings"]})
+        got = {p["body"]["file_id"]: p["body"]["kind_hint"] for p in out["posts"]}
+        self.assertEqual(got, {k: v[1] for k, v in names.items()})
+        self.assertIn("'fMeet' in parents", next(v for v in out["v3"] if "vnd.google-apps.document" in v["q"])["q"])
+        self.assertEqual(out["statuses"][-1]["skipped"]["title"], 3)
+
+    def test_check_sends_nothing_and_says_why(self):
+        at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        just = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        files = [{"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n"},
+                 {"id": FID_N, "name": NOTES, "created": just, "modified": just, "text": "Summary\nok"},
+                 {"id": "1Unrelated", "name": "Quarterly plan - Notes", "created": at, "modified": at, "text": "x"}]
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["check"]})
+        self.assertEqual(out["posts"], [])
+        self.assertEqual(out["sent"], [])
+        self.assertTrue(any(l.startswith("WOULD SEND  transcript") for l in out["logs"]), out["logs"])
+        self.assertTrue(any("skip (writing)" in l for l in out["logs"]))
+        self.assertEqual([(s["phase"], s["mode"]) for s in out["statuses"]], [("done", "check")])
+        self.assertEqual(out["statuses"][0]["skipped"]["writing"], 1)
+
+    def test_queued_links_come_first(self):
+        old = (datetime.now(timezone.utc) - timedelta(days=200)).isoformat().replace("+00:00", "Z")
+        files = [{"id": "1AskedForByLinkXyzwv", "name": "Board call", "created": old, "modified": old, "owned": False,
+                  "listed": False, "text": "Ada: hi\nBo: yes\n"},
+                 {"id": "1AVttInDriveXyzwvut", "name": "call.vtt", "mime": "text/vtt", "created": old, "modified": old,
+                  "listed": False, "text": "WEBVTT\n\n00:00.000 --> 00:01.000\n<v Ada>hi\n"},
+                 {"id": "1APdfInDriveXyzwvut", "name": "deck.pdf", "mime": "application/pdf", "created": old,
+                  "modified": old, "listed": False}]
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"],
+                               "queue": ["1AskedForByLinkXyzwv", "1AVttInDriveXyzwvut", "1APdfInDriveXyzwvut", "1MissingFileXyzwvut"]})
+        self.assertEqual([(p["body"]["file_id"], p["body"]["requested"]) for p in out["posts"]],
+                         [("1AskedForByLinkXyzwv", True), ("1AVttInDriveXyzwvut", True)])
+        self.assertEqual(out["posts"][1]["body"]["text"].split("\n")[0], "WEBVTT")
+        done = out["statuses"][-1]
+        self.assertEqual(done["queue_done"], ["1AskedForByLinkXyzwv", "1AVttInDriveXyzwvut"])
+        self.assertEqual(sorted((f["file_id"], f["error"]) for f in done["queue_failed"]),
+                         [("1APdfInDriveXyzwvut", "not_a_doc"), ("1MissingFileXyzwvut", "not_found")])
+
+    def test_drive_api_off_falls_back_to_driveapp(self):
+        at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        files = [{"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n", "owned": False}]
+        out = self.run_script({"files": files, "docsFails": True, "driveFails": True, "runs": ["syncMeetings"]})
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [FID_T])
+        self.assertNotIn("'me' in owners", out["searches"][0])
+        self.assertEqual(out["statuses"][-1]["search"], "driveapp")
+
+    def test_disconnected_status_stops_before_sending(self):
+        at = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+        files = [{"id": FID_T, "name": TRANSCRIPT, "created": at, "modified": at, "text": "A: hi\n"}]
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["setup"], "statusResponses": [{"code": 401}]})
+        self.assertEqual((out["posts"], out["triggers"]), ([], []))
+        # An old server without the status route (404) doesn't stop the run.
+        out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"],
+                               "statusResponses": [{"code": 404, "body": {"detail": "Not Found"}}, {"code": 404, "body": {}}]})
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [FID_T])
 
     def test_waits_for_a_doc_still_being_written(self):
         just = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

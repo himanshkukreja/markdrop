@@ -1,0 +1,4 @@
+# Test-only dependencies (CI installs these beside requirements.txt; the deploy doesn't).
+# Some suites use an in-memory Mongo (e.g. tests/test_server_error_cors.py).
+mongomock==4.3.0
+mongomock-motor==0.0.36

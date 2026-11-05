@@ -13400,7 +13400,8 @@
                         "type": "string",
                         "enum": [
                           "transcript",
-                          "notes"
+                          "notes",
+                          "unknown"
                         ]
                       },
                       {
@@ -13429,6 +13430,72 @@
                     "type": "boolean",
                     "title": "Backfill",
                     "default": false
+                  },
+                  "version": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "maximum": 1000,
+                        "minimum": 1
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Version"
+                  },
+                  "owner": {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "name": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 200
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "title": "Name"
+                          },
+                          "email": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "maxLength": 320
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "title": "Email"
+                          },
+                          "me": {
+                            "anyOf": [
+                              {
+                                "type": "boolean"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ],
+                            "title": "Me"
+                          }
+                        },
+                        "type": "object",
+                        "title": "DriveOwner"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "requested": {
+                    "type": "boolean",
+                    "title": "Requested",
+                    "default": false
                   }
                 },
                 "type": "object",
@@ -13448,6 +13515,53 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "600/day",
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/inbox/status": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Inbox Status",
+        "description": "How a run of the Google Meet script went (Bearer: its ``meetings:import`` token): 'start' →\n{queue: the Docs asked for by link, to fetch first; latest_version}; 'done' → counts (found, sent,\nskipped by reason), errors. Shown on the Meetings page.",
+        "operationId": "inbox_status_api_v1_meetings_inbox_status_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -16346,6 +16460,11 @@
               }
             ],
             "title": "Tz"
+          },
+          "include_shared": {
+            "type": "boolean",
+            "title": "Include Shared",
+            "default": true
           }
         },
         "type": "object",
@@ -20761,6 +20880,171 @@
         },
         "type": "object",
         "title": "SourceIn"
+      },
+      "StatusBody": {
+        "properties": {
+          "phase": {
+            "type": "string",
+            "enum": [
+              "start",
+              "done"
+            ],
+            "title": "Phase",
+            "default": "done"
+          },
+          "version": {
+            "type": "integer",
+            "maximum": 1000,
+            "minimum": 1,
+            "title": "Version",
+            "default": 1
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 12
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "include_shared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Include Shared"
+          },
+          "lookback_hours": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lookback Hours"
+          },
+          "found": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Found"
+          },
+          "sent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent"
+          },
+          "results": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Results"
+          },
+          "skipped": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped"
+          },
+          "errors": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errors"
+          },
+          "search": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search"
+          },
+          "queue_done": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Done"
+          },
+          "queue_failed": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array",
+                "maxItems": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queue Failed"
+          }
+        },
+        "type": "object",
+        "title": "StatusBody"
       },
       "SyncCreateRequest": {
         "properties": {

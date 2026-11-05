@@ -79,14 +79,24 @@ def endpoint() -> str:
 BACKFILL_CHOICES = (0, 7, 30, 90)
 
 
-def script(token: str, workspace_name: str, *, url: str | None = None, backfill_days: int = 0) -> str:
-    """Code.gs with the endpoint and token filled in (JSON string literals: always valid JS), and how
-    many days of past meetings ``setup`` brings in once (0: none)."""
+def script_version() -> int:
+    """The version of the script Markdrop hands out now (``var SCRIPT_VERSION = n;`` in Code.gs). A
+    connection whose script reports less (or never reports: v1) is told to get the new one."""
+    m = re.search(r"var SCRIPT_VERSION = (\d+);", (_DIR / "Code.gs").read_text())
+    return int(m.group(1)) if m else 1
+
+
+def script(token: str, workspace_name: str, *, url: str | None = None, backfill_days: int = 0,
+           include_shared: bool = True) -> str:
+    """Code.gs with the endpoint and token filled in (JSON string literals: always valid JS), how
+    many days of past meetings ``setup`` brings in once (0: none), and whether it also sends the
+    meetings shared with this person (organized by someone else: they live in that person's Drive)."""
     name = re.sub(r"[\r\n  ]+", " ", workspace_name or "your workspace").replace("*/", "* /")[:80]
     src = (_DIR / "Code.gs").read_text()
     return (src.replace("'{{ENDPOINT}}'", json.dumps(url or endpoint()))
                .replace("'{{TOKEN}}'", json.dumps(token))
                .replace("'{{BACKFILL_DAYS}}'", str(int(backfill_days) if int(backfill_days) in BACKFILL_CHOICES else 0))
+               .replace("'{{INCLUDE_SHARED}}'", "true" if include_shared else "false")
                .replace("{{WORKSPACE_NAME}}", name))
 
 
@@ -103,7 +113,7 @@ async def mine(db: AsyncIOMotorDatabase, user_id: str) -> dict | None:
 
 
 async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restricted: bool = False,
-                  tz: str | None = None) -> tuple[str, dict]:
+                  tz: str | None = None, include_shared: bool = True) -> tuple[str, dict]:
     """A new connection (and token) for ``user`` into ``workspace_id``; an earlier one is revoked."""
     from app.services import workspace as ws_service
 
@@ -114,6 +124,7 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restrict
     raw, rec = await api_token.create_token(
         db, user.id, f"Google Meet → {getattr(ws, 'name', None) or 'Meetings'}"[:80], scope=SCOPE,
         extra={"workspace_id": workspace_id, "restricted": bool(restricted), "provider": SOURCE, "tz": _tz(tz),
+               "include_shared": bool(include_shared), "script_given": script_version(),
                "stats": {"received": 0, "imported": 0, "attached": 0, "duplicates": 0, "ignored": 0,
                          "last_received_at": None, "last_imported_at": None, "last_meeting_id": None,
                          "last_title": None, "last_error": None}})
@@ -149,13 +160,82 @@ async def view(db: AsyncIOMotorDatabase, rec: dict | None, *, viewer_id: str | N
         "attached": int(st.get("attached") or 0), "duplicates": int(st.get("duplicates") or 0),
         "ignored": int(st.get("ignored") or 0), "last_error": st.get("last_error"),
         "prefix": rec.get("prefix"),
+        "include_shared": rec.get("include_shared"),
+        # How the script's runs go (v2+ reports each run; v1 never does) and whether to get the new one.
+        "script": _script_view(rec.get("script")),
+        "script_version": _installed(rec),
+        "latest_script_version": script_version(),
+        "needs_update": _installed(rec) < script_version(),
     }
+
+
+def _installed(rec: dict) -> int:
+    """The script version this connection runs: what it last reported, else the one it was given when
+    it connected (connections made before v2 were given v1, which never reports)."""
+    return int((rec.get("script") or {}).get("version") or rec.get("script_given") or 1)
+
+
+def _script_view(sc: dict | None) -> dict | None:
+    if not sc:
+        return None
+    return {"version": sc.get("version"), "mode": sc.get("mode"), "started_at": _iso(sc.get("started_at")),
+            "ran_at": _iso(sc.get("ran_at")), "include_shared": sc.get("include_shared"),
+            "found": int(sc.get("found") or 0), "sent": int(sc.get("sent") or 0),
+            "results": sc.get("results") or {}, "skipped": sc.get("skipped") or {},
+            "errors": sc.get("errors") or [], "search": sc.get("search")}
 
 
 async def for_workspace(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dict]:
     """Everyone's connections into a workspace (who connected it, when it last imported)."""
     rows = await db["api_tokens"].find({"scope": SCOPE, "workspace_id": workspace_id}).sort("created_at", 1).to_list(length=200)
     return [await view(db, r) for r in rows]
+
+
+# ── The script's runs ─────────────────────────────────────────────────────────
+
+_SKIPS = ("already_sent", "too_old", "not_yours", "title", "writing")
+_RESULTS = ("imported", "attached", "duplicate", "ignored")
+
+
+def _count(v: Any) -> int:
+    try:
+        return max(0, min(int(v), 1_000_000))
+    except (TypeError, ValueError):
+        return 0
+
+
+async def run_status(db: AsyncIOMotorDatabase, rec: dict, body: dict) -> dict:
+    """The script says how a run went ('start': it began; 'done': counts by outcome and skip reason,
+    errors). Stored on the connection (the Meetings page shows it). 'start' → the Docs asked for by
+    link that this script should fetch first (Markdrop couldn't open them), and the latest version."""
+    now = now_utc()
+    phase = body.get("phase")
+    sc: dict[str, Any] = {"version": _count(body.get("version")) or 1,
+                          "mode": str(body.get("mode") or "run")[:12],
+                          "include_shared": bool(body.get("include_shared"))}
+    if phase == "start":
+        sets = {f"script.{k}": v for k, v in sc.items()}
+        sets["script.started_at"] = now
+        await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$set": sets})
+        from app.services import meeting_links
+        queue = await meeting_links.queued_for(db, rec)
+        return {"ok": True, "latest_version": script_version(), "queue": queue}
+    errors = []
+    for e in (body.get("errors") or [])[:5]:
+        if isinstance(e, dict):
+            errors.append({"title": str(e.get("title") or "")[:200], "error": str(e.get("error") or "")[:300]})
+    sc.update({
+        "ran_at": now, "found": _count(body.get("found")), "sent": _count(body.get("sent")),
+        "results": {k: _count((body.get("results") or {}).get(k)) for k in _RESULTS},
+        "skipped": {k: _count((body.get("skipped") or {}).get(k)) for k in _SKIPS},
+        "errors": errors, "search": str(body.get("search") or "")[:20] or None,
+    })
+    upd: dict[str, Any] = {"$set": {f"script.{k}": v for k, v in sc.items()}}
+    await db["api_tokens"].update_one({"_id": rec["_id"]}, upd)
+    from app.services import meeting_links
+    await meeting_links.script_reported(db, rec, done=[str(x) for x in (body.get("queue_done") or [])[:50]],
+                                        failed=[f for f in (body.get("queue_failed") or [])[:50] if isinstance(f, dict)])
+    return {"ok": True, "latest_version": script_version()}
 
 
 # ── The inbox ─────────────────────────────────────────────────────────────────
@@ -193,6 +273,28 @@ def meeting_date(created: str | None, tz: str | None) -> str | None:
     return at.date().isoformat()
 
 
+def _owner(value: Any) -> dict | None:
+    """The Doc's owner in Drive as the script saw it ({name, email, me}): who organized the call."""
+    if not isinstance(value, dict):
+        return None
+    name = " ".join(str(value.get("name") or "").split())[:120] or None
+    email = str(value.get("email") or "").strip().lower()[:320] or None
+    if email and not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email):
+        email = None
+    return {"name": name, "email": email, "me": value.get("me")} if (name or email) else None
+
+
+def _recent(created: str | None, *, hours: int = 24) -> bool:
+    raw = str(created or "").strip()
+    try:
+        at = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if at.tzinfo is None:
+        at = at.replace(tzinfo=timezone.utc)
+    return now_utc() - at <= timedelta(hours=hours)
+
+
 def _doc_url(value: str | None, file_id: str) -> str:
     v = (value or "").strip()
     if v.startswith("https://docs.google.com/") and len(v) <= 500 and not any(c in v for c in " \"'<>\\"):
@@ -228,13 +330,18 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
     title = " ".join(str(item.get("title") or "").split())[:200] or "Google Doc"
     key = {"workspace_id": ws_id, "file_id": file_id}
     claim = {**key, "user_id": user.id, "token_id": str(rec["_id"]), "state": "processing", "at": now,
-             "title": title, "kind_hint": item.get("kind_hint"), "created": item.get("created"), "attempts": 1}
+             "title": title, "kind_hint": item.get("kind_hint"), "created": item.get("created"), "attempts": 1,
+             "owner": _owner(item.get("owner")), "requested": bool(item.get("requested")), "version": item.get("version")}
     try:
         await db[COLL].insert_one(claim)
     except DuplicateKeyError:
         ex = await db[COLL].find_one(key) or {}
         if ex.get("state") in DONE:
             await _stats(db, rec, {"duplicates": 1}, {})
+            if item.get("requested"):
+                from app.services import meeting_links
+
+                await meeting_links.mark_sent(db, rec, file_id, meeting_id=ex.get("meeting_id"), status="duplicate")
             return {"status": "duplicate", "meeting_id": ex.get("meeting_id")}
         at = ex.get("at")
         if at is not None and at.tzinfo is None:
@@ -258,15 +365,23 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         spoken = any(seg.get("speaker") for seg in src.segments)
         if not text.strip() or (not spoken and not src.notes):
             await finish("ignored", reason="no_meeting")
+            if item.get("requested"):
+                from app.services import meeting_links
+
+                await meeting_links.mark_sent(db, rec, file_id, meeting_id=None, status="ignored")
             await _stats(db, rec, {"ignored": 1}, {})
             return {"status": "ignored", "reason": "No transcript or meeting notes found in it."}
         # The meeting's own date: from Google's title when it has one, else when the Doc was made.
         date_ = None if src.date else meeting_date(item.get("created"), rec.get("tz"))
         inc = meetings.Incoming(name=title, text=text, origin="google", file_id=file_id,
                                 url=_doc_url(item.get("doc_url"), file_id))
-        # A past meeting sent by the script's backfill is history: nobody is notified about it.
+        # A past meeting sent by the script's backfill is history: nobody is notified about it. A Doc asked
+        # for by link is a manual import: notified as usual unless the call is more than a day old.
+        notify = not item.get("backfill")
+        if item.get("requested"):
+            notify = _recent(item.get("created"))
         rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=bool(rec.get("restricted")),
-                                              via="inbox", dedupe="all", notify=not item.get("backfill"))
+                                              via="inbox", dedupe="all", notify=notify)
     except HTTPException as exc:
         await finish("failed", error=str(exc.detail)[:300])
         await _stats(db, rec, {}, {"last_error": str(exc.detail)[:300]})
@@ -283,6 +398,10 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
     if status != "duplicate":
         sets.update(last_imported_at=now_utc(), last_meeting_id=str(row["_id"]), last_title=row.get("title"))
     await _stats(db, rec, {counter: 1}, sets)
+    if item.get("requested"):
+        from app.services import meeting_links
+
+        await meeting_links.mark_sent(db, rec, file_id, meeting_id=str(row["_id"]), status=status)
     out: dict[str, Any] = {"status": status, "meeting_id": str(row["_id"])}
     if status != "duplicate" and row.get("slug"):
         out["url"] = urls.markdrop_url(row["slug"])

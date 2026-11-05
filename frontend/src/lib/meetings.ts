@@ -92,6 +92,30 @@ export interface MeetConnection {
   ignored: number;
   last_error: string | null;
   prefix: string | null;
+  /** The script also sends meetings shared with this person (organized by someone else). */
+  include_shared?: boolean | null;
+  /** The script's last run, as it reported it (v2+; v1 never reports: null). */
+  script?: MeetScriptRun | null;
+  script_version?: number;
+  latest_script_version?: number;
+  /** The installed script is older than the one Markdrop hands out now: get the new one. */
+  needs_update?: boolean;
+}
+
+export type MeetSkipReason = "already_sent" | "too_old" | "not_yours" | "title" | "writing";
+
+export interface MeetScriptRun {
+  version: number | null;
+  mode: string | null;            // run | setup | backfill | check
+  started_at: string | null;
+  ran_at: string | null;
+  include_shared: boolean | null;
+  found: number;
+  sent: number;
+  results: Partial<Record<"imported" | "attached" | "duplicate" | "ignored", number>>;
+  skipped: Partial<Record<MeetSkipReason, number>>;
+  errors: { title: string; error: string }[];
+  search: string | null;
 }
 
 export function getMeetConnection(workspace: string) {
@@ -102,7 +126,7 @@ export function getMeetConnection(workspace: string) {
 export const BACKFILL_DAYS = [0, 7, 30, 90] as const;
 
 /** `backfill_days`: past meetings the script's setup brings in once (quietly); `tz`: the browser's zone. */
-export function connectGoogleMeet(body: { workspace: string; restricted?: boolean; backfill_days?: (typeof BACKFILL_DAYS)[number]; tz?: string }) {
+export function connectGoogleMeet(body: { workspace: string; restricted?: boolean; backfill_days?: (typeof BACKFILL_DAYS)[number]; tz?: string; include_shared?: boolean }) {
   return request<{ token: string; script: string; manifest: string; endpoint: string; connection: MeetConnection }>(
     `/api/v1/meetings/connection`, { method: "POST", body: JSON.stringify(body) });
 }

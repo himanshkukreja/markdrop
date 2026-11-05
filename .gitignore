@@ -73,3 +73,6 @@ notes.local/
 # decision that is made once.
 /design/
 frontend/tsconfig.tsbuildinfo
+
+# CI backend shard output (.github/scripts/backend_shard.py)
+ci-out/

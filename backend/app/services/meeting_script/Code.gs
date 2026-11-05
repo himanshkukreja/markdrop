@@ -1,15 +1,21 @@
 /**
- * Markdrop · Google Meet auto-import
+ * Markdrop · Google Meet auto-import (script version 2)
  *
- * Sends the Google Meet transcripts and Gemini meeting notes in YOUR Google Drive to Markdrop,
- * which turns each call into a page in the Meetings folder of "{{WORKSPACE_NAME}}".
+ * Sends the Google Meet transcripts and Gemini meeting notes you can open in Google Drive to
+ * Markdrop, which turns each call into a page in the Meetings folder of "{{WORKSPACE_NAME}}".
  *
  * What it does, every 15 minutes:
- *   1. Looks for Google Docs in your Drive, created in the last LOOKBACK_HOURS, whose title looks
- *      like a Meet transcript ("… - Transcript") or Gemini's notes ("… - Notes by Gemini").
+ *   1. Looks for Google Docs created in the last LOOKBACK_HOURS that look like a Meet transcript
+ *      ("… - Transcript") or Gemini's notes ("… - Notes by Gemini"), in your Drive, in the ones
+ *      shared with you (a meeting someone else organized lives in THEIR Drive) and in shared drives.
  *   2. Skips the ones it already sent (it remembers their ids in this project's properties), and
  *      waits for a Doc that changed in the last QUIET_MINUTES (Google may still be writing it).
  *   3. Reads each one's text (every tab) and sends it to Markdrop. A failure is tried again next run.
+ *   4. Tells Markdrop how the run went (how many Docs it found, skipped and why), so the Meetings
+ *      page can show it. Markdrop never sees the Docs it skipped, only the counts.
+ *
+ * Not sure it finds your meetings? Run → check: it lists what it would send and why it skips the
+ * rest, without sending anything (View → Logs / Execution log).
  *
  * What it can't do: change, move or delete anything in your Drive. It asks Google for read-only
  * Drive access (drive.readonly), permission to call Markdrop (script.external_request) and to
@@ -19,19 +25,39 @@
  * Past meetings: setup brings in the last BACKFILL_DAYS days once (oldest first; nobody is
  * notified about them). To do it again later, run backfill (it uses BACKFILL_DAYS, else 30 days).
  *
- * Set up: Run → setup (once), and allow. That's all.
+ * Set up: Run → setup (once), and allow. That's all. Updating from an older version: replace all
+ * of this file with the new one, save, and Run → setup again.
  */
 
+var SCRIPT_VERSION = 2;
 var MARKDROP_ENDPOINT = '{{ENDPOINT}}';
 var MARKDROP_TOKEN = '{{TOKEN}}';
 
 var LOOKBACK_HOURS = 48;      // how far back to look (raise it once to import older meetings)
-var INCLUDE_SHARED = false;   // true: also Docs other people shared with you (e.g. a teammate's call)
+var INCLUDE_SHARED = '{{INCLUDE_SHARED}}';  // true: also meetings shared with you (organized by someone else)
 var MAX_PER_RUN = 20;         // a run has 6 minutes; the rest wait for the next one
 var QUIET_MINUTES = 10;       // a Doc changed this recently may still be being written: next run
 var BACKFILL_DAYS = '{{BACKFILL_DAYS}}';  // setup also brings in this many days of past meetings (0: none)
-var TRANSCRIPT_TITLE = /[-–—]\s*Transcript\s*$/i;
-var NOTES_TITLE = /(Notes by Gemini|[-–—]\s*Notes)\s*$/i;
+
+// What Google calls them, in the languages Meet writes them in. A title ends with one of these,
+// usually after the meeting's name and time: "Weekly sync - 2026/11/04 10:00 IST - Notes by Gemini".
+var TRANSCRIPT_WORDS = 'Transcript|Transcription|Transcripci[oó]n|Transcri[cç][aã]o|Transkript|Trascrizione|' +
+  'Transcriptie|Transkrypcja|Transkripsiyon|Транскрипция|Стенограмма|文字起こし|文字记录|轉錄|트랜스크립트|' +
+  'ट्रांसक्रिप्ट|प्रतिलेख';
+var NOTES_WORDS = 'Notes by Gemini|Notes de Gemini|Notas de Gemini|Notas do Gemini|Notizen von Gemini|' +
+  'Note di Gemini|Notities van Gemini|Notatki Gemini|Gemini|Notes|Notas|Notizen|Note|Notities|Notatki|Meeting notes';
+var TRANSCRIPT_TITLE = new RegExp('[-–—(|:]\\s*(' + TRANSCRIPT_WORDS + ')\\s*\\)?\\s*$', 'i');
+var NOTES_TITLE = new RegExp('[-–—(|:]\\s*(' + NOTES_WORDS + ')\\s*\\)?\\s*$', 'i');
+// Gemini's notes, wherever the words sit ("Notes by Gemini", "Gemini によるメモ", "Gemini के नोट्स").
+var GEMINI_NOTES = /(notes?|notas|notizen|notities|notatki|メモ|笔记|筆記|नोट)[^\n]{0,12}gemini|gemini[^\n]{0,12}(notes?|notas|notizen|notities|notatki|メモ|笔记|筆記|नोट)/i;
+// Meet puts the call's date and time in the title ("2026/11/04 10:00 IST", "(2026-11-04 10:00 GMT+05:30)").
+var DATED_TITLE = /\d{1,4}\s*[\/.\-年]\s*\d{1,2}\s*[\/.\-月]\s*\d{1,4}|\b\d{1,2}:\d{2}\b/;
+// What Drive is searched for (Drive matches the start of a word: "Transcrip" finds "Transcription").
+var SEARCH_WORDS = ['Transcrip', 'Transkript', 'Trascrizione', 'Transkrypcja', 'Transkripsiyon', 'Notes', 'Notas',
+  'Notizen', 'Note', 'Notities', 'Notatki', 'Gemini', 'Транскрипция', 'Стенограмма', '文字起こし', 'ट्रांसक्रिप्ट'];
+// The folder Meet saves into: "Meet Recordings" (and its translations).
+var MEET_FOLDER = /^(Meet Recordings|Grabaciones de Meet|Gravações do Meet|Meet-Aufzeichnungen|Enregistrements Meet|Registrazioni di Meet|Meet-opnamen|Nagrania z Meet|Meet の録画|Meet 录音|Meet Kayıtları|Записи Meet)$/i;
+var DOC_MIME = 'application/vnd.google-apps.document';
 
 /** Run this once: it schedules syncMeetings every 15 minutes, then runs it now (and, when
  *  BACKFILL_DAYS is set, starts bringing in the past meetings too). */
@@ -41,7 +67,7 @@ function setup() {
   });
   ScriptApp.newTrigger('syncMeetings').timeBased().everyMinutes(15).create();
   if (BACKFILL_DAYS > 0) startBackfill_(BACKFILL_DAYS);
-  syncMeetings();
+  run_('setup');
 }
 
 /**
@@ -52,7 +78,28 @@ function setup() {
 function backfill(days) {
   var n = typeof days === 'number' && days > 0 ? days : (BACKFILL_DAYS > 0 ? BACKFILL_DAYS : 30);
   startBackfill_(Math.min(n, 366));
-  syncMeetings();
+  run_('backfill');
+}
+
+/** Lists what the next run would send, and why it skips the rest. Sends no Docs. */
+function check() {
+  var props = PropertiesService.getScriptProperties();
+  var st = newStats_('check');
+  var since = new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000);
+  var from = props.getProperty('backfill_since');
+  if (from && new Date(from) < since) since = new Date(from);
+  var found = scan_(props, since, st, true);
+  console.log('Markdrop check (script v' + SCRIPT_VERSION + ', shared meetings ' + (INCLUDE_SHARED ? 'included' : 'NOT included') +
+    ', since ' + since.toISOString() + ')');
+  found.todo.forEach(function (c) { console.log('WOULD SEND  ' + c.kind + '  "' + c.name + '"'); });
+  found.skipped.forEach(function (c) { console.log('skip (' + c.reason + ')  "' + c.name + '"'); });
+  console.log('Would send ' + found.todo.length + '. Skipped: ' + summary_(st.skipped) + '.');
+  if (!found.todo.length && !st.skipped.title && !st.skipped.not_yours && !st.skipped.already_sent) {
+    console.log('No Meet transcripts or Gemini notes found. Is transcription or "Take notes with Gemini" on in your ' +
+      'calls, and does the organizer share the Docs with attendees?');
+  }
+  st.found = found.todo.length + (st.skipped.already_sent || 0) + (st.skipped.writing || 0);
+  status_('done', st);
 }
 
 function startBackfill_(days) {
@@ -62,54 +109,243 @@ function startBackfill_(days) {
 
 /** Sends what's new, then (while a backfill is going) the next past meetings. Safe to run by hand. */
 function syncMeetings() {
+  run_('run');
+}
+
+function run_(mode) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(1000)) return;  // a run is still going
+  var st = newStats_(mode);
   try {
     var props = PropertiesService.getScriptProperties();
     var budget = { left: MAX_PER_RUN };
-    var recent = sendSince_(props, new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000), false, budget);
-    if (recent === 'stop') return;
-    var from = props.getProperty('backfill_since');
-    if (from && budget.left > 0) {
-      var past = sendSince_(props, new Date(from), true, budget);
-      if (past === 'all') {
-        props.deleteProperty('backfill_since');
-        console.log('Backfill finished.');
+    var hello = status_('start', st);
+    if (hello === 'stop') return;
+    // Docs someone asked for by link in Markdrop come first.
+    if (hello && hello.queue && hello.queue.length && sendQueued_(props, hello.queue, st, budget) === 'stop') return;
+    var recent = sendSince_(props, new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000), false, budget, st);
+    if (recent !== 'stop') {
+      var from = props.getProperty('backfill_since');
+      if (from && budget.left > 0) {
+        var past = sendSince_(props, new Date(from), true, budget, st);
+        if (past === 'all') {
+          props.deleteProperty('backfill_since');
+          console.log('Backfill finished.');
+        }
       }
+      forgetOld_(props);
     }
-    forgetOld_(props);
+    console.log('Found ' + st.found + ' meeting Docs, sent ' + st.sent + '. Skipped: ' + summary_(st.skipped) + '.');
+    if (!st.stopped) status_('done', st);
+  } catch (e) {
+    st.errors.push({ title: '', error: String(e).slice(0, 300) });
+    status_('done', st);
+    throw e;
   } finally {
     lock.releaseLock();
   }
+}
+
+function newStats_(mode) {
+  return {
+    mode: mode, found: 0, sent: 0, stopped: false,
+    results: { imported: 0, attached: 0, duplicate: 0, ignored: 0 },
+    skipped: { already_sent: 0, too_old: 0, not_yours: 0, title: 0, writing: 0 },
+    errors: [], queue_done: [], queue_failed: [], search: ''
+  };
+}
+
+function summary_(skipped) {
+  var parts = [];
+  Object.keys(skipped).forEach(function (k) { if (skipped[k]) parts.push(skipped[k] + ' ' + k.replace(/_/g, ' ')); });
+  return parts.length ? parts.join(', ') : 'none';
+}
+
+/** Tells Markdrop how a run is going ('start' → {queue, latest}; 'done'). Never fails a run. */
+function status_(phase, st) {
+  try {
+    var res = UrlFetchApp.fetch(MARKDROP_ENDPOINT + '/status', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + MARKDROP_TOKEN },
+      muteHttpExceptions: true,
+      payload: JSON.stringify({
+        phase: phase, version: SCRIPT_VERSION, mode: st.mode, include_shared: INCLUDE_SHARED === true,
+        lookback_hours: LOOKBACK_HOURS, found: st.found, sent: st.sent, results: st.results,
+        skipped: st.skipped, errors: st.errors.slice(0, 5), search: st.search,
+        queue_done: st.queue_done, queue_failed: st.queue_failed.slice(0, 20)
+      })
+    });
+    var code = res.getResponseCode();
+    if (code === 401) { unschedule_(); return 'stop'; }
+    if (code >= 200 && code < 300) {
+      var body = JSON.parse(res.getContentText() || '{}');
+      if (phase === 'start' && body.latest_version && body.latest_version > SCRIPT_VERSION) {
+        console.warn('A newer version of this script is available: in Markdrop, Meetings › Connect Google Meet › Get the new script.');
+      }
+      return body;
+    }
+  } catch (e) {
+    console.warn('Could not tell Markdrop how the run went: ' + e);
+  }
+  return null;
+}
+
+function unschedule_() {
+  console.warn('Markdrop says this script is disconnected. Removing its schedule.');
+  ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
+}
+
+// ── Finding meeting Docs ──────────────────────────────────────────────────────
+
+/** A Drive v3 call with this script's own (read-only) access. */
+function drive_(path, params) {
+  var qs = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+  var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/' + path + '?' + qs, {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  });
+  var code = res.getResponseCode();
+  if (code < 200 || code >= 300) throw new Error('Drive answered ' + code + ': ' + res.getContentText().slice(0, 200));
+  return JSON.parse(res.getContentText());
+}
+
+var FIELDS = 'id,name,mimeType,createdTime,modifiedTime,webViewLink,parents,driveId,owners(me,displayName,emailAddress)';
+
+/** Docs changed after `since` that might be meetings: by title, or inside a Meet Recordings folder. */
+function candidates_(since, st) {
+  var words = SEARCH_WORDS.map(function (w) { return "name contains '" + w + "'"; });
+  var folders = meetFolders_();
+  folders.forEach(function (id) { words.push("'" + id + "' in parents"); });
+  var q = "mimeType = '" + DOC_MIME + "' and trashed = false and modifiedTime > '" + since.toISOString().slice(0, 19) +
+    "' and (" + words.join(' or ') + ')';
+  st.search = 'drive-v3';
+  var out = [];
+  try {
+    var token = null;
+    do {
+      var params = { q: q, corpora: 'allDrives', includeItemsFromAllDrives: 'true', supportsAllDrives: 'true',
+        pageSize: '200', fields: 'nextPageToken,files(' + FIELDS + ')' };
+      if (token) params.pageToken = token;
+      var page = drive_('files', params);
+      (page.files || []).forEach(function (f) { out.push(fromV3_(f, folders)); });
+      token = page.nextPageToken;
+    } while (token && out.length < 2000);
+    return out;
+  } catch (e) {
+    // Drive's API through this script's token didn't work: DriveApp (your Drive and shared with you).
+    console.warn('Drive search: ' + e + '; using DriveApp instead.');
+    st.search = 'driveapp';
+    var v2 = "mimeType = '" + DOC_MIME + "' and trashed = false and modifiedDate > '" + since.toISOString().slice(0, 19) +
+      "' and (" + SEARCH_WORDS.map(function (w) { return "title contains '" + w + "'"; }).join(' or ') + ')' +
+      (INCLUDE_SHARED === true ? '' : " and 'me' in owners");
+    var files = DriveApp.searchFiles(v2);
+    while (files.hasNext() && out.length < 2000) out.push(fromDriveApp_(files.next()));
+    return out;
+  }
+}
+
+function fromV3_(f, folders) {
+  var owner = (f.owners || [])[0] || null;
+  return {
+    id: f.id, name: f.name || '', mime: f.mimeType || DOC_MIME, created: new Date(f.createdTime), modified: new Date(f.modifiedTime),
+    url: f.webViewLink || ('https://docs.google.com/document/d/' + f.id + '/edit'),
+    // In a shared drive nobody owns it: it counts as yours to send.
+    mine: f.driveId ? true : !!(owner && owner.me),
+    owner: owner ? { name: owner.displayName || '', email: owner.emailAddress || '', me: !!owner.me } : null,
+    inMeetFolder: (f.parents || []).some(function (p) { return folders.indexOf(p) >= 0; })
+  };
+}
+
+function fromDriveApp_(file) {
+  var owner = null;
+  try { owner = file.getOwner(); } catch (e) { owner = null; }
+  return {
+    id: file.getId(), name: file.getName(), mime: DOC_MIME, created: file.getDateCreated(), modified: file.getLastUpdated(),
+    // DriveApp can't tell whose it is without another permission: the search above already left out
+    // other people's Docs when INCLUDE_SHARED is off.
+    url: file.getUrl(), mine: true,
+    owner: owner ? { name: owner.getName() || '', email: owner.getEmail() || '', me: null } : null,
+    inMeetFolder: false
+  };
+}
+
+/** Ids of the Meet Recordings folders this person can see (remembered for a day). */
+function meetFolders_() {
+  var props = PropertiesService.getScriptProperties();
+  var cached = props.getProperty('meet_folders');
+  if (cached) {
+    var c = JSON.parse(cached);
+    if (Date.now() - c.at < 24 * 3600 * 1000) return c.ids;
+  }
+  var ids = [];
+  try {
+    var page = drive_('files', { q: "mimeType = 'application/vnd.google-apps.folder' and trashed = false and name contains 'Meet'",
+      corpora: 'allDrives', includeItemsFromAllDrives: 'true', supportsAllDrives: 'true', pageSize: '50', fields: 'files(id,name)' });
+    (page.files || []).forEach(function (f) { if (MEET_FOLDER.test(f.name || '')) ids.push(f.id); });
+  } catch (e) {
+    console.warn('Could not look for the Meet Recordings folder: ' + e);
+  }
+  ids = ids.slice(0, 10);
+  props.setProperty('meet_folders', JSON.stringify({ at: Date.now(), ids: ids }));
+  return ids;
+}
+
+/** 'transcript' | 'notes' | 'unknown' (in a Meet folder: Markdrop decides) | null (not a meeting Doc). */
+function kindOf_(c) {
+  var name = String(c.name || '').trim();
+  if (c.mime && c.mime !== DOC_MIME) return null;
+  var gemini = GEMINI_NOTES.test(name);
+  // Someone else's Doc must look like Meet's own: Gemini's notes, or the call's date in the title.
+  if (!c.mine && !gemini && !DATED_TITLE.test(name) && !c.inMeetFolder) return null;
+  if (TRANSCRIPT_TITLE.test(name)) return 'transcript';
+  if (gemini || NOTES_TITLE.test(name)) return 'notes';
+  return c.inMeetFolder ? 'unknown' : null;
+}
+
+/** Sorts the candidates changed after `since` into what to send now and why the rest wait. */
+function scan_(props, since, st, verbose) {
+  var settled = new Date(Date.now() - QUIET_MINUTES * 60 * 1000);
+  var todo = [];
+  var skipped = [];
+  var more = false;
+  var seen = {};
+  candidates_(since, st).forEach(function (c) {
+    if (seen[c.id]) return;
+    seen[c.id] = true;
+    var kind = kindOf_(c);
+    var reason = null;
+    if (!kind) reason = 'title';
+    else if (c.created < since) reason = 'too_old';
+    else if (!c.mine && INCLUDE_SHARED !== true) reason = 'not_yours';
+    else if (props.getProperty('sent:' + c.id)) reason = 'already_sent';
+    else if (c.modified > settled) { reason = 'writing'; more = true; }
+    if (reason) {
+      st.skipped[reason]++;
+      if (verbose) skipped.push({ name: c.name, reason: reason });
+      return;
+    }
+    c.kind = kind;
+    todo.push(c);
+  });
+  todo.sort(function (a, b) { return a.created.getTime() - b.created.getTime(); });
+  return { todo: todo, skipped: skipped, more: more };
 }
 
 /**
  * Sends the meeting Docs created after `since` that weren't sent yet, oldest first, while
  * budget.left lasts → 'all' (nothing left), 'more' (some wait for the next run) or 'stop'.
  */
-function sendSince_(props, since, backfill, budget) {
-  var q = "mimeType = 'application/vnd.google-apps.document' and trashed = false and modifiedDate > '" +
-    since.toISOString().slice(0, 19) + "' and (title contains 'Transcript' or title contains 'Notes')" +
-    (INCLUDE_SHARED ? '' : " and 'me' in owners");
-  var files = DriveApp.searchFiles(q);
-  var settled = new Date(Date.now() - QUIET_MINUTES * 60 * 1000);
-  var todo = [];
-  var more = false;
-  while (files.hasNext()) {
-    var file = files.next();
-    var title = file.getName();
-    var kind = TRANSCRIPT_TITLE.test(title) ? 'transcript' : NOTES_TITLE.test(title) ? 'notes' : null;
-    if (!kind || file.getDateCreated() < since || props.getProperty('sent:' + file.getId())) continue;
-    if (file.getLastUpdated() > settled) { more = true; continue; }  // Google may still be writing it
-    todo.push({ file: file, kind: kind, at: file.getDateCreated().getTime() });
-  }
-  todo.sort(function (a, b) { return a.at - b.at; });
-  for (var i = 0; i < todo.length; i++) {
+function sendSince_(props, since, backfill, budget, st) {
+  var found = scan_(props, since, st, false);
+  st.found += found.todo.length;
+  var more = found.more;
+  for (var i = 0; i < found.todo.length; i++) {
     if (budget.left <= 0) return 'more';
-    var result = send_(todo[i].file, todo[i].kind, backfill);
+    var result = send_(found.todo[i], backfill, false, st);
     if (result === 'stop') return 'stop';
     if (result === 'done') {
-      props.setProperty('sent:' + todo[i].file.getId(), String(Date.now()));
+      props.setProperty('sent:' + found.todo[i].id, String(Date.now()));
       budget.left--;
     } else {
       more = true;
@@ -118,13 +354,43 @@ function sendSince_(props, since, backfill, budget) {
   return more ? 'more' : 'all';
 }
 
+/** The Docs someone pasted a link to in Markdrop (Markdrop couldn't open them; this script can). */
+function sendQueued_(props, queue, st, budget) {
+  for (var i = 0; i < queue.length && budget.left > 0; i++) {
+    var id = String(queue[i].file_id || queue[i]);
+    var c;
+    try {
+      c = fromV3_(drive_('files/' + encodeURIComponent(id), { supportsAllDrives: 'true', fields: FIELDS }), []);
+    } catch (e) {
+      st.queue_failed.push({ file_id: id, error: /\b404\b/.test(String(e)) ? 'not_found' : 'unreadable' });
+      continue;
+    }
+    c.kind = c.mime === DOC_MIME ? (kindOf_(c) || 'unknown') : 'unknown';
+    if (c.mime !== DOC_MIME && !/^text\/|subrip|vtt/.test(c.mime)) {
+      st.queue_failed.push({ file_id: id, error: 'not_a_doc' });
+      continue;
+    }
+    var result = send_(c, false, true, st);
+    if (result === 'stop') return 'stop';
+    if (result === 'done') {
+      props.setProperty('sent:' + id, String(Date.now()));
+      st.queue_done.push(id);
+      budget.left--;
+    } else {
+      st.queue_failed.push({ file_id: id, error: 'retry' });
+    }
+  }
+  return 'ok';
+}
+
 /** 'done' (sent, or Markdrop will never take it), 'retry' (next run) or 'stop'. */
-function send_(file, kind, backfill) {
+function send_(c, backfill, requested, st) {
   var text;
   try {
-    text = docText_(file.getId());
+    text = c.mime && c.mime !== DOC_MIME ? fileText_(c.id) : docText_(c.id);
   } catch (e) {
-    console.warn('Could not read "' + file.getName() + '": ' + e);
+    console.warn('Could not read "' + c.name + '": ' + e);
+    st.errors.push({ title: c.name, error: 'Could not read it: ' + String(e).slice(0, 200) });
     return 'retry';
   }
   var res;
@@ -136,36 +402,48 @@ function send_(file, kind, backfill) {
       muteHttpExceptions: true,
       payload: JSON.stringify({
         source: 'google-meet-script',
-        file_id: file.getId(),
-        title: file.getName(),
-        created: file.getDateCreated().toISOString(),
-        kind_hint: kind,
+        version: SCRIPT_VERSION,
+        file_id: c.id,
+        title: c.name,
+        created: c.created.toISOString(),
+        kind_hint: c.kind,
         text: text,
-        doc_url: file.getUrl(),
-        backfill: backfill === true
+        doc_url: c.url,
+        owner: c.owner,
+        backfill: backfill === true,
+        requested: requested === true
       })
     });
   } catch (e) {
     console.warn('Markdrop unreachable: ' + e);
+    st.errors.push({ title: c.name, error: 'Markdrop unreachable' });
+    st.stopped = true;
     return 'stop';
   }
   var code = res.getResponseCode();
   if (code >= 200 && code < 300) {
-    console.log('Sent "' + file.getName() + '": ' + res.getContentText().slice(0, 200));
+    console.log('Sent "' + c.name + '": ' + res.getContentText().slice(0, 200));
+    st.sent++;
+    try {
+      var r = JSON.parse(res.getContentText()).status;
+      if (r in st.results) st.results[r]++;
+    } catch (e) { /* counted as sent */ }
     return 'done';
   }
   if (code === 401) {
     // Disconnected in Markdrop (the token was revoked): stop running.
-    console.warn('Markdrop says this script is disconnected. Removing its schedule.');
-    ScriptApp.getProjectTriggers().forEach(function (t) { ScriptApp.deleteTrigger(t); });
+    unschedule_();
+    st.stopped = true;
     return 'stop';
   }
+  var said = res.getContentText().slice(0, 300);
   if (code === 413 || code === 422) {
-    console.warn('Markdrop can\'t import "' + file.getName() + '" (' + code + '): ' + res.getContentText().slice(0, 300));
+    console.warn('Markdrop can\'t import "' + c.name + '" (' + code + '): ' + said);
+    st.errors.push({ title: c.name, error: code + ': ' + said.slice(0, 200) });
     return 'done';
   }
-  console.warn('Markdrop answered ' + code + ' for "' + file.getName() + '"; trying again next run. ' +
-    res.getContentText().slice(0, 300));
+  console.warn('Markdrop answered ' + code + ' for "' + c.name + '"; trying again next run. ' + said);
+  st.errors.push({ title: c.name, error: code + ': ' + said.slice(0, 200) });
   return code === 429 || code === 403 || code >= 500 ? 'stop' : 'retry';
 }
 
@@ -187,10 +465,20 @@ function docText_(id) {
   } catch (e) {
     // The Docs service is off: Drive's plain-text export (the first tab only).
     var res = UrlFetchApp.fetch('https://docs.google.com/document/d/' + id + '/export?format=txt', {
-      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }
+      headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+      muteHttpExceptions: true
     });
+    if (res.getResponseCode() !== 200) throw new Error('export answered ' + res.getResponseCode());
     return res.getContentText();
   }
+}
+
+/** A text file's content (a .vtt, .srt or .txt transcript someone put in Drive). */
+function fileText_(id) {
+  var res = UrlFetchApp.fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(id) +
+    '?alt=media&supportsAllDrives=true', { headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() }, muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('Drive answered ' + res.getResponseCode());
+  return res.getContentText().slice(0, 2000000);
 }
 
 function bodyText_(body, out) {
@@ -229,7 +517,9 @@ function bodyText_(body, out) {
 function forgetOld_(props) {
   var cutoff = Date.now() - 3 * LOOKBACK_HOURS * 3600 * 1000;
   var all = props.getProperties();
+  var backfilling = !!all.backfill_since;
   Object.keys(all).forEach(function (k) {
-    if (k.indexOf('sent:') === 0 && Number(all[k]) < cutoff) props.deleteProperty(k);
+    // While a backfill is going, keep everything (it looks further back than the lookback).
+    if (!backfilling && k.indexOf('sent:') === 0 && Number(all[k]) < cutoff) props.deleteProperty(k);
   });
 }
