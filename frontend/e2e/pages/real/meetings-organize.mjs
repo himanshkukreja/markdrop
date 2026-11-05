@@ -104,7 +104,8 @@ await step("one-item", async () => {
 await step("organize", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(HUB);
-  await p.getByTestId("organize-meetings").click();
+  await p.getByTestId("meetings-more").click();
+  await p.getByRole("menuitem", { name: /Organize into folders/ }).click();
   await p.getByRole("dialog").getByRole("button", { name: "Organize" }).click();
   await p.getByText(/(\d+ of )?4 meetings?( filed in \d+ folders?)?.*1 series|already in its folder \(4 meetings · 1 series\)/).first().waitFor({ timeout: 30000 });
   await snap(p, "organized");

@@ -2,7 +2,7 @@
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
 updated: 2026-11-05
-keywords: [meetings, meeting folders, subfolders, other meetings, organize meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, organise meetings, organize meetings]
+keywords: [meetings, meeting cards, search meetings, meeting folders, subfolders, other meetings, organize meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, organise meetings, organize meetings]
 ---
 
 Meetings turns a call into a page in your workspace. Bring in Google Meet's transcript, Gemini's meeting notes, or both, and Markdrop writes:
@@ -43,13 +43,15 @@ Each of these folders opens on **All meetings**: a table, newest first, grouped 
 
 Sort, filter or add views as in any folder; see [Folders](/workspaces/folders). Renaming a folder is fine: Markdrop keeps filing that series there.
 
-To move a meeting to another series, or take it out of one, edit **Series** in the meeting's **Details**. The page moves to that series' folder, and Markdrop doesn't change it back. Meetings imported before folders, or moved by hand, can be filed again: a workspace admin selects **Organize meetings** on the Meetings page. It moves each meeting, with its transcript, into its folder, puts the spellings of one series together, and says how many meetings it filed and how many series there are. Running it again changes nothing that's already in place.
+To move a meeting to another series, or take it out of one, edit **Series** in the meeting's **Details**. The page moves to that series' folder, and Markdrop doesn't change it back. Meetings imported before folders, or moved by hand, can be filed again: a workspace admin selects **⋯ › Organize into folders** on the Meetings page. It moves each meeting, with its transcript, into its folder, puts the spellings of one series together, and says how many meetings it filed and how many series there are. Running it again changes nothing that's already in place.
 
 **Who can open a meeting** depends on who was there. A 1:1 or a two-person call starts restricted to its attendees. A call with three or more people is open to the workspace's team. You can change it for any meeting; see [Privacy and cost](/workspaces/meetings-privacy).
 
-The workspace's **Meetings** page lists every meeting you can open by the day it happened, newest first, under month headings. To change the order, use the sort menu next to the filter: **Meeting date, newest**, **Meeting date, oldest**, **Title** or **Recently imported**. Markdrop remembers your choice on this device. Select a series above the list to see only that series, or **One-offs**. Open the page with **Ask meetings** in the Meetings folder. A meeting that came in automatically is marked **Auto**.
+The workspace's **Meetings** page lists every meeting you can open by the day it happened, newest first, under month headings that stay at the top as you scroll. Each meeting shows its series' cover with the date, the title, the day, time and length, a line of its summary, who was there, and how many decisions, action items and open questions it has. A meeting that came in automatically is marked **Auto**, and one only its attendees can open is marked **Attendees only**. Point at a meeting (or tap **⋯** on a phone) to open its transcript, ask it, or copy its link.
 
-![The Meetings page: series to filter by (Daily Standup, One-offs) above the meetings, listed by month with their date, type and people.](/docs-assets/workspaces/meetings-import/organised.webp)
+Search by title, series or person in the box above the list. To change the order, use the sort menu next to it: **Meeting date, newest**, **Meeting date, oldest**, **Title** or **Recently imported**. Markdrop remembers your choice on this device. Select a series to see only that series, or **One-offs**. Open the page with **Ask meetings** in the Meetings folder.
+
+![The Meetings page: search, sort and the series to filter by above the meetings, listed by month with their cover and date, summary, people and counts.](/docs-assets/workspaces/meetings-import/organised.webp)
 
 ## What the meeting page holds
 
@@ -70,13 +72,16 @@ The page is an ordinary page. Edit it like any other: fix a name, add notes, tic
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
 
 ## Next
 
 ::::cards
 :::card[Ask your meetings]{href="/workspaces/meetings-ask" icon="sparkle"}
 Ask one meeting or all of them. Answers link to the moment it was said.
+:::
+:::card[Meeting memory while writing]{href="/pages/meeting-memory" icon="lines"}
+See what was decided in meetings while you write a page, and insert it as a cited line.
 :::
 :::card[Privacy and cost]{href="/workspaces/meetings-privacy" icon="lock"}
 Who can open a meeting, restricted meetings, how long transcripts are kept, and the AI budget.

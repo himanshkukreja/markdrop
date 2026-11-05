@@ -16,7 +16,7 @@
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
     { "id": "ask", "title": "Ask Markdrop", "tags": ["ask"] },
-    { "id": "meetings", "title": "Meetings", "tags": ["meetings"] },
+    { "id": "meetings", "title": "Meetings", "tags": ["meetings", "meeting-memory"] },
     { "id": "slack", "title": "Slack", "tags": ["slack"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai"] },
@@ -1311,10 +1311,15 @@
     },
     "POST /api/v1/ask": {
       "title": "Ask Markdrop",
-      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations`, `ranked` and `thread_id`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI search limits.",
+      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Pass `scope` to say what to answer from, as the in-app assistant does: `{\"kind\": \"doc\", \"page\": slug}` (that document or page first, then its workspace's meetings and documents), `{\"kind\": \"meetings\", \"workspace\": id}` (the workspace's meetings, optionally one `meeting`, a `series`, `since` and `until`), `{\"kind\": \"folder\", \"workspace\": id, \"folder\": id}`, `{\"kind\": \"workspace\", \"workspace\": id}` or `{\"kind\": \"everything\"}`; with `doc`, `context` (`heading`, `selection`) says where the reader is. One conversation (`thread_id`) can switch scopes. `page` alone (a slug) is the older way to ask a page. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations` (each with `title`, `url`, `subtitle`, `quote` and, for a meeting line, `moment`), `ranked`, `thread_id` and `scope` (`kind`, `label`); or `limit` when an AI limit stops it, or `error`. The `meetings` scope counts towards your Meetings AI limits, the others towards AI search.",
       "returns": "text/event-stream",
-      "example": { "question": "When do we ship the release?" },
+      "example": { "question": "When did we decide on Stripe Checkout?", "scope": { "kind": "doc", "page": "checkout-prd" }, "context": { "heading": "Payments" } },
       "mcp": "ask_documents",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "GET /api/v1/ask/context": {
+      "title": "Get what Ask Markdrop offers here",
+      "description": "The scopes the assistant offers for a place (`page`, `workspace`, `folder` and `meeting` query parameters): `scopes` (each `kind`, `label` and `sub`, only for things you can open), the `default` one, the `page`, `workspace`, `folder` and `meeting` they refer to, the workspace's meeting `series`, `can_insert` (you can edit the page, so answers can be inserted into it) and `status` (whether AI can answer now, for AI search and Meetings AI). Something you can't open is left out, never an error.",
       "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
     },
     "GET /api/v1/ask/threads": {
@@ -1356,6 +1361,30 @@
     "DELETE /api/v1/me/connections/{client_id}": {
       "title": "Disconnect an app",
       "description": "Revokes an AI app's access at once."
+    },
+    "POST /api/v1/meeting-memory/related": {
+      "title": "Related meeting facts",
+      "description": "Meeting memory for writing: the decisions, action items, open questions and topics recorded in a workspace's meetings that relate to what you're writing, best match first. Give `page` (a slug; its workspace is used and its own meeting left out) or `workspace`, and any of `title`, `heading`, `selection`, `section` or a free query `q`; `kinds` limits the kinds. Each fact has its `text`, `owner`, `due`, `status` (`open` or `done`, read from the meeting page), the `meeting` (id, title, date, series, link), `moment` (a link to the transcript moment, when you can open the transcript) and `markdown`, a dated, cited line ready to insert. `hints` are clear-match decisions the `section` seems to leave out. Only meetings you can open count; no AI call.",
+      "example": { "page": "checkout-prd", "title": "Checkout redesign", "heading": "Payments" },
+      "mcp": "meeting_context",
+      "guide": { "label": "Meeting memory while writing", "href": "/pages/meeting-memory" }
+    },
+    "POST /api/v1/meeting-memory/check": {
+      "title": "Check a section against decisions",
+      "description": "Asks Claude Haiku 5.5 whether a page's section contradicts, leaves out or agrees with recorded decisions (`facts`: ids from Related meeting facts, at most a few). Returns a `verdict` (`contradicts`, `omits` or `consistent`) and a short `note` for each. For editors of the page. The same section and decisions are answered from a cache for 30 days (`cached`). Counts towards Meetings AI; when a limit is reached or the workspace's AI features are off, `reason` and `message` say why instead of results.",
+      "example": { "page": "checkout-prd", "heading": "Billing", "section": "Customers pay monthly by card.", "facts": ["FACT_ID"] },
+      "guide": { "label": "Meeting memory while writing", "href": "/pages/meeting-memory#missed-decisions" }
+    },
+    "GET /api/v1/meeting-memory/prefs": {
+      "title": "Get meeting memory settings",
+      "description": "Your own switches: `panel` (the From meetings button shows by itself) and `hints` (cards for missed decisions). Both are on by default.",
+      "guide": { "label": "Meeting memory while writing", "href": "/pages/meeting-memory#turn-it-off" }
+    },
+    "PATCH /api/v1/meeting-memory/prefs": {
+      "title": "Change meeting memory settings",
+      "description": "Switches `panel` and/or `hints` on or off for you, everywhere. Returns both.",
+      "example": { "hints": false },
+      "guide": { "label": "Meeting memory while writing", "href": "/pages/meeting-memory#turn-it-off" }
     },
     "GET /api/v1/meetings/status": {
       "title": "Meetings status",

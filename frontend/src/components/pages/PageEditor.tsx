@@ -20,6 +20,7 @@
  * caret. On phones, a bottom toolbar (PagePhoneBar) and bottom sheets.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import type { Editor } from "@tiptap/react";
 import type { Heading } from "@/components/reading";
 import { Alert, Badge, Button, Icon, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
@@ -51,13 +52,21 @@ import { usePageAssets } from "./usePageEmbeds";
 import { usePageSignoffs } from "./signoff/store";
 import { SignoffSummary } from "./signoff/SignoffSummary";
 import { clearPageDraft, dropLegacyPageDraft, readPageDraft, restorePageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
+import { useAssistantEditor } from "@/components/assistant/store";
+import { insertAfterCaret } from "./editorInsert";
+import { sectionAround } from "./memory/memoryCore.mjs";
 import "./pages.css";
 import "./page-blocks.css";
+
+// Meeting memory (components/pages/memory): "✦ From meetings" beside the editor, loaded on demand.
+const MeetingMemory = dynamic(() => import("./memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
 
 /** What the document view puts around the page (the same for readers). */
 export interface PageChromeSlots {
   /** Who's viewing (DocPresence). */
   presence?: ReactNode;
+  /** ✦ Ask in the bar (Ask Markdrop, components/assistant). */
+  ask?: boolean;
   /** Share (owners and resharers); without it, Copy link. */
   onShare?: (() => void) | null;
   shareUrl?: string;
@@ -334,6 +343,22 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const aiStatus = usePagesAiStatus({ slug });
   const ai = useMemo(() => pageEditorAi(slug, aiStatus, secret), [slug, aiStatus, secret]);
   const aiUsable = !!ai && !ai.off;
+
+  // Ask Markdrop (components/assistant): its Insert puts an answer at the caret, and a question in
+  // this page says which section the caret is in and what is selected. Never edits by itself.
+  const assistantInsert = useCallback(
+    (markdown: string) => (editor && mode === "visual" && !readOnly ? insertAfterCaret(editor, markdown) : false),
+    [editor, mode, readOnly],
+  );
+  const assistantReader = useCallback(() => {
+    if (!editor || editor.isDestroyed) return null;
+    const blocks: { level: number | null; text: string }[] = [];
+    editor.state.doc.forEach((n) => blocks.push({ level: n.type.name === "heading" ? Number(n.attrs.level) || 1 : null, text: n.textContent }));
+    const { heading } = sectionAround(blocks, editor.state.selection.$from.index(0));
+    const sel = editor.state.selection;
+    return { heading, selection: sel.empty ? null : editor.state.doc.textBetween(sel.from, sel.to, " ").slice(0, 1500) };
+  }, [editor]);
+  useAssistantEditor(editor && !readOnly ? assistantInsert : null, editor ? assistantReader : null);
 
   const keepDraft = useCallback((next: { title?: string; content?: string }) => {
     // Storage full or blocked: the server copy still saves.
@@ -738,6 +763,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           onCopied={chrome.onCopied}
           menu={menu}
           banner={banner}
+          ask={chrome.ask}
         />
       }
       head={
@@ -841,6 +867,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
         />
       </div>
       {(phone || touch) && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
+      {workspaceId && userId && <MeetingMemory slug={slug} workspaceId={workspaceId} title={title} editor={mode === "visual" ? editor : null} readOnly={readOnly} ai={aiUsable} />}
     </PageFrame>
   );
 }

@@ -24,6 +24,64 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-markdrop-everywhere",
+      "date": "2026-11-05",
+      "title": "Ask Markdrop everywhere: one assistant, ⌘J, and answers you can insert",
+      "kind": "new",
+      "area": "AI",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "One assistant replaces Ask in page, Ask this meeting and Ask across meetings: ✦ Ask in every top bar or ⌘J from anywhere opens Ask Markdrop beside what you're reading, on the right scope (This doc, Meetings, This folder, Workspace or Everything), with one conversation that follows you and Insert to put an answer into the doc.",
+      "body": "- **One assistant, everywhere.** ✦ Ask in the top bar of documents, pages, workspaces and folders, ⌘J (Ctrl J) from anywhere, the box on your home, Ask this meeting and the Meetings page all open the same Ask Markdrop: a panel beside what you're reading, a sheet on phones.\n- **Scope chips at the top**: This doc, Meetings, This folder, Workspace, Everything. It starts on the one that fits where you are; switch any time. Meetings adds This meeting, a series and a period in the question box.\n- **This doc** answers from the doc first, then what your meetings decided about it, then the workspace, and knows the section you're in and what you selected. It works in pages and classic Markdown documents.\n- **Insert** puts an answer into the doc, with its sources as links: blocks after your cursor in a page, a paragraph at your cursor in a document you're editing, or the editor opened with it after the section you were reading. Only when you choose it; editors only.\n- **One conversation**: ask on your home, open a page, press ⌘J and keep going. Conversations are kept 90 days and listed under the home's box.\n- **Ask about this** in From meetings asks about one decision, action item or question.\n- Same rules: only what you can open, every source checked again; restricted meetings never reach anyone else. This doc, This folder, Workspace and Everything count towards AI search, Meetings towards Meetings AI, as before.\n- **API and MCP**: `POST /api/v1/ask` takes `scope` and `context`; `GET /api/v1/ask/context` lists the scopes offered where you are; `ask_documents` takes `page` and `folder`.",
+      "docs": [
+        "/workspaces/ask-markdrop",
+        "/workspaces/meetings-ask",
+        "/pages/ai",
+        "/pages/meeting-memory",
+        "/ai/tools"
+      ]
+    },
+    {
+      "id": "meetings-chat-and-cards",
+      "date": "2026-11-05",
+      "title": "Asking meetings is a real conversation; the Meetings page shows what each meeting was about",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Ask this meeting and Ask across meetings are now one chat: answers stream in with numbered sources that show who said it, when, and the line itself, with follow-up questions and a conversation that's still there when you come back. The Meetings page lists each meeting with its cover, summary, people and counts.",
+      "body": "- **One chat for asking meetings.** Your question on the right, the answer on the left as it's written, with what it's reading while it works. **Stop** (or Esc) ends an answer early.\n- **Numbered sources.** Select **1**, **2**… in an answer, or **N sources** under it: each source shows the meeting, its date and series, who spoke and when, and the line itself. **Jump to the moment** opens the transcript there.\n- **Follow-ups.** Suggested follow-up questions under each answer, and follow-ups across meetings now know what you asked before.\n- **Conversations are kept.** Reopen a meeting, or the Meetings page, and your conversation is still there (on any device you sign in on). **New chat** starts over. If you can no longer open a meeting an answer used, that answer is hidden.\n- **Ask across meetings opens beside your meetings** on a computer (or page-wide with **Expand**) and full screen on a phone. Pick a series and a period with the chips in the question box.\n- **Keyboard.** Enter sends, Shift+Enter is a new line, ↑ brings back your last question, Esc stops an answer or closes the sources.\n- **The Meetings page** shows each meeting's series cover with its date, the day, time and length, a line of the summary, who was there, and how many decisions, action items and open questions it has. Month headings stay on screen as you scroll; search covers titles, series and people; point at a meeting to open its transcript or ask it. Connect Google Meet, Import past meetings, the Meetings folder and Organize are under one calm header.\n- **A meeting bar on every meeting page**: who was there, who can open it, **Transcript** and **Ask this meeting**.\n- MCP `list_meetings` gives each meeting's summary line and its decision and open-question counts. API: `GET /api/v1/meetings` rows add `summary`, `decisions`, `open_questions` and `cover`; ask citations add `speaker`, `at` and `quote`; both asks take `thread_id` (and Ask across takes `history`) and return `thread_id`, readable with `GET /api/v1/ask/threads/{id}`.",
+      "docs": [
+        "/workspaces/meetings-ask",
+        "/workspaces/meetings"
+      ]
+    },
+    {
+      "id": "meeting-memory-while-writing",
+      "date": "2026-11-05",
+      "title": "Meeting memory while writing: what the team decided, right in the page",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "While you write a PRD or any page in a workspace, From meetings shows the decisions, action items and open questions your meetings recorded about it, with the date, the meeting and a link to the moment. Insert one as a cited line, get a gentle card when a section leaves out a decision, and ask the page with your meetings.",
+      "body": "- **From meetings**, beside **Ask** at the bottom right of a page, follows the section you're writing: decisions, action items (owner, due, open or done), open questions and topics from the workspace's meetings, each with its date, meeting and series, and a link to the moment in the transcript. A search box finds anything else.\n- **Insert** adds a dated, cited line, such as \"**Decided on Oct 28, 2026** (Daily Standup): …\", with a mention of the meeting and a link to the moment. `/meetings` in the page opens the panel and inserts where you typed.\n- **Missed decisions.** When a section clearly leaves out a decision about its topic, a small card asks \"Include it here?\". With AI on, Claude Haiku 5.5 also notices a section that says something different from a decision. Nothing changes unless you choose **Include**. Both the button and the cards can be switched off, per person.\n- **Ask the page with your meetings.** **Ask** in a workspace page answers from the page and the workspace's meetings, naming the meeting and date for \"when did we decide…\" questions, with citations that open the moment.\n- **Private by design.** Only meetings you can open count. Meetings restricted to their attendees, including one-to-one calls, never appear for anyone else. No extra AI cost: the memory comes from the summary each meeting already has.\n- **For AI apps**: `meeting_context` returns the decisions and action items related to a topic or a page, with dates, links and a cited line to paste (80 MCP tools now).",
+      "docs": [
+        "/pages/meeting-memory",
+        "/ai/tools",
+        "/workspaces/meetings"
+      ]
+    },
+    {
       "id": "markdrop-on-phones-and-tablets",
       "date": "2026-11-05",
       "title": "Markdrop on phones and tablets",

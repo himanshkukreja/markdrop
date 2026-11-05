@@ -14737,6 +14737,167 @@
         }
       }
     },
+    "/api/v1/meeting-memory/related": {
+      "post": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Related",
+        "description": "Decisions, action items, open questions and topics from the workspace's meetings related to what\nis being written, best first, each with its date, meeting, series, a link to the moment and the\ncited line to insert; ``hints``: a related decision the section seems to leave out (clear matches\nonly).",
+        "operationId": "related_api_v1_meeting_memory_related_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelatedBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meeting-memory/check": {
+      "post": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Check",
+        "description": "Claude Haiku's verdict on the section against these decisions: ``contradicts`` / ``omits`` /\n``consistent`` with a one-line note. Never edits the page.",
+        "operationId": "check_api_v1_meeting_memory_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meeting-memory/prefs": {
+      "get": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Get Prefs",
+        "description": "Your switches: ``panel`` (the \"From meetings\" panel shows by itself) and ``hints`` (suggestions\nwhen a section seems to leave out a decision). Both on by default.",
+        "operationId": "get_prefs_api_v1_meeting_memory_prefs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Set Prefs",
+        "operationId": "set_prefs_api_v1_meeting_memory_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrefsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/slack/status": {
       "get": {
         "tags": [
@@ -15355,6 +15516,112 @@
           "auth": "token",
           "rateLimits": [
             "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask/context": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask Context",
+        "description": "What the assistant offers where you are: its scopes (This doc, Meetings, This folder, Workspace,\nEverything) for things you can open, the default one, the workspace's meeting series, whether you\ncan insert answers into the doc, and whether AI can answer now (AI search and Meetings AI).",
+        "operationId": "ask_context_api_v1_ask_context_get",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Page"
+            }
+          },
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          },
+          {
+            "name": "folder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Folder"
+            }
+          },
+          {
+            "name": "meeting",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Meeting"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
           ]
         }
       }
@@ -17044,6 +17311,34 @@
               }
             ],
             "title": "Until"
+          },
+          "history": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array",
+                "maxItems": 6
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
           }
         },
         "type": "object",
@@ -17288,6 +17583,48 @@
         "title": "BrandingPayload",
         "description": "Every field optional — an unset workspace looks exactly like Markdrop."
       },
+      "CheckBody": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Page"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "section": {
+            "type": "string",
+            "maxLength": 8000,
+            "title": "Section"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Facts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page",
+          "section",
+          "facts"
+        ],
+        "title": "CheckBody"
+      },
       "ClickBody": {
         "properties": {
           "log_id": {
@@ -17421,6 +17758,36 @@
           "contacts"
         ],
         "title": "ContactListResponse"
+      },
+      "ContextBody": {
+        "properties": {
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection"
+          }
+        },
+        "type": "object",
+        "title": "ContextBody"
       },
       "CreateBody": {
         "properties": {
@@ -21626,6 +21993,34 @@
         "title": "PreferencesUpdate",
         "description": "Either or both; what's left out is unchanged."
       },
+      "PrefsBody": {
+        "properties": {
+          "panel": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel"
+          },
+          "hints": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hints"
+          }
+        },
+        "type": "object",
+        "title": "PrefsBody"
+      },
       "PrefsIn": {
         "properties": {
           "mention": {
@@ -21723,6 +22118,129 @@
         ],
         "title": "PreviewRequest"
       },
+      "RelatedBody": {
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "The page being written (its slug): its workspace, and its own meeting left out."
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "A workspace id, when there is no page."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading",
+            "description": "The heading of the section under the caret."
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 6000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section",
+            "description": "The section's text (Markdown)."
+          },
+          "q": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q",
+            "description": "A typed search."
+          },
+          "kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "decision",
+                    "action_item",
+                    "open_question",
+                    "topic"
+                  ]
+                },
+                "type": "array",
+                "maxItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kinds"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 40,
+            "minimum": 1,
+            "title": "Limit",
+            "default": 12
+          }
+        },
+        "type": "object",
+        "title": "RelatedBody"
+      },
       "ReportRequest": {
         "properties": {
           "reason": {
@@ -21798,6 +22316,115 @@
           "properties"
         ],
         "title": "SchemaPut"
+      },
+      "ScopeBody": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "doc",
+              "meetings",
+              "folder",
+              "workspace",
+              "everything"
+            ],
+            "title": "Kind",
+            "default": "everything"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "doc: the document or page (its slug)"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "meetings / folder / workspace: the workspace id"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder",
+            "description": "folder: the folder id (its sub-folders too)"
+          },
+          "meeting": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meeting",
+            "description": "meetings: one meeting (its id)"
+          },
+          "series": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series",
+            "description": "meetings: only this series"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since",
+            "description": "meetings: from this day (YYYY-MM-DD)"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until",
+            "description": "meetings: to this day (YYYY-MM-DD)"
+          }
+        },
+        "type": "object",
+        "title": "ScopeBody"
       },
       "SettingsIn": {
         "properties": {
@@ -23549,7 +24176,8 @@
                 "enum": [
                   "ask",
                   "catch_up",
-                  "my_actions"
+                  "my_actions",
+                  "page"
                 ]
               },
               {
@@ -23557,6 +24185,41 @@
               }
             ],
             "title": "Intent"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "Ask AI in this page (its slug): the page, then its workspace's meetings (recorded decisions first) and documents. Implies intent \"page\"."
+          },
+          "scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeBody"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "What to answer from (the assistant). Without it: everything (or `page`)."
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextBody"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the reader is in the doc (scope doc)."
           }
         },
         "type": "object",
@@ -23653,6 +24316,18 @@
               }
             ],
             "title": "History"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
           }
         },
         "type": "object",

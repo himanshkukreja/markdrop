@@ -23,6 +23,9 @@ one API worker runs it (§5.1, §5.5, A6):
                              every 10 minutes drop rows whose document is gone (services/search_index.py)
     meetings_backfill every 10 s  pick up "Import past meetings" queues a stopped process left
                              running, wake those that waited for the AI budget (services/meeting_backfill.py)
+    meeting_memory  every 15 s  meetings' decisions, action items… as facts for the editor's "From
+                             meetings" panel: re-derive a batch of meetings changed since (or never
+                             derived: the backfill), drop facts of deleted meetings (services/meeting_memory.py)
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -189,6 +192,12 @@ async def _search_index(db: AsyncIOMotorDatabase) -> None:
     await search_index.background(db)
 
 
+async def _meeting_memory(db: AsyncIOMotorDatabase) -> None:
+    from app.services import meeting_memory
+
+    await meeting_memory.background(db)
+
+
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
@@ -199,7 +208,8 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("page_history", 3600.0, _page_history), ("trash", TRASH_EVERY, _trash),
                               ("notifications", 30.0, _notifications), ("page_covers", 15.0, _page_covers),
                               ("search_index", 10.0, _search_index), ("slack_dm", 5.0, _slack),
-                              ("meetings_backfill", 10.0, _meetings_backfill)):
+                              ("meetings_backfill", 10.0, _meetings_backfill),
+                              ("meeting_memory", 15.0, _meeting_memory)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
 

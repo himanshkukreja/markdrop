@@ -33,6 +33,7 @@ import { listBacklinks, type ChildPage, type Crumb } from "@/lib/pages";
 import { fetchChildren } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import type { SaveState } from "./usePageEditSession";
+import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { PageAccount, PageBrand } from "./PageBarEnds";
 import { RAIL_SCRIPT, RAIL_WIDE, closeRailDrawer, setRailPeek, toggleRail, useRail, useRailControls } from "./railState";
 import "./pages.css";
@@ -500,6 +501,7 @@ export function PageTopBar({
   hideAccount,
   className,
   banner,
+  ask,
 }: {
   crumbs: Crumb[];
   title: string | null;
@@ -529,6 +531,8 @@ export function PageTopBar({
   className?: string;
   /** A notice under the bar (someone else is editing). */
   banner?: ReactNode;
+  /** ✦ Ask: Ask Markdrop about this (components/assistant), for someone signed in. */
+  ask?: boolean;
 }) {
   const scrolled = useScrolled();
   const phone = usePhone();
@@ -586,6 +590,7 @@ export function PageTopBar({
         <div className="pb-bar__actions">
           {presence && <span className="pb-bar__presence">{presence}</span>}
           {status}
+          {ask && <AssistantButton className="pb-bar__btn pb-bar__ask" />}
           {tools}
           {onShare ? (
             <Button variant="ghost" size="sm" className="pb-bar__btn pb-bar__share" onClick={onShare}>Share</Button>

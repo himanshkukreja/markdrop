@@ -70,8 +70,10 @@ export function SlashCommand(store: SlashStore, listboxId: string, items: BlockI
     store,
     listboxId,
     find: (q, e) => {
-      if (e && inTableCell(e)) return filterItems(q, cellItems(items));
-      return filterItems(q, e && aiHooks(e)?.on ? [...AI_ITEMS, ...items] : items);
+      // Items that need a host service (e.g. "/meetings") only while it is there.
+      const here = e ? items.filter((it) => !it.available || it.available(e)) : items.filter((it) => !it.available);
+      if (e && inTableCell(e)) return filterItems(q, cellItems(here));
+      return filterItems(q, e && aiHooks(e)?.on ? [...AI_ITEMS, ...here] : here);
     },
   });
 }

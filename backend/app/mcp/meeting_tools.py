@@ -6,6 +6,9 @@
   them (its page's Markdown, and the transcript when asked).
 * ``ask_meetings``: a question about one meeting, or every meeting in a workspace the user can
   open; the answer cites transcript moments.
+* ``meeting_context``: meeting memory for writing (services/meeting_memory.py): the decisions, action
+  items, open questions and topics recorded in the workspace's meetings that relate to a topic or a
+  page, with dates, meetings, links to the moment and a cited line ready to paste. No model call.
 * ``meetings_connection``: whether meetings are imported automatically into a workspace ("Connect
   Google Meet", services/meetings_inbox.py): who connected it, when it last imported, how many.
   Read-only: never the token or the script (connecting is done on the website).
@@ -22,6 +25,7 @@ counts towards the user's limits under "Meetings AI".
 from __future__ import annotations
 
 import base64
+import re
 from typing import Any
 
 from fastapi import HTTPException
@@ -58,6 +62,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         "attendees": [a["name"] for a in m.get("attendees") or []], "restricted": m.get("restricted"),
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
+        # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
+        "summary": m.get("summary"), "decisions": m.get("decisions"), "open_questions": m.get("open_questions"),
     }
 
 
@@ -65,7 +71,8 @@ def _line(m: dict) -> str:
     bits = [m.get("date") or "", m.get("series") or m.get("type") or "", f"{m.get('action_items') or 0} action items"]
     if m.get("restricted"):
         bits.append("restricted to attendees")
-    return f"- {m.get('title')} ({', '.join(b for b in bits if b)}): {m['url']}  [id {m['id']}]"
+    line = f"- {m.get('title')} ({', '.join(b for b in bits if b)}): {m['url']}  [id {m['id']}]"
+    return f"{line}\n  {m['summary']}" if m.get("summary") else line
 
 
 async def _ws(ctx: Context, value: str) -> str:
@@ -260,6 +267,65 @@ async def ask_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, out
 
 
+async def meeting_context(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import meeting_memory
+
+    actor, actx = actor_of(ctx), _actx(ctx)
+    topic = (args.get("topic") or "").strip()
+    title = heading = None
+    exclude = None
+    ws_id = None
+    if args.get("page"):
+        slug = str(args["page"]).strip().rstrip("/").rsplit("/", 1)[-1].split("#", 1)[0].split("?", 1)[0]
+        raw = await ctx.db["documents"].find_one({"slug": slug})
+        if raw is None or not (await access_service.can(actor, raw, "read", actx)).allowed:
+            raise ToolError("Page not found (or the user can't open it).")
+        if raw.get("encrypted"):
+            raise ToolError("That page is encrypted: its text can't be read.")
+        ws_id, title, exclude = raw.get("workspace_id"), raw.get("title"), raw.get("meeting_id")
+        if not ws_id:
+            raise ToolError("That page isn't in a workspace, so it has no meetings. Pass workspace and topic.")
+        from app.services import page_props
+
+        _l, body = page_props.split(raw.get("content") or "")
+        heads = [m.group(1) for m in re.finditer(r"^#{1,3}\s+(.+?)\s*(?:\{#[^}]*\})?$", body, re.M)]
+        heading = " ".join(heads[:12]) or None
+    if args.get("workspace"):
+        ws_id = await _ws(ctx, args["workspace"])
+    if not ws_id:
+        raise ToolError("Pass workspace (and topic), or page.")
+    if not topic and not title:
+        raise ToolError("Pass topic (what the document is about), or page.")
+    try:
+        await meetings.require_member(ctx.db, ws_id, ctx.user.id, write=False)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    kinds = [k for k in (args.get("kinds") or []) if k in meeting_memory.KINDS] or None
+    got = await meeting_memory.related(ctx.db, actor, actx, ws_id, q=topic or None, title=title, heading=heading,
+                                       kinds=kinds, limit=int(args.get("limit") or 15), exclude_meeting=exclude)
+    facts = []
+    for f in got["facts"]:
+        m = f["meeting"]
+        facts.append({"kind": f["kind"], "text": f["text"], "owner": f.get("owner"), "due": f.get("due"),
+                      "status": f.get("status"), "date": m.get("date"),
+                      "meeting": {"id": m["id"], "title": m.get("title"), "series": m.get("series"), "url": m.get("url")},
+                      "moment_url": (f.get("moment") or {}).get("url"), "moment": (f.get("moment") or {}).get("label"),
+                      "markdown": f["markdown"], "cite": f["cite"]})
+    if not facts:
+        msg = ("No meetings the user can open in that workspace yet." if not got["meetings"] else
+               "Nothing recorded in the user's meetings matches that. Try other words (a feature's name, a customer…).")
+        return msg, {"facts": [], "meetings": got["meetings"]}
+    names = {"decision": "Decision", "action_item": "Action item", "open_question": "Open question", "topic": "Discussed"}
+    lines = [f"{len(facts)} related item(s) from {got['meetings']} meeting(s) the user can open, best first:"]
+    for f in facts:
+        extra = ", ".join(x for x in (f.get("owner"), f"due {f['due']}" if f.get("due") else None, f.get("status")) if x)
+        where = f["meeting"].get("series") or f["meeting"].get("title")
+        lines.append(f"- {names.get(f['kind'], f['kind'])} ({f['date']}, {where}){f' [{extra}]' if extra else ''}: "
+                     f"{f['text']} — {f['moment_url'] or f['meeting']['url']}")
+    lines.append("\nTo cite one in a page, paste its `markdown` (a dated line with a mention of the meeting).")
+    return "\n".join(lines), {"facts": facts, "meetings": got["meetings"]}
+
+
 _MEETING_OUT = {"type": "object", "properties": {
     "id": {"type": "string"}, "title": _NULLABLE_STR, "date": _NULLABLE_STR, "type": _NULLABLE_STR,
     "url": {"type": "string"}, "slug": {"type": "string"}, "transcript_url": _NULLABLE_STR,
@@ -375,6 +441,30 @@ MEETING_TOOLS: list[Tool] = [
                             "scope": {"type": ["object", "null"]}}),
         annotations=_ann(True, False, False),
         handler=ask_meetings,
+    ),
+    Tool(
+        name="meeting_context",
+        title="Meeting memory for a document",
+        description=("What the team decided and discussed in meetings about a topic, for writing a PRD, spec or "
+                     "feature document: decisions, action items (owner, due, open/done), open questions and "
+                     "topics recorded in the workspace's meetings the user can open, best match first, each with "
+                     "its date, meeting (and series), a link to the moment in the transcript and `markdown`, a "
+                     "dated, cited line ready to paste into a page (\"Decided on Oct 28, 2026 (Daily Standup): "
+                     "…\"). Give topic (a feature, a customer, a question) and workspace, or page (a page's slug "
+                     "or link: its title and headings are the topic). Search only, no AI call; meetings "
+                     "restricted to their attendees count only for them. Cite what you use."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "topic": {"type": "string", "maxLength": 200, "description": "What the document is about, e.g. 'checkout redesign' or 'SSO for Senseloaf'."},
+            "workspace": _WORKSPACE_ARG,
+            "page": {"type": "string", "maxLength": 300, "description": "Optional: the page being written (slug or link); its title and headings are used."},
+            "kinds": {"type": "array", "items": {"type": "string", "enum": ["decision", "action_item", "open_question", "topic"]},
+                      "description": "Optional: only these kinds."},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 40, "default": 15},
+        }},
+        output_schema=_out({"facts": {"type": "array", "items": {"type": "object"}}, "meetings": {"type": "integer"}}),
+        annotations=_ann(True, False, True),
+        handler=meeting_context,
     ),
     Tool(
         name="meetings_connection",

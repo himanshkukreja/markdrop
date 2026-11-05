@@ -194,7 +194,36 @@
 .pa-field__btn--stop { background: var(--surface-inverse); color: var(--text-inverse); }
 .pa-field__btn--stop:hover:not(:disabled) { background: var(--surface-inverse); opacity: 0.85; }
 .pa-field__btn--stop svg { width: 12px; height: 12px; fill: currentColor; }
-.pa-ask__foot { margin: 8px 2px 0; font-size: 11.5px; line-height: 16px; color: var(--text-muted); text-align: center; text-wrap: balance; }
+.pa-ask__foot { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 6px 8px; margin: 8px 2px 0; font-size: 11.5px; line-height: 16px; color: var(--text-muted); text-align: center; text-wrap: balance; }
+
+/* ── with meetings (Ask Markdrop, intent "page") ──────────────────────── */
+.pa-meet {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; height: 24px; padding: 0 9px 0 7px;
+  border: 1px solid var(--border); border-radius: var(--radius-full); background: none;
+  color: var(--text-secondary); font: 600 11.5px/1 var(--font-sans); cursor: pointer;
+  transition: background-color 100ms var(--ease-out), color 100ms var(--ease-out), border-color 100ms var(--ease-out);
+}
+.pa-meet:hover { background: var(--surface-hover); color: var(--text); }
+.pa-meet[aria-checked="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); background: var(--accent-soft); color: var(--accent-text, var(--accent)); }
+.pa-meet:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.pa-meet__icon { width: 12px; height: 12px; }
+.pa-q__via { align-self: flex-end; display: inline-flex; align-items: center; gap: 4px; margin: -4px 2px 0; font-size: 11px; color: var(--text-subtle); }
+.pa-q__via svg { width: 11px; height: 11px; }
+.pa-cite {
+  display: inline-grid; place-items: center; min-width: 17px; height: 17px; margin: 0 1px; padding: 0 4px;
+  border-radius: var(--radius-full); background: var(--surface-hover); color: var(--text-secondary) !important;
+  font: 600 10.5px/1 var(--font-sans); text-decoration: none !important; vertical-align: 1px;
+}
+.pa-cite:hover { background: var(--accent-soft); color: var(--accent-text, var(--accent)) !important; }
+.pa-cites { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 8px 0 0; list-style: none; border-top: 1px solid var(--border); }
+.pa-cites__item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; font-size: 12.5px; line-height: 18px; }
+.pa-cites__n { display: inline-grid; place-items: center; flex: none; width: 17px; height: 17px; border-radius: var(--radius-full); background: var(--surface-hover); color: var(--text-secondary); font: 600 10.5px/1 var(--font-sans); }
+.pa-cites__title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); text-decoration: none; font-weight: 500; }
+a.pa-cites__title:hover { text-decoration: underline; }
+.pa-cites__kind { font-size: 11px; color: var(--text-subtle); }
+.pa-cites__moment { display: inline-flex; align-items: center; gap: 3px; height: 20px; padding: 0 7px 0 5px; border: 1px solid var(--border); border-radius: var(--radius-full); color: var(--text-secondary); font: 500 11px/1 var(--font-sans); text-decoration: none; }
+.pa-cites__moment:hover { background: var(--surface-hover); color: var(--text); }
+.pa-cites__moment svg { width: 10px; height: 10px; }
 .pa-ask[data-phone] .pa-field__input { font-size: 16px; } /* no zoom on focus in iOS */
 
 /* ── the section an answer pointed at ───────────────────────────────────── */

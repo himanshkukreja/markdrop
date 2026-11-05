@@ -12,6 +12,8 @@ interface BlockServices {
   openPeople?: (e: Editor, r: Range) => void;
   /** AI's commands (VisualEditor, when the host gives `ai`). */
   ai?: (e: Editor, r: Range, command: "write" | "actions" | "summary") => void;
+  /** "/meetings": the page's "From meetings" panel (components/pages/memory), when it is mounted. */
+  openMeetings?: (e: Editor, r: Range) => void;
 }
 const svc = (e: Editor) => (e.storage as unknown as { dxeServices?: BlockServices }).dxeServices ?? {};
 const insertColumns = (e: Editor, n: number, r: Range) => svc(e).insertColumns?.(e, n, r);
@@ -58,6 +60,8 @@ export interface BlockItem {
   cell?: boolean;
   /** Inserts the block in place of the typed "/query" range. */
   run: (editor: Editor, range: Range) => void;
+  /** Offered only while this says so (a host service it needs is there). */
+  available?: (editor: Editor) => boolean;
 }
 
 const p = (): JSONContent => ({ type: "paragraph" });
@@ -231,6 +235,17 @@ export const BLOCK_ITEMS: BlockItem[] = [
  * Empty, the embed and the mention open the page's picker.
  */
 export const PAGE_ONLY_ITEMS: BlockItem[] = [
+  // Meeting memory (components/pages/memory): search what the team decided and insert it, cited.
+  {
+    id: "meetings",
+    label: "From meetings…",
+    hint: "Cite a decision or action item from your meetings",
+    icon: "mic",
+    keywords: "meetings meeting decision decided decisions action items memory standup sync cite transcript",
+    group: "markdrop",
+    available: (e) => !!svc(e).openMeetings,
+    run: (e, r) => svc(e).openMeetings?.(e, r),
+  },
   { id: "h1", label: "Heading 1", hint: "Big section title", icon: "heading", tile: "H1", keywords: "h1 title heading", group: "basic", shortcut: "#", run: (e, r) => e.chain().focus().deleteRange(r).setHeading({ level: 1 }).run() },
   {
     id: "toggle",
@@ -402,7 +417,7 @@ export const PAGE_BLOCKS = [
   "text", "h1", "h2", "h3", "tasks", "bullets", "numbers", "toggle", "toggle-h1", "toggle-h2", "toggle-h3",
   "quote", "divider", "callout-note", "callout-tip", "callout-warning", "callout-danger",
   "image", "page-video", "page-audio", "page-file", "bookmark", "web-embed",
-  "page-embed", "mention", "subpage", "signoff",
+  "page-embed", "mention", "subpage", "signoff", "meetings",
   "table", "columns-2", "columns-3", "columns-4", "columns-5", "code", "math", "mermaid", "toc", "breadcrumb", "button",
   "person", "date", "emoji",
 ] as const;

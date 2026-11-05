@@ -337,6 +337,22 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
                 out = {"summary": f"The team met. {first}", "highlights": [t for _s, _w, t in lines[:2]], "decisions": dec,
                        "action_items": act, "open_questions": oq, "topics": top, "type": "Planning"}
                 return _MStream(_json.dumps(out))
+            if system.startswith("You compare a section"):
+                # Meeting memory's AI check (meeting-memory.mjs): a decision naming a weekday that the section
+                # gives as another weekday contradicts it; one whose words are mostly missing is left out.
+                sec = _re.search(r"<untrusted_section[^>]*>(.*?)</untrusted_section>", user, _re.S)
+                sec = (sec.group(1) if sec else "").lower()
+                days = r"monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                res = []
+                for lab, text in _re.findall(r"\[(d\d+)\] \([^)]*\) ([^\n]+)", user):
+                    dd, sd = set(_re.findall(days, text.lower())), set(_re.findall(days, sec))
+                    if dd and sd and not dd & sd:
+                        res.append({"id": lab, "verdict": "contradicts", "note": f"The section says {sorted(sd)[0].title()}, the decision says {sorted(dd)[0].title()}."})
+                    elif len(_words(text) & _words(sec)) * 2 < len(_words(text)):
+                        res.append({"id": lab, "verdict": "omits", "note": "The section doesn't mention it."})
+                    else:
+                        res.append({"id": lab, "verdict": "consistent", "note": None})
+                return _MStream(_json.dumps({"results": res}))
             if system.startswith("You read Google's meeting notes"):
                 return _MStream(_json.dumps({"decisions": [{"text": "Ship on Friday"}], "open_questions": [], "topics": [], "type": "Planning"}))
             q = user.rsplit("The question", 1)[-1]
@@ -423,6 +439,12 @@ if os.environ.get("PB_FAKE_ASK_AI"):
 
     _aclient = _ANS(messages=_AMessages())
     ask_markdrop.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
+    # PB_FAKE_PAGES_AI=1 too (meeting-memory.mjs): Page AI counts as set up, so pages show Ask and the editor's
+    # AI features (answers come from the same fake).
+    if os.environ.get("PB_FAKE_PAGES_AI"):
+        from app.services import pages_ai as _pages_ai
+
+        _pages_ai.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
 
 # PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
 # real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).

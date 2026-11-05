@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert, Badge, Button, Card, Checkbox, ConfirmDialog, CopyButton, Drawer, EmptyState, Field, Icon,
@@ -18,6 +18,8 @@ import { MAX_CHARS } from "@/lib/limits";
 import { rotateEditSecret, type ExpiresIn } from "@/lib/api";
 import { DeleteItemDialog } from "@/components/trash/DeleteItemDialog";
 import type { useDocumentViewer, ViewMode } from "./useDocumentViewer";
+import { useAssistantEditor } from "@/components/assistant/store";
+import { insertAfterSection, insertAtCaret } from "@/components/assistant/assistantCore.mjs";
 
 type Viewer = ReturnType<typeof useDocumentViewer>;
 
@@ -158,6 +160,35 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
   // Split needs width; phones get Write / Preview only (as before).
   const modes: ViewMode[] = phone ? ["write", "preview"] : ["write", "split", "preview"];
   const mode: ViewMode = phone && v.viewMode === "split" ? "write" : v.viewMode;
+
+  // Ask Markdrop's Insert (components/assistant): at the Markdown caret (its own paragraph), or at the
+  // end in Preview; the caret's section and selection go with a question. Saved only with Save.
+  const textarea = v.activeTextareaRef;
+  const content = useRef(v.editContent);
+  content.current = v.editContent;
+  const assistantInsert = useCallback((markdown: string) => {
+    const ta = mode === "preview" ? null : textarea.current;
+    if (!ta) {
+      v.setEditContent(insertAfterSection(content.current, null, markdown));
+      return true;
+    }
+    const r = insertAtCaret(ta.value, ta.selectionEnd, markdown);
+    v.setEditContent(r.value);
+    window.requestAnimationFrame(() => {
+      ta.focus({ preventScroll: true });
+      ta.setSelectionRange(r.caret, r.caret);
+    });
+    return true;
+  }, [mode, textarea, v]);
+  const assistantReader = useCallback(() => {
+    const ta = mode === "preview" ? null : textarea.current;
+    if (!ta) return null;
+    const before = ta.value.slice(0, ta.selectionStart).split("\n").reverse();
+    const h = before.map((l) => /^ {0,3}#{1,6}[ \t]+(.+?)[ \t#]*$/.exec(l)).find(Boolean);
+    const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd).trim();
+    return { heading: h ? h[1] : null, selection: sel ? sel.slice(0, 1500) : null };
+  }, [mode, textarea]);
+  useAssistantEditor(v.canEditContent && !encrypted ? assistantInsert : null, v.canEditContent && !encrypted ? assistantReader : null);
   const saveLabel = v.saving
     ? (encrypted && v.canEditContent ? "Encrypting and saving…" : "Saving…")
     : !v.canEditContent ? "Save settings"
@@ -171,7 +202,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
     "ph-no-capture block h-full min-h-[50dvh] w-full resize-none bg-transparent p-4 font-mono text-code pointer-coarse:text-[16px] text-text outline-none placeholder:text-text-muted";
 
   return (
-    <div className="mx-auto flex w-full max-w-marketing flex-col gap-3 px-4 py-4 sm:px-6">
+    <div className="md-editscreen mx-auto flex w-full max-w-marketing flex-col gap-3 px-4 py-4 sm:px-6">
       <h1 className="md-visually-hidden">Edit <span className="ph-sensitive ph-mask">{displayTitle || "document"}</span></h1>
 
       {/* Bar */}

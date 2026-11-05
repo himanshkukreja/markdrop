@@ -5,6 +5,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ToastProvider } from "@/components/Toast";
 import { NextLinkProvider } from "@/components/theme/NextLinkProvider";
 import { StatusRegion } from "@/components/ui";
+import { AssistantRoot } from "@/components/assistant/AssistantRoot";
 import VercelInsights from "@/components/VercelInsights";
 import SiteTracker from "@/components/SiteTracker";
 import ThirdPartyAnalytics from "@/components/analytics/ThirdPartyAnalytics";
@@ -98,6 +99,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <StatusRegion />
               {/* Service worker, "new version" toast, install prompt (components/pwa). */}
               <PwaProvider>{children}</PwaProvider>
+              {/* Ask Markdrop everywhere: ⌘J, and the panel once opened (components/assistant). */}
+              <AssistantRoot />
             </ToastProvider>
           </AuthProvider>
         </NextLinkProvider>

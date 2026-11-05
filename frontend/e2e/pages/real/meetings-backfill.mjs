@@ -90,7 +90,13 @@ function writeFiles() {
 
 async function openReview(p, files) {
   await p.goto(HUB);
-  await p.getByTestId("import-past").first().click();
+  // Desktop: the button in the header; phones: the ⋯ menu.
+  const btn = p.locator("[data-testid='import-past']:visible").first();
+  if (await btn.count()) await btn.click();
+  else {
+    await p.getByTestId("meetings-more").click();
+    await p.getByRole("menuitem", { name: "Import past meetings" }).click();
+  }
   const dlg = p.getByRole("dialog");
   await dlg.getByText("Import past meetings").first().waitFor();
   await dlg.locator('input[type="file"]').setInputFiles(files);
@@ -221,24 +227,28 @@ await step("folder", async () => {
 await step("ask", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(HUB);
-  const box = p.locator(".mt-ask");
-  await box.waitFor({ timeout: 20000 });
-  await box.getByTestId("ask-series").selectOption("Daily Standup");
+  await p.getByTestId("ask-across-open").click();
+  const box = p.getByTestId("assistant");
+  await box.getByTestId("chat-scope-series").click();
+  await p.getByRole("menuitem", { name: "Daily Standup" }).click();
   await box.locator("textarea").fill("What did Ben say about billing?");
   await box.locator("textarea").press("Enter");
-  await box.locator(".mt-cite").first().waitFor({ timeout: 25000 });
-  const scope = await box.getByTestId("ask-scope").innerText();
-  if (!scope.includes("Only Daily Standup")) fail(`scope chip: ${scope}`);
-  const sources = await box.locator(".pa-sources a.pa-chip").allInnerTexts();
-  if (!sources.length || sources.some((s) => !s.startsWith("Daily Standup"))) fail(`sources: ${JSON.stringify(sources)}`);
-  const answer = await box.locator(".pa-a .pa-md").first().innerText();
+  await box.getByTestId("chat-cite").first().waitFor({ timeout: 25000 });
+  const scope = await box.getByTestId("chat-scopenote").first().innerText();
+  if (!scope.includes("Meetings · Daily Standup")) fail(`scope chip: ${scope}`);
+  await box.getByTestId("chat-sources-btn").first().click();
+  const sources = await box.getByTestId("chat-sources").locator(".ch-src__title").allInnerTexts();
+  if (!sources.length || sources.some((s) => !s.trim().startsWith("Daily Standup"))) fail(`sources: ${JSON.stringify(sources)}`);
+  await p.keyboard.press("Escape");
+  const answer = await box.locator(".ch-md").first().innerText();
   if (!/^On \d+ \w+, in Daily Standup, /.test(answer.trim())) fail(`answer doesn't say when and where: ${answer.slice(0, 120)}`);
   await snap(p, "ask-series-light");
   // No picker, the question says it.
-  await box.getByTestId("ask-series").selectOption("");
+  await box.getByTestId("chat-scope-series").click();
+  await p.getByRole("menuitem", { name: "Any series" }).click();
   await box.locator("textarea").fill("What came up in the Daily Standups last month?");
   await box.locator("textarea").press("Enter");
-  const chip = box.getByTestId("ask-scope").nth(1);
+  const chip = box.getByTestId("chat-scopenote").nth(1);
   await chip.waitFor({ timeout: 25000 });
   const t = await chip.innerText();
   if (!t.includes("From your question") || !t.includes("Daily Standup") || !t.includes(monthName(D1))) fail(`detected scope: ${t}`);

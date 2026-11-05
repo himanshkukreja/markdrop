@@ -67,6 +67,8 @@ import { meetingsHref } from "@/lib/meetings";
 const MEETINGS_VIEW = "vmtgall";
 import { FolderMeetConnect } from "@/components/meetings/ConnectGoogleMeet";
 import "@/components/meetings/meetings.css";
+import { AssistantButton } from "@/components/assistant/AssistantButton";
+import { openAssistant, useAssistantHere } from "@/components/assistant/store";
 
 type Kind = "" | "markdown" | "artifact";
 
@@ -267,6 +269,9 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   const kids = useMemo(() => childrenMap(folders), [folders]);
   const subfolders = useMemo(() => (query.unfiled ? [] : kids.get(folderId ?? null) ?? []), [kids, folderId, query.unfiled]);
   const folderMissing = !!folderId && !!tree && !folder;
+  // Ask Markdrop here (✦ Ask, ⌘J): this folder (and its sub-folders), or the workspace; a meetings
+  // folder starts on Meetings.
+  useAssistantHere(role && tree ? { workspace: workspaceId, folder: folder?.id ?? null, scope: folder?.meetings || folder?.meetings_sub ? "meetings" : null } : null);
   const wsMissing = !tree && !!treeError && [403, 404].includes(errorStatus(treeError));
   const startsAs: ItemAccess = folder ? folder.effective_default_access ?? folder.default_access ?? wsDefault : wsDefault;
   const here = folder?.name ?? wsName;
@@ -467,6 +472,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
+      {!!role && <AssistantButton label={folder ? "Ask this folder" : "Ask"} />}
       {isMember && !rootEmpty && (
         <Button variant="ghost" iconLeft="eye" onClick={openPreview}>Preview as</Button>
       )}
@@ -723,7 +729,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
             <b>Your team's meetings</b>
             Each call is a page with its summary, decisions, action items and transcript. Ask across all of them.
           </span>
-          <Button size="sm" variant="secondary" iconLeft="sparkle" href={meetingsHref(workspaceId)}>Ask meetings</Button>
+          <Button size="sm" variant="secondary" iconLeft="sparkle" onClick={() => openAssistant({ scope: "meetings" })}>Ask meetings</Button>
           {isMember && <FolderMeetConnect workspaceId={workspaceId} hubHref={meetingsHref(workspaceId)} />}
           {isMember && <Button size="sm" variant="secondary" iconLeft="history" href={`${meetingsHref(workspaceId)}?import=past`}>Import past meetings</Button>}
           {isMember && <Button size="sm" iconLeft="plus" href={`${meetingsHref(workspaceId)}?import=1`}>Import meeting</Button>}
