@@ -21,8 +21,9 @@ move waited on the frontend purge). Now:
   series' folder by its key), so a meeting caught half way is simply done again.
 * **Cheap moves.** Meetings go in batches of :data:`BATCH` inside one ``revalidate.batch`` (the
   purges of a whole batch are sent once, not one bounded wait per page) and ``notifications.quiet``.
-* **No duplicate folders.** Runs that overlapped before this fix could each make a series folder;
-  the finish step removes the empty extra ``Meetings/<Series>`` folders (never one with anything in it).
+* **No duplicate folders.** Runs that overlapped before this fix could each make a series folder,
+  and a series renamed by the run ("Daily Syncup" → "Daily Sync Up") leaves its old folder empty: the
+  finish step removes such EMPTY ``Meetings/<Series>`` folders (never one with anything in it).
 """
 
 from __future__ import annotations
@@ -181,8 +182,9 @@ async def start(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
     """Start a run (admins), or join the one already running. Returns the job; it runs in the background."""
     await require_admin(db, workspace_id, user)
     now = now_utc()
+    total = await db[COLL].count_documents({"workspace_id": workspace_id})
     fresh = {"state": "running", "phase": "prepare", "run": str(ObjectId()), "user_id": user.id,
-             "total": 0, **{k: 0 for k in COUNTERS}, "folders": 0, "series": 0, "transcripts_hidden": 0,
+             "total": total, **{k: 0 for k in COUNTERS}, "folders": 0, "series": 0, "transcripts_hidden": 0,
              "duplicates_removed": 0, "error_samples": [], "message": None, "plan": [], "lease": None,
              "crashes": 0, "started_at": now, "updated_at": now, "done_at": None}
     try:
@@ -417,13 +419,16 @@ async def _end(db: AsyncIOMotorDatabase, ws: str, run_id: str, state: str, messa
 
 
 async def _drop_empty_duplicates(db: AsyncIOMotorDatabase, ws: str) -> int:
-    """Extra Meetings/<Series> (or Other meetings) folders of one series with nothing in them: the
-    first one made is the series' folder (meeting_series.target_folder); the others go."""
+    """Empty ``Meetings/<Series>`` folders nobody needs: the extra folders of one series (the first
+    one made is the series' folder: meeting_series.target_folder), and the folder of a series no
+    meeting has anymore ("Daily Syncup" once its meetings joined "Daily Sync Up"). A folder with
+    anything in it — a page, a file, a folder — always stays; so does Other meetings."""
     from app.services import folder as folder_service
 
     root = await db["folders"].find_one({"workspace_id": ws, "meetings": True}, sort=[("created_at", 1)])
     if root is None:
         return 0
+    used = {str(n).casefold() for n in await db[COLL].distinct("series", {"workspace_id": ws}) if n}
     seen: set[str] = set()
     n = 0
     async for f in db["folders"].find({"workspace_id": ws, "parent_id": str(root["_id"]), "meetings_sub": True},
@@ -431,8 +436,9 @@ async def _drop_empty_duplicates(db: AsyncIOMotorDatabase, ws: str) -> int:
         key = "\x00other" if f.get("meetings_other") else (f.get("meetings_series") or "")
         if not key:
             continue
-        if key not in seen:
-            seen.add(key)
+        extra = key in seen
+        seen.add(key)
+        if not extra and (key == "\x00other" or key in used):
             continue
         fid = str(f["_id"])
         if await db["documents"].count_documents({"folder_id": fid}, limit=1) or \
@@ -442,5 +448,5 @@ async def _drop_empty_duplicates(db: AsyncIOMotorDatabase, ws: str) -> int:
             await folder_service.delete_folder(db, ws, fid)
             n += 1
         except HTTPException as exc:
-            log.info("meetings: duplicate folder %s kept (%s)", fid, exc.detail)
+            log.info("meetings: empty folder %s kept (%s)", fid, exc.detail)
     return n
