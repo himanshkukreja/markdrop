@@ -18,6 +18,8 @@
 @media (min-width: 1280px) {
   body:has(.as-panel[data-layout="panel"]) .pb-paper,
   body:has(.as-panel[data-layout="panel"]) .md-docgrid { padding-right: 436px; }
+  /* App pages (AppShell's main): the column narrows beside the panel. */
+  body:has(.as-panel[data-layout="panel"]) main#main.mx-auto { margin-right: 452px; }
 }
 
 .as-panel[data-layout="sheet"] {

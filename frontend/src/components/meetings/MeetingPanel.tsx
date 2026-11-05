@@ -2,18 +2,18 @@
 
 /**
  * The meeting panel on a meeting page (and its transcript): the "Meeting" pill opens a side panel on
- * desktop and a bottom sheet on phones with two tabs:
+ * desktop and a bottom sheet on phones with the meeting's details: date, type, who was there, where it
+ * came from (links back to Google's Docs), the AI summary's state (Regenerate), Restrict to attendees
+ * (the page's owner), Delete (the importer or a workspace admin), and All meetings.
  *
- *  - Ask: Ask this meeting (streamed answers whose citations jump to the transcript moment).
- *  - Details: date, type, who was there, where it came from (links back to Google's Docs), the AI
- *    summary's state (Regenerate), Restrict to attendees (the page's owner), Delete (the importer
- *    or a workspace admin), and All meetings.
+ * Asking is Ask Markdrop's (components/assistant): the meeting bar's "Ask this meeting", ✦ Ask in the
+ * top bar, ⌘J and a card's "Ask this meeting" (?ask=1) open it on this meeting.
  *
  * DocumentView mounts it lazily for signed-in readers when the page says it is a meeting
  * (page_fields `meeting`); the meeting itself is decided again by GET /meetings/{id}. While the
  * summary is being written the panel polls, and the page updates through its live socket.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { slackPostMeeting } from "@/lib/slack";
@@ -23,7 +23,7 @@ import {
   MEETING_TYPES, deleteMeeting, fmtDuration, fmtMeetingDate, getMeeting, meetingsHref, patchMeeting, regenerateMeeting,
   type Meeting,
 } from "@/lib/meetings";
-import { MeetingChat } from "./MeetingChat";
+import { openAssistant } from "@/components/assistant/store";
 import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
@@ -55,7 +55,6 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
   const reload = useCallback(() => fetchMeeting(id, true), [id]);
   return [m, set, reload];
 }
-const OPEN_EVENT = "md:meeting-ask";
 
 /**
  * The meeting bar under a meeting page's properties: who was there, who can open it, and the two things
@@ -65,7 +64,7 @@ export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: s
   const [m] = useMeeting(meetingId);
   if (!m) return null;
   const people = m.attendees;
-  const ask = () => window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: meetingId }));
+  const ask = () => openAssistant({ scope: "meetings" });
   return (
     <div className="mt-pagebar no-print" data-testid="meeting-header">
       <div className="mt-pagebar__facts">
@@ -108,17 +107,12 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
   const toast = useToast();
   const [m, setM, load] = useMeeting(meetingId);
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"ask" | "details">("ask");
   const pill = useRef<HTMLButtonElement>(null);
 
-  // The meeting bar's Ask, a card's "Ask this meeting" (?ask=1).
+  // A card's "Ask this meeting" (?ask=1): Ask Markdrop on this meeting.
   useEffect(() => {
-    const on = (e: Event) => { if ((e as CustomEvent).detail === meetingId) { setTab("ask"); setOpen(true); } };
-    window.addEventListener(OPEN_EVENT, on);
-    if (new URLSearchParams(window.location.search).get("ask") === "1") setOpen(true);
-    return () => window.removeEventListener(OPEN_EVENT, on);
+    if (new URLSearchParams(window.location.search).get("ask") === "1") openAssistant({ scope: "meetings" });
   }, [meetingId]);
-  const info = useMemo(() => (m ? { title: m.title, date: m.date, series: m.series ?? null } : null), [m?.title, m?.date, m?.series]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The summary is being written: check every few seconds; the page fills in through its socket.
   const wasPending = useRef(false);
@@ -157,7 +151,7 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
         data-testid="meeting-pill"
       >
         {m.ai.state === "pending" ? <Spinner size={16} /> : <Icon name="mic" className="pa-pill__icon" />}
-        <span>Ask this meeting</span>
+        <span>Meeting</span>
       </button>
       {createPortal(
         <div className="pa-ask mt-panel" data-open={open ? "" : undefined} data-phone={phone ? "" : undefined} inert={!open}>
@@ -173,25 +167,15 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
               </div>
               <IconButton icon="x" label="Close" size="sm" onClick={close} />
             </header>
-            <div className="mt-tabs" role="tablist" aria-label="Meeting">
-              <button type="button" role="tab" className="mt-tab" aria-selected={tab === "ask"} onClick={() => setTab("ask")}><Icon name="sparkle" />Ask</button>
-              <button type="button" role="tab" className="mt-tab" aria-selected={tab === "details"} onClick={() => setTab("details")} data-testid="meeting-details-tab"><Icon name="info" />Details</button>
-            </div>
-            {tab === "ask" ? (
-              <MeetingChat
-                mode="one"
-                meetingId={m.id}
-                meeting={info}
-                layout={phone ? "sheet" : "panel"}
-                emptyTitle="Ask this meeting"
-                emptySub={m.has_transcript ? "Answers come from the transcript and the notes, and link to the moment it was said." : "Answers come from Google's notes on this page."}
-                autoFocus={open && !phone}
-                onNavigate={phone ? close : undefined}
-                banner={<SummaryBanner m={m} />}
-              />
-            ) : (
-              <Details m={m} onChange={setM} onDeleted={() => { close(); router.push(meetingsHref(m.workspace_id)); }} />
-            )}
+            <Details m={m} onChange={setM} onDeleted={() => { close(); router.push(meetingsHref(m.workspace_id)); }}
+              top={(
+                <>
+                  <SummaryBanner m={m} />
+                  <button type="button" className="mt-askrow" onClick={() => { close(); openAssistant({ scope: "meetings" }); }} data-testid="meeting-panel-ask">
+                    <Icon name="sparkle" /> Ask this meeting
+                  </button>
+                </>
+              )} />
           </section>
         </div>,
         document.body,
@@ -224,7 +208,7 @@ function SeriesField({ value, disabled, onCommit }: { value: string; disabled: b
   );
 }
 
-function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void }) {
+function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void; top?: React.ReactNode }) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
@@ -244,6 +228,7 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
 
   return (
     <div className="mt-details">
+      {top}
       <dl className="mt-facts">
         <dt>Date</dt><dd>{fmtMeetingDate(m.date) || "—"}{m.time ? ` · ${m.time}` : ""}{m.duration_s ? ` · ${fmtDuration(m.duration_s)}` : ""}</dd>
         <dt>Type</dt>

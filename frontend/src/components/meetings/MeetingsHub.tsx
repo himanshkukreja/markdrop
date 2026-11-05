@@ -27,6 +27,7 @@ import { BulkImport } from "./BulkImport";
 import { BackfillProgress } from "./BackfillProgress";
 import { ConnectGoogleMeet, MeetConnectionStatus } from "./ConnectGoogleMeet";
 import { AskMeetingsDock } from "./AskMeetingsDock";
+import { useAssistantHere } from "@/components/assistant/store";
 import "./meetings.css";
 import "./backfill.css";
 
@@ -35,6 +36,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const toast = useToast();
   const [ws, setWs] = useState<Workspace | null>(null);
   const [status, setStatus] = useState<MeetingsStatus | null>(null);
+  // Ask Markdrop here (✦ Ask, ⌘J, the Ask box below): the Meetings scope of this workspace.
+  useAssistantHere({ workspace: workspaceId, scope: "meetings" });
   const [items, setItems] = useState<Meeting[] | null>(null);
   const [hidden, setHidden] = useState<HiddenMeeting[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -164,7 +167,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
       {error && <Alert tone="danger" className="mb-4">{error}</Alert>}
       {job && <BackfillProgress job={job} onChange={setJob} onProgress={reloadList} />}
 
-      {any && <AskMeetingsDock workspaceId={workspaceId} series={series} count={items?.length ?? 0}
+      {any && <AskMeetingsDock count={items?.length ?? 0}
         aiMessage={status?.ai.enabled === false ? status.ai.message : null} />}
 
       {items === null ? (
