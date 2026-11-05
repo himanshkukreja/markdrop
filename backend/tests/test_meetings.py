@@ -744,9 +744,9 @@ class ChatUX(MeetingsWorld):
         across = parse_sse((await self.http.post("/api/v1/meetings/ask", headers=self.session("wm"),
                                                   json={"workspace": self.W, "question": "When do we ship?", "thread_id": tid})).text)[-1][1]
         self.assertNotEqual(across["thread_id"], tid)
-        # Not in Ask Markdrop's recent questions on the home.
+        # One assistant everywhere (services/assistant.py): listed in the home's recent questions too.
         home = (await self.http.get("/api/v1/ask/home", headers=self.session("wm"))).json()
-        self.assertEqual(home["recent"], [])
+        self.assertIn(tid, [t["id"] for t in home["recent"]])
         # Restricted later: the saved answer is withheld from someone who can't open it now.
         await self.http.patch(f"/api/v1/meetings/{m['id']}", headers=self.session("owner"), json={"restricted": True})
         row = await self.db["meetings"].find_one({"_id": ObjectId(m["id"])})

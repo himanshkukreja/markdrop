@@ -116,7 +116,7 @@ class MemoryWorld(AccessWorld, AIEnv):
         s = SEEDS[title]
         r = await self.http.post("/api/v1/meetings/import", headers=self.session(who), json={
             "workspace": self.W, "sources": [{"name": title, "text": "\n".join(s["lines"])}], "title": title,
-            "date": s["date"], "wait": True, **body})
+            "date": s["date"], "wait": True, **{"restricted": False, **body}})
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()["meetings"][0]
 
@@ -431,9 +431,10 @@ class AskInPage(MemoryWorld):
         self.assertIn("- Decision: Use Stripe Checkout as the hosted payment page", p)
         self.assertIn('date="2026-10-28"', p)
         self.assertIn("answer from the meetings first", p)
-        # A page conversation stays off the home's recent questions; a follow-up continues it.
+        # One assistant everywhere: the page's conversation is in the home's recent questions too
+        # (it continues anywhere); a follow-up continues it.
         home = (await self.http.get("/api/v1/ask/home", headers=self.session("wm"))).json()
-        self.assertEqual(home["recent"], [])
+        self.assertEqual([t["id"] for t in home["recent"]], [done["thread_id"]])
         r = await self.http.post("/api/v1/ask", headers=self.session("wm"), json={
             "question": "And who drafts the migration plan?", "page": prd["slug"], "thread_id": done["thread_id"]})
         self.assertEqual(parse_sse(r.text)[-1][1]["thread_id"], done["thread_id"])
