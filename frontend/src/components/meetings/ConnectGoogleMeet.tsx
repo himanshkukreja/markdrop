@@ -11,7 +11,7 @@
  *   <MeetConnectionStatus>    "Google Meet connected · last import 5 min ago · 3 meetings · Disconnect"
  *   <FolderMeetConnect>       the same, for the Meetings folder's banner
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert, Badge, Button, ConfirmDialog, CopyButton, Dialog, Drawer, Icon, Switch, useToast,
 } from "@/components/ui";
@@ -36,6 +36,7 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [made, setMade] = useState<{ script: string; manifest: string } | null>(null);
+  const primary = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) return;
@@ -120,7 +121,7 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
   ) : (
     <>
       <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-      <Button iconLeft="code" onClick={() => void create()} loading={busy} data-testid="meet-create">
+      <Button ref={primary} iconLeft="code" onClick={() => void create()} loading={busy} data-testid="meet-create">
         {current ? "Make a new script" : "Make my script"}
       </Button>
     </>
@@ -133,6 +134,7 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
   }
   return (
     <Dialog open={open} onClose={onClose} size="lg" title={title} description={description} footer={footer} dismissible={!busy}
+      initialFocus={made ? undefined : primary}
       glyph={<span className="mt-hub__glyph" style={{ width: 36, height: 36 }}><Icon name="mic" /></span>}>
       {body}
     </Dialog>
@@ -172,7 +174,7 @@ export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onR
           <Badge size="sm" tone="success" icon="checkCircle">Google Meet connected</Badge>
           <span className="mt-conn__meta">
             {here.last_imported_at ? `last import ${relativeTime(here.last_imported_at)}` : here.last_received_at ? `last checked ${relativeTime(here.last_received_at)}` : "waiting for the script's first run"}
-            {" · "}{n} {n === 1 ? "meeting" : "meetings"}
+            {here.last_received_at || n ? ` · ${n} ${n === 1 ? "meeting" : "meetings"}` : ""}
             {here.restricted ? " · attendees only" : ""}
           </span>
           {here.last_error && <span className="mt-conn__err" title={here.last_error}><Icon name="alert" /> {here.last_error}</span>}
