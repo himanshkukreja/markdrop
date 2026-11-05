@@ -23,7 +23,7 @@ import {
 import { Button, Icon, Skeleton, cx, useToast } from "@/components/ui";
 import { createPage } from "@/lib/pages";
 import { workspaceChanged, useWorkspaceChanged } from "@/lib/workspaceStore";
-import { getFolderDatabase, patchPageProperties, putFolderProperties, putFolderViews, type FolderDatabase as Db, type LinkInfo } from "./api";
+import { PropsApiError, getFolderDatabase, patchPageProperties, putFolderProperties, putFolderViews, replayViews, type FolderDatabase as Db, type LinkInfo } from "./api";
 import {
   OP_LABELS, TYPE_LABELS, applyView, findProp, groupRows, newViewId, opsFor, optionColor,
   type DbRow, type FilterOp, type Person, type PropDef, type PropValue, type SavedView,
@@ -95,16 +95,26 @@ export function FolderDatabase({ workspaceId, folderId, view, onView, member, ph
   const dirty = !!live && !isSaved && JSON.stringify(live) !== JSON.stringify(current);
   const saveTimer = useRef<number | null>(null);
 
+  // Saved against the rev they were read at; when someone else changed the views meanwhile, this
+  // change is replayed onto theirs (by view) instead of saving over them.
   const persistViews = useCallback(async (views: SavedView[]) => {
     try {
-      const r = await putFolderViews(workspaceId, folderId, views);
+      let r;
+      try {
+        r = await putFolderViews(workspaceId, folderId, views, db?.rev);
+      } catch (e) {
+        if (!(e instanceof PropsApiError && e.status === 409)) throw e;
+        const fresh = await getFolderDatabase(workspaceId, folderId, { rows: false });
+        r = await putFolderViews(workspaceId, folderId, replayViews(saved, views, fresh.views ?? []), fresh.rev);
+        setDb((d) => (d ? { ...d, properties: r!.properties } : d));
+      }
       setDb((d) => (d ? { ...d, views: r.views, rev: r.rev } : d));
       return r.views;
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't save the view");
       return null;
     }
-  }, [workspaceId, folderId, toast]);
+  }, [workspaceId, folderId, toast, db?.rev, saved]);
 
   const changeView = (patch: Partial<SavedView>) => {
     if (!live) return;

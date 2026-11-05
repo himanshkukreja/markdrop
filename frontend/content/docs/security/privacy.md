@@ -33,6 +33,10 @@ When you search inside a workspace, Markdrop keeps the words you searched for, w
 
 The workspace's owners and admins see these searches only as totals, in [What people couldn't find](/analytics/content-gaps).
 
+## What Ask Markdrop keeps
+
+[Ask Markdrop](/workspaces/ask-markdrop) keeps your conversations so you can return to them and ask follow-ups: each question, its answer and the sources it cited. Only you can see them. When you reopen one, every source is checked against your access again, and an answer whose sources you can no longer open is hidden. A conversation is deleted 90 days after its last question, or when you remove it or select **Clear** under **Recent questions**.
+
 ## How Markdrop measures its own site
 
 Markdrop uses three kinds of analytics to understand how the product is used and what to fix:
@@ -72,7 +76,7 @@ Files go straight from your device to the other person's and are never stored on
 - MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the peer-to-peer relay).
 - Resend (sign-in and notification email).
 - PostHog and Google (analytics, as above).
-- Anthropic (the AI in pages, search, analytics and Markdrop Guides): only the text a request needs, when someone uses AI. For analytics that's totals and your own titles, never who visited. Markdrop keeps usage counts, never the text. See [AI in pages](/pages/ai#whats-sent-to-anthropic).
+- Anthropic (the AI in pages, search, Ask Markdrop, meetings, analytics and Markdrop Guides): only the text a request needs, when someone uses AI. For analytics that's totals and your own titles, never who visited. Markdrop keeps usage counts, not the text sent; the one exception is your own [Ask Markdrop conversations](#what-ask-markdrop-keeps), kept for you to return to. See [AI in pages](/pages/ai#whats-sent-to-anthropic).
 
 Markdrop doesn't sell personal data, and doesn't use it for advertising.
 

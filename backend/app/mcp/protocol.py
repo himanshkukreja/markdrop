@@ -23,6 +23,7 @@ from __future__ import annotations
 import base64
 import binascii
 import hashlib
+import json
 import logging
 import re
 import time
@@ -352,7 +353,16 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
         take = pages_service.TAKE_OVER.set(bool(args.get("take_over")) and "take_over" in (
             tool.input_schema.get("properties") or {}))
         try:
-            text, structured = await tool.handler(ctx, args)
+            once = await _idempotent_start(ctx.db, principal, tool, args)
+            if isinstance(once, tuple):
+                text, structured = once
+            else:
+                try:
+                    text, structured = await tool.handler(ctx, args)
+                except BaseException:
+                    await _idempotent_forget(ctx.db, once)
+                    raise
+                await _idempotent_done(ctx.db, once, text, structured)
         finally:
             pages_service.TAKE_OVER.reset(take)
         ok = True
@@ -361,7 +371,7 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
             tools.audit_result(slug=structured["slug"])
     except tools.ToolError as exc:
         error = str(exc)
-        result = _tool_result(str(exc), tools.error_fields(exc), True, modern)
+        result = _tool_result(str(exc), getattr(exc, "data", None) or tools.error_fields(exc), True, modern)
     except Exception:
         log.exception("MCP tool %s failed", tool.name)
         error = "internal error"
@@ -372,6 +382,58 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
     await _audit(principal, tool.name, ok, int((time.monotonic() - started) * 1000),
                  writes=tool.writes, rec=rec, error=error)
     return _result(request_id, result)
+
+
+# ── Idempotent retries ────────────────────────────────────────────────────────
+# A write tool called with ``idempotency_key`` runs once per (user, tool, key) for a day: a retry
+# (a timeout, a dropped connection, an agent that isn't sure) gets the first call's answer instead
+# of a second page, a second appended block or a second upload. A failed call is forgotten, so
+# its retry runs. fix/collab-audit.
+
+IDEMPOTENCY_RESULT_CHARS = 64_000
+
+
+async def _idempotent_start(db, principal: Principal, tool, args: dict):
+    """None (no key), the stored ``(text, structured)`` (a retry), or the row id to finish."""
+    key = args.get("idempotency_key")
+    if not tool.writes or not isinstance(key, str) or not key:
+        return None
+    if len(key) > 200:
+        raise tools.ToolError("idempotency_key is too long (at most 200 characters).")
+    from pymongo.errors import DuplicateKeyError
+
+    rid = hashlib.sha256(f"{principal.user.id}\x00{tool.name}\x00{key}".encode()).hexdigest()
+    try:
+        await db["mcp_idempotency"].insert_one({"_id": rid, "state": "running",
+                                                "created_at": datetime.now(timezone.utc)})
+        return rid
+    except DuplicateKeyError:
+        row = await db["mcp_idempotency"].find_one({"_id": rid}) or {}
+    if row.get("state") == "done":
+        return row.get("text") or "", row.get("structured")
+    raise tools.ToolError("A call with this idempotency_key is still running. Wait a few seconds, then "
+                          "retry with the same key to get its result.")
+
+
+async def _idempotent_done(db, rid, text: str, structured) -> None:
+    if rid is None:
+        return
+    try:
+        if len(text) + len(json.dumps(structured, default=str)) > IDEMPOTENCY_RESULT_CHARS:
+            await db["mcp_idempotency"].delete_one({"_id": rid})  # too big to keep: a retry runs again
+            return
+        await db["mcp_idempotency"].update_one({"_id": rid}, {"$set": {"state": "done", "text": text,
+                                                                     "structured": structured}})
+    except Exception:  # pragma: no cover - never fail the call that worked
+        log.warning("MCP idempotency: couldn't store a result", exc_info=True)
+
+
+async def _idempotent_forget(db, rid) -> None:
+    if rid is not None:
+        try:
+            await db["mcp_idempotency"].delete_one({"_id": rid})
+        except Exception:  # pragma: no cover
+            pass
 
 
 AUDIT_ERROR_CHARS = 200

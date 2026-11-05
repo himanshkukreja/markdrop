@@ -14400,6 +14400,242 @@
         }
       }
     },
+    "/api/v1/ask/home": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask Home",
+        "description": "What the home's Ask box needs: whether AI can answer now, suggested questions, recent ones.",
+        "operationId": "ask_home_api_v1_ask_home_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask": {
+      "post": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Ask",
+        "description": "Ask a question (a follow-up with ``thread_id``); the answer streams as Server-Sent Events.",
+        "operationId": "ask_api_v1_ask_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__ask__AskBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask/threads": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "List Threads",
+        "description": "Your recent questions, newest first.",
+        "operationId": "list_threads_api_v1_ask_threads_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Clear Threads",
+        "operationId": "clear_threads_api_v1_ask_threads_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/ask/threads/{thread_id}": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Get Thread",
+        "description": "One conversation, its sources decided again for you now.",
+        "operationId": "get_thread_api_v1_ask_threads__thread_id__get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Delete Thread",
+        "operationId": "delete_thread_api_v1_ask_threads__thread_id__delete",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/oauth/requests/{request_id}": {
       "get": {
         "tags": [
@@ -18281,6 +18517,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -18405,6 +18651,16 @@
               }
             ],
             "title": "Default Access"
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -18516,6 +18772,16 @@
             "type": "boolean",
             "title": "Reparent",
             "default": false
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -21804,6 +22070,46 @@
         "required": [
           "question"
         ],
+        "title": "AskBody"
+      },
+      "app__routers__ask__AskBody": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Question",
+            "default": ""
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "intent": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "ask",
+                  "catch_up",
+                  "my_actions"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Intent"
+          }
+        },
+        "type": "object",
         "title": "AskBody"
       },
       "app__routers__docs_ai__AskBody": {

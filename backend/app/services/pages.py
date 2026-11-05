@@ -1247,6 +1247,13 @@ async def children_listing(db: AsyncIOMotorDatabase, raw: dict, actor: access.Ac
 # ── Creating ──────────────────────────────────────────────────────────────────
 
 
+def children_changed(*slugs: str | None) -> None:
+    """Sub-pages were added, moved or removed: open copies of these pages re-read "Pages inside"
+    (``{"type": "children"}`` on their live sockets; nothing about the pages themselves)."""
+    for s in dict.fromkeys(x for x in slugs if x):
+        live.notify(s, {"type": "children"})
+
+
 async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: access.Ctx, *,
                       title: str, workspace: str | None = None, folder: str | None = None,
                       parent: str | None = None, template: str | None = None,
@@ -1362,6 +1369,7 @@ async def create_page(db: AsyncIOMotorDatabase, user, actor: access.Actor, ctx: 
         doc, secret = await doc_service.create_document(db, data, owner_id=user.id, extra=extra)
         raw = await db["documents"].find_one({"slug": doc.slug})
         raw = await resync_from_parent(db, raw)
+        children_changed(parent_raw.get("slug"))
         return raw, secret, None
 
     if workspace:
@@ -1503,6 +1511,7 @@ async def move(db: AsyncIOMotorDatabase, raw: dict, parent_slug: str | None, act
                                      cas={"parent_id": current})
     ctx.forget(raw)
     await refresh_page_paths(db, after)
+    children_changed(*(raw.get("page_path") or [])[-1:], *(after.get("page_path") or [])[-1:])
     return after
 
 
@@ -1562,6 +1571,7 @@ async def delete_page(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, 
             # They move up now and stay there: only the page itself goes to the trash.
             await lift_children(db, raw)
         moved = await trash.move(db, [*reversed(below), raw], raw, actor)  # deepest first
+        children_changed(*(raw.get("page_path") or [])[-1:])
         if not any(m["_id"] == raw["_id"] for m in moved):
             raise HTTPException(status_code=404, detail="Document not found")
         deleted = [deleted_item(m) for m in moved]

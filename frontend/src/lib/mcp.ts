@@ -15,7 +15,7 @@ export interface McpToolName {
 }
 
 /**
- * The hosted server's 76 tools, grouped as the docs group them (docs: ai/tools "Hosted server
+ * The hosted server's 79 tools, grouped as the docs group them (docs: ai/tools "Hosted server
  * tools"). Keep in step with the backend's tool list and that page.
  */
 export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToolName[] }> = [
@@ -131,6 +131,9 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
       { name: "add_to_workspace", scope: "write" },
       { name: "remove_from_workspace", scope: "write" },
       { name: "create_folder", scope: "write" },
+      { name: "rename_folder", scope: "write" },
+      { name: "move_folder", scope: "write" },
+      { name: "delete_folder", scope: "write" },
       { name: "move_to_folder", scope: "write" },
     ],
   },

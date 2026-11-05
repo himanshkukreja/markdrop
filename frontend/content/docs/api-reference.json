@@ -15,6 +15,7 @@
     { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
+    { "id": "ask", "title": "Ask Markdrop", "tags": ["ask"] },
     { "id": "meetings", "title": "Meetings", "tags": ["meetings"] },
     { "id": "slack", "title": "Slack", "tags": ["slack"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
@@ -959,24 +960,27 @@
     },
     "POST /api/v1/workspaces/{workspace_id}/folders": {
       "title": "Create a folder",
-      "description": "Creates a folder at the top level, or inside another folder with `parent_id`.",
+      "description": "Creates a folder at the top level, or inside another folder with `parent_id`. If a folder, page, document or file there already has the folder's address, it returns `409` saying what holds it and creates nothing (an item you can't open is never named and never blocks you: the folder takes the next free address); send `on_conflict: \"suffix\"` to take the next free address (`guides-2`) instead.",
       "example": { "name": "Guides" },
+      "mcp": "create_folder",
       "guide": { "label": "Folders", "href": "/workspaces/folders" }
     },
     "PUT /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Update a folder",
-      "description": "Renames a folder, or moves it with `parent_id` and `reparent: true`.",
+      "description": "Renames a folder, or moves it with `parent_id` and `reparent: true`. A new address that is already taken there is a `409` unless you send `on_conflict: \"suffix\"`. The folder's old address redirects to the new one.",
       "example": { "name": "Handbook" }
     },
     "PATCH /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Rename or move a folder",
-      "description": "Renames a folder, changes its address, moves it (`parent_id`; `null` is the top level) or sets the access new documents in it start with. Admins and the owner. Every document below it moves to its new address.",
+      "description": "Renames a folder, changes its address, moves it (`parent_id`; `null` is the top level) or sets the access new documents in it start with. Admins and the owner. Every document below it moves to its new address, and the old addresses (the folder's own included) redirect. A new address that is already taken there is a `409` unless you send `on_conflict: \"suffix\"`.",
+      "mcp": "rename_folder",
       "example": { "name": "Handbook" }
     },
     "DELETE /api/v1/workspaces/{workspace_id}/folders/{folder_id}": {
       "title": "Delete a folder",
       "description": "Deletes a folder. By default (`mode=trash`) the folder, every folder inside it and everything filed in them go to the trash for 30 days, and come back together if you restore the folder. With `unfile` or `move_up` only the folder goes: what was in it moves to the top of the workspace, or into the parent folder.",
       "paramNotes": { "mode": "`trash` (the default), `unfile` or `move_up`." },
+      "mcp": "delete_folder",
       "guide": { "label": "Trash", "href": "/documents/trash" }
     },
     "GET /api/v1/workspaces/{workspace_id}/tree": {
@@ -1299,6 +1303,39 @@
       "example": { "question": "How do we onboard contractors?" },
       "mcp": "ask_documents",
       "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
+    },
+    "GET /api/v1/ask/home": {
+      "title": "Get Ask Markdrop's home",
+      "description": "What the home's Ask box shows: `status` (whether AI can answer now; when it can't, `reason` and `message` say why), `suggestions` (ready-made questions, each with its `intent`: `catch_up`, `my_actions` or `ask`) and `recent` (your latest conversations).",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "POST /api/v1/ask": {
+      "title": "Ask Markdrop",
+      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations`, `ranked` and `thread_id`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI search limits.",
+      "returns": "text/event-stream",
+      "example": { "question": "When do we ship the release?" },
+      "mcp": "ask_documents",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "GET /api/v1/ask/threads": {
+      "title": "List your Ask Markdrop conversations",
+      "description": "Your recent conversations, newest first: each one's `id`, `title` (its first question), number of questions and when it was last used. Only you can see your conversations.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "GET /api/v1/ask/threads/{thread_id}": {
+      "title": "Open a conversation",
+      "description": "One of your conversations with every question and answer. Each answer's sources are checked against your access again: when you can no longer open one of them, that answer comes back with `withheld: true` and no text.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "DELETE /api/v1/ask/threads/{thread_id}": {
+      "title": "Delete a conversation",
+      "description": "Deletes one of your conversations.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "DELETE /api/v1/ask/threads": {
+      "title": "Delete all your conversations",
+      "description": "Deletes every conversation you had with Ask Markdrop. Your documents aren't touched.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
     },
     "POST /api/v1/search/click": {
       "title": "Record an opened result",

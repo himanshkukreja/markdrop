@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getDocument } from "@/lib/api";
+import { ApiError, getDocument } from "@/lib/api";
 import { keepUnsaved, lockFacts, lockHolder, lockPage, lockStatus, pagesErrorStatus, savePage, unlockPage, PagesApiError, type LockFacts, type LockInfo, type LockTimers, type PageDocument } from "@/lib/pages";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
-import { merge3 } from "@/lib/pageMerge.mjs";
 import { readPageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
+import { merge3 } from "@/lib/pageMerge.mjs";
 
 const pageLocked = (e: unknown) => e instanceof PagesApiError && e.info.code === "page_locked";
 
@@ -47,7 +47,15 @@ export type LockState =
 export interface Conflict {
   /** Their newest version. */
   doc: PageDocument;
+  /**
+   * The three-way merge of this editor's unsaved changes onto `doc` (lib/pageMerge.mjs): what
+   * Keep both / Use mine save. Absent when the titles conflict and the bodies don't.
+   */
+  merged?: { both: string; mine: string; title: string; count: number };
 }
+
+/** Why the page can't be edited here any more (it moved away, was deleted, access ended). */
+const errStatus = (e: unknown): number => (e instanceof PagesApiError || e instanceof ApiError ? e.status : 0);
 
 /**
  * One page open in the block editor (one editor at a time). A page is always editable for the
@@ -65,9 +73,16 @@ export interface Conflict {
  * - 423 (someone else holds the lock): read only, "X is editing", following their changes live;
  *   asks whether it's free every 15 s (GET …/lock never takes it), and when it is the page is
  *   editable again (taking the lock only when there is text of ours to save);
- * - 409 (a newer version): when it only adds to the end of what this editor last saved (an AI
- *   app's append_blocks), the addition is merged in and the save retried; otherwise "This page
- *   changed", with Load the latest / Keep mine;
+ * - 409 (a newer version): this editor's unsaved changes are merged onto it line by line
+ *   (lib/pageMerge.mjs: an AI app's append_blocks, someone's edit to another paragraph) and the
+ *   save retried; only when both changed the same lines: a banner with Keep both / Use theirs /
+ *   Use mine (nothing is dropped without being asked; no saves until it's answered);
+ * - catching up (fix/collab-audit): the live socket reconnecting (`resync`), the network coming
+ *   back and the tab being shown again re-read the page; a newer version is shown, or merged
+ *   under unsaved changes the same way, and pending text is saved;
+ * - renamed while open (`gone` + the old address answering `moved`): saves follow the new
+ *   address and `onMoved` takes the tab there; deleted, or no longer readable: read only, saying
+ *   why, the text stays on screen and in this browser's draft;
  * - a live `appended` event goes straight into the editor at the end (`onAppend`); while the lock
  *   isn't ours, any change is shown as it lands (unless this editor has text on its way);
  * - an auto cover (live `cover`, or `remoteCover` from a poll) goes into the page's front matter
@@ -83,6 +98,7 @@ export function usePageEditSession({
   onRemote,
   subscribeLive,
   onCover,
+  onMoved,
 }: {
   slug: string;
   secret: string | null;
@@ -95,10 +111,18 @@ export function usePageEditSession({
   subscribeLive?: (fn: (msg: Record<string, unknown>) => void) => () => void;
   /** An auto cover landed (`gallery:<id>`): put it in the page's front matter. */
   onCover?: (cover: string) => void;
+  /** The page was renamed while open: what was typed is saved there; go to its new address. */
+  onMoved?: (doc: PageDocument) => void;
 }) {
   const [save, setSave] = useState<SaveState>({ state: "saved", at: null });
   const [lock, setLockState] = useState<LockState>({ kind: "idle" });
-  const [conflict, setConflict] = useState<Conflict | null>(null);
+  const [conflict, setConflictState] = useState<Conflict | null>(null);
+  /** A conflict waiting for its answer: nothing saves meanwhile (each try would only meet it again). */
+  const conflictRef = useRef<Conflict | null>(null);
+  const setConflict = useCallback((c: Conflict | null) => {
+    conflictRef.current = c;
+    setConflictState(c);
+  }, []);
   /** Someone took this editor's lock over and nobody holds it now (an AI app's write): say so. */
   const [notice, setNotice] = useState<{ by: string; kept: number | null } | null>(null);
 
@@ -130,8 +154,13 @@ export function usePageEditSession({
   const acquiring = useRef<Promise<boolean> | null>(null);
   /** Taking the lock failed for want of a network (or a server error) with text to save: try again. */
   const acquireRetry = useRef<number | null>(null);
-  const cbs = useRef({ onSaved, onAppend, onRemote, onCover });
-  cbs.current = { onSaved, onAppend, onRemote, onCover };
+  const cbs = useRef({ onSaved, onAppend, onRemote, onCover, onMoved });
+  cbs.current = { onSaved, onAppend, onRemote, onCover, onMoved };
+  /** Where this page is now: its slug, or the new one after a rename while open. */
+  const slugRef = useRef(slug);
+  useEffect(() => {
+    slugRef.current = slug;
+  }, [slug]);
 
   const clearTimer = () => {
     if (timer.current) window.clearTimeout(timer.current);
@@ -140,7 +169,7 @@ export function usePageEditSession({
 
   const fetchLatest = useCallback(async (): Promise<PageDocument> => {
     const pwd = typeof sessionStorage !== "undefined" ? sessionStorage.getItem(`pwd:${slug}`) || undefined : undefined;
-    return (await getDocument(slug, pwd, secret || undefined)) as PageDocument;
+    return (await getDocument(slugRef.current, pwd, secret || undefined)) as PageDocument;
   }, [slug, secret]);
 
   const adopt = useCallback((doc: PageDocument) => {
@@ -153,15 +182,39 @@ export function usePageEditSession({
     cbs.current.onRemote({ ...next, rev: baseRev.current });
   }, []);
 
+  /**
+   * A newer version (`latest`) under this editor's unsaved changes: merged line by line onto it.
+   * Clean: the editor shows the merge (still unsaved) and true. Both sides changed the same lines
+   * (or both renamed the page differently): nothing changes here, the Conflict to ask about.
+   */
+  const rebase = useCallback((latest: PageDocument): true | Conflict => {
+    const theirs = { title: latest.title ?? "", content: latest.content ?? "" };
+    const was = base.current, mine = fields.current;
+    const m = merge3(was.content, mine.content, theirs.content);
+    const titleClash = mine.title !== was.title && theirs.title !== was.title && mine.title !== theirs.title;
+    const title = mine.title !== was.title ? mine.title : theirs.title;
+    if (!m.clean || titleClash) {
+      return { doc: latest, merged: { both: m.bothContent, mine: m.mineContent, title, count: m.conflicts.length + (titleClash ? 1 : 0) } };
+    }
+    base.current = theirs;
+    baseRev.current = typeof latest.rev === "number" ? latest.rev : baseRev.current;
+    fields.current = { title, content: m.content };
+    dirty.current = title !== theirs.title || m.content !== theirs.content;
+    cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
+    return true;
+  }, []);
+
+  /** A 404 (or `gone`): renamed (follow it), deleted or no longer readable (read only, say so). */
+  const checkGone = useRef<() => Promise<void>>(async () => {});
   const doSave = useCallback(async (): Promise<void> => {
     clearTimer();
-    if (!dirty.current || saving.current || lockRef.current.kind !== "mine") return;
+    if (!dirty.current || saving.current || lockRef.current.kind !== "mine" || conflictRef.current) return;
     const sent = { ...fields.current };
     saving.current = true;
     dirty.current = false;
     setSave({ state: "saving" });
     try {
-      const doc = await savePage(slug, { title: sent.title, content: sent.content, baseRev: baseRev.current }, secret);
+      const doc = await savePage(slugRef.current, { title: sent.title, content: sent.content, baseRev: baseRev.current }, secret);
       baseRev.current = typeof doc.rev === "number" ? doc.rev : baseRev.current;
       base.current = sent;
       // An auto cover that landed before this save, merged in by the server: take it, so the next
@@ -213,8 +266,15 @@ export function usePageEditSession({
             setSave({ state: "dirty" });
             timer.current = window.setTimeout(() => void doSave(), 300);
           } else {
-            setConflict({ doc: latest });
-            setSave({ state: "error", message: "This page changed." });
+            // Someone changed other lines (or the same ones): merge what's unsaved here onto it.
+            const r = rebase(latest);
+            if (r === true) {
+              setSave(dirty.current ? { state: "dirty" } : { state: "saved", at: Date.now() });
+              if (dirty.current) timer.current = window.setTimeout(() => void doSave(), 300);
+            } else {
+              setConflict(r);
+              setSave({ state: "error", message: "This page changed." });
+            }
           }
         } catch {
           setSave({ state: "error", message: "This page changed. Couldn't load the newest version." });
@@ -222,6 +282,9 @@ export function usePageEditSession({
       } else if (status === 403 || status === 401) {
         setLock({ kind: "readonly", message: e instanceof Error ? e.message : "You can't edit this page any more." });
         setSave({ state: "error", message: "Not saved: you can't edit this page any more." });
+      } else if (status === 404) {
+        // Renamed, deleted or no longer readable while open: find out which.
+        void checkGone.current();
       } else {
         setSave({ state: "error", message: e instanceof PagesApiError && status && status < 500 ? e.message : "Couldn't save. Trying again…" });
         if (status === 0 || status >= 500) timer.current = window.setTimeout(() => void doSave(), 5000);
@@ -230,7 +293,7 @@ export function usePageEditSession({
       saving.current = false;
       if (dirty.current && lockRef.current.kind === "mine" && !timer.current) timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
     }
-  }, [slug, secret, fetchLatest, setLock]);
+  }, [slug, secret, fetchLatest, setLock, rebase, setConflict]);
 
   /** Take the lock (once at a time). True when it's ours. */
   const acquire = useCallback((): Promise<boolean> => {
@@ -239,7 +302,7 @@ export function usePageEditSession({
     setLock({ kind: "acquiring" });
     const p = (async () => {
       try {
-        const r = await lockPage(slug, secret, { intent: "edit", dirty: dirty.current });
+        const r = await lockPage(slugRef.current, secret, { intent: "edit", dirty: dirty.current });
         applyTimers(r.timers);
         lastBeat.current = Date.now();
         setNotice(null);
@@ -256,7 +319,9 @@ export function usePageEditSession({
         // (the first change may well have been made offline).
         else {
           setLock({ kind: "idle" });
-          if (dirty.current && acquireRetry.current === null) {
+          // 404: renamed, deleted or no longer readable.
+          if (status === 404) void checkGone.current();
+          if (status !== 404 && dirty.current && acquireRetry.current === null) {
             acquireRetry.current = window.setTimeout(() => {
               acquireRetry.current = null;
               if (lockRef.current.kind === "idle" && dirty.current) void acquireRef.current();
@@ -276,14 +341,6 @@ export function usePageEditSession({
   useEffect(() => () => {
     if (acquireRetry.current !== null) window.clearTimeout(acquireRetry.current);
   }, []);
-  // Back online with text to save that never got the lock: ask now.
-  useEffect(() => {
-    const online = () => {
-      if (lockRef.current.kind === "idle" && dirty.current) void acquireRef.current();
-    };
-    window.addEventListener("online", online);
-    return () => window.removeEventListener("online", online);
-  }, []);
 
   /** Let go of the lock (after saving what's pending): the page stays editable. */
   const release = useCallback(async () => {
@@ -292,7 +349,7 @@ export function usePageEditSession({
     if (dirty.current) await doSave();
     if (dirty.current || saving.current || lockRef.current.kind !== "mine") return;
     setLock({ kind: "idle" });
-    void unlockPage(slug, { secret }).catch(() => {});
+    void unlockPage(slugRef.current, { secret }).catch(() => {});
   }, [slug, secret, doSave, setLock]);
 
   /**
@@ -302,18 +359,6 @@ export function usePageEditSession({
   const activity = useCallback(() => {
     lastActive.current = Date.now();
   }, []);
-
-  /** Nothing unsaved here: show the page's newest version if someone wrote one meanwhile. */
-  const catchUp = useCallback(async () => {
-    if (dirty.current || saving.current) return;
-    try {
-      const latest = await fetchLatest();
-      if (dirty.current || saving.current) return;
-      if (typeof latest.rev === "number" && (baseRev.current === null || latest.rev > baseRev.current)) adopt(latest);
-    } catch {
-      /* the next live change or save brings it */
-    }
-  }, [fetchLatest, adopt]);
 
   /**
    * Our text (`mine`, typed on top of `was`) goes on top of their newer version (`latest`, already
@@ -326,7 +371,7 @@ export function usePageEditSession({
     let content = m.content;
     if (!m.clean) {
       try {
-        await keepUnsaved(slug, { title: mine.title, content: m.mineContent, base_rev: baseRev.current, reason: "conflict" }, secret);
+        await keepUnsaved(slugRef.current, { title: mine.title, content: m.mineContent, base_rev: baseRev.current, reason: "conflict" }, secret);
       } catch {
         content = mine.content; /* couldn't keep it: our text stays as it was, and saves */
       }
@@ -349,7 +394,7 @@ export function usePageEditSession({
     if (takenBy && dirty.current) {
       const f = { ...fields.current };
       try {
-        kept = (await keepUnsaved(slug, { title: f.title, content: f.content, base_rev: baseRev.current, reason: "taken_over" }, secret)).version;
+        kept = (await keepUnsaved(slugRef.current, { title: f.title, content: f.content, base_rev: baseRev.current, reason: "taken_over" }, secret)).version;
         keptAll = true;
       } catch {
         /* couldn't reach the server: the text stays on screen (and in this browser) */
@@ -368,8 +413,8 @@ export function usePageEditSession({
       if (takenBy) setNotice({ by: takenBy, kept });
     }
     // Their change may have landed while this editor still thought the lock was its own.
-    void catchUp();
-  }, [slug, secret, adopt, fetchLatest, setLock, catchUp]);
+    void catchUp.current();
+  }, [secret, adopt, fetchLatest, setLock]);
 
   /**
    * Who's viewing says someone else is editing (before this editor asked for the lock): ask the
@@ -379,7 +424,7 @@ export function usePageEditSession({
   const probe = useCallback(async () => {
     if (lockRef.current.kind !== "idle") return;
     try {
-      const st = await lockStatus(slug, secret);
+      const st = await lockStatus(slugRef.current, secret);
       applyTimers(st.timers);
       if (st.holder && !st.mine && lockRef.current.kind === "idle") setLock({ kind: "theirs", name: st.holder.name, facts: lockFacts(st) });
     } catch {
@@ -394,7 +439,7 @@ export function usePageEditSession({
     lastBeat.current = Date.now();
     let r: LockInfo;
     try {
-      r = await lockPage(slug, secret, { intent: "heartbeat", edited, hidden: document.visibilityState === "hidden", dirty: dirty.current || saving.current });
+      r = await lockPage(slugRef.current, secret, { intent: "heartbeat", edited, hidden: document.visibilityState === "hidden", dirty: dirty.current || saving.current });
     } catch (e) {
       const status = pagesErrorStatus(e);
       if (status === 423 && !pageLocked(e)) {
@@ -404,9 +449,9 @@ export function usePageEditSession({
         clearTimer();
         setLock({ kind: "readonly", message: "This page is locked. Only its owner and workspace admins can edit it." });
       } else if (status === 401 || status === 403 || status === 404) {
-        // No edit rights any more, or the page is gone: stop holding it here.
+        // No edit rights any more, or renamed or deleted: checkGone says which (and follows a rename).
         clearTimer();
-        setLock({ kind: "readonly", message: status === 404 ? "This page was deleted or moved." : e instanceof Error ? e.message : "You can't edit this page any more." });
+        void checkGone.current();
       }
       return;
     }
@@ -417,23 +462,24 @@ export function usePageEditSession({
     // next change takes it again.
     else if (!saving.current) {
       setLock({ kind: "idle" });
-      void catchUp();
+      void catchUp.current();
     }
-  }, [slug, secret, lose, setLock, catchUp]);
+  }, [secret, lose, setLock]);
 
   // Leave: save what's pending, then let go of the lock. (Opening takes nothing; a change does.)
   useEffect(() => {
     return () => {
       clearTimer();
       const held = lockRef.current.kind === "mine";
+      const at = slugRef.current;
       if (held && dirty.current) {
         const f = fields.current;
-        void savePage(slug, { title: f.title, content: f.content, baseRev: baseRev.current }, secret)
+        void savePage(at, { title: f.title, content: f.content, baseRev: baseRev.current }, secret)
           .then((doc) => cbs.current.onSaved?.(doc))
           .catch(() => {})
-          .finally(() => void unlockPage(slug, { keepalive: true, secret }).catch(() => {}));
+          .finally(() => void unlockPage(at, { keepalive: true, secret }).catch(() => {}));
       } else if (held) {
-        void unlockPage(slug, { keepalive: true, secret }).catch(() => {});
+        void unlockPage(at, { keepalive: true, secret }).catch(() => {});
       }
     };
   }, [slug, secret]);
@@ -496,7 +542,7 @@ export function usePageEditSession({
     const id = window.setInterval(async () => {
       // Asking never takes it: a tab left open on someone else's edit never grabs the page.
       try {
-        const st = await lockStatus(slug, secret);
+        const st = await lockStatus(slugRef.current, secret);
         applyTimers(st.timers);
         if (st.holder && !st.mine) {
           const l = lockRef.current;
@@ -517,7 +563,7 @@ export function usePageEditSession({
         return;
       }
       try {
-        const r = await lockPage(slug, secret, { intent: "edit", dirty: true });
+        const r = await lockPage(slugRef.current, secret, { intent: "edit", dirty: true });
         applyTimers(r.timers);
         lastEdit.current = Date.now();
       } catch {
@@ -592,11 +638,113 @@ export function usePageEditSession({
           return;
         }
         // Someone else's edit: show it, unless this editor has text on its way to the server (that
-        // save then meets the newer version and asks).
-        if (lockRef.current.kind !== "mine" && !dirty.current) void fetchLatest().then(adopt).catch(() => {});
+        // save then meets the newer version and merges). Held or not: a lock that lapsed while this
+        // laptop slept lets others write, and with nothing unsaved here there's nothing to lose.
+        if (!dirty.current && !saving.current) void fetchLatest().then(adopt).catch(() => {});
+        return;
       }
+      // Renamed, deleted or no longer readable while open.
+      if (msg.type === "gone") {
+        void checkGone.current();
+        return;
+      }
+      // The socket came back after a gap (sleep, network, a server restart): events may be lost.
+      if (msg.type === "resync") void catchUp.current();
     });
   }, [subscribeLive, fetchLatest, adopt, remoteCover]);
+
+  /**
+   * Catch up with the server (after the socket, the network or the tab came back): a newer
+   * version is shown, or merged under what's unsaved here; pending text is saved.
+   */
+  const catchUp = useRef<() => Promise<void>>(async () => {});
+  catchUp.current = async () => {
+    if (saving.current || lockRef.current.kind === "readonly" || conflictRef.current) return;
+    let latest: PageDocument;
+    try {
+      latest = await fetchLatest();
+    } catch (e) {
+      if (errStatus(e) === 404 || errStatus(e) === 403 || errStatus(e) === 401) void checkGone.current();
+      return;
+    }
+    if ((latest as { moved?: boolean }).moved) {
+      void checkGone.current();
+      return;
+    }
+    const rev = typeof latest.rev === "number" ? latest.rev : null;
+    const newer = rev !== null && baseRev.current !== null && rev > baseRev.current;
+    if (newer && saving.current) return; // that save meets it (409) and merges
+    if (newer && !dirty.current) {
+      adopt(latest);
+      return;
+    }
+    if (newer) {
+      const r = rebase(latest);
+      if (r !== true) {
+        setConflict(r);
+        setSave({ state: "error", message: "This page changed." });
+        return;
+      }
+    }
+    if (!dirty.current) return;
+    setSave({ state: "dirty" });
+    // What was typed while offline saves now (taking the lock first when it isn't ours).
+    if (lockRef.current.kind === "mine") {
+      clearTimer();
+      timer.current = window.setTimeout(() => void doSave(), 300);
+    } else if (lockRef.current.kind === "idle") {
+      void acquire();
+    }
+  };
+
+  checkGone.current = async () => {
+    let doc: PageDocument;
+    try {
+      doc = await fetchLatest();
+    } catch (e) {
+      const status = errStatus(e);
+      if (status === 404 || status === 410) {
+        clearTimer();
+        setLock({ kind: "readonly", message: "This page was deleted (or you can no longer open it). What's on screen is kept in this browser; copy anything you need." });
+        setSave({ state: "error", message: "Not saved: this page isn't here any more." });
+      } else if (status === 403 || status === 401) {
+        clearTimer();
+        setLock({ kind: "readonly", message: "You can no longer edit this page. What's on screen is kept in this browser; copy anything you need." });
+        setSave({ state: "error", message: "Not saved: you can't edit this page any more." });
+      }
+      return;
+    }
+    const moved = doc as PageDocument & { moved?: boolean };
+    if (!moved.moved || !doc.slug || doc.slug === slugRef.current) return;
+    // Renamed: save what's here at the new address first (the lock is the page's, not the
+    // address's, so it still holds), then go there.
+    slugRef.current = doc.slug;
+    if (dirty.current && lockRef.current.kind === "mine") {
+      clearTimer();
+      await doSave();
+    } else if (dirty.current && lockRef.current.kind === "idle" && (await acquire())) {
+      clearTimer();
+      await doSave();
+    }
+    cbs.current.onMoved?.(doc);
+  };
+
+  // The network or the tab came back: catch up (the socket's own `resync` may come later, or not
+  // at all when it never noticed it was cut off).
+  useEffect(() => {
+    let hiddenAt = 0;
+    const online = () => void catchUp.current();
+    const vis = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 30_000) void catchUp.current();
+    };
+    window.addEventListener("online", online);
+    document.addEventListener("visibilitychange", vis);
+    return () => {
+      window.removeEventListener("online", online);
+      document.removeEventListener("visibilitychange", vis);
+    };
+  }, []);
 
   // A restore from this tab's version history: load it now (the live socket may be down).
   useEffect(() => {
@@ -613,7 +761,7 @@ export function usePageEditSession({
       if (dirty.current || saving.current) e.preventDefault();
     };
     const hide = () => {
-      if (lockRef.current.kind === "mine") void unlockPage(slug, { keepalive: true, secret }).catch(() => {});
+      if (lockRef.current.kind === "mine") void unlockPage(slugRef.current, { keepalive: true, secret }).catch(() => {});
     };
     window.addEventListener("beforeunload", before);
     window.addEventListener("pagehide", hide);
@@ -648,8 +796,13 @@ export function usePageEditSession({
     timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
   }, [doSave, acquire]);
 
-  /** 409: take theirs (drop what isn't saved) or keep mine (save on top of theirs). */
-  const resolveConflict = useCallback(async (choice: "theirs" | "mine") => {
+  /**
+   * Both changed the same lines: keep both (theirs, then mine, in each clashing stretch; everything
+   * else merged), use theirs (what's unsaved here goes, but stays in this browser's draft), or use
+   * mine (their other changes are kept; only the clashing lines take mine; theirs stay in version
+   * history).
+   */
+  const resolveConflict = useCallback(async (choice: "theirs" | "mine" | "both") => {
     const c = conflict;
     setConflict(null);
     if (!c) return;
@@ -657,11 +810,18 @@ export function usePageEditSession({
       adopt(c.doc);
       return;
     }
-    base.current = { title: c.doc.title ?? "", content: c.doc.content ?? "" };
+    // Merged again now: what was typed while the banner showed counts too.
+    const was = base.current, mine = fields.current;
+    const theirs = { title: c.doc.title ?? "", content: c.doc.content ?? "" };
+    const m = merge3(was.content, mine.content, theirs.content);
+    const title = mine.title !== was.title ? mine.title : theirs.title;
+    base.current = theirs;
     baseRev.current = typeof c.doc.rev === "number" ? c.doc.rev : baseRev.current;
+    fields.current = { title, content: choice === "both" ? m.bothContent : m.mineContent };
+    cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
     dirty.current = true;
     await doSave();
-  }, [conflict, adopt, doSave]);
+  }, [conflict, adopt, doSave, setConflict]);
 
   const flush = useCallback(async () => {
     if (!dirty.current) return;
@@ -682,7 +842,7 @@ export function usePageEditSession({
    */
   const takeOver = useCallback(async (): Promise<string | null> => {
     try {
-      const r = await lockPage(slug, secret, { intent: "edit", takeOver: true, dirty: dirty.current });
+      const r = await lockPage(slugRef.current, secret, { intent: "edit", takeOver: true, dirty: dirty.current });
       applyTimers(r.timers);
       lastEdit.current = Date.now();
       lastBeat.current = Date.now();
@@ -714,7 +874,10 @@ export function usePageEditSession({
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, takeOver, notice, dismissNotice, probe };
+  /** What the server holds as far as this editor knows (a local draft's base). */
+  const baseline = useCallback(() => ({ ...base.current, rev: baseRev.current }), []);
+
+  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, baseline, takeOver, notice, dismissNotice, probe };
 }
 
 /** The cover `latest` added when that is all that differs from `base` (else null). */
