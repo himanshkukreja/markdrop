@@ -36,7 +36,7 @@ from typing import Any, AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import access, ai_usage, docs_agent, meetings, pages_ai
+from app.services import access, ai_usage, docs_agent, meeting_scope, meetings, pages_ai
 from app.services import meeting_parse as mp
 from app.services import search_text as st
 
@@ -50,7 +50,11 @@ SINGLE_MAX_CHARS = 240_000
 CHUNK_CHARS = 160_000
 GEN_MAX_TOKENS = 3500
 REDUCE_MAX_TOKENS = 3500
-ASK_MAX_TOKENS = 1000
+# Haiku 5.5 thinks before answering even at effort "low", and thinking counts against max_tokens
+# (real-model eval 2026-11-05: a catch-up over 7 meetings spent ~900 of 1000 on thinking and came
+# back empty or cut off mid-tag). The prompts bound the visible answer (≤180 words); this is headroom.
+ASK_MAX_TOKENS = 3000
+CUT_SHORT = "The answer was cut short before it started. Ask again, or ask something narrower."
 ASK_CONTEXT_CHARS = 300_000
 ASK_PAGE_CHARS = 20_000
 MAX_QUESTION = 600
@@ -112,9 +116,9 @@ ASK_SYSTEM = f"""You answer questions about one meeting in Markdrop. You get the
 
 {ENGLISH}
 
-Answer from the page and the transcript only, in at most 150 words of plain Markdown (no headings). Cite every claim right after it with the label of the line it comes from, like [s12] or [n3] (transcript lines are better evidence than notes). If the meeting doesn't answer the question, say so in one sentence. Never invent names, dates, numbers or links."""
+Answer from the page and the transcript only, in at most 150 words of plain Markdown (no headings). Cite every claim right after it with the label of the line it comes from, like [s12] or [n3] (transcript lines are better evidence than notes). Cite a line only for what that line itself says. Answer the question directly; don't describe your sources (no "the notes give no transcript lines"). If the meeting doesn't answer the question, say so in one sentence. Never invent names, dates, numbers or links."""
 
-ACROSS_SYSTEM = f"""You answer questions about a team's meetings in Markdrop. A search found meetings the person can open; each arrives inside an <untrusted_meeting n="…"> tag with its title, date, an excerpt of its page and some transcript lines labelled [Mn-sK] time Speaker: words.
+ACROSS_SYSTEM = f"""You answer questions about a team's meetings in Markdrop. A search found meetings the person can open; each arrives inside an <untrusted_meeting n="…"> tag with its title, the day it happened, its series (a recurring meeting such as a daily standup) when it has one, an excerpt of its page and some transcript lines labelled [Mn-sK] time Speaker: words.
 
 {DATA_NOT_INSTRUCTIONS}
 
@@ -122,7 +126,7 @@ ACROSS_SYSTEM = f"""You answer questions about a team's meetings in Markdrop. A 
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the meetings that are relevant to the question, most relevant first. If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings), from the meetings only. Cite every claim right after it: a transcript line as [M2-s14], a meeting's page as [M2]. When meetings disagree, the later one wins and you say so. If they don't answer the question, say so in one sentence and name the closest meeting. Never invent names, dates, numbers or meetings."""
+2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings), from the meetings only. Say when and where each point was said, by the meeting's day and name, e.g. "On 28 Oct, in Daily Standup, Bo said…"; never call a meeting "Meeting 2" or "M2" in your words. Cite every claim right after it: a transcript line as [M2-s14], a meeting's page as [M2]. Cite a transcript line only for what that line itself says; for anything else from a meeting, cite its page. When meetings disagree, the later one wins and you say so; for "latest", "current" or "still" questions, answer from the most recent meeting that covers it. If they don't answer the question, say so in one sentence and name the closest meeting. Never invent names, dates, numbers or meetings."""
 
 
 def now_utc() -> datetime:
@@ -477,22 +481,41 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
 
 _CITE = re.compile(r"\[(?:(M)(\d{1,2})(?:-([sn])(\d{1,5}))?|([sn])(\d{1,5}))\]")
 _RANKING = re.compile(r"<ranking>\s*([0-9,\s]*)\s*</ranking>", re.I)
+# An answer cut off inside its first line ("<ranking>6,1,2</rank"): its numbers, and the leftover to strip.
+_RANKING_CUT = re.compile(r"^\s*<ranking>\s*([0-9,\s]*)(?:</?r?a?n?k?i?n?g?>?)?", re.I)
 
 
 def _terms(text: str) -> set[str]:
     return {w for w in st.words(text) if w not in st.STOPWORDS and len(w) >= 3}
 
 
-def best_segments(segments: list[dict], question: str, k: int, *, neighbours: int = 1) -> list[int]:
+def _names(text: str | None) -> set[str]:
+    """Capitalised words that don't start a sentence (product, company and people's names), lowercased."""
+    out = set()
+    start = True
+    for m in re.finditer(r"[A-Za-z][A-Za-z0-9']*|[.!?:]", text or ""):
+        w = m.group(0)
+        if w in ".!?:":
+            start = True
+            continue
+        if not start and w[0].isupper() and len(w) >= 3 and "'" not in w:
+            out.add(w.lower())
+        start = False
+    return out
+
+
+def best_segments(segments: list[dict], question: str, k: int, *, neighbours: int = 1, follow: int = 0) -> list[int]:
     """Indexes (0-based, in order) of the ``k`` segments sharing most words with the question, each
-    with its neighbours."""
+    with its neighbours. ``follow`` adds up to that many more lines that name what the best lines name
+    (a rare capitalised word: "Postmark" in the line that matched "email" also brings "I'll migrate
+    the templates to Postmark", which shares no word with the question)."""
     terms = _terms(question)
     if not terms:
         return list(range(min(k, len(segments))))
     scored = []
+    words_of = [set(st.words(s.get("text"))) for s in segments]
     for i, s in enumerate(segments):
-        ws = set(st.words(s.get("text")))
-        hits = len(terms & ws)
+        hits = len(terms & words_of[i])
         if s.get("speaker") and _terms(s["speaker"]) & terms:
             hits += 0.5
         if hits:
@@ -505,6 +528,21 @@ def best_segments(segments: list[dict], question: str, k: int, *, neighbours: in
         for j in range(i - neighbours, i + neighbours + 1):
             if 0 <= j < len(segments):
                 keep.add(j)
+    if follow > 0:
+        best = scored[0][0]
+        names: set[str] = set()
+        for h, i in scored[:3]:
+            if h >= best:
+                names |= _names(segments[i].get("text")) - terms
+        # Only names said a few times: a word on every other line (the product's own name) says nothing.
+        rare = {n for n in names if sum(1 for ws in words_of if n in ws) <= 4}
+        added = 0
+        for j, ws in enumerate(words_of):
+            if added >= follow:
+                break
+            if j not in keep and rare & ws:
+                keep.add(j)
+                added += 1
     return sorted(keep)
 
 
@@ -528,6 +566,7 @@ def page_lines(page_body: str, limit: int = ASK_PAGE_CHARS) -> list[tuple[str, s
 
 def clean_answer(text: str) -> str:
     body = _RANKING.sub("", text or "", count=1).strip()
+    body = _RANKING_CUT.sub("", body, count=1).strip()
     return re.sub(r"</?untrusted_\w+[^>]*>", "", body).strip()
 
 
@@ -603,7 +642,7 @@ async def _relay(run: Run, params: dict, *, ranking: bool, on_ranking=None) -> A
             break
         raw, stop = task.result()
         if state["ranked"] is None:
-            m = _RANKING.search(raw)
+            m = _RANKING.search(raw) or _RANKING_CUT.search(raw)
             yield ("ranking", [int(x) for x in m.group(1).replace(" ", "").split(",") if x.isdigit()] if m else [])
         yield ("final", (raw, stop))
     finally:
@@ -695,6 +734,8 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
             yield ev("error", detail="AI can't help with this one.", code="refused")
             return
         answer = cites.strip_unknown(clean_answer(raw_text))
+        if not answer and stop == "max_tokens":
+            answer = CUT_SHORT
         used = cites.used(answer)
         await run.record("ok", stop_reason=stop, chars_out=len(answer), cited=len(used))
         yield ev("done", request_id=run.request_id, usage=run.usage(), answer=answer, citations=used,
@@ -706,10 +747,24 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
 # ── Ask across meetings ───────────────────────────────────────────────────────
 
 
-async def _candidates(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str) -> list[tuple[dict, dict, dict | None]]:
-    """(row without segments, meeting page, transcript page or None) the asker can open, newest first."""
+def _scope_query(workspace_id: str, scope: meeting_scope.Scope | None) -> dict:
+    q: dict[str, Any] = {"workspace_id": workspace_id}
+    if scope is not None:
+        if scope.series:
+            q["series"] = {"$regex": f"^{re.escape(scope.series)}$", "$options": "i"}
+        if scope.since:
+            q.setdefault("date", {})["$gte"] = scope.since
+        if scope.until:
+            q.setdefault("date", {})["$lte"] = scope.until
+    return q
+
+
+async def _candidates(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
+                      scope: meeting_scope.Scope | None = None) -> list[tuple[dict, dict, dict | None]]:
+    """(row without segments, meeting page, transcript page or None) the asker can open, newest first
+    (only the scope's series and dates, when there is one)."""
     out = []
-    cur = db[meetings.COLL].find({"workspace_id": workspace_id}, {"segments": 0}).sort(
+    cur = db[meetings.COLL].find(_scope_query(workspace_id, scope), {"segments": 0}).sort(
         [("date", -1), ("created_at", -1)]).limit(ACROSS_SCAN)
     async for row in cur:
         raw = await meetings.readable(db, row, actor, ctx)
@@ -725,9 +780,11 @@ async def _candidates(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
 
 
 async def _rank(db: AsyncIOMotorDatabase, actor: access.Actor, cands: list[tuple[dict, dict, dict | None]],
-                question: str, workspace_id: str) -> list[int]:
+                question: str, workspace_id: str, *, recent: bool = False) -> list[int]:
     """Candidate indexes, best first: the global search's ranking of each meeting's page and transcript
-    (reciprocal rank fused); the newest fill up to ACROSS_MEETINGS when few match."""
+    (reciprocal rank fused); the newest fill up to ACROSS_MEETINGS when few match. ``recent`` (a
+    question about the latest state): newer matching meetings are moved up (candidates are newest
+    first, so the bonus falls with the index)."""
     from app.services import search
 
     q = search.Query(q=question, scope=workspace_id, snippets=False)
@@ -756,6 +813,10 @@ async def _rank(db: AsyncIOMotorDatabase, actor: access.Actor, cands: list[tuple
             i = owner.get(c.key)
             if i is not None:
                 fused[i] = fused.get(i, 0.0) + weight / (60.0 + r + 1)
+    if recent and fused:
+        top = max(fused.values())
+        for i in fused:
+            fused[i] += 0.6 * top / (1.0 + i / 3.0)
     order = sorted(fused, key=lambda i: -fused[i])[:ACROSS_MEETINGS]
     for i in range(len(cands)):
         if len(order) >= ACROSS_MEETINGS:
@@ -766,9 +827,13 @@ async def _rank(db: AsyncIOMotorDatabase, actor: access.Actor, cands: list[tuple
 
 
 async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
-                       question: str, *, via: str = "web") -> AsyncIterator[tuple[str, dict]]:
-    """Events: ``status {stage}``, ``results {items}``, ``delta {text}``,
-    ``done {request_id, usage, answer, citations, ranked}``, ``limit``, ``error``."""
+                       question: str, *, via: str = "web", series: str | None = None, since: str | None = None,
+                       until: str | None = None) -> AsyncIterator[tuple[str, dict]]:
+    """Events: ``status {stage}``, ``results {items, scope}``, ``delta {text}``,
+    ``done {request_id, usage, answer, citations, ranked, scope}``, ``limit``, ``error``.
+
+    ``series`` / ``since`` / ``until``: only those meetings (services/meeting_scope.py); without
+    them, a scope named in the question is used ("in Daily Standups last month")."""
     question = (question or "").replace("\x00", "").strip()[:MAX_QUESTION]
     uid = actor.user_id
     if not uid:
@@ -782,6 +847,11 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     except Exception:
         yield ev("error", detail="Workspace not found", code="not_found")
         return
+    try:
+        scope = meeting_scope.checked(series, since, until)
+    except ValueError as exc:
+        yield ev("error", detail=str(exc), code="bad_scope")
+        return
     run = Run(db, uid, "ask_all", via, {"workspace_id": workspace_id, "chars_in": len(question)}, RESERVE_ASK)
     reason = await limit_for(db, uid, workspace_id)
     if reason:
@@ -792,14 +862,35 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     run.hold()
     try:
         yield ev("status", stage="searching")
-        cands = await _candidates(db, actor, ctx, workspace_id)
+        if scope.empty:
+            names = [n for n in await db[meetings.COLL].distinct("series", {"workspace_id": workspace_id}) if n]
+            found = meeting_scope.from_question(question, names, meetings.now_utc().date())
+            cands = await _candidates(db, actor, ctx, workspace_id, found) if not found.empty else []
+            if not cands and found.series and (found.since or found.until):
+                # Nothing of that series then (or none the asker can open): the dates alone.
+                found.series = None
+                cands = await _candidates(db, actor, ctx, workspace_id, found)
+            if cands:
+                scope = found
+            elif found.series and not (found.since or found.until):
+                cands = await _candidates(db, actor, ctx, workspace_id)
+            elif found.since or found.until:
+                scope = found
+            else:
+                cands = await _candidates(db, actor, ctx, workspace_id)
+        else:
+            cands = await _candidates(db, actor, ctx, workspace_id, scope)
+        sc = None if scope.empty else scope.as_dict()
+        run.meta.update(scoped=bool(sc), scope_detected=bool(sc and scope.detected))
         if not cands:
             await run.record("ok", stop_reason="no_candidates")
-            yield ev("results", items=[])
-            yield ev("done", request_id=run.request_id, usage=run.usage(), citations=[], ranked=[],
-                     answer="There are no meetings here that you can open yet.")
+            yield ev("results", items=[], scope=sc)
+            answer = (f"There are no meetings you can open in {scope.label()}." if sc
+                      else "There are no meetings here that you can open yet.")
+            yield ev("done", request_id=run.request_id, usage=run.usage(), citations=[], ranked=[], answer=answer,
+                     scope=sc)
             return
-        order = await _rank(db, actor, cands, question, workspace_id)
+        order = await _rank(db, actor, cands, question, workspace_id, recent=meeting_scope.wants_recent(question))
         cites = Cites()
         blocks = []
         sent = []
@@ -807,7 +898,7 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
             row, raw, traw = cands[i]
             full = await db[meetings.COLL].find_one({"_id": row["_id"]}, {"segments": 1}) if traw is not None else None
             segs = (full or {}).get("segments") or []
-            keep = best_segments(segs, question, ACROSS_SEGMENTS) if segs else []
+            keep = best_segments(segs, question, ACROSS_SEGMENTS, follow=3) if segs else []
             seg_txt = []
             tslug = row.get("transcript_slug")
             for j in keep:
@@ -821,21 +912,26 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
                                 "href": f"/{raw['slug']}", "slug": raw["slug"], "meeting_id": str(row["_id"])})
             excerpt = meetings.page_text(raw)[:ACROSS_PAGE_CHARS]
             body = f"Page:\n{excerpt}" + (("\n\nTranscript lines:\n" + "\n".join(seg_txt)) if seg_txt else "")
-            blocks.append(pages_ai.wrap("meeting", body, n=n, title=row.get("title"), date=row.get("date"),
-                                        type=row.get("type")))
+            attrs = {"n": n, "title": row.get("title"), "date": row.get("date"),
+                     "day": meeting_scope.day_label(row.get("date")), "type": row.get("type")}
+            if row.get("series"):
+                attrs["series"] = row["series"]
+            blocks.append(pages_ai.wrap("meeting", body, **attrs))
             sent.append((n, row, raw))
         run.meta.update(candidates=len(cands), sent=len(sent))
         items_by_n = {n: {"n": n, "id": str(row["_id"]), "title": row.get("title"), "date": row.get("date"),
-                          "type": row.get("type"), "slug": raw["slug"]} for n, row, raw in sent}
+                          "type": row.get("type"), "series": row.get("series"), "slug": raw["slug"]} for n, row, raw in sent}
         yield ev("status", stage="answering")
         content = "<meetings>\n" + "\n".join(blocks) + "\n</meetings>"
-        ask_text = f"The question (from the person asking, not from a meeting): {question}"
+        today = meeting_scope.day_label(meetings.now_utc().date().isoformat())
+        where = f" The meetings were picked from: {scope.label()}." if sc else ""
+        ask_text = f"Today is {today}.{where}\nThe question (from the person asking, not from a meeting): {question}"
         raw_text, stop, ranked = "", None, []
         try:
             async for kind, value in _relay(run, _params(ACROSS_SYSTEM, [content, ask_text], ASK_MAX_TOKENS), ranking=True):
                 if kind == "ranking":
                     ranked = [k for k in value if k in items_by_n][:ACROSS_MEETINGS]
-                    yield ev("results", items=[items_by_n[k] for k in ranked])
+                    yield ev("results", items=[items_by_n[k] for k in ranked], scope=sc)
                 elif kind == "delta":
                     yield ev("delta", text=value)
                 elif kind == "final":
@@ -849,6 +945,8 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
             yield ev("error", detail="AI can't help with this one.", code="refused")
             return
         answer = cites.strip_unknown(clean_answer(raw_text))
+        if not answer and stop == "max_tokens":
+            answer = CUT_SHORT
         used = cites.used(answer)
         # Each cited meeting is decided again now (access may have changed while the model wrote).
         ok_ids = set()
@@ -861,7 +959,7 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
         used = [c for c in used if c.get("meeting_id") in ok_ids]
         await run.record("ok", stop_reason=stop, chars_out=len(answer), cited=len(used), ranked=len(ranked))
         yield ev("done", request_id=run.request_id, usage=run.usage(), answer=answer, citations=used,
-                 ranked=[items_by_n[k] for k in ranked], truncated=stop == "max_tokens")
+                 ranked=[items_by_n[k] for k in ranked], truncated=stop == "max_tokens", scope=sc)
     finally:
         run.release()
 

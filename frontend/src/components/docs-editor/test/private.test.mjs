@@ -37,3 +37,12 @@ test("a new private section is written for the engine", () => {
   assert.equal(write({ type: "private", attrs: { label: null, attributes: { access: "members" } }, content: [p("Hi")] }), ':::private{access="members"}\nHi\n:::\n');
   assert.equal(write({ type: "private", attrs: { label: "Rates", attributes: { access: "partners" } }, content: [p("X")] }), ':::private[Rates]{access="partners"}\nX\n:::\n');
 });
+
+test("a code block showing a `:::` directive inside a container: the container's fence outgrows it", () => {
+  const code = { type: "codeBlock", attrs: { language: "md" }, content: [{ type: "text", text: ':::private[X]{access="n"}\nThe id.\n:::' }] };
+  const md = write({ type: "callout", attrs: { kind: "note" }, content: [code, p("After the code.")] });
+  assert.match(md, /^::::note\n/);
+  const back = parseMarkdown(md, { verify: false }).doc.content;
+  assert.equal(back.length, 1);
+  assert.deepEqual(back[0].content.map((n) => n.type), ["codeBlock", "paragraph"]);
+});

@@ -11,7 +11,7 @@ import {
 import { ratio } from "./format";
 import { PREVIEW_FONTS_HREF, coloursFromImage, contrastChecks, miniLook, previewTokens } from "./presets";
 import { usePublishState } from "./PublishState";
-import SiteBar, { STUDIO_CHROME_H } from "./SiteBar";
+import SiteBar, { STUDIO_CHROME } from "./SiteBar";
 import { useSite } from "./SiteContext";
 import DesignReset from "./DesignReset";
 import ThemePreview from "./ThemePreview";
@@ -327,14 +327,14 @@ export default function DesignPanel() {
                       aria-checked={on}
                       disabled={locked}
                       onClick={() => setBrand({ accent: hex, enabled: true })}
-                      className="md-focus flex flex-col items-center gap-1 rounded-md text-[11px] text-text-muted"
+                      className="md-focus flex flex-col items-center gap-1 rounded-md text-[12px] text-text-muted"
                     >
                       <span className={cx("size-9 rounded-lg border", on ? "border-2 border-text" : "border-border")} style={{ background: hex }} />
                       <code className="font-mono">{hex}</code>
                     </button>
                   );
                 })}
-                <label className="flex flex-col items-center gap-1 text-[11px] text-text-muted">
+                <label className="flex flex-col items-center gap-1 text-[12px] text-text-muted">
                   <span className="relative grid size-9 cursor-pointer place-items-center rounded-lg border border-dashed border-border-strong text-text-secondary has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-border-focus">
                     <Icon name="plus" size={16} />
                     <input
@@ -415,7 +415,7 @@ export default function DesignPanel() {
         <section
           aria-label="Preview"
           className="flex min-w-0 flex-[999_1_600px] flex-col gap-3 p-4 sm:p-6 lg:sticky lg:top-[var(--chrome)] lg:max-h-[calc(100dvh-var(--chrome))] lg:self-start lg:overflow-y-auto"
-          style={{ "--chrome": `${STUDIO_CHROME_H}px` } as CSSProperties}
+          style={{ "--chrome": STUDIO_CHROME } as CSSProperties}
         >
           <div className="flex flex-wrap items-center gap-2.5">
             <strong className="flex-1 text-text">Preview · {presetName(theme.preset)}</strong>

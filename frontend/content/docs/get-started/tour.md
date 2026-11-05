@@ -1,9 +1,9 @@
 ---
 title: A tour of the app
 description: Where your files, shared items, analytics, workspaces and settings live, and what each button on a document or file page does.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/get-started/accounts]
-keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar]
+keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch]
 ---
 
 Once you sign in, Markdrop works like a drive for things that render. This page walks through the sidebar, the **Create** menu, and the bar on top of every document and file.
@@ -71,6 +71,17 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents.
 
 Two single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
+
+## On a phone or tablet
+
+The app works the same on a phone or a tablet, sized for your fingers:
+
+- **The sidebar** is behind **Browse** at the top of the page, unless the screen is wide enough to show it, like an iPad held sideways.
+- **Tap anywhere on a row** to open the item. Its **⋯** button opens its actions.
+- **Menus** such as **Create**, your account menu and a row's **⋯** open as a sheet from the bottom of a phone's screen. Tap outside the sheet to close it.
+- **Search** fills the screen on a phone. Tap the magnifier in the top bar.
+- **To move an item**, press and hold its row in a workspace folder, then drag it onto another folder. On a [board](/pages/properties-and-views#see-the-folder-as-a-table-or-a-board), tap a card to open the page, or press and hold it to drag it to another column.
+- **Wide things scroll in their own box**, such as a table view or a board's columns, so the page itself never scrolls sideways.
 
 ## Related
 

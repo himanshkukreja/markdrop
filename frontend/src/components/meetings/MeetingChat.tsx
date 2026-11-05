@@ -15,10 +15,11 @@ import remarkGfm from "remark-gfm";
 import { Icon, copyText, useToast } from "@/components/ui";
 import {
   askMeeting, askMeetings, fmtMeetingDate,
-  type MeetingAskEvent, type MeetingCitation, type RankedMeeting,
+  type AskScope, type MeetingAskEvent, type MeetingCitation, type RankedMeeting,
 } from "@/lib/meetings";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
+import "./backfill.css";
 
 interface Turn {
   id: number;
@@ -29,6 +30,8 @@ interface Turn {
   citations?: MeetingCitation[];
   ranked?: RankedMeeting[];
   stage?: "searching" | "answering";
+  /** The meetings the answer was picked from (a series, a period), given or read from the question. */
+  scope?: AskScope | null;
 }
 
 export interface MeetingChatProps {
@@ -46,13 +49,15 @@ export interface MeetingChatProps {
   autoFocus?: boolean;
   /** "panel": fills a pa-ask panel (body + composer); "inline": a card on a page. */
   layout?: "panel" | "inline";
+  /** Across meetings: only these (a series, a date range). */
+  scope?: { series?: string; since?: string; until?: string };
 }
 
 const FAILED = "Something went wrong while answering. Try again.";
 const memory = new Map<string, Turn[]>();
 let seq = 0;
 
-export function MeetingChat({ mode, meetingId, workspaceId, suggestions, emptyTitle, emptySub, placeholder, banner, onNavigate, autoFocus, layout = "panel" }: MeetingChatProps) {
+export function MeetingChat({ mode, meetingId, workspaceId, suggestions, emptyTitle, emptySub, placeholder, banner, onNavigate, autoFocus, layout = "panel", scope }: MeetingChatProps) {
   const key = mode === "one" ? `m:${meetingId}` : `w:${workspaceId}`;
   const toast = useToast();
   const [turns, setTurnsState] = useState<Turn[]>(() => memory.get(key) ?? []);
@@ -98,13 +103,13 @@ export function MeetingChat({ mode, meetingId, workspaceId, suggestions, emptyTi
     let ended = false;
     const onEvent = (e: MeetingAskEvent) => {
       if (e.type === "status") patch((t) => ({ ...t, stage: e.stage }));
-      else if (e.type === "results") patch((t) => ({ ...t, ranked: e.items }));
+      else if (e.type === "results") patch((t) => ({ ...t, ranked: e.items, scope: e.scope ?? t.scope }));
       else if (e.type === "delta") patch((t) => ({ ...t, a: t.a + e.text }));
       else if (e.type === "done") {
         ended = true;
         patch((t) => {
           const a = (e.answer || t.a || "").trim();
-          return { ...t, a, citations: e.citations || [], ranked: e.ranked ?? t.ranked, state: a ? "done" : "error", note: a ? undefined : FAILED };
+          return { ...t, a, citations: e.citations || [], ranked: e.ranked ?? t.ranked, scope: e.scope ?? t.scope, state: a ? "done" : "error", note: a ? undefined : FAILED };
         });
       } else if (e.type === "limit") {
         ended = true;
@@ -116,7 +121,7 @@ export function MeetingChat({ mode, meetingId, workspaceId, suggestions, emptyTi
     };
     try {
       if (mode === "one" && meetingId) await askMeeting(meetingId, { question: text, history }, onEvent, c.signal);
-      else if (workspaceId) await askMeetings({ workspace: workspaceId, question: text }, onEvent, c.signal);
+      else if (workspaceId) await askMeetings({ workspace: workspaceId, question: text, ...(scope ?? {}) }, onEvent, c.signal);
       if (!ended) patch((t) => (t.state === "streaming" ? { ...t, state: c.signal.aborted || t.a ? "stopped" : "error", note: c.signal.aborted ? undefined : t.a ? "The answer stopped early." : FAILED } : t));
     } finally {
       if (ctrl.current === c) ctrl.current = null;
@@ -248,6 +253,9 @@ const TurnView = memo(function TurnView({ turn, mode, onRetry, onCopy, onNavigat
             {mode === "all" ? (turn.stage === "answering" ? "Reading the meetings…" : "Finding the meetings…") : "Reading the meeting…"}
           </p>
         )}
+        {mode === "all" && turn.scope?.label && (
+          <p className="mt-scope__used" data-testid="ask-scope"><Icon name="filter" />{turn.scope.detected ? "From your question: " : "Only "}{turn.scope.label}</p>
+        )}
         {turn.a && <CitedAnswer md={turn.a} citations={turn.citations} streaming={live} onNavigate={onNavigate} />}
         {turn.state === "stopped" && <p className="pa-a__meta">{turn.note ?? "Stopped."}</p>}
         {(turn.state === "limit" || turn.state === "error") && (
@@ -263,7 +271,7 @@ const TurnView = memo(function TurnView({ turn, mode, onRetry, onCopy, onNavigat
             {turn.ranked!.map((r) => (
               <a key={r.id} className="pa-chip" href={`/${r.slug}`} onClick={onNavigate}>
                 <Icon name="mic" className="pa-chip__icon" />
-                <span>{r.title || "Meeting"}{r.date ? ` · ${fmtMeetingDate(r.date)}` : ""}</span>
+                <span>{r.title || "Meeting"}{r.date ? ` · ${fmtMeetingDate(r.date)}` : ""}{r.series && r.series !== r.title ? ` · ${r.series}` : ""}</span>
               </a>
             ))}
           </div>

@@ -130,7 +130,7 @@ export default function StudioMembers() {
     <main id="main" tabIndex={-1} className="mx-auto flex w-full max-w-[1180px] flex-col gap-5 px-4 pb-16 pt-8 outline-none sm:px-6 sm:pt-10">
       <div className="flex flex-wrap items-end gap-4">
         <div className="flex min-w-0 flex-[1_1_420px] flex-col gap-1.5">
-          <a href={studioHome(wsId || null)} className="md-focus self-start rounded text-[13px] text-text-muted no-underline hover:text-text">← Guides</a>
+          <a href={studioHome(wsId || null)} className="md-focus self-start rounded text-[13px] text-text-muted no-underline hover:text-text pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center">← Guides</a>
           <h1 className="text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">Members</h1>
           <p className="max-w-[680px] text-[15px] leading-6 text-text-secondary">
             Who can do what in {wsName ? <strong className="font-semibold text-text" dir="auto">{wsName}</strong> : "this workspace"}&apos;s guides.

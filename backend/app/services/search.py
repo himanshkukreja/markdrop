@@ -76,7 +76,7 @@ _DOC_PROJECTION = {
     "slug": 1, "title": 1, "kind": 1, "editor": 1, "original_filename": 1, "mime": 1, "updated_at": 1,
     "created_at": 1, "owner_id": 1, "workspace_id": 1, "folder_id": 1, "folder_path": 1, "page_path": 1,
     "encrypted": 1, "read_password_hash": 1, "parent_id": 1, "access_inherit": 1, "access_level": 1,
-    "expires_at": 1, "page_icon": 1, "template": 1,
+    "expires_at": 1, "page_icon": 1, "template": 1, "hidden_in_listings": 1,
 }
 
 
@@ -779,7 +779,13 @@ async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q:
     group_take: list[Cand] = []
     kinds_present = {c.kind for c in ranked}
     checked = 0
+    seen_keys = {c.key for c in ranked}
     for c in ranked:
+        if c.raw is not None and c.raw.get("hidden_in_listings"):
+            # A meeting's transcript isn't a result of its own: a hit in it finds its meeting page.
+            c = await _owner_page(db, c, seen_keys)
+            if c is None:
+                continue
         groups_full = all(per_group.get(k, 0) >= PER_GROUP for k in kinds_present)
         if len(shown) >= need and (groups_full or checked >= MAX_CHECK):
             break
@@ -817,6 +823,23 @@ async def run(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q:
         "ai_suggested": st.looks_like_question(text),
         **({"stages": stages} if DEBUG_TIMINGS else {}),
     }
+
+
+async def _owner_page(db: AsyncIOMotorDatabase, c: Cand, seen: set) -> Cand | None:
+    """The page a hidden sub-page belongs to, as a result with the sub-page's score (None when that
+    page is already among the results, or gone)."""
+    pid = c.raw.get("parent_id")
+    if pid is None:
+        return None
+    parent = await db["documents"].find_one({"_id": pid, "deleted_at": None}, _DOC_PROJECTION)
+    if parent is None:
+        return None
+    pc = _doc_cand(parent, None)
+    if pc.key in seen:
+        return None
+    seen.add(pc.key)
+    pc.mine, pc.score, pc.body_hits = c.mine and parent.get("owner_id") == c.raw.get("owner_id"), c.score, True
+    return pc
 
 
 async def _allowed(db: AsyncIOMotorDatabase, w: World, c: Cand) -> bool:

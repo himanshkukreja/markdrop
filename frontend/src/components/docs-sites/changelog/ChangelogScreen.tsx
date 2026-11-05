@@ -389,7 +389,7 @@ export default function ChangelogScreen() {
                     {g.items.map((e) => (
                       <li key={e.id} className="group relative flex items-start gap-3 border-b border-border px-3 py-3 last:border-b-0 hover:bg-surface-hover sm:gap-4 sm:px-4">
                         <span className="hidden w-[52px] shrink-0 flex-col items-center rounded-lg border border-border bg-surface py-1 sm:flex" aria-hidden>
-                          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{shortDate(e.date).split(" ")[0]}</span>
+                          <span className="text-[12px] font-semibold uppercase tracking-wide text-text-muted">{shortDate(e.date).split(" ")[0]}</span>
                           <span className="text-[18px] font-bold leading-6 text-text tabular-nums">{shortDate(e.date).split(" ")[1]}</span>
                         </span>
                         <span className="flex min-w-0 flex-1 flex-col gap-1">
@@ -399,7 +399,7 @@ export default function ChangelogScreen() {
                             <span aria-hidden>·</span>
                             <time dateTime={e.date}>{longDate(e.date)}</time>
                             {e.products.map((p) => (
-                              <span key={p} className="ph-sensitive ph-mask rounded-full border border-border px-1.5 text-[11px]">{productLabel(p)}{e.versions[p] ? ` ${e.versions[p]}` : ""}</span>
+                              <span key={p} className="ph-sensitive ph-mask rounded-full border border-border px-1.5 text-[12px]">{productLabel(p)}{e.versions[p] ? ` ${e.versions[p]}` : ""}</span>
                             ))}
                           </span>
                           <a href={entryHref(e.id)} onClick={(ev) => { if (ev.metaKey || ev.ctrlKey || ev.shiftKey) return; ev.preventDefault(); go(e.id); }}

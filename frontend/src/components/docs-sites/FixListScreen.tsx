@@ -198,7 +198,7 @@ function PdfChart({ curve, page }: { curve: PdfPoint[]; page: number }) {
       {curve.slice(0, 40).map((p) => (
         <span key={p.page} className="flex min-w-0 flex-1 flex-col items-center gap-1">
           <span className={cx("w-full rounded-t-[3px]", p.page === page ? "bg-danger" : "bg-accent opacity-70")} style={{ height: `${Math.max(3, p.reached_pct)}px` }} />
-          <span className={cx("text-[10px] tabular-nums", p.page === page ? "font-semibold text-danger" : "text-text-muted")}>{p.page}</span>
+          <span className={cx("text-[12px] tabular-nums", p.page === page ? "font-semibold text-danger" : "text-text-muted")}>{p.page}</span>
         </span>
       ))}
     </div>

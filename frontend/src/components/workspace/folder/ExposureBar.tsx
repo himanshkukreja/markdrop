@@ -51,7 +51,7 @@ export function ExposureBar({
           {onChange && (
             <>
               {" · "}
-              <button type="button" onClick={onChange} className="md-focus cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text underline-offset-3 hover:underline">
+              <button type="button" onClick={onChange} className="md-focus md-hit cursor-pointer rounded-sm bg-transparent p-0 font-semibold text-accent-text underline-offset-3 hover:underline">
                 Change<span className="md-visually-hidden"> what new items start as</span>
               </button>
             </>

@@ -22,7 +22,7 @@ export function PersonFace({ person, size = 24, className }: { person: Pick<Guid
       style={{
         width: size,
         height: size,
-        fontSize: Math.round(size * 0.46),
+        fontSize: Math.max(12, Math.round(size * 0.46)),
         background: `color-mix(in srgb, ${viewerColor(colorFor(person.name || "?"))} 16%, var(--surface))`,
         color: `color-mix(in srgb, ${viewerColor(colorFor(person.name || "?"))} 82%, var(--text))`,
       }}
@@ -71,7 +71,7 @@ export function PeopleStack({ people, count, href, guide, size = 24, className, 
       data-people-stack
       aria-label={`People on ${guide}: ${words}. Open People`}
       className={cx(
-        "md-focus group inline-flex shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-1.5 no-underline transition-colors hover:bg-surface-hover",
+        "md-focus md-touch-hit group inline-flex shrink-0 items-center rounded-full py-0.5 pl-0.5 pr-1.5 no-underline transition-colors hover:bg-surface-hover",
         !rest && "pr-0.5",
         className,
       )}

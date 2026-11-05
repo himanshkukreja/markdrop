@@ -169,10 +169,10 @@ export function GuideSearch({ compact }: { compact?: boolean }) {
         className={cx("relative hidden md:block", compact ? "w-[200px] xl:w-[240px]" : "w-[220px] lg:w-[280px]")}
         onBlur={(e) => { if (!wrap.current?.contains(e.relatedTarget as Node)) setOpen(false); }}
       >
-        <label className="flex h-9 items-center gap-2 rounded-lg border border-border-strong bg-surface-inset px-2.5 text-text-muted focus-within:border-border-focus focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-border-focus">
+        <label className="flex h-9 items-center gap-2 rounded-lg pointer-coarse:h-11 border border-border-strong bg-surface-inset px-2.5 text-text-muted focus-within:border-border-focus focus-within:outline-2 focus-within:outline-offset-1 focus-within:outline-border-focus">
           <Icon name="search" size={16} className="shrink-0" />
           <input {...combo(input, open, "f")} data-guide-search="1" onFocus={() => setOpen(true)} />
-          {!query && <Kbd className="shrink-0">{mac ? "⌘K" : "Ctrl K"}</Kbd>}
+          {!query && <Kbd className="shrink-0 pointer-coarse:hidden">{mac ? "⌘K" : "Ctrl K"}</Kbd>}
         </label>
         {open && (
           <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[min(420px,calc(100vw-32px))] rounded-xl border border-border bg-surface p-1.5 shadow-lg">

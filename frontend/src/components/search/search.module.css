@@ -362,3 +362,10 @@
     display: none;
   }
 }
+
+/* Touch screens (fix/mobile-shell): 12 px text floor; citation chips get a finger-sized hit area. */
+@media (pointer: coarse) {
+  .tag, .cite, .sourceN { font-size: 12px; }
+  .cite { position: relative; }
+  .cite::after { content: ""; position: absolute; inset: -13px -12px; }
+}

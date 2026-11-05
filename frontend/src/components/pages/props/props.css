@@ -92,7 +92,7 @@ button.pp-row__value:hover { background: var(--surface-hover); }
 
 /* ── Popovers (and bottom sheets on phones) ────────────────────────────── */
 .pp-pop {
-  position: fixed; z-index: var(--z-dropdown, 60); width: 300px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100vh - 24px));
+  position: fixed; z-index: var(--z-dropdown, 60); width: 300px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100dvh - 24px));
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg);
   font-size: 14px; line-height: 20px; transform-origin: top left;
@@ -260,11 +260,40 @@ button.pp-td:focus-visible { outline: 2px solid var(--border-focus); outline-off
   .pp-col { width: min(82vw, 300px); }
   .pp-board { scroll-snap-type: x mandatory; gap: 10px; }
   .pp-tool__label { display: none; }
+  /* The views scroll sideways: the last one fades at the edge, so it reads as "more this way". */
+  .pp-tabs { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); padding-right: 16px; }
   .pp-tablewrap { max-height: none; }
   .pp-table thead th { top: 0; }
+}
+
+/* Touch screens (fix/mobile-shell): 44 px rows and buttons in the views bar, table and board; a
+   table title or a board card opens on a tap anywhere on it (the link stretches over the cell or the
+   card), and a long press drags the card (no iOS link preview, no text selection). */
+@media (pointer: coarse) {
+  .pp-tab { height: 44px; min-width: 44px; justify-content: center; }
+  .pp-tool { height: 44px; min-width: 44px; justify-content: center; }
+  .pp-th { height: 44px; }
+  .pp-table thead th { height: 44px; }
+  .pp-group th { top: 44px; }
+  .pp-td, .pp-title { min-height: 44px; }
+  .pp-title { position: relative; }
+  .pp-title a::after { content: ""; position: absolute; inset: 0; }
+  .pp-newbtn, .pp-newinput { height: 44px; }
+  .pp-newinput { font-size: 16px; }
+  .pp-group__head { height: 44px; }
+  .pp-col__add { height: 44px; }
+  .pp-col__head { height: 36px; }
+  .pp-card { position: relative; -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
+  .pp-card__title a { -webkit-touch-callout: none; }
+  .pp-card__title a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .pp-pop, .pp-sheet, .pp-sheet-backdrop, .pp-check--on { animation: none; }
   .pp-card, .pp-group__head svg, .pp-swatch, .pp-col { transition: none; }
+}
+
+/* A finger (fix/mobile-content): nothing under 12 px. */
+@media (pointer: coarse) {
+  .pp-avatar, .pp-avatar--lg, .pp-cal__dow { font-size: 12px; }
 }

@@ -118,10 +118,10 @@ function useActivePill(container: React.RefObject<HTMLElement | null>, pill: Rea
 }
 
 const ITEM =
-  "md-focus relative flex min-h-8 min-w-0 items-center gap-2.5 rounded-md px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11";
+  "md-focus relative flex min-h-8 min-w-0 items-center gap-2.5 rounded-md px-2.5 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:min-h-11 pointer-coarse:min-h-11";
 /** A tree row: 30 px (44 px in the phone drawer); tree.css indents it and adds the guides. */
 const TREE_ITEM =
-  "md-focus relative flex h-[30px] min-w-0 items-center gap-1.5 rounded-md pr-2 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:h-11";
+  "md-focus relative flex h-[30px] min-w-0 items-center gap-1.5 rounded-md pr-2 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:h-11 pointer-coarse:h-11";
 const ACTIVE = "font-semibold text-accent-text hover:bg-transparent hover:text-accent-text";
 
 function RailLink({ k, href, active, onNavigate, children, style, className }: { k: string; href: string; active: string | null; onNavigate?: () => void; children: React.ReactNode; style?: React.CSSProperties; className?: string }) {

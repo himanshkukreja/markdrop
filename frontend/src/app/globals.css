@@ -5,10 +5,16 @@
 @plugin "@tailwindcss/typography";
 /* Component styles load in the components layer so utilities still win on the same property. */
 @import "../components/ui/markdrop.css" layer(components);
+/* Touch screens: finger-sized primitives, 16 px fields, a 12 px text floor (all inside pointer: coarse). */
+@import "../components/ui/touch.css" layer(components);
 @import "../styles/syntax.css";
 @import "../styles/prose.css";
 @import "../styles/print.css";
 @import "../styles/legacy.css";
+/* Safe-area insets (notch, home indicator) and the installed app (lib/pwa.ts). */
+@import "../styles/safe-area.css";
+/* After the safe areas: touch sizes for Guides, Analytics and published guides (phones and tablets only). */
+@import "../styles/touch.css";
 
 /* During the migration both theme markers are set by the head script: data-theme (tokens) and
    .dark (legacy dark: variants). Once no dark: class remains, this becomes [data-theme=dark]. */
@@ -50,3 +56,8 @@ body {
 
 /* Scroll targets clear the sticky header. */
 :target, [id] { scroll-margin-top: 72px; }
+
+/* Touch screens: the text utilities never go under 12 px (fix/mobile-shell; unlayered so it beats the utility). */
+@media (pointer: coarse) {
+  .text-eyebrow, .text-micro, .text-kbd { font-size: 12px; }
+}

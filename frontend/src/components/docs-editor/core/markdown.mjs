@@ -338,8 +338,9 @@ function block(n, ctx, strip, src) {
         return { type: "directiveLeaf", attrs: { name: n.name, label: leafLabel(src), attributes: { ...(n.attributes ?? {}) }, md: null } };
       return raw(src);
     default:
-      // html, definition, footnoteDefinition, anything new: verbatim.
-      return raw(src);
+      // html, definition, footnoteDefinition, anything new: verbatim. Without trailing blank lines:
+      // inside a quote a footnote definition's range runs on over the blank `>` line after it.
+      return raw(src.replace(/(\n[ \t]*)+$/, ""));
   }
 }
 
@@ -811,6 +812,11 @@ function fenceSize(node, preserve) {
       if (CONTAINER_TYPES.has(k.type)) inner = Math.max(inner, fenceSize(k, preserve));
       else if (k.type === "rawBlock") {
         for (const line of (k.attrs.value ?? "").split("\n")) inner = Math.max(inner, colons(line.trimStart()));
+      } else if (k.type === "codeBlock") {
+        // A code block's own `:::` lines would close the container around it (the directive's closing
+        // fence is found before the code fence inside): the container's fence outgrows them.
+        const text = (k.content ?? []).map((t) => t.text ?? "").join("");
+        for (const line of text.split("\n")) inner = Math.max(inner, colons(line.trimStart()));
       } else visit(k);
     }
   };

@@ -143,7 +143,8 @@ class Transport(McpTestCase):
             # Access requests (request edit access, the owner's list, approve / decline).
             "request_edit_access", "list_access_requests", "decide_access_request",
             # Meetings (import a call, list / read meetings, ask them, automatic import status).
-            "import_meeting", "list_meetings", "get_meeting", "ask_meetings", "meetings_connection"})
+            "import_meeting", "list_meetings", "get_meeting", "ask_meetings", "meetings_connection",
+            "import_meetings_bulk", "organize_meetings"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
@@ -195,7 +196,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 79)
+        self.assertEqual(len(r.json()["result"]["tools"]), 81)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

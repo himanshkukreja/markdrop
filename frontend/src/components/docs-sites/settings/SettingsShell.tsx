@@ -38,7 +38,7 @@ export function SectionHeader({ title, description, actions, back }: {
   return (
     <div className="flex min-w-0 flex-col gap-1">
       {back && (
-        <Anchor href={back.href} className="md-focus mb-1 inline-flex w-fit items-center gap-1.5 rounded text-[13px] text-accent-text no-underline hover:underline">
+        <Anchor href={back.href} className="md-focus mb-1 inline-flex w-fit items-center gap-1.5 rounded text-[13px] text-accent-text no-underline hover:underline pointer-coarse:min-h-11">
           <Icon name="chevronLeft" size={14} />{back.label}
         </Anchor>
       )}
@@ -142,7 +142,7 @@ export default function SettingsShell({ children }: { children: React.ReactNode 
                   data-settings-link={s.id}
                   aria-current={on ? "page" : undefined}
                   className={cx(
-                    "md-focus flex items-center gap-2.5 rounded-md px-2.5 py-2 text-body no-underline transition-colors",
+                    "md-focus flex items-center gap-2.5 rounded-md px-2.5 py-2 text-body no-underline transition-colors pointer-coarse:min-h-11",
                     on ? "bg-surface-active font-semibold text-text" : "font-medium text-text-secondary hover:bg-surface-hover hover:text-text",
                     s.id === "danger" && !on && "text-text-secondary",
                   )}

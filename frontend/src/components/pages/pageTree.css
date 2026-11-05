@@ -51,7 +51,7 @@
 .pt-move__search input { min-width: 0; flex: 1; height: 100%; border: 0; background: none; color: var(--text); font: 400 15px/22px var(--font-sans); outline: none; }
 .pt-move__search input::placeholder { color: var(--text-muted); }
 .pt-move__search input::-webkit-search-cancel-button { display: none; }
-.pt-move__scroll { height: min(360px, 50vh); overflow-y: auto; margin: 0 -8px; padding: 0 8px; overscroll-behavior: contain; }
+.pt-move__scroll { height: min(360px, 50dvh); overflow-y: auto; margin: 0 -8px; padding: 0 8px; overscroll-behavior: contain; }
 .pt-move__list { margin: 0; padding: 0 0 4px; list-style: none; }
 .pt-move__group { padding: 10px 10px 4px; font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
 .pt-move__opt { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 10px; border-radius: var(--radius-md); color: var(--text); font-size: 14px; line-height: 20px; cursor: pointer; }

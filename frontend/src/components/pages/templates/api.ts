@@ -40,6 +40,8 @@ export interface TemplateListing {
   workspace: UserTemplate[];
   personal: UserTemplate[];
   workspace_id: string | null;
+  /** The workspace's name, for members (the section's heading). */
+  workspace_name?: string | null;
   workspace_role: "owner" | "admin" | "member" | "viewer" | null;
   can_save_workspace: boolean;
   can_reorder_workspace: boolean;
@@ -69,11 +71,17 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 
 const enc = encodeURIComponent;
 
-/** Everything the gallery offers here: built-ins, this workspace's (members and up) and yours. */
-export function listTemplates(workspace?: string | null, folder?: string | null) {
+/**
+ * Everything the gallery offers here: built-ins, this workspace's (members and up) and yours. With
+ * `parent` (Add a sub-page) the server reads the workspace and folder from that page instead.
+ */
+export function listTemplates(workspace?: string | null, folder?: string | null, parent?: string | null) {
   const q = new URLSearchParams();
-  if (workspace) q.set("workspace", workspace);
-  if (workspace && folder) q.set("folder", folder);
+  if (parent) q.set("parent", parent);
+  else {
+    if (workspace) q.set("workspace", workspace);
+    if (workspace && folder) q.set("folder", folder);
+  }
   return call<TemplateListing>(`/api/v1/page-templates/all${q.size ? `?${q}` : ""}`);
 }
 

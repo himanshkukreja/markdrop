@@ -274,7 +274,7 @@ export function ReadyView(props: {
                     </span>
                   ) : (
                     <a href={liveUrl(host)} target="_blank" rel="noopener noreferrer" onClick={() => guideEvents.liveOpened("publish")}
-                      className="ph-sensitive ph-mask inline-flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-accent-text no-underline hover:underline">
+                      className="ph-sensitive ph-mask inline-flex min-w-0 items-center gap-1.5 font-mono text-[13px] text-accent-text no-underline hover:underline pointer-coarse:min-h-11">
                       <span className="truncate">{host}</span><Icon name="external" size={12} className="shrink-0" />
                       <span className="md-visually-hidden">(opens in a new tab)</span>
                     </a>

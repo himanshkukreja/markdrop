@@ -92,6 +92,24 @@ if os.environ.get("PB_FAKE_SEARCH_AI"):
     _client = NS(messages=_Messages())
     search_ai.docs_agent = NS(get_client=lambda: _client, configured=lambda: True)
 
+# PB_FAKE_DOCS_ASK=1: Ask AI on a guide shows its composer (mobile-guides.mjs measures it against the
+# on-screen keyboard). Only the guide Ask status says "configured" (the docs_ai router's view of docs_agent;
+# Pages AI, search and Analytics AI still see the real, unconfigured client, so their menus don't change):
+# no question is sent, and no key is needed.
+if os.environ.get("PB_FAKE_DOCS_ASK"):
+    from app.routers import docs_ai as _docs_ai
+    from app.services import docs_agent as _real_docs_agent
+
+    class _AskConfigured:
+        def __getattr__(self, name):
+            return getattr(_real_docs_agent, name)
+
+        @staticmethod
+        def configured():
+            return True
+
+    _docs_ai.docs_agent = _AskConfigured()
+
 # Analytics AI (services/analytics_ai_home.py) against a fake model: PB_FAKE_ANALYTICS_AI=1 (analytics-ai.mjs).
 # The story names the first document it was given; Ask calls top_documents, then answers with the first
 # link the tool returned; gaps groups the first items. Streams like the real API; nothing leaves the machine.
@@ -333,7 +351,12 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
             best = max(segs, key=lambda x: len(_words(x[2]) & _words(q)), default=None)
             cite = f" [{best[0]}]" if best else ""
             said = f"{best[1]} said {best[2]}" if best else "The meetings don't say"
-            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{said}{cite} — see [M1].")
+            # Says when and where, like the real model is asked to ("On 28 Oct, in Daily Standup, …").
+            n = best[0].split("-")[0][1:] if best else (ns[0] if ns else None)
+            head = _re.search(rf'<untrusted_meeting n="{n}" title="([^"]*)"[^>]*? day="\w+ (\d+ \w+)', user) if n else None
+            ser = _re.search(rf'<untrusted_meeting n="{n}"[^>]*? series="([^"]*)"', user) if n else None
+            where = f"On {head.group(2)}, in {ser.group(1) if ser else head.group(1)}, " if head else ""
+            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{where}{said}{cite} — see [M1].")
 
     _mclient = _NS(messages=_MMessages())
     meetings_ai.docs_agent = _NS(get_client=lambda: _mclient, configured=lambda: True)

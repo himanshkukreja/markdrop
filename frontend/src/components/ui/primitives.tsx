@@ -666,7 +666,13 @@ export function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement |
         else s.left = Math.max(8, Math.min(a.left, vw - p.offsetWidth - 8));
         setStyle(s);
       } else {
-        setStyle(fit ? fitStyle : undefined);
+        // In flow (absolute in the wrapper): slide it sideways when its aligned edge would put the other
+        // one past the screen's edge (a trigger near the left edge with a right-aligned menu, on a phone).
+        const pw = p.offsetWidth;
+        const s: React.CSSProperties = { ...(fit ? fitStyle : null) };
+        if (align === "right" && a.right - pw < 8) s.right = Math.min(0, a.right - pw - 8);
+        if (align === "left" && a.left + pw > vw - 8) s.left = Math.min(0, vw - 8 - (a.left + pw));
+        setStyle(Object.keys(s).length ? s : undefined);
       }
     };
     place();
@@ -679,6 +685,11 @@ export function useAnchored(open: boolean, anchor: React.RefObject<HTMLElement |
 }
 
 /* ── Dropdown (WAI-ARIA menu button) ──────────────────────────────────── */
+/** Phones (a narrow touch screen): menus open as a sheet along the bottom edge, in thumb reach. */
+const SHEET_MQ = "(max-width: 639px) and (pointer: coarse)";
+const subscribeSheet = (cb: () => void) => { const m = window.matchMedia(SHEET_MQ); m.addEventListener("change", cb); return () => m.removeEventListener("change", cb); };
+export function useSheetMenus(): boolean { return useSyncExternalStore(subscribeSheet, () => window.matchMedia(SHEET_MQ).matches, () => false); }
+
 export interface MenuItem {
   label: React.ReactNode; onClick?: () => void; href?: string; external?: boolean; icon?: string; kbd?: string;
   danger?: boolean; disabled?: boolean; separated?: boolean; busy?: boolean; description?: React.ReactNode; tile?: React.ReactNode;
@@ -699,12 +710,15 @@ export interface DropdownProps {
   /** Render the menu in a body portal (fixed position) so overflow containers can't clip it. Stamps the nearest ThemeScope. Don't use inside a Dialog. */
   portal?: boolean;
   menuClassName?: string; "aria-label"?: string;
+  /** On phones the menu opens as a bottom sheet (default); false keeps it anchored to the trigger. */
+  sheet?: boolean;
 }
 const isHeader = (e: MenuEntry): e is MenuHeader => "header" in e;
 const isCustom = (e: MenuEntry): e is MenuCustom => "custom" in e;
-export function Dropdown({ trigger, items, align = "right", defaultOpen = false, minWidth, className, open: openProp, onOpenChange, placement = "auto", portal, menuClassName, ...aria }: DropdownProps) {
+export function Dropdown({ trigger, items, align = "right", defaultOpen = false, minWidth, className, open: openProp, onOpenChange, placement = "auto", portal, menuClassName, sheet: sheetOk = true, ...aria }: DropdownProps) {
   const [isOpen, setOpen] = useControllable(openProp, defaultOpen, onOpenChange);
   const isClient = useIsClient();
+  const phone = useSheetMenus();
   const L = useLinkComponent();
   const wrap = useRef<HTMLDivElement>(null), menu = useRef<HTMLDivElement>(null);
   const intent = useRef<"first" | "last" | "menu" | null>(null);
@@ -724,8 +738,15 @@ export function Dropdown({ trigger, items, align = "right", defaultOpen = false,
   };
   const close = (returnFocus: boolean) => { setOpen(false); if (returnFocus) triggerEl()?.focus(); };
 
-  const { up, style } = useAnchored(isOpen, wrap, menu, { placement, align, portal, fit: true });
+  // Not inside a modal dialog: its focus trap owns everything outside it, a body portal included.
+  const asSheet = sheetOk && phone && isOpen && !wrap.current?.closest('[aria-modal="true"]');
+  const { up, style } = useAnchored(isOpen && !asSheet, wrap, menu, { placement, align, portal, fit: true });
   useOverlayLayer(isOpen, () => close(true), () => menu.current, false);
+  useEffect(() => {
+    if (!asSheet) return;
+    lockScroll();
+    return unlockScroll;
+  }, [asSheet]);
   useEffect(() => {
     if (!isOpen) return;
     const down = (e: MouseEvent) => { const t = e.target as Node; if (wrap.current?.contains(t) || menu.current?.contains(t)) return; setOpen(false); };
@@ -781,8 +802,8 @@ export function Dropdown({ trigger, items, align = "right", defaultOpen = false,
 
   const menuEl = isOpen ? (
     <div ref={menu} id={menuId} role="menu" tabIndex={-1} aria-label={aria["aria-label"]} aria-labelledby={aria["aria-label"] ? undefined : triggerId}
-      className={cx("md-menu", !portal && `md-menu--${align}`, up && "md-menu--up", portal && "md-menu--portal", menuClassName)}
-      style={{ ...(minWidth ? { minWidth } : null), ...style }} onKeyDown={onMenuKey}>
+      className={cx("md-menu", asSheet ? "md-menu--sheet" : [!portal && `md-menu--${align}`, up && "md-menu--up", portal && "md-menu--portal"].filter(Boolean).join(" "), menuClassName)}
+      style={asSheet ? undefined : { ...(minWidth ? { minWidth } : null), ...style }} onKeyDown={onMenuKey}>
       {items.map((it, i) => {
         const sep = it.separated && i > 0 ? <div className="md-menu__sep" role="separator" /> : null;
         if (isHeader(it)) return <React.Fragment key={i}>{sep}<div className="md-menu__header" role="presentation">{it.header}</div></React.Fragment>;
@@ -812,7 +833,9 @@ export function Dropdown({ trigger, items, align = "right", defaultOpen = false,
   return (
     <div ref={wrap} className={cx("md-dropdown", className)}>
       {t}
-      {portal ? (isClient && menuEl ? createPortal(<PortalScope>{menuEl}</PortalScope>, document.body) : null) : menuEl}
+      {asSheet
+        ? (isClient && menuEl ? createPortal(<PortalScope><div className="md-menu-scrim" aria-hidden="true" />{menuEl}</PortalScope>, document.body) : null)
+        : portal ? (isClient && menuEl ? createPortal(<PortalScope>{menuEl}</PortalScope>, document.body) : null) : menuEl}
     </div>
   );
 }

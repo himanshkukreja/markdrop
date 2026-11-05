@@ -240,10 +240,14 @@ const SKIP_LABELS: Record<MeetSkipReason, string> = {
   already_sent: "already sent",
 };
 
-/** "Script ran 10:42 · found 0 meeting Docs · 14 skipped: 12 not titled like Meet, 2 shared with you" (+ errors). */
+/** "Script ran 10:42 · found 0 meeting Docs · 14 skipped: 12 not titled like Meet, 2 shared with you" (+ errors);
+ *  with a backlog: "… · found 79 meeting Docs · sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now". */
 export function scriptRunSummary(sc: MeetScriptRun): { line: string; skipped: string | null } {
   const found = `found ${sc.found} meeting ${sc.found === 1 ? "Doc" : "Docs"}`;
-  const sent = sc.sent ? ` · sent ${sc.sent}` : "";
+  const left = sc.remaining || 0;
+  const sent = left > 0
+    ? ` · sent ${sc.sent} of ${Math.max(sc.found, sc.sent + left)} · ${left} more in the next run (every 15 min) — or run syncMeetings now`
+    : sc.sent ? ` · sent ${sc.sent}` : "";
   const parts = (Object.keys(SKIP_LABELS) as MeetSkipReason[])
     .filter((k) => k !== "already_sent" && (sc.skipped[k] || 0) > 0)
     .map((k) => `${sc.skipped[k]} ${SKIP_LABELS[k]}`);
@@ -283,6 +287,14 @@ function ScriptRunLine({ conn, compact, onReconnect, updateHref }: {
         {err && <span className="mt-conn__err" title={err.error}><Icon name="alert" /> {err.title ? `${err.title}: ` : ""}{err.error}</span>}
       </span>
       {hint && <span className="mt-conn__hint" data-testid="meet-script-hint">{hint}</span>}
+      {sc.shared_drives === "off" && !compact && (
+        <span className="mt-conn__hint" data-testid="meet-shared-drives-hint">
+          Shared drives aren&apos;t searched. Optional:{" "}
+          <a href={sc.drive_api_url || "https://console.developers.google.com/apis/api/drive.googleapis.com/overview"}
+            target="_blank" rel="noopener noreferrer">enable the Drive API</a>{" "}
+          for the script&apos;s project. Meetings in your Drive and shared with you are still imported.
+        </span>
+      )}
       {update}
     </>
   );

@@ -41,7 +41,7 @@
 .dxe-tb__menu--color { padding: 0; max-height: none; }
 
 /* Swatches in the colour menus */
-.pb-colors { display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-height: min(420px, 70vh); overflow-y: auto; padding: 4px; }
+.pb-colors { display: flex; flex-direction: column; gap: 2px; min-width: 220px; max-height: min(420px, 70dvh); overflow-y: auto; padding: 4px; }
 .pb-colors__head { margin: 6px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-muted); }
 .pb-colors__row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 32px; padding: 4px 8px; border: 0; border-radius: var(--radius-md); background: none; color: var(--text); font: 500 14px/20px var(--font-sans); text-align: left; cursor: pointer; }
 .pb-colors__row:hover, .pb-colors__row:focus-visible { background: var(--surface-hover); outline: none; }
@@ -170,7 +170,7 @@
 .dxe-touchbar__btn:active { background: var(--surface-hover); }
 .dxe-touchbar__btn:focus-visible { outline: 2px solid var(--border-focus); }
 
-.dxe-blockmenu { max-height: min(72vh, 640px); overflow-y: auto; overscroll-behavior: contain; }
+.dxe-blockmenu { max-height: min(72dvh, 640px); overflow-y: auto; overscroll-behavior: contain; }
 .dxe-handle.dxe-handle--touch { display: flex !important; transform: none; }
 .dxe-handle--touch .dxe-handle__btn { width: 28px; height: 28px; background: var(--surface-raised); border: 1px solid var(--border); }
 body.dxe-sidedrop .prosemirror-dropcursor-block { display: none; }

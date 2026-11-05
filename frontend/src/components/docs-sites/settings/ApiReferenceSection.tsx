@@ -237,7 +237,7 @@ export default function ApiReferenceSection() {
               <Icon name="info" size={14} className="mt-[3px] shrink-0" />
               <span>
                 No file yet? Start from the{" "}
-                <button type="button" className="md-focus rounded text-accent-text underline-offset-2 hover:underline disabled:opacity-60" disabled={!!busy}
+                <button type="button" className="md-focus rounded text-accent-text underline-offset-2 hover:underline disabled:opacity-60 pointer-coarse:min-h-11" disabled={!!busy}
                   onClick={() => void run("sample", () => startFromSample(site.id), "The Northwind sample is in. Replace it with yours when it's ready.")}>
                   Northwind sample
                 </button>

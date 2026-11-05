@@ -83,6 +83,7 @@ export function rowValue(row: DbRow, key: string): unknown;
 export function matches(row: DbRow, rule: ViewRule, schema: PropDef[]): boolean;
 export function sortRows(rows: DbRow[], sort: Array<{ key: string; dir?: "asc" | "desc" }>, schema: PropDef[], people?: Record<string, Person>): DbRow[];
 export function applyView(rows: DbRow[], view: Pick<SavedView, "filter" | "sort"> | null | undefined, schema: PropDef[], people?: Record<string, Person>): DbRow[];
+export function monthName(ym: string): string;
 export function groupRows(rows: DbRow[], key: string, schema: PropDef[], people?: Record<string, Person>): Group[];
 export function opsFor(type: PropType): FilterOp[];
 export function newViewId(): string;

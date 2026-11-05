@@ -22,7 +22,7 @@ const KEEP_APP = new Set([
   "globals.css",
   "fonts",
   "icon.svg",
-  "apple-icon.tsx",
+  "apple-icon.png",
   "not-found.tsx",
   "error.tsx",
   "global-error.tsx",

@@ -17,7 +17,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { slackPostMeeting } from "@/lib/slack";
-import { Badge, Button, ConfirmDialog, Icon, IconButton, Select, Spinner, Switch, useToast } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, Icon, IconButton, Input, Select, Spinner, Switch, useToast } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import {
   MEETING_TYPES, deleteMeeting, fmtDuration, fmtMeetingDate, getMeeting, meetingsHref, patchMeeting, regenerateMeeting,
@@ -149,6 +149,18 @@ function SummaryBanner({ m }: { m: Meeting }) {
   return null;
 }
 
+/** The meeting's series ("Daily Standup"): saved when the field loses focus; empty takes it out. */
+function SeriesField({ value, disabled, onCommit }: { value: string; disabled: boolean; onCommit: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <Input size="sm" value={v} disabled={disabled} placeholder="None (a one-off)" aria-label="Series" data-testid="meeting-series"
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => { if (v.trim() !== value) onCommit(v.trim()); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+  );
+}
+
 function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void }) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -179,8 +191,22 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
               options={MEETING_TYPES.map((t) => ({ value: t, label: t }))} />
           ) : (m.type || "—")}
         </dd>
+        <dt>Series</dt>
+        <dd>
+          {m.can_regenerate ? (
+            <SeriesField value={m.series ?? ""} disabled={!!busy}
+              onCommit={(v) => void run("series", () => patchMeeting(m.id, { series: v || null }), v ? `In the series “${v}”.` : "Taken out of its series.")} />
+          ) : (m.series || "—")}
+        </dd>
         <dt>Transcript</dt><dd>{m.has_transcript ? <a href={`/${m.transcript_slug}`}>{m.segments} lines</a> : "None (Google's notes only)"}{m.approx_times ? " · times every 5 min, estimated between" : ""}</dd>
         <dt>Action items</dt><dd>{m.action_items}</dd>
+        <dt>Organizer</dt>
+        <dd data-testid="meeting-organizer">
+          {m.organizer?.name
+            ? <>{m.organizer.name}{m.organizer.from === "drive" ? <span className="mt-cost"> · owns the Google Doc</span> : null}</>
+            : <span className="mt-cost">Not known{m.can_regenerate ? " (set it in the page's Organizer property)" : ""}</span>}
+        </dd>
+        {m.imported_by?.name && <><dt>Imported by</dt><dd data-testid="meeting-imported-by">{m.imported_by.name}</dd></>}
       </dl>
 
       <div>
@@ -219,6 +245,7 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
         <span className="mt-switchrow__text">
           <b>Only the people who were there</b>
           {m.can_manage ? "Off: everyone in the workspace can open it. On: only attendees who are members." : m.restricted ? "Only attendees who are members can open it." : "Everyone in the workspace can open it."}
+          {m.auto_restricted && m.restricted ? " Turned on by itself: a 1:1 or two-person call." : ""}
         </span>
         <Switch checked={m.restricted} disabled={!m.can_manage || !!busy} aria-label="Restrict to attendees" data-testid="meeting-restrict"
           onChange={(e) => void run("restrict", () => patchMeeting(m.id, { restricted: e.target.checked }), e.target.checked ? "Only attendees can open it now." : "The team can open it again.")} />

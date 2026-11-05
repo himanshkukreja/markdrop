@@ -13,6 +13,7 @@ import { resetIdentity } from "@/lib/thirdPartyAnalytics";
 import { DOCS_PAGES } from "@/lib/docsLinks";
 import { DOCS_URL, docsUrl } from "./links";
 import { useMounted, useSignInHref } from "./useLocation";
+import { usePwa } from "@/components/pwa/PwaProvider";
 
 /** Initials for the avatar: two words → two letters, else the first letter of the name or email. */
 export function initialsOf(user: Pick<MeUser, "name" | "email">): string {
@@ -41,7 +42,8 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
 
 /**
  * Account menu (REVAMP_PLAN 4.2): an avatar trigger → WAI-ARIA menu with the identity header,
- * Dashboard, Guides (the Markdrop Guides studio, guides.markdrop.in), Workspaces & domains, API tokens, Connected apps, Account settings, a Theme row (System / Light /
+ * Dashboard, Guides (the Markdrop Guides studio, guides.markdrop.in), Workspaces & domains, API tokens, Connected apps, Account settings, Docs,
+ * Install app (when this browser can install it: components/pwa), a Theme row (System / Light /
  * Dark), Send feedback, and Sign out (neutral: signing out isn't destructive). Sign-out uses
  * AuthContext.logout() (server revoke, then the local token is cleared).
  *
@@ -51,6 +53,8 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
 export function AccountMenu({ user, align = "right", studio }: { user: MeUser; align?: "left" | "right"; studio?: boolean }) {
   const { signOut } = useAuth();
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // "Install app": only where this browser can install it and it isn't already (components/pwa).
+  const pwa = usePwa();
 
   const items: MenuEntry[] = [
     {
@@ -70,6 +74,7 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
     studio
       ? { label: "Guides docs", href: docsUrl(DOCS_PAGES.guidesOverview), icon: "doc", external: true }
       : { label: "Docs", href: DOCS_URL, icon: "doc" },
+    ...(pwa.installPath ? [{ label: "Install app", icon: "download", onClick: pwa.install }] : []),
     ...(LIGHT_ENABLED
       ? [{
           custom: (
@@ -112,7 +117,7 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
         trigger={
           <button
             type="button"
-            className="md-focus grid size-9 shrink-0 cursor-pointer place-items-center rounded-full max-md:size-11"
+            className="md-focus grid size-9 shrink-0 cursor-pointer place-items-center rounded-full max-md:size-11 pointer-coarse:size-11"
             aria-label={`Account menu for ${user.name || user.email}`}
             title={user.email}
           >

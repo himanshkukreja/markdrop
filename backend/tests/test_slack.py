@@ -257,6 +257,11 @@ class Verification(SlackWorld):
         self.assertEqual(set(m["settings"]["event_subscriptions"]["bot_events"]),
                          {"link_shared", "app_uninstalled", "tokens_revoked"})
         self.assertIn("https://www.markdrop.in/integrations/slack/callback", m["oauth_config"]["redirect_urls"])
+        # The redirect_uri the backend actually sends (production's frontend_url has no www): Slack refuses
+        # an install whose redirect_uri isn't listed in the app's redirect_urls.
+        settings.frontend_url = "https://markdrop.in"
+        self.assertEqual(slack.redirect_uri(), "https://markdrop.in/integrations/slack/callback")
+        self.assertIn(slack.redirect_uri(), m["oauth_config"]["redirect_urls"])
         self.assertNotRegex(path.read_text(), r"xox[abp]-|[0-9a-f]{32}")
 
 
@@ -727,6 +732,23 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         self.sk.channel_info = {"is_ext_shared": True}
         await self.imported()
         self.assertEqual([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"], [])
+
+    async def test_past_meetings_from_a_backfill_are_not_posted(self):
+        from app.services import meeting_backfill as bf, meetings as meetings_service
+        from tests.test_meetings import fixture
+
+        owner = await bf._owner(self.db, {"user_id": self.uid["owner"], "workspace_id": self.W})
+        inc = [meetings_service.Incoming(name="Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transcript",
+                                         text=fixture("google_meet_transcript.txt"), origin="upload")]
+        rows = await meetings_service.import_meetings(self.db, owner, self.W, inc, wait=True,
+                                                      via="backfill", notify=False)
+        await slack.drain()
+        self.assertTrue(rows[0].get("history"))
+        self.assertEqual([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"], [])
+        # By hand it still can be.
+        r = await self.http.post(f"/api/v1/slack/meetings/{rows[0]['_id']}/post", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 1)
 
     async def test_post_again_by_hand(self):
         m = await self.imported()
