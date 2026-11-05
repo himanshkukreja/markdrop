@@ -343,14 +343,19 @@ export default [
       await h.page.locator("[data-testid='mm-bar']").first().click();
       await h.loc(".mm[data-open] .mm__panel").waitFor({ timeout: 20000 });
       await h.loc(".mm-fact").first().waitFor({ timeout: 20000 });
+      // Decisions only: the clearest picture of what it's for.
+      await h.page.locator(".mm[data-open] .mm-chip", { hasText: "Decisions" }).click();
+      await h.sleep(900);
+      await h.loc(".mm-fact[data-kind='decision']").first().waitFor({ timeout: 20000 });
       await h.settle(700);
       await h.page.mouse.move(5, 895);
     },
-    // The right of the bar (From meetings, Edit) and the panel under it.
+    // The bar from its From meetings button to the account, and the panel under it.
     crop: async (h) => {
       const bar = await h.page.locator(".pb-barwrap").first().boundingBox();
+      const btn = await h.page.locator("[data-testid='mm-bar']").first().boundingBox();
       const panel = await h.page.locator(".mm[data-open] .mm__panel").boundingBox();
-      const x = Math.max(0, panel.x - 340);
+      const x = Math.max(0, Math.min(btn.x - 120, panel.x - 40));
       return { box: { x, y: bar ? bar.y : 0, width: 1440 - x, height: panel.y + panel.height + 16 - (bar ? bar.y : 0) } };
     },
   },
