@@ -126,6 +126,15 @@ class Routing(AssistantWorld):
         self.assertEqual(rows[0]["via"], "assistant")
         self.assertFalse([r for r in await self.ledger("search_ai") if r.get("outcome") == "ok"])
 
+    async def test_a_scope_read_from_the_question_says_so(self):
+        await self.seed_all()
+        done = self.done(await self.ask("wm", "What came up in the Daily standup meetings?", {"kind": "meetings", "workspace": self.W}))
+        label = done["scope"]["label"]
+        self.assertTrue(label.startswith("From your question: ") or label == "Meetings", label)
+        done = self.done(await self.ask("wm", "Anything?", {"kind": "meetings", "workspace": self.W, "since": "2026-10-01",
+                                                            "until": "2026-10-31"}))
+        self.assertTrue(done["scope"]["label"].startswith("Meetings · "), done["scope"])
+
     async def test_one_meeting(self):
         ms = await self.seed_all()
         m = ms["Pricing review"]

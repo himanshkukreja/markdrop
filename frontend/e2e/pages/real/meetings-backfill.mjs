@@ -235,7 +235,7 @@ await step("ask", async () => {
   await box.locator("textarea").press("Enter");
   await box.getByTestId("chat-cite").first().waitFor({ timeout: 25000 });
   const scope = await box.getByTestId("chat-scopenote").first().innerText();
-  if (!scope.includes("Only Daily Standup")) fail(`scope chip: ${scope}`);
+  if (!scope.includes("Meetings · Daily Standup")) fail(`scope chip: ${scope}`);
   await box.getByTestId("chat-sources-btn").first().click();
   const sources = await box.getByTestId("chat-sources").locator(".ch-src__title").allInnerTexts();
   if (!sources.length || sources.some((s) => !s.trim().startsWith("Daily Standup"))) fail(`sources: ${JSON.stringify(sources)}`);
@@ -245,7 +245,7 @@ await step("ask", async () => {
   await snap(p, "ask-series-light");
   // No picker, the question says it.
   await box.getByTestId("chat-scope-series").click();
-  await p.getByRole("menuitem", { name: "All meetings" }).click();
+  await p.getByRole("menuitem", { name: "Any series" }).click();
   await box.locator("textarea").fill("What came up in the Daily Standups last month?");
   await box.locator("textarea").press("Enter");
   const chip = box.getByTestId("chat-scopenote").nth(1);

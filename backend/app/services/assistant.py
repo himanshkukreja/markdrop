@@ -252,13 +252,13 @@ async def _ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                 ranked_rows[str(it.get("id"))] = it
             sc = data.get("scope")
             yield ask_markdrop.ev("results", items=[_meeting_item(it) for it in items], scope=sc,
-                                  note=meetings_label(sc.get("series"), sc.get("since"), sc.get("until")) if sc else None)
+                                  note=scope_note(sc) if sc and not scope.meeting else None)
             continue
         if event != "done":
             yield event, data
             continue
         sc = data.get("scope")
-        used_label = meetings_label(sc.get("series"), sc.get("since"), sc.get("until")) if sc and not scope.meeting else label
+        used_label = scope_note(sc) if sc and not scope.meeting else label
         rows = await _meeting_rows(db, [c.get("meeting_id") or scope.meeting for c in data.get("citations") or []])
         if scope.meeting:
             for c in data.get("citations") or []:
@@ -279,6 +279,13 @@ async def _ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                               ranked=[_meeting_item(x) for x in data.get("ranked") or []],
                               usage=data.get("usage"), truncated=bool(data.get("truncated")), scope=record,
                               meetings_scope=sc, engine=meetings_ai.FEATURE)
+
+
+def scope_note(sc: dict) -> str:
+    """The meetings an answer used: "Meetings · Daily Standup · Oct 2026", or "From your question: …" when
+    the engine read the series / dates from the question."""
+    label = meetings_label(sc.get("series"), sc.get("since"), sc.get("until"))
+    return "From your question: " + label.removeprefix("Meetings · ") if sc.get("detected") else label
 
 
 def _meeting_item(it: dict) -> dict:

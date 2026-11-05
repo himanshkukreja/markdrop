@@ -371,7 +371,7 @@ await step("ux", async () => {
   {
     const { p } = await ctx(browser, { token: T.owner });
     await p.goto(`${APP}/${meeting.slug}`);
-    await p.getByTestId("meeting-header").waitFor({ timeout: 20000 });
+    await p.getByTestId("meeting-header").first().waitFor({ timeout: 20000 });
     if (!(await p.getByTestId("meeting-transcript").count())) fail("the meeting bar has no Transcript");
     await p.getByTestId("meeting-ask").first().click();
     const panel = p.getByTestId("assistant");
@@ -429,9 +429,9 @@ await step("docs-media", async () => {
     await box.screenshot({ path: path.join(raw, `sources${suffix}.png`) });
     webp(path.join(raw, `sources${suffix}.png`), `sources${suffix}`);
     await p.goto(`${APP}/${meeting.slug}`);
-    await p.getByTestId("meeting-header").waitFor({ timeout: 20000 });
+    await p.getByTestId("meeting-header").first().waitFor({ timeout: 20000 });
     await p.waitForTimeout(500);
-    await p.getByTestId("meeting-header").screenshot({ path: path.join(raw, `meeting-bar${suffix}.png`) });
+    await p.getByTestId("meeting-header").first().screenshot({ path: path.join(raw, `meeting-bar${suffix}.png`) });
     webp(path.join(raw, `meeting-bar${suffix}.png`), `meeting-bar${suffix}`);
     await c.close();
   }
