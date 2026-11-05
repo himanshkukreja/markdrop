@@ -611,6 +611,27 @@ class Drafts(FixCase):
         got = await self.call("POST", f"/{self.sid}/fixes/{drop['_id']}/draft", "editor", 429)
         self.assertEqual(got["code"], "user_daily")
 
+    async def test_draft_cut_by_thinking_is_asked_again_then_reported(self):
+        # Haiku 5.5 thinks before it answers and the thinking counts against max_tokens.
+        from tests._thinking_fake import ThinkingModel
+
+        from app.services import ai_output
+
+        drop = await self.item("drop")
+        reply = self.fake.reply
+        cap = max(ai_output.MIN_ANSWER_CAP, settings.docs_editor_ai_max_tokens)
+        self.fake = ThinkingModel(reply, think=lambda kw: cap if kw["max_tokens"] == cap else 1500)
+        got = await self.call("POST", f"/{self.sid}/fixes/{drop['_id']}/draft", "editor")
+        self.assertEqual(got["draft"]["after"], "## Configure the agent\n\n1. Open `acme.yml`.")
+        self.assertEqual(self.fake.caps(), [cap, ai_output.retry_cap(cap, sync=True)])
+        [row] = await self.db[ai_usage.REQUESTS].find({"feature": "docs_editor"}).to_list(5)
+        self.assertEqual((row["outcome"], row["calls"], row["usage"]["output"]), ("ok", 2, self.fake.output_tokens()))
+        # Cut both times: an error that says so, never an empty draft.
+        self.fake = ThinkingModel(reply, think=10 ** 6)
+        got = await self.call("POST", f"/{self.sid}/fixes/{drop['_id']}/draft", "editor", 422)
+        self.assertEqual(got["code"], "too_long_output")
+        self.assertEqual(len(self.fake.calls), 2)
+
     async def test_refusal_and_switch(self):
         drop = await self.item("drop")
         self.fake.stop = "refusal"

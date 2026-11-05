@@ -23,11 +23,12 @@ from unittest import mock
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
 from tests.test_pages_ai import AIEnv, parse_sse, prompt_of, usage
+from tests._thinking_fake import ThinkingModel
 
 from bson import ObjectId
 
 from app.config import get_settings
-from app.services import ai_usage, search, search_ai, search_index
+from app.services import ai_output, ai_usage, search, search_ai, search_index
 from app.services import search_text as st
 
 settings = get_settings()
@@ -809,6 +810,70 @@ class AISearch(SearchWorld, AIEnv):
         self.assertEqual(events[-1][0], "done")
         self.assertEqual(next(d for e, d in events if e == "results")["items"], [])
         self.assertEqual(len(self.fake.calls), 1)    # the expansion only
+
+    # Haiku 5.5 thinks before it answers, even at effort "low", and the thinking counts against
+    # max_tokens: with the old 900-token cap, 1,100 tokens of thinking left an empty answer.
+
+    def thinking_model(self, think) -> ThinkingModel:
+        script = self.fake.script
+        self.fake = ThinkingModel(lambda kw: script(kw), think=think)
+        return self.fake
+
+    async def test_thinking_heavy_answer_still_arrives(self):
+        model = self.thinking_model(1100)
+        events = await self.ask("owner", "how do contractors get onboarded?")
+        done = events[-1][1]
+        self.assertEqual(events[-1][0], "done")
+        self.assertIn("laptop", done["answer"])
+        self.assertFalse(done["truncated"])
+        expand, answer = model.calls
+        # The expansion runs with thinking off (a few dozen tokens of JSON); the answer has headroom.
+        self.assertEqual(expand["params"]["thinking"], {"type": "disabled"})
+        self.assertEqual(expand["thinking_tokens"], 0)
+        self.assertNotIn("thinking", answer["params"])
+        self.assertGreaterEqual(answer["max_tokens"], ai_output.MIN_ANSWER_CAP)
+        self.assertEqual(answer["stop"], "end_turn")
+        model.assert_caps_honoured(self)
+        r = (await self.rows())[-1]
+        self.assertEqual((r["outcome"], r["calls"], r["usage"]["output"]), ("ok", 2, model.output_tokens()))
+        self.assertEqual(r["usage"]["thinking"], 1100)
+
+    async def test_cut_short_before_a_word_is_never_an_empty_answer(self):
+        model = self.thinking_model(10 ** 6)       # every token of the cap goes on thinking
+        events = await self.ask("owner", "how do contractors get onboarded?")
+        self.assertEqual(events[-1][0], "done")
+        done = events[-1][1]
+        self.assertEqual(done["answer"], ai_output.CUT_EMPTY)
+        self.assertTrue(done["truncated"])
+        self.assertEqual(done["citations"], [])
+        self.assertEqual(model.calls[-1]["visible"], "")
+        self.assertEqual(model.calls[-1]["max_tokens"], search_ai.ANSWER_MAX_TOKENS)
+        model.assert_caps_honoured(self)
+        r = (await self.rows())[-1]
+        self.assertEqual((r["outcome"], r["stop_reason"]), ("ok", "max_tokens"))
+        self.assertEqual(r["usage"]["output"], model.output_tokens())     # billed thinking is recorded
+        self.assertGreater(r["cost_usd"], 0)
+        self.assertEqual(ai_usage._reserved, {})
+
+    async def test_cut_short_mid_answer_keeps_the_part_and_says_so(self):
+        model = self.thinking_model(search_ai.ANSWER_MAX_TOKENS - 14)   # room for about 56 characters
+        self.answer = "<ranking>1,2</ranking>\n\nContractors get a laptop on day one [1], and much more after that."
+        events = await self.ask("owner", "how do contractors get onboarded?")
+        done = events[-1][1]
+        self.assertEqual(model.calls[-1]["stop"], "max_tokens")
+        self.assertTrue(done["answer"].startswith("Contractors get"))
+        self.assertTrue(done["answer"].endswith(ai_output.CUT_NOTE))
+        self.assertNotIn("<rank", done["answer"])
+        self.assertTrue(done["truncated"])
+
+    async def test_cut_inside_the_ranking_line(self):
+        model = self.thinking_model(search_ai.ANSWER_MAX_TOKENS - 3)    # "<ranking>1,2" and no more
+        events = await self.ask("owner", "how do contractors get onboarded?")
+        done = events[-1][1]
+        self.assertTrue(model.calls[-1]["visible"].startswith("<ranking>"))
+        self.assertEqual(done["answer"], ai_output.CUT_EMPTY)
+        results = next(d for e, d in events if e == "results")["items"]
+        self.assertEqual(results[0]["slug"], "onboarding")
 
 
 def st_tokens(text: str) -> int:

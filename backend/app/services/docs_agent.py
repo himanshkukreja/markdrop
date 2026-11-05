@@ -60,6 +60,7 @@ from urllib.parse import quote, urlsplit
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
+from app.services import ai_output
 from app.services import ai_usage
 from app.services import docs_index as docs_index_mod
 from app.services.docs_sites import DEFAULT_SITE, UnknownSite
@@ -1275,11 +1276,14 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
         client = get_client()
         tool_rounds = 0
         json_retries = 0
+        # A ceiling for thinking plus the answer (thinking counts against max_tokens, services/ai_output).
+        cap = max(4000, s.docs_ai_max_tokens)
+        cut_retried = False
         while True:
             final_round = tool_rounds >= max_rounds or meter.max_prompt > PROMPT_SOFT_CAP
             params: dict = {
                 "model": model,
-                "max_tokens": max(4000, s.docs_ai_max_tokens),
+                "max_tokens": cap,
                 "system": system,
                 "tools": tools,
                 "messages": messages,
@@ -1324,6 +1328,13 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
             meter.add(_usage_of(message))
             stop_reason = getattr(message, "stop_reason", None)
             content = list(getattr(message, "content", []) or [])
+            if ai_output.was_cut(stop_reason) and not round_text and not cut_retried:
+                # The cap went on thinking before a word of the answer or a whole tool call: the
+                # same round once more with more room (nothing was shown; the cut round is dropped,
+                # never sent back, so the history stays append-only).
+                cut_retried = True
+                cap = ai_output.retry_cap(cap)
+                continue
             # Append-only: the round goes back exactly as returned (thinking included).
             messages.append({"role": "assistant", "content": content})
             if stop_reason == "refusal":
@@ -1367,7 +1378,14 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
             yield "delta", {"text": tail}
         answer = filt.text.strip()
         if outcome != "refused":
-            if not answer:
+            cut_empty = not answer and ai_output.was_cut(stop_reason)
+            if cut_empty:
+                # Cut short before a word (even after the retry): say so, never an empty answer.
+                answer = ai_output.CUT_EMPTY
+                filt.emitted = [answer]
+                watch.mark_first()
+                yield "delta", {"text": answer}
+            elif not answer:
                 answer = ("I couldn't find an answer to that in the docs. Try rephrasing it, or search the docs "
                           "with the box above.")
                 filt.emitted = [answer]
@@ -1375,7 +1393,7 @@ async def ask(db: AsyncIOMotorDatabase, req: AskRequest) -> AsyncIterator[tuple[
                 yield "delta", {"text": answer}
                 if not ctx.flags:
                     ctx.flags.append({"summary": question[:200], "reason": "not_in_docs", "detail": "empty answer"})
-            if stop_reason == "max_tokens":
+            if stop_reason == "max_tokens" and not cut_empty:
                 more = "\n\n_(The answer was cut short. Ask a narrower question for the rest.)_"
                 filt.emitted.append(more)
                 yield "delta", {"text": more}

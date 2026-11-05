@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "ai-answers-never-empty",
+      "date": "2026-11-05",
+      "title": "AI answers no longer come back empty or cut off",
+      "kind": "fixed",
+      "area": "AI and MCP",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "AI search, Ask AI on guides, page AI, Analytics AI, meeting notes, auto covers, AI help in the Guides editor and AI-drafted fixes now leave room for the model to think before it answers. An answer that still runs long is asked for again with more room, or shows what it has with a note that it was cut short. It is never blank.",
+      "body": "- **Why it happened.** The model behind Markdrop's AI features thinks before it answers, and that thinking counts toward the same length limit as the answer. Some features had limits sized for the answer alone, so on a harder question the thinking could use it all: the answer came back empty or stopped mid-sentence.\n- **More room, same answers.** AI search, Ask AI on a published guide, page AI (summary, ask, rewrite, action items, title and description, alt text), Analytics AI (the weekly story, ask, content gaps and the document coach), meeting notes, AI help in the Guides editor and AI-drafted fixes all have room to think and answer. Each answer's length is still set by its instructions, so answers are no longer, and a normal answer costs the same.\n- **Asked again once, never blank.** If an answer still runs out of room, Markdrop asks once more with a higher limit when nothing has been shown yet or the result must be complete (a rewrite, an analysis, notes). Otherwise you get what was written so far and a note that it was cut short. When nothing at all came back, it says so in words.\n- **Quick picks skip thinking.** Turning a search into search terms and choosing a page's cover are simple choices, so they run without thinking: faster, and they can't come back empty.\n- **Usage and limits as before.** Every attempt counts toward the same usage, cost and spending caps, including a retry. The same answers reach AI apps through MCP (`ask_documents`, `summarize_page`, `suggest_page_meta`, `ask_analytics` and the rest).",
+      "docs": [
+        "/ai/overview"
+      ]
+    },
+    {
       "id": "edit-lock-leave",
       "date": "2026-11-05",
       "title": "Leaving a page frees it for others at once",

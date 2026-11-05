@@ -332,6 +332,28 @@ class EditorAI(DocsSitesCase):
         self.assertEqual(ai_usage._reserved, {})
         self.assertEqual((docs_editor_ai._inflight, docs_editor_ai._inflight_by_user,
                           docs_editor_ai._inflight_by_site), (0, {}, {}))
+        self.assertEqual([c["max_tokens"] for c in self.fake.calls[1:]], [4000, 8000])   # cut: asked once more
+
+    # Haiku 5.5 thinks before it answers and the thinking counts against max_tokens.
+
+    async def test_cut_by_thinking_is_asked_again_with_more_room(self):
+        from tests._thinking_fake import ThinkingModel
+
+        from app.services import ai_output
+
+        self.fake = ThinkingModel("A better passage.", think=lambda kw: 4000 if kw["max_tokens"] == 4000 else 1500)
+        r = await self.edit()
+        self.assertEqual(r["markdown"], "A better passage.")
+        self.assertEqual(self.fake.caps(), [4000, ai_output.retry_cap(4000, sync=True)])
+        row = (await self.rows())[-1]
+        self.assertEqual((row["outcome"], row["calls"], row["retried"]), ("ok", 2, True))
+        self.assertEqual(row["usage"]["output"], self.fake.output_tokens())
+        # A small configured cap still leaves room for thinking.
+        settings.docs_editor_ai_max_tokens = 300
+        self.fake = ThinkingModel("A better passage.", think=1500)
+        r = await self.edit()
+        self.assertEqual(r["markdown"], "A better passage.")
+        self.assertEqual(self.fake.caps(), [ai_output.MIN_ANSWER_CAP])
 
     async def test_upstream_failure_is_502_and_logged_without_text(self):
         import anthropic

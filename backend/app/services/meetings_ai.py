@@ -36,7 +36,7 @@ from typing import Any, AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import access, ai_usage, docs_agent, meeting_scope, meetings, pages_ai
+from app.services import access, ai_output, ai_usage, docs_agent, meeting_scope, meetings, pages_ai
 from app.services import meeting_parse as mp
 from app.services import search_text as st
 
@@ -361,6 +361,16 @@ def parse_sections(raw: str, n_segments: int) -> dict | None:
     }
 
 
+async def _stream_whole(run: Run, params: dict) -> str:
+    """The notes JSON from one call. Cut short (Haiku 5.5's thinking and the JSON share max_tokens):
+    asked once more with a higher cap, since a cut JSON can't be used."""
+    raw, stop = await _stream(run, params)
+    if ai_output.was_cut(stop):
+        run.meta["retried"] = run.meta.get("retried", 0) + 1
+        raw, _stop = await _stream(run, {**params, "max_tokens": ai_output.retry_cap(params["max_tokens"])})
+    return raw
+
+
 async def _generate_sections(run: Run, meeting: dict) -> tuple[dict | None, int]:
     """(sections, chunks used). Raises pages_ai.Upstream."""
     segs = meeting.get("segments") or []
@@ -369,7 +379,7 @@ async def _generate_sections(run: Run, meeting: dict) -> tuple[dict | None, int]
     if not segs:
         if not notes:
             return None, 0
-        raw, _stop = await _stream(run, _params(NOTES_ONLY_SYSTEM, [
+        raw = await _stream_whole(run, _params(NOTES_ONLY_SYSTEM, [
             head + "\n" + pages_ai.wrap("notes", notes_text(notes)),
             "Pull out the decisions, open questions and topics. JSON only."], GEN_MAX_TOKENS))
         return parse_sections(raw, 0), 1
@@ -378,13 +388,13 @@ async def _generate_sections(run: Run, meeting: dict) -> tuple[dict | None, int]
     task = ("Write the notes for this meeting. JSON only." if not notes else NOTES_RULE + " JSON only.")
     total = sum(len(x) + 1 for x in lines)
     if total <= SINGLE_MAX_CHARS:
-        raw, _stop = await _stream(run, _params(GEN_SYSTEM, [
+        raw = await _stream_whole(run, _params(GEN_SYSTEM, [
             head + notes_block + "\n" + pages_ai.wrap("transcript", "\n".join(lines)), task], GEN_MAX_TOKENS))
         return parse_sections(raw, len(segs)), 1
     parts = chunks_of(lines)
     partial = []
     for k, part in enumerate(parts, 1):
-        raw, _stop = await _stream(run, _params(GEN_SYSTEM, [
+        raw = await _stream_whole(run, _params(GEN_SYSTEM, [
             head + "\n" + pages_ai.wrap("transcript", part, part=f"{k} of {len(parts)}"),
             f"This is part {k} of {len(parts)} of a long meeting: write the notes for this part only. JSON only."],
             GEN_MAX_TOKENS))
@@ -394,7 +404,7 @@ async def _generate_sections(run: Run, meeting: dict) -> tuple[dict | None, int]
     if not partial:
         return None, len(parts)
     merged_in = "\n".join(pages_ai.wrap("part", json.dumps(p, ensure_ascii=False), n=i) for i, p in enumerate(partial, 1))
-    raw, _stop = await _stream(run, _params(REDUCE_SYSTEM, [head + notes_block + "\n" + merged_in,
+    raw = await _stream_whole(run, _params(REDUCE_SYSTEM, [head + notes_block + "\n" + merged_in,
                                                             ("Merge the parts. " + (NOTES_RULE if notes else "") + " JSON only.")],
                                             REDUCE_MAX_TOKENS))
     return parse_sections(raw, len(segs)) or partial[0], len(parts)
