@@ -22,8 +22,9 @@ mod.settings.page_revalidate_enabled = True
 # 127.0.0.1); the domain service refuses *.localhost as reserved, so its origin is allowed statically.
 mod.settings.cors_origins.append(f"http://acme.localhost:{NEXT_PORT}")
 # Short page edit-lock timers for editlock.mjs (services/pages.py: idle, hidden, heartbeat TTL; the
-# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S.
-for _k in ("idle", "hidden", "ttl"):
+# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S, and
+# PB_LOCK_GONE_S (the holder's tabs closed without a word: services/viewers._editor_left).
+for _k in ("idle", "hidden", "ttl", "gone"):
     if os.environ.get(f"PB_LOCK_{_k.upper()}_S"):
         setattr(mod.settings, f"page_lock_{_k}_s", float(os.environ[f"PB_LOCK_{_k.upper()}_S"]))
 
