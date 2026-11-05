@@ -1,0 +1,221 @@
+name: CI
+
+# The release checks, in the cloud (free for a public repo): the backend suite in parallel shards,
+# each with its own MongoDB, and the frontend / docs / worker checks. Runs on pushes to work
+# branches (release/**, fix/**, feat/**, ci/**) and by hand on any ref; main isn't tested again
+# here (it is what was already checked and deployed). These branches don't build on Vercel
+# (frontend/vercel.json turns Git deployments off), so a push here costs nothing there.
+#
+#   .work/ci/run.sh <branch>   pushes a branch and follows its run (the lead's shortcut)
+#
+# Backend shards: .github/scripts/backend_shard.py splits backend/tests/test_*.py by recorded
+# duration (.github/scripts/backend-durations.json); every module runs in its own process. Refresh
+# the durations after a suite change grows a module a lot:
+#   gh run download <run-id> -p 'backend-timings-*' -D /tmp/t
+#   python .github/scripts/backend_shard.py --merge-timings /tmp/t/*/timings.json
+
+on:
+  push:
+    branches: ["release/**", "fix/**", "feat/**", "ci/**"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch, tag or SHA to test (blank: the branch picked above)"
+        required: false
+        default: ""
+      cli:
+        description: "Also run the Go CLI tests"
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ inputs.ref || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.14"   # production (EC2, Ubuntu 26.04) runs Python 3.14
+  NODE_VERSION: "22"       # what the release checks run on locally
+  SHARDS: 8
+
+jobs:
+  backend:
+    name: Backend ${{ matrix.shard }}/8
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    services:
+      mongo:
+        image: mongo:8
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ping:1}).ok'"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      MARKDROP_TEST_MONGODB_URI: mongodb://localhost:27017
+      PYTHONUNBUFFERED: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      # ffmpeg/ffprobe: the media probe tests. redis-server: the rate-limit store the app expects on
+      # localhost:6379 (as on the dev Mac) and the binary the Redis fallback test starts itself.
+      - name: System packages (ffmpeg, redis)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends ffmpeg redis-server >/dev/null
+          redis-cli ping
+
+      - name: Install backend requirements
+        run: pip install -r backend/requirements.txt
+
+      - name: Shard ${{ matrix.shard }} modules
+        run: python .github/scripts/backend_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARDS }} --list
+
+      - name: Run shard ${{ matrix.shard }}
+        run: python .github/scripts/backend_shard.py --shard ${{ matrix.shard }} --total ${{ env.SHARDS }}
+
+      - name: Upload timings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-timings-${{ matrix.shard }}
+          path: ci-out/timings.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Upload summary and logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs-${{ matrix.shard }}
+          path: |
+            ci-out/summary.md
+            ci-out/failed/
+            ci-out/logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # docs:openapi --check imports the backend to compare the API reference snapshot.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: backend/requirements*.txt
+
+      - name: Install backend requirements (for docs:openapi --check)
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: npm ci
+        run: npm ci --no-audit --no-fund
+
+      - name: docs:test
+        run: npm run -s docs:test
+
+      - name: docs:editor-test
+        run: npm run -s docs:editor-test
+
+      - name: pages-ai:test
+        run: npm run -s pages-ai:test
+
+      - name: docs:check (content + API reference freshness)
+        env:
+          PYTHON: python
+        run: |
+          set -o pipefail
+          npm run -s docs:check 2>&1 | tee /tmp/docs-check.log
+          # docs:openapi only warns when it can't import the backend; in CI that is a failure.
+          if grep -q "SKIPPED the freshness check" /tmp/docs-check.log; then
+            echo "::error::docs:openapi --check couldn't import the backend"; exit 1
+          fi
+
+      - name: docs:media-manifest --check
+        run: npm run -s docs:media-manifest -- --check
+
+      - name: TypeScript
+        run: npx tsc --noEmit -p .
+
+  worker:
+    name: Worker tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+          sparse-checkout: worker
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: node --test worker
+        run: node --test worker/test/*.test.mjs
+
+  cli:
+    name: CLI tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Did cli/ change?
+        id: changed
+        env:
+          FORCE: ${{ inputs.cli }}
+        run: |
+          if [ "$FORCE" = "true" ]; then echo "run=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          git fetch --no-tags --depth=200 origin main
+          base=$(git merge-base origin/main HEAD || true)
+          if [ -z "$base" ] || ! git diff --quiet "$base" HEAD -- cli/; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"; echo "cli/ unchanged since main: skipped"
+          fi
+      - uses: actions/setup-go@v5
+        if: steps.changed.outputs.run == 'true'
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+      - name: go test ./...
+        if: steps.changed.outputs.run == 'true'
+        working-directory: cli
+        run: go test ./...
