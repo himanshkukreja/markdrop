@@ -124,6 +124,27 @@
       ]
     },
     {
+      "id": "markdrop-on-phones-and-tablets",
+      "date": "2026-11-05",
+      "title": "Markdrop on phones and tablets",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop works like a mobile app: install it on your phone, tablet or computer, and every screen (My files, workspaces, pages, files, the Guides studio, published guides and Analytics) fits a finger, from a small Android phone to an iPad Pro.",
+      "highlights": [
+        "Install it as an app",
+        "Finger-sized everywhere",
+        "Nothing scrolls sideways"
+      ],
+      "body": "- **Install the app**: **Install app** in the account menu puts Markdrop on your home screen or dock, opens on your dashboard, and shows a branded screen when you're offline. See [Install Markdrop as an app](/changelog/install-markdrop-app).\n- **My files, workspaces, folders, settings, sharing and search**: nothing scrolls sideways, a tap anywhere on a row or card opens it, and menus open as sheets on phones. See [The app on phones and tablets](/changelog/phones-and-tablets-app).\n- **Pages, documents and files**: covers keep their proportions, the New page gallery fits every screen, tablets get the editing toolbar above the keyboard, and PDFs zoom with two fingers. See [Pages, documents and files fit phones and tablets](/changelog/pages-on-phones-and-tablets).\n- **Markdrop Guides and Analytics**: the studio, published guides and Analytics are finger-sized, Ask AI rides on the keyboard, and a tap on a chart shows that day. See [Markdrop Guides and Analytics on phones and tablets](/changelog/guides-analytics-touch).\n- Everywhere on a touch screen: buttons, menu items, tabs and fields are at least 44 points, text fields don't make an iPhone zoom in, and nothing reads under 12 points. Mouse and trackpad layouts are unchanged.",
+      "docs": [
+        "/get-started/install-app",
+        "/get-started/tour#on-a-phone-or-tablet"
+      ]
+    },
+    {
       "id": "install-markdrop-app",
       "date": "2026-11-05",
       "title": "Install Markdrop as an app",
