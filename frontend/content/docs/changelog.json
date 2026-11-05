@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-markdrop",
+      "date": "2026-11-05",
+      "title": "Ask Markdrop: one question across everything you can open",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A box at the top of your home asks across your meetings, documents, pages, files and Guides at once. Answers cite their sources (meeting moments included), follow-ups stay in a conversation, and suggested questions catch you up on the week or list your open action items.",
+      "body": "- **One box, everything you can open**: meetings and their transcripts, documents, pages, files and Guides. Every source is a number you can tap; meeting chips open the transcript at the moment it was said.\n- **Follow-ups** in the same conversation (\"and the annual discount?\"). **New question** starts over; the conversation is in the address, so reload and Back keep your place.\n- **Suggested questions**: **Catch me up on this week**, **My open action items** (every unchecked task that @mentions you, meeting action items included; no AI needed when there are none) and one about your latest meeting.\n- **Recent questions** under the box, private to you, kept 90 days.\n- **Strict access**: only items you can open now are read; every cited source is checked again before you see it and when you reopen a conversation, and an answer whose sources you lost is hidden. Restricted meetings, encrypted items and workspaces with AI off are never read.\n- Built for phones: the first thing on the home, a 16px field and 44px targets.\n- Uses the **AI search** budget. MCP `ask_documents` now asks the same way, with `thread_id` for follow-ups and `intent` (`catch_up`, `my_actions`). API: `POST /api/v1/ask` and `/api/v1/ask/threads`.",
+      "docs": [
+        "/workspaces/ask-markdrop",
+        "/ai/tools",
+        "/security/privacy"
+      ]
+    },
+    {
       "id": "meetings",
       "date": "2026-11-05",
       "title": "Meetings: every call becomes a page you can ask",

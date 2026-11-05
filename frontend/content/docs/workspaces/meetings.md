@@ -90,6 +90,8 @@ Open the workspace's Meetings page: select **Ask meetings** in the Meetings fold
 
 Markdrop finds the meetings that match with the same search as [Search](/workspaces/search), then answers from them. Answers cite each meeting and the moment in it. When meetings disagree, the later one wins and the answer says so.
 
+To ask across meetings and everything else at once, use [Ask Markdrop](/workspaces/ask-markdrop) at the top of your home. It cites meeting moments the same way, and **My open action items** lists the meeting action items assigned to you.
+
 ## Who can see a meeting
 
 - **The team, by default.** Everyone in the workspace can open a meeting page and its transcript, like any page set to **Workspace**. See [Privacy](/workspaces/privacy).
