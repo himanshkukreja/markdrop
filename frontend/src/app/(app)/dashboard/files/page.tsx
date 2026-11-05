@@ -23,7 +23,6 @@ import { MoveToDialog } from "@/components/workspace/folder/FolderDialogs";
 import { teamName } from "@/components/workspace/folder/items";
 import { docHref } from "@/components/analytics/format";
 import NameCard from "@/components/dashboard/NameCard";
-import AskHome from "@/components/ask/AskHome";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
 import { ChangeUrlDialog, DeleteDocDialog } from "@/components/dashboard/DocDialogs";
@@ -54,7 +53,7 @@ function readScope(search: string) {
   return { ws: p.get("ws"), folder: p.get("folder"), kind, q: (p.get("q") || "").trim(), page };
 }
 
-export default function DashboardPage() {
+export default function MyFilesPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const toast = useToast();
@@ -89,7 +88,7 @@ export default function DashboardPage() {
     }
     if (!("page" in patch)) p.delete("page");
     const qs = p.toString();
-    const url = `/dashboard${qs ? `?${qs}` : ""}`;
+    const url = `/dashboard/files${qs ? `?${qs}` : ""}`;
     if (replace) router.replace(url, { scroll: false });
     else router.push(url, { scroll: false });
   }, [router]);
@@ -134,7 +133,7 @@ export default function DashboardPage() {
   /* ── Auth gate ──────────────────────────────────────────────────────── */
   useEffect(() => {
     if (authLoading || !mounted || user) return;
-    const next = `/dashboard${window.location.search}`;
+    const next = `/dashboard/files${window.location.search}`;
     router.replace(`/login?next=${encodeURIComponent(next)}`);
   }, [authLoading, mounted, user, router]);
 
@@ -193,7 +192,7 @@ export default function DashboardPage() {
     } catch (e) {
       if (id !== seq.current) return;
       if (e instanceof Error && e.message === "UNAUTHORIZED") {
-        router.replace(`/login?next=${encodeURIComponent(`/dashboard${window.location.search}`)}`);
+        router.replace(`/login?next=${encodeURIComponent(`/dashboard/files${window.location.search}`)}`);
         return;
       }
       setListState("error");
@@ -229,7 +228,7 @@ export default function DashboardPage() {
     if (g === "connected") getGoogleDocsStatus().then(setGStatus).catch(() => {});
     p.delete("gdocs");
     const qs = p.toString();
-    window.history.replaceState(window.history.state, "", `/dashboard${qs ? `?${qs}` : ""}`);
+    window.history.replaceState(window.history.state, "", `/dashboard/files${qs ? `?${qs}` : ""}`);
   }, [urlReady, toast]);
 
   async function handleExport(doc: MyDocListItem) {
@@ -261,7 +260,7 @@ export default function DashboardPage() {
 
   async function handleConnect() {
     try {
-      await connectGoogleDocs("/dashboard");
+      await connectGoogleDocs("/dashboard/files");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Couldn't start the Google connection. Try again.");
     }
@@ -368,7 +367,7 @@ export default function DashboardPage() {
   if (counts) {
     summary = counts.all === 0 ? "Nothing published from this account yet" : `${plural(counts.document, "document")} · ${plural(counts.artifact, "artifact")}`;
   }
-  const crumbs = [{ label: "My files", href: "/dashboard" }, { label: TITLES[scope.kind] }];
+  const crumbs = [{ label: "My files", href: "/dashboard/files" }, { label: TITLES[scope.kind] }];
 
   const searchBox = (
     <div className={cx("min-w-0", phone ? "w-full" : "w-60")} role="search">
@@ -408,8 +407,8 @@ export default function DashboardPage() {
   if (authLoading || !user || inWorkspace) {
     return (
       <div className="flex flex-col gap-6" aria-busy="true">
-        <ListSkeleton label="Loading your dashboard" />
-        <div className="flex justify-center"><MarkdropLoader label="Loading your dashboard" size="sm" delay={2000} /></div>
+        <ListSkeleton label="Loading your files" />
+        <div className="flex justify-center"><MarkdropLoader label="Loading your files" size="sm" delay={2000} /></div>
       </div>
     );
   }
@@ -419,9 +418,6 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      {/* Ask Markdrop: the home's first thing (the "All" view; a search or a kind tab is about the list). */}
-      {scope.kind === "all" && !scope.q && <AskHome />}
-
       <PageHeader
         breadcrumb={scope.kind === "all" ? undefined : <Breadcrumb items={crumbs} />}
         title={heading}

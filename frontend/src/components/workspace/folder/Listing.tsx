@@ -163,7 +163,7 @@ export function People({ people, count, size = "md" }: { people: ItemOwner[]; co
 const RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "text", "video", "audio", "html", "image", "zip"]);
 
 /** The colour of an item's kind (its file category). */
-function tintOf(it: WorkspaceItem): string {
+export function tintOf(it: WorkspaceItem): string {
   const renderer = it.renderer && RENDERERS.has(it.renderer as FileRenderer) ? (it.renderer as FileRenderer) : null;
   const name = it.kind === "artifact" ? it.original_filename || it.slug : "doc.md";
   return FILE_KINDS[fileKind(name, it.mime || "", renderer)].tint;
@@ -171,7 +171,7 @@ function tintOf(it: WorkspaceItem): string {
 
 const isEmoji = (icon: string | null | undefined): icon is string => !!icon && !icon.startsWith("asset:") && icon.length <= 16;
 
-function ItemIcon({ it }: { it: WorkspaceItem }) {
+export function ItemIcon({ it }: { it: WorkspaceItem }) {
   if (isEmoji(it.icon)) return <span aria-hidden className="wl-icon">{it.icon}</span>;
   return (
     <span aria-hidden className="wl-icon" style={{ color: tintOf(it), background: "color-mix(in srgb, currentColor 11%, transparent)" }}>

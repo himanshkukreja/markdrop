@@ -2,7 +2,8 @@
 
 /**
  * Card previews for the workspace listing's Cards view (feat/card-previews):
- * `POST /api/v1/workspaces/{id}/items/previews` (backend services/card_preview.py).
+ * `POST /api/v1/workspaces/{id}/items/previews` (backend services/card_preview.py), and for the
+ * home's "Continue" cards (items anywhere, ANYWHERE): `POST /api/v1/me/previews`.
  *
  * A card asks only while it is on screen (`useInView`, one shared IntersectionObserver). Asks
  * wait for the browser to be idle after the folder renders, go out SIX at a time, at most TWO
@@ -45,6 +46,9 @@ export interface CardPreview {
   live_ttl?: number;
   duration?: number;
 }
+
+/** The cache's "workspace" for items anywhere (the home's Continue cards): `POST /api/v1/me/previews`. */
+export const ANYWHERE = "~me";
 
 const BATCH = 6;
 const MAX_INFLIGHT = 2;
@@ -132,7 +136,7 @@ async function send(ws: string, slugs: string[]) {
   let retry = true;
   try {
     const r = await request<{ previews?: Record<string, CardPreview> }>(
-      `/api/v1/workspaces/${encodeURIComponent(ws)}/items/previews`,
+      ws === ANYWHERE ? "/api/v1/me/previews" : `/api/v1/workspaces/${encodeURIComponent(ws)}/items/previews`,
       { method: "POST", body: JSON.stringify({ slugs }) },
     );
     got = r.previews ?? {};
