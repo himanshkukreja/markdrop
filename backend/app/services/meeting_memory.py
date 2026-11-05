@@ -282,9 +282,10 @@ async def background(db: AsyncIOMotorDatabase) -> dict:
         await sync_quietly(db, mid)
         n += 1
     swept = 0
-    t = time.monotonic()
-    if t - _last_sweep.get(getattr(db, "name", ""), 0.0) > 600:
-        _last_sweep[getattr(db, "name", "")] = t
+    t, key = time.monotonic(), getattr(db, "name", "")
+    # No sweep yet: sweep now (a fresh machine's monotonic clock can be under 600 s: a CI runner).
+    if key not in _last_sweep or t - _last_sweep[key] > 600:
+        _last_sweep[key] = t
         swept = await sweep_orphans(db)
     return {"synced": n, "swept": swept}
 
