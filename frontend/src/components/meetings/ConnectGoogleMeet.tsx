@@ -164,7 +164,7 @@ export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onR
   const [confirm, setConfirm] = useState(false);
   const here = mine && mine.workspace_id === workspaceId ? mine : null;
   if (!here && others.length === 0) return null;
-  const n = here ? here.imported + here.attached : 0;
+  const n = here ? here.imported : 0;   // "attached" filled in a meeting already counted
   return (
     <div className={compact ? "mt-conn mt-conn--compact" : "mt-conn"} data-testid="meet-connection">
       {here && (
