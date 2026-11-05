@@ -8040,6 +8040,322 @@
         }
       }
     },
+    "/api/v1/push": {
+      "get": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Push Status",
+        "description": "Whether push is set up here, the key a browser subscribes with, this person's devices\n(``endpoint``: this browser's own, marked ``this_device``) and which kinds they want.",
+        "operationId": "push_status_api_v1_push_get",
+        "parameters": [
+          {
+            "name": "endpoint",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Endpoint"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/push/subscriptions": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Subscribe",
+        "operationId": "subscribe_api_v1_push_subscriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Subscription"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token"
+        }
+      }
+    },
+    "/api/v1/push/subscriptions/remove": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Unsubscribe",
+        "operationId": "unsubscribe_api_v1_push_subscriptions_remove_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Endpoint"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token"
+        }
+      }
+    },
+    "/api/v1/push/devices/{device_id}": {
+      "delete": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Remove Device",
+        "operationId": "remove_device_api_v1_push_devices__device_id__delete",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Device Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/push/prefs": {
+      "patch": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Set Prefs",
+        "operationId": "set_prefs_api_v1_push_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Prefs"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token"
+        }
+      }
+    },
+    "/api/v1/push/test": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Test Push",
+        "operationId": "test_push_api_v1_push_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestPush"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token"
+        }
+      }
+    },
+    "/api/v1/push/read": {
+      "post": {
+        "tags": [
+          "push"
+        ],
+        "summary": "Read From Click",
+        "description": "The service worker calls this when someone clicks a notification: the signed link (made\nfor that person and those notifications only) marks them read. No session: the worker has none.",
+        "operationId": "read_from_click_api_v1_push_read_post",
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "T"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "none",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/sync": {
       "post": {
         "tags": [
@@ -18372,6 +18688,20 @@
         ],
         "title": "EmbedsRequest"
       },
+      "Endpoint": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Endpoint"
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint"
+        ],
+        "title": "Endpoint"
+      },
       "FeedbackCreate": {
         "properties": {
           "type": {
@@ -19560,6 +19890,26 @@
         "type": "object",
         "title": "ItemsRemove"
       },
+      "Keys": {
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "P256Dh"
+          },
+          "auth": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Auth"
+          }
+        },
+        "type": "object",
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "Keys"
+      },
       "LevelUpdate": {
         "properties": {
           "level": {
@@ -20516,6 +20866,56 @@
         "title": "PreferencesUpdate",
         "description": "Either or both; what's left out is unchanged."
       },
+      "Prefs": {
+        "properties": {
+          "mention": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention"
+          },
+          "signoff_requested": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signoff Requested"
+          },
+          "shared": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared"
+          },
+          "access_request": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Access Request"
+          }
+        },
+        "type": "object",
+        "title": "Prefs"
+      },
       "PrefsIn": {
         "properties": {
           "mention": {
@@ -21046,6 +21446,45 @@
         "type": "object",
         "title": "StatusBody"
       },
+      "Subscription": {
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "maxLength": 1024,
+            "title": "Endpoint"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/Keys"
+          },
+          "expirationTime": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expirationtime"
+          },
+          "standalone": {
+            "type": "boolean",
+            "title": "Standalone",
+            "default": false
+          },
+          "refresh": {
+            "type": "boolean",
+            "title": "Refresh",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "Subscription"
+      },
       "SyncCreateRequest": {
         "properties": {
           "title": {
@@ -21352,6 +21791,24 @@
           "template"
         ],
         "title": "TemplateToggle"
+      },
+      "TestPush": {
+        "properties": {
+          "device_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device Id"
+          }
+        },
+        "type": "object",
+        "title": "TestPush"
       },
       "TokenCreateRequest": {
         "properties": {

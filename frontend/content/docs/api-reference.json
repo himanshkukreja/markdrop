@@ -23,8 +23,8 @@
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
   ],
   "hide": {
-    "$comment": "Endpoints only markdrop.in's own pages, emails or apps call: sign-in redirects, email links, Google Docs export, the VS Code extension's sync protocol, the docs site's own endpoints, the Guides studio's page AI (the rest of the Guides studio API isn't public), a page editor's on-close lock release (a browser beacon), the export download links the MCP tool hands out, the MCP transport (documented under AI and MCP) and the health check.",
-    "tags": ["google-docs", "sync", "feedback", "docs", "mcp", ""],
+    "$comment": "Endpoints only markdrop.in's own pages, emails or apps call: sign-in redirects, email links, Google Docs export, the VS Code extension's sync protocol, the docs site's own endpoints, the Guides studio's page AI (the rest of the Guides studio API isn't public), a page editor's on-close lock release (a browser beacon), the export download links the MCP tool hands out, the MCP transport (documented under AI and MCP), push notifications (a browser's own service worker subscription, made in Settings) and the health check.",
+    "tags": ["google-docs", "sync", "feedback", "docs", "mcp", "push", ""],
     "operations": [
       "GET /api/v1/artifacts/status",
       "POST /api/v1/auth/logout",

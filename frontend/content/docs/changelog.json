@@ -24,6 +24,27 @@
   "next": [],
   "entries": [
     {
+      "id": "push-notifications",
+      "date": "2026-11-05",
+      "title": "Notifications on your phone and computer",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Mentions, sign-off requests, shares and access requests can now ring your phone, tablet or computer, even when Markdrop is closed. Choose one to open the page at that block.",
+      "highlights": [
+        "Turn on per device",
+        "Opens the exact block",
+        "Only what the bell says"
+      ],
+      "body": "- Turn them on in **Settings › Account › Notifications on your devices**: **Turn on**, allow them when asked, and **Send a test**. Do it on each device you want notified.\n- Works in Chrome, Edge, Firefox and Safari on computers and Android. On iPhone and iPad (iOS 16.4 or later) it works in the [installed app](/get-started/install-app).\n- Choose a notification to open the page at the block that mentions you. An open Markdrop window goes there; otherwise a new one opens. It's marked read under the bell too.\n- **Notify me when** turns mentions, sign-off requests, shares and access requests on or off for all your devices; **Devices** lists every device that gets them, with **Remove**. Signing out stops them on that browser.\n- A notification says only what the bell says, only about pages you can still open (checked when it's sent), is encrypted for your device on the way, and several on one page arrive as one.\n- See [Push notifications](/pages/mentions-and-notifications#push-notifications).",
+      "docs": [
+        "/pages/mentions-and-notifications#push-notifications",
+        "/get-started/install-app#notifications"
+      ]
+    },
+    {
       "id": "markdrop-on-phones-and-tablets",
       "date": "2026-11-05",
       "title": "Markdrop on phones and tablets",

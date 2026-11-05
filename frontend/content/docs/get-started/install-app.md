@@ -3,7 +3,7 @@ title: Install Markdrop as an app
 description: Put Markdrop on your phone's home screen, your dock or your Start menu. It opens in its own window, straight to your dashboard.
 updated: 2026-11-05
 prerequisites: [/get-started/accounts]
-keywords: [install, app, pwa, home screen, add to home screen, dock, desktop app, iphone, ipad, android, chrome, edge, safari, offline, update]
+keywords: [install, app, pwa, home screen, add to home screen, dock, desktop app, iphone, ipad, android, chrome, edge, safari, offline, update, notifications, push]
 ---
 
 Markdrop installs like an app on your phone, tablet or computer, with nothing to download from a store. The installed app opens in its own window, without the browser's address bar and tabs, and goes straight to your [dashboard](/get-started/tour). It has its own icon on your home screen, dock, taskbar or Start menu.
@@ -47,6 +47,12 @@ Installing doesn't sign you in again in Chrome, Edge or on Android. On an iPhone
 - **Its own window.** Links to other sites open in your browser. Documents and files you open stay in the app.
 - **Updates itself.** When a new version of Markdrop is out, the app shows **A new version of Markdrop is ready** with a **Reload** button. Reload when it suits you; until then you keep working in the version you have.
 
+## Notifications
+
+The app can ring your phone or computer when someone mentions you, asks for your sign-off, shares a page with you or asks for access. Turn them on in **Settings › Account › Notifications on your devices**: choose **Turn on** and allow them when asked.
+
+On an iPhone or iPad this works only in the installed app, so install Markdrop first and turn notifications on from inside it. See [Push notifications](/pages/mentions-and-notifications#push-notifications).
+
 ## When you're offline
 
 Markdrop needs the internet: your documents, files and pages live on Markdrop, not on your device. Without a connection, the app shows **You're offline** instead of a browser error page, and reloads by itself when you're back online.
@@ -69,5 +75,6 @@ Remove it the way you remove any app: press and hold the icon and choose **Remov
 ## Related
 
 - [A tour of the app](/get-started/tour)
+- [Mentions and notifications](/pages/mentions-and-notifications)
 - [Do you need an account?](/get-started/accounts)
 - [Troubleshooting](/help/troubleshooting)

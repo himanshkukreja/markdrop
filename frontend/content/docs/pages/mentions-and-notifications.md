@@ -1,12 +1,12 @@
 ---
 title: Mentions and notifications
-description: Mention someone on a page and they get a notification under the bell, and an email, with a link to the exact block. Only people who can open the page are told.
-updated: 2026-11-04
+description: Mention someone and they're told under the bell, by email and on their phone or computer, with a link to the exact block. Only people who can open the page.
+updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [mention, mentions, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, list_notifications, mark_notifications_read, share_with_people]
+keywords: [mention, mentions, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, list_notifications, mark_notifications_read, share_with_people]
 ---
 
-When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop and get an email, and both open the page at the block that mentions them.
+When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop, get an email and, if they've turned it on, a notification on their phone or computer. Each one opens the page at the block that mentions them.
 
 ## Mention someone
 
@@ -33,7 +33,7 @@ Mentions in code blocks and in classic-editor documents don't notify anyone. At 
 
 The bell sits at the top of Markdrop, next to your avatar. A badge shows how many notifications you haven't read.
 
-Choose the bell to see them, newest first. Each one shows who did it, what they did, on which page, when, and a dot while it's unread. Choose one to open the page at that block, which is briefly highlighted. **All** and **Unread** switch the list, and **Mark all read** clears the badge. On a phone the list opens as a sheet from the bottom of the screen.
+Choose the bell to see them, newest first. **Notification settings** at the bottom of the list opens your email and device settings. Each one shows who did it, what they did, on which page, when, and a dot while it's unread. Choose one to open the page at that block, which is briefly highlighted. **All** and **Unread** switch the list, and **Mark all read** clears the badge. On a phone the list opens as a sheet from the bottom of the screen.
 
 You're notified when someone:
 
@@ -57,7 +57,47 @@ You also get an email when someone mentions you or asks for your sign-off, with 
 
 ### Turn mention emails off
 
-Go to **Settings › Account › Email** and turn off **Email me when someone mentions me**, or choose **Turn off mention emails** at the bottom of any mention email. You still see mentions under the bell. Other Markdrop email, such as sign-in codes, invitations and the [weekly analytics email](/analytics/weekly-email), isn't affected.
+Go to **Settings › Account › Email** and turn off **Email me when someone mentions me**, or choose **Turn off mention emails** at the bottom of any mention email. You still see mentions under the bell, and [push notifications](#push-notifications) keep their own setting. Other Markdrop email, such as sign-in codes, invitations and the [weekly analytics email](/analytics/weekly-email), isn't affected.
+
+## Push notifications
+
+Turn on notifications for your phone, tablet or computer and Markdrop rings it even when Markdrop is closed. You get one when someone:
+
+- mentions you on a page, including a meeting's action item that names you;
+- asks for your sign-off;
+- shares a page with you with **Notify people** ticked;
+- asks to open or edit something you own or manage (an [access request](/sharing/request-access)).
+
+Choose a notification to open the page at that block. If Markdrop is already open, that window goes there; otherwise a new one opens. The notification is marked read under the bell too.
+
+### Turn them on
+
+1. Go to **Settings › Account › Notifications on your devices**. **Notification settings** at the bottom of the bell's list goes there too.
+2. Choose **Turn on**, then allow notifications when your browser asks.
+3. Choose **Send a test** to see how they look.
+
+Do this on each device you want notified. They work in Chrome, Edge, Firefox and Safari on computers and Android phones.
+
+:::note[iPhone and iPad]
+On an iPhone or iPad, notifications work only in the installed app (iOS 16.4 or later). [Install Markdrop](/get-started/install-app), open it from your Home Screen, then turn notifications on in **Settings › Account** inside the app. In a Safari tab, the card shows **Install app** instead.
+:::
+
+### Choose what rings
+
+Under **Notify me when**, turn off any of **Mentions**, **Sign-off requests**, **Shared with you** and **Access requests**. The choice covers all your devices. The bell and email aren't affected.
+
+### Your devices
+
+**Devices** lists every phone, tablet and computer that gets your notifications, such as "Chrome on Android" or "Safari on iPhone", with when it was last notified. Choose the bin next to one to stop notifications there. Signing out of Markdrop in a browser stops them on that device too, and a device that hasn't opened Markdrop for 90 days is removed by itself.
+
+### What a notification says
+
+- **Only what the bell says:** who did it, the page's title and the line that mentions you (or the sign-off's label, or the note on a share).
+- **Only about pages you can still open.** Markdrop checks your access when it sends. If you've lost access by then, nothing is sent at all.
+- **Not twice.** If you've already read it under the bell, no notification is sent. Several on the same page within a few seconds arrive as one, such as "You were mentioned 3 times in “Launch plan”", and a newer one about a page replaces the older one on your screen.
+- **Private on the way.** Each notification is encrypted for your device, so the notification service that delivers it (Google, Apple, Mozilla or Microsoft, depending on your browser) can't read it.
+
+To stop them on a device, choose **Turn off** under **This device**, or block notifications for markdrop.in in your browser's site settings.
 
 ## From an AI app
 
