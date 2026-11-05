@@ -83,3 +83,37 @@ def presence_user(ticket: str | None, doc: dict | None) -> str | None:
         return None
     uid = claims.get("u")
     return uid if isinstance(uid, str) and uid else None
+
+
+# ── Lock release tokens (the edit lock let go as a page closes) ───────────────
+#
+# Every answer that gives (or renews) a page's edit lock carries ``release_token``: the
+# document and the lock holder's account, signed, valid twelve hours (renewed with every
+# heartbeat). A closing page sends it with ``navigator.sendBeacon`` (POST …/lock/release),
+# which can't carry an Authorization header: it only lets go of that person's own lock on
+# that one page, so it's no session (no ``sub``: the session decoder finds no account in it)
+# and is worth nothing anywhere else.
+
+_RELEASE_TYP = "lr"
+RELEASE_TTL = timedelta(hours=12)
+
+
+def mint_lock_release(doc_id: str, user_id: str, *, ttl: timedelta = RELEASE_TTL) -> str:
+    now = datetime.now(timezone.utc)
+    return jwt.encode(
+        {"typ": _RELEASE_TYP, "d": doc_id, "u": user_id, "iat": now, "exp": now + ttl},
+        settings.auth_secret,
+        algorithm="HS256",
+    )
+
+
+def is_lock_release(claims: dict) -> bool:
+    return isinstance(claims, dict) and claims.get("typ") == _RELEASE_TYP
+
+
+def lock_release_user(claims: dict, doc: dict | None) -> str | None:
+    """The account whose lock on ``doc`` a release token's (decoded) claims may let go of."""
+    if not is_lock_release(claims) or not doc or doc.get("_id") is None or claims.get("d") != str(doc["_id"]):
+        return None
+    uid = claims.get("u")
+    return uid if isinstance(uid, str) and uid else None

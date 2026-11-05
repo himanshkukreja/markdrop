@@ -22,8 +22,9 @@ mod.settings.page_revalidate_enabled = True
 # 127.0.0.1); the domain service refuses *.localhost as reserved, so its origin is allowed statically.
 mod.settings.cors_origins.append(f"http://acme.localhost:{NEXT_PORT}")
 # Short page edit-lock timers for editlock.mjs (services/pages.py: idle, hidden, heartbeat TTL; the
-# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S.
-for _k in ("idle", "hidden", "ttl"):
+# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S, and
+# PB_LOCK_GONE_S (the holder's tabs closed without a word: services/viewers._editor_left).
+for _k in ("idle", "hidden", "ttl", "gone"):
     if os.environ.get(f"PB_LOCK_{_k.upper()}_S"):
         setattr(mod.settings, f"page_lock_{_k}_s", float(os.environ[f"PB_LOCK_{_k.upper()}_S"]))
 
@@ -337,6 +338,22 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
                 out = {"summary": f"The team met. {first}", "highlights": [t for _s, _w, t in lines[:2]], "decisions": dec,
                        "action_items": act, "open_questions": oq, "topics": top, "type": "Planning"}
                 return _MStream(_json.dumps(out))
+            if system.startswith("You compare a section"):
+                # Meeting memory's AI check (meeting-memory.mjs): a decision naming a weekday that the section
+                # gives as another weekday contradicts it; one whose words are mostly missing is left out.
+                sec = _re.search(r"<untrusted_section[^>]*>(.*?)</untrusted_section>", user, _re.S)
+                sec = (sec.group(1) if sec else "").lower()
+                days = r"monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+                res = []
+                for lab, text in _re.findall(r"\[(d\d+)\] \([^)]*\) ([^\n]+)", user):
+                    dd, sd = set(_re.findall(days, text.lower())), set(_re.findall(days, sec))
+                    if dd and sd and not dd & sd:
+                        res.append({"id": lab, "verdict": "contradicts", "note": f"The section says {sorted(sd)[0].title()}, the decision says {sorted(dd)[0].title()}."})
+                    elif len(_words(text) & _words(sec)) * 2 < len(_words(text)):
+                        res.append({"id": lab, "verdict": "omits", "note": "The section doesn't mention it."})
+                    else:
+                        res.append({"id": lab, "verdict": "consistent", "note": None})
+                return _MStream(_json.dumps({"results": res}))
             if system.startswith("You read Google's meeting notes"):
                 return _MStream(_json.dumps({"decisions": [{"text": "Ship on Friday"}], "open_questions": [], "topics": [], "type": "Planning"}))
             q = user.rsplit("The question", 1)[-1]
@@ -350,7 +367,12 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
             best = max(segs, key=lambda x: len(_words(x[2]) & _words(q)), default=None)
             cite = f" [{best[0]}]" if best else ""
             said = f"{best[1]} said {best[2]}" if best else "The meetings don't say"
-            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{said}{cite} — see [M1].")
+            # Says when and where, like the real model is asked to ("On 28 Oct, in Daily Standup, …").
+            n = best[0].split("-")[0][1:] if best else (ns[0] if ns else None)
+            head = _re.search(rf'<untrusted_meeting n="{n}" title="([^"]*)"[^>]*? day="\w+ (\d+ \w+)', user) if n else None
+            ser = _re.search(rf'<untrusted_meeting n="{n}"[^>]*? series="([^"]*)"', user) if n else None
+            where = f"On {head.group(2)}, in {ser.group(1) if ser else head.group(1)}, " if head else ""
+            return _MStream(f"<ranking>{','.join(ns[:2])}</ranking>\n\n{where}{said}{cite} — see [M1].")
 
     _mclient = _NS(messages=_MMessages())
     meetings_ai.docs_agent = _NS(get_client=lambda: _mclient, configured=lambda: True)
@@ -418,6 +440,12 @@ if os.environ.get("PB_FAKE_ASK_AI"):
 
     _aclient = _ANS(messages=_AMessages())
     ask_markdrop.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
+    # PB_FAKE_PAGES_AI=1 too (meeting-memory.mjs): Page AI counts as set up, so pages show Ask and the editor's
+    # AI features (answers come from the same fake).
+    if os.environ.get("PB_FAKE_PAGES_AI"):
+        from app.services import pages_ai as _pages_ai
+
+        _pages_ai.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
 
 # PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
 # real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).
@@ -548,4 +576,9 @@ if os.environ.get("PB_PUSH"):
 
 import uvicorn  # noqa: E402
 
-uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning")
+# Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
+# At uvicorn's default 5 s the scripts' first request after a blocking step (mcpToken / reseed run
+# Python with execFileSync, which holds Node's event loop for 2–5 s, so its 4 s timer never fires)
+# went out on a socket the server had just closed: "fetch failed" (ECONNRESET on macOS,
+# UND_ERR_SOCKET "other side closed" on Linux), e.g. bughunt draft-after-append's append_blocks.
+uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning", timeout_keep_alive=60)

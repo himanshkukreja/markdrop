@@ -37,7 +37,7 @@ from typing import Any, AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import access, ai_usage, docs_agent, pages_ai, search, search_index
+from app.services import access, ai_output, ai_usage, docs_agent, pages_ai, search, search_index
 from app.services import search_text as st
 
 log = logging.getLogger("markdrop.search_ai")
@@ -49,8 +49,11 @@ MAX_QUESTION = 500
 MAX_CANDIDATES = 40
 MAX_TERMS = 10
 EXCERPT_CHARS = 600
-EXPAND_MAX_TOKENS = 250
-ANSWER_MAX_TOKENS = 900
+# Haiku 5.5 thinks before it answers and thinking counts against max_tokens (services/ai_output):
+# the expansion runs with thinking off (a few dozen tokens of JSON); the answer gets headroom, its
+# visible length is bounded by the prompt (about 120 words).
+EXPAND_MAX_TOKENS = 400
+ANSWER_MAX_TOKENS = 3000
 MAX_RANKED = 12
 RRF_K = 60.0
 
@@ -151,14 +154,17 @@ class Run:
                 "cost_usd": round(self.meter.cost_usd, 6)}
 
 
-def _params(system: str, content: str, max_tokens: int) -> dict:
-    return {
+def _params(system: str, content: str, max_tokens: int, *, thinking: bool = True) -> dict:
+    params = {
         "model": MODEL,
         "max_tokens": max_tokens,
         "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
         "messages": [{"role": "user", "content": [{"type": "text", "text": content}]}],
         "output_config": {"effort": "low"},
     }
+    if not thinking:
+        params["thinking"] = dict(ai_output.NO_THINKING)
+    return params
 
 
 async def _stream(run: Run, params: dict, on_text=None) -> tuple[str, str | None]:
@@ -217,10 +223,13 @@ def parse_terms(raw: str, question: str) -> list[str]:
 
 
 async def retrieve(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, q: search.Query,
-                   texts: list[str]) -> tuple[list[search.Cand], search.World]:
+                   texts: list[str], keep=None) -> tuple[list[search.Cand], search.World]:
     """Fuse the fuzzy rankings of the question and each term (reciprocal rank); keep the first
-    MAX_CANDIDATES that pass ``access.can`` now."""
+    MAX_CANDIDATES that pass ``access.can`` now. ``keep`` (a predicate): only those candidates (a
+    narrower scope, e.g. one folder: it never widens what access allows)."""
     cands, w = await search.doc_and_guide_cands(db, actor, ctx, q)
+    if keep is not None:
+        cands = [c for c in cands if keep(c)]
     fused: dict[str, float] = {}
     by_key: dict[str, search.Cand] = {}
     for i, text in enumerate(texts):
@@ -285,8 +294,12 @@ _RANKING = re.compile(r"<ranking>\s*([0-9,\s]*)\s*</ranking>", re.I)
 _CITE = re.compile(r"\[(\d{1,3})\]")
 
 
+# An answer cut off inside its first line ("<ranking>6,1,2</rank"): its numbers, and the leftover to strip.
+_RANKING_CUT = re.compile(r"^\s*<ranking>\s*([0-9,\s]*)(?:</?r?a?n?k?i?n?g?>?)?", re.I)
+
+
 def parse_ranking(text: str, n: int) -> list[int]:
-    m = _RANKING.search(text or "")
+    m = _RANKING.search(text or "") or _RANKING_CUT.search(text or "")
     if not m:
         return []
     out = []
@@ -302,6 +315,7 @@ def parse_ranking(text: str, n: int) -> list[int]:
 def clean_answer(text: str, n: int) -> str:
     """The answer without the ranking line, citations kept only for listed items, tags out."""
     body = _RANKING.sub("", text or "", count=1).strip()
+    body = _RANKING_CUT.sub("", body, count=1).strip()
     body = re.sub(r"</?untrusted_\w+[^>]*>", "", body)
     body = _CITE.sub(lambda m: m.group(0) if 1 <= int(m.group(1)) <= n else "", body)
     return body.strip()
@@ -342,7 +356,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         yield ev("status", stage="expanding")
         terms: list[str] = []
         try:
-            raw, _stop = await _stream(run, _params(EXPAND_SYSTEM, f"Search: {question}", EXPAND_MAX_TOKENS))
+            raw, _stop = await _stream(run, _params(EXPAND_SYSTEM, f"Search: {question}", EXPAND_MAX_TOKENS,
+                                                  thinking=False))
             terms = parse_terms(raw, question)
         except pages_ai.Upstream as exc:
             await run.record("error", error_code=exc.code, stage="expand")
@@ -441,7 +456,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             await run.record("refused", stop_reason=stop)
             yield ev("error", detail="AI can't help with this one.", code="refused")
             return
-        answer = clean_answer(raw, len(sent))
+        # Cut short (thinking and the answer share max_tokens): the partial answer and a note, never empty.
+        answer = ai_output.finish(clean_answer(raw, len(sent)), stop)
         cited = []
         for m in _CITE.finditer(answer):
             k = int(m.group(1))

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     page_lock_ttl_s: float = 120.0
     page_lock_idle_s: float = 120.0
     page_lock_hidden_s: float = 60.0
+    # The holder's last live socket on the page closed (tab closed or killed, no close beacon): the
+    # lock goes this long after, unless one of their tabs is back (services/viewers._editor_left).
+    page_lock_gone_s: float = 8.0
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

@@ -45,73 +45,79 @@
       ]
     },
     {
-      "id": "markdrop-on-phones-and-tablets",
+      "id": "ask-markdrop-everywhere",
       "date": "2026-11-05",
-      "title": "Markdrop on phones and tablets",
+      "title": "Ask Markdrop everywhere: one assistant, ⌘J, and answers you can insert",
       "kind": "new",
-      "area": "Web app",
+      "area": "AI",
       "products": [
-        "web"
+        "web",
+        "mcp",
+        "api"
       ],
-      "summary": "Markdrop works like a mobile app: install it on your phone, tablet or computer, and every screen (My files, workspaces, pages, files, the Guides studio, published guides and Analytics) fits a finger, from a small Android phone to an iPad Pro.",
-      "highlights": [
-        "Install it as an app",
-        "Finger-sized everywhere",
-        "Nothing scrolls sideways"
-      ],
-      "body": "- **Install the app**: **Install app** in the account menu puts Markdrop on your home screen or dock, opens on your dashboard, and shows a branded screen when you're offline. See [Install Markdrop as an app](/changelog/install-markdrop-app).\n- **My files, workspaces, folders, settings, sharing and search**: nothing scrolls sideways, a tap anywhere on a row or card opens it, and menus open as sheets on phones. See [The app on phones and tablets](/changelog/phones-and-tablets-app).\n- **Pages, documents and files**: covers keep their proportions, the New page gallery fits every screen, tablets get the editing toolbar above the keyboard, and PDFs zoom with two fingers. See [Pages, documents and files fit phones and tablets](/changelog/pages-on-phones-and-tablets).\n- **Markdrop Guides and Analytics**: the studio, published guides and Analytics are finger-sized, Ask AI rides on the keyboard, and a tap on a chart shows that day. See [Markdrop Guides and Analytics on phones and tablets](/changelog/guides-analytics-touch).\n- Everywhere on a touch screen: buttons, menu items, tabs and fields are at least 44 points, text fields don't make an iPhone zoom in, and nothing reads under 12 points. Mouse and trackpad layouts are unchanged.",
+      "summary": "One assistant replaces Ask in page, Ask this meeting and Ask across meetings: ✦ Ask in every top bar or ⌘J from anywhere opens Ask Markdrop beside what you're reading, on the right scope (This doc, Meetings, This folder, Workspace or Everything), with one conversation that follows you and Insert to put an answer into the doc.",
+      "body": "- **One assistant, everywhere.** ✦ Ask in the top bar of documents, pages, workspaces and folders, ⌘J (Ctrl J) from anywhere, the box on your home, Ask this meeting and the Meetings page all open the same Ask Markdrop: a panel beside what you're reading, a sheet on phones.\n- **Scope chips at the top**: This doc, Meetings, This folder, Workspace, Everything. It starts on the one that fits where you are; switch any time. Meetings adds This meeting, a series and a period in the question box.\n- **This doc** answers from the doc first, then what your meetings decided about it, then the workspace, and knows the section you're in and what you selected. It works in pages and classic Markdown documents.\n- **Insert** puts an answer into the doc, with its sources as links: blocks after your cursor in a page, a paragraph at your cursor in a document you're editing, or the editor opened with it after the section you were reading. Only when you choose it; editors only.\n- **One conversation**: ask on your home, open a page, press ⌘J and keep going. Conversations are kept 90 days and listed under the home's box.\n- **Ask about this** in From meetings asks about one decision, action item or question.\n- Same rules: only what you can open, every source checked again; restricted meetings never reach anyone else. This doc, This folder, Workspace and Everything count towards AI search, Meetings towards Meetings AI, as before.\n- **API and MCP**: `POST /api/v1/ask` takes `scope` and `context`; `GET /api/v1/ask/context` lists the scopes offered where you are; `ask_documents` takes `page` and `folder`.",
       "docs": [
-        "/get-started/install-app",
-        "/get-started/tour#on-a-phone-or-tablet"
+        "/workspaces/ask-markdrop",
+        "/workspaces/meetings-ask",
+        "/pages/ai",
+        "/pages/meeting-memory",
+        "/ai/tools"
       ]
     },
     {
-      "id": "install-markdrop-app",
+      "id": "meetings-chat-and-cards",
       "date": "2026-11-05",
-      "title": "Install Markdrop as an app",
+      "title": "Asking meetings is a real conversation; the Meetings page shows what each meeting was about",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Ask this meeting and Ask across meetings are now one chat: answers stream in with numbered sources that show who said it, when, and the line itself, with follow-up questions and a conversation that's still there when you come back. The Meetings page lists each meeting with its cover, summary, people and counts.",
+      "body": "- **One chat for asking meetings.** Your question on the right, the answer on the left as it's written, with what it's reading while it works. **Stop** (or Esc) ends an answer early.\n- **Numbered sources.** Select **1**, **2**… in an answer, or **N sources** under it: each source shows the meeting, its date and series, who spoke and when, and the line itself. **Jump to the moment** opens the transcript there.\n- **Follow-ups.** Suggested follow-up questions under each answer, and follow-ups across meetings now know what you asked before.\n- **Conversations are kept.** Reopen a meeting, or the Meetings page, and your conversation is still there (on any device you sign in on). **New chat** starts over. If you can no longer open a meeting an answer used, that answer is hidden.\n- **Ask across meetings opens beside your meetings** on a computer (or page-wide with **Expand**) and full screen on a phone. Pick a series and a period with the chips in the question box.\n- **Keyboard.** Enter sends, Shift+Enter is a new line, ↑ brings back your last question, Esc stops an answer or closes the sources.\n- **The Meetings page** shows each meeting's series cover with its date, the day, time and length, a line of the summary, who was there, and how many decisions, action items and open questions it has. Month headings stay on screen as you scroll; search covers titles, series and people; point at a meeting to open its transcript or ask it. Connect Google Meet, Import past meetings, the Meetings folder and Organize are under one calm header.\n- **A meeting bar on every meeting page**: who was there, who can open it, **Transcript** and **Ask this meeting**.\n- MCP `list_meetings` gives each meeting's summary line and its decision and open-question counts. API: `GET /api/v1/meetings` rows add `summary`, `decisions`, `open_questions` and `cover`; ask citations add `speaker`, `at` and `quote`; both asks take `thread_id` (and Ask across takes `history`) and return `thread_id`, readable with `GET /api/v1/ask/threads/{id}`.",
+      "docs": [
+        "/workspaces/meetings-ask",
+        "/workspaces/meetings"
+      ]
+    },
+    {
+      "id": "meeting-memory-while-writing",
+      "date": "2026-11-05",
+      "title": "Meeting memory while writing: what the team decided, right in the page",
       "kind": "new",
-      "area": "Web app",
-      "products": [
-        "web"
-      ],
-      "summary": "Markdrop installs on your phone, tablet or computer: its own icon and window, straight to your dashboard, a branded offline screen, and a Reload prompt when a new version is out. Markdrop Guides installs as its own app too.",
-      "body": "- **Install app** in the account menu installs Markdrop in Chrome, Edge and Android browsers in one click, and shows the Add to Home Screen steps on iPhone and iPad (and File › Add to Dock in Safari on a Mac).\n- The installed app opens on your **dashboard** (through sign-in when you're signed out), never the marketing pages, with shortcuts for **New page**, **Search**, **Markdrop Guides** and **Analytics** on its icon.\n- Offline, it shows **You're offline** and reloads by itself when you're back. It keeps only its own code and icons on your device, never your documents or anything private.\n- A new version shows **A new version of Markdrop is ready** with **Reload**, so you update when it suits you.\n- On phones, bars, sheets and toasts stay clear of the notch and the home indicator.\n- **Markdrop Guides** (guides.markdrop.in) installs as its own app that opens on your guides.\n- See [Install Markdrop as an app](/get-started/install-app)."
-    },
-    {
-      "id": "phones-and-tablets-app",
-      "date": "2026-11-05",
-      "title": "The app on phones and tablets",
-      "kind": "improved",
-      "area": "App",
-      "products": [
-        "web"
-      ],
-      "summary": "My files, workspaces, folders, settings, sharing and search fit every phone and tablet: nothing scrolls sideways, every button is finger-sized, a tap anywhere on a row opens it, and menus open as sheets on phones.",
-      "body": "- **Nothing scrolls sideways** on any screen, from a small Android phone to an iPad Pro. On a narrow phone **Create** shows just its plus, so the top bar fits.\n- **Finger-sized controls**: buttons, menu items, tabs and fields are at least 44 points on a touch screen, and text is never smaller than 12 points. Text boxes use 16-point text, so iPhones don't zoom in when you type.\n- **Tap anywhere on a row or card** in My files, Shared with me, Recent, a workspace or a folder's table to open it. Its own buttons still work.\n- **Menus open as sheets** from the bottom of a phone's screen, over a dimmed page.\n- **Boards on touch screens**: tap a card to open the page, or press and hold to drag it to another column. A long press on a row or card no longer opens the phone's link preview.\n- A folder's views bar fades at the edge when more views are off screen.\n- See [On a phone or tablet](/get-started/tour#on-a-phone-or-tablet)."
-    },
-    {
-      "id": "pages-on-phones-and-tablets",
-      "date": "2026-11-05",
-      "title": "Pages, documents and files fit phones and tablets",
-      "kind": "improved",
       "area": "Pages",
       "products": [
-        "web"
+        "web",
+        "mcp",
+        "api"
       ],
-      "summary": "A page's cover keeps its proportions on a tablet in portrait and on a phone, the New page gallery fits every screen and opens without the keyboard, and everything in a page is sized for a finger.",
-      "body": "- **Covers** keep their proportions as the screen narrows: a tablet in portrait or a phone shows the whole cover, smaller, never a cropped middle of it.\n- **New page**: the template gallery never runs off the side of a phone (a template's preview with a table used to widen it), lists the templates in one column on a phone, and on a touch screen opens on the templates, not in the title, so the keyboard doesn't cover them.\n- **Touch screens**: the cover's tools, **Add icon** and **Add cover**, and an embed's **Show as**, **Replace** and **Remove** no longer wait for a hover. Every button in the page's bar, head and body is big enough for a finger, text fields never make the page zoom in, and nothing reads under 12 px.\n- **Tablets** get the editing toolbar above the keyboard that phones have (add a block, the block menu, format, undo), as a bar in the middle of the screen.\n- **Files**: an image opens fitted to the screen (tap it for full size), two fingers zoom a PDF's pages, and the video player and spreadsheets are sized for a finger.\n- See [Colours, columns and block tools](/pages/blocks-and-layout#on-a-phone-or-tablet) and [Supported file types](/files/supported-types)."
+      "summary": "While you write a PRD or any page in a workspace, From meetings shows the decisions, action items and open questions your meetings recorded about it, with the date, the meeting and a link to the moment. Insert one as a cited line, get a gentle card when a section leaves out a decision, and ask the page with your meetings.",
+      "body": "- **From meetings**, beside **Ask** at the bottom right of a page, follows the section you're writing: decisions, action items (owner, due, open or done), open questions and topics from the workspace's meetings, each with its date, meeting and series, and a link to the moment in the transcript. A search box finds anything else.\n- **Insert** adds a dated, cited line, such as \"**Decided on Oct 28, 2026** (Daily Standup): …\", with a mention of the meeting and a link to the moment. `/meetings` in the page opens the panel and inserts where you typed.\n- **Missed decisions.** When a section clearly leaves out a decision about its topic, a small card asks \"Include it here?\". With AI on, Claude Haiku 5.5 also notices a section that says something different from a decision. Nothing changes unless you choose **Include**. Both the button and the cards can be switched off, per person.\n- **Ask the page with your meetings.** **Ask** in a workspace page answers from the page and the workspace's meetings, naming the meeting and date for \"when did we decide…\" questions, with citations that open the moment.\n- **Private by design.** Only meetings you can open count. Meetings restricted to their attendees, including one-to-one calls, never appear for anyone else. No extra AI cost: the memory comes from the summary each meeting already has.\n- **For AI apps**: `meeting_context` returns the decisions and action items related to a topic or a page, with dates, links and a cited line to paste (80 MCP tools now).",
+      "docs": [
+        "/pages/meeting-memory",
+        "/ai/tools",
+        "/workspaces/meetings"
+      ]
     },
     {
-      "id": "guides-analytics-touch",
+      "id": "edit-lock-leave",
       "date": "2026-11-05",
-      "title": "Markdrop Guides and Analytics on phones and tablets",
-      "kind": "improved",
-      "area": "Markdrop Guides",
+      "title": "Leaving a page frees it for others at once",
+      "kind": "fixed",
+      "area": "Documents",
       "products": [
-        "web"
+        "web",
+        "mcp",
+        "api"
       ],
-      "summary": "The Guides studio, published guides and Analytics fit a finger: every control is at least 44 px on a touch screen, text fields no longer make iPhones zoom, and the guide's bar gives the screen back on phones.",
-      "body": "- **Touch sizes.** On phones and tablets every button, tab, menu item and field in the Guides studio, on published guides and in Analytics is at least 44 × 44 px, text fields are 16 px (iOS no longer zooms in when you tap one) and nothing reads under 12 px. Mouse and trackpad layouts are unchanged.\n- **The guide's bar on phones** (and phones held sideways) scrolls away with the page instead of covering a third of the screen; the Live pill shows just *Live*.\n- **Editor.** The page list opens without raising the keyboard, its rows and drag handles are full size for a finger, and the bar under the page has a Find button instead of keyboard shortcuts.\n- **Ask AI on a published guide** rides on top of the on-screen keyboard on phones, so the question you're typing stays in view.\n- **Charts in Analytics and Insights** show a day's numbers when you tap it, and keep them until you tap elsewhere.\n- **Tablets.** On an iPad or Android tablet the guide's bar takes two rows instead of squeezing its buttons over its tabs, guide cards keep two columns until there's room for three, the studio header drops what the menus already show, and a published guide's Ask AI panel opens below the header in landscape.\n- **Typing in the editor.** The + Block bar sits on top of the on-screen keyboard instead of under it."
+      "summary": "When you stop editing a page by leaving it, others can edit it straight away instead of up to 2 minutes later: going to another page, adding a sub-page, closing the tab, and on a workspace's own domain too.",
+      "body": "- **Leave and it's free.** Going to another page, opening the sub-page you just added or closing the tab lets go of the page at once. Before, the page could stay marked as yours for up to 2 minutes, and your teammates and their AI apps had to wait.\n- **Nothing typed is lost on the way out.** What you typed in the last moment before leaving is saved first, then the page is free.\n- **Even when the browser can't say goodbye.** If your browser quits without a word (a crash, a laptop that shut down), the page is free about 10 seconds later.\n- **AI apps can write right after you leave.** `update_page` and the other writing tools no longer meet \"is editing\" from a tab that's already gone.",
+      "docs": [
+        "/pages/editing-together"
+      ]
     },
     {
       "id": "edit-lock-idle",
@@ -318,6 +324,91 @@
       ]
     },
     {
+      "id": "meetings-auto-import-shared",
+      "date": "2026-11-05",
+      "title": "Connect Google Meet finds the meetings someone else organized, and shows what it found",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "The Google Meet script now imports every meeting you attended: Docs shared with you (a call your manager organized lives in their Drive), shared drives and Google's titles in other languages. Each run reports what it found and why it skipped Docs, right on the Meetings page.",
+      "body": "- **Meetings shared with you, on by default**: Google saves a call's transcript and Gemini notes in the organizer's Drive and shares them with attendees. The first script only looked at Docs you own, so an attendee got nothing. **Include meetings shared with me** in the Connect dialog (on by default). A call several attendees send is imported once.\n- **More of Google's titles**: \"Notes by Gemini\" anywhere in the title, Google's names in other languages (\"Transcripción\", \"Notizen von Gemini\"…), Docs in a **Meet Recordings** folder, and shared drives.\n- **See what the script found**: under **Google Meet connected**, \"Script ran 5 min ago · found 2 meeting Docs · 14 skipped: 12 not titled like Meet…\", and any Doc it couldn't read. Only counts reach Markdrop, never the skipped Docs.\n- **`check`** in Apps Script lists what the script would send and why it skips the rest, without sending anything.\n- **Update your script**: scripts installed before today show **New script**. Select **Get the new script**, paste it over `Code.gs` in the same project and run `setup` (the manifest is unchanged).\n- API: `POST /api/v1/meetings/inbox/status` (the script's runs), `include_shared` on `POST /api/v1/meetings/connection`, and the script's last run, `needs_update` and `latest_script_version` on `GET /api/v1/meetings/connection`.",
+      "docs": [
+        "/workspaces/meetings-auto-import"
+      ]
+    },
+    {
+      "id": "markdrop-on-phones-and-tablets",
+      "date": "2026-11-05",
+      "title": "Markdrop on phones and tablets",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop works like a mobile app: install it on your phone, tablet or computer, and every screen (My files, workspaces, pages, files, the Guides studio, published guides and Analytics) fits a finger, from a small Android phone to an iPad Pro.",
+      "highlights": [
+        "Install it as an app",
+        "Finger-sized everywhere",
+        "Nothing scrolls sideways"
+      ],
+      "body": "- **Install the app**: **Install app** in the account menu puts Markdrop on your home screen or dock, opens on your dashboard, and shows a branded screen when you're offline. See [Install Markdrop as an app](/changelog/install-markdrop-app).\n- **My files, workspaces, folders, settings, sharing and search**: nothing scrolls sideways, a tap anywhere on a row or card opens it, and menus open as sheets on phones. See [The app on phones and tablets](/changelog/phones-and-tablets-app).\n- **Pages, documents and files**: covers keep their proportions, the New page gallery fits every screen, tablets get the editing toolbar above the keyboard, and PDFs zoom with two fingers. See [Pages, documents and files fit phones and tablets](/changelog/pages-on-phones-and-tablets).\n- **Markdrop Guides and Analytics**: the studio, published guides and Analytics are finger-sized, Ask AI rides on the keyboard, and a tap on a chart shows that day. See [Markdrop Guides and Analytics on phones and tablets](/changelog/guides-analytics-touch).\n- Everywhere on a touch screen: buttons, menu items, tabs and fields are at least 44 points, text fields don't make an iPhone zoom in, and nothing reads under 12 points. Mouse and trackpad layouts are unchanged.",
+      "docs": [
+        "/get-started/install-app",
+        "/get-started/tour#on-a-phone-or-tablet"
+      ]
+    },
+    {
+      "id": "install-markdrop-app",
+      "date": "2026-11-05",
+      "title": "Install Markdrop as an app",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop installs on your phone, tablet or computer: its own icon and window, straight to your dashboard, a branded offline screen, and a Reload prompt when a new version is out. Markdrop Guides installs as its own app too.",
+      "body": "- **Install app** in the account menu installs Markdrop in Chrome, Edge and Android browsers in one click, and shows the Add to Home Screen steps on iPhone and iPad (and File › Add to Dock in Safari on a Mac).\n- The installed app opens on your **dashboard** (through sign-in when you're signed out), never the marketing pages, with shortcuts for **New page**, **Search**, **Markdrop Guides** and **Analytics** on its icon.\n- Offline, it shows **You're offline** and reloads by itself when you're back. It keeps only its own code and icons on your device, never your documents or anything private.\n- A new version shows **A new version of Markdrop is ready** with **Reload**, so you update when it suits you.\n- On phones, bars, sheets and toasts stay clear of the notch and the home indicator.\n- **Markdrop Guides** (guides.markdrop.in) installs as its own app that opens on your guides.\n- See [Install Markdrop as an app](/get-started/install-app)."
+    },
+    {
+      "id": "phones-and-tablets-app",
+      "date": "2026-11-05",
+      "title": "The app on phones and tablets",
+      "kind": "improved",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "My files, workspaces, folders, settings, sharing and search fit every phone and tablet: nothing scrolls sideways, every button is finger-sized, a tap anywhere on a row opens it, and menus open as sheets on phones.",
+      "body": "- **Nothing scrolls sideways** on any screen, from a small Android phone to an iPad Pro. On a narrow phone **Create** shows just its plus, so the top bar fits.\n- **Finger-sized controls**: buttons, menu items, tabs and fields are at least 44 points on a touch screen, and text is never smaller than 12 points. Text boxes use 16-point text, so iPhones don't zoom in when you type.\n- **Tap anywhere on a row or card** in My files, Shared with me, Recent, a workspace or a folder's table to open it. Its own buttons still work.\n- **Menus open as sheets** from the bottom of a phone's screen, over a dimmed page.\n- **Boards on touch screens**: tap a card to open the page, or press and hold to drag it to another column. A long press on a row or card no longer opens the phone's link preview.\n- A folder's views bar fades at the edge when more views are off screen.\n- See [On a phone or tablet](/get-started/tour#on-a-phone-or-tablet)."
+    },
+    {
+      "id": "pages-on-phones-and-tablets",
+      "date": "2026-11-05",
+      "title": "Pages, documents and files fit phones and tablets",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "A page's cover keeps its proportions on a tablet in portrait and on a phone, the New page gallery fits every screen and opens without the keyboard, and everything in a page is sized for a finger.",
+      "body": "- **Covers** keep their proportions as the screen narrows: a tablet in portrait or a phone shows the whole cover, smaller, never a cropped middle of it.\n- **New page**: the template gallery never runs off the side of a phone (a template's preview with a table used to widen it), lists the templates in one column on a phone, and on a touch screen opens on the templates, not in the title, so the keyboard doesn't cover them.\n- **Touch screens**: the cover's tools, **Add icon** and **Add cover**, and an embed's **Show as**, **Replace** and **Remove** no longer wait for a hover. Every button in the page's bar, head and body is big enough for a finger, text fields never make the page zoom in, and nothing reads under 12 px.\n- **Tablets** get the editing toolbar above the keyboard that phones have (add a block, the block menu, format, undo), as a bar in the middle of the screen.\n- **Files**: an image opens fitted to the screen (tap it for full size), two fingers zoom a PDF's pages, and the video player and spreadsheets are sized for a finger.\n- See [Colours, columns and block tools](/pages/blocks-and-layout#on-a-phone-or-tablet) and [Supported file types](/files/supported-types)."
+    },
+    {
+      "id": "guides-analytics-touch",
+      "date": "2026-11-05",
+      "title": "Markdrop Guides and Analytics on phones and tablets",
+      "kind": "improved",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "The Guides studio, published guides and Analytics fit a finger: every control is at least 44 px on a touch screen, text fields no longer make iPhones zoom, and the guide's bar gives the screen back on phones.",
+      "body": "- **Touch sizes.** On phones and tablets every button, tab, menu item and field in the Guides studio, on published guides and in Analytics is at least 44 × 44 px, text fields are 16 px (iOS no longer zooms in when you tap one) and nothing reads under 12 px. Mouse and trackpad layouts are unchanged.\n- **The guide's bar on phones** (and phones held sideways) scrolls away with the page instead of covering a third of the screen; the Live pill shows just *Live*.\n- **Editor.** The page list opens without raising the keyboard, its rows and drag handles are full size for a finger, and the bar under the page has a Find button instead of keyboard shortcuts.\n- **Ask AI on a published guide** rides on top of the on-screen keyboard on phones, so the question you're typing stays in view.\n- **Charts in Analytics and Insights** show a day's numbers when you tap it, and keep them until you tap elsewhere.\n- **Tablets.** On an iPad or Android tablet the guide's bar takes two rows instead of squeezing its buttons over its tabs, guide cards keep two columns until there's room for three, the studio header drops what the menus already show, and a published guide's Ask AI panel opens below the header in landscape.\n- **Typing in the editor.** The + Block bar sits on top of the on-screen keyboard instead of under it."
+    },
+    {
       "id": "subpage-templates",
       "date": "2026-11-05",
       "title": "Add a sub-page offers your workspace's templates everywhere",
@@ -337,19 +428,58 @@
       ]
     },
     {
-      "id": "meetings-auto-import-shared",
+      "id": "meetings-drive-links-organizer",
       "date": "2026-11-05",
-      "title": "Connect Google Meet finds the meetings someone else organized, and shows what it found",
+      "title": "Import a meeting from a Google Drive link; Organizer is who ran the call; 1:1s stay private",
       "kind": "improved",
       "area": "Workspaces",
       "products": [
         "web",
+        "mcp",
         "api"
       ],
-      "summary": "The Google Meet script now imports every meeting you attended: Docs shared with you (a call your manager organized lives in their Drive), shared drives and Google's titles in other languages. Each run reports what it found and why it skipped Docs, right on the Meetings page.",
-      "body": "- **Meetings shared with you, on by default**: Google saves a call's transcript and Gemini notes in the organizer's Drive and shares them with attendees. The first script only looked at Docs you own, so an attendee got nothing. **Include meetings shared with me** in the Connect dialog (on by default). A call several attendees send is imported once.\n- **More of Google's titles**: \"Notes by Gemini\" anywhere in the title, Google's names in other languages (\"Transcripción\", \"Notizen von Gemini\"…), Docs in a **Meet Recordings** folder, and shared drives.\n- **See what the script found**: under **Google Meet connected**, \"Script ran 5 min ago · found 2 meeting Docs · 14 skipped: 12 not titled like Meet…\", and any Doc it couldn't read. Only counts reach Markdrop, never the skipped Docs.\n- **`check`** in Apps Script lists what the script would send and why it skips the rest, without sending anything.\n- **Update your script**: scripts installed before today show **New script**. Select **Get the new script**, paste it over `Code.gs` in the same project and run `setup` (the manifest is unchanged).\n- API: `POST /api/v1/meetings/inbox/status` (the script's runs), `include_shared` on `POST /api/v1/meetings/connection`, and the script's last run, `needs_update` and `latest_script_version` on `GET /api/v1/meetings/connection`.",
+      "summary": "Paste links to a call's Google Docs to import it: Markdrop reads a Doc shared with anyone with the link, and your Google Meet script fetches a private one. A meeting's Organizer is now who ran it (the Doc's owner in Drive), not who imported it, and 1:1s and two-person calls are restricted to their attendees on import.",
+      "body": "- **Drive link** in the import dialog: paste one or more Google Docs or Drive links. Shared with \"anyone with the link\": imported right away. Private, with your Google Meet script connected here: **Queued**, fetched with your own Google access within 15 minutes. Otherwise Markdrop says how to give access.\n- **Organizer and Imported by** are separate. Organizer is the Google Doc's owner in Drive (Google saves a call's Docs in the organizer's Drive), or who pasted text names (\"Organizer: …\"); otherwise it stays empty, never the importer. **Details** shows both; the page's **Organizer** property can be changed. Meetings imported earlier are corrected where Google said who owns the Doc.\n- **1:1s and two-person calls are restricted to their attendees** when they're imported, on every path (manual, automatic, links, AI apps). Meetings of three or more stay with the team. Switch either way in **Details**.\n- **Answers about meetings are steadier.** An answer can no longer come back empty or cut off when a question spans many meetings (**Catch me up** in Ask Markdrop could). Asking across meetings also reads the lines that name what the best match names (ask which email provider was chosen, and the line where someone takes on the migration comes too), and each quoted line backs only what it says.\n- **Google's closing line stays out of the transcript.** \"Transcription ended after …\" is no longer added to the last thing someone said.\n- **Covers.** Every meeting page has a cover from the gallery: one per series, so all the \"Daily Syncup\" meetings look alike, and a general one for one-offs. Meetings imported earlier get theirs too. A cover you chose or removed stays as you left it.\n- **One item per meeting.** A meeting's Transcript no longer shows as a second item in folder views, folder counts and search. A word only said in the call finds the meeting page. The transcript is still under the meeting in the sidebar and linked from the page.\n- **One series per name.** \"Daily Syncup\" and \"Daily Sync Up\" are one series (case, spaces and punctuation don't count). **Organize meetings** files meetings you already have, transcripts included, puts both spellings together and says how many meetings and series there are.\n- **Sort by meeting date.** The Meetings page lists meetings by the day they happened, newest first, and can sort by oldest, title or recently imported. Your choice is remembered on the device.\n- MCP `import_meeting` takes `drive_url`. API: `POST /api/v1/meetings/import-link` and `GET /api/v1/meetings/import-link`.",
       "docs": [
-        "/workspaces/meetings-auto-import"
+        "/workspaces/meetings-import",
+        "/workspaces/meetings-privacy",
+        "/ai/tools"
+      ]
+    },
+    {
+      "id": "meetings-backfill",
+      "date": "2026-11-05",
+      "title": "Import past meetings, organised by date and series",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Bring in weeks of earlier calls at once: drop all your transcripts and Gemini notes, check the dates in a review, and they import in the background, oldest first, each on the day it happened and without notifying anyone about old action items. Recurring meetings get their own folder (Meetings › Daily Sync Up), one-offs go to Other meetings, and Ask across meetings can stick to one series or period.",
+      "body": "- **Import past meetings** on the Meetings page: drop or choose up to 300 files (transcripts and Gemini notes mixed), pick several Google Docs at once, or paste several meetings with a `===` line between them.\n- **A review before anything is created**: each meeting's date (from Google's file name, the Doc's creation day or the text), its name and series, whether the notes and the transcript were both found, and whether it's already in the workspace. A meeting without a date is flagged until it gets one.\n- **Runs in the background**, oldest first, and survives closing the page: \"12 of 40\", Pause, Resume, Stop, and Retry for a meeting that failed. A backlog bigger than today's Meetings AI budget waits for tomorrow's and carries on by itself.\n- **Quiet**: action items in past meetings still @mention people, but nobody is notified about them.\n- **A folder per series**: a meeting whose name comes back on another day (\"Daily Sync Up\", \"Sprint 23 review\" and \"Sprint 24 review\") gets a **Series** and its own folder, **Meetings › Daily Sync Up**; the earlier one moves in with it. Everything else goes to **Meetings › Other meetings**. Each folder opens on its meetings, newest first and grouped by month. Change a meeting's series in its Details and it moves; admins can **Organize meetings** to file the ones already there. The Meetings page lists meetings by month with a chip per series.\n- **Who sees it**: 1:1s and two-person calls start restricted to the people who were there; calls with three or more people are open to the team. The review shows it, and you can change it per meeting.\n- **Ask one series or a period**: pick them above the question, or say it (\"What came up in the Daily Standups last month?\"). Answers say when and where (\"On 28 Oct, in Daily Standup…\") and prefer recent meetings for questions about the latest state.\n- **MCP**: `import_meetings_bulk` and `organize_meetings` (78 tools), and `list_meetings` and `ask_meetings` take a series and dates.",
+      "docs": [
+        "/workspaces/meetings-import",
+        "/workspaces/meetings",
+        "/workspaces/meetings-ask"
+      ]
+    },
+    {
+      "id": "ai-answers-never-empty",
+      "date": "2026-11-05",
+      "title": "AI answers no longer come back empty or cut off",
+      "kind": "fixed",
+      "area": "AI and MCP",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "AI search, Ask AI on guides, page AI, Analytics AI, meeting notes, auto covers, AI help in the Guides editor and AI-drafted fixes now leave room for the model to think before it answers. An answer that still runs long is asked for again with more room, or shows what it has with a note that it was cut short. It is never blank.",
+      "body": "- **Why it happened.** The model behind Markdrop's AI features thinks before it answers, and that thinking counts toward the same length limit as the answer. Some features had limits sized for the answer alone, so on a harder question the thinking could use it all: the answer came back empty or stopped mid-sentence.\n- **More room, same answers.** AI search, Ask AI on a published guide, page AI (summary, ask, rewrite, action items, title and description, alt text), Analytics AI (the weekly story, ask, content gaps and the document coach), meeting notes, AI help in the Guides editor and AI-drafted fixes all have room to think and answer. Each answer's length is still set by its instructions, so answers are no longer, and a normal answer costs the same.\n- **Asked again once, never blank.** If an answer still runs out of room, Markdrop asks once more with a higher limit when nothing has been shown yet or the result must be complete (a rewrite, an analysis, notes). Otherwise you get what was written so far and a note that it was cut short. When nothing at all came back, it says so in words.\n- **Quick picks skip thinking.** Turning a search into search terms and choosing a page's cover are simple choices, so they run without thinking: faster, and they can't come back empty.\n- **Usage and limits as before.** Every attempt counts toward the same usage, cost and spending caps, including a retry. The same answers reach AI apps through MCP (`ask_documents`, `summarize_page`, `suggest_page_meta`, `ask_analytics` and the rest).",
+      "docs": [
+        "/ai/overview"
       ]
     },
     {

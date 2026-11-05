@@ -21,9 +21,10 @@ from unittest import mock
 from tests._access_env import now
 from tests.test_creator_analytics import World
 from tests.test_pages_ai import AIEnv, prompt_of
+from tests._thinking_fake import ThinkingModel
 
 from app.config import get_settings
-from app.services import ai_usage
+from app.services import ai_output, ai_usage
 from app.services import analytics_ai_doc as aid
 from app.services import creator_analytics as ca
 
@@ -411,6 +412,32 @@ class Validation(AIWorld):
         self.assertEqual(await self.db[aid.COLL].count_documents({}), 0)
         rows = await self.ledger()
         self.assertEqual([r["outcome"] for r in rows], ["error", "error"])
+
+    # Haiku 5.5 thinks before it answers (effort "medium" here) and the thinking counts against max_tokens.
+
+    async def test_json_cut_short_is_asked_again_with_more_room(self):
+        d = await self.markdown_doc()
+        cap = aid.MAX_TOKENS["content"]
+        self.fake = ThinkingModel(self.content_reply(), think=lambda kw: cap - 50 if kw["max_tokens"] == cap else 2500)
+        res = await self.analyse(d, "content")
+        self.assertEqual(res["state"], "ready")
+        self.assertEqual(len(res["result"]["findings"]), 3)
+        self.assertEqual(self.fake.caps(), [cap, ai_output.retry_cap(cap)])
+        row = (await self.ledger())[-1]
+        self.assertEqual((row["outcome"], row["retried"], row["calls"]), ("ok", True, 2))
+        self.assertEqual(row["usage"]["output"], self.fake.output_tokens())
+
+    async def test_json_cut_short_twice_is_an_error(self):
+        d = await self.markdown_doc()
+        self.fake = ThinkingModel(self.content_reply(), think=10 ** 6)
+        r = await self.analyse(d, "content", expect=502)
+        self.assertEqual(r["code"], "bad_output")
+        self.assertEqual(len(self.fake.calls), 2)
+        self.fake.assert_caps_honoured(self)
+        row = (await self.ledger())[-1]
+        self.assertEqual((row["outcome"], row["why"], row["stop_reason"]), ("error", "cut short", "max_tokens"))
+        self.assertEqual(row["usage"]["output"], self.fake.output_tokens())
+        self.assertEqual(await self.db[aid.COLL].count_documents({}), 0)
 
     async def test_more_than_five_cut_and_fields_bounded(self):
         d = await self.markdown_doc()

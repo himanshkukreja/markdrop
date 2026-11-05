@@ -157,6 +157,9 @@ _rooms: dict[str, Room] = {}
 _sweeper: asyncio.Task | None = None
 # slug → (user id holding the page's edit lock, monotonic expiry)
 _editors: dict[str, tuple[str, float]] = {}
+# (slug, user id) → the pending "the lock holder's tabs are gone" check (:func:`_editor_left`)
+_gone: dict[tuple[str, str], asyncio.TimerHandle] = {}
+_gone_tasks: set[asyncio.Task] = set()
 
 
 # ── Identity ──────────────────────────────────────────────────────────────────
@@ -579,6 +582,7 @@ def leave(slug: str, conn: Conn) -> None:
     if r is None or r.conns.get(conn.id) is not conn:
         return
     r.conns.pop(conn.id, None)
+    _editor_left(r, conn)
     if not r.conns:
         if r.flush_handle is not None:
             r.flush_handle.cancel()
@@ -586,6 +590,53 @@ def leave(slug: str, conn: Conn) -> None:
         return
     if conn.present:
         _schedule(r)
+
+
+def _user_here(r: Room | None, user_id: str) -> bool:
+    return r is not None and any(c.joined and c.user_id == user_id for c in r.conns.values())
+
+
+def _editor_left(r: Room, conn: Conn) -> None:
+    """The page's lock holder closed their last socket on it (the tab closed, crashed or went to
+    another page): unless one of their tabs is back within ``page_lock_gone_s``, their lock goes
+    (services/pages.release_gone). The editor lets go itself when it leaves (unmount, the close
+    beacon); this covers the closes that run no script (a killed tab, a browser that skips
+    ``pagehide``) instead of the two-minute heartbeat timeout. A socket that only reconnects (a new
+    read ticket, a network blip) says hello again well within that time."""
+    uid = conn.user_id
+    if not conn.joined or not uid or editor_of(r.slug) != uid or _user_here(r, uid):
+        return
+    delay = float(get_settings().page_lock_gone_s)
+    if delay <= 0:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    key = (r.slug, uid)
+    old = _gone.pop(key, None)
+    if old is not None:
+        old.cancel()
+
+    def fire() -> None:
+        _gone.pop(key, None)
+        if _user_here(_rooms.get(key[0]), uid):
+            return
+        task = loop.create_task(_release_gone(key[0], uid))
+        _gone_tasks.add(task)
+        task.add_done_callback(_gone_tasks.discard)
+
+    _gone[key] = loop.call_later(delay, fire)
+
+
+async def _release_gone(slug: str, user_id: str) -> None:
+    from app.database import get_database
+    from app.services import pages
+
+    try:
+        await pages.release_gone(get_database(), slug, user_id)
+    except Exception:  # never fails the socket layer
+        pass
 
 
 # ── Changes from elsewhere ────────────────────────────────────────────────────
@@ -743,6 +794,9 @@ def clear() -> None:
             r.flush_handle.cancel()
     _rooms.clear()
     _editors.clear()
+    for h in _gone.values():
+        h.cancel()
+    _gone.clear()
     if _sweeper is not None:
         _sweeper.cancel()
         _sweeper = None

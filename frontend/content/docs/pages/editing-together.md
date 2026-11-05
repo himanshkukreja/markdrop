@@ -16,7 +16,8 @@ You stop editing, and others can edit, when:
 
 - **2 minutes pass without a change**, even if the tab is still open in front of you;
 - **your tab has been in the background for 60 seconds** (another tab, another app, a locked screen);
-- **you close the tab or leave the page**;
+- **you leave the page or close the tab**: at once, whether you go to another page, open the sub-page you just added or close the window. Anything you typed in the last moment is saved on the way out;
+- your browser quits without a word (it crashed, or the laptop shut down): about 10 seconds later;
 - the tab loses its connection for 2 minutes.
 
 What you typed is saved first, so nothing is lost when you stop. When you come back and type again, the page is yours again. If someone changed it in the meantime, you see their changes first and yours go on top.

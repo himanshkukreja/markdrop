@@ -35,6 +35,8 @@ class Folder:
     default_access: str | None = None
     # The workspace's Meetings folder (services/meetings.py): imported calls are filed here.
     meetings: bool = False
+    # A subfolder of it (services/meeting_series.py): Meetings/<Series> or Meetings/Other meetings.
+    meetings_sub: bool = False
 
 
 FOLDER_DEFAULT_LEVELS = ("private", "workspace", "link")

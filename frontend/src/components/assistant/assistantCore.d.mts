@@ -1,0 +1,20 @@
+import type { AssistantContext, AssistantScope, AssistantScopeKind, AskCitation, AskTurn } from "@/lib/ask";
+import type { ChatCitation, ChatScopeOption, ChatSource, ChatSuggestion, ChatTurn } from "@/components/chat/types";
+
+type Link = (x: { url?: string | null; slug?: string | null; kind?: string | null }) => { href: string; external: boolean };
+export const SCOPE_ICON: Record<AssistantScopeKind, string>;
+export const SCOPE_LABEL: Record<AssistantScopeKind, string>;
+export const PERIODS: { value: string; label: string }[];
+export function periodRange(period: string | undefined, today?: Date): { since?: string; until?: string };
+export function scopeChips(ctx: AssistantContext | null): { kind: AssistantScopeKind; label: string; sub: string | null; icon: string }[];
+export function initialScope(ctx: AssistantContext | null, wanted?: AssistantScopeKind | null): AssistantScopeKind;
+export function meetingOptions(ctx: AssistantContext | null): ChatScopeOption[];
+export function scopeBody(kind: AssistantScopeKind, ctx: AssistantContext | null, sub?: Record<string, string>, today?: Date): AssistantScope;
+export function starters(kind: AssistantScopeKind, ctx: AssistantContext | null, home?: ChatSuggestion[]): ChatSuggestion[];
+export function toCitation(c: AskCitation, link: Link): ChatCitation;
+export function toSource(it: { key?: string; n?: number; title?: string | null; subtitle?: string | null; url?: string | null; slug?: string | null; kind?: string | null }, link: Link): ChatSource;
+export function stageLabel(stage: string, kind: AssistantScopeKind): string;
+export function threadTurns(turns: AskTurn[], link: Link): ChatTurn[];
+export function isAssistantKey(e: { key?: string; code?: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; shiftKey?: boolean; defaultPrevented?: boolean; isComposing?: boolean }): boolean;
+export function insertAfterSection(markdown: string, heading: string | null | undefined, insert: string): string;
+export function insertAtCaret(value: string, caret: number | null | undefined, insert: string): { value: string; caret: number };

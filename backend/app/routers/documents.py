@@ -689,15 +689,23 @@ async def release_page_lock_on_close(
     """``DELETE …/lock`` for a page that is closing. The browser sends it with
     ``navigator.sendBeacon``: a keepalive DELETE needs a CORS preflight that
     browsers don't make while a page unloads, and a beacon can't carry an
-    Authorization header, so the session token is the text/plain body: the
-    markdrop.in session, or a workspace domain's tenant token sent from that
-    domain (its Origin must be the token's host, the host must still be live,
-    and the page must be in the token's workspace — the same three checks as
-    any tenant request). Anything else (no token, an API token, someone else's
-    lock) is ignored; the answer is always 204."""
+    Authorization header, so the text/plain body says who is leaving:
+
+    * the ``release_token`` the lock's answers carry (services/tickets.py): it
+      lets go of that person's own lock on this one page and nothing else, on
+      markdrop.in and on a workspace's own domain alike (the editor sends this);
+    * or, from editors loaded before release tokens, the session token itself: the
+      markdrop.in session, or a workspace domain's tenant token sent from that
+      domain (its Origin must be the token's host, the host must still be live,
+      and the page must be in the token's workspace — the same three checks as
+      any tenant request).
+
+    Anything else (no token, an API token, a token for another page, someone
+    else's lock) is ignored; the answer is always 204."""
     import jwt
 
     from app.routers import auth as auth_router
+    from app.services import tickets
     from app.services import user as user_service
     from app.utils.auth import decode_access_token
 
@@ -705,6 +713,13 @@ async def release_page_lock_on_close(
     try:
         payload = decode_access_token(token)
     except jwt.InvalidTokenError:
+        return
+    if tickets.is_lock_release(payload):
+        raw = await db["documents"].find_one({"slug": slug})
+        uid = tickets.lock_release_user(payload, raw)
+        holder = await user_service.get_user_by_id(db, uid) if uid else None
+        if raw is not None and holder is not None:
+            await pages.release_own_lock(db, raw, access.Actor(user=holder, cred="session"))
         return
     actor_kw: dict = {"cred": "session"}
     if payload.get("typ") == "tenant":

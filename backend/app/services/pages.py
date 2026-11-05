@@ -543,9 +543,17 @@ def _free_filter(user_id: str | None, now: datetime) -> dict:
 
 
 def _answer(lock: dict, raw: dict, **extra) -> dict:
+    """A lock that is the caller's: when it lapses, the page's rev, the timers, and
+    ``release_token`` (services/tickets.mint_lock_release) for the beacon that lets go of it as
+    the page closes (POST …/lock/release; a beacon can't send the session header)."""
+    from app.services import tickets
+
     exp, _why = _lapse(lock)
-    return {"holder": {"name": lock.get("name") or "Someone"}, "expires_at": iso(exp), "mine": True,
-            "rev": int(raw.get("rev") or 1), "timers": lock_timers(), **extra}
+    out = {"holder": {"name": lock.get("name") or "Someone"}, "expires_at": iso(exp), "mine": True,
+           "rev": int(raw.get("rev") or 1), "timers": lock_timers(), **extra}
+    if raw.get("_id") is not None and lock.get("user_id"):
+        out["release_token"] = tickets.mint_lock_release(str(raw["_id"]), str(lock["user_id"]))
+    return out
 
 
 async def acquire_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx, *,
@@ -713,18 +721,46 @@ async def presence_away(db: AsyncIOMotorDatabase, slug: str | None, user_id: str
 
 
 async def release_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor, ctx: access.Ctx) -> None:
-    from app.services import viewers
-
     await access.require(actor, raw, "read", ctx)
     if not actor.user_id:
         return
+    await release_own_lock(db, raw, actor)
+
+
+async def release_gone(db: AsyncIOMotorDatabase, slug: str, user_id: str) -> bool:
+    """The lock holder's tabs on the page are all gone (services/viewers._editor_left): their
+    lock goes, as if their editor had let go. Anyone else's lock stays."""
+    from app.services import user as user_service
+
+    raw = await db["documents"].find_one({"slug": slug, "edit_lock.user_id": user_id})
+    if raw is None:
+        return False
+    holder = await user_service.get_user_by_id(db, user_id)
+    if holder is None:
+        return False
+    done = await release_own_lock(db, raw, access.Actor(user=holder, cred="session"))
+    if done:
+        log.info("page lock released: its holder's tabs closed")
+    return done
+
+
+async def release_own_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor) -> bool:
+    """Let go of ``actor``'s own lock on the page (never anyone else's): the editor left, closed,
+    or its tab went away (a release token's beacon, services/viewers' gone check). True when it
+    was theirs and is free now."""
+    from app.services import viewers
+
+    if not actor.user_id:
+        return False
     res = await db["documents"].update_one({"_id": raw["_id"], "edit_lock.user_id": actor.user_id},
                                            {"$set": {"edit_lock": None}})
-    if res.modified_count:
-        viewers.set_editor(raw.get("slug"), None, 0)
-        from app.services import page_history
+    if not res.modified_count:
+        return False
+    viewers.set_editor(raw.get("slug"), None, 0)
+    from app.services import page_history
 
-        await page_history.on_release(db, raw, actor)
+    await page_history.on_release(db, raw, actor)
+    return True
 
 
 # ── Markdown: embeds, mentions, page images, sections ─────────────────────────

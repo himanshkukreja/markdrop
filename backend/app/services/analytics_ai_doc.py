@@ -46,7 +46,7 @@ from typing import Any
 from fastapi.concurrency import run_in_threadpool
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import ai_usage, docs_agent, engage, md_outline, pages_ai
+from app.services import ai_output, ai_usage, docs_agent, engage, md_outline, pages_ai
 from app.services import creator_analytics as ca
 
 log = logging.getLogger("markdrop.analytics_ai_doc")
@@ -58,7 +58,9 @@ TTL = timedelta(days=90)
 KINDS = ("content", "media", "pages", "versions")
 MIN_SESSIONS = 20
 RESERVE = 0.02                 # USD held while a run is in flight (a run costs about a cent)
-MAX_TOKENS = {"content": 3000, "media": 1800, "pages": 1800, "versions": 1200}
+# Ceilings, thinking included: Haiku 5.5 thinks before it answers (at effort "medium" here) and the
+# thinking counts against max_tokens (services/ai_output). The prompt bounds the JSON (3-5 findings).
+MAX_TOKENS = {"content": 6000, "media": 4000, "pages": 4000, "versions": 3000}
 MIN_FINDINGS, MAX_FINDINGS = 3, 5
 SEVERITIES = ("high", "medium", "low")
 
@@ -931,7 +933,12 @@ async def analysis(db: AsyncIOMotorDatabase, raw: dict, kind: str, *, range_key:
                 built = await build_versions(db, raw, internal)
             r.meta["images"] = len(built.images)
             try:
-                text, stop = await call_model(r, params_for(kind, built))
+                params = params_for(kind, built)
+                text, stop = await call_model(r, params)
+                if ai_output.was_cut(stop):
+                    # Thinking and the JSON share max_tokens: once more with more room.
+                    r.meta["retried"] = True
+                    text, stop = await call_model(r, {**params, "max_tokens": ai_output.retry_cap(params["max_tokens"])})
             except pages_ai.Upstream as exc:
                 await r.record("error", error_code=exc.code)
                 raise pages_ai.AIError(502, "upstream", exc.detail) from None
@@ -939,6 +946,8 @@ async def analysis(db: AsyncIOMotorDatabase, raw: dict, kind: str, *, range_key:
                 await r.record("refused", stop_reason=stop)
                 raise pages_ai.AIError(502, "refused", "AI can't analyse this one.")
             try:
+                if ai_output.was_cut(stop):
+                    raise BadOutput("cut short")
                 result = validate(kind, parse_json(text), built)
             except BadOutput as exc:
                 await r.record("error", error_code="bad_output", why=str(exc)[:80], stop_reason=stop)

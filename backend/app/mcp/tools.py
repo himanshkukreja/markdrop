@@ -1686,10 +1686,17 @@ async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
 
     ws, _owner = _search_scope(args.get("scope"))
     q = args.get("question") or ""
+    # The assistant's narrower scopes (services/assistant.py): a doc first, or one folder.
+    page = None
+    if args.get("page"):
+        page = str(args["page"]).strip().rstrip("/").rsplit("/", 1)[-1].split("#", 1)[0].split("?", 1)[0] or None
+    folder = str(args.get("folder") or "").strip() or None
+    if folder and not ws:
+        raise ToolError("folder needs scope workspace:<workspace id> (the folder's workspace).")
     try:
         done = await ask_markdrop.answer(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), q,
-                                         thread_id=args.get("thread_id"), intent=args.get("intent"), scope=ws,
-                                         via="mcp", save=True)
+                                         thread_id=args.get("thread_id"), intent=None if page else args.get("intent"),
+                                         scope=ws, via="mcp", save=True, page=page, folder=None if page else folder)
     except pages_ai.AIError as exc:
         raise ToolError(exc.detail)
 
@@ -2931,7 +2938,9 @@ TOOLS: list[Tool] = [
                      "Pass the returned thread_id to ask a follow-up in the same conversation. intent: ask "
                      "(default), catch_up (what changed in the last 7 days) or my_actions (open tasks that "
                      "@mention the user). Only text the user can read is sent to the model (to Anthropic); "
-                     "workspaces with AI turned off are left out. scope: all (default) or workspace:<id>. "
+                     "workspaces with AI turned off are left out. scope: all (default) or workspace:<id>; folder: "
+                     "only that folder of the workspace (and its sub-folders); page: ask about that document or page "
+                     "first (then its workspace's meetings and documents), as the in-app assistant's This doc. "
                      "Counts towards the user's AI search limits."),
         scope=READ,
         input_schema={"type": "object", "properties": {
@@ -2942,7 +2951,13 @@ TOOLS: list[Tool] = [
             "thread_id": {"type": "string", "maxLength": 40,
                           "description": "Continue this conversation (from an earlier answer)."},
             "intent": {"type": "string", "enum": ["ask", "catch_up", "my_actions"],
-                       "description": "ask (default; detected from the words when left out), catch_up or my_actions."}},
+                       "description": "ask (default; detected from the words when left out), catch_up or my_actions."},
+            "page": {"type": "string", "maxLength": 300,
+                     "description": "Optional: a document or page (slug or link) to ask about first; then its "
+                                    "workspace's meetings (recorded decisions) and documents."},
+            "folder": {"type": "string", "maxLength": 40,
+                       "description": "Optional: only this folder (its id, from list_folders) and its sub-folders; "
+                                      "needs scope workspace:<id>."}},
             "required": ["question"]},
         output_schema=_out({
             "answer": {"type": "string"},
@@ -3419,6 +3434,10 @@ TOOLS += ANALYTICS_AI_TOOLS
 from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
 
 TOOLS += MEETING_TOOLS
+# Import past meetings in bulk: app/mcp/meeting_backfill_tools.py.
+from app.mcp.meeting_backfill_tools import BACKFILL_TOOLS  # noqa: E402
+
+TOOLS += BACKFILL_TOOLS
 
 # Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
 # answers with the first call's result instead of writing twice.

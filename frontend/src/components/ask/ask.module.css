@@ -582,3 +582,18 @@
 @media (pointer: coarse) {
   .moment { min-height: 36px; }
 }
+
+/* The shared chat in the home's box (components/chat, the same conversation as the ✦ Ask panel). */
+.chat {
+  display: flex;
+  height: clamp(420px, 62vh, 640px);
+  min-height: 0;
+  margin: 0 -16px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.chat > * { --ch-bg: transparent; }
+.hint { font-size: 12px; color: var(--text-muted); }
+.hint kbd { padding: 0 5px; border: 1px solid var(--border); border-radius: 5px; font: inherit; font-size: 11px; }
+.recentOn { background: var(--accent-soft); }
+@media (max-width: 639px) { .chat { height: min(72dvh, 600px); } .hint { display: none; } }

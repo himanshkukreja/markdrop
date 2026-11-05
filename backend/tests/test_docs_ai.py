@@ -31,7 +31,7 @@ from app.config import get_settings
 from app.limiter import limiter
 from app.main import app
 from app.routers.admin import _make_token
-from app.services import ai_usage, docs_agent, docs_index
+from app.services import ai_output, ai_usage, docs_agent, docs_index
 from app.utils.auth import create_access_token, create_tenant_token
 
 settings = get_settings()
@@ -711,6 +711,39 @@ class AgentTests(DocsAIBase):
     async def test_max_tokens_notes_the_cut(self):
         events, _ = await self.run_ask([Turn(text="A long answer", stop="max_tokens")])
         self.assertIn("cut short", text_of(events))
+
+    # Haiku 5.5 thinks before it answers and the thinking counts against max_tokens.
+
+    async def run_thinking(self, reply: str, think):
+        from tests._thinking_fake import ThinkingModel
+
+        fake = ThinkingModel(reply, think=think)
+        with mock.patch.object(docs_agent, "get_client", return_value=fake):
+            events = await collect(docs_agent.ask(self.db, self.req()))
+        return events, fake
+
+    async def test_a_round_spent_on_thinking_is_asked_again_with_more_room(self):
+        cap = max(4000, settings.docs_ai_max_tokens)
+        events, fake = await self.run_thinking("Add a CNAME record that points at your workspace.",
+                                               lambda kw: cap if kw["max_tokens"] == cap else 1500)
+        text = text_of(events)
+        self.assertIn("CNAME record", text)
+        self.assertNotIn("cut short", text)
+        self.assertEqual(fake.caps(), [cap, ai_output.retry_cap(cap)])
+        # The cut round is never sent back: the retry's history is the first request's.
+        self.assertEqual(len(fake.calls[1]["params"]["messages"]), len(fake.calls[0]["params"]["messages"]))
+        row = await self.db["ai_requests"].find_one({})
+        self.assertEqual((row["outcome"], row["calls"]), ("answered", 2))
+        self.assertEqual(row["usage"]["output"], fake.output_tokens())
+
+    async def test_cut_before_a_word_twice_says_so(self):
+        events, fake = await self.run_thinking("Add a CNAME record.", 10 ** 6)
+        text = text_of(events)
+        self.assertEqual(text, ai_output.CUT_EMPTY)
+        self.assertNotIn("couldn't find", text)
+        self.assertEqual(len(fake.calls), 2)
+        fake.assert_caps_honoured(self)
+        self.assertEqual(events[-1][0], "done")
 
 
 class GuardrailTests(DocsAIBase):

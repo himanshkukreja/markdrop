@@ -2959,40 +2959,100 @@
     "bytes": 82600,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings-ask/ask-across.dark.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 40312,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/ask-across.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 45516,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/meeting-bar.dark.webp": {
+    "w": 1442,
+    "h": 102,
+    "bytes": 9172,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/meeting-bar.webp": {
+    "w": 1442,
+    "h": 102,
+    "bytes": 9532,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/sources.dark.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 28210,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-ask/sources.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 31618,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/meetings-auto-import/connect-dialog.dark.webp": {
     "w": 1280,
-    "h": 1036,
-    "bytes": 78552,
+    "h": 1192,
+    "bytes": 93572,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connect-dialog.webp": {
     "w": 1280,
-    "h": 1036,
-    "bytes": 81358,
+    "h": 1192,
+    "bytes": 97212,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connect-script.dark.webp": {
     "w": 1280,
     "h": 1736,
-    "bytes": 133916,
+    "bytes": 135666,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connect-script.webp": {
     "w": 1280,
     "h": 1736,
-    "bytes": 137030,
+    "bytes": 138768,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.dark.webp": {
-    "w": 1664,
-    "h": 1394,
-    "bytes": 69414,
+    "w": 2016,
+    "h": 1470,
+    "bytes": 108468,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.webp": {
-    "w": 1664,
-    "h": 1394,
-    "bytes": 71852,
+    "w": 2016,
+    "h": 1470,
+    "bytes": 113264,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/organised.dark.webp": {
+    "w": 1920,
+    "h": 1224,
+    "bytes": 67004,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/organised.webp": {
+    "w": 1920,
+    "h": 1224,
+    "bytes": 67958,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/review.dark.webp": {
+    "w": 1680,
+    "h": 1544,
+    "bytes": 107170,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/review.webp": {
+    "w": 1680,
+    "h": 1544,
+    "bytes": 113098,
     "kind": "image"
   },
   "/docs-assets/workspaces/members-and-roles/invite-dialog.dark.webp": {

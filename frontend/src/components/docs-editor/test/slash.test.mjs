@@ -19,11 +19,25 @@ test("a page's menu comes in sections, in the spec's order", () => {
     "Toggle heading 1", "Toggle heading 2", "Toggle heading 3", "Quote", "Divider", "Callout",
   ]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "media")), ["Image", "Video", "Audio", "File", "Bookmark", "Web embed"]);
-  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off"]);
+  // "From meetings…" is in the list; the menu offers it only while the page's meeting panel is there (available).
+  assert.deepEqual(labels(shown.filter((x) => x.group === "markdrop")), ["Embed an item", "Mention an item", "Sub-page", "Sign-off", "From meetings…"]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "advanced")), ["Table", "Columns", "Code", "Equation", "Mermaid diagram", "Table of contents", "Breadcrumb", "Button"]);
   assert.deepEqual(labels(shown.filter((x) => x.group === "inline")), ["Mention a person", "Date", "Emoji"]);
   // An empty query is the sectioned list.
   assert.deepEqual(ids(filterItems("", page)), ids(shown));
+});
+
+test("/meetings is offered only while its panel is mounted", () => {
+  const it = page.find((x) => x.id === "meetings");
+  assert.ok(it && it.available);
+  const ed = { storage: {} };
+  assert.equal(it.available(ed), false);
+  let opened = null;
+  ed.storage.dxeServices = { openMeetings: (_e, r) => { opened = r; } };
+  assert.equal(it.available(ed), true);
+  it.run(ed, { from: 3, to: 12 });
+  assert.deepEqual(opened, { from: 3, to: 12 });
+  assert.equal(filterItems("meet", page)[0].id, "meetings");
 });
 
 test("shortcut hints: Markdown a page turns into the block", () => {

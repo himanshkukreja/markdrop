@@ -733,6 +733,23 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         await self.imported()
         self.assertEqual([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"], [])
 
+    async def test_past_meetings_from_a_backfill_are_not_posted(self):
+        from app.services import meeting_backfill as bf, meetings as meetings_service
+        from tests.test_meetings import fixture
+
+        owner = await bf._owner(self.db, {"user_id": self.uid["owner"], "workspace_id": self.W})
+        inc = [meetings_service.Incoming(name="Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transcript",
+                                         text=fixture("google_meet_transcript.txt"), origin="upload")]
+        rows = await meetings_service.import_meetings(self.db, owner, self.W, inc, wait=True,
+                                                      via="backfill", notify=False)
+        await slack.drain()
+        self.assertTrue(rows[0].get("history"))
+        self.assertEqual([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"], [])
+        # By hand it still can be.
+        r = await self.http.post(f"/api/v1/slack/meetings/{rows[0]['_id']}/post", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 1)
+
     async def test_post_again_by_hand(self):
         m = await self.imported()
         r = await self.http.post(f"/api/v1/slack/meetings/{m['id']}/post", headers=self.session("wv"))

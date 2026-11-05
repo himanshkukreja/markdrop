@@ -52,6 +52,8 @@ PROCESSING_STALE = timedelta(minutes=5)
 DONE = ("imported", "attached", "duplicate", "ignored")
 _DIR = Path(__file__).parent / "meeting_script"
 _FILE_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
+_PROJECT = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+DRIVE_API_PAGE = "https://console.developers.google.com/apis/api/drive.googleapis.com/overview"
 
 
 def now_utc() -> datetime:
@@ -182,7 +184,18 @@ def _script_view(sc: dict | None) -> dict | None:
             "ran_at": _iso(sc.get("ran_at")), "include_shared": sc.get("include_shared"),
             "found": int(sc.get("found") or 0), "sent": int(sc.get("sent") or 0),
             "results": sc.get("results") or {}, "skipped": sc.get("skipped") or {},
-            "errors": sc.get("errors") or [], "search": sc.get("search")}
+            "errors": sc.get("errors") or [], "search": sc.get("search"),
+            # v3: what waits for the next run (it sends for a time budget), and whether it searches shared
+            # drives ("off": the Drive API is off in the script's own project; optional, so a hint, not an error).
+            "remaining": int(sc.get("remaining") or 0), "shared_drives": sc.get("shared_drives"),
+            "drive_api_url": _drive_api_url(sc) if sc.get("shared_drives") == "off" else None}
+
+
+def _drive_api_url(sc: dict) -> str:
+    """Google Cloud's page that turns the Drive API on for the script's project (built here, never taken
+    from the script as a link)."""
+    project = sc.get("drive_project")
+    return f"{DRIVE_API_PAGE}?project={project}" if project else DRIVE_API_PAGE
 
 
 async def for_workspace(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dict]:
@@ -229,6 +242,9 @@ async def run_status(db: AsyncIOMotorDatabase, rec: dict, body: dict) -> dict:
         "results": {k: _count((body.get("results") or {}).get(k)) for k in _RESULTS},
         "skipped": {k: _count((body.get("skipped") or {}).get(k)) for k in _SKIPS},
         "errors": errors, "search": str(body.get("search") or "")[:20] or None,
+        "remaining": _count(body.get("remaining")),
+        "shared_drives": body.get("shared_drives") if body.get("shared_drives") in ("on", "off") else None,
+        "drive_project": project if _PROJECT.match(project := str(body.get("drive_project") or "").lower()) else None,
     })
     upd: dict[str, Any] = {"$set": {f"script.{k}": v for k, v in sc.items()}}
     await db["api_tokens"].update_one({"_id": rec["_id"]}, upd)
@@ -374,13 +390,13 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         # The meeting's own date: from Google's title when it has one, else when the Doc was made.
         date_ = None if src.date else meeting_date(item.get("created"), rec.get("tz"))
         inc = meetings.Incoming(name=title, text=text, origin="google", file_id=file_id,
-                                url=_doc_url(item.get("doc_url"), file_id))
+                                url=_doc_url(item.get("doc_url"), file_id), owner=_owner(item.get("owner")))
         # A past meeting sent by the script's backfill is history: nobody is notified about it. A Doc asked
         # for by link is a manual import: notified as usual unless the call is more than a day old.
         notify = not item.get("backfill")
         if item.get("requested"):
             notify = _recent(item.get("created"))
-        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=bool(rec.get("restricted")),
+        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=True if rec.get("restricted") else None,
                                               via="inbox", dedupe="all", notify=notify)
     except HTTPException as exc:
         await finish("failed", error=str(exc.detail)[:300])
