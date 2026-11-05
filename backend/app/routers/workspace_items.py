@@ -27,6 +27,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.models.workspace import role_allows
 from app.routers.auth import require_user
+from app.schemas.folder import ON_CONFLICT_HELP
 from app.services import access, card_preview, revalidate
 from app.services import library as lib_service
 from app.services import folder as folder_service
@@ -76,7 +77,7 @@ class FolderPatch(BaseModel):
     default_access: Literal["private", "workspace", "link"] | None = None
     # A new address something already holds there: "error" (default) = 409
     # saying what holds it; "suffix" = the next free one (-2, -3…).
-    on_conflict: Literal["error", "suffix"] = "error"
+    on_conflict: Literal["error", "suffix"] = Field("error", description=ON_CONFLICT_HELP)
 
 
 class FolderShare(BaseModel):

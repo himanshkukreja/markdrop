@@ -767,42 +767,34 @@ async def _remember_old_path(db: AsyncIOMotorDatabase, oid: ObjectId, old: list[
         {"_id": oid}, {"$push": {"old_paths": {"$each": [before], "$slice": -OLD_PATHS_KEPT}}})
 
 
-async def _walk_from(db: AsyncIOMotorDatabase, workspace_id: str, parent: str,
-                     segments: list[str]) -> str | None:
-    for segment in segments:
-        raw = await db["folders"].find_one(
-            {"workspace_id": workspace_id, "parent_id": parent, "slug": segment}, {"_id": 1})
-        if not raw:
-            return None
-        parent = str(raw["_id"])
-    return parent
-
-
-async def resolve_moved(db: AsyncIOMotorDatabase, workspace_id: str,
-                        segments: list[str]) -> tuple[str, list[str]] | None:
+async def resolve_moved(db: AsyncIOMotorDatabase, workspace_id: str, segments: list[str],
+                        _hops: int = 0) -> tuple[str, list[str]] | None:
     """A folder address that no longer resolves but used to: ``(folder id,
     current path)``, or None.
 
     The longest prefix of ``segments`` that some folder of this workspace was
-    once addressed at (``old_paths``, kept by renames and moves), then the rest
-    walked down from where that folder is now — so a subfolder of a renamed
-    folder redirects too, without every descendant keeping its own history. A
-    folder that lives at an address now always wins over a former one (the
+    once addressed at (``old_paths``, kept by renames and moves) is rewritten
+    to where that folder is now, and the result resolved again — following
+    further renames below it the same way — so a subfolder of a renamed
+    folder redirects too, without every descendant keeping its own history.
+    A folder that lives at an address now always wins over a former one (the
     caller only asks after :func:`resolve_path` failed)."""
-    if not segments or len(segments) > MAX_DEPTH:
+    if not segments or len(segments) > MAX_DEPTH or _hops > MAX_DEPTH:
         return None
     for i in range(len(segments), 0, -1):
-        prefix = "/".join(segments[:i])
-        raw = await db["folders"].find_one({"workspace_id": workspace_id, "old_paths": prefix}, {"_id": 1})
+        raw = await db["folders"].find_one(
+            {"workspace_id": workspace_id, "old_paths": "/".join(segments[:i])}, {"_id": 1})
         if raw is None:
             continue
-        fid = await _walk_from(db, workspace_id, str(raw["_id"]), segments[i:]) if i < len(segments) \
-            else str(raw["_id"])
-        if fid is None:
+        rewritten = [*await path_of(db, workspace_id, str(raw["_id"])), *segments[i:]]
+        if not rewritten or rewritten == segments:
             continue
-        path = await path_of(db, workspace_id, fid)
-        if path and path != segments:
-            return fid, path
+        fid = await resolve_path(db, workspace_id, rewritten)
+        if fid is not None:
+            return fid, rewritten
+        found = await resolve_moved(db, workspace_id, rewritten, _hops + 1)
+        if found is not None:
+            return found
     return None
 
 

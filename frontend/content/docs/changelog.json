@@ -24,6 +24,24 @@
   "next": [],
   "entries": [
     {
+      "id": "folder-mcp",
+      "date": "2026-11-05",
+      "title": "AI apps can rename, move and delete folders, and folders never get a silent -2",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Three new MCP tools: rename_folder, move_folder and delete_folder, for workspace admins, as in the app. A new folder whose address is already taken is refused, with what holds it, instead of quietly becoming name-2. A renamed or moved folder's old address now redirects.",
+      "body": "- **`delete_folder`** deletes an empty folder (to Trash for 30 days). A folder with anything in it is refused, and the error lists what's inside: subfolders, the items you can open, and a count of the rest. Choose `contents: \"move_to_parent\"` to move everything up one level first, or `contents: \"trash\"` to send the folder with everything in it to Trash. `restore_document` with the folder's id brings it back.\n- **`rename_folder`** and **`move_folder`**: the folder's old address and the old addresses of everything in it redirect to the new ones on your domain.\n- **No silent -2.** `create_folder`, and **New folder**, **Rename folder…** and **Move folder to…** in the app, refuse an address that a folder, page, document or file already has in that place, and say what holds it. An item you can't open isn't named. For a suffixed address, pass `on_conflict: \"suffix\"` (MCP and API).\n- **Old folder addresses redirect.** Renaming or moving a folder used to leave its own page's old address empty. It now redirects to where the folder is, and so do the addresses of its subfolders.\n- `list_folders` gives each folder's id, address and parent, which the folder tools take (79 MCP tools now).",
+      "docs": [
+        "/ai/tools",
+        "/workspaces/folders"
+      ]
+    },
+    {
       "id": "meetings-auto-import",
       "date": "2026-11-05",
       "title": "Meetings import themselves: Connect Google Meet",

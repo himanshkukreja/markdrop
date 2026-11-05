@@ -13,6 +13,7 @@
  *                      "original_filename", "folder_path", "created_at", "updated_at",
  *                      "poster_url"?, "size_bytes"? } ]
  *   }
+ *   200 { "moved_to": ["handbook", "people"] }   // a former address of a renamed or moved folder
  *   404 when the host is not a live app host, no such folder exists, or the folder holds nothing
  *   the caller can read (and isn't explicitly shared) — structure is never revealed.
  *
@@ -52,6 +53,8 @@ export interface TenantFolderListing {
   trail: TenantFolderRef[];
   folders: TenantFolderRef[];
   documents: TenantFolderDocument[];
+  /** The address asked for is a former one of a renamed or moved folder: redirect here. */
+  moved_to?: string[];
 }
 
 const isStrArr = (v: unknown): v is string[] => Array.isArray(v) && v.every((s) => typeof s === "string");
@@ -68,6 +71,9 @@ function ref(v: unknown): TenantFolderRef | null {
 export function parseFolderListing(data: unknown): TenantFolderListing | null {
   if (!data || typeof data !== "object") return null;
   const o = data as Record<string, unknown>;
+  if (isStrArr(o.moved_to) && o.moved_to.length && o.moved_to.every((s) => SLUG_RE.test(s))) {
+    return { folder: null, trail: [], folders: [], documents: [], moved_to: o.moved_to };
+  }
   if (!Array.isArray(o.documents)) return null;
   const documents = (o.documents as unknown[]).filter(
     (d): d is TenantFolderDocument =>

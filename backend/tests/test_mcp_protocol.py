@@ -119,6 +119,8 @@ class Transport(McpTestCase):
             # Workspaces for agents (workspaces v2, P6).
             "list_workspaces", "list_folders", "list_workspace_items", "add_to_workspace",
             "remove_from_workspace", "create_folder", "move_to_folder", "list_workspace_members",
+            # Rename, move and delete folders (app/mcp/folder_tools.py).
+            "rename_folder", "move_folder", "delete_folder",
             # Pages (block editor, sub-pages, embeds, page images).
             "create_page", "get_page", "update_page", "append_blocks", "replace_section", "insert_embed",
             "list_page_templates", "list_subpages", "move_page", "upload_page_image", "set_page_properties",
@@ -149,6 +151,7 @@ class Transport(McpTestCase):
             self.assertFalse(ann["openWorldHint"])
             self.assertEqual(set(ann), {"title", "readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"})
         self.assertTrue(tools["delete_document"]["annotations"]["destructiveHint"])
+        self.assertTrue(tools["delete_folder"]["annotations"]["destructiveHint"])
         self.assertTrue(tools["get_document"]["annotations"]["readOnlyHint"])
         self.assertFalse(tools["publish_document"]["annotations"]["readOnlyHint"])
 
