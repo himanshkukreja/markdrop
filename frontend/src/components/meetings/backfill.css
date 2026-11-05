@@ -48,6 +48,18 @@
 .mt-bulk__status--warn { color: var(--text); font-weight: 600; }
 .mt-bulk__status--warn svg { color: var(--warning, var(--accent-text)); }
 
+.mt-bulk__folder { display: flex; align-items: center; gap: 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.mt-bulk__folder svg { flex: none; width: 12px; height: 12px; }
+.mt-bulk__vis {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; min-height: 26px; padding: 0 8px; border: 1px solid var(--border);
+  border-radius: var(--radius-full); background: var(--surface); color: var(--text-secondary); font: 500 12px/1 var(--font-sans); cursor: pointer;
+}
+.mt-bulk__vis svg { width: 12px; height: 12px; }
+.mt-bulk__vis[data-restricted] { border-color: var(--warning, var(--border-strong)); color: var(--text); }
+.mt-bulk__vis:hover { border-color: var(--border-strong); color: var(--text); }
+.mt-bulk__vis:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.mt-bulk__cardfoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.mt-bulk__cardfoot .mt-bulk__vis { margin-top: 0; min-height: 44px; padding: 0 14px; }
 .mt-bulk__cards { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .mt-bulk__card { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); }
 .mt-bulk__card.is-off { background: var(--surface-inset); }
@@ -123,3 +135,6 @@
   .mt-bfp__actions { width: 100%; }
   .mt-bfp__actions > * { flex: 1; }
 }
+
+.mt-section-title__tools { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 639px) { .mt-section-title__tools { width: 100%; } .mt-section-title__tools .mt-filter { flex: 1; } }

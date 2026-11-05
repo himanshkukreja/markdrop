@@ -142,7 +142,7 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
       toast.error(e instanceof Error ? e.message : "Couldn't change that.");
     }
   };
-  const editRow = (row: BackfillRow, change: { title?: string; date?: string; series?: string | null; include?: boolean }) =>
+  const editRow = (row: BackfillRow, change: { title?: string; date?: string; series?: string | null; include?: boolean; restricted?: boolean }) =>
     patch({ rows: [{ id: row.id, ...change }] });
   const dropRow = async (row: BackfillRow) => {
     if (!job) return;
@@ -256,8 +256,8 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
                 <th scope="col" className="mt-bulk__c-check"><span className="sr-only">Import</span></th>
                 <th scope="col" className="mt-bulk__c-date">Date</th>
                 <th scope="col">Meeting</th>
-                <th scope="col" className="mt-bulk__c-series">Series</th>
-                <th scope="col" className="mt-bulk__c-status">Status</th>
+                <th scope="col" className="mt-bulk__c-series">Series · folder</th>
+                <th scope="col" className="mt-bulk__c-status">Status · who sees it</th>
                 <th scope="col" className="mt-bulk__c-x"><span className="sr-only">Remove</span></th>
               </tr>
             </thead>
@@ -283,8 +283,8 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
       </div>
       <div className="mt-switchrow">
         <span className="mt-switchrow__text">
-          <b>Only the people who were there</b>
-          Each meeting is open to its attendees who are members, instead of the whole team.
+          <b>Only the people who were there, for every meeting</b>
+          Otherwise 1:1s and two-person calls are for their attendees and bigger calls for the whole team, as each row says.
         </span>
         <Switch checked={job.restricted} onChange={(e) => void patch({ restricted: e.target.checked })} aria-label="Restrict to attendees" />
       </div>
@@ -340,7 +340,7 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
 interface RowProps {
   row: BackfillRow;
   seriesNames: string[];
-  onEdit: (row: BackfillRow, change: { title?: string; date?: string; series?: string | null; include?: boolean }) => void;
+  onEdit: (row: BackfillRow, change: { title?: string; date?: string; series?: string | null; include?: boolean; restricted?: boolean }) => void;
   onDrop: (row: BackfillRow) => void;
 }
 
@@ -353,6 +353,24 @@ function Kinds({ row }: { row: BackfillRow }) {
       {row.kinds.includes("transcript") && <Badge size="sm" tone="neutral">Transcript</Badge>}
       {row.past && <span className="mt-bulk__quiet" title="Older than a day: imported without notifying anyone"><Icon name="bell" />quiet</span>}
     </span>
+  );
+}
+
+/** Where it's filed (the series' folder or Other meetings). */
+function FolderHint({ row }: { row: BackfillRow }) {
+  return <span className="mt-bulk__sub mt-bulk__folder" data-testid="bulk-folder"><Icon name="folder" />Meetings › {row.folder}</span>;
+}
+
+/** Who sees it: the attendees (a 1:1 or two-person call starts so) or the team; one click switches. */
+function Visibility({ row, onEdit, disabled }: { row: BackfillRow; onEdit: RowProps["onEdit"]; disabled: boolean }) {
+  const who = row.restricted ? "Attendees" : "Team";
+  return (
+    <button type="button" className="mt-bulk__vis" data-restricted={row.restricted ? "" : undefined} disabled={disabled}
+      onClick={() => onEdit(row, { restricted: !row.restricted })} data-testid="bulk-visibility"
+      aria-label={`Who can open it: ${who}${row.restricted_from === "auto" ? " (from the number of people)" : ""}. Switch`}
+      title={row.restricted ? "Only the people who were there (members). Click for the whole team." : "The whole team. Click for only the people who were there."}>
+      <Icon name={row.restricted ? "lock" : "users"} />{who}
+    </button>
   );
 }
 
@@ -400,8 +418,12 @@ function RowLine({ row, onEdit, onDrop }: RowProps) {
       </td>
       <td className="mt-bulk__c-series">
         <Input size="sm" {...series} placeholder="None" list="mt-series-names" aria-label="Series" disabled={dup} data-testid="bulk-series" />
+        {!dup && <FolderHint row={row} />}
       </td>
-      <td className="mt-bulk__c-status"><Status row={row} /></td>
+      <td className="mt-bulk__c-status">
+        <Status row={row} />
+        {!dup && row.include && <Visibility row={row} onEdit={onEdit} disabled={dup} />}
+      </td>
       <td className="mt-bulk__c-x"><IconButton icon="x" size="sm" label={`Remove ${row.title ?? "this meeting"} from the import`} onClick={() => onDrop(row)} /></td>
     </tr>
   );
@@ -424,6 +446,12 @@ function RowCard({ row, onEdit, onDrop }: RowProps) {
           onChange={(e) => { if (e.target.value) onEdit(row, { date: e.target.value }); }} data-testid="bulk-date" />
         <Input {...series} placeholder="Series" list="mt-series-names" aria-label="Series" disabled={dup} />
       </div>
+      {!dup && (
+        <div className="mt-bulk__cardfoot">
+          <FolderHint row={row} />
+          {row.include && <Visibility row={row} onEdit={onEdit} disabled={dup} />}
+        </div>
+      )}
       <span className="mt-bulk__sub"><Kinds row={row} /> {row.date ? (row.date_from ? DATE_FROM[row.date_from] : "") : "No date found"} · {row.names.length === 1 ? row.names[0] : `${row.names.length} files`}</span>
     </li>
   );

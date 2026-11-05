@@ -161,6 +161,18 @@ async def import_meetings_bulk(ctx: Context, args: dict) -> tuple[str, dict]:
     return text, {"job": v["id"], "state": v["state"], "counts": v["counts"], "items": rows}
 
 
+async def organize_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import meeting_series
+
+    ws_id, _w, _r = await resolve_workspace(ctx, args["workspace"])
+    try:
+        out = await meeting_series.organize(ctx.db, ws_id, ctx.user)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    return (f"Organized {out['meetings']} meetings: {out['moved']} moved, {out['series_set']} put in a series, "
+            f"{out['folders']} folders in use (Meetings/<series>, Meetings/Other meetings)."), out
+
+
 _ITEM = {"type": "object", "properties": {
     "text": {"type": "string", "maxLength": meetings.MAX_PASTE_CHARS, "description": "A transcript (or Google's notes) as text."},
     "notes_text": {"type": "string", "maxLength": 200_000, "description": "Google Meet's Gemini notes for the same call."},
@@ -197,5 +209,19 @@ BACKFILL_TOOLS: list[Tool] = [
                             "items": {"type": "array", "items": {"type": "object"}}}),
         annotations=_ann(False, False, False),
         handler=import_meetings_bulk,
+    ),
+    Tool(
+        name="organize_meetings",
+        title="Organize meetings",
+        description=("Workspace admins: files every meeting in a workspace by the rule new meetings follow — a recurring "
+                     "call (a name seen on two or more days) in Meetings/<series>, anything else in Meetings/Other "
+                     "meetings — setting the series where a person hasn't. Safe to run again. Returns how many moved."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
+        output_schema=_out({"meetings": {"type": "integer"}, "moved": {"type": "integer"}, "series_set": {"type": "integer"},
+                            "folders": {"type": "integer"}}),
+        annotations=_ann(False, False, True),
+        handler=organize_meetings,
     ),
 ]

@@ -17,7 +17,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
-  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, listBackfills, listMeetings, listSeries, monthLabel,
+  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, listBackfills, listMeetings, listSeries, monthLabel, organizeMeetings,
   type BackfillJob, type HiddenMeeting, type MeetConnection, type Meeting, type MeetingSeries, type MeetingsStatus,
 } from "@/lib/meetings";
 import { ImportMeeting } from "./ImportMeeting";
@@ -74,6 +74,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
   const [askSeries, setAskSeries] = useState("");
   const [askPeriod, setAskPeriod] = useState("");
+  const [organizing, setOrganizing] = useState(false);
 
   const loadConn = useCallback(() => getMeetConnection(workspaceId)
     .then((c) => setConn({ mine: c.connection, others: c.others })).catch(() => {}), [workspaceId]);
@@ -224,7 +225,10 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         <section aria-labelledby="mt-list-title">
           <div className="mt-section-title">
             <h2 id="mt-list-title">{shown.length} {shown.length === 1 ? "meeting" : "meetings"}</h2>
-            <Input className="mt-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by title or person" aria-label="Filter meetings" />
+            <span className="mt-section-title__tools">
+              {status?.can_organize && <Button size="sm" variant="ghost" iconLeft="folder" onClick={() => setOrganizing(true)} data-testid="organize-meetings">Organize meetings</Button>}
+              <Input className="mt-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by title or person" aria-label="Filter meetings" />
+            </span>
           </div>
           {series.length > 0 && (
             <ul className="mt-series" aria-label="Series" data-testid="series-chips">
@@ -272,6 +276,15 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         seriesNames={series.map((x) => x.name)} onStarted={(j) => setJob(j)} />
       <ConnectGoogleMeet open={connecting} onClose={() => { setConnecting(false); void load(); }} workspaceId={workspaceId}
         workspaceName={ws?.name ?? null} current={conn.mine} onConnected={(c) => setConn((x) => ({ ...x, mine: c }))} />
+      <ConfirmDialog open={organizing} onClose={() => setOrganizing(false)} title="Organize meetings?"
+        description="Every meeting is filed the way new ones are: a recurring meeting (a name that came up on two or more days) in its own folder inside Meetings, anything else in Meetings › Other meetings. Series people set are kept."
+        confirmLabel="Organize"
+        onConfirm={async () => {
+          const r = await organizeMeetings(workspaceId);
+          toast.success(r.moved ? `${r.moved} meeting${r.moved === 1 ? "" : "s"} filed in ${r.folders} folder${r.folders === 1 ? "" : "s"}.` : "Every meeting is already in its folder.");
+          setOrganizing(false);
+          void load();
+        }} />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} tone="danger" title="Delete this meeting?"
         description="Its pages go to the Trash for 30 days and its stored transcript is deleted now."
         confirmLabel="Delete meeting"

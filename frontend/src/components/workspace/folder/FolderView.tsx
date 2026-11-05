@@ -590,9 +590,10 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   const searching = !!query.q;
   const filtered = searching || !!query.kind;
-  // A table or board replaces the list (the views bar shows in every folder). The Meetings folder opens
-  // on its "All meetings" table (newest first, by month: services/meeting_series.py); "list" = the List.
-  const view_ = query.view === "list" ? null : query.view ?? (folder?.meetings ? MEETINGS_VIEW : null);
+  // A table or board replaces the list (the views bar shows in every folder). A meeting folder inside
+  // Meetings (Meetings/<series>, Other meetings) opens on its "All meetings" table (newest first, by
+  // month: services/meeting_series.py); "list" = the List. Meetings itself opens on its folders.
+  const view_ = query.view === "list" ? null : query.view ?? (folder?.meetings_sub ? MEETINGS_VIEW : null);
   const dbView = !!folderId && !filtered && !!view_;
   const folderEmpty = state === "ok" && items.length === 0 && redacted.length === 0 && subfolders.length === 0 && !filtered;
   const parentHref = folder ? (folder.parent_id ? folderHref(workspaceId, folder.parent_id) : wsHref(workspaceId)) : "/dashboard";
@@ -715,7 +716,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* ── The Meetings folder: import a call, ask across them ── */}
-      {folder?.meetings && !filtered && (
+      {(folder?.meetings || folder?.meetings_sub) && !filtered && (
         <div className="mt-folderbar" data-testid="meetings-folderbar">
           <Icon name="mic" className="mt-folderbar__glyph" />
           <span className="mt-folderbar__text">
@@ -760,7 +761,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
       {/* ── Views: List · Table · Board · saved views ── */}
       {folderId && tree && !filtered && (
-        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings ? "list" : null) }, false)} member={isMember} phone={phone} />
+        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings_sub ? "list" : null) }, false)} member={isMember} phone={phone} />
       )}
 
       {/* ── Selection bar ── */}

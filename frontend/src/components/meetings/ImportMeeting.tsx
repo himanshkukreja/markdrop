@@ -49,14 +49,14 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
   const [error, setError] = useState<string | null>(null);
   const [over, setOver] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const touched = useRef({ title: false, date: false });
+  const touched = useRef({ title: false, date: false, restricted: false });
 
   useEffect(() => {
     if (open) return;
     // Closed: start clean next time.
     setText(""); setFiles([]); setPicked([]); setDetected(null); setTitle(""); setDate(""); setType("");
     setRestricted(false); setError(null); setBusy(false); setTab("paste");
-    touched.current = { title: false, date: false };
+    touched.current = { title: false, date: false, restricted: false };
   }, [open]);
 
   const sources: SourceIn[] = useMemo(() => {
@@ -77,6 +77,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         const one = r.meetings.length === 1 ? r.meetings[0] : null;
         if (one && !touched.current.title) setTitle(one.title || "");
         if (one && !touched.current.date) setDate(one.date || localToday());
+        // A 1:1 or two-person call starts restricted to the people who were there (3+: the team).
+        if (one && !touched.current.restricted) setRestricted(one.attendees.length >= 1 && one.attendees.length <= 2);
         setError(null);
       }).catch((e: Error) => { if (live) { setDetected(null); setError(e.message); } })
         .finally(() => { if (live) setDetecting(false); });
@@ -117,7 +119,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         ...(one && title.trim() ? { title: title.trim() } : {}),
         ...(one && date ? { date } : {}),
         ...(type ? { type } : {}),
-        restricted,
+        // Unset (Google Docs, not previewed): the server decides by the number of people.
+        ...(touched.current.restricted || detected ? { restricted } : {}),
       });
       onImported?.(r.meetings);
       onClose();
@@ -246,9 +249,9 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
       <div className="mt-switchrow">
         <span className="mt-switchrow__text">
           <b>Only the people who were there</b>
-          The team sees every meeting by default. This keeps it to attendees who are members of this workspace.
+          A 1:1 or two-person call starts this way; bigger calls are open to the team. It keeps the meeting to attendees who are members of this workspace.
         </span>
-        <Switch checked={restricted} onChange={(e) => setRestricted(e.target.checked)} aria-label="Restrict to attendees" />
+        <Switch checked={restricted} onChange={(e) => { touched.current.restricted = true; setRestricted(e.target.checked); }} aria-label="Restrict to attendees" />
       </div>
       {aiOff && <Alert tone="warning">{status?.ai.message || "AI is off"} The meeting is imported without the AI summary.</Alert>}
       {error && <Alert tone="danger">{error}</Alert>}

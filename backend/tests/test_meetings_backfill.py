@@ -536,6 +536,78 @@ class Organise(BackfillWorld):
         r = await self.http.patch(f"/api/v1/meetings/{b['id']}", headers=self.session("wv"), json={"series": "X"})
         self.assertEqual(r.status_code, 403)
 
+    async def folder_name(self, row_or_id) -> str:
+        r = row_or_id if isinstance(row_or_id, dict) else await self.db[meetings.COLL].find_one({"_id": bf._oid(row_or_id)})
+        f = await self.db["folders"].find_one({"_id": bf._oid(r["folder_id"])})
+        page = await self.db["documents"].find_one({"_id": r["doc_id"]})
+        self.assertEqual(page["folder_id"], r["folder_id"])          # the page is where the row says
+        return f["name"]
+
+    async def test_placement_series_folders_and_moves(self):
+        a = await self.imported(sources=[{"name": g_title("Daily Sync Up", ago(9)), "text": standup()}])
+        self.assertEqual(await self.folder_name(a["id"]), "Other meetings")       # a one-off, so far
+        b = await self.imported(sources=[{"name": g_title("Daily Sync Up", ago(8)), "text": standup(" two")}])
+        self.assertEqual(await self.folder_name(b["id"]), "Daily Sync Up")
+        self.assertEqual(await self.folder_name(a["id"]), "Daily Sync Up")        # the earlier one moved in
+        sub = await self.db["folders"].find_one({"meetings_series": "daily sync up"})
+        # A person renames the folder: it is still that series' folder.
+        from app.services import folder as folder_service
+
+        await folder_service.update_folder(self.db, self.W, str(sub["_id"]), name="Sync ups")
+        c = await self.imported(sources=[{"name": g_title("Daily Sync Up", ago(7)), "text": standup(" three")}])
+        self.assertEqual(await self.folder_name(c["id"]), "Sync ups")
+        # A person moves a meeting to another series: it moves to that series' folder (made now).
+        r = await self.http.patch(f"/api/v1/meetings/{c['id']}", headers=self.session("owner"), json={"series": "Leads sync"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(await self.folder_name(c["id"]), "Leads sync")
+        r = await self.http.patch(f"/api/v1/meetings/{c['id']}", headers=self.session("owner"), json={"series": None})
+        self.assertEqual(await self.folder_name(c["id"]), "Other meetings")
+        # Two calls of one name on one day aren't a series.
+        d1 = await self.imported(sources=[{"name": g_title("Hiring loop", ago(3), hhmm="10:00"), "text": standup(" x")}])
+        d2 = await self.imported(sources=[{"name": g_title("Hiring loop", ago(3), hhmm="16:00"), "text": standup(" y")}])
+        self.assertEqual({await self.folder_name(d1["id"]), await self.folder_name(d2["id"])}, {"Other meetings"})
+
+    async def test_visibility_by_attendees(self):
+        two = await self.imported(sources=[{"name": g_title("Ada / Bo", ago(2)), "text": "Ada Lovelace: Hi.\nBo Chen: Hello.\n"}])
+        self.assertTrue(two["restricted"])                                         # a two-person call
+        three = await self.imported(sources=[{"name": g_title("Trio", ago(2)), "text": standup()}])
+        self.assertFalse(three["restricted"])
+        forced = await self.imported(sources=[{"name": g_title("Pair", ago(2)), "text": "Ada Lovelace: Hi.\nBo Chen: Yo.\n"}],
+                                     restricted=False)
+        self.assertFalse(forced["restricted"])
+        # The review says so, and a row can be switched.
+        job = await self.new_job()
+        v = await self.add(job, [{"name": g_title("One to one", ago(5)), "text": "Ada Lovelace: Hi.\nBo Chen: Hello there.\n"},
+                                 {"name": g_title("Team call", ago(5)), "text": standup(" z")}])
+        by = {r["title"]: r for r in v["rows"]}
+        self.assertEqual((by["One to one"]["restricted"], by["One to one"]["restricted_from"]), (True, "auto"))
+        self.assertEqual((by["Team call"]["restricted"], by["Team call"]["folder"]), (False, "Other meetings"))
+        r = await self.call("PATCH", f"/{job['id']}", json={"rows": [{"id": by["One to one"]["id"], "restricted": False}]})
+        self.assertEqual(next(x for x in r.json()["rows"] if x["title"] == "One to one")["restricted"], False)
+        await self.call("POST", f"/{job['id']}/start")
+        await self.run_to_end(job["id"])
+        rows = {m["title"]: m async for m in self.db[meetings.COLL].find({"workspace_id": self.W})}
+        self.assertFalse(rows["One to one"]["restricted"])
+
+    async def test_organize_existing_meetings(self):
+        # Meetings from before folders: all in the Meetings folder itself, no series.
+        ms = [await self.imported(sources=[{"name": g_title("Weekly ops", ago(d)), "text": standup(f" {d}")}]) for d in (20, 13)]
+        root = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
+        for m in ms:
+            await self.db[meetings.COLL].update_one({"_id": bf._oid(m["id"])}, {"$set": {"series": None, "series_from": None,
+                                                                                        "folder_id": str(root["_id"])}})
+            await self.db["documents"].update_one({"slug": m["slug"]}, {"$set": {"folder_id": str(root["_id"])}})
+        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wm"), json={"workspace": self.W})
+        self.assertEqual(r.status_code, 403)                                          # members can't (admins can)
+        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
+        self.assertEqual(r.status_code, 200, r.text)
+        out = r.json()
+        self.assertEqual((out["meetings"], out["moved"], out["series_set"]), (2, 2, 2))
+        for m in ms:
+            self.assertEqual(await self.folder_name(m["id"]), "Weekly ops")
+        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
+        self.assertEqual(r.json()["moved"], 0)                                        # idempotent
+
     async def test_existing_folder_gets_series_and_views_once(self):
         await self.imported()
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})

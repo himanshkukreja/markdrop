@@ -118,6 +118,8 @@ export interface MeetingsStatus {
   google: { configured: boolean; connected: boolean };
   folder_id: string | null;
   can_import: boolean;
+  /** Workspace admins: "Organize meetings" (file every meeting in Meetings/<series> or Other meetings). */
+  can_organize?: boolean;
   types: string[];
 }
 
@@ -300,6 +302,11 @@ export interface BackfillRow {
   order?: number | null;
   /** Older than a day: imported without notifying anyone, whatever the switch says. */
   past: boolean;
+  /** Where it's filed: the series' folder, or "Other meetings" (both inside Meetings). */
+  folder: string;
+  /** Only its attendees (a 1:1 or two-person call by default), or the team. */
+  restricted: boolean;
+  restricted_from: "auto" | "user" | "job";
 }
 
 export interface BackfillJob {
@@ -336,7 +343,7 @@ export function addBackfillSources(id: string, sources: BackfillSource[]) {
     method: "POST", body: JSON.stringify({ sources, tz_offset_min: -new Date().getTimezoneOffset() }),
   });
 }
-export function editBackfill(id: string, body: { quiet?: boolean; restricted?: boolean; rows?: Array<{ id: string; title?: string; date?: string; series?: string | null; include?: boolean }> }) {
+export function editBackfill(id: string, body: { quiet?: boolean; restricted?: boolean; rows?: Array<{ id: string; title?: string; date?: string; series?: string | null; include?: boolean; restricted?: boolean }> }) {
   return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
 }
 export function removeBackfillRow(id: string, row: string) {
@@ -348,6 +355,12 @@ export function backfillAction(id: string, action: "start" | "pause" | "resume")
 export function retryBackfillRow(id: string, row: string) {
   return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/rows/${encodeURIComponent(row)}/retry`, { method: "POST" });
 }
+export function organizeMeetings(workspace: string) {
+  return request<{ meetings: number; moved: number; series_set: number; folders: number }>(`/api/v1/meetings/organize`, {
+    method: "POST", body: JSON.stringify({ workspace }),
+  });
+}
+
 export function discardBackfill(id: string) {
   return request<{ deleted: boolean; stopped?: boolean }>(`${BF}/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

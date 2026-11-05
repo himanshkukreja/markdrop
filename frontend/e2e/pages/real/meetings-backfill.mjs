@@ -7,7 +7,8 @@
  *             progress panel → done: every meeting on its real date, in its series, nobody notified
  *   hub       month headers, series chips (filter), a series on the cards
  *   again     the same files again: "Already imported" in the review, nothing to import
- *   folder    the Meetings folder opens on "All meetings": newest first, grouped by month; By series
+ *   folder    Meetings holds a folder per series and Other meetings; each opens on "All meetings", newest
+ *             first, grouped by month
  *   ask       Ask across meetings scoped to a series (the picker) answers from that series only, and says
  *             when and where; a scope read from the question ("in the Daily Standups last month")
  *   shots     light/dark × desktop/phone: the review, the hub, the progress panel
@@ -114,6 +115,12 @@ await step("bulk", async () => {
   if (!design || design.title !== "Design sync" || design.series) fail(`design sync: ${JSON.stringify(design)}`);
   const undated = job.rows.find((r) => !r.date);
   if (!undated || !undated.needs_date) fail("the undated file isn't flagged");
+  // Where each goes, and who sees it: the standups in Meetings › Daily Standup for the team; the
+  // two-person hallway chat in Other meetings, for its attendees.
+  if (paired.folder !== "Daily Standup" || paired.restricted) fail(`paired folder/visibility: ${paired.folder} ${paired.restricted}`);
+  if (undated.folder !== "Other meetings" || !undated.restricted || undated.restricted_from !== "auto") fail(`hallway: ${JSON.stringify(undated)}`);
+  if (!(await rows.first().getByTestId("bulk-visibility").innerText()).includes("Attendees")) fail("the hallway row doesn't say Attendees");
+  if (!(await rows.first().getByTestId("bulk-folder").innerText()).includes("Other meetings")) fail("the hallway row's folder");
   await dlg.getByText("1 needs a date").waitFor();
   const start = dlg.getByTestId("bulk-start");
   if (await start.isEnabled()) fail("Import is enabled with an undated row");
@@ -142,6 +149,7 @@ await step("bulk", async () => {
     const m = list.find((x) => x.date === d);
     if (!m || m.title !== t) fail(`meeting on ${d}: ${JSON.stringify(m)?.slice(0, 200)}`);
     if (!m.history) fail(`${t} on ${d} wasn't imported quietly`);
+    if (m.restricted !== (t === "Hallway chat")) fail(`${t}: restricted ${m.restricted}`);
   }
   const su = list.filter((m) => m.series === "Daily Standup");
   if (su.length !== 2) fail(`Daily Standup series: ${su.length}`);
@@ -177,24 +185,35 @@ await step("again", async () => {
 
 await step("folder", async () => {
   const tree = ok(await api("GET", `/api/v1/workspaces/${WS}/tree`, T.owner), "tree");
-  const folder = (tree.folders || []).find((f) => f.meetings);
+  const root = (tree.folders || []).find((f) => f.meetings);
+  const subs = (tree.folders || []).filter((f) => f.parent_id === root.id);
+  const su = subs.find((f) => f.name === "Daily Standup");
+  const other = subs.find((f) => f.name === "Other meetings");
+  if (!su?.meetings_sub || !other?.meetings_sub) fail(`subfolders: ${JSON.stringify(subs.map((f) => f.name))}`);
   const { p } = await ctx(browser, { token: T.owner });
-  await p.goto(`${APP}/w/${WS}/f/${folder.id}`);
+  // Meetings itself: its folders.
+  await p.goto(`${APP}/w/${WS}/f/${root.id}`);
   await p.getByTestId("meetings-folderbar").waitFor({ timeout: 20000 });
+  await p.getByText("Daily Standup", { exact: true }).first().waitFor({ timeout: 20000 });
+  await p.getByText("Other meetings", { exact: true }).first().waitFor();
+  await snap(p, "folder-root-light");
+  // A series folder opens on All meetings, newest first, by month.
+  await p.goto(`${APP}/w/${WS}/f/${su.id}`);
   const tab = p.getByRole("tab", { name: "All meetings" });
   await tab.waitFor({ timeout: 20000 });
-  if ((await tab.getAttribute("aria-selected")) !== "true") fail("the folder doesn't open on All meetings");
+  if ((await tab.getAttribute("aria-selected")) !== "true") fail("the series folder doesn't open on All meetings");
   const groups = p.locator(".pp-group");
   await groups.first().waitFor({ timeout: 20000 });
   const labels = (await groups.allInnerTexts()).map((t) => t.trim());
-  const iD1 = labels.findIndex((l) => l.includes(monthName(D1)));
-  const iD0 = labels.findIndex((l) => l.includes(monthName(D0)));
-  if (iD1 < 0 || iD0 < 0 || iD1 > iD0) fail(`month groups ${JSON.stringify(labels)}`);
+  if (!labels[0].includes(monthName(D1))) fail(`month groups ${JSON.stringify(labels)}`);
+  if ((await p.locator("tbody tr:not(.pp-group)").filter({ hasText: "Daily Standup ·" }).count()) !== 2) fail("two standups in their folder");
   await snap(p, "folder-all-light");
-  await p.getByRole("tab", { name: "By series" }).click();
-  await p.locator(".pp-board").waitFor({ timeout: 15000 });
-  if (!(await p.locator(".pp-board").innerText()).includes("Daily Standup")) fail("no Daily Standup column");
-  await snap(p, "folder-board-light");
+  // Other meetings: the one-offs, by month.
+  await p.goto(`${APP}/w/${WS}/f/${other.id}`);
+  await p.locator(".pp-group").first().waitFor({ timeout: 20000 });
+  const ol = (await p.locator(".pp-group").allInnerTexts()).map((t) => t.trim());
+  if (!ol[0].includes(monthName(D0))) fail(`Other meetings groups ${JSON.stringify(ol)}`);
+  await snap(p, "folder-other-light");
   await p.getByRole("tab", { name: "List" }).click();
   await p.waitForURL((u) => u.searchParams.get("view") === "list", { timeout: 10000 });
 });

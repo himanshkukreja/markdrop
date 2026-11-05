@@ -357,13 +357,13 @@ async def organize(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
         name = have.most_common(1)[0][0] if have else (
             det.pick_label(det.series_label(r.get("title")) for r in rs) if key and len({r.get("date") for r in rs if r.get("date")}) >= 2 else None)
         for r in rs:
+            before = r.get("folder_id")
             if name and not r.get("series") and r.get("series_from") != "user":
                 raw = await db["documents"].find_one({"_id": r.get("doc_id")}) if r.get("doc_id") else None
                 with notifications.quiet():
                     await set_series(db, r, raw, name, actor, ctx, source="auto", check=False)
                 named += 1
                 r = await db[COLL].find_one({"_id": r["_id"]}) or r
-            before = r.get("folder_id")
             try:
                 fid = await place_meeting(db, workspace_id, r)
             except HTTPException as exc:

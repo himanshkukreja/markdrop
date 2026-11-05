@@ -60,7 +60,8 @@ Have weeks of transcripts and Gemini notes already? Import them all at once, and
    - **Paste**: several meetings in one box, with a line of just `===` between them.
 3. Check the review. Nothing is created yet. Each row is one meeting:
    - **Date**, and where it came from. Google names its Docs like "Daily Standup – 2026/10/28 10:00 IST – Transcript", so the date usually comes from the name. Otherwise it's the day Google created the Doc, or a date near the top of the text.
-   - **Name** and **Series**, for recurring meetings such as a daily standup. See [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
+   - **Name** and **Series**, for recurring meetings such as a daily standup, and the **folder** it goes to: **Meetings › Daily Standup**, or **Meetings › Other meetings** for a one-off. See [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
+   - **Who sees it**: **Attendees** for a 1:1 or a two-person call, **Team** for three or more people. Switch it per meeting.
    - Which halves were found: **Notes**, **Transcript**, or both. Google's notes and the transcript of one call become one row.
    - Whether it's new, **Already imported** (left out), or **Adds notes to the meeting already here**.
 
