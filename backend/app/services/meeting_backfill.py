@@ -207,8 +207,8 @@ async def add_sources(db: AsyncIOMotorDatabase, job: dict, incoming: list[dict],
                           "date_from": d_from, "segments": len(src.segments), "has_notes": bool(src.notes),
                           "chars": sum(len(s.get("text") or "") for s in src.segments),
                           "attendees": [a["name"] for a in src.attendees][:30], "truncated": src.truncated}}
-        if src.time and d and not doc["parsed"]["time"]:
-            doc["parsed"]["time"] = src.time
+        if src.time and d and d == src.date and not doc["parsed"]["time"]:
+            doc["parsed"]["time"] = src.time   # the text's start time, when it is about that same day
         await db[SOURCES].insert_one(doc)
         shas.add(sha)
         have += 1
