@@ -166,15 +166,15 @@ function AskBox({ range, disabled, disabledMessage }: { range: string; disabled:
           <Icon name="sparkle" size={14} className="shrink-0 text-text-muted" />
           <input id="ah-ask" value={q} onChange={(e) => setQ(e.target.value)} maxLength={500} disabled={disabled}
             placeholder={disabled ? (disabledMessage || "AI isn't available right now.") : "Ask your analytics, e.g. where did Tuesday's spike come from?"}
-            className="min-w-0 flex-1 border-0 bg-transparent py-2 text-[14px] text-text outline-none placeholder:text-text-muted" data-testid="ai-ask-input" />
+            className="min-w-0 flex-1 border-0 bg-transparent py-2 text-[14px] text-text outline-none placeholder:text-text-muted pointer-coarse:min-h-11" data-testid="ai-ask-input" />
         </div>
-        <Button type="submit" size="sm" variant="secondary" disabled={disabled || !q.trim()} loading={st.status === "running"} data-testid="ai-ask-submit">Ask</Button>
+        <Button type="submit" size="sm" variant="secondary" disabled={disabled || !q.trim()} loading={st.status === "running"} className="pointer-coarse:min-w-11" data-testid="ai-ask-submit">Ask</Button>
       </form>
       {st.status === "idle" && !disabled && (
         <div className="flex flex-wrap gap-1.5">
           {SUGGESTIONS.map((s) => (
             <button key={s} type="button" onClick={() => { setQ(s); run(s); }}
-              className="md-focus cursor-pointer rounded-full border border-border bg-transparent px-2.5 py-1 text-caption text-text-secondary hover:border-accent hover:text-text">{s}</button>
+              className="md-focus cursor-pointer rounded-full border border-border bg-transparent px-2.5 py-1 text-caption text-text-secondary hover:border-accent hover:text-text pointer-coarse:min-h-11">{s}</button>
           ))}
         </div>
       )}
