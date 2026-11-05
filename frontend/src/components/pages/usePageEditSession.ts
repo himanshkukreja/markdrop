@@ -370,6 +370,9 @@ export function usePageEditSession({
    * what came after it saves on top. The text also stays in this browser's draft.
    */
   const letGo = useCallback(async (at: string) => {
+    // The editor inside hands up its last keystrokes as it unmounts, after this (its parent's)
+    // cleanup ran: take them too.
+    await new Promise((r) => window.setTimeout(r, 0));
     if (lockRef.current.kind === "acquiring" && acquiring.current) {
       if (!(await acquiring.current.catch(() => false))) return;
     }
