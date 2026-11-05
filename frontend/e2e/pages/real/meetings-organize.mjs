@@ -45,12 +45,19 @@ await imp("kickoff", "Kickoff", 20, "zebrafinch");
 await imp("syncA", "Daily Syncup", 12, "otterglass");
 await imp("syncB", "Daily Sync Up", 5, "quokkabell");
 await imp("standup", "Daily Standup", 4, "lynxpaper");
-const row = async (k) => ok(await api("GET", `/api/v1/meetings/${M[k].id}`, T.owner), `meeting ${k}`);
+// The meeting, with the folder its page is in (the meeting's own shape doesn't carry it).
+const row = async (k) => {
+  const m = ok(await api("GET", `/api/v1/meetings/${M[k].id}`, T.owner), `meeting ${k}`);
+  const items = ok(await api("GET", `/api/v1/workspaces/${WS}/items?folder=all&limit=100`, T.owner), "items").items;
+  const it = items.find((i) => i.slug === M[k].slug);
+  return { ...m, folder_id: it?.folder_id || it?.folder?.id || null };
+};
 
 await step("series", async () => {
   const [a, b, s] = [await row("syncA"), await row("syncB"), await row("standup")];
   if (!a.series || a.series !== b.series) fail(`one series for both spellings: ${a.series} / ${b.series}`);
-  if (a.folder_id !== b.folder_id) fail("both spellings in one folder");
+  if (!a.folder_id || a.folder_id !== b.folder_id) fail(`both spellings in one folder: ${a.folder_id} / ${b.folder_id}`);
+  if (s.folder_id === a.folder_id) fail("Daily Standup filed with Daily Syncup");
   if (s.series) fail(`Daily Standup joined a series: ${s.series}`);
 });
 
@@ -97,7 +104,8 @@ await step("one-item", async () => {
 await step("organize", async () => {
   const { p } = await ctx(browser, { token: T.owner });
   await p.goto(HUB);
-  await p.getByTestId("organize-meetings").click();
+  await p.getByTestId("meetings-more").click();
+  await p.getByRole("menuitem", { name: /Organize into folders/ }).click();
   await p.getByRole("dialog").getByRole("button", { name: "Organize" }).click();
   await p.getByText(/(\d+ of )?4 meetings?( filed in \d+ folders?)?.*1 series|already in its folder \(4 meetings · 1 series\)/).first().waitFor({ timeout: 30000 });
   await snap(p, "organized");

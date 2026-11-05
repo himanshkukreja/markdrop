@@ -805,6 +805,9 @@ class MCP(MeetingsWorld):
         self.assertFalse(res.get("isError"), res)
         code, res = await self.mcp_call(tok, "list_meetings", {"workspace": self.W})
         self.assertEqual(len(res["structuredContent"]["meetings"]), 2)
+        listed = next(m for m in res["structuredContent"]["meetings"] if m["id"] == mid)
+        self.assertTrue(listed["summary"])
+        self.assertIsInstance(listed["decisions"], int)
         code, res = await self.mcp_call(tok, "get_meeting", {"meeting": mid, "transcript": True})
         sc = res["structuredContent"]
         self.assertIn("## Decisions", sc["markdown"])

@@ -12,48 +12,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Alert, Badge, Button, ConfirmDialog, Icon, Input, Select, Skeleton, Spinner, useToast,
+  Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Select, Skeleton, Spinner,
+  copyText, useToast, type MenuEntry,
 } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
   deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, listBackfills, listMeetings, listSeries, monthLabel, organizeMeetings,
+  meetingsHref,
   type BackfillJob, type HiddenMeeting, type MeetConnection, type Meeting, type MeetingSeries, type MeetingsStatus,
 } from "@/lib/meetings";
 import { ImportMeeting } from "./ImportMeeting";
 import { BulkImport } from "./BulkImport";
 import { BackfillProgress } from "./BackfillProgress";
 import { ConnectGoogleMeet, MeetConnectionStatus } from "./ConnectGoogleMeet";
-import { MeetingChat } from "./MeetingChat";
+import { AskMeetingsDock } from "./AskMeetingsDock";
 import "./meetings.css";
 import "./backfill.css";
-
-/** The ask's period choices (dates in the person's own day). */
-const PERIODS = [
-  { value: "", label: "Any time" },
-  { value: "7", label: "Last 7 days" },
-  { value: "30", label: "Last 30 days" },
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-] as const;
-
-function iso(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function periodRange(p: string): { since?: string; until?: string } {
-  const now = new Date();
-  if (p === "7" || p === "30") return { since: iso(new Date(now.getFullYear(), now.getMonth(), now.getDate() - Number(p))), until: iso(now) };
-  if (p === "this_month") return { since: iso(new Date(now.getFullYear(), now.getMonth(), 1)), until: iso(now) };
-  if (p === "last_month") return { since: iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)), until: iso(new Date(now.getFullYear(), now.getMonth(), 0)) };
-  return {};
-}
-
-const ASK_SUGGESTIONS = [
-  { q: "What did we decide this week?", icon: "checkCircle" },
-  { q: "What are my open action items?", icon: "checkSquare" },
-  { q: "What's blocking the release?", icon: "flag" },
-];
 
 export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const { user, loading: authLoading } = useAuth();
@@ -72,8 +47,6 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const [job, setJob] = useState<BackfillJob | null>(null);
   const [series, setSeries] = useState<MeetingSeries[]>([]);
   const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
-  const [askSeries, setAskSeries] = useState("");
-  const [askPeriod, setAskPeriod] = useState("");
   const [organizing, setOrganizing] = useState(false);
   // The list's order, remembered on this device (like a folder's listing view).
   const [sort, setSortState] = useState<MeetingSort>("date_desc");
@@ -123,7 +96,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
 
   const shown = useMemo(() => {
     const f = filter.trim().toLowerCase();
-    return (items ?? []).filter((m) => (!f || (m.title || "").toLowerCase().includes(f) || m.attendees.some((a) => a.name.toLowerCase().includes(f)))
+    return (items ?? []).filter((m) => (!f || (m.title || "").toLowerCase().includes(f) || (m.series || "").toLowerCase().includes(f)
+      || m.attendees.some((a) => a.name.toLowerCase().includes(f)))
       && (seriesFilter === null || (seriesFilter === "" ? !m.series : m.series === seriesFilter)))
       .sort(SORTS[sort].cmp);
   }, [items, filter, seriesFilter, sort]);
@@ -138,9 +112,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
       else out.push({ key, items: [m] });
     }
     return out;
-  }, [shown]);
+  }, [shown, sort]);
   const oneOffs = (items ?? []).filter((m) => !m.series).length;
-  const askScope = useMemo(() => ({ ...(askSeries ? { series: askSeries } : {}), ...periodRange(askPeriod) }), [askSeries, askPeriod]);
 
   if (authLoading) return <div className="mt-hub"><Skeleton height={32} width={240} /></div>;
   if (!user) return <div className="mt-hub"><Alert tone="info">Sign in to see your team's meetings.</Alert></div>;
@@ -153,8 +126,16 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     <Button variant="secondary" iconLeft="refresh" onClick={() => setConnecting(true)} data-testid="connect-meet">Connect Google Meet</Button>
   );
   const pastButton = canImport && (
-    <Button variant="secondary" iconLeft="history" onClick={() => setBulk(true)} data-testid="import-past">Import past meetings</Button>
+    <Button variant="ghost" iconLeft="history" onClick={() => setBulk(true)} data-testid="import-past">Import past meetings</Button>
   );
+  const more: MenuEntry[] = [
+    ...(canImport && !connectedHere ? [{ label: "Connect Google Meet", icon: "refresh", onClick: () => setConnecting(true) }] : []),
+    ...(canImport ? [{ label: "Import past meetings", icon: "history", onClick: () => setBulk(true) }] : []),
+    ...(folderHref ? [{ label: "Open the Meetings folder", icon: "folder", href: folderHref, separated: canImport }] : []),
+    ...(status?.can_organize && any ? [{ label: "Organize into folders", icon: "listTree", onClick: () => setOrganizing(true),
+      description: "A folder per series, the rest in Other meetings" }] : []),
+  ];
+  const filtered = !!filter || seriesFilter !== null;
 
   return (
     <div className="mt-hub">
@@ -165,17 +146,16 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
       </nav>
       <header className="mt-hub__head">
         <div className="mt-hub__titles">
-          <span className="mt-hub__glyph" aria-hidden><Icon name="mic" /></span>
-          <div>
-            <h1 className="mt-hub__title">Meetings</h1>
-            <p className="mt-hub__sub">Every call as a page: summary, decisions, action items and the transcript. Ask any of them.</p>
-          </div>
+          <h1 className="mt-hub__title">Meetings</h1>
+          <p className="mt-hub__sub">Every call as a page — summary, decisions, action items and the transcript.</p>
         </div>
         <div className="mt-hub__actions">
-          {folderHref && <Button variant="secondary" iconLeft="folder" href={folderHref}>Open folder</Button>}
-          {connectButton}
-          {pastButton}
+          <span className="mt-hub__secondary">{connectButton}{any && pastButton}</span>
           {canImport && <Button iconLeft="plus" onClick={() => setImporting(true)} data-testid="import-meeting">Import meeting</Button>}
+          {more.length > 0 && (
+            <Dropdown align="right" aria-label="More" items={more}
+              trigger={<IconButton icon="more" label="More" variant="secondary" data-testid="meetings-more" />} />
+          )}
         </div>
       </header>
       <MeetConnectionStatus mine={conn.mine} others={conn.others} workspaceId={workspaceId}
@@ -184,63 +164,44 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
       {error && <Alert tone="danger" className="mb-4">{error}</Alert>}
       {job && <BackfillProgress job={job} onChange={setJob} onProgress={reloadList} />}
 
-      {any && (
-        <section className="mt-ask" aria-labelledby="mt-ask-label">
-          <p className="mt-ask__label" id="mt-ask-label">
-            <Icon name="sparkle" /> Ask across meetings
-            <span className="mt-ask__hint">{status?.ai.enabled === false ? status.ai.message : "Claude Haiku · answers cite the moment"}</span>
-          </p>
-          <div className="mt-scope" role="group" aria-label="Which meetings to ask">
-            <span>Ask</span>
-            <Select aria-label="Series" value={askSeries} onChange={(e) => setAskSeries(e.target.value)} data-testid="ask-series"
-              options={[{ value: "", label: "All meetings" }, ...series.map((x) => ({ value: x.name, label: x.name }))]} />
-            <Select aria-label="Period" value={askPeriod} onChange={(e) => setAskPeriod(e.target.value)} data-testid="ask-period"
-              options={PERIODS.map((p) => ({ value: p.value, label: p.label }))} />
-          </div>
-          <MeetingChat
-            scope={askScope}
-            mode="all"
-            layout="inline"
-            workspaceId={workspaceId}
-            suggestions={ASK_SUGGESTIONS}
-            emptyTitle="Ask across meetings"
-            emptySub=""
-            placeholder="Ask about any meeting…"
-          />
-        </section>
-      )}
+      {any && <AskMeetingsDock workspaceId={workspaceId} series={series} count={items?.length ?? 0}
+        aiMessage={status?.ai.enabled === false ? status.ai.message : null} />}
 
       {items === null ? (
-        <div className="mt-list">
-          {[0, 1, 2].map((i) => <Skeleton key={i} variant="rect" height={72} />)}
+        <div className="mt-list" aria-busy>
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} variant="rect" height={104} />)}
         </div>
       ) : !any && hidden.length === 0 ? (
         <div className="mt-empty-hub">
           <span className="mt-empty-hub__glyph" aria-hidden><Icon name="mic" /></span>
           <h3>Turn your calls into team memory</h3>
-          <p>Import a Google Meet transcript or Gemini's meeting notes. Markdrop writes the summary, decisions and action items (and @mentions the people who own them), keeps the transcript, and answers questions about it.</p>
+          <p>Bring in a Google Meet transcript or Gemini's notes, or connect Google Meet once and every call arrives by itself. Markdrop writes the summary, decisions and action items, keeps the transcript, and answers questions about it.</p>
           {canImport ? (
-            <div className="mt-hub__actions" style={{ justifyContent: "center" }}>
-              <Button iconLeft="plus" onClick={() => setImporting(true)}>Import your first meeting</Button>
-              {pastButton}
+            <div className="mt-empty-hub__actions">
+              <Button iconLeft="plus" onClick={() => setImporting(true)}>Import a meeting</Button>
               {connectButton}
             </div>
           ) : <p style={{ margin: 0 }}>Members of this workspace can import meetings.</p>}
-          <div className="mt-steps">
-            <div className="mt-step"><b>1 · Import</b>Paste it, upload .txt/.vtt/.srt/.docx, pick the Docs Google saved in your Drive, or connect Google Meet to import every call by itself.</div>
-            <div className="mt-step"><b>2 · Review</b>A page in Meetings: summary, decisions, action items with owners, open questions.</div>
-            <div className="mt-step"><b>3 · Ask</b>“What did we decide about pricing?” — answers link to the moment it was said.</div>
-          </div>
+          {canImport && <p className="mt-empty-hub__more">Have a backlog? <button type="button" className="mt-linkbtn" onClick={() => setBulk(true)} data-testid="import-past">Import past meetings</button></p>}
+          <ol className="mt-steps">
+            <li className="mt-step"><span className="mt-step__n">1</span><b>Import</b>Paste, upload .txt/.vtt/.srt/.docx, pick Google Docs, or connect Google Meet.</li>
+            <li className="mt-step"><span className="mt-step__n">2</span><b>Review</b>A page with the summary, decisions, action items with owners and open questions.</li>
+            <li className="mt-step"><span className="mt-step__n">3</span><b>Ask</b>“What did we decide about pricing?” — answers link to the moment it was said.</li>
+          </ol>
         </div>
       ) : (
-        <section aria-labelledby="mt-list-title">
-          <div className="mt-section-title">
-            <h2 id="mt-list-title">{shown.length} {shown.length === 1 ? "meeting" : "meetings"}</h2>
-            <span className="mt-section-title__tools">
-              {status?.can_organize && <Button size="sm" variant="ghost" iconLeft="folder" onClick={() => setOrganizing(true)} data-testid="organize-meetings">Organize meetings</Button>}
-              <Select aria-label="Sort meetings" value={sort} onChange={(e) => setSort(e.target.value as MeetingSort)} data-testid="meetings-sort"
+        <section aria-labelledby="mt-list-title" className="mt-listsec">
+          <h2 id="mt-list-title" className="mt-sr">Meetings</h2>
+          <div className="mt-tools">
+            <div className="mt-search">
+              <Icon name="search" className="mt-search__icon" />
+              <Input className="mt-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)}
+                placeholder="Search titles, series, people" aria-label="Filter meetings" />
+            </div>
+            <span className="mt-tools__right">
+              <span className="mt-count" aria-live="polite">{shown.length} {shown.length === 1 ? "meeting" : "meetings"}{filtered && items ? ` of ${items.length}` : ""}</span>
+              <Select aria-label="Sort meetings" value={sort} onChange={(e) => setSort(e.target.value as MeetingSort)} data-testid="meetings-sort" className="mt-sort"
                 options={(Object.keys(SORTS) as MeetingSort[]).map((k) => ({ value: k, label: SORTS[k].label }))} />
-              <Input className="mt-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by title or person" aria-label="Filter meetings" />
             </span>
           </div>
           {series.length > 0 && (
@@ -249,7 +210,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
               {series.map((x) => (
                 <li key={x.name}>
                   <button type="button" className="mt-series__chip" aria-pressed={seriesFilter === x.name} onClick={() => setSeriesFilter(seriesFilter === x.name ? null : x.name)}>
-                    <Icon name="refresh" size={12} />{x.name} <span className="mt-series__n">{x.count}</span>
+                    <span className="mt-series__dot" style={{ background: seriesTint(x.name) }} aria-hidden />{x.name} <span className="mt-series__n">{x.count}</span>
                   </button>
                 </li>
               ))}
@@ -257,28 +218,37 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
             </ul>
           )}
           <div className="mt-months" data-testid="meetings-list">
-          {months.map((g) => (
-            <div key={g.key} className="mt-monthgroup">
-              {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)} <small>{g.items.length}</small></h3>}
-              <ul className="mt-list">
-                {g.items.map((m) => <MeetingCard key={m.id} m={m} />)}
-              </ul>
-            </div>
-          ))}
-          <ul className="mt-list" style={{ marginTop: months.length && hidden.length ? 10 : 0 }}>
-            {!filter && seriesFilter === null && hidden.map((h) => (
-              <li key={h.id} className="mt-card mt-card--hidden">
-                <DateTile date={h.date} />
-                <div className="mt-card__main">
-                  <p className="mt-card__title" style={{ color: "var(--text-muted)" }}>A meeting restricted to its attendees</p>
-                  <div className="mt-card__meta"><span><Icon name="lock" /> You weren't there, so you can't open it. As an admin you can delete it.</span></div>
-                </div>
-                <div className="mt-card__side">
-                  <Button size="sm" variant="ghost" iconLeft="trash" onClick={() => setDeleting(h.id)}>Delete</Button>
-                </div>
-              </li>
+            {shown.length === 0 && filtered && (
+              <div className="mt-nomatch">
+                <Icon name="search" />
+                <p>No meetings match{filter ? <> “{filter}”</> : null}.</p>
+                <Button size="sm" variant="secondary" onClick={() => { setFilter(""); setSeriesFilter(null); }}>Clear the filters</Button>
+              </div>
+            )}
+            {months.map((g) => (
+              <section key={g.key} className="mt-monthgroup" aria-label={g.key === "all" ? undefined : g.key === "none" ? "No date" : monthLabel(g.key)}>
+                {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)} <small>{g.items.length}</small></h3>}
+                <ul className="mt-list">
+                  {g.items.map((m) => <MeetingCard key={m.id} m={m} onDelete={m.can_delete ? () => setDeleting(m.id) : undefined} />)}
+                </ul>
+              </section>
             ))}
-          </ul>
+            {!filtered && hidden.length > 0 && (
+              <ul className="mt-list mt-list--hidden">
+                {hidden.map((h) => (
+                  <li key={h.id} className="mt-card mt-card--hidden">
+                    <span className="mt-card__thumb mt-card__thumb--hidden" aria-hidden><Icon name="lock" /></span>
+                    <div className="mt-card__main">
+                      <p className="mt-card__title">A meeting restricted to its attendees</p>
+                      <p className="mt-card__summary">{h.date ? `${fmtDay(h.date)} · ` : ""}You weren't there, so you can't open it. As an admin you can delete it.</p>
+                    </div>
+                    <div className="mt-card__side">
+                      <Button size="sm" variant="ghost" iconLeft="trash" onClick={() => setDeleting(h.id)}>Delete</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
       )}
@@ -325,41 +295,104 @@ const SORTS: Record<MeetingSort, { label: string; cmp: (a: Meeting, b: Meeting) 
   imported: { label: "Recently imported", cmp: (a, b) => (b.created_at || "").localeCompare(a.created_at || "") },
 };
 
-function DateTile({ date }: { date: string | null }) {
+/** "Today", "Yesterday", "Wed, Nov 4" (this year) or "Wed, Nov 4, 2025". */
+function fmtDay(date: string | null): string {
   const [y, mo, d] = (date || "").split("-").map(Number);
-  const dt = y ? new Date(Date.UTC(y, (mo || 1) - 1, d || 1)) : null;
+  if (!y || !mo || !d) return "";
+  const dt = new Date(y, mo - 1, d);
+  const today = new Date();
+  const days = Math.round((new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() - dt.getTime()) / 86400000);
+  if (days === 0) return "Today";
+  if (days === 1) return "Yesterday";
+  return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", ...(y !== today.getFullYear() ? { year: "numeric" } : {}) });
+}
+
+function hue(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 360;
+  return h;
+}
+/** A series' colour (its chip's dot, the thumbnail when there's no cover). */
+const seriesTint = (name: string) => `hsl(${hue(name.toLowerCase())} 62% 52%)`;
+
+function Faces({ people }: { people: Meeting["attendees"] }) {
+  const shown = people.slice(0, 4);
+  const more = people.length - shown.length;
   return (
-    <span className="mt-date" aria-hidden>
-      <span>
-        <span className="mt-date__m">{dt ? dt.toLocaleDateString(undefined, { month: "short", timeZone: "UTC" }) : "—"}</span>
-        <span className="mt-date__d" style={{ display: "block" }}>{dt ? dt.getUTCDate() : ""}</span>
-      </span>
+    <span className="mt-faces" title={people.map((a) => a.name).join(", ")} aria-label={`${people.length} ${people.length === 1 ? "person" : "people"}: ${people.map((a) => a.name).join(", ")}`} role="img">
+      {shown.map((a) => (
+        <span key={a.name} className="mt-face" style={{ background: `hsl(${hue(a.name)} 45% 46%)` }} aria-hidden>
+          {a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("")}
+        </span>
+      ))}
+      {more > 0 && <span className="mt-face mt-face--more" aria-hidden>+{more}</span>}
     </span>
   );
 }
 
-function MeetingCard({ m }: { m: Meeting }) {
-  const names = m.attendees.map((a) => a.name);
+function MeetingCard({ m, onDelete }: { m: Meeting; onDelete?: () => void }) {
+  const toast = useToast();
+  const [y, mo, d] = (m.date || "").split("-").map(Number);
+  const dt = y ? new Date(y, (mo || 1) - 1, d || 1) : null;
+  const title = m.title || "Meeting";
+  const thumb = m.cover ? `/page-covers/thumbs/${m.cover}.webp` : null;
+  const when = [fmtDay(m.date), m.time, m.duration_s ? fmtDuration(m.duration_s) : null].filter(Boolean).join(" · ");
+  const counts = [
+    { n: m.decisions ?? 0, icon: "checkCircle", one: "decision", many: "decisions" },
+    { n: m.action_items, icon: "checkSquare", one: "action item", many: "action items" },
+    { n: m.open_questions ?? 0, icon: "flag", one: "open question", many: "open questions" },
+  ].filter((c) => c.n > 0);
+  const menu: MenuEntry[] = [
+    { label: "Open", icon: "arrowRight", href: `/${m.slug}` },
+    ...(m.transcript_slug ? [{ label: "Transcript", icon: "lines", href: `/${m.transcript_slug}` }] : []),
+    { label: "Ask this meeting", icon: "sparkle", href: `/${m.slug}?ask=1` },
+    { label: "Copy link", icon: "link", onClick: () => void copyText(new URL(`/${m.slug}`, window.location.origin).toString()).then((ok) => (ok ? toast.success("Link copied") : toast.error("Couldn't copy"))) },
+    ...(onDelete ? [{ label: "Delete meeting", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
+  ];
   return (
-    <li className="mt-card" data-testid="meeting-card">
-      <DateTile date={m.date} />
+    <li className="mt-card" data-testid="meeting-card" data-series={m.series ? "" : undefined}>
+      <Link className="mt-card__link" href={`/${m.slug}`} aria-label={`${title}${m.date ? `, ${fmtDay(m.date)}` : ""}`} />
+      <span className="mt-card__thumb" aria-hidden
+        style={{ backgroundColor: m.series ? seriesTint(m.series) : "var(--surface-inset)", ...(thumb ? { backgroundImage: `url(${thumb})` } : {}) }}>
+        <span className="mt-card__day">
+          <small>{dt ? dt.toLocaleDateString(undefined, { month: "short" }) : "—"}</small>
+          {dt ? dt.getDate() : ""}
+        </span>
+      </span>
       <div className="mt-card__main">
-        <p className="mt-card__title">
-          <Link className="mt-card__link" href={`/${m.slug}`} aria-label={`${m.title || "Meeting"}, ${m.date || ""}`} />
-          {m.title || "Meeting"}
+        <div className="mt-card__top">
+          <p className="mt-card__title">{title}</p>
+          <span className="mt-card__badges">
+            {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
+            {m.restricted && <Badge size="sm" tone="neutral" icon="lock">Attendees only</Badge>}
+            {m.source === "auto" && <Badge size="sm" tone="info" icon="refresh">Auto</Badge>}
+          </span>
+        </div>
+        <p className="mt-card__when" data-testid="card-when">
+          {when}
+          {m.series && m.series !== m.title && (
+            <span className="mt-card__series" data-testid="card-series"><span style={{ background: seriesTint(m.series) }} aria-hidden />{m.series}</span>
+          )}
         </p>
-        <div className="mt-card__meta">
-          {m.series && m.series !== m.title && <span className="mt-card__series" data-testid="card-series">{m.series}</span>}
-          {m.type && <span><Icon name="calendar" />{m.type}{m.duration_s ? ` · ${fmtDuration(m.duration_s)}` : ""}</span>}
-          {names.length > 0 && <span title={names.join(", ")}><Icon name="users" />{names.slice(0, 3).join(", ")}{names.length > 3 ? ` +${names.length - 3}` : ""}</span>}
-          <span><Icon name="checkSquare" />{m.action_items} action {m.action_items === 1 ? "item" : "items"}</span>
+        {m.summary
+          ? <p className="mt-card__summary" data-testid="card-summary">{m.summary}</p>
+          : m.ai.state !== "pending" && m.ai.state !== "done" && m.has_notes
+            ? <p className="mt-card__summary mt-card__summary--muted" data-testid="card-summary">Google's notes are on the page.</p>
+            : null}
+        <div className="mt-card__foot">
+          {m.attendees.length > 0 && <Faces people={m.attendees} />}
+          {counts.map((c) => (
+            <span key={c.icon} className="mt-card__count"><Icon name={c.icon} />{c.n} {c.n === 1 ? c.one : c.many}</span>
+          ))}
         </div>
       </div>
-      <div className="mt-card__side">
-        {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
-        {m.source === "auto" && <Badge size="sm" tone="neutral" icon="refresh">Auto</Badge>}
-        {m.has_notes && <Badge size="sm" tone="info">Google notes</Badge>}
-        {m.restricted && <Badge size="sm" tone="warning" icon="lock">Attendees only</Badge>}
+      <div className="mt-card__actions">
+        {m.transcript_slug && (
+          <Link className="mt-card__act" href={`/${m.transcript_slug}`} title="Transcript" aria-label={`Transcript of ${title}`}><Icon name="lines" /></Link>
+        )}
+        <Link className="mt-card__act" href={`/${m.slug}?ask=1`} title="Ask this meeting" aria-label={`Ask ${title}`}><Icon name="sparkle" /></Link>
+        <Dropdown align="right" portal aria-label={`More for ${title}`} items={menu}
+          trigger={<button type="button" className="mt-card__act" aria-label={`More for ${title}`}><Icon name="more" /></button>} />
       </div>
     </li>
   );

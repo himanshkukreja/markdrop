@@ -62,6 +62,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         "attendees": [a["name"] for a in m.get("attendees") or []], "restricted": m.get("restricted"),
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
+        # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
+        "summary": m.get("summary"), "decisions": m.get("decisions"), "open_questions": m.get("open_questions"),
     }
 
 
@@ -69,7 +71,8 @@ def _line(m: dict) -> str:
     bits = [m.get("date") or "", m.get("series") or m.get("type") or "", f"{m.get('action_items') or 0} action items"]
     if m.get("restricted"):
         bits.append("restricted to attendees")
-    return f"- {m.get('title')} ({', '.join(b for b in bits if b)}): {m['url']}  [id {m['id']}]"
+    line = f"- {m.get('title')} ({', '.join(b for b in bits if b)}): {m['url']}  [id {m['id']}]"
+    return f"{line}\n  {m['summary']}" if m.get("summary") else line
 
 
 async def _ws(ctx: Context, value: str) -> str:
