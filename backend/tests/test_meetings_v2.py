@@ -41,6 +41,9 @@ class Pure(unittest.TestCase):
         self.assertEqual(mp.organizer_in("**Hosted by** Priya Sharma\n"), {"name": "Priya Sharma", "email": None})
         self.assertIsNone(mp.organizer_in(fixture("gemini_notes.txt")))     # Gemini doesn't say who organized
         self.assertIsNone(mp.organizer_in("Ada Lovelace: the host said hi"))
+        self.assertEqual(mp.organizer_in("Weekly sync - Transcript\nORGANISER: Gautam Kumar\nAda: hi\nBo: ok"),
+                         {"name": "Gautam Kumar", "email": None})
+        self.assertIsNone(mp.organizer_in("Host: Welcome, everyone.\nAda: hi\nHost: Let's begin."))
 
     def test_small_calls(self):
         self.assertTrue(meetings.auto_restricts([{"name": "Ada"}, {"name": "Bo"}]))
@@ -166,6 +169,8 @@ class Organizer(AutoWorld):
         m = await self.imported(sources=[{"name": "Planning", "text": "Organizer: Bo Chen <" + self.email["wm"] + ">\n" + THREE}])
         self.assertEqual(m["organizer"]["user_id"], self.uid["wm"])
         self.assertEqual(m["organizer"]["from"], "content")
+        # The header line is the organizer, not someone called "Organizer" speaking.
+        self.assertNotIn("organizer", [(a.get("name") or "").casefold() for a in m["attendees"]])
         m = await self.imported(sources=[{"name": "Planning 2", "text": THREE}])
         self.assertIsNone(m["organizer"])
 

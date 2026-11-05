@@ -210,6 +210,139 @@ class GoogleMetaLines(unittest.TestCase):
         self.assertFalse(any("Transcription ended" in x["text"] for x in p.segments))
 
 
+class MetadataLabels(unittest.TestCase):
+    """"Organizer: Gautam Kumar" in a transcript's header became a speaker, and "Organizer" an attendee.
+    Header and footer labels (Organizer, Host, Attendees, Date, Duration, Meeting ID, Recording…) are
+    metadata in any letter case; the organizer is the meeting's organizer; a real "Host" still speaks."""
+
+    NOTICE = ("This editable transcript was computer generated and might contain errors. "
+              "People can also change the text after it was created.")
+    BODY = ("Gautam Kumar: Okay, let's start. Two things today, the launch and the hiring plan.\n"
+            "Priya Sharma: The launch is on track for Friday.\n"
+            "Ravi Iyer: Hiring: we have two offers out.\n"
+            "00:05:00\n"
+            "Gautam Kumar: Good. Priya, send the release notes by Thursday.\n"
+            "Priya Sharma: Will do.\n")
+    TURNS = [("Gautam Kumar", "Okay, let's start. Two things today, the launch and the hiring plan."),
+             ("Priya Sharma", "The launch is on track for Friday."), ("Ravi Iyer", "Hiring: we have two offers out."),
+             ("Gautam Kumar", "Good. Priya, send the release notes by Thursday."), ("Priya Sharma", "Will do.")]
+
+    def turns(self, s):
+        return [(x["speaker"], x["text"]) for x in s.segments]
+
+    def assert_clean(self, s, organizer=("Gautam Kumar", None)):
+        self.assertEqual(self.turns(s), self.TURNS)
+        self.assertEqual(s.speakers, ["Gautam Kumar", "Priya Sharma", "Ravi Iyer"])
+        names = [a["name"].casefold() for a in s.attendees]
+        for label in ("organizer", "organiser", "host", "hosted by", "date", "time", "duration", "meeting id",
+                      "recording", "transcript", "notes", "agenda", "invited", "attendees"):
+            self.assertNotIn(label, names)
+        self.assertEqual((s.organizer["name"], s.organizer["email"]) if s.organizer else None, organizer)
+
+    def test_google_meet_header_and_footer(self):
+        text = ("Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transcript\n"
+                "Organizer: Gautam Kumar\n"
+                "Attendees\nGautam Kumar, Priya Sharma, Ravi Iyer\n"
+                "Transcript\n" + self.NOTICE + "\n" + self.BODY +
+                "Transcription ended after 00:09:12\n")
+        s = mp.parse_source("Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transcript", text)
+        self.assert_clean(s)
+        self.assertEqual((s.format, s.title, s.date, s.time, s.duration_s),
+                         ("google_meet", "Weekly product sync", "2026-11-04", "10:00", 552))
+        self.assertEqual([a["name"] for a in s.attendees], ["Gautam Kumar", "Priya Sharma", "Ravi Iyer"])
+        self.assertEqual(s.describe()["organizer"], "Gautam Kumar")
+
+    def test_every_label_in_any_case(self):
+        header = ("ORGANIZER: Gautam Kumar <gautam@acme.test>\n"
+                  "organiser: Gautam Kumar\n"
+                  "Host: Gautam Kumar\n"
+                  "Hosted By: Gautam Kumar\n"
+                  "Invited: Gautam Kumar, Priya Sharma <priya@acme.test>, Ravi Iyer\n"
+                  "Date: Nov 4, 2026\n"
+                  "TIME: 10:00 AM – 10:45 AM (India Standard Time)\n"
+                  "Duration: 42 minutes\n"
+                  "Meeting ID: abc-defg-hij\n"
+                  "meeting id: 845 1234 5678\n"
+                  "Recording: https://drive.google.com/file/d/1RecordingAbcdefghijk/view\n"
+                  "Agenda: Launch and hiring\n"
+                  "Notes: Gemini notes are attached\n"
+                  "Transcript: Weekly product sync\n")
+        footer = ("Recording: https://drive.google.com/file/d/1RecordingAbcdefghijk/view\n"
+                  "Meeting notes: https://docs.google.com/document/d/1NotesAbcdefghijklmnop/edit\n"
+                  "DURATION: 00:42:13\n")
+        s = mp.parse_source("Weekly product sync", "# Weekly product sync\n" + header + "\n" + self.BODY + footer)
+        self.assert_clean(s, organizer=("Gautam Kumar", "gautam@acme.test"))
+        self.assertEqual(s.title, "Weekly product sync")
+        self.assertEqual(s.date, "2026-11-04")
+        self.assertEqual(s.format, "google_meet")
+
+    def test_markdown_labels(self):
+        for line in ("**Organizer:** Gautam Kumar", "- Organizer: Gautam Kumar", "* **Organizer**: Gautam Kumar",
+                     "## Organizer: Gautam Kumar", "Meeting organizer: Gautam Kumar"):
+            s = mp.parse_source("Sync", f"# Sync\n{line}\n- Duration: 42 min\n\n{self.BODY}")
+            self.assert_clean(s)
+
+    def test_hosted_by_still_works(self):
+        s = mp.parse_source("Sync", "# Sync\nHosted by Gautam Kumar\n" + self.BODY)
+        self.assert_clean(s)
+
+    def test_gemini_notes_header_and_transcript_tab(self):
+        notes = ("# Weekly product sync\nNov 4, 2026\n"
+                 "Organizer: Gautam Kumar <gautam@acme.test>\n"
+                 "Invited Gautam Kumar <gautam@acme.test>, Priya Sharma <priya@acme.test>, Ravi Iyer <ravi@acme.test>\n"
+                 "Attachments Weekly product sync\nMeeting records Transcript\n\n"
+                 "## Summary\nThe launch is on track for Friday and two offers are out.\n\n"
+                 "## Details\n- **Launch**: on track for Friday (00:00:20).\n\n"
+                 "## Suggested next steps\n- [ ] Priya Sharma will send the release notes by Thursday.\n\n"
+                 "You should review Gemini's notes to make sure they're accurate.\n")
+        tab = ("=== Tab: Transcript ===\n📖 Transcript\nNov 4, 2026\n"
+               "Weekly product sync - Transcript\n"
+               "Organizer: Gautam Kumar\nDuration: 00:09:12\n"
+               "Attendees\nGautam Kumar, Priya Sharma, Ravi Iyer\n"
+               "Transcript\n" + self.NOTICE + "\n" + self.BODY + "Transcription ended after 00:09:12\n")
+        s = mp.parse_source("Weekly product sync - Notes by Gemini", notes + tab)
+        self.assertEqual((s.kind, s.format), ("both", "gemini_notes"))
+        self.assert_clean(s, organizer=("Gautam Kumar", "gautam@acme.test"))
+        self.assertEqual(s.notes["next_steps"], ["Priya Sharma will send the release notes by Thursday."])
+        # The notes alone: the organizer, nobody speaking.
+        n = mp.parse_source("Weekly product sync - Notes by Gemini", notes)
+        self.assertEqual((n.kind, n.segments, n.organizer["name"]), ("notes", [], "Gautam Kumar"))
+
+    def test_a_real_host_speaks(self):
+        text = ("# Town hall\nHost: Gautam Kumar\nDate: Nov 4, 2026\n\n"
+                "Host: Welcome, everyone, thanks for joining.\n"
+                "Priya Sharma: Glad to be here.\n"
+                "Host: First item, the launch.\n"
+                "Priya Sharma: On track for Friday.\n"
+                "Host: Great, that's all for today.\n"
+                "Recording: https://drive.google.com/file/d/1RecordingAbcdefghijk/view\n")
+        s = mp.parse_source("Town hall", text)
+        self.assertEqual(self.turns(s), [("Host", "Welcome, everyone, thanks for joining."), ("Priya Sharma", "Glad to be here."),
+                                         ("Host", "First item, the launch."), ("Priya Sharma", "On track for Friday."),
+                                         ("Host", "Great, that's all for today.")])
+        self.assertEqual(s.organizer, {"name": "Gautam Kumar", "email": None})
+        # A "Host" who speaks, and nobody says who organized: no organizer made up from the host's words.
+        bare = mp.parse_source("Town hall", "\n".join(text.split("\n")[3:]))
+        self.assertEqual(bare.speakers, ["Host", "Priya Sharma"])
+        self.assertIsNone(bare.organizer)
+        self.assertIsNone(mp.organizer_in("Host: Welcome, everyone.\nAda: Hi.\nHost: Let's start."))
+        # Speaking once is speaking too, when it reads as speech.
+        once = mp.parse_source("x", "Host: Welcome, everyone.\nAda Lovelace: Hi.\nBo Chen: Hello.\n")
+        self.assertEqual(once.speakers, ["Host", "Ada Lovelace", "Bo Chen"])
+        # Timestamped turns are always someone speaking.
+        st = mp.parse_source("x", "[00:01] Host: Welcome.\n[00:09] Ada Lovelace: Hi.\n")
+        self.assertEqual(st.speakers, ["Host", "Ada Lovelace"])
+
+    def test_a_label_in_the_middle(self):
+        s = mp.parse_source("x", "Ada Lovelace: Two updates.\nOrganizer: thanks\nBo Chen: Thanks.\n"
+                                 "Duration: 42 min\nRecording: https://drive.google.com/file/d/1Rec/view\n"
+                                 "Ada Lovelace: We ship.\n")
+        self.assertEqual(s.speakers, ["Ada Lovelace", "Bo Chen"])
+        # Words stay words; clear metadata goes.
+        self.assertEqual(self.turns(s), [("Ada Lovelace", "Two updates. Organizer: thanks"), ("Bo Chen", "Thanks."),
+                                         ("Ada Lovelace", "We ship.")])
+
+
 class Retrieval(unittest.TestCase):
     """Real-model eval 2026-11-05 (.work/meetings/eval): "Which email provider did we choose?" matched
     only the line saying "email"; the line with who migrates to Postmark (no word in common with the

@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-organizer-not-a-speaker",
+      "date": "2026-11-06",
+      "title": "\"Organizer: …\" in a transcript's header is the organizer, not a speaker",
+      "kind": "fixed",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A transcript or Gemini notes header such as \"Organizer: Gautam Kumar\" no longer turns into a speaker, and \"Organizer\" no longer shows up among the attendees. The name is used as the meeting's organizer instead.",
+      "body": "- **Header and footer lines are details, not turns.** Organizer, Organiser, Host, Hosted by, Attendees, Invited, Date, Time, Duration, Meeting ID, Recording, Transcript, Notes, Agenda and similar labels, in any letter case and with or without bold or bullets, are read as meeting details above and below the conversation.\n- **The organizer is filled in.** When the text says who organized the call, that person becomes the meeting's organizer (a workspace member when the name or address matches one).\n- **Someone really called \"Host\" still speaks.** Transcripts that label a person \"Host\" keep those turns; only header lines like \"Host: Gautam Kumar\" are treated as details.",
+      "docs": [
+        "/workspaces/meetings"
+      ]
+    },
+    {
       "id": "docs-nov5-features",
       "date": "2026-11-06",
       "title": "Docs for Pages, Meetings, Ask Markdrop and Slack, with screenshots; two Slack tools for AI apps",

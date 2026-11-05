@@ -98,6 +98,7 @@ class Source:
     time: str | None = None
     duration_s: int | None = None
     attendees: list[dict] = field(default_factory=list)
+    organizer: dict | None = None      # {name, email} where the text says who organized the call
     segments: list[dict] = field(default_factory=list)
     notes: dict | None = None
     approx_times: bool = False
@@ -116,6 +117,7 @@ class Source:
         return {"name": self.name, "kind": self.kind, "format": self.format, "title": self.title,
                 "date": self.date, "time": self.time, "duration_s": self.duration_s,
                 "attendees": [a["name"] for a in self.attendees], "speakers": self.speakers,
+                "organizer": (self.organizer or {}).get("name"),
                 "segments": len(self.segments), "has_notes": bool(self.notes), "truncated": self.truncated,
                 "approx_times": self.approx_times}
 
@@ -428,15 +430,156 @@ def _otter(lines: list[str]) -> list[dict]:
     return segs
 
 
+# Header / footer labels of meeting documents ("Organizer: Gautam Kumar", "Duration: 42 min", "Meeting
+# ID: abc-defg-hij"). Written "Label: value" they look like a speaker's turn.
+_META_LABELS = frozenset("""
+organizer organiser organizers organisers organized-by organised-by meeting-organizer meeting-organiser
+host hosts co-host co-hosts cohost hosted-by meeting-host
+attendees attendee invited invitees invitee guests guest-list participants present absent optional required
+date time when where location room duration length start start-time started end end-time ended time-zone timezone
+meeting-date meeting-time meeting-id meeting-code meeting-link meeting-url join-link joining-link joining-info
+dial-in passcode recording recordings recorded-by transcript transcription notes meeting-notes notes-by
+agenda title meeting-title subject calendar calendar-event created-by
+""".split())
+_META_EMAIL_URL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+|https?://|\bwww\.|\bmeet\.google\.com\b", re.I)
+_META_CODE = re.compile(r"\b[a-z]{3}-[a-z]{4}-[a-z]{3}\b", re.I)
+_META_SPAN = re.compile(r"^\d+(?:\.\d+)?\s*(?:h|hrs?|hours?|m|mins?|minutes?|s|secs?|seconds?)\b", re.I)
+# Labels that are also what a transcript calls someone ("Host: Welcome, everyone."): a turn when it reads as speech.
+_SPEAKABLE = frozenset(("host", "hosts", "co-host", "co-hosts", "cohost", "meeting-host"))
+_NAME_WORD = re.compile(r"^(?:[A-ZÀ-ɏ][\w'.À-ɏ-]*|de|da|van|von|der|bin|al|la|le|del|di)$")
+
+
+def _meta_label(name: str) -> str | None:
+    """The metadata label a would-be speaker name is ("organizer", "meeting-id"), else None."""
+    n = re.sub(r"^[#>\-*•_\s]+|[*_\s]+$", "", name or "").casefold()
+    key = re.sub(r"[\s_-]+", "-", n)
+    return key if key in _META_LABELS else None
+
+
+def _meta_value(value: str, known: set[str]) -> bool:
+    """Whether what follows a label is clearly metadata: a date, a time, a length, an address, a link, a
+    meeting code or ID, or a list of people's names (known speakers, or Title Case full names)."""
+    v = (value or "").strip().strip("*_").strip()
+    if not v:
+        return True
+    if _META_EMAIL_URL.search(v) or _META_CODE.search(v) or _META_SPAN.match(v) or find_date(v)[0] \
+            or re.search(r"\b\d{1,2}:\d{2}\b", v):
+        return True
+    compact = re.sub(r"[\s()+-]", "", v)
+    if compact and sum(ch.isdigit() for ch in compact) * 2 >= len(compact):
+        return True
+    if v.endswith((".", "?", "!")):
+        return False
+    parts = [p.strip() for p in re.split(r"[,;]|\s+and\s+|\s+&\s+", v) if p.strip()]
+    if not parts:
+        return False
+    for p in parts:
+        if clean_speaker(p).casefold() in known:
+            continue
+        words = p.split()
+        if not (2 <= len(words) <= 4 and all(_NAME_WORD.match(w) for w in words)):
+            return False
+    return True
+
+
+def _speech(value: str, known: set[str]) -> bool:
+    """Whether what follows a label reads as someone talking (a sentence, or four words or more)."""
+    v = (value or "").strip()
+    return not _meta_value(v, known) and (v.endswith((".", "?", "!", "…")) or len(v.split()) >= 4)
+
+
+def _turn(line: str) -> tuple[str, str, bool] | None:
+    """(name, text, timestamped) when ``line`` reads as a speaker's turn, the way _speaker_lines reads it."""
+    nm = _NAME_TS.match(line)
+    if nm and _plausible_name(nm.group("name")):
+        return nm.group("name"), nm.group("text"), True
+    rest, stamped = line, False
+    bt = _BRACKET_TS.match(line)
+    if bt and to_seconds(bt.group("ts")) is not None and (line.startswith(("[", "(")) or _SPEAKER.match(bt.group("rest"))):
+        rest, stamped = bt.group("rest"), True
+    sm = _SPEAKER.match(rest)
+    if sm and _plausible_name(sm.group("name")):
+        return sm.group("name"), sm.group("text"), stamped
+    return None
+
+
+def _meta_scan(lines: list[str]) -> tuple[dict[int, bool], set[int]]:
+    """Which "Label: value" lines are metadata, not someone speaking. (drop, text): ``drop`` maps a
+    metadata line's index to whether it's in the header / footer; ``text`` are not a new turn (the words
+    stay with the turn before).
+
+    A label line ("Organizer: …", "Duration: …") before the first real turn or after the last one (the
+    header and footer) is metadata; in the middle, it's metadata when its value clearly is (a date, a
+    link, a list of the call's people…), else plain words. A label is someone speaking after all when
+    it takes two or more turns that aren't metadata, or a "Host: …" line reads as speech ("Host:
+    Welcome, everyone."); timestamped turns always are. Then only its header / footer lines with a
+    metadata value ("Host: Gautam Kumar") are dropped."""
+    turns: list[tuple[int, str | None, str, bool]] = []
+    known: set[str] = set()
+    for i, raw in enumerate(lines):
+        line = _clean_line(raw).strip()
+        if not line or _GOOGLE_META.match(line):
+            continue
+        tr = _turn(line)
+        if tr is None:
+            sm = _SPEAKER.match(line)   # "Meeting notes: …", "Date: …": never names, still metadata
+            tr = (sm.group("name"), sm.group("text"), False) if sm and _meta_label(sm.group("name")) else None
+        if tr:
+            lab = _meta_label(tr[0])
+            turns.append((i, lab, tr[1], tr[2]))
+            if not lab:
+                known.add(clean_speaker(tr[0]).casefold())
+    if not any(lab for _i, lab, _v, _s in turns):
+        return {}, set()
+    speaking: dict[str, int] = {}
+    for _i, lab, v, stamped in turns:
+        if lab and (stamped or not _meta_value(v, known)):
+            speaking[lab] = speaking.get(lab, 0) + 1
+    real = {lab for lab, n in speaking.items() if n >= 2}
+
+    def speaks(lab: str, v: str) -> bool:
+        return (lab in real and not _meta_value(v, known)) or (lab in _SPEAKABLE and _speech(v, known))
+
+    anchors = [i for i, lab, v, stamped in turns if not lab or stamped or speaks(lab, v)]
+    first, last = (anchors[0], anchors[-1]) if anchors else (len(lines), -1)
+    drop: dict[int, bool] = {}
+    text: set[int] = set()
+    for i, lab, v, stamped in turns:
+        if not lab or stamped:
+            continue
+        edge = i < first or i > last
+        if lab in real or speaks(lab, v):
+            if edge and _meta_value(v, known):
+                drop[i] = True
+        elif edge or _meta_value(v, known):
+            drop[i] = edge
+        else:
+            text.add(i)
+    return drop, text
+
+
 def _speaker_lines(lines: list[str]) -> tuple[list[dict], bool]:
     """Google Meet transcripts and every "Name: text" style. (segments, google_style_time_marks)."""
     segs: list[dict] = []
     t_mark: int | None = None
     marks = 0
     cur: dict | None = None
-    for raw in lines:
+    meta_drop, meta_text = _meta_scan(lines)
+    for idx, raw in enumerate(lines):
         line = _clean_line(raw).strip()
         if not line:
+            continue
+        if idx in meta_drop:
+            # Metadata ends a turn in the header and footer; in the middle the turn goes on around it.
+            if meta_drop[idx]:
+                cur = None
+            continue
+        if idx in meta_text:
+            if cur is not None:
+                cur["text"] = f"{cur['text']} {line}".strip()
+            else:
+                cur = {"speaker": None, "t": t_mark, "text": line, "_mark": True}
+                segs.append(cur)
             continue
         if _GOOGLE_META.match(line):
             cur = None
@@ -485,13 +628,17 @@ def _speaker_lines(lines: list[str]) -> tuple[list[dict], bool]:
 
 
 def _skip_header(lines: list[str]) -> list[str]:
-    """Drop a short header (title, "Attendees", "Transcript", Google's notice) before the first speaker line."""
+    """Drop a short header (title, "Organizer: …", "Attendees", "Transcript", Google's notice) before the
+    first speaker line."""
+    drop, text = _meta_scan(lines)
     for i, raw in enumerate(lines[:40]):
+        if i in drop or i in text:
+            continue
         line = _clean_line(raw).strip()
         sm = _SPEAKER.match(line)
         if (sm and _plausible_name(sm.group("name")) and not re.match(r"^(attendees|invited|participants)\b", line, re.I)) \
                 or _BARE_TS.match(line) or _NAME_TS.match(line):
-            head = [x for x in lines[:i] if x.strip()]
+            head = [x for j, x in enumerate(lines[:i]) if x.strip() and j not in drop]
             if len(head) <= 12 and all(len(x) < 300 for x in head):
                 return lines[i:]
             return lines
@@ -532,10 +679,14 @@ _ORGANIZER = re.compile(r"^(?:#+\s*)?(?:[-*]\s*)?(?:\*\*)?(?:meeting\s+)?(?:orga
 
 def organizer_in(text: str) -> dict | None:
     """Who organized the call, where the text says so ("Organizer: Gautam Rao <gautam@…>",
-    "Hosted by …"), in its first lines: {name, email} or None. Never guessed from anything else."""
-    for raw in (text or "").split("\n")[:80]:
-        m = _ORGANIZER.match(_clean_line(raw).strip())
-        if not m:
+    "Hosted by …"), in its first lines: {name, email} or None. Never guessed from anything else, and
+    never a turn of someone called "Host" ("Host: Welcome, everyone.")."""
+    lines = (text or "").split("\n")
+    drop, _text = _meta_scan(lines)
+    for i, raw in enumerate(lines[:80]):
+        line = _clean_line(raw).strip()
+        m = _ORGANIZER.match(line)
+        if not m or (i not in drop and _turn(line)):
             continue
         part = re.split(r"[,;]|\s+and\s+", m.group(1).strip())[0].strip()
         em = re.search(r"<?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)>?", part)
@@ -595,7 +746,10 @@ def _first_title(lines: list[str]) -> str | None:
         m = _HEADING.match(line)
         if m:
             return m.group(1).strip()
-        if _SPEAKER.match(line) or _BARE_TS.match(line) or _VTT_CUE.match(line) or _SBV_CUE.match(line):
+        sm = _SPEAKER.match(line)
+        if sm and _meta_label(sm.group("name")):
+            continue    # "Organizer: …", "Date: …" above the title
+        if sm or _BARE_TS.match(line) or _VTT_CUE.match(line) or _SBV_CUE.match(line):
             return None
         if len(line) <= 150 and not line.endswith("."):
             return line
@@ -686,6 +840,7 @@ def parse_source(name: str, text: str) -> Source:
     if not d:
         d, t = find_date(src.name)
     src.date, src.time = d, t
+    src.organizer = organizer_in(text)
     att = _attendees_from(all_lines)
     for sp in src.speakers:
         if not any(a["name"].casefold() == sp.casefold() for a in att):

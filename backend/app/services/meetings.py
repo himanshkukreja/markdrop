@@ -814,8 +814,7 @@ def organizer_of(group: list[mp.Source], people: People) -> dict | None:
             break
     if found is None:
         for s in group:
-            inc = getattr(s, "_incoming", None)
-            hit = mp.organizer_in(getattr(inc, "text", "") or "")
+            hit = s.organizer
             if hit:
                 found, how = hit, "content"
                 break
