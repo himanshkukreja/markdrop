@@ -196,7 +196,7 @@ await step("classic", async () => {
 await step("meeting", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/${team.slug}`, { waitUntil: "networkidle" });
-  await p.getByTestId("meeting-ask").click({ timeout: 20000 });
+  await p.getByTestId("meeting-ask").first().click({ timeout: 20000 });
   await panel(p).waitFor({ timeout: 15000 });
   await p.waitForFunction(() => document.querySelector('[data-testid="assistant-scope-meetings"]')?.getAttribute("aria-checked") === "true", null, { timeout: 15000 });
   const meetingChip = await panel(p).getByTestId("chat-scope-meeting").innerText();

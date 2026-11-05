@@ -128,8 +128,11 @@ export function AssistantPanel() {
       close();
     }
   };
-  const followUps = useCallback((t: ChatTurn) => (t.citations.length && kind !== "meetings" && ctx?.workspace
-    ? ["What did the meetings say about this?"] : []), [kind, ctx]);
+  const followUps = useCallback((t: ChatTurn) => {
+    if (!t.citations.length) return [];
+    if (kind === "meetings") return ["Who's doing what next?", "Has this changed since?"];
+    return ctx?.workspace ? ["What did the meetings say about this?", "What's still open about this?"] : ["What's still open about this?"];
+  }, [kind, ctx]);
 
   if (!open) return null;
   const layout = phone ? "sheet" : "panel";

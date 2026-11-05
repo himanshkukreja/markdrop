@@ -140,7 +140,7 @@ await step("ask", async () => {
   const { p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/${meeting.slug}`);
   // Ask Markdrop (the one assistant) on Meetings · This meeting.
-  await p.getByTestId("meeting-ask").click({ timeout: 20000 });
+  await p.getByTestId("meeting-ask").first().click({ timeout: 20000 });
   const panel = p.getByTestId("assistant");
   await panel.getByTestId("chat-scope-meeting").filter({ hasText: "This meeting" }).waitFor({ timeout: 15000 });
   await panel.locator("textarea").fill("When do we ship the release?");
@@ -265,7 +265,7 @@ await step("shots", async () => {
       await snap(p, `import-${theme}-${tag}`);
       await p.keyboard.press("Escape");
       await p.goto(`${APP}/${meeting.slug}`);
-      await p.getByTestId("meeting-ask").click({ timeout: 20000 });
+      await p.getByTestId("meeting-ask").first().click({ timeout: 20000 });
       const panel = p.getByTestId("assistant");
       await panel.getByTestId("chat-scope-meeting").waitFor({ timeout: 15000 });
       await panel.locator("textarea").fill("What did we decide?");
@@ -373,7 +373,7 @@ await step("ux", async () => {
     await p.goto(`${APP}/${meeting.slug}`);
     await p.getByTestId("meeting-header").waitFor({ timeout: 20000 });
     if (!(await p.getByTestId("meeting-transcript").count())) fail("the meeting bar has no Transcript");
-    await p.getByTestId("meeting-ask").click();
+    await p.getByTestId("meeting-ask").first().click();
     const panel = p.getByTestId("assistant");
     await panel.getByTestId("chat-new").click({ timeout: 3000 }).catch(() => {});
     await panel.getByTestId("chat-starters").waitFor();
