@@ -220,6 +220,8 @@ export default async function TenantDocumentPage({ params }: Props) {
         <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={null} signInHref={signInUrlFor(host, here)} />
       );
     }
+    // A renamed or moved folder's old address: to where it is now (307, like a document's).
+    if (listing?.moved_to) redirect(`/${listing.moved_to.map(encodeURIComponent).join("/")}`);
     if (!listing?.folder) notFound();
     return <TenantFolderPage host={host} siteName={siteName} path={[...folders, slug]} initial={listing} />;
   }

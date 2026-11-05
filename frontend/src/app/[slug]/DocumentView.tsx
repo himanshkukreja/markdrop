@@ -283,7 +283,7 @@ export default function DocumentView(props: DocumentViewProps) {
   };
   // This page's place changed (moved, or an ancestor moved) or its sub-pages did: read its
   // breadcrumbs, address and "Pages inside" again. The tree redraws itself unless asked to.
-  const rereadPage = (redrawTree = true) => {
+  const rereadPage = (redrawTree = true, purge = true) => {
     pagesApi()
       .then((m) => m.getPage(slug))
       .then((doc) => {
@@ -294,8 +294,20 @@ export default function DocumentView(props: DocumentViewProps) {
         v.loadAccess();
       })
       .catch(() => {});
-    fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
+    // (A live event reaches every open copy: the server already purged what it changed.)
+    if (purge) fetch("/api/revalidate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug }) }).catch(() => {});
   };
+  // Someone added, moved or removed a sub-page (the live socket's `children`): "Pages inside" and
+  // the tree follow without a reload (fix/collab-audit).
+  const rereadRef = useRef(rereadPage);
+  rereadRef.current = rereadPage;
+  const subscribeLive = v.subscribeLive;
+  useEffect(() => {
+    if (!isPage) return;
+    return subscribeLive((msg) => {
+      if (msg.type === "children") rereadRef.current(true, false);
+    });
+  }, [isPage, subscribeLive]);
   const pageActions = isPage && canManagePage ? (
     <PageActions
       request={pageAction}
@@ -873,6 +885,7 @@ export default function DocumentView(props: DocumentViewProps) {
               addressing={addressing}
               subscribeLive={v.subscribeLive}
               onReady={() => setEditorReady(true)}
+              onMoved={(doc) => v.followMove(doc)}
               othersEditing={othersEditing}
               onHeadings={setHeadings}
               coverPending={page?.cover_pending === true}

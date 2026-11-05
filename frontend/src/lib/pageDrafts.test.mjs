@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { clearPageDraft, dropLegacyPageDraft, pageDraftKey, readPageDraft, writePageDraft } from "./pageDrafts.mjs";
+import { clearPageDraft, dropLegacyPageDraft, pageDraftKey, readPageDraft, writePageDraft, restorePageDraft } from "./pageDrafts.mjs";
 
 function memory() {
   const m = new Map();
@@ -47,4 +47,31 @@ test("clearing, legacy drafts and broken storage", () => {
   clearPageDraft(broken, "plan", "alice");
   s.setItem(pageDraftKey("plan", "alice"), "{not json");
   assert.equal(readPageDraft(s, "plan", "alice"), null);
+});
+
+test("a draft keeps its base; restoring it after someone else's change merges (fix/collab-audit)", () => {
+  const s = memory();
+  const base = "Alpha.\n\nBeta.\n\nGamma.\n";
+  writePageDraft(s, "plan", "alice", { title: "Plan", content: "Alpha. Mine.\n\nBeta.\n\nGamma.\n", rev: 4, at: 1, base, baseTitle: "Plan" });
+  const d = readPageDraft(s, "plan", "alice");
+  assert.equal(d.base, base);
+  // Nobody changed it since: the draft as it is.
+  assert.deepEqual(restorePageDraft(d, { title: "Plan", content: base, rev: 4 }), { title: "Plan", content: d.content, how: "draft" });
+  // Someone changed another paragraph: both.
+  const r = restorePageDraft(d, { title: "Plan v2", content: "Alpha.\n\nBeta.\n\nGamma by Ben.\n", rev: 6 });
+  assert.equal(r.how, "merged");
+  assert.equal(r.title, "Plan v2");
+  assert.equal(r.content, "Alpha. Mine.\n\nBeta.\n\nGamma by Ben.\n");
+  // The same paragraph: both versions kept.
+  const b = restorePageDraft(d, { title: "Plan", content: "Alpha by Ben.\n\nBeta.\n\nGamma.\n", rev: 6 });
+  assert.equal(b.how, "both");
+  assert.match(b.content, /Alpha by Ben\.\n\nAlpha\. Mine\./);
+});
+
+test("an old draft without its base never overwrites a newer page", () => {
+  const d = { title: "Plan", content: "Old draft.\n", rev: 2, at: 1, uid: "alice" };
+  const r = restorePageDraft(d, { title: "Plan", content: "Newer page.\n", rev: 5 });
+  assert.equal(r.how, "appended");
+  assert.match(r.content, /Newer page\./);
+  assert.match(r.content, /Old draft\./);
 });

@@ -48,7 +48,7 @@ class McpAccessRequests(TenantWorld):
 
     async def test_catalogue(self):
         by = {t.name: t for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 76)
+        self.assertEqual(len(mcp_tools.TOOLS), 79)  # + rename_folder, move_folder, delete_folder
         self.assertEqual((by["request_edit_access"].scope, by["request_edit_access"].writes), ("documents:write", True))
         self.assertEqual((by["list_access_requests"].scope, by["list_access_requests"].writes), ("documents:read", False))
         self.assertEqual((by["decide_access_request"].scope, by["decide_access_request"].writes),
