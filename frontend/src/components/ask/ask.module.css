@@ -1,0 +1,584 @@
+/* Ask Markdrop on the home (AskHome.tsx). Tokens only: light and dark come from the theme. */
+
+.ask {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-soft) 60%, transparent), transparent 140px),
+    var(--surface);
+}
+
+.head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+  color: var(--text);
+}
+
+.spark {
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.newBtn,
+.linkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.newBtn {
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-full);
+}
+
+.newBtn:hover,
+.linkBtn:hover {
+  text-decoration: underline;
+}
+
+.linkBtn {
+  margin-left: 6px;
+  padding: 0;
+}
+
+.newBtn:focus-visible,
+.linkBtn:focus-visible,
+.chip:focus-visible,
+.send:focus-visible,
+.recentOpen:focus-visible,
+.cite:focus-visible,
+.sourceMain:focus-visible,
+.moment:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+/* ── The field ── */
+
+.composer {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 22px;
+  background: var(--surface-raised);
+  transition: border-color var(--duration-fast) var(--ease-out), box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.composer:focus-within {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 18%, transparent);
+}
+
+.composerOff {
+  opacity: 0.7;
+}
+
+.field {
+  min-width: 0;
+  flex: 1;
+  min-height: 32px;
+  max-height: 168px;
+  padding: 6px 0;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;            /* 16px: iOS doesn't zoom into the field */
+  line-height: 22px;
+  color: var(--text);
+}
+
+.field::placeholder {
+  color: var(--text-muted);
+}
+
+.send {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-out), opacity var(--duration-fast) var(--ease-out);
+}
+
+.send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.send:not(:disabled):active {
+  transform: scale(0.94);
+}
+
+@media (pointer: coarse) {
+  .send { width: 44px; height: 44px; }
+  .newBtn { min-height: 44px; }
+}
+
+/* ── Suggestions ── */
+
+.chips {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 639.98px) {
+  /* Phones: one row that scrolls sideways, edge to edge. */
+  .chips {
+    flex-wrap: nowrap;
+    margin: 0 -16px;
+    padding: 0 16px 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips li { scroll-snap-align: start; }
+}
+
+.chip {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface-raised);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+
+.chip:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (pointer: coarse) {
+  .chip { min-height: 44px; }
+}
+
+/* ── Recent questions ── */
+
+.recent {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.recentHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.recentTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.recentList {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recentRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  border-radius: var(--radius-md);
+}
+
+.recentRow:hover {
+  background: var(--surface-hover);
+}
+
+.recentOpen {
+  display: flex;
+  min-width: 0;
+  min-height: 40px;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+@media (pointer: coarse) {
+  .recentOpen { min-height: 44px; }
+}
+
+.recentIcon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.recentQ {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recentMeta {
+  flex: none;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.recentDel {
+  flex: none;
+  opacity: 0.6;
+}
+
+.recentRow:hover .recentDel,
+.recentDel:focus-visible {
+  opacity: 1;
+}
+
+/* ── The conversation ── */
+
+.turns {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.turn {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+  animation: turnIn 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes turnIn {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .turn { animation: none; }
+}
+
+.question {
+  align-self: flex-end;
+  max-width: min(85%, 560px);
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 18px 18px 4px 18px;
+  background: var(--accent-soft);
+  font-size: 15px;
+  line-height: 22px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.answer {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.text {
+  font-size: 15px;
+  line-height: 24px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.text p,
+.text ul {
+  margin: 0 0 8px;
+}
+
+.text ul {
+  padding-left: 20px;
+}
+
+.text li + li {
+  margin-top: 2px;
+}
+
+.text code {
+  padding: 0 4px;
+  border-radius: var(--radius-xs);
+  background: var(--code-inline-bg);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--code-inline);
+}
+
+.stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
+}
+
+.foot {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.placeholder {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+}
+
+.shimmer {
+  display: block;
+  width: 92%;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--surface-inset), var(--surface-hover), var(--surface-inset));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+.caret {
+  display: inline-block;
+  width: 7px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  border-radius: 1px;
+  background: var(--accent);
+  animation: blink 1s steps(2, start) infinite;
+}
+
+@keyframes blink {
+  to { visibility: hidden; }
+}
+
+.cite {
+  display: inline-flex;
+  min-width: 20px;
+  height: 20px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 2px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 20px;
+  vertical-align: 1px;
+  color: var(--accent-text);
+  cursor: pointer;
+}
+
+.cite:hover {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* Sources: a card per item, moments of a meeting under it. */
+.sources {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+}
+
+.source {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.sourceMain {
+  display: flex;
+  min-width: 0;
+  min-height: 32px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.sourceMain:hover:not(:disabled) {
+  background: var(--surface-hover);
+}
+
+@media (pointer: coarse) {
+  .sourceMain { min-height: 44px; }
+}
+
+.sourceN {
+  display: inline-grid;
+  flex: none;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.sourceIcon {
+  flex: none;
+  color: var(--text-muted);
+}
+
+.sourceTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.sourceTask {
+  padding: 0 6px 2px 30px;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--text-secondary);
+}
+
+.moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 4px 2px 28px;
+}
+
+.moment {
+  display: inline-flex;
+  min-height: 26px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.moment:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+@media (pointer: coarse) {
+  .moment { min-height: 36px; }
+}

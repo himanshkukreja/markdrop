@@ -15,6 +15,7 @@
     { "id": "workspaces", "title": "Workspaces", "tags": ["workspaces", "invitations"] },
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
+    { "id": "ask", "title": "Ask Markdrop", "tags": ["ask"] },
     { "id": "meetings", "title": "Meetings", "tags": ["meetings"] },
     { "id": "slack", "title": "Slack", "tags": ["slack"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
@@ -1279,6 +1280,39 @@
       "example": { "question": "How do we onboard contractors?" },
       "mcp": "ask_documents",
       "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
+    },
+    "GET /api/v1/ask/home": {
+      "title": "Get Ask Markdrop's home",
+      "description": "What the home's Ask box shows: `status` (whether AI can answer now; when it can't, `reason` and `message` say why), `suggestions` (ready-made questions, each with its `intent`: `catch_up`, `my_actions` or `ask`) and `recent` (your latest conversations).",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "POST /api/v1/ask": {
+      "title": "Ask Markdrop",
+      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations`, `ranked` and `thread_id`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI search limits.",
+      "returns": "text/event-stream",
+      "example": { "question": "When do we ship the release?" },
+      "mcp": "ask_documents",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "GET /api/v1/ask/threads": {
+      "title": "List your Ask Markdrop conversations",
+      "description": "Your recent conversations, newest first: each one's `id`, `title` (its first question), number of questions and when it was last used. Only you can see your conversations.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "GET /api/v1/ask/threads/{thread_id}": {
+      "title": "Open a conversation",
+      "description": "One of your conversations with every question and answer. Each answer's sources are checked against your access again: when you can no longer open one of them, that answer comes back with `withheld: true` and no text.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "DELETE /api/v1/ask/threads/{thread_id}": {
+      "title": "Delete a conversation",
+      "description": "Deletes one of your conversations.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+    },
+    "DELETE /api/v1/ask/threads": {
+      "title": "Delete all your conversations",
+      "description": "Deletes every conversation you had with Ask Markdrop. Your documents aren't touched.",
+      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
     },
     "POST /api/v1/search/click": {
       "title": "Record an opened result",
