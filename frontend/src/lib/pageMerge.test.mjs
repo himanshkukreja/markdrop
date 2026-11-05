@@ -100,6 +100,7 @@ test("the same line changed differently is a conflict; both versions are kept", 
   assert.match(r.content, /Intro by the AI\./);
   assert.doesNotMatch(r.content, /Intro by Ada/);
   assert.match(r.mineContent, /Intro by Ada\./);
+  assert.match(r.bothContent, /Intro by the AI\.\n\nIntro by Ada\./);
 });
 
 test("a conflict elsewhere doesn't stop clean stretches merging", () => {
@@ -150,4 +151,5 @@ test("everything rewritten on both sides: one conflict, both kept", () => {
   assert.equal(r.clean, false);
   assert.equal(r.content, theirs);
   assert.equal(r.mineContent, mine);
+  assert.equal(r.bothContent, `${theirs}\n\n${mine}`);
 });
