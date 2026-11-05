@@ -16,6 +16,8 @@ keywords: [ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assi
 
 On a computer it opens as a panel beside what you're reading, so you can keep scrolling, select text and click links while it answers. On a phone it opens as a sheet from the bottom. **Esc** closes it.
 
+::clip{src="/docs-assets/workspaces/ask-markdrop/assistant" alt="Pressing ⌘J on a page opens Ask Markdrop beside it, a question about what's still open before the release is typed, the answer arrives with numbered sources, and Insert puts it at the end of the page."}
+
 ## What it answers from
 
 The chips at the top of the panel say what Ask Markdrop answers from. It starts on the one that fits where you are, and you can switch at any time, even in the middle of a conversation:
@@ -29,6 +31,8 @@ The chips at the top of the panel say what Ask Markdrop answers from. It starts 
 | **Everything** | Every meeting, document, page, file and [Guide](/guides/overview) you can open | Your home, and anywhere else |
 
 Only the chips for things you can open are shown. A document in your personal space has **This doc** and **Everything**. If Markdrop can't tell where you are, for example when the connection drops, the panel says "Couldn't check this place" and answers from **Everything**.
+
+![Ask Markdrop opened on a page: the scope chips This doc, Meetings, Workspace and Everything, and suggested questions for the doc.](/docs-assets/workspaces/ask-markdrop/assistant-scopes.webp)
 
 ### This doc
 
@@ -56,6 +60,8 @@ Under an answer:
 - Follow-up questions to pick in one tap.
 
 AI can be wrong, so check the sources. When nothing you can open answers the question, the answer says so. An answer is never blank: if one runs long, you get what was written with a note that it was cut short, and you can ask a narrower question for the rest.
+
+![An answer in Ask Markdrop: the question, the scope it used, the answer with numbered sources, and under it 3 sources, Copy, Insert and Try again, then follow-up questions.](/docs-assets/workspaces/ask-markdrop/assistant-page.webp)
 
 ## Insert an answer into the doc
 

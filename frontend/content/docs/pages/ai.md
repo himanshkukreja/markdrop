@@ -45,6 +45,8 @@ The result appears as a suggestion, drawn as the blocks it would become, with th
 
 AI keeps links, mentions, embeds, code and the page's own Markdown as they are. A selection can be up to 12,000 characters.
 
+![A selected paragraph with the Ask AI menu open from the formatting bar: Improve writing, Make shorter, Fix spelling & grammar, Change tone, Translate, Turn into checklist, Turn into table, Find action items and Explain.](/docs-assets/pages/ai/ai-menu.webp)
+
 ## Draft with /ai
 
 On an empty line, type `/ai`, press **⌘ J**, or press **Space**. Say what you want, such as "write an intro" or "add a rollout checklist", and press **Enter**. The draft streams in as a suggestion in the page's own blocks, written with the rest of the page in mind, with **Accept**, **Try again** and **Discard**.

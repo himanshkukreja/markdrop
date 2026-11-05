@@ -33,6 +33,8 @@ If what you typed was waiting because someone else was [editing the page](/pages
 
 Nothing is ever lost without a trace: every saved version is in [version history](/pages/history), with who saved it.
 
+![The banner after two people changed the same line: Someone else changed the same part of this page while you were editing, with Keep both, Use theirs and Use mine, above the page.](/docs-assets/pages/working-together/keep-both.webp)
+
 ## Unsaved changes from earlier
 
 If you closed a page before your changes were saved, the next time you open it you're offered **Restore them**. If the page changed since, your changes are merged into the newer version, not saved over it. Where both changed the same lines, both versions are on the page, theirs first.

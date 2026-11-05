@@ -42,6 +42,8 @@ When other members connected their own scripts to this workspace, the line says 
 
 ![The Meetings page with Google Meet connected: last import just now, the number of meetings, New script and Disconnect, how the script's last run went (79 found, 60 sent, 19 more in the next run), the shared-drives hint and who else imports here; the meeting it imported is marked Auto.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
 
+::clip{src="/docs-assets/workspaces/meetings-auto-import/connect" alt="The Connect Google Meet dialog: Make my script, then the ready script with the appsscript.json manifest and Code.gs to copy into Google Apps Script."}
+
 ## What the script can see and do
 
 - **It reads only meeting Docs.** It looks at Google Docs whose title looks like a Meet transcript ("*Meeting name* (date) - Transcript") or Gemini's notes ("*Meeting name* - date - Notes by Gemini"), created in the last 48 hours. Google's titles in other languages count too ("Transcripción", "Notizen von Gemini" and so on), and so does any Doc in a **Meet Recordings** folder. Other files are never opened.

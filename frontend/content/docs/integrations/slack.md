@@ -34,6 +34,8 @@ Your own Slack account is linked as part of this. Everyone else links theirs onc
 
 A Slack workspace can be connected to only one Markdrop workspace at a time. To move it, **Disconnect Slack…** in the first workspace, then add it in the other.
 
+![The Slack card in Workspace settings › Integrations before Markdrop for Slack is switched on for the server: Not set up yet.](/docs-assets/integrations/slack/card-not-set-up.webp)
+
 ### Choose the meetings channel
 
 The **Meetings channel** list has the Slack workspace's public channels, marked `#`, and the private channels Markdrop was invited to, marked with a lock. A channel shared with another organization (Slack Connect) says **(shared with another organization)**. For a private channel, first type `/invite @Markdrop` in it, then reload the settings.
@@ -43,6 +45,8 @@ The **Meetings channel** list has the Slack workspace's public channels, marked 
 - **Post new meetings automatically** appears once a channel is chosen, and is on. Turn it off to post meetings only by hand, with **Post to Slack** (see [Meeting notes and Done](#meeting-notes-and-done)).
 
 If the card says **Slack's connection broke** (someone removed the app's access in Slack, for example), select **Disconnect Slack…**, then **Add to Slack** again.
+
+![The Slack card when connected: the Slack workspace, who connected it and when, how many people linked their account, the Meetings channel picker set to #meetings, Post new meetings automatically, and Disconnect Slack.](/docs-assets/integrations/slack/card-connected.webp)
 
 ## Link your Slack account
 
@@ -76,6 +80,8 @@ Which meetings are posted:
 - Each meeting is posted on its own once. Writing its summary again doesn't post it again.
 - Past meetings brought in quietly aren't posted on their own, so a backlog doesn't flood the channel. That's [Import past meetings](/workspaces/meetings-import#import-past-meetings) with **Don't notify anyone** on (the default), and the past days that [Connect Google Meet](/workspaces/meetings-auto-import#past-meetings) brings in.
 
+![Illustration of a meeting post in the #meetings channel: the meeting's title and date, its summary and decisions, the action items with the people mentioned and a Done button each, one already done by Sam Lee, and Open the meeting.](/docs-assets/integrations/slack/illustration-meeting-post.webp)
+
 ### Post a meeting by hand
 
 To post a meeting again, a past one, or any meeting when **Post new meetings automatically** is off: open the meeting's page, select **Meeting** at the bottom right, then **Post to Slack**. Markdrop says "Posted to #channel in Slack." The button shows for people who can edit the meeting's page, once the workspace has a meetings channel, and not on a restricted meeting.
@@ -100,6 +106,12 @@ An answer quotes your question, then the answer with its **Sources** as links, a
 
 If Slack isn't connected to a Markdrop workspace, `/markdrop` says so and that a workspace admin can connect it in **Workspace settings › Integrations › Slack**.
 
+![Illustration of the reply to /markdrop search onboarding, only visible to you: three results with their kind, workspace and a line of text, and See all in Markdrop.](/docs-assets/integrations/slack/illustration-search.webp)
+
+![Illustration of the reply to /markdrop ask: the question, the answer with numbered markers, the sources as links, and a note that only you can see it.](/docs-assets/integrations/slack/illustration-ask.webp)
+
+![Illustration of the reply to /markdrop meetings: when the onboarding checklist ships, answered from the Weekly product sync with a link to the moment.](/docs-assets/integrations/slack/illustration-meetings-ask.webp)
+
 ## Link previews
 
 Paste a markdrop.in link into Slack and Markdrop adds a preview with its title, a few lines, its kind, its workspace and when it was last updated. Links to a [shared folder](/workspaces/share-a-folder) get a preview with the folder's name. Links on a workspace's [own domain](/workspaces/custom-domain), like docs.acme.com, don't get a preview from Markdrop. The whole channel sees a preview, so Markdrop shows one only when everyone there may open the item:
@@ -108,6 +120,8 @@ Paste a markdrop.in link into Slack and Markdrop adds a preview with its title, 
 - your workspace's own items, in a channel that isn't shared with another organization.
 
 For anything else, the preview just says **Markdrop link — sign in to view**, without the title, and "Only people who can open it in Markdrop see what's behind this link." Password-protected and private items always get that. While you're still typing a message, before it's sent, Markdrop treats the channel as shared, so the preview there is the strict one.
+
+![Illustration of link previews under a message: a markdrop.in page shows its title, a line of text, its kind, workspace and last update; a link the channel may not open shows only Markdrop link — sign in to view.](/docs-assets/integrations/slack/illustration-unfurl.webp)
 
 ## Direct messages
 
@@ -121,6 +135,10 @@ Once your account is linked, Markdrop sends you a direct message when:
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
 
 Turn each kind on or off in **Workspace settings** › **Integrations** › **Your Slack account** › **Direct messages from Markdrop**. All four are on when you link. The bell and email notifications don't change. If you lose access to something before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
+
+![Illustration of a direct message: Alex Chen mentioned you in Release notes 2.4, with the line and Open in Markdrop.](/docs-assets/integrations/slack/illustration-dm-mention.webp)
+
+![Illustration of an access request direct message: Jordan Park asked to edit Q3 plan, with their message and Approve, Decline and Review in Markdrop; after Approve, the same message says Approved by you: they can edit it now.](/docs-assets/integrations/slack/illustration-dm-access-request.webp)
 
 ## Disconnect
 

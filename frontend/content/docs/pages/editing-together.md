@@ -42,6 +42,8 @@ The page's owner and the workspace's admins and owners see **Edit anyway** in th
 
 Use it when someone left a page open with changes you need to make now. Anyone else waits until the page is free.
 
+![Riya opens a page Alex is editing: who's viewing and the bar say Alex Chen is editing, a banner says she'll be able to edit when he's done, and, as the page's owner, she gets Edit anyway.](/docs-assets/pages/editing-together/edit-anyway.webp)
+
 ## From an AI app
 
 AI apps connected over [MCP](/ai/hosted-mcp) follow the same rules. While someone is editing a page, `update_page`, `replace_section`, `insert_embed` with `after_heading`, `set_page_properties`, `set_slug`, `restore_page_version`, `summarize_page` with `insert` and `update_document` are refused with an error that says who is editing, how long they've been idle, whether they have unsaved changes and when the page will be free. The error's code is `locked` (HTTP status `423` in the [API](/api/overview)), and the same facts come as fields (`holder`, `idle_s`, `idle_text`, `dirty`, `hidden`, `releases_in_s`, `releases_text`, `can_take_over`, `retryable`) for the app to read, so it can wait and try again or ask you. `append_blocks` always works: the editor shows the new blocks straight away.

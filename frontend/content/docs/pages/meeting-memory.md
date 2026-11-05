@@ -24,6 +24,8 @@ The panel follows what you're writing: the page's title, the heading of the sect
 
 Each item shows its date and meeting, and the series it belongs to, such as **Daily Standup**. The time button, such as **▶ 12:34**, opens the transcript at the moment it was said; without a transcript, **Open meeting** opens the meeting page. Use the chips at the top to show only decisions, action items, questions or topics, and the search box to look for anything else: a feature, a customer, a person.
 
+![The From meetings panel beside a page being edited: a search box, filters for decisions, actions, questions and topics, and the related decisions from the Weekly product sync, each with its date, the moment in the call, Ask about this and Insert.](/docs-assets/pages/meeting-memory/from-meetings.webp)
+
 ## Insert a decision
 
 Select **Insert** on an item to add it to the page as its own line, after the line your cursor is on:

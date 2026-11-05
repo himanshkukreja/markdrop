@@ -2127,6 +2127,210 @@
     "bytes": 146306,
     "kind": "image"
   },
+  "/docs-assets/integrations/slack/card-connected.dark.webp": {
+    "w": 1712,
+    "h": 894,
+    "bytes": 50902,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/card-connected.webp": {
+    "w": 1712,
+    "h": 894,
+    "bytes": 52726,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/card-not-set-up.dark.webp": {
+    "w": 1712,
+    "h": 330,
+    "bytes": 24198,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/card-not-set-up.webp": {
+    "w": 1712,
+    "h": 330,
+    "bytes": 24744,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-ask.dark.webp": {
+    "w": 1280,
+    "h": 628,
+    "bytes": 46416,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-ask.webp": {
+    "w": 1280,
+    "h": 628,
+    "bytes": 47954,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-dm-access-request.dark.webp": {
+    "w": 1280,
+    "h": 790,
+    "bytes": 47864,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-dm-access-request.webp": {
+    "w": 1280,
+    "h": 790,
+    "bytes": 50402,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-dm-mention.dark.webp": {
+    "w": 1280,
+    "h": 388,
+    "bytes": 21322,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-dm-mention.webp": {
+    "w": 1280,
+    "h": 388,
+    "bytes": 22346,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-meeting-post.dark.webp": {
+    "w": 1280,
+    "h": 1036,
+    "bytes": 71878,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-meeting-post.webp": {
+    "w": 1280,
+    "h": 1036,
+    "bytes": 74314,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-meetings-ask.dark.webp": {
+    "w": 1280,
+    "h": 538,
+    "bytes": 40802,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-meetings-ask.webp": {
+    "w": 1280,
+    "h": 538,
+    "bytes": 42680,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-search.dark.webp": {
+    "w": 1280,
+    "h": 694,
+    "bytes": 45056,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-search.webp": {
+    "w": 1280,
+    "h": 694,
+    "bytes": 47044,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-unfurl.dark.webp": {
+    "w": 1280,
+    "h": 656,
+    "bytes": 41480,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-unfurl.webp": {
+    "w": 1280,
+    "h": 656,
+    "bytes": 44342,
+    "kind": "image"
+  },
+  "/docs-assets/pages/ai/ai-menu.dark.webp": {
+    "w": 1602,
+    "h": 970,
+    "bytes": 45500,
+    "kind": "image"
+  },
+  "/docs-assets/pages/ai/ai-menu.webp": {
+    "w": 1602,
+    "h": 970,
+    "bytes": 46188,
+    "kind": "image"
+  },
+  "/docs-assets/pages/editing-together/edit-anyway.dark.webp": {
+    "w": 2880,
+    "h": 600,
+    "bytes": 40118,
+    "kind": "image"
+  },
+  "/docs-assets/pages/editing-together/edit-anyway.webp": {
+    "w": 2880,
+    "h": 600,
+    "bytes": 41232,
+    "kind": "image"
+  },
+  "/docs-assets/pages/meeting-memory/from-meetings.dark.webp": {
+    "w": 760,
+    "h": 1520,
+    "bytes": 64366,
+    "kind": "image"
+  },
+  "/docs-assets/pages/meeting-memory/from-meetings.webp": {
+    "w": 760,
+    "h": 1520,
+    "bytes": 72038,
+    "kind": "image"
+  },
+  "/docs-assets/pages/mentions-and-notifications/mention.dark.webp": {
+    "w": 1722,
+    "h": 644,
+    "bytes": 25532,
+    "kind": "image"
+  },
+  "/docs-assets/pages/mentions-and-notifications/mention.webp": {
+    "w": 1722,
+    "h": 644,
+    "bytes": 28008,
+    "kind": "image"
+  },
+  "/docs-assets/pages/overview/edit-mode.dark.webp": {
+    "w": 2880,
+    "h": 840,
+    "bytes": 45908,
+    "kind": "image"
+  },
+  "/docs-assets/pages/overview/edit-mode.webp": {
+    "w": 2880,
+    "h": 840,
+    "bytes": 47802,
+    "kind": "image"
+  },
+  "/docs-assets/pages/overview/view-mode.dark.webp": {
+    "w": 2880,
+    "h": 840,
+    "bytes": 51788,
+    "kind": "image"
+  },
+  "/docs-assets/pages/overview/view-mode.webp": {
+    "w": 2880,
+    "h": 840,
+    "bytes": 53788,
+    "kind": "image"
+  },
+  "/docs-assets/pages/sub-pages/subpage-gallery.dark.webp": {
+    "w": 1680,
+    "h": 1736,
+    "bytes": 82886,
+    "kind": "image"
+  },
+  "/docs-assets/pages/sub-pages/subpage-gallery.webp": {
+    "w": 1680,
+    "h": 1736,
+    "bytes": 86626,
+    "kind": "image"
+  },
+  "/docs-assets/pages/working-together/keep-both.dark.webp": {
+    "w": 2880,
+    "h": 1034,
+    "bytes": 76398,
+    "kind": "image"
+  },
+  "/docs-assets/pages/working-together/keep-both.webp": {
+    "w": 2880,
+    "h": 1034,
+    "bytes": 80984,
+    "kind": "image"
+  },
   "/docs-assets/share/send-files/p2p-direct-vs-relay.mp4": {
     "w": 1600,
     "h": 900,
@@ -2815,6 +3019,50 @@
     "bytes": 25558,
     "kind": "image"
   },
+  "/docs-assets/workspaces/ask-markdrop/assistant-page.dark.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 43902,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/assistant-page.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 49064,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/assistant-scopes.dark.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 29370,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/assistant-scopes.webp": {
+    "w": 840,
+    "h": 1640,
+    "bytes": 34646,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/assistant.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 11.67,
+    "bytes": 289209,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/ask-markdrop/assistant.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 11.67,
+    "bytes": 304561,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/ask-markdrop/assistant.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 66228,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/branding/branding-form.dark.webp": {
     "w": 1712,
     "h": 1350,
@@ -2972,15 +3220,15 @@
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-ask/meeting-bar.dark.webp": {
-    "w": 1442,
-    "h": 102,
-    "bytes": 9172,
+    "w": 1490,
+    "h": 216,
+    "bytes": 11556,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-ask/meeting-bar.webp": {
-    "w": 1442,
-    "h": 102,
-    "bytes": 9532,
+    "w": 1490,
+    "h": 216,
+    "bytes": 11864,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-ask/sources.dark.webp": {
@@ -3019,16 +3267,60 @@
     "bytes": 138768,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings-auto-import/connect.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 9.57,
+    "bytes": 156664,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/connect.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 9.57,
+    "bytes": 267662,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/connect.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 63722,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/meetings-auto-import/connected.dark.webp": {
-    "w": 2016,
-    "h": 1470,
-    "bytes": 108468,
+    "w": 1984,
+    "h": 1254,
+    "bytes": 101500,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.webp": {
-    "w": 2016,
-    "h": 1470,
-    "bytes": 113264,
+    "w": 1984,
+    "h": 1254,
+    "bytes": 104224,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/import-link.dark.webp": {
+    "w": 1280,
+    "h": 1088,
+    "bytes": 61202,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/import-link.webp": {
+    "w": 1280,
+    "h": 1088,
+    "bytes": 65966,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/import-paste.dark.webp": {
+    "w": 1280,
+    "h": 1624,
+    "bytes": 90948,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/import-paste.webp": {
+    "w": 1280,
+    "h": 1624,
+    "bytes": 94710,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-import/organised.dark.webp": {
@@ -3053,6 +3345,18 @@
     "w": 1680,
     "h": 1544,
     "bytes": 113098,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/meeting-details.dark.webp": {
+    "w": 2880,
+    "h": 1800,
+    "bytes": 131476,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/meeting-details.webp": {
+    "w": 2880,
+    "h": 1800,
+    "bytes": 140130,
     "kind": "image"
   },
   "/docs-assets/workspaces/members-and-roles/invite-dialog.dark.webp": {

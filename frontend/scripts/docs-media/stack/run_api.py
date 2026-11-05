@@ -668,6 +668,17 @@ async def cleanup(request: Request, body: dict | None = None):
         for coll in ("events", "engage_sessions", "file_versions", "access_requests"):
             await db[coll].delete_many({"doc_id": {"$in": sids}})
         await db["document_grants"].delete_many({"document_id": {"$in": sids}})
+    # Meetings whose page is gone (shots import meetings: the next import mustn't be a "duplicate" of a
+    # meeting with no page), their facts, and the Google Meet inbox's record of the Docs that made them.
+    live = {d["_id"] for d in await db["documents"].find({}, {"_id": 1}).to_list(length=None)}
+    gone = [m["_id"] async for m in db["meetings"].find({}, {"_id": 1, "doc_id": 1}) if m.get("doc_id") not in live
+            and str(m.get("doc_id")) not in {str(x) for x in live}]
+    if gone:
+        both = gone + [str(g) for g in gone]
+        await db["meetings"].delete_many({"_id": {"$in": gone}})
+        await db["meeting_facts"].delete_many({"meeting_id": {"$in": both}})
+    kept = [str(m["_id"]) async for m in db["meetings"].find({}, {"_id": 1})]
+    await db["meeting_inbox"].delete_many({"meeting_id": {"$nin": kept}})
     return {"deleted": len(ids)}
 
 

@@ -41,6 +41,10 @@ If the page's link changes while you're editing it (you or an AI app choose a ne
 
 It works the same on markdrop.in and on your workspace's [own domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain), on a computer, a tablet or a phone (on a phone, **Edit** and **Done** are the pencil and the tick in the top bar). People who can only read the page see the same View mode without **Edit**.
 
+![A page in View mode: the page tree and contents on the left, and in the top bar who's viewing, Ask, Edit, Share and the ⋯ menu.](/docs-assets/pages/overview/view-mode.webp)
+
+![The same page in Edit: the top bar shows Saved, Ask and Done instead of Edit, and the page can be typed in.](/docs-assets/pages/overview/edit-mode.webp)
+
 ### Tick a to-do in View mode
 
 If you can edit a page, you can tick or untick its to-do boxes without opening the editor: the change saves at once. While someone else is editing the page, or the page is [locked](#page-options), the boxes don't tick; if someone started editing a moment ago, the box goes back and Markdrop tells you who, for example **Ana is editing this page. Try again when they're done.** Readers see the boxes but can't change them.

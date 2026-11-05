@@ -87,6 +87,8 @@ When Google's notes are there, Markdrop uses them as written, marked **From Goog
 
 The page is an ordinary page. Edit it like any other: fix a name, add notes, tick off action items. Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken.
 
+![A meeting page with its Meeting details panel open: Ask this meeting, the date, type, series, transcript, action items, organizer and who imported it, who was there, the sources, the Only the people who were there switch, the AI summary, and All meetings, Post to Slack and Delete meeting.](/docs-assets/workspaces/meetings/meeting-details.webp)
+
 ## From an AI app
 
 With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).

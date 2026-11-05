@@ -87,7 +87,23 @@ export default [
         text: readFileSync(path.join(FIX, file), "utf8"), doc_url: `https://docs.google.com/document/d/${file_id}/edit`,
       }, { raw: token });
       await send("1DocsMediaTranscriptAbcdefgh", "Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transcript", "google_meet_transcript.txt", "transcript");
-      await send("1DocsMediaNotesAbcdefghijklm", "Weekly product sync - 2026/11/04 10:00 GMT+05:30 - Notes by Gemini", "gemini_notes.txt", "notes");
+      // The notes pair with the transcript's meeting once its page exists (the import runs in the background).
+      for (let i = 0; ; i++) {
+        try {
+          await send("1DocsMediaNotesAbcdefghijklm", "Weekly product sync - 2026/11/04 10:00 GMT+05:30 - Notes by Gemini", "gemini_notes.txt", "notes");
+          break;
+        } catch (e) {
+          if (i >= 20 || !/404/.test(String(e))) throw e;
+          await h.sleep(1000);
+        }
+      }
+      // The script's run report (the status line under "Google Meet connected"), as script v3 sends it.
+      await api(h, "POST", "/api/v1/meetings/inbox/status", {
+        phase: "done", version: 3, mode: "run", include_shared: true, found: 79, sent: 60, remaining: 19,
+        skipped: { title: 12, writing: 2 }, shared_drives: "off", drive_project: "123456789",
+      }, { raw: token });
+      // Maya imports from her Google account into the same workspace ("Also importing here").
+      await api(h, "POST", "/api/v1/meetings/connection", { workspace: ws, restricted: false }, { who: "maya" });
       await h.page.reload();
       await h.loc("[data-testid='meet-connection']").waitFor({ timeout: 20000 });
       await h.loc("[data-testid='meeting-card']").first().waitFor();

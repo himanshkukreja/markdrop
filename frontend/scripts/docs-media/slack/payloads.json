@@ -1,0 +1,430 @@
+{
+ "users": {
+  "U0MAYA": "Maya Patel",
+  "U0ALEX": "Alex Chen",
+  "U0SAM": "Sam Lee"
+ },
+ "meeting_post": {
+  "where": "#meetings",
+  "from": "Markdrop",
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":spiral_note_pad: *<https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>*\nTue Nov 4, 2026 · 10:00"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Summary*\nWe agreed to ship the new onboarding checklist on Nov 12 and to keep the old flow behind a flag for two weeks. Billing's annual-plan bug is fixed in 2.4.1; support will tell the three affected customers."
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Decisions*\n• Ship the onboarding checklist on Nov 12\n• Keep the old onboarding flow behind a flag for two weeks"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Action items*"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":white_large_square: <@U0MAYA> Update the onboarding docs before the release"
+     },
+     "accessory": {
+      "type": "button",
+      "text": {
+       "type": "plain_text",
+       "text": "Done",
+       "emoji": true
+      },
+      "action_id": "md_done",
+      "value": "done|6aecc9488c77e564c2be27a1|b-1a2b3c4d|1Sui2U6-kjrUaj0Q"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":white_large_square: <@U0ALEX> Email the three affected billing customers"
+     },
+     "accessory": {
+      "type": "button",
+      "text": {
+       "type": "plain_text",
+       "text": "Done",
+       "emoji": true
+      },
+      "action_id": "md_done",
+      "value": "done|6aecc9488c77e564c2be27a1|b-2b3c4d5e|h5qK4yhQosycIYTW"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":white_check_mark: ~<@U0SAM> Turn on the flag in staging~\n_Done by Sam Lee_"
+     }
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Open the meeting",
+        "emoji": true
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/weekly-product-sync-nov-4"
+      }
+     ]
+    }
+   ],
+   "text": "Meeting notes: Weekly product sync"
+  }
+ },
+ "search": {
+  "where": "/markdrop search onboarding",
+  "from": "Markdrop",
+  "ephemeral": true,
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "Results for *onboarding*"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*<https://docs.acme.com/guides/onboarding-guide|Onboarding guide>*  _Page · Acme_\nEverything a new teammate needs in their first week: accounts, tools and who to ask."
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*<https://docs.acme.com/onboarding-handbook|Onboarding handbook>*  _PDF · Acme_\nBenefits, time off and the team calendar."
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*<https://docs.acme.com/guides/setup/getting-started|Getting started>*  _Document · Acme_\nInstall the CLI, connect a data source and invite your team."
+     }
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "See all in Markdrop",
+        "emoji": true
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/search?q=onboarding"
+      }
+     ]
+    }
+   ],
+   "text": "Results for onboarding"
+  }
+ },
+ "ask": {
+  "where": "/markdrop ask How do I connect Postgres?",
+  "from": "Markdrop",
+  "ephemeral": true,
+  "message": {
+   "blocks": [
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "_How do I connect Postgres?_"
+      }
+     ]
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "Create a read-only user in Postgres, then add it under Settings › Data sources › Postgres with the host, port and database [1]. Connections from Acme come from two fixed IP addresses you can allow in your firewall [2]."
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Sources*\n[1] <https://docs.acme.com/guides/setup/connect-postgres|Connect Postgres>\n[2] <https://docs.acme.com/security-faq|Security FAQ>"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Only you can see this answer. Markdrop AI can make mistakes; check the sources."
+      }
+     ]
+    }
+   ],
+   "text": "Create a read-only user in Postgres, then add it under Settings › Data sources › Postgres with the host, port and database [1]. Connections from Acme…"
+  }
+ },
+ "meetings_ask": {
+  "where": "/markdrop meetings When do we ship the onboarding checklist?",
+  "from": "Markdrop",
+  "ephemeral": true,
+  "message": {
+   "blocks": [
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "_When do we ship the onboarding checklist?_"
+      }
+     ]
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "On Nov 12. It was decided in the Weekly product sync on Nov 4, with the old flow kept behind a flag for two weeks [1]."
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Sources*\n[1] <https://markdrop.in/weekly-product-sync-nov-4#t=760|Weekly product sync, Nov 4 (Maya Patel at 12:40)>"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Only you can see this answer. Markdrop AI can make mistakes; check the sources."
+      }
+     ]
+    }
+   ],
+   "text": "On Nov 12. It was decided in the Weekly product sync on Nov 4, with the old flow kept behind a flag for two weeks [1]."
+  }
+ },
+ "unfurl": {
+  "where": "#product",
+  "from": "Alex Chen",
+  "text": "https://markdrop.in/connect-postgres  https://markdrop.in/q3-plan-internal",
+  "unfurls": [
+   {
+    "blocks": [
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "*<https://markdrop.in/connect-postgres|Connect Postgres>*\nCreate a read-only user, add it under Settings › Data sources, and check the connection. Takes about five minutes."
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Page · Acme · updated Nov 3, 2026"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "blocks": [
+     {
+      "type": "section",
+      "text": {
+       "type": "mrkdwn",
+       "text": "*<https://markdrop.in/q3-plan-internal|Markdrop link — sign in to view>*"
+      }
+     },
+     {
+      "type": "context",
+      "elements": [
+       {
+        "type": "mrkdwn",
+        "text": "Only people who can open it in Markdrop see what's behind this link."
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "dm_mention": {
+  "where": "Direct message",
+  "from": "Markdrop",
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Alex Chen* mentioned you in *<https://markdrop.in/release-notes-2-4#b-9f8e7d6c|Release notes 2.4>*\n>@Riya Sharma can you check the migration steps before we publish?"
+     }
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Open in Markdrop",
+        "emoji": true
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/release-notes-2-4#b-9f8e7d6c"
+      }
+     ]
+    }
+   ],
+   "text": "Alex Chen mentioned you in Release notes 2.4"
+  }
+ },
+ "dm_access_request": {
+  "where": "Direct message",
+  "from": "Markdrop",
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Jordan Park (jordan@northwind.com)* asked to edit *<https://markdrop.in/requests/6aecc9488c77e564c2be2796|Q3 plan>*\n>I'm preparing the partner review and need to add our numbers."
+     }
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Approve",
+        "emoji": true
+       },
+       "action_id": "md_ar_ok",
+       "value": "ar|6aecc9488c77e564c2be2796|edit|P489T4OPnW8oSxbZ",
+       "style": "primary"
+      },
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Decline",
+        "emoji": true
+       },
+       "action_id": "md_ar_no",
+       "value": "ar|6aecc9488c77e564c2be2796|decline|fpkyT8nb2eL44z8g",
+       "style": "danger"
+      },
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Review in Markdrop",
+        "emoji": true
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/requests/6aecc9488c77e564c2be2796"
+      }
+     ]
+    }
+   ],
+   "text": "Jordan Park asked to edit Q3 plan"
+  },
+  "after": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Jordan Park (jordan@northwind.com)* asked to edit *<https://markdrop.in/requests/6aecc9488c77e564c2be2796|Q3 plan>*\n>I'm preparing the partner review and need to add our numbers."
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Approved by you: they can edit it now."
+      }
+     ]
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Open in Markdrop",
+        "emoji": true
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/requests/6aecc9488c77e564c2be2796"
+      }
+     ]
+    }
+   ],
+   "text": "Jordan Park asked to edit Q3 plan"
+  }
+ },
+ "help": {
+  "where": "/markdrop help",
+  "from": "Markdrop",
+  "ephemeral": true,
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Markdrop in Slack* (only you see these replies)\n• `/markdrop search <words>` finds documents, pages, files and folders you can open\n• `/markdrop ask <question>` answers from what you can open, with sources\n• `/markdrop meetings <question>` answers from your workspace's meetings\n• `/markdrop link` links your Slack account to your Markdrop account (once)\n• `/markdrop unlink` removes that link"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "You're linked as *Riya Sharma*."
+      }
+     ]
+    }
+   ],
+   "text": "Markdrop help"
+  }
+ }
+}

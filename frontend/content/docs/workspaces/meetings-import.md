@@ -20,6 +20,8 @@ Import a call when it's over. It works for any call: Google Meet, Zoom, Microsof
 4. Check **Only the people who were there**. It starts on for a 1:1 or a two-person call, and off for three or more people. For picked Google Docs, leave it alone and Markdrop decides the same way when it reads them, or switch it to choose yourself. See [Privacy and cost](/workspaces/meetings-privacy).
 5. Select **Import meeting** (or **Import N meetings** when the files hold several calls). The page opens straight away, ready to edit, and the summary fills in a few seconds later. A call that's already here opens the meeting you have instead (**Already imported**), and the other half of a call you have is added to it.
 
+![The Import a meeting dialog on the Paste tab: a pasted Google Meet transcript, the preview of what Markdrop found (title, date, lines and people), the title, date and type, the Only the people who were there switch, and Import meeting.](/docs-assets/workspaces/meetings-import/import-paste.webp)
+
 ## Formats Markdrop reads
 
 - Google Meet transcripts;
@@ -57,6 +59,8 @@ Markdrop takes links to Google Docs (`docs.google.com/document/d/…`) and Drive
 - **Otherwise**: Markdrop says it can't open the Doc. Connect Google Meet, ask the owner to share it with "anyone with the link", or download it and upload the file.
 
 Markdrop only fetches from Google's own addresses (`docs.google.com`, `drive.google.com`), and only the file the link names.
+
+![The Drive link tab of Import a meeting: a Google Docs link pasted in the box, what happens to Docs shared with anyone with the link and to private ones, and Import from link.](/docs-assets/workspaces/meetings-import/import-link.webp)
 
 ## Organizer and imported by
 

@@ -18,6 +18,8 @@ You need to be signed in and able to edit the parent.
 
 A sub-page lives in its parent's workspace and folder. Breadcrumbs at the top of the page lead back up through its parents.
 
+![The New sub-page dialog: inside the parent page, who can read it follows that page, the template gallery with a preview of the chosen template, and Cancel and Create page.](/docs-assets/pages/sub-pages/subpage-gallery.webp)
+
 ## Who can read a sub-page
 
 A new sub-page **inherits** its parent's access: whoever can read the parent can read the sub-page, and nobody else. That includes the parent's password, its workspace, the people it's shared with and its sign-in requirement. When you change the parent's access, its sub-pages follow at once, and anyone who loses access loses it on the sub-pages too.

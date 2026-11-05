@@ -24,6 +24,27 @@
   "next": [],
   "entries": [
     {
+      "id": "docs-nov5-features",
+      "date": "2026-11-06",
+      "title": "Docs for Pages, Meetings, Ask Markdrop and Slack, with screenshots; two Slack tools for AI apps",
+      "kind": "improved",
+      "area": "Docs",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "The docs now match everything shipped this week, and the Pages, Meetings and Slack pages show it: View and Edit, Edit anyway, Keep both, ⌘J Ask Markdrop, importing and connecting meetings, and the Slack card and messages. AI apps can check a workspace's Slack connection and post a meeting to its channel.",
+      "body": "- **Pages**: View mode and Edit, when a page counts as being edited, Edit anyway, Keep both when two changes meet, the sub-page gallery, @ mentions, the Ask AI menu and From meetings, each with a screenshot (light and dark).\n- **Ask Markdrop**: a short clip of ⌘J, an answer and Insert, and the scope chips. Search and Ask have their own group in the docs.\n- **Meetings**: the Meetings page, the Import a meeting dialog (Paste and Drive link), the meeting details panel, Connect Google Meet as a clip, and the status line as script version 3 reports it.\n- **Slack**: the settings card (connected, and Not set up yet), and illustrations of the messages Markdrop sends: meeting notes with Done, `/markdrop` search and answers, link previews and direct messages with Approve and Decline.\n- **MCP**: `slack_status` (any member: the connection, the meetings channel, your own link) and `post_meeting_to_slack` (who can edit the meeting; never a restricted meeting). `set_page_properties` and `set_folder_properties` take `base_rev`, and `list_folder_pages` returns the folder's `rev`. The hosted server has 84 tools.",
+      "docs": [
+        "/pages/overview#view-and-edit",
+        "/pages/editing-together#edit-anyway",
+        "/workspaces/ask-markdrop",
+        "/workspaces/meetings",
+        "/integrations/slack",
+        "/ai/tools#slack"
+      ]
+    },
+    {
       "id": "page-view-mode",
       "date": "2026-11-05",
       "title": "Pages open in View mode: links open on a click, Edit when you want to write",

@@ -29,6 +29,8 @@ Who isn't notified:
 
 Mentions in code blocks and in classic-editor documents don't notify anyone. At most 50 people are notified by one save.
 
+![Typing @ in a page while editing: the Mention someone list shows the workspace's members with their avatars and email addresses.](/docs-assets/pages/mentions-and-notifications/mention.webp)
+
 ## The bell
 
 The bell sits at the top of Markdrop, next to your avatar. A badge shows how many notifications you haven't read.
