@@ -381,8 +381,10 @@ function Input({ node: _n, type, checked, ...props }: P<"input">) {
   if (type !== "checkbox") return <input type={type} checked={checked} {...(props as object)} />;
   // View mode, for people who can edit: ticking is a quick action that saves at once.
   const live = !!onToggleTask && at !== null;
+  // (A label when it ticks: a click on the drawn box ticks the box underneath.)
+  const Wrap = live ? "label" : "span";
   return (
-    <span className={live ? "md-task-check md-task-check--live" : "md-task-check"}>
+    <Wrap className={live ? "md-task-check md-task-check--live" : "md-task-check"}>
       {live ? (
         <input type="checkbox" checked={!!checked} onChange={() => onToggleTask(at)} aria-label={checked ? "Completed task" : "Incomplete task"} />
       ) : (
@@ -391,7 +393,7 @@ function Input({ node: _n, type, checked, ...props }: P<"input">) {
       <span className="md-task-check__box" aria-hidden>
         <Icon name="check" />
       </span>
-    </span>
+    </Wrap>
   );
 }
 

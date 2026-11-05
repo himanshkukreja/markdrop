@@ -65,12 +65,13 @@ await step("view", async () => {
   await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
   await inView(p);
   await p.locator(".pb-page a", { hasText: "the target page" }).first().click();
-  await p.waitForURL((u) => u.pathname.endsWith(`/${target}`), { timeout: 20000 });
+  await p.waitForURL((u) => u.pathname.endsWith(`/${target}`), { timeout: 20000, waitUntil: "commit" });
   await p.getByText("The target page.").first().waitFor({ timeout: 20000 });
   await p.goBack({ waitUntil: "networkidle" });
   await inView(p);
   await p.locator(".pb-page .pb-mention").first().click();
-  await p.waitForURL((u) => u.pathname.endsWith(`/${target}`), { timeout: 20000 });
+  await p.waitForURL((u) => u.pathname.endsWith(`/${target}`), { timeout: 20000, waitUntil: "commit" });
+  await p.getByText("The target page.").first().waitFor({ timeout: 20000 });
   await c.close();
 });
 
@@ -203,9 +204,13 @@ await step("tenant", async () => {
   await p.goto(addr, { waitUntil: "networkidle" });
   const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
     .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
-  await signIn.first().click({ timeout: 20000 });
-  await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
-  await p.waitForLoadState("networkidle");
+  // Signed in on markdrop.in: the domain may sign in on its own (a silent handoff).
+  await p.locator('[data-page-mode="edit"]').or(signIn).first().waitFor({ timeout: 30000 });
+  if (!(await p.locator('[data-page-mode="edit"]').count())) {
+    await signIn.first().click({ timeout: 20000 });
+    await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
+    await p.waitForLoadState("networkidle");
+  }
   await inView(p);
   await shot(p, "vm-07-tenant-view");
   await editPage(p);

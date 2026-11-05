@@ -11,7 +11,8 @@
 .pb-page .dx-details > summary::-webkit-details-marker { display: none; }
 .pb-page .dx-details > summary:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
 /* View mode, for people who can edit: a checklist's boxes tick (PageRenderer). */
-.pb-page .md-task-check--live input { pointer-events: auto; cursor: pointer; }
+.pb-page .md-task-check--live { cursor: pointer; }
+.pb-page .md-task-check--live input { z-index: 1; pointer-events: auto; cursor: pointer; }
 .pb-page .md-task-check--live input:focus-visible + .md-task-check__box { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .pb-page .md-task-check--live:hover .md-task-check__box { border-color: var(--accent); }
 @media (hover: none) and (pointer: coarse) {
