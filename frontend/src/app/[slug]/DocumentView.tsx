@@ -229,15 +229,18 @@ export default function DocumentView(props: DocumentViewProps) {
   // moves), and Done saves and comes back. Straight into Edit: ?edit=1 (a page just made from New
   // page, Add a sub-page, a template, Duplicate…), Analytics' "Apply in page", and an empty page.
   const canEditPage = isPage && secretUnlocked && readable;
-  const [pageMode, setPageMode] = useState<{ slug: string; mode: "view" | "edit" } | null>(null);
-  const editMode = pageMode?.slug === slug && pageMode.mode === "edit";
+  // (`from`: the address it had before a rename while open in Edit, so the editor stays up until
+  // the view follows it to the new one.)
+  const [pageMode, setPageMode] = useState<{ slug: string; mode: "view" | "edit"; from?: string } | null>(null);
+  const modeHere = pageMode?.slug === slug || pageMode?.from === slug;
+  const editMode = modeHere && pageMode?.mode === "edit";
   const pageBodyEmpty = isPage && !withoutFrontMatter(displayContent).trim();
   useEffect(() => {
-    if (!canEditPage || !v.flagsReady || pageMode?.slug === slug) return;
+    if (!canEditPage || !v.flagsReady || modeHere) return;
     const apply = new URLSearchParams(window.location.search).get("apply") === "insight";
     // (`editing`: they asked for the editor before it could open, e.g. ⋯ › Edit and the edit secret.)
     setPageMode({ slug, mode: v.startInEdit || apply || pageBodyEmpty || editing ? "edit" : "view" });
-  }, [canEditPage, v.flagsReady, slug, pageMode, v.startInEdit, pageBodyEmpty, editing]);
+  }, [canEditPage, v.flagsReady, slug, modeHere, v.startInEdit, pageBodyEmpty, editing]);
   const pageEditable = canEditPage && editMode && !showRaw;
   const [editorReady, setEditorReady] = useState(false);
   useEffect(() => {
@@ -1040,7 +1043,17 @@ export default function DocumentView(props: DocumentViewProps) {
               addressing={addressing}
               subscribeLive={v.subscribeLive}
               onReady={() => setEditorReady(true)}
-              onMoved={(doc) => v.followMove(doc)}
+              onMoved={(doc) => {
+                // Renamed while open in Edit: the new address opens in Edit too (?edit=1, which
+                // Done drops), whether or not this view stays mounted across the move.
+                setPageMode({ slug: doc.slug, mode: "edit", from: slug });
+                const q = new URLSearchParams(window.location.search);
+                if (q.get("edit") !== "1") {
+                  q.set("edit", "1");
+                  window.history.replaceState(window.history.state, "", `${window.location.pathname}?${q}${window.location.hash}`);
+                }
+                v.followMove(doc);
+              }}
               insertOnOpen={editorReady ? pageInsert : null}
               onInserted={() => setPageInsert(null)}
               othersEditing={othersEditing}
