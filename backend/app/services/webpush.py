@@ -247,6 +247,10 @@ def decrypt(message: bytes, ua_key: ec.EllipticCurvePrivateKey, auth_secret: byt
 # ── Sending ───────────────────────────────────────────────────────────────────
 
 
+# Tests replace this with an httpx.MockTransport (the fake push service); None: the network.
+transport: httpx.AsyncBaseTransport | None = None
+
+
 @dataclass
 class Result:
     status: int  # 0: never reached the push service
@@ -271,7 +275,7 @@ async def send(endpoint: str, p256dh: str, auth: str, payload: bytes, *, ttl: in
     if topic:
         headers["Topic"] = topic[:32]
     own = client is None
-    c = client or httpx.AsyncClient(timeout=10.0, follow_redirects=False)
+    c = client or httpx.AsyncClient(timeout=10.0, follow_redirects=False, transport=transport)
     try:
         r = await c.post(endpoint, content=body, headers=headers)
     except httpx.HTTPError as exc:

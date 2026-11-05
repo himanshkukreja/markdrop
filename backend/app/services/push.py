@@ -227,7 +227,9 @@ async def subscribe(db: AsyncIOMotorDatabase, user_id: str, endpoint: str, p256d
             "standalone": bool(standalone), "seen_at": now, "expires_at": expires_at}
     prior = await db[SUBS].find_one({"endpoint": endpoint}, {"user_id": 1, "p256dh": 1})
     if prior is not None and (prior.get("user_id") != user_id or prior.get("p256dh") != p256dh):
-        sets.update({"created_at": now, "last_ok_at": None, "fails": 0, "last_error": None})
+        # Another account's (or an old key's) device until now: it starts over as theirs.
+        await db[SUBS].update_one({"_id": prior["_id"]}, {"$set": {"created_at": now, "last_ok_at": None,
+                                                                  "fails": 0, "last_error": None}})
     try:
         row = await db[SUBS].find_one_and_update(
             {"endpoint": endpoint}, {"$set": sets, "$setOnInsert": {"created_at": now, "fails": 0}},
