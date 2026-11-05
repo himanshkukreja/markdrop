@@ -246,6 +246,7 @@ await step("docs-media", async () => {
   };
   for (const theme of ["light", "dark"]) {
     const suffix = theme === "dark" ? ".dark" : "";
+    await api("DELETE", "/api/v1/meetings/connection", T.admin);   // the dialog as a first-timer sees it
     const c = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: theme });
     await c.addInitScript(([t, th]) => {
       localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th);
@@ -256,12 +257,14 @@ await step("docs-media", async () => {
     const panel = p.locator(".md-dialog").filter({ has: p.getByTestId("meet-create") });
     await panel.getByTestId("meet-create").waitFor({ timeout: 20000 });
     await p.waitForTimeout(800);
+    await p.evaluate(() => document.activeElement?.blur());
     await panel.screenshot({ path: path.join(raw, `connect-dialog${suffix}.png`) });
     webp(path.join(raw, `connect-dialog${suffix}.png`), `connect-dialog${suffix}`);
     await panel.getByTestId("meet-create").click();
     const made = p.locator(".md-dialog").filter({ has: p.getByTestId("meet-script") });
     await made.waitFor({ timeout: 15000 });
     await p.waitForTimeout(800);
+    await p.evaluate(() => document.activeElement?.blur());
     await made.screenshot({ path: path.join(raw, `connect-script${suffix}.png`) });
     webp(path.join(raw, `connect-script${suffix}.png`), `connect-script${suffix}`);
     await made.getByTestId("meet-done").click();

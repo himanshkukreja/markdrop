@@ -25,7 +25,7 @@ It works with a small Google Apps Script that runs in your own Google account. M
 2. Optionally switch on **Only the people in each meeting can open its page**. See [Restricted meetings](/workspaces/meetings-privacy#restricted-meetings).
 3. Select **Make my script**. Markdrop shows a manifest and a script, each with a **Copy** button, and the four steps below. The script holds a token that only works for importing meetings into this workspace. It's shown this once.
 
-   ![The script is ready: the four steps in Google Apps Script, with the appsscript.json manifest and the Code.gs script to copy.](/docs-assets/workspaces/meetings-auto-import/connect-script.webp)
+   ![The script is ready: the steps in Google Apps Script, with the appsscript.json manifest and the Code.gs script, each with a Copy button.](/docs-assets/workspaces/meetings-auto-import/connect-script.webp)
 
 Then, in Google:
 
