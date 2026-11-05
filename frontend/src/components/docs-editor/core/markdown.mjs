@@ -811,6 +811,11 @@ function fenceSize(node, preserve) {
       if (CONTAINER_TYPES.has(k.type)) inner = Math.max(inner, fenceSize(k, preserve));
       else if (k.type === "rawBlock") {
         for (const line of (k.attrs.value ?? "").split("\n")) inner = Math.max(inner, colons(line.trimStart()));
+      } else if (k.type === "codeBlock") {
+        // A code block's own `:::` lines would close the container around it (the directive's closing
+        // fence is found before the code fence inside): the container's fence outgrows them.
+        const text = (k.content ?? []).map((t) => t.text ?? "").join("");
+        for (const line of text.split("\n")) inner = Math.max(inner, colons(line.trimStart()));
       } else visit(k);
     }
   };
