@@ -280,7 +280,7 @@ function Toolbar({ view, schema, phone, onChange, people }: { view: SavedView; s
       <Icon name={icon} size={15} /><span className="pp-tool__label">{label}</span>
     </button>
   );
-  const groupable = schema.filter((p) => ["select", "multi_select", "person", "checkbox"].includes(p.type));
+  const groupable = schema.filter((p) => ["select", "multi_select", "person", "checkbox", "date"].includes(p.type));
   return (
     <div className="pp-tools">
       {tool("filter", "filter", "Filter", view.filter.length > 0)}
@@ -664,7 +664,7 @@ function TableView({ rows, schema, view, onView, canSchema, member, phone, peopl
               { label: "Sort ascending", icon: "arrowUp", on: sortOf(menu.prop.key)?.dir === "asc", onClick: () => onView({ sort: [{ key: menu.prop.key, dir: "asc" }] }) },
               { label: "Sort descending", icon: "arrowDown", on: sortOf(menu.prop.key)?.dir === "desc", onClick: () => onView({ sort: [{ key: menu.prop.key, dir: "desc" }] }) },
               { label: "Filter", icon: "filter", onClick: () => onView({ filter: [...view.filter, { key: menu.prop.key, op: opsFor(menu.prop.type)[0]!, value: menu.prop.type === "checkbox" ? true : null }] }) },
-              ...(["select", "multi_select", "person", "checkbox"].includes(menu.prop.type) ? [{ label: view.group === menu.prop.key ? "Ungroup" : "Group by this", icon: "layers", onClick: () => onView({ group: view.group === menu.prop.key ? null : menu.prop.key }) }] : []),
+              ...(["select", "multi_select", "person", "checkbox", "date"].includes(menu.prop.type) ? [{ label: view.group === menu.prop.key ? "Ungroup" : menu.prop.type === "date" ? "Group by month" : "Group by this", icon: "layers", onClick: () => onView({ group: view.group === menu.prop.key ? null : menu.prop.key }) }] : []),
               { label: "Hide in this view", icon: "eyeOff", onClick: () => onView({ hidden: [...view.hidden, menu.prop.key] }) },
             ]} />
         </Pop>

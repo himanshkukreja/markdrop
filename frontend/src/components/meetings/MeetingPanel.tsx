@@ -16,7 +16,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Badge, Button, ConfirmDialog, Icon, IconButton, Select, Spinner, Switch, useToast } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, Icon, IconButton, Input, Select, Spinner, Switch, useToast } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import {
   MEETING_TYPES, deleteMeeting, fmtDuration, fmtMeetingDate, getMeeting, meetingsHref, patchMeeting, regenerateMeeting,
@@ -148,6 +148,18 @@ function SummaryBanner({ m }: { m: Meeting }) {
   return null;
 }
 
+/** The meeting's series ("Daily Standup"): saved when the field loses focus; empty takes it out. */
+function SeriesField({ value, disabled, onCommit }: { value: string; disabled: boolean; onCommit: (v: string) => void }) {
+  const [v, setV] = useState(value);
+  useEffect(() => setV(value), [value]);
+  return (
+    <Input size="sm" value={v} disabled={disabled} placeholder="None (a one-off)" aria-label="Series" data-testid="meeting-series"
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => { if (v.trim() !== value) onCommit(v.trim()); }}
+      onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
+  );
+}
+
 function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting) => void; onDeleted: () => void }) {
   const toast = useToast();
   const [busy, setBusy] = useState<string | null>(null);
@@ -177,6 +189,13 @@ function Details({ m, onChange, onDeleted }: { m: Meeting; onChange: (m: Meeting
               onChange={(e) => void run("type", () => patchMeeting(m.id, { type: e.target.value }), "Type changed.")}
               options={MEETING_TYPES.map((t) => ({ value: t, label: t }))} />
           ) : (m.type || "—")}
+        </dd>
+        <dt>Series</dt>
+        <dd>
+          {m.can_regenerate ? (
+            <SeriesField value={m.series ?? ""} disabled={!!busy}
+              onCommit={(v) => void run("series", () => patchMeeting(m.id, { series: v || null }), v ? `In the series “${v}”.` : "Taken out of its series.")} />
+          ) : (m.series || "—")}
         </dd>
         <dt>Transcript</dt><dd>{m.has_transcript ? <a href={`/${m.transcript_slug}`}>{m.segments} lines</a> : "None (Google's notes only)"}{m.approx_times ? " · times every 5 min, estimated between" : ""}</dd>
         <dt>Action items</dt><dd>{m.action_items}</dd>

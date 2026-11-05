@@ -308,7 +308,7 @@ function loadGapi(): Promise<void> {
 }
 
 /** Opens the Picker on the person's Google Docs (multi-select); resolves with what they picked. */
-async function openPicker(creds: { access_token: string; api_key: string; app_id: string }): Promise<Picked[]> {
+export async function openPicker(creds: { access_token: string; api_key: string; app_id: string }): Promise<Picked[]> {
   await loadGapi();
   const gp = window.google!.picker;
   return new Promise<Picked[]>((resolve) => {
