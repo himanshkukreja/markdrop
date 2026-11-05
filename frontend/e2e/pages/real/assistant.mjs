@@ -6,6 +6,7 @@
  *   continue  the home's conversation continues on a page with ⌘J (This doc), one thread, scopes kept
  *   scopes    chips at the top (This doc · Meetings · Workspace · Everything); Meetings cites a transcript moment
  *   insert    Insert into a Page: blocks after the caret, saved, citations as links
+ *   insert-view  Insert from a page in View mode: Edit opens with it at the end of the section in view; Done
  *   classic   Insert into a classic doc a reader-editor is reading: the editor opens with it; Save keeps it
  *   meeting   a meeting page's "Ask this meeting" opens Meetings on This meeting
  *   leak      a meeting restricted to its attendees never reaches anyone else; a viewer gets no Insert
@@ -16,7 +17,7 @@
  *   BROWSER=chromium|webkit [ONLY=home,insert] node assistant.mjs
  */
 import fs from "node:fs";
-import { APP, BROWSER, SHOTS, log, fail, reseed, seedNow, api, docOf, launch, ctx, captureApi, stepper, shot, waitSaved } from "./lib.mjs";
+import { APP, BROWSER, SHOTS, log, fail, reseed, seedNow, api, docOf, launch, ctx, captureApi, stepper, shot, waitSaved, editPage, donePage } from "./lib.mjs";
 
 fs.mkdirSync(SHOTS, { recursive: true });
 const browser = await launch();
@@ -127,6 +128,7 @@ await step("continue", async () => {
 await step("scopes", async () => {
   const { p } = await ctx(browser, { token: T.admin, theme: "dark" });
   await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
+  await editPage(p);
   await editorOf(p).waitFor({ timeout: 30000 });
   await openPanel(p, "button");
   const chips = await panel(p).locator('[role="radio"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
@@ -150,6 +152,7 @@ await step("scopes", async () => {
 await step("insert", async () => {
   const { p } = await ctx(browser, { token: T.admin });
   await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
+  await editPage(p);
   await editorOf(p).waitFor({ timeout: 30000 });
   await p.waitForTimeout(800);
   await p.locator(".pb-live .ProseMirror").getByText("Customers pay on a hosted checkout page").first().click();
@@ -168,6 +171,41 @@ await step("insert", async () => {
   if (at < md.indexOf("hosted checkout page") || at > md.indexOf("## Rollout")) fail(`inserted in the wrong place:\n${md}`);
   if (!/\[\[1\]\]\(/.test(md)) fail(`no citation links: ${md.slice(at, at + 300)}`);
   await shot(p, "as05-insert-page");
+});
+
+await step("insert-view", async () => {
+  // A page in View mode (no editor, no caret): Insert opens Edit with the answer at the end of the
+  // section in view, and it saves like any change; Done lets go.
+  const filler = (w) => Array.from({ length: 14 }, (_, i) => `${w} paragraph ${i + 1}.`).join("\n\n");
+  const slug = ok(await api("POST", "/api/v1/pages", T.admin, {
+    title: `View insert ${Date.now().toString(36).slice(-4)}`, workspace: WS, folder: S.folder, auto_cover: false,
+    content: `# Goals\n\n${filler("Goals")}\n\n## Payments\n\nCustomers pay on a hosted checkout page.\n\n${filler("Payments")}\n\n## Rollout\n\n${filler("Rollout")}\n`,
+  }), "view page").document.slug;
+  const { p } = await ctx(browser, { token: T.admin });
+  await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await p.locator('[data-page-mode="edit"]').first().waitFor({ timeout: 30000 });
+  if (await p.locator(".pb-live .ProseMirror").count()) fail("the page didn't open in View mode");
+  const h = p.locator(".pb-page h2").filter({ hasText: "Payments" }).first();
+  await h.evaluate((el) => window.scrollBy(0, el.getBoundingClientRect().top - 100));
+  await p.waitForTimeout(500);
+  await openPanel(p, "button");
+  if ((await scopeOn(p)) !== "assistant-scope-doc") fail("not on This doc");
+  await ask(panel(p), "Summarize the payments section");
+  await answered(panel(p));
+  await panel(p).locator(".ch-tools").last().getByRole("button", { name: /Insert/ }).click();
+  await editorOf(p).waitFor({ timeout: 30000 });
+  await p.locator(".pb-live .ProseMirror").getByText(/From what you can open/).first().waitFor({ timeout: 15000 });
+  await waitSaved(p);
+  const md = (await docOf(slug, T.admin)).content;
+  const at = md.indexOf("From what you can open");
+  if (at < 0) fail(`not saved: ${md.slice(0, 500)}`);
+  if (at < md.indexOf("Payments paragraph 14.") || at > md.indexOf("## Rollout")) fail(`not at the end of Payments:\n${md}`);
+  if (!/\[\[1\]\]\(/.test(md)) fail("no citation links");
+  await shot(p, "as05b-insert-view");
+  await donePage(p);
+  const lock = await api("POST", `/api/v1/documents/${slug}/lock`, T.owner);
+  if (lock.status !== 200) fail(`Done didn't let go of the lock → ${lock.status}`);
+  await api("DELETE", `/api/v1/documents/${slug}/lock`, T.owner);
 });
 
 await step("classic", async () => {

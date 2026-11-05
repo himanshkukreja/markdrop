@@ -12,7 +12,7 @@
  *   PB_LOCK_IDLE_S=12 PB_LOCK_HIDDEN_S=6 PB_LOCK_TTL_S=20 zsh up.sh restart-api
  *   PB_STACK_ID=46 PB_WORK=… [BROWSER=webkit] node editlock.mjs
  */
-import { APP, TENANT, log, fail, reseed, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper, waitSaved } from "./lib.mjs";
+import { APP, TENANT, log, fail, reseed, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper, waitSaved, editPage } from "./lib.mjs";
 
 const S = reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -38,6 +38,7 @@ async function waitHolder(slug, want, timeout = 40000) {
 }
 async function openEditor(p, url) {
   await p.goto(url, { waitUntil: "networkidle" });
+  await editPage(p);
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.waitForTimeout(1000);
 }
@@ -147,6 +148,7 @@ await step("markdrop", async () => {
 
   const w = await ctx(browser, { token: T.admin });
   await w.p.goto(url, { waitUntil: "networkidle" });
+  await editPage(w.p);
   const banner = w.p.locator(".pb-banner").filter({ hasText: "Ben Member" });
   await banner.waitFor({ timeout: 20000 });
   await banner.filter({ hasText: "unsaved changes" }).waitFor({ timeout: 20000 });

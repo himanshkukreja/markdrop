@@ -195,6 +195,8 @@ const tapCover = async (p) => {
   await p.waitForTimeout(500);
 };
 const pageUrl = (slug) => `${APP}/${slug}`;
+/** Pages open in View mode: the editor's shots open them in Edit (?edit=1). */
+const editUrl = (slug) => `${APP}/${slug}?edit=1`;
 const newUrl = () => `${APP}/pages/new?workspace=${S.ws}&folder=${S.folder}`;
 const dialog = (p) => p.getByRole("dialog").first();
 
@@ -211,68 +213,68 @@ const STATES = [
     await p.locator(".pb-template-preview").first().waitFor({ timeout: 8000 });
     await p.locator(".pb-template-preview").first().scrollIntoViewIfNeeded();
   }],
-  ["new-subpage", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["new-subpage", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await openPageMenu(p);
     await menuItem(p, /Add a sub-page/);
     await p.getByRole("dialog").locator(".pb-templates").waitFor({ timeout: 8000 });
   }],
   // A page in the editor: the head (cover, icon), the body, the pickers and menus.
-  ["page-edit", ["owner"], () => pageUrl(X.page), editorReady],
-  ["page-edit-body", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-edit", ["owner"], () => editUrl(X.page), editorReady],
+  ["page-edit-body", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await p.locator(`${EDITABLE} table`).first().scrollIntoViewIfNeeded();
   }],
-  ["page-edit-embeds", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-edit-embeds", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await p.locator(".pb-live :is(.pb-embed, .dxe-pembed, .pb-card)").first().scrollIntoViewIfNeeded();
     await p.waitForTimeout(800);
   }],
-  ["page-cover", ["owner"], () => pageUrl(X.page), editorReady, tapCover],
-  ["page-coverpick", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-cover", ["owner"], () => editUrl(X.page), editorReady, tapCover],
+  ["page-coverpick", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await tapCover(p);
     await tap(p, p.getByRole("button", { name: "Change cover" }), { force: true });
     await p.locator(".pb-coverpick, .pb-covergal").first().waitFor({ timeout: 6000 });
   }],
-  ["page-iconpick", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-iconpick", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await tap(p, p.getByRole("button", { name: "Change icon" }));
     await p.locator(".pb-emojipick").first().waitFor({ timeout: 6000 });
   }],
-  ["page-slash", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-slash", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await caretIn(p, "That's all for now");
     await p.keyboard.press("Enter");
     await p.keyboard.type("/");
     await p.locator(".dxe-slash").first().waitFor({ timeout: 6000 });
   }],
-  ["page-mention", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-mention", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await caretIn(p, "That's all for now");
     await p.keyboard.press("Enter");
     await p.keyboard.type("@");
     await p.locator(".dxe-people").first().waitFor({ timeout: 6000 });
   }],
-  ["page-table", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-table", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     const cell = p.locator(`${EDITABLE} td`, { hasText: "Europe" }).first();
     await cell.scrollIntoViewIfNeeded();
     const b = await cell.boundingBox();
     await p.touchscreen.tap(b.x + 10, b.y + b.height / 2);
     await p.waitForTimeout(600);
   }],
-  ["page-select", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-select", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await caretIn(p, "We ship the page builder");
     await p.keyboard.press("Home");
     for (let i = 0; i < 6; i++) await p.keyboard.press("Shift+ArrowRight");
     await p.waitForTimeout(700);
   }],
-  ["page-more", ["owner"], () => pageUrl(X.page), editorReady, openPageMenu],
-  ["page-history", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-more", ["owner"], () => editUrl(X.page), editorReady, openPageMenu],
+  ["page-history", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await openPageMenu(p);
     await menuItem(p, /Version history/);
     await p.waitForTimeout(1200);
   }],
-  ["page-export", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-export", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     await openPageMenu(p);
     await menuItem(p, /Export/);
     await p.getByRole("dialog").first().waitFor({ timeout: 6000 });
   }],
   // The Share dialog is the app's (components/access, fix/mobile-shell's area): opt in with ONLY=page-share.
-  ["page-share", ["owner"], () => pageUrl(X.page), editorReady, async (p) => {
+  ["page-share", ["owner"], () => editUrl(X.page), editorReady, async (p) => {
     // Phones: Share is in the ⋯ sheet (the bar has no room for it).
     if (!(await p.getByRole("button", { name: /^Share/ }).first().isVisible())) {
       await openPageMenu(p);
@@ -280,8 +282,8 @@ const STATES = [
     } else await tap(p, p.getByRole("button", { name: /^Share/ }));
     await p.getByRole("dialog").first().waitFor({ timeout: 6000 });
   }],
-  ["page-props", ["owner"], () => pageUrl(X.prop), editorReady],
-  ["page-sub", ["owner"], () => pageUrl(X.sub), editorReady],
+  ["page-props", ["owner"], () => editUrl(X.prop), editorReady],
+  ["page-sub", ["owner"], () => editUrl(X.sub), editorReady],
   // Readers.
   ["page-read", ["reader"], () => pageUrl(X.page), pageReady],
   ["page-read-body", ["reader"], () => pageUrl(X.page), pageReady, async (p) => {

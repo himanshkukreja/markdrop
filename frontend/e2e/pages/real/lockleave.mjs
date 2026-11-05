@@ -12,7 +12,7 @@
  *
  *   PB_STACK_ID=54 PB_WORK=… [BROWSER=webkit] [ONLY=subpage,close] node lockleave.mjs
  */
-import { APP, TENANT, log, fail, reseed, seedNow, api, mcp, mcpToken, docOf, launch, ctx, stepper, waitSaved } from "./lib.mjs";
+import { APP, TENANT, log, fail, reseed, seedNow, api, mcp, mcpToken, docOf, launch, ctx, stepper, waitSaved, editPage } from "./lib.mjs";
 
 const S = process.env.NO_RESEED ? seedNow() : reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -55,6 +55,7 @@ async function mcpWrites(slug, text) {
 }
 async function openEditor(p, url) {
   await p.goto(url, { waitUntil: "networkidle" });
+  await editPage(p);
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.waitForTimeout(1000);
 }
@@ -188,6 +189,7 @@ await step("tenant", async () => {
   const addr = await tenantAddr(slug);
   const m = await ctx(browser, { token: T.member });
   await tenantSignIn(m.p, addr);
+  await editPage(m.p);
   await m.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await typeAtEnd(m.p, "Typed on the domain.");
   await waitHolder(slug, "Ben Member");
@@ -201,6 +203,7 @@ await step("tenant", async () => {
   const o = await ctx(browser, { token: T.owner });
   const locks = lockLog(o.p);
   await tenantSignIn(o.p, addr);
+  await editPage(o.p);
   await o.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await o.p.waitForTimeout(2000);
   if (await holder(slug)) fail(`opening the page on the domain took the lock (${locks.join(" | ")})`);

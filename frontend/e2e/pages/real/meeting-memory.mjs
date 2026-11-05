@@ -18,7 +18,7 @@
  *   PB_STACK_ID=50 PB_WORK=… BROWSER=chromium|webkit [ONLY=panel,insert] node meeting-memory.mjs
  */
 import fs from "node:fs";
-import { APP, SHOTS, log, fail, reseed, seedNow, api, docOf, launch, ctx, captureApi, stepper, shot, waitSaved, mcp, mcpToken } from "./lib.mjs";
+import { APP, SHOTS, log, fail, reseed, seedNow, api, docOf, launch, ctx, captureApi, stepper, shot, waitSaved, mcp, mcpToken, editPage } from "./lib.mjs";
 
 fs.mkdirSync(SHOTS, { recursive: true });
 const browser = await launch();
@@ -76,6 +76,7 @@ const HINT = await newPage("Checkout launch plan", "## Launch\n\nWe launch the n
 const editorOf = (p) => p.locator('.pb-live .ProseMirror[contenteditable="true"]');
 async function openAt(p, slug, at) {
   await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
+  await editPage(p);
   await editorOf(p).waitFor({ timeout: 30000 });
   await p.waitForTimeout(1000);
   await p.locator(".pb-live .ProseMirror").getByText(at, { exact: false }).first().click();
@@ -259,6 +260,7 @@ await step("prefs", async () => {
   const prefs = ok(await api("GET", "/api/v1/meeting-memory/prefs", T.admin), "prefs");
   if (prefs.panel !== false || prefs.hints !== true) fail(`prefs: ${JSON.stringify(prefs)}`);
   await p.reload({ waitUntil: "networkidle" });
+  await editPage(p);
   await editorOf(p).waitFor({ timeout: 30000 });
   await p.waitForTimeout(3000);
   if (await p.locator(".mm-pill").count()) fail("the button came back after a reload");

@@ -6,7 +6,7 @@
  *
  *   PB_STACK_ID=44 PB_WORK=… [BROWSER=webkit] [ONLY=menu,sidebar,inside,tenant] node subpage-templates.mjs
  */
-import { APP, TENANT, log, fail, reseed, seedNow, api, docOf, launch, ctx, stepper, shot } from "./lib.mjs";
+import { APP, TENANT, log, fail, reseed, seedNow, api, docOf, launch, ctx, stepper, shot, editPage } from "./lib.mjs";
 
 const S = process.env.NO_RESEED ? seedNow() : reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -56,6 +56,7 @@ async function fromGallery(p, title, shotName) {
 
 async function openEditor(p, url) {
   await p.goto(url, { waitUntil: "networkidle" });
+  await editPage(p);
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await p.waitForTimeout(800);
 }
@@ -104,13 +105,16 @@ await step("tenant", async () => {
   const addr = `${TENANT}/${[...(d.folder_path || []), parent.slug].join("/")}`;
   await p.goto(addr, { waitUntil: "networkidle" });
   const ed = p.locator('.pb-live .ProseMirror[contenteditable="true"]');
-  if (!(await ed.count())) {
-    const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
-      .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
+  // (Pages open in View mode: signed in, there's Edit; signed out, a Sign in.)
+  const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
+    .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
+  await signIn.first().or(p.locator('[data-page-mode="edit"]').first()).first().waitFor({ timeout: 20000 }).catch(() => {});
+  if (!(await p.locator('[data-page-mode="edit"]').count()) && (await signIn.count())) {
     await signIn.first().click({ timeout: 20000 });
     await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
     await p.waitForLoadState("networkidle");
   }
+  await editPage(p);
   await ed.waitFor({ timeout: 30000 });
   await p.waitForTimeout(800);
   await p.getByRole("button", { name: "Page options" }).first().click();

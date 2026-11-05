@@ -10,7 +10,7 @@
  */
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { APP, TENANT, STACK, STACK_ID, log, fail, reseed, api, mcp, mcpToken, docOf, launch, ctx, stepper, shot, waitSaved } from "./lib.mjs";
+import { APP, TENANT, STACK, STACK_ID, log, fail, reseed, api, mcp, mcpToken, docOf, launch, ctx, stepper, shot, waitSaved, editPage } from "./lib.mjs";
 
 const S = reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -36,6 +36,7 @@ const edText = (p) => p.locator(".pb-live .ProseMirror").innerText();
 
 async function open(p, url) {
   await p.goto(url, { waitUntil: "networkidle" });
+  await editPage(p);
   await editor(p).waitFor({ timeout: 30000 });
   await p.waitForTimeout(1200);
 }
@@ -412,13 +413,16 @@ await step("tenant", async () => {
   await fetch(`${APP}/api/revalidate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tag: "host:acme.localhost" }) });
   await p.goto(`${APP}/robots.txt`);
   await p.goto(addr, { waitUntil: "networkidle" });
-  if (!(await editor(p).count())) {
-    const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
-      .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
+  // (Pages open in View mode: signed in, there's Edit; signed out, a Sign in.)
+  const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
+    .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
+  await signIn.first().or(p.locator('[data-page-mode="edit"]').first()).first().waitFor({ timeout: 20000 }).catch(() => {});
+  if (!(await p.locator('[data-page-mode="edit"]').count()) && (await signIn.count())) {
     await signIn.first().click({ timeout: 20000 });
     await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
     await p.waitForLoadState("networkidle");
   }
+  await editPage(p);
   await editor(p).waitFor({ timeout: 30000 });
   await p.waitForTimeout(1200);
   const d = await doc(slug);
