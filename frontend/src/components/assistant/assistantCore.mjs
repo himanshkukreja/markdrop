@@ -185,3 +185,61 @@ export function isAssistantKey(e) {
   if (!(e.metaKey || e.ctrlKey) || (e.metaKey && e.ctrlKey)) return false;
   return (e.key || "").toLowerCase() === "j" || e.code === "KeyJ";
 }
+
+const FENCE = /^ {0,3}(`{3,}|~{3,})/;
+const HEADING = /^ {0,3}(#{1,6})[ \t]+(.+?)[ \t#]*(?:\{#[^}]*\})?\s*$/;
+const plainHeading = (t) => (t || "").replace(/[*_`~[\]]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * A classic document's Markdown with `insert` as its own paragraph(s): at the end of the section headed
+ * `heading` (before the next heading of the same or a higher level), or at the end when there's none.
+ */
+export function insertAfterSection(markdown, heading, insert) {
+  const text = (insert || "").trim();
+  if (!text) return markdown || "";
+  const lines = (markdown || "").split("\n");
+  const want = plainHeading(heading);
+  let at = -1;
+  let level = 0;
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const f = FENCE.exec(lines[i]);
+    if (f) {
+      if (!fence) fence = f[1][0];
+      else if (f[1][0] === fence) fence = null;
+      continue;
+    }
+    if (fence) continue;
+    const h = HEADING.exec(lines[i]);
+    if (!h) continue;
+    if (at >= 0 && h[1].length <= level) {
+      return splice(lines, i, text);
+    }
+    if (at < 0 && want && plainHeading(h[2]) === want) {
+      at = i;
+      level = h[1].length;
+    }
+  }
+  return splice(lines, lines.length, text);
+}
+
+function splice(lines, index, text) {
+  const before = lines.slice(0, index);
+  const after = lines.slice(index);
+  while (before.length && before[before.length - 1].trim() === "") before.pop();
+  const head = before.length ? [...before, "", text] : [text];
+  return after.length ? [...head, "", ...after].join("\n") : `${head.join("\n")}\n`;
+}
+
+/** A textarea's value with `insert` at the caret, on its own paragraph: {value, caret}. */
+export function insertAtCaret(value, caret, insert) {
+  const text = (insert || "").trim();
+  const v = value || "";
+  const at = Math.max(0, Math.min(caret ?? v.length, v.length));
+  const lineEnd = v.indexOf("\n", at);
+  const cut = lineEnd < 0 ? v.length : lineEnd;
+  const before = v.slice(0, cut).replace(/\s+$/, "");
+  const after = v.slice(cut).replace(/^\s+/, "");
+  const head = before ? `${before}\n\n${text}` : text;
+  return { value: after ? `${head}\n\n${after}` : `${head}\n`, caret: head.length };
+}

@@ -37,14 +37,17 @@ interface State {
   open: boolean;
   here: AssistantHere | null;
   insert: InsertFn | null;
+  /** Where the caret / the reader is: an editor's (`editorReader`) wins over a reader's (`docReader`). */
   reader: ReaderFn | null;
+  editorReader: ReaderFn | null;
+  docReader: ReaderFn | null;
   pending: { question?: string; scope?: AssistantScopeKind | null } | null;
   threadId: string | null;
   /** A home box is on screen and takes ⌘J (focuses itself). */
   homeFocus: (() => void) | null;
 }
 
-let state: State = { open: false, here: null, insert: null, reader: null, pending: null, threadId: readThread(), homeFocus: null };
+let state: State = { open: false, here: null, insert: null, reader: null, editorReader: null, docReader: null, pending: null, threadId: readThread(), homeFocus: null };
 const subs = new Set<() => void>();
 
 function readThread(): string | null {
@@ -59,6 +62,7 @@ function readThread(): string | null {
 
 function set(patch: Partial<State>) {
   state = { ...state, ...patch };
+  state.reader = state.editorReader ?? state.docReader;
   subs.forEach((f) => f());
 }
 
@@ -69,7 +73,7 @@ export function getAssistant(): State {
 export function useAssistant(): State {
   return useSyncExternalStore((f) => (subs.add(f), () => subs.delete(f)), () => state, () => SERVER);
 }
-const SERVER: State = { open: false, here: null, insert: null, reader: null, pending: null, threadId: null, homeFocus: null };
+const SERVER: State = { open: false, here: null, insert: null, reader: null, editorReader: null, docReader: null, pending: null, threadId: null, homeFocus: null };
 
 const SIDE_EVENT = "md:sidepanel";
 
@@ -123,22 +127,28 @@ export function useAssistantHere(here: AssistantHere | null) {
 /** The open editor's insert (and caret reader): registered while it is editable. */
 export function useAssistantEditor(insert: InsertFn | null, reader: ReaderFn | null) {
   useEffect(() => {
-    if (!insert && !reader) return;
-    set({ insert, reader });
+    if (!insert) return;
+    set({ insert });
     return () => {
-      if (state.insert === insert && state.reader === reader) set({ insert: null, reader: null });
+      if (state.insert === insert) set({ insert: null });
     };
-  }, [insert, reader]);
+  }, [insert]);
+  useEffect(() => {
+    if (!reader) return;
+    set({ editorReader: reader });
+    return () => {
+      if (state.editorReader === reader) set({ editorReader: null });
+    };
+  }, [reader]);
 }
 
 /** A reader (no editor) can still say where they are: the section in view, the selected text. */
 export function useAssistantReader(reader: ReaderFn | null) {
   useEffect(() => {
     if (!reader) return;
-    if (state.reader) return; // an editor's reader wins
-    set({ reader });
+    set({ docReader: reader });
     return () => {
-      if (state.reader === reader) set({ reader: null });
+      if (state.docReader === reader) set({ docReader: null });
     };
   }, [reader]);
 }

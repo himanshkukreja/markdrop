@@ -16,3 +16,5 @@ export function toSource(it: { key?: string; n?: number; title?: string | null; 
 export function stageLabel(stage: string, kind: AssistantScopeKind): string;
 export function threadTurns(turns: AskTurn[], link: Link): ChatTurn[];
 export function isAssistantKey(e: { key?: string; code?: string; metaKey?: boolean; ctrlKey?: boolean; altKey?: boolean; shiftKey?: boolean; defaultPrevented?: boolean; isComposing?: boolean }): boolean;
+export function insertAfterSection(markdown: string, heading: string | null | undefined, insert: string): string;
+export function insertAtCaret(value: string, caret: number | null | undefined, insert: string): { value: string; caret: number };

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { initialScope, isAssistantKey, meetingOptions, periodRange, scopeBody, scopeChips, starters, stageLabel, threadTurns, toCitation } from "./assistantCore.mjs";
+import { initialScope, insertAfterSection, insertAtCaret, isAssistantKey, meetingOptions, periodRange, scopeBody, scopeChips, starters, stageLabel, threadTurns, toCitation } from "./assistantCore.mjs";
 
 const link = (x) => ({ href: x.url && x.url.startsWith("/") ? x.url : `/${x.slug ?? ""}`, external: false });
 const ctx = {
@@ -82,4 +82,21 @@ test("⌘J / Ctrl+J, unless something handled it", () => {
   assert.equal(isAssistantKey({ key: "j", metaKey: true, shiftKey: true }), false);
   assert.equal(isAssistantKey({ key: "j" }), false);
   assert.equal(isAssistantKey({ key: "k", metaKey: true }), false);
+});
+
+test("classic docs: insert after the reader's section, or at the end", () => {
+  const md = "# Title\n\nIntro.\n\n## Payments\n\nHosted page.\n\n```\n## not a heading\n```\n\n### Detail\n\nMore.\n\n## Rollout\n\nLater.\n";
+  const out = insertAfterSection(md, "Payments", "Decided on Oct 28 [[1]](/m).");
+  assert.ok(out.includes("More.\n\nDecided on Oct 28 [[1]](/m).\n\n## Rollout"), out);
+  assert.ok(insertAfterSection(md, null, "X").endsWith("Later.\n\nX\n"));
+  assert.ok(insertAfterSection(md, "Rollout", "X").endsWith("Later.\n\nX\n"));
+  assert.equal(insertAfterSection("", null, "X"), "X\n");
+});
+
+test("classic editor: insert at the caret on its own paragraph", () => {
+  const r = insertAtCaret("one\ntwo\n\nthree", 2, "NEW");
+  assert.equal(r.value, "one\n\nNEW\n\ntwo\n\nthree");
+  assert.equal(r.value.slice(0, r.caret), "one\n\nNEW");
+  assert.equal(insertAtCaret("", 0, "NEW").value, "NEW\n");
+  assert.equal(insertAtCaret("end", 3, "NEW").value, "end\n\nNEW\n");
 });

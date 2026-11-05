@@ -36,6 +36,9 @@ import type { PageActionRequest } from "@/components/pages/PageActions";
 import { hasPageProps, readPageProps, withoutFrontMatter } from "@/components/pages/pageProps";
 import { assetId, pagePath } from "@/lib/pageAddress.mjs";
 import type { PageAiStatus } from "@/lib/pages-ai/ask";
+import { useAssistantEditor, useAssistantHere } from "@/components/assistant/store";
+import { headingInView, useDocReader } from "@/components/assistant/reader";
+import { insertAfterSection } from "@/components/assistant/assistantCore.mjs";
 
 // Code that only runs after an interaction or in a specific state loads on demand, so a reader's first
 // load carries the reading view only (REVAMP_BUILD §8.5 budget for /[slug]). Each still renders on the
@@ -386,6 +389,20 @@ export default function DocumentView(props: DocumentViewProps) {
   const wideRail = useMediaQuery("(min-width: 1280px)");
   const markers = sectionMarkers(presence.snapshot);
 
+  // ── Ask Markdrop (components/assistant): ✦ Ask in the bar and ⌘J ask about this doc first ──────
+  // A readable, unencrypted document or page for someone signed in. A reader's question says which
+  // section is in view and what they selected; an editor of a classic document can Insert an answer:
+  // the editor opens with it after the section in view (nothing is saved until they save).
+  const askable = !!user && readable && !encrypted && !pwdLocked && !pwdFetching && !artifactDoc;
+  useAssistantHere(askable ? { page: slug } : null);
+  useDocReader(readRef, askable && !editing);
+  const classicInsert = useCallback((markdown: string) => {
+    v.handleEditClick();
+    v.setEditContent(insertAfterSection(displayContent, headingInView(readRef.current), markdown));
+    return true;
+  }, [v, displayContent, readRef]);
+  useAssistantEditor(askable && !isPage && secretUnlocked && !editing && !(encrypted && decryptState === "working") ? classicInsert : null, null);
+
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
     // Its code was fetched before the read was adopted (doc/preload): render it directly.
@@ -433,6 +450,7 @@ export default function DocumentView(props: DocumentViewProps) {
       // On a workspace's domain the sign-in gate has its own button.
       hideAccount={!!tenant && gated && !pwdFetching && gateMode === "signin"}
       presence={docPresence}
+      ask={askable}
       {...o}
     />
   );
@@ -839,6 +857,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 shareUrl={shareUrl}
                 onCopied={copyLinkEvent}
                 menu={readerPageMenu}
+                ask={askable}
               />
             }
             head={<PageHead title={displayTitle} props={pageProps!} resolve={resolvePageAsset} below={<><SignoffSummary slug={slug} />{readerProps}{pageBacklinks}</>} />}
@@ -907,6 +926,7 @@ export default function DocumentView(props: DocumentViewProps) {
               updatedAt={null}
               chrome={{
                 presence: pagePresence,
+                ask: askable,
                 onShare: pageShare,
                 shareUrl,
                 onCopied: copyLinkEvent,
@@ -922,7 +942,8 @@ export default function DocumentView(props: DocumentViewProps) {
         )}
       </div>
       {!pageEditable && <LiveUpdatePill show={livePill} />}
-      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} hidden={!!page?.meeting} workspace={!!page?.workspace_id} />}
+      {/* Page AI's status (Translate… in the ⋯ menu); asking is Ask Markdrop's (✦ Ask in the bar, ⌘J). */}
+      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} hidden workspace={!!page?.workspace_id} />}
       {readable && !!user && isPage && page?.meeting && !tenant && <MeetingLauncher meetingId={page.meeting.id} role={page.meeting.role} />}
     </div>
   ) : null;
