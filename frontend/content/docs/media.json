@@ -2995,6 +2995,30 @@
     "bytes": 71852,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings-import/organised.dark.webp": {
+    "w": 1568,
+    "h": 1034,
+    "bytes": 42280,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/organised.webp": {
+    "w": 1568,
+    "h": 1034,
+    "bytes": 45188,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/review.dark.webp": {
+    "w": 1680,
+    "h": 1508,
+    "bytes": 92242,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/review.webp": {
+    "w": 1680,
+    "h": 1508,
+    "bytes": 96722,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/members-and-roles/invite-dialog.dark.webp": {
     "w": 896,
     "h": 898,
