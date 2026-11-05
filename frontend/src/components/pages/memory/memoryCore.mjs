@@ -37,6 +37,60 @@ export function sectionAround(blocks, index) {
   return { heading, level, start, end, text };
 }
 
+/**
+ * View mode has no caret: the page's Markdown (front matter left out) as `sectionAround`'s blocks,
+ * one per heading and one per paragraph or other block between them. Lines inside a fenced code
+ * block are text, never headings.
+ */
+export function markdownBlocks(markdown) {
+  const out = [];
+  let para = [];
+  let fence = null;
+  const flush = () => {
+    if (para.length) out.push({ level: null, text: para.join("\n") });
+    para = [];
+  };
+  for (const line of String(markdown ?? "").split(/\r?\n/)) {
+    const f = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence) {
+      para.push(line);
+      if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null;
+      continue;
+    }
+    if (f) {
+      flush();
+      fence = f[1];
+      para.push(line);
+      continue;
+    }
+    const h = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
+    if (h) {
+      flush();
+      out.push({ level: h[1].length, text: h[2] });
+    } else if (!line.trim()) {
+      flush();
+    } else {
+      para.push(line);
+    }
+  }
+  flush();
+  return out;
+}
+
+const looseText = (s) => String(s ?? "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/**
+ * The block index of the heading a reader has in view (its text as shown; the Markdown may carry
+ * emphasis or links in it): the first heading whose words match, else 0 (the top of the page).
+ */
+export function headingIndex(blocks, heading) {
+  const want = looseText(heading);
+  if (!want || !Array.isArray(blocks)) return 0;
+  const strip = (t) => looseText(String(t ?? "").replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"));
+  const at = blocks.findIndex((b) => b && b.level && strip(b.text) === want);
+  return at < 0 ? 0 : at;
+}
+
 /** The words of a text that carry meaning (3+ letters, not a small word). */
 export function contentWords(text) {
   const out = [];

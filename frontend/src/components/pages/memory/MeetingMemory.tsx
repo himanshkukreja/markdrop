@@ -16,6 +16,12 @@
  *    card: Include / Dismiss.
  *  - "/meetings" in the "/" menu opens the panel with its search, inserting where the slash was.
  *  - Each person's switches (on by default): the pill and panel by themselves, and the hints.
+ *
+ * View mode (`view`, mounted by DocumentView in the page's bar): no editor. The section in view (and
+ * the reader's selection) stands for the caret's; a "From meetings" button in the bar opens the same
+ * panel. Reading only: no hints, no AI check. Insert, for someone who can edit the page, opens Edit
+ * with the line after the section in view (like Ask Markdrop's Insert: PageEditor insertOnOpen);
+ * for anyone else it isn't there.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -24,8 +30,9 @@ import { Icon, IconButton, Spinner, Switch, useToast } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { services } from "@/components/docs-editor/menus/mediaUpload";
 import { KIND_LABEL, checkSection, fmtDay, relatedFacts, setMemoryPrefs, type FactKind, type MemoryFact, type MemoryHint, type MemoryPrefs, type RelatedResult } from "@/lib/meetingMemory";
-import { sectionAround, sectionKey, shouldCheck, textHash, type BlockLine } from "./memoryCore.mjs";
+import { headingIndex, markdownBlocks, sectionAround, sectionKey, shouldCheck, textHash, type BlockLine } from "./memoryCore.mjs";
 import { insertAfterCaret } from "../editorInsert";
+import { headingInView } from "@/components/assistant/reader";
 import { openAssistant } from "@/components/assistant/store";
 import "./memory.css";
 
@@ -37,6 +44,17 @@ export interface MeetingMemoryProps {
   readOnly: boolean;
   /** Page AI is usable here (the AI check runs only then). */
   ai: boolean;
+  /** View mode: the page as read, in place of the editor (see above). */
+  view?: MeetingMemoryView | null;
+}
+
+export interface MeetingMemoryView {
+  /** The rendered page: which heading is in view, and the reader's selection in it. */
+  root: React.RefObject<HTMLElement | null>;
+  /** The page's Markdown (front matter left out): the text of the section in view. */
+  content: string;
+  /** Insert from View mode (opens Edit with the line after the section in view); null: no Insert. */
+  onInsert: ((markdown: string) => void) | null;
 }
 
 interface Ctx {
@@ -69,6 +87,20 @@ function readCtx(editor: Editor, title: string): Ctx {
   return { heading: s.heading, selection, section: s.text.slice(0, 4000), words, key: sectionKey({ title, heading: s.heading, selection }) };
 }
 
+/** View mode: the section in view, from the page's Markdown and the heading on screen. */
+function viewCtx(root: HTMLElement | null, content: string, title: string): Ctx {
+  const heading = headingInView(root);
+  const blocks = markdownBlocks(content);
+  const s = sectionAround(blocks, headingIndex(blocks, heading));
+  const sel = typeof window !== "undefined" ? window.getSelection() : null;
+  const selection = sel && !sel.isCollapsed && root && sel.anchorNode && root.contains(sel.anchorNode) ? sel.toString().trim().slice(0, 600) : "";
+  const words = s.text.split(/\s+/).filter((w) => /\w/.test(w)).length;
+  return { heading, selection, section: s.text.slice(0, 4000), words, key: sectionKey({ title, heading, selection }) };
+}
+
+// Workspaces whose memory this person can't read (not a member): asked once per visit.
+const notMember = new Set<string>();
+
 const dismissedKey = (slug: string) => `md_mm_dismissed:${slug}`;
 function readDismissed(slug: string): Set<string> {
   try {
@@ -83,7 +115,7 @@ function writeDismissed(slug: string, ids: Set<string>) {
   } catch { /* storage blocked: dismissed for this visit */ }
 }
 
-export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }: MeetingMemoryProps) {
+export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai, view = null }: MeetingMemoryProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const toast = useToast();
   const [ctx, setCtx] = useState<Ctx | null>(null);
@@ -101,8 +133,14 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
   const checked = useRef(new Set<string>());
   const budget = useRef(CHECK_BUDGET);
   const search = useRef<HTMLInputElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
   const titleRef = useRef(title);
   titleRef.current = title;
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const viewing = !!view;
+  // Hints and the AI check are for someone writing the page.
+  const writing = !viewing && !readOnly;
 
   useEffect(() => setDismissed(readDismissed(slug)), [slug]);
   // A new page: nothing carried over.
@@ -156,11 +194,38 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
     return () => window.clearTimeout(t);
   }, [title, editor]);
 
+  // View mode: the section in view, as the reader scrolls or selects (and as the page changes).
+  const viewContent = view?.content;
+  useEffect(() => {
+    if (!viewing) return;
+    let t = 0;
+    const run = () => {
+      const v = viewRef.current;
+      if (!v) return;
+      setCtx((prev) => {
+        const next = viewCtx(v.root.current, v.content, titleRef.current);
+        return prev && prev.key === next.key && prev.section === next.section ? prev : next;
+      });
+    };
+    const later = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(run, 600);
+    };
+    run();
+    window.addEventListener("scroll", later, { passive: true });
+    document.addEventListener("selectionchange", later);
+    return () => {
+      window.clearTimeout(t);
+      window.removeEventListener("scroll", later);
+      document.removeEventListener("selectionchange", later);
+    };
+  }, [viewing, viewContent, title]);
+
   // ── What the meetings say about it ──────────────────────────────────────
   const query = q.trim();
   const reqKey = query ? `q\u0001${query.toLowerCase()}\u0001${kind}` : ctx ? `${ctx.key}\u0001${textHash(ctx.section)}\u0001${kind}` : null;
   useEffect(() => {
-    if (!workspaceId || !reqKey || (!ctx && !query)) return;
+    if (!workspaceId || !reqKey || (!ctx && !query) || notMember.has(workspaceId)) return;
     const hit = cache.current.get(reqKey);
     if (hit) {
       setData(hit);
@@ -181,8 +246,10 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
           setPrefs((p) => p ?? r.prefs);
           setFailed(false);
         })
-        .catch(() => {
-          if (!c.signal.aborted) setFailed(true);
+        .catch((e: { status?: number }) => {
+          if (c.signal.aborted) return;
+          if (e?.status === 403) notMember.add(workspaceId);
+          setFailed(true);
         })
         .finally(() => {
           if (!c.signal.aborted) setLoading(false);
@@ -201,7 +268,7 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
   // ── The AI check: a section that contradicts (or leaves out) a related decision ──
   useEffect(() => {
     setAiHint(null);
-    if (!ai || !hintsOn || readOnly || query || !ctx || !data) return;
+    if (!ai || !hintsOn || !writing || query || !ctx || !data) return;
     const decisions = facts.filter((f) => f.kind === "decision").slice(0, 3);
     const key = `${ctx.key}\u0001${textHash(ctx.section)}`;
     if (!shouldCheck({ words: ctx.words, decisions: decisions.length, key, checked: checked.current, budget: budget.current })) return;
@@ -229,15 +296,15 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
       window.clearTimeout(t);
       c.abort();
     };
-  }, [data, ctx?.key, ctx?.section, ai, hintsOn, readOnly, query]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [data, ctx?.key, ctx?.section, ai, hintsOn, writing, query]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hint = useMemo(() => {
-    if (!hintsOn || readOnly || query) return null;
+    if (!hintsOn || !writing || query) return null;
     const pick = [aiHint, ...(data?.hints ?? [])].find((h) => h && !dismissed.has(h.fact) && h.fact !== justInserted) ?? null;
     if (!pick) return null;
     const fact = facts.find((f) => f.id === pick.fact);
     return fact ? { hint: pick, fact } : null;
-  }, [aiHint, data, dismissed, hintsOn, readOnly, query, facts, justInserted]);
+  }, [aiHint, data, dismissed, hintsOn, writing, query, facts, justInserted]);
 
   // ── Opening, the slash command, the other side panel ─────────────────────
   const show = useCallback((focusSearch = false) => {
@@ -270,6 +337,13 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
   }, [editor, workspaceId, show]);
 
   const insert = useCallback(async (f: MemoryFact) => {
+    const onViewInsert = viewRef.current?.onInsert;
+    if (onViewInsert) {
+      // View mode: Edit opens with it after the section in view (it saves like any change).
+      setOpen(false);
+      onViewInsert(f.markdown);
+      return;
+    }
     if (!editor || readOnly) return;
     const ok = await insertAfterCaret(editor, f.markdown).catch(() => false);
     if (!ok) {
@@ -296,16 +370,28 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
     cache.current.clear();
   }, [toast]);
 
-  if (!workspaceId || failed && !data) return null;
+  if (!workspaceId || (failed && !data) || (!data && notMember.has(workspaceId))) return null;
   const meetings = data?.meetings ?? 0;
   const count = facts.length;
-  const pill = panelOn && meetings > 0 && !open;
+  // View mode: a button in the page's bar, there whenever the workspace has meetings (a button
+  // waits to be pressed: "Show by itself" is about the pill while writing).
+  const barButton = viewing && meetings > 0;
+  const pill = !viewing && panelOn && meetings > 0 && !open;
   // The hints have their own switch: with the pill off they still come (and the other way round).
   const dock = !open && (pill || !!hint);
   const where = query ? `“${query}”` : ctx?.heading ? `“${ctx.heading}”` : title.trim() ? `“${title.trim()}”` : "this page";
 
+  const canInsert = viewing ? !!view?.onInsert : !readOnly && !!editor;
   return (
     <>
+      {barButton && (
+        <button type="button" ref={trigger} className="pb-bar__btn mm-barbtn no-print" onClick={() => (open ? close() : show())}
+          aria-haspopup="dialog" aria-expanded={open} title="Decisions and action items from your team's meetings" data-testid="mm-bar">
+          <Icon name="mic" className="mm-barbtn__icon" />
+          <span className="mm-barbtn__label">From meetings</span>
+          {count > 0 && <span className="mm-barbtn__count" aria-label={`${count} related`}>{count}</span>}
+        </button>
+      )}
       {dock && (
         <div className="mm-dock no-print">
           {hint && (
@@ -339,7 +425,8 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
               if (e.key === "Escape" && !e.defaultPrevented) {
                 e.stopPropagation();
                 close();
-                editor?.commands.focus();
+                if (viewing) trigger.current?.focus({ preventScroll: true });
+                else editor?.commands.focus();
               }
             }}>
             {phone && <div className="mm__handle" aria-hidden />}
@@ -350,7 +437,7 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
                 <p className="ph-mask" title={where}>Related to {where}</p>
               </div>
               {loading && <Spinner size={14} className="mm__spin" />}
-              <IconButton icon="x" label="Close" size="sm" onClick={close} />
+              <IconButton icon="x" label="Close" size="sm" className="mm__close" onClick={close} />
             </header>
             <div className="mm__search">
               <Icon name="search" className="mm__search-icon" />
@@ -376,7 +463,7 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai }
               ) : (
                 <ol className="mm-list" aria-busy={loading || undefined}>
                   {facts.map((f) => (
-                    <FactRow key={f.id} fact={f} canInsert={!readOnly && !!editor} onInsert={() => void insert(f)} inserted={justInserted === f.id} />
+                    <FactRow key={f.id} fact={f} canInsert={canInsert} viewing={viewing} onInsert={() => void insert(f)} inserted={justInserted === f.id} />
                   ))}
                 </ol>
               )}
@@ -403,7 +490,7 @@ function askAbout(f: MemoryFact): string {
   return `What did we discuss about ${f.title || f.text} in ${where}?`;
 }
 
-function FactRow({ fact: f, canInsert, onInsert, inserted }: { fact: MemoryFact; canInsert: boolean; onInsert: () => void; inserted: boolean }) {
+function FactRow({ fact: f, canInsert, viewing, onInsert, inserted }: { fact: MemoryFact; canInsert: boolean; viewing: boolean; onInsert: () => void; inserted: boolean }) {
   const m = f.meeting;
   const extra = [f.owner, f.due ? `due ${f.due}` : null].filter(Boolean).join(" · ");
   return (
@@ -433,7 +520,8 @@ function FactRow({ fact: f, canInsert, onInsert, inserted }: { fact: MemoryFact;
           <Icon name="sparkle" /> Ask about this
         </button>
         {canInsert && (
-          <button type="button" className="mm-btn mm-btn--primary" onClick={onInsert} disabled={inserted}>
+          <button type="button" className="mm-btn mm-btn--primary" onClick={onInsert} disabled={inserted}
+            title={viewing ? "Opens Edit and adds it after the section you're reading, with a link to the meeting" : undefined}>
             <Icon name={inserted ? "check" : "plus"} /> {inserted ? "Inserted" : "Insert"}
           </button>
         )}

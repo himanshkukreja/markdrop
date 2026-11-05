@@ -13,6 +13,10 @@
  *   leak      a meeting restricted to its attendees never reaches anyone else (panel, search, Ask, API)
  *   prefs     "Show by itself" off hides the button (kept after a reload); /meetings still opens the panel
  *   phone     390 px: the sheet, no sideways scroll
+ *   view      View mode: "From meetings" in the page's bar opens the same panel for the section in view (no
+ *             hints, no editor); Insert opens Edit with the line after that section, saved; a workspace
+ *             reader gets the panel without Insert, and never the restricted meeting
+ *   viewphone View mode at 390 px: the bar's button and the sheet's buttons are 44 px targets
  *
  *   PB_FAKE_MEETINGS_AI=1 PB_FAKE_ASK_AI=1 PB_FAKE_PAGES_AI=1 PB_STACK_ID=50 PB_WORK=… zsh up.sh start
  *   PB_STACK_ID=50 PB_WORK=… BROWSER=chromium|webkit [ONLY=panel,insert] node meeting-memory.mjs
@@ -71,6 +75,9 @@ const newPage = async (title, content, as = "admin") => {
   return r.body.document.slug;
 };
 const PRD = await newPage("Checkout redesign PRD", "# Goals\n\nA faster checkout.\n\n## Payments\n\nCustomers pay on a hosted page.\n\n## Rollout\n\n");
+// A long page, so a section can be scrolled to the top in View mode.
+const FILLER = Array.from({ length: 24 }, (_, i) => `Appendix note ${i + 1}: details for the support team and the release notes.`).join("\n\n");
+const VIEWPRD = await newPage("Checkout payments notes", `# Goals\n\nA faster checkout.\n\n## Payments\n\nCustomers pay on a hosted page.\n\n## Rollout\n\nIn two waves.\n\n## Appendix\n\n${FILLER}\n`);
 const HINT = await newPage("Checkout launch plan", "## Launch\n\nWe launch the new checkout on Monday next week, after the design review and the final round of usability tests with ten customers from the beta group, so support can prepare.\n");
 
 const editorOf = (p) => p.locator('.pb-live .ProseMirror[contenteditable="true"]');
@@ -286,6 +293,86 @@ await step("phone", async () => {
   const box = await panel(p).boundingBox();
   if (!box || box.width > 391) fail(`sheet width ${box?.width}`);
   await shot(p, "mm10-phone");
+});
+
+await step("view", async () => {
+  // Wes (can edit) reads the page: no editor, no pill, no hint; the bar's button opens the panel.
+  const { p } = await ctx(browser, { token: T.admin });
+  const bodies = captureApi(p);
+  await p.goto(`${APP}/${VIEWPRD}`, { waitUntil: "networkidle" });
+  const btn = p.getByTestId("mm-bar");
+  await btn.waitFor({ timeout: 20000 });
+  if (await p.locator('.pb-live .ProseMirror[contenteditable="true"]').count()) fail("the page opened in Edit");
+  // The section in view: Payments at the top (the panel follows the reader's scroll).
+  await p.locator(".pb-frame h2", { hasText: "Payments" }).first().evaluate((h) => window.scrollTo(0, h.getBoundingClientRect().top + window.scrollY - 100));
+  await p.waitForTimeout(1200);
+  await p.waitForFunction(() => Number(document.querySelector(".mm-barbtn__count")?.textContent || 0) > 0, null, { timeout: 20000 });
+  await btn.click();
+  await panel(p).waitFor({ timeout: 5000 });
+  if ((await btn.getAttribute("aria-expanded")) !== "true") fail("the bar's button doesn't say the panel is open");
+  await p.waitForFunction(() => /Payments/.test(document.querySelector(".mm[data-open] .mm__titles p")?.textContent || ""), null, { timeout: 8000 })
+    .catch(async () => fail(`not the section in view: ${await panel(p).locator(".mm__titles p").innerText()}`));
+  const f = factOf(p, "ship the checkout redesign");
+  await f.waitFor({ timeout: 10000 });
+  const text = await f.innerText();
+  if (!/Decision/.test(text) || !/Nov 3, 2026/.test(text) || !/Checkout sync/.test(text)) fail(`no kind/date/meeting: ${text}`);
+  const moment = await f.locator("a.mm-btn").first().getAttribute("href");
+  if (!moment || !/#b-t\d{4}/.test(moment)) fail(`no moment link: ${moment}`);
+  if (await p.locator(".mm-pill, .mm-hint").count()) fail("View mode shows the editor's pill or a hint");
+  await shot(p, "mm11-view");
+  // Escape closes it and gives the focus back to the bar's button.
+  await panel(p).locator(".mm__search-input").focus();
+  await p.keyboard.press("Escape");
+  await p.waitForFunction(() => !document.querySelector(".mm[data-open]"), null, { timeout: 3000 });
+  if (!(await btn.evaluate((b) => b === document.activeElement))) fail("Escape didn't return the focus to the button");
+  // Insert from View mode: Edit opens with the cited line after the section in view, and it saves.
+  await btn.click();
+  await f.waitFor({ timeout: 10000 });
+  await f.getByRole("button", { name: /Insert/ }).click();
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').getByText(/Decided on Nov 3, 2026/).waitFor({ timeout: 30000 });
+  await waitSaved(p);
+  const md = (await docOf(VIEWPRD, T.admin)).content;
+  const at = md.indexOf("Decided on Nov 3, 2026");
+  if (at < 0) fail(`not saved: ${md.slice(0, 400)}`);
+  if (at < md.indexOf("hosted page") || at > md.indexOf("## Rollout")) fail(`not after the section in view: ${md.slice(0, 500)}`);
+  const line = md.slice(at).split("\n")[0];
+  if (!line.includes(":markdrop[") || !line.includes(team.slug)) fail(`no mention of the meeting: ${line}`);
+  await shot(p, "mm12-view-inserted");
+  for (const b of bodies) if (b.body.toLowerCase().includes(SECRET)) fail(`an API response to Wes carried the secret: ${b.url}`);
+
+  // Vic (a workspace viewer, can't edit): the same panel, no Insert, never the restricted meeting.
+  const { p: r } = await ctx(browser, { token: T.reader });
+  const rb = captureApi(r);
+  await r.goto(`${APP}/${VIEWPRD}`, { waitUntil: "networkidle" });
+  await r.getByTestId("mm-bar").click({ timeout: 20000 });
+  await factOf(r, "ship the checkout redesign").waitFor({ timeout: 10000 });
+  if (await panel(r).getByRole("button", { name: /Insert/ }).count()) fail("a reader who can't edit got Insert");
+  await panel(r).locator(".mm__search-input").fill("ninety nine dollars");
+  await r.waitForTimeout(1500);
+  for (const b of rb) if (b.body.toLowerCase().includes(SECRET)) fail(`an API response to Vic carried the secret: ${b.url}`);
+  await shot(r, "mm13-view-reader");
+});
+
+await step("viewphone", async () => {
+  const { p } = await ctx(browser, { token: T.admin, width: 390, height: 844, mobile: true });
+  await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
+  const btn = p.getByTestId("mm-bar");
+  await btn.waitFor({ timeout: 20000 });
+  const bb = await btn.boundingBox();
+  if (!bb || bb.width < 44 || bb.height < 44) fail(`the bar's button is ${bb?.width}x${bb?.height}`);
+  await btn.click();
+  await panel(p).waitFor({ timeout: 5000 });
+  const f = factOf(p, "ship the checkout redesign");
+  await f.waitFor({ timeout: 10000 });
+  await p.waitForTimeout(400);
+  const small = await panel(p).evaluate((el) => [...el.querySelectorAll(".mm-btn, .mm-chip, .mm__close, .mm__search-input")]
+    .map((b) => [b.className, b.getBoundingClientRect().height]).filter(([, h]) => h > 0 && h < 44));
+  if (small.length) fail(`targets under 44 px: ${JSON.stringify(small).slice(0, 300)}`);
+  const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  if (wide > 1) fail(`sideways scroll: ${wide}px`);
+  const box = await panel(p).boundingBox();
+  if (!box || box.width > 391 || box.y < 40) fail(`not a bottom sheet: ${JSON.stringify(box)}`);
+  await shot(p, "mm14-view-phone");
 });
 
 console.log("\n" + results.map(([n, r, ms]) => `${r === "ok" ? "✓" : "✗"} ${n.padEnd(8)} ${r} (${(ms / 1000).toFixed(1)} s)`).join("\n"));

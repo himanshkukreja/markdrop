@@ -65,3 +65,23 @@ test("an answer's citations become numbered links (first-cited order, moments ne
   assert.equal(markdown, "On Oct 28, 2026 (Daily Standup) we decided to ship [\\[1·1\\]](/standup-t#b-t0004). The page agrees [\\[2\\]](/prd). Unknown [7].");
   assert.deepEqual(sources.map((s) => [s.n, s.shown, s.href]), [[2, 1, "/standup-t#b-t0004"], [1, 2, "/prd"]]);
 });
+
+test("View mode: the page's Markdown as blocks, and the heading in view", async () => {
+  const { markdownBlocks, headingIndex } = await import("./memoryCore.mjs");
+  const md = "Intro line one\nline two\n\n## Payments **now**\n\nWe use a hosted page.\n\n```sh\n# not a heading\n```\n\n### [Refunds](/r)\n\nWithin 30 days.\n\n## Pricing ##\nAnnual plans.\n";
+  const blocks = markdownBlocks(md);
+  assert.deepEqual(blocks.map((b) => b.level), [null, 2, null, null, 3, null, 2, null]);
+  assert.equal(blocks[0].text, "Intro line one\nline two");
+  assert.equal(blocks[3].text, "```sh\n# not a heading\n```");
+  assert.equal(blocks[6].text, "Pricing");
+  assert.equal(headingIndex(blocks, "Payments now"), 1);
+  assert.equal(headingIndex(blocks, "Refunds"), 4);
+  assert.equal(headingIndex(blocks, null), 0);
+  assert.equal(headingIndex(blocks, "Nowhere"), 0);
+  const s = sectionAround(blocks, headingIndex(blocks, "Payments now"));
+  assert.equal(s.heading, "Payments **now**");
+  assert.match(s.text, /hosted page/);
+  assert.match(s.text, /Within 30 days/);
+  assert.doesNotMatch(s.text, /Annual/);
+  assert.deepEqual(markdownBlocks(""), []);
+});

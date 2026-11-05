@@ -1,6 +1,8 @@
 export interface BlockLine { level: number | null; text: string }
 export interface Section { heading: string | null; level: number | null; start: number; end: number; text: string }
 export function sectionAround(blocks: BlockLine[], index: number): Section;
+export function markdownBlocks(markdown: string | null | undefined): BlockLine[];
+export function headingIndex(blocks: BlockLine[], heading: string | null | undefined): number;
 export function contentWords(text: string | null | undefined): string[];
 export function sectionKey(p: { title?: string | null; heading?: string | null; selection?: string | null; q?: string | null }): string;
 export function isMemoryQuestion(q: string | null | undefined): boolean;

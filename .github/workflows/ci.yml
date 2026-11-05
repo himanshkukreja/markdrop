@@ -407,6 +407,15 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node lockleave.mjs
 
+      # Meeting memory (From meetings) in Edit and View mode, ~3 min, also on the bughunt job. Page AI
+      # counts as set up for it (PB_FAKE_PAGES_AI: the hint's AI check), so the API restarts with it.
+      - name: meeting-memory.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_FAKE_PAGES_AI=1 zsh up.sh restart-api
+          node meeting-memory.mjs
+
       - name: Stack logs
         if: failure()
         run: for f in api worker web; do echo "== $f"; tail -n 80 "$PB_WORK/stack/$f.log" 2>/dev/null; done
