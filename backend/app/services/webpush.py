@@ -266,6 +266,8 @@ async def send(endpoint: str, p256dh: str, auth: str, payload: bytes, *, ttl: in
         return Result(0, error="not_configured")
     if not endpoint_allowed(endpoint):
         return Result(0, gone=True, error="endpoint_not_allowed")
+    if len(payload) > MAX_PAYLOAD:
+        return Result(0, error="too_large")  # this message's fault, not the device's
     try:
         body = encrypt(payload, p256dh, auth)
     except ValueError as exc:

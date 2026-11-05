@@ -81,6 +81,7 @@ PRUNE_EVERY = timedelta(hours=1)
 FLUSH_GROUPS = 100
 TTL_SECONDS = 24 * 3600
 TEST_GAP = timedelta(seconds=5)
+MAX_IDS = 20
 _last_prune: datetime | None = None
 
 
@@ -392,10 +393,11 @@ def compose_notifications(user_id: str, doc_id: str, views: list[dict]) -> dict:
                 names.append(name)
         body = ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
         url = "/" + first["page"]["slug"]
+    ids = [v["id"] for v in views][-MAX_IDS:]  # the newest; keeps the message well under 4 KB
     return {
         "v": 1, "title": _cut(title, 160), "body": _cut(body, 300), "url": url, "tag": f"md-doc-{doc_id}",
         "kind": first["kind"] if n == 1 else "batch", "count": n,
-        "ids": [v["id"] for v in views], "read": read_url(user_id, [v["id"] for v in views]),
+        "ids": ids, "read": read_url(user_id, ids),
         "ts": int(_now().timestamp() * 1000),
     }
 

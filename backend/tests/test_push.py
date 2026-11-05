@@ -511,6 +511,17 @@ class Delivery(PushWorld):
         for secret in ("content", "Body d-", "edit_secret", self.email["owner"], self.email["wm"]):
             self.assertNotIn(secret, raw)
 
+    async def test_a_big_batch_stays_small(self):
+        views = [{"id": str(ObjectId()), "kind": "mention", "text": "x", "href": "/p#b-aaaa01", "page": {"slug": "p", "title": "T" * 300},
+                  "actor": {"name": f"Person {i}"}, "excerpt": "e" * 400} for i in range(200)]
+        msg = push.compose_notifications(self.uid["wm"], str(ObjectId()), views)
+        self.assertEqual(len(msg["ids"]), push.MAX_IDS)
+        self.assertEqual(msg["count"], 200)
+        self.assertLess(len(json.dumps(msg).encode()), 2048)
+        self.assertEqual(msg["body"], "Person 199, Person 198, Person 197 and 197 more")
+        r = await webpush.send(FCM + "x", Browser().subscription()["keys"]["p256dh"], webpush.b64u(os.urandom(16)), b"x" * 5000)
+        self.assertEqual((r.gone, r.error), (False, "too_large"))  # never costs the device
+
     async def test_unconfigured_does_nothing(self):
         await self.device("wm")
         with mock.patch.object(settings, "vapid_private_key", ""):
