@@ -10,6 +10,7 @@ keywords: [meetings privacy, restrict to attendees, attendees only, restricted m
 
 - **The team, by default.** Everyone in the workspace can open a meeting page and its transcript, like any page set to **Workspace**. See [Privacy](/workspaces/privacy).
 - **Answers follow your access.** Ask this meeting and Ask across meetings use only the meetings you can open. Each meeting is checked again when you ask, and every source in an answer is checked again before you see it. A meeting restricted from you never reaches the AI when you ask.
+- **Past meetings are quiet.** Meetings brought in from your Drive's history when you [connect Google Meet](/workspaces/meetings-auto-import#past-meetings) notify nobody; their @mentions stay links.
 - **Automatic imports are yours.** A meeting that [Connect Google Meet](/workspaces/meetings-auto-import) imported belongs to the person who connected it, as if they had imported it by hand.
 
 ## Restricted meetings

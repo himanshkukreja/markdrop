@@ -2,7 +2,7 @@
  * Meetings auto-import ("Connect Google Meet") on the REAL stack (up.sh, with PB_FAKE_MEETINGS_AI=1):
  *
  *   connect     the hub's empty state shows Import and Connect Google Meet side by side → the dialog →
- *               Make my script → the manifest + Code.gs (valid JavaScript, the endpoint and a
+ *               past meetings: last 7 days → Make my script → the manifest + Code.gs (valid JavaScript, the endpoint and a
  *               meetings:import token filled in) with Copy buttons and the four steps → Done → the
  *               connection line ("waiting for the script's first run")
  *   scoped      the script's token works on the inbox and nowhere else (401 on /auth/me, documents,
@@ -93,6 +93,8 @@ await step("connect", async () => {
   await dlg.getByText("Connect Google Meet").first().waitFor();
   await dlg.getByText("Read-only: it never edits, moves or deletes anything in your Drive.").waitFor();
   await snap(p, "connect-dialog");
+  if ((await dlg.getByTestId("meet-past").inputValue()) !== "30") fail("past meetings: not 30 days by default");
+  await dlg.getByTestId("meet-past").selectOption("7");
   await dlg.getByTestId("meet-create").click();
   await dlg.getByTestId("meet-script").waitFor({ timeout: 15000 });
   script = await dlg.getByTestId("meet-code").locator("pre").innerText();
@@ -100,6 +102,8 @@ await step("connect", async () => {
   token = (/var MARKDROP_TOKEN = "(mdk_[A-Za-z0-9_-]+)";/.exec(script) || [])[1];
   if (!token) fail("no token in the script");
   if (!/var MARKDROP_ENDPOINT = "https?:\/\/[^"]+\/api\/v1\/meetings\/inbox";/.test(script)) fail("no endpoint in the script");
+  if (!script.includes("var BACKFILL_DAYS = 7;")) fail("the past-meetings choice isn't in the script");
+  await dlg.getByText("It imports your last 7 days of meetings now").waitFor();
   try { new vm.Script(script, { filename: "Code.gs" }); } catch (e) { fail(`the script isn't valid JavaScript: ${e.message}`); }
   const man = JSON.parse(manifest);
   if (!man.oauthScopes.includes("https://www.googleapis.com/auth/drive.readonly") || man.oauthScopes.some((s) => s.endsWith("/drive")))

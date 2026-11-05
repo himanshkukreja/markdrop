@@ -68,6 +68,8 @@ export interface Meeting {
   source?: "manual" | "auto" | "mcp";
   /** On import: a new meeting, the missing half added to one already here, or nothing new. */
   status?: "imported" | "attached" | "duplicate";
+  /** A past meeting brought in by a backfill: imported quietly (nobody was notified). */
+  history?: boolean;
 }
 
 /** A "Connect Google Meet" connection (never its token). */
@@ -95,7 +97,10 @@ export function getMeetConnection(workspace: string) {
     `/api/v1/meetings/connection?workspace=${encodeURIComponent(workspace)}`);
 }
 
-export function connectGoogleMeet(body: { workspace: string; restricted?: boolean }) {
+export const BACKFILL_DAYS = [0, 7, 30, 90] as const;
+
+/** `backfill_days`: past meetings the script's setup brings in once (quietly); `tz`: the browser's zone. */
+export function connectGoogleMeet(body: { workspace: string; restricted?: boolean; backfill_days?: (typeof BACKFILL_DAYS)[number]; tz?: string }) {
   return request<{ token: string; script: string; manifest: string; endpoint: string; connection: MeetConnection }>(
     `/api/v1/meetings/connection`, { method: "POST", body: JSON.stringify(body) });
 }

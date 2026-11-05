@@ -13234,6 +13234,11 @@
                       }
                     ],
                     "title": "Doc Url"
+                  },
+                  "backfill": {
+                    "type": "boolean",
+                    "title": "Backfill",
+                    "default": false
                   }
                 },
                 "type": "object",
@@ -15320,6 +15325,29 @@
             "type": "boolean",
             "title": "Restricted",
             "default": false
+          },
+          "backfill_days": {
+            "type": "integer",
+            "enum": [
+              0,
+              7,
+              30,
+              90
+            ],
+            "title": "Backfill Days",
+            "default": 0
+          },
+          "tz": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tz"
           }
         },
         "type": "object",

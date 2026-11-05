@@ -13,11 +13,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Alert, Badge, Button, ConfirmDialog, CopyButton, Dialog, Drawer, Icon, Switch, useToast,
+  Alert, Badge, Button, ConfirmDialog, CopyButton, Dialog, Drawer, Field, Icon, Select, Switch, useToast,
 } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { relativeTime } from "@/components/dashboard/format";
-import { connectGoogleMeet, disconnectGoogleMeet, getMeetConnection, type MeetConnection } from "@/lib/meetings";
+import {
+  BACKFILL_DAYS, connectGoogleMeet, disconnectGoogleMeet, getMeetConnection, type MeetConnection,
+} from "@/lib/meetings";
 import "./meetings.css";
 
 export interface ConnectGoogleMeetProps {
@@ -33,22 +35,25 @@ export interface ConnectGoogleMeetProps {
 export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, current, onConnected }: ConnectGoogleMeetProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const [restricted, setRestricted] = useState(false);
+  const [past, setPast] = useState<(typeof BACKFILL_DAYS)[number]>(30);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [made, setMade] = useState<{ script: string; manifest: string } | null>(null);
+  const [made, setMade] = useState<{ script: string; manifest: string; past: number } | null>(null);
   const primary = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) return;
-    setRestricted(false); setBusy(false); setError(null); setMade(null);
+    setRestricted(false); setPast(30); setBusy(false); setError(null); setMade(null);
   }, [open]);
 
   const create = async () => {
     setBusy(true);
     setError(null);
     try {
-      const r = await connectGoogleMeet({ workspace: workspaceId, restricted });
-      setMade({ script: r.script, manifest: r.manifest });
+      let tz: string | undefined;
+      try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone; } catch { /* no zone: dated as Google wrote it */ }
+      const r = await connectGoogleMeet({ workspace: workspaceId, restricted, backfill_days: past, tz });
+      setMade({ script: r.script, manifest: r.manifest, past });
       onConnected?.(r.connection);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't connect. Try again.");
@@ -82,7 +87,8 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
         <li>
           <b>Run setup once and allow.</b> Pick <code>setup</code> next to Run and press Run. Google asks you to allow it;
           as it's your own script it says “Google hasn't verified this app”: choose <b>Advanced › Go to … (unsafe)</b>, then Allow.
-          It imports your last 48 hours of meetings now and checks every 15 minutes from then on.
+          It imports your last {made.past > 2 ? `${made.past} days` : "48 hours"} of meetings now (older ones first, over a few runs, without
+          notifying anyone) and checks every 15 minutes from then on.
         </li>
       </ol>
       <p className="mt-connect__fine">
@@ -102,6 +108,13 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
         <li><Icon name="key" /> It gets its own token that can only import meetings into this workspace. Disconnect any time.</li>
         <li><Icon name="checkCircle" /> No duplicates: a meeting you already imported by hand is recognized, and notes and transcript of one call become one page.</li>
       </ul>
+      <Field label="Also import past meetings from your Drive" htmlFor="meet-past"
+        hint="Oldest first. Past meetings don't notify anyone; their @mentions stay links.">
+        <Select id="meet-past" value={String(past)} data-testid="meet-past"
+          onChange={(e) => setPast(Number(e.target.value) as (typeof BACKFILL_DAYS)[number])}
+          options={[{ value: "0", label: "No, only new meetings" }, { value: "7", label: "Last 7 days" },
+            { value: "30", label: "Last 30 days" }, { value: "90", label: "Last 90 days" }]} />
+      </Field>
       <Switch checked={restricted} onChange={(e) => setRestricted(e.target.checked)}
         label="Only the people in each meeting can open its page" data-testid="meet-restricted" />
       {elsewhere && (
