@@ -461,7 +461,7 @@ function Dashboard({
         />
       </section>
 
-      <Card id={`${uid}-trend`} title="Readers per day" aside={<span className="text-caption text-text-muted max-sm:hidden">Hover a day for views and readers</span>}>
+      <Card id={`${uid}-trend`} title="Readers per day" aside={<span className="text-caption text-text-muted max-sm:hidden"><span className="pointer-coarse:hidden">Hover</span><span className="hidden pointer-coarse:inline">Tap</span> a day for views and readers</span>}>
         {data.daily.some((d) => d.views > 0)
           // The days are UTC (services/guide_insights.py): the last one is today, still counting.
           ? <ReadersLineChart daily={data.daily.map((d) => ({ date: d.date, readers: d.visitors, views: d.views }))} today={new Date().toISOString().slice(0, 10)} />
@@ -480,7 +480,7 @@ function Dashboard({
                   <li key={p.path} className="relative flex items-center gap-2.5 overflow-hidden rounded-md px-2.5 py-2 text-body">
                     <span aria-hidden className="absolute inset-y-0 left-0 bg-accent-soft" style={{ width: barWidth(p.views, topViews) }} />
                     {href ? (
-                      <Link href={href} title={p.path} className="md-focus relative min-w-0 flex-1 truncate text-text no-underline hover:underline">{label}</Link>
+                      <Link href={href} title={p.path} className="md-focus relative min-w-0 flex-1 truncate text-text no-underline hover:underline pointer-coarse:py-3">{label}</Link>
                     ) : (
                       <span title={p.path} className="relative min-w-0 flex-1 truncate text-text">{label}</span>
                     )}

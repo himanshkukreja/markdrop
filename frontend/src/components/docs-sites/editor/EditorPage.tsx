@@ -30,7 +30,7 @@ import { markdropHost } from "@/lib/docsEmbeds";
 import { fixApplied, getFix, type FixDraft } from "@/lib/guideFixes";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
-import SiteBar, { STUDIO_CHROME_H } from "../SiteBar";
+import SiteBar, { STUDIO_CHROME, STUDIO_CHROME_H } from "../SiteBar";
 import { useSite } from "../SiteContext";
 import { HEADER_SLOT_ID } from "../studio/StudioShell";
 import { CommentsTab, usePageComments } from "./CommentsTab";
@@ -78,10 +78,13 @@ function SaveStatus({ save, lock, onRetry }: { save: SaveState; lock: LockState;
   );
 }
 
-/** Where the sticky studio header and site bar end (the site bar wraps to two or three rows below lg). */
+/**
+ * Where the sticky studio header and site bar end (the site bar wraps to two or three rows below lg;
+ * on phones and short landscape screens it scrolls away, leaving the 56 px header).
+ */
 function chromeBottom(): number {
   const bar = document.querySelector<HTMLElement>('nav[aria-label="Guide"]')?.parentElement;
-  return bar ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
+  return bar ? Math.max(56, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
 }
 
 /** The guide's API reference operations, offered by the editor's API endpoint block (none without one). */
@@ -277,7 +280,7 @@ function StatusBar({ words, onFind, onShortcuts, onEmbed, ai }: {
 }) {
   const mins = readMinutes(words);
   return (
-    <div className="sticky bottom-0 z-10 mt-auto flex h-[calc(34px+var(--safe-bottom))] shrink-0 pb-(--safe-bottom) items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5">
+    <div className="sticky bottom-0 z-10 mt-auto flex h-[calc(34px+var(--safe-bottom))] shrink-0 pb-(--safe-bottom) items-center gap-4 border-t border-border bg-surface px-4 text-[12px] text-text-muted sm:px-5 pointer-coarse:h-[calc(44px+var(--safe-bottom))] pointer-coarse:gap-1">
       <span aria-live="off">{words.toLocaleString("en")} {words === 1 ? "word" : "words"}{mins ? ` · ${mins} min read` : ""}</span>
       <span className="flex-1" />
       {ai && (
@@ -287,7 +290,7 @@ function StatusBar({ words, onFind, onShortcuts, onEmbed, ai }: {
           minWidth={260}
           portal
           trigger={
-            <button type="button" className="md-focus inline-flex items-center gap-1.5 rounded text-accent-text hover:text-text">
+            <button type="button" className="md-focus inline-flex items-center gap-1.5 rounded text-accent-text hover:text-text pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center pointer-coarse:px-2">
               <Icon name="sparkle" size={14} /><span>AI</span>
             </button>
           }
@@ -300,14 +303,15 @@ function StatusBar({ words, onFind, onShortcuts, onEmbed, ai }: {
         />
       )}
       {onEmbed && (
-        <button type="button" onClick={onEmbed} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text" title="Embed an interactive HTML demo, a website, a PDF or a video from Markdrop">
+        <button type="button" onClick={onEmbed} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center pointer-coarse:px-2" title="Embed an interactive HTML demo, a website, a PDF or a video from Markdrop">
           <Icon name="layers" size={14} /><span className="max-sm:hidden">Embed a Markdrop file</span><span className="sm:hidden">Embed</span>
         </button>
       )}
-      <button type="button" onClick={onFind} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text">
-        <Kbd>{isMac() ? "⌘F" : "Ctrl F"}</Kbd><span className="max-sm:hidden">Find and replace</span><span className="sm:hidden">Find</span>
+      <button type="button" onClick={onFind} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text pointer-coarse:h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center pointer-coarse:px-2">
+        {/* No shortcut on a touch screen: a magnifier instead. */}
+        <Kbd className="pointer-coarse:hidden">{isMac() ? "⌘F" : "Ctrl F"}</Kbd><Icon name="search" size={14} className="hidden pointer-coarse:inline-block" /><span className="max-sm:hidden">Find and replace</span><span className="sm:hidden">Find</span>
       </button>
-      <button type="button" onClick={onShortcuts} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text max-sm:hidden">
+      <button type="button" onClick={onShortcuts} className="md-focus inline-flex items-center gap-1.5 rounded hover:text-text max-sm:hidden pointer-coarse:hidden">
         <Kbd>?</Kbd>Shortcuts
       </button>
     </div>
@@ -341,6 +345,7 @@ export default function EditorPage() {
   const [mode, setModeState] = useState<EditorMode>("visual");
   const [treeOpen, setTreeOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
+  const treeFocus = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<PanelTab>("checks");
   const [preview, setPreview] = useState(false);
   // The preview's light/dark: the guide's own default (a dark-first or dark-only design opens dark).
@@ -955,7 +960,7 @@ export default function EditorPage() {
   );
 
   const problems = checks.filter((c) => c.kind !== "ok").length;
-  const sideH = { top: STUDIO_CHROME_H, height: `calc(100dvh - ${STUDIO_CHROME_H}px)` };
+  const sideH = { top: STUDIO_CHROME, height: `calc(100dvh - ${STUDIO_CHROME})` };
 
   return (
     <>
@@ -980,7 +985,7 @@ export default function EditorPage() {
             <IconButton icon="eye" label="Preview" size="sm" className="xl:hidden" disabled={!fields} onClick={() => setPreview(true)} />
             {fields && (
               <Button variant="ghost" size="sm" iconLeft="columns" className="xl:hidden" title="Checks, page settings, comments and history" onClick={() => setPanelOpen(true)}>
-                Page{problems ? <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-warning-soft px-1 text-[10px] font-bold text-warning">{problems}</span> : null}
+                Page{problems ? <span className="ml-0.5 grid h-[18px] min-w-[18px] place-items-center rounded-full bg-warning-soft px-1 text-[12px] font-bold text-warning">{problems}</span> : null}
               </Button>
             )}
           </>
@@ -1003,7 +1008,7 @@ export default function EditorPage() {
           {treeEl}
         </aside>
 
-        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none" style={{ minHeight: `calc(100dvh - ${STUDIO_CHROME_H}px)` }}>
+        <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none" style={{ minHeight: `calc(100dvh - ${STUDIO_CHROME})` }}>
           <div className="flex flex-1 justify-center px-4 pb-20 pt-6 sm:px-8 sm:pt-11 xl:px-10">
             <div className="flex w-full min-w-0 max-w-[756px] flex-col gap-4">
               {session.loadError && (
@@ -1092,8 +1097,9 @@ export default function EditorPage() {
         </aside>
       </div>
 
-      <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={<span className="ph-sensitive ph-mask">{site.name}</span>}>
-        {treeEl}
+      {/* Focus lands on the list, not its search box: on a phone that would raise the keyboard over the pages. */}
+      <Drawer open={treeOpen} onClose={() => setTreeOpen(false)} side="left" width={300} title={<span className="ph-sensitive ph-mask">{site.name}</span>} initialFocus={treeFocus}>
+        <div ref={treeFocus} tabIndex={-1} className="outline-none">{treeEl}</div>
       </Drawer>
       <Drawer open={panelOpen && !panelWide} onClose={() => setPanelOpen(false)} title={<span className="ph-sensitive ph-mask">{title || "Page"}</span>} width={360}>
         <div className="-mx-5 -my-4 flex min-h-full flex-col">{!panelWide && panel}</div>

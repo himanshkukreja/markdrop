@@ -220,7 +220,7 @@ export default function NewSite() {
   return (
     <>
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-[880px] px-4 pb-16 pt-6 outline-none sm:px-6 sm:pt-8">
-        <Anchor href={listHref} className="md-focus mb-3 inline-flex items-center gap-1.5 rounded text-[13px] text-text-secondary no-underline hover:text-text">
+        <Anchor href={listHref} className="md-focus mb-3 inline-flex items-center gap-1.5 rounded text-[13px] text-text-secondary no-underline hover:text-text pointer-coarse:min-h-11">
           <Icon name="arrowLeft" size={14} /> All guides
         </Anchor>
         <h1 className="mb-6 text-[28px] font-extrabold leading-9 tracking-[-0.02em] text-text">New guide</h1>

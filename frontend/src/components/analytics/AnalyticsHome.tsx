@@ -98,7 +98,7 @@ export default function AnalyticsHome() {
                         return (
                           <tr key={l.slug} className="border-t border-border">
                             <th scope="row" className="max-w-[320px] px-2 py-2.5 text-left font-normal">
-                              <Anchor href={docHref(l.slug)} className="md-focus flex min-w-0 items-center gap-2.5 rounded-sm text-text no-underline hover:text-accent-text">
+                              <Anchor href={docHref(l.slug)} className="md-focus flex min-w-0 items-center gap-2.5 rounded-sm text-text no-underline hover:text-accent-text pointer-coarse:min-h-11">
                                 <LinkIcon l={l} />
                                 <span className="truncate font-semibold" dir="auto">{t}</span>
                                 {l.live && <span aria-label="Live now" role="img" className="size-2 shrink-0 rounded-full bg-success-fill" />}
@@ -133,7 +133,7 @@ export default function AnalyticsHome() {
                       );
                       return (
                         <li key={`${i.slug}-${i.key}`} className="border-t border-border pt-2.5 pb-1 first:border-t-0 first:pt-0">
-                          {href ? <Anchor href={href} className="md-focus block rounded-sm no-underline hover:[&>div:first-child]:text-accent-text">{body}</Anchor> : body}
+                          {href ? <Anchor href={href} className="md-focus block rounded-sm no-underline hover:[&>div:first-child]:text-accent-text pointer-coarse:min-h-11">{body}</Anchor> : body}
                         </li>
                       );
                     })}
@@ -145,7 +145,7 @@ export default function AnalyticsHome() {
                 <span className="text-[13px] text-text-secondary">
                   Connected to Markdrop over MCP, it can read these numbers: &ldquo;Where do readers drop off in my getting-started guide? Rewrite that section.&rdquo;
                 </span>
-                <Anchor href="/mcp" className="inline-flex items-center gap-1 self-start text-[13px]">Connect an assistant<Icon name="arrowRight" size={14} /></Anchor>
+                <Anchor href="/mcp" className="inline-flex items-center gap-1 self-start text-[13px] pointer-coarse:min-h-11">Connect an assistant<Icon name="arrowRight" size={14} /></Anchor>
               </section>
             </aside>
           </div>

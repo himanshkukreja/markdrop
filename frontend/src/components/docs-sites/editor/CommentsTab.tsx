@@ -114,7 +114,7 @@ function Composer({ placeholder, submitLabel, onSubmit, onCancel, autoFocus }: {
       <div className="flex items-center gap-2">
         <Button size="sm" variant="primary" loading={busy} disabled={!body.trim()} onClick={() => void send()}>{submitLabel}</Button>
         {onCancel && <Button size="sm" variant="ghost" onClick={onCancel}>Cancel</Button>}
-        <span className="ml-auto text-[11px] text-text-muted max-sm:hidden">⌘ Enter to send</span>
+        <span className="ml-auto text-[12px] text-text-muted max-sm:hidden">⌘ Enter to send</span>
       </div>
     </div>
   );

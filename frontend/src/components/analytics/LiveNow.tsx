@@ -72,7 +72,7 @@ export default function LiveNow() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <Anchor href="/dashboard/analytics" className="inline-flex items-center gap-1.5 self-start text-[13px] no-underline">
+      <Anchor href="/dashboard/analytics" className="inline-flex items-center gap-1.5 self-start text-[13px] no-underline pointer-coarse:min-h-11">
         <Icon name="chevronLeft" size={14} />Analytics
       </Anchor>
       <div className="flex flex-wrap items-center gap-3">
@@ -95,7 +95,7 @@ export default function LiveNow() {
             const t = d.title || d.slug;
             // ph-no-capture: the title, and an id carrying the slug.
             return (
-              <Panel key={d.slug} id={`lv-${d.slug}`} className="ph-no-capture" title={<Anchor href={docHref(d.slug)} className="text-text no-underline hover:text-accent-text" dir="auto">{t}</Anchor>}
+              <Panel key={d.slug} id={`lv-${d.slug}`} className="ph-no-capture" title={<Anchor href={docHref(d.slug)} className="md-touch-hit text-text no-underline hover:text-accent-text" dir="auto">{t}</Anchor>}
                 aside={`${num(d.n)} ${d.kind === "audio" ? "listening" : "watching"}`}>
                 {dur ? (
                   <div className="relative h-8" role="img" aria-label={`${num(d.n)} on the timeline: ${d.entries.map((e) => (e.pos?.s != null ? clock(e.pos.s) : "")).filter(Boolean).join(", ")}`}>
@@ -128,7 +128,7 @@ export default function LiveNow() {
                   return (
                     <li key={d.slug} className="flex items-center gap-2.5 text-[13px]">
                       {d.kind === "doc" ? <Icon name="lines" size={14} className="shrink-0 text-cat-document" /> : <FileIcon name={d.title || d.slug} mime={d.kind === "pdf" ? "application/pdf" : ""} size={14} className="shrink-0" />}
-                      <Anchor href={docHref(d.slug)} className="min-w-0 flex-1 truncate text-text no-underline hover:text-accent-text" dir="auto">{d.title || d.slug}</Anchor>
+                      <Anchor href={docHref(d.slug)} className="min-w-0 flex-1 truncate text-text no-underline hover:text-accent-text pointer-coarse:py-3" dir="auto">{d.title || d.slug}</Anchor>
                       {top && <span className="hidden shrink-0 text-text-muted sm:inline">{counts.size > 1 ? `mostly ${top}` : top}</span>}
                       <strong className="w-6 shrink-0 text-right tabular-nums">{num(d.n)}</strong>
                     </li>
@@ -145,7 +145,7 @@ export default function LiveNow() {
                   <li key={`${f.at}-${i}`} className="flex gap-2.5 text-[13px]">
                     <span className="w-13 shrink-0 text-caption text-text-muted tabular-nums">{minsAgo(f.at)}</span>
                     {f.slug
-                      ? <Anchor href={docHref(f.slug)} className="min-w-0 flex-1 text-text no-underline hover:text-accent-text">{f.text}</Anchor>
+                      ? <Anchor href={docHref(f.slug)} className="min-w-0 flex-1 text-text no-underline hover:text-accent-text pointer-coarse:py-3">{f.text}</Anchor>
                       : <span className="min-w-0 flex-1 text-text">{f.text}</span>}
                   </li>
                 ))}

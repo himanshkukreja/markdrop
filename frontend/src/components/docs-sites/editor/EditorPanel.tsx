@@ -82,7 +82,7 @@ function ChecksTab({ checks, onShow, onFix, readOnly, outline, active, onOutline
                   onClick={() => onOutline(i)}
                   aria-current={i === active ? "location" : undefined}
                   className={cx(
-                    "md-focus block w-full truncate border-l-2 py-[5px] pr-2 text-left text-[13px] transition-colors",
+                    "md-focus block w-full truncate border-l-2 py-[5px] pr-2 text-left text-[13px] transition-colors pointer-coarse:py-3",
                     o.level === 2 ? "pl-2.5" : "pl-[22px]",
                     i === active && mode === "visual" ? "border-accent text-text" : "border-border text-text-secondary hover:text-text",
                   )}
@@ -324,13 +324,13 @@ export function EditorPanel({
                 tabRefs.current[next.id]?.focus();
               }}
               className={cx(
-                "md-focus -mb-px inline-flex h-[42px] items-center gap-1.5 border-b-2 px-2 text-[13px] font-semibold transition-colors",
+                "md-focus -mb-px inline-flex h-[42px] items-center gap-1.5 border-b-2 px-2 text-[13px] font-semibold transition-colors pointer-coarse:h-11",
                 on ? "border-text text-text" : "border-transparent text-text-muted hover:text-text",
               )}
             >
               {t.label}
               {t.count !== undefined && (
-                <span className={cx("grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold leading-none", t.warn ? "bg-warning-soft text-warning" : "bg-surface-inset text-text-secondary")}>
+                <span className={cx("grid h-[18px] min-w-[18px] place-items-center rounded-full px-1 text-[12px] font-bold leading-none", t.warn ? "bg-warning-soft text-warning" : "bg-surface-inset text-text-secondary")}>
                   {t.count > 99 ? "99+" : t.count}
                   <span className="md-visually-hidden"> {t.warn ? "to look at" : "open"}</span>
                 </span>
@@ -360,7 +360,7 @@ export function EditorPanel({
           </span>
         ))}
         {current !== "history" && (
-          <button type="button" className="md-focus self-start rounded text-[12px] font-semibold text-accent-text hover:underline" onClick={() => onTab("history")}>
+          <button type="button" className="md-focus self-start rounded text-[12px] font-semibold text-accent-text hover:underline pointer-coarse:min-h-11" onClick={() => onTab("history")}>
             Version history
           </button>
         )}

@@ -56,7 +56,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
   // A forced mode (light-only / dark-only), else a dark-first preset's starting mode.
   const forced = forcedModeScript(site) ?? defaultModeScript(site);
   return (
-    <div className="dx-root" data-docs-trackers={markdropApp(site) ? undefined : "off"} {...themeAttrs(theme)}>
+    <div className="dx-root md-touch" data-docs-trackers={markdropApp(site) ? undefined : "off"} {...themeAttrs(theme)}>
       {forced ? (
         <>
           <script dangerouslySetInnerHTML={{ __html: forced }} />

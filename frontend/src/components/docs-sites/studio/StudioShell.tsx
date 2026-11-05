@@ -25,7 +25,7 @@ import { StudioSignInFailed, useHandoffStuck } from "./StudioSignIn";
  */
 export function StudioWordmark({ size = 26, compact, className }: { size?: number; compact?: boolean; className?: string }) {
   return (
-    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center gap-2 rounded-md text-text no-underline", className)} aria-label="Markdrop Guides home">
+    <Anchor href={studioHome()} className={cx("md-focus flex shrink-0 items-center justify-center gap-2 rounded-md text-text no-underline pointer-coarse:min-h-11 pointer-coarse:min-w-11", className)} aria-label="Markdrop Guides home">
       <MarkdropMark size={size} className="sm:hidden" />
       <span className={cx("docs-studio__word text-[17px] leading-none", compact && "max-sm:hidden")} aria-hidden>
         <em>Guides</em>
@@ -84,7 +84,7 @@ function SiteSwitcher() {
       trigger={
         <button
           type="button"
-          className="ph-no-capture md-focus flex min-w-0 max-w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover"
+          className="ph-no-capture md-focus flex min-w-0 max-w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-text hover:bg-surface-hover pointer-coarse:min-h-11"
           aria-label={`${current.name}: switch guide`}
         >
           {listed ? <SwitcherMark site={listed} size={22} /> : <SiteTile site={current} size={22} />}
@@ -105,7 +105,7 @@ function WorkspaceBadge() {
   const label = current.workspace_id ? name : "Personal";
   if (!label) return null;
   return (
-    <Anchor href={studioHome(scopeOf(current))} className="md-focus hidden shrink-0 rounded-full no-underline sm:inline-flex" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
+    <Anchor href={studioHome(scopeOf(current))} className="md-focus md-touch-hit hidden shrink-0 rounded-full no-underline sm:inline-flex pointer-coarse:max-lg:hidden" title={current.workspace_id ? `In the ${label} workspace` : "Your personal guide"}>
       <Badge size="sm" icon={current.workspace_id ? "users" : "user"}>{label}</Badge>
     </Anchor>
   );
@@ -124,7 +124,7 @@ function GuidesDocsLink() {
       rel="noopener"
       title="Markdrop Guides documentation (opens in a new tab)"
       aria-label="Docs: Markdrop Guides documentation (opens in a new tab)"
-      className="md-focus inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2.5 text-body text-text-secondary no-underline transition-colors hover:bg-surface-hover hover:text-text max-sm:size-11 max-sm:justify-center max-sm:px-0"
+      className="md-focus inline-flex h-9 shrink-0 items-center gap-1 rounded-md px-2.5 pointer-coarse:h-11 text-body text-text-secondary no-underline transition-colors hover:bg-surface-hover hover:text-text max-sm:size-11 max-sm:justify-center max-sm:px-0"
     >
       <Icon name="doc" size={18} className="sm:hidden" />
       <span className="max-sm:hidden">Docs</span>
@@ -141,13 +141,14 @@ export const HEADER_SLOT_ID = "guides-header-slot";
  * a guide's screens its switcher, workspace and your role there; then the guide search (⌘K), Docs
  * (Guides' documentation, new tab), the theme switch and the account menu (which keeps the way back
  * to the Markdrop dashboard). Phones: the mark with "Guides" (the mark alone with a guide open), the
- * search button, the Docs icon and the account menu.
+ * search button, the Docs icon and the account menu. Touch tablets under lg (44 px buttons): no
+ * workspace and role badges (the switcher's menu has both) and no theme switch (the account menu's).
  */
 export function StudioHeader() {
   const { current } = useStudio();
   return (
     <header className="sticky top-0 z-40 flex h-[calc(3.5rem+var(--safe-top))] shrink-0 pt-(--safe-top) items-center gap-2 border-b border-border bg-surface px-3 sm:gap-3 sm:px-5">
-      <MarkdropLogo size={26} wordmark={!current} href={appHref("/")} className="md-focus shrink-0 max-sm:hidden" />
+      <MarkdropLogo size={26} wordmark={!current} href={appHref("/")} className="md-focus md-touch-hit shrink-0 max-sm:hidden" />
       <span aria-hidden className="h-[22px] w-px shrink-0 bg-border-strong max-sm:hidden" />
       <StudioWordmark compact={!!current} />
       {current && (
@@ -155,7 +156,7 @@ export function StudioHeader() {
           <span aria-hidden className="text-[18px] font-light text-text-subtle">/</span>
           <SiteSwitcher />
           <WorkspaceBadge />
-          <RoleBadge role={current.your_role} className="max-sm:hidden" title="Your Guides role on this guide" />
+          <RoleBadge role={current.your_role} className="max-sm:hidden pointer-coarse:max-lg:hidden" title="Your Guides role on this guide" />
         </>
       )}
       <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -163,7 +164,7 @@ export function StudioHeader() {
         <div id={HEADER_SLOT_ID} className="flex items-center empty:hidden" />
         <GuideSearch compact={!!current} />
         <GuidesDocsLink />
-        <ThemeToggle className="max-md:hidden" />
+        <ThemeToggle className="max-md:hidden pointer-coarse:max-lg:hidden" />
         <HeaderAuthSlot studio />
       </div>
     </header>

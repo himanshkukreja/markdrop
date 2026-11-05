@@ -127,7 +127,7 @@ export default function DocAnalytics({ slug }: { slug: string }) {
   if (ovRes.error && !ov) {
     return (
       <div className="flex flex-col gap-5">
-        <Anchor href="/dashboard/analytics" className="inline-flex items-center gap-1.5 self-start text-[13px] no-underline">
+        <Anchor href="/dashboard/analytics" className="inline-flex items-center gap-1.5 self-start text-[13px] no-underline pointer-coarse:min-h-11">
           <Icon name="chevronLeft" size={14} />Analytics
         </Anchor>
         <LoadError error={ovRes.error} retry={ovRes.retry} />
@@ -176,7 +176,7 @@ export default function DocAnalytics({ slug }: { slug: string }) {
         </div>
       ) : (
         <>
-          <Anchor href="/dashboard/analytics" className="inline-flex items-center gap-1.5 self-start text-[13px] no-underline">
+          <Anchor href="/dashboard/analytics" className="inline-flex items-center gap-1.5 self-start text-[13px] no-underline pointer-coarse:min-h-11">
             <Icon name="chevronLeft" size={14} />Analytics
           </Anchor>
           <div className="flex flex-wrap items-start gap-4">

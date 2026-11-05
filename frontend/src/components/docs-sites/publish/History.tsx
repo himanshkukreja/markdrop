@@ -76,7 +76,7 @@ export function History({ builds, restoring, onRestore, className }: {
                     {c?.api ? <span>API reference</span> : null}
                     {c && !c.added && !c.edited && !c.removed && !c.settings.length ? <span className="text-text-muted">No changes</span> : null}
                     {b.snapshot_id && (
-                      <Anchor href={compareHref(base, previousLive(builds, b), b.id)} className="ml-0.5 text-accent-text underline-offset-2 hover:underline">
+                      <Anchor href={compareHref(base, previousLive(builds, b), b.id)} className="md-touch-hit ml-0.5 text-accent-text underline-offset-2 hover:underline">
                         What changed<span className="md-visually-hidden"> in publish #{b.number}</span>
                       </Anchor>
                     )}
@@ -95,13 +95,13 @@ export function History({ builds, restoring, onRestore, className }: {
         </ol>
       )}
       {builds && builds.length > 0 && (
-        <span className="flex flex-wrap gap-3 text-[13px]">
+        <span className="flex flex-wrap gap-3 text-[13px] pointer-coarse:gap-x-5 pointer-coarse:pt-3">
           {builds.length > 4 && (
-            <button type="button" className="md-focus rounded text-accent-text underline-offset-2 hover:underline" onClick={() => setAll((v) => !v)} aria-expanded={all}>
+            <button type="button" className="md-focus md-touch-hit rounded text-accent-text underline-offset-2 hover:underline" onClick={() => setAll((v) => !v)} aria-expanded={all}>
               {all ? "Show fewer" : `See all ${builds.length} publishes`}
             </button>
           )}
-          {compareTwo && <Anchor href={compareTwo} className="text-accent-text underline-offset-2 hover:underline">Compare two publishes</Anchor>}
+          {compareTwo && <Anchor href={compareTwo} className="md-touch-hit text-accent-text underline-offset-2 hover:underline">Compare two publishes</Anchor>}
         </span>
       )}
     </section>

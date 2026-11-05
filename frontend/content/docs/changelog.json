@@ -160,6 +160,18 @@
       "body": "- **Covers** keep their proportions as the screen narrows: a tablet in portrait or a phone shows the whole cover, smaller, never a cropped middle of it.\n- **New page**: the template gallery never runs off the side of a phone (a template's preview with a table used to widen it), lists the templates in one column on a phone, and on a touch screen opens on the templates, not in the title, so the keyboard doesn't cover them.\n- **Touch screens**: the cover's tools, **Add icon** and **Add cover**, and an embed's **Show as**, **Replace** and **Remove** no longer wait for a hover. Every button in the page's bar, head and body is big enough for a finger, text fields never make the page zoom in, and nothing reads under 12 px.\n- **Tablets** get the editing toolbar above the keyboard that phones have (add a block, the block menu, format, undo), as a bar in the middle of the screen.\n- **Files**: an image opens fitted to the screen (tap it for full size), two fingers zoom a PDF's pages, and the video player and spreadsheets are sized for a finger.\n- See [Colours, columns and block tools](/pages/blocks-and-layout#on-a-phone-or-tablet) and [Supported file types](/files/supported-types)."
     },
     {
+      "id": "guides-analytics-touch",
+      "date": "2026-11-05",
+      "title": "Markdrop Guides and Analytics on phones and tablets",
+      "kind": "improved",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "The Guides studio, published guides and Analytics fit a finger: every control is at least 44 px on a touch screen, text fields no longer make iPhones zoom, and the guide's bar gives the screen back on phones.",
+      "body": "- **Touch sizes.** On phones and tablets every button, tab, menu item and field in the Guides studio, on published guides and in Analytics is at least 44 × 44 px, text fields are 16 px (iOS no longer zooms in when you tap one) and nothing reads under 12 px. Mouse and trackpad layouts are unchanged.\n- **The guide's bar on phones** (and phones held sideways) scrolls away with the page instead of covering a third of the screen; the Live pill shows just *Live*.\n- **Editor.** The page list opens without raising the keyboard, its rows and drag handles are full size for a finger, and the bar under the page has a Find button instead of keyboard shortcuts.\n- **Ask AI on a published guide** rides on top of the on-screen keyboard on phones, so the question you're typing stays in view.\n- **Charts in Analytics and Insights** show a day's numbers when you tap it, and keep them until you tap elsewhere.\n- **Tablets.** On an iPad or Android tablet the guide's bar takes two rows instead of squeezing its buttons over its tabs, guide cards keep two columns until there's room for three, the studio header drops what the menus already show, and a published guide's Ask AI panel opens below the header in landscape.\n- **Typing in the editor.** The + Block bar sits on top of the on-screen keyboard instead of under it."
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",
