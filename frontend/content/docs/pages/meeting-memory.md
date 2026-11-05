@@ -1,7 +1,7 @@
 ---
 title: Meeting memory while writing
 nav: Meeting memory
-description: While you write a page, see what your team decided and discussed about it in meetings, with dates and links to the moment, insert it as a cited line, and ask the page with your meetings.
+description: See what your team decided about a page in meetings while you write it, insert it as a cited line, and ask the page with your meetings.
 updated: 2026-11-05
 prerequisites: [/pages/overview, /workspaces/meetings]
 keywords: [meeting memory, from meetings, decisions, what did we decide, when did we decide, prd, spec, feature document, action items, open questions, cited line, insert decision, jump to moment, /meetings, hints, missed decision, contradicts, ask this page, + meetings, meeting_context, mcp]
