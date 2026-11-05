@@ -24,6 +24,75 @@
   "next": [],
   "entries": [
     {
+      "id": "markdrop-on-phones-and-tablets",
+      "date": "2026-11-05",
+      "title": "Markdrop on phones and tablets",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop works like a mobile app: install it on your phone, tablet or computer, and every screen (My files, workspaces, pages, files, the Guides studio, published guides and Analytics) fits a finger, from a small Android phone to an iPad Pro.",
+      "highlights": [
+        "Install it as an app",
+        "Finger-sized everywhere",
+        "Nothing scrolls sideways"
+      ],
+      "body": "- **Install the app**: **Install app** in the account menu puts Markdrop on your home screen or dock, opens on your dashboard, and shows a branded screen when you're offline. See [Install Markdrop as an app](/changelog/install-markdrop-app).\n- **My files, workspaces, folders, settings, sharing and search**: nothing scrolls sideways, a tap anywhere on a row or card opens it, and menus open as sheets on phones. See [The app on phones and tablets](/changelog/phones-and-tablets-app).\n- **Pages, documents and files**: covers keep their proportions, the New page gallery fits every screen, tablets get the editing toolbar above the keyboard, and PDFs zoom with two fingers. See [Pages, documents and files fit phones and tablets](/changelog/pages-on-phones-and-tablets).\n- **Markdrop Guides and Analytics**: the studio, published guides and Analytics are finger-sized, Ask AI rides on the keyboard, and a tap on a chart shows that day. See [Markdrop Guides and Analytics on phones and tablets](/changelog/guides-analytics-touch).\n- Everywhere on a touch screen: buttons, menu items, tabs and fields are at least 44 points, text fields don't make an iPhone zoom in, and nothing reads under 12 points. Mouse and trackpad layouts are unchanged.",
+      "docs": [
+        "/get-started/install-app",
+        "/get-started/tour#on-a-phone-or-tablet"
+      ]
+    },
+    {
+      "id": "install-markdrop-app",
+      "date": "2026-11-05",
+      "title": "Install Markdrop as an app",
+      "kind": "new",
+      "area": "Web app",
+      "products": [
+        "web"
+      ],
+      "summary": "Markdrop installs on your phone, tablet or computer: its own icon and window, straight to your dashboard, a branded offline screen, and a Reload prompt when a new version is out. Markdrop Guides installs as its own app too.",
+      "body": "- **Install app** in the account menu installs Markdrop in Chrome, Edge and Android browsers in one click, and shows the Add to Home Screen steps on iPhone and iPad (and File › Add to Dock in Safari on a Mac).\n- The installed app opens on your **dashboard** (through sign-in when you're signed out), never the marketing pages, with shortcuts for **New page**, **Search**, **Markdrop Guides** and **Analytics** on its icon.\n- Offline, it shows **You're offline** and reloads by itself when you're back. It keeps only its own code and icons on your device, never your documents or anything private.\n- A new version shows **A new version of Markdrop is ready** with **Reload**, so you update when it suits you.\n- On phones, bars, sheets and toasts stay clear of the notch and the home indicator.\n- **Markdrop Guides** (guides.markdrop.in) installs as its own app that opens on your guides.\n- See [Install Markdrop as an app](/get-started/install-app)."
+    },
+    {
+      "id": "phones-and-tablets-app",
+      "date": "2026-11-05",
+      "title": "The app on phones and tablets",
+      "kind": "improved",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "My files, workspaces, folders, settings, sharing and search fit every phone and tablet: nothing scrolls sideways, every button is finger-sized, a tap anywhere on a row opens it, and menus open as sheets on phones.",
+      "body": "- **Nothing scrolls sideways** on any screen, from a small Android phone to an iPad Pro. On a narrow phone **Create** shows just its plus, so the top bar fits.\n- **Finger-sized controls**: buttons, menu items, tabs and fields are at least 44 points on a touch screen, and text is never smaller than 12 points. Text boxes use 16-point text, so iPhones don't zoom in when you type.\n- **Tap anywhere on a row or card** in My files, Shared with me, Recent, a workspace or a folder's table to open it. Its own buttons still work.\n- **Menus open as sheets** from the bottom of a phone's screen, over a dimmed page.\n- **Boards on touch screens**: tap a card to open the page, or press and hold to drag it to another column. A long press on a row or card no longer opens the phone's link preview.\n- A folder's views bar fades at the edge when more views are off screen.\n- See [On a phone or tablet](/get-started/tour#on-a-phone-or-tablet)."
+    },
+    {
+      "id": "pages-on-phones-and-tablets",
+      "date": "2026-11-05",
+      "title": "Pages, documents and files fit phones and tablets",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "A page's cover keeps its proportions on a tablet in portrait and on a phone, the New page gallery fits every screen and opens without the keyboard, and everything in a page is sized for a finger.",
+      "body": "- **Covers** keep their proportions as the screen narrows: a tablet in portrait or a phone shows the whole cover, smaller, never a cropped middle of it.\n- **New page**: the template gallery never runs off the side of a phone (a template's preview with a table used to widen it), lists the templates in one column on a phone, and on a touch screen opens on the templates, not in the title, so the keyboard doesn't cover them.\n- **Touch screens**: the cover's tools, **Add icon** and **Add cover**, and an embed's **Show as**, **Replace** and **Remove** no longer wait for a hover. Every button in the page's bar, head and body is big enough for a finger, text fields never make the page zoom in, and nothing reads under 12 px.\n- **Tablets** get the editing toolbar above the keyboard that phones have (add a block, the block menu, format, undo), as a bar in the middle of the screen.\n- **Files**: an image opens fitted to the screen (tap it for full size), two fingers zoom a PDF's pages, and the video player and spreadsheets are sized for a finger.\n- See [Colours, columns and block tools](/pages/blocks-and-layout#on-a-phone-or-tablet) and [Supported file types](/files/supported-types)."
+    },
+    {
+      "id": "guides-analytics-touch",
+      "date": "2026-11-05",
+      "title": "Markdrop Guides and Analytics on phones and tablets",
+      "kind": "improved",
+      "area": "Markdrop Guides",
+      "products": [
+        "web"
+      ],
+      "summary": "The Guides studio, published guides and Analytics fit a finger: every control is at least 44 px on a touch screen, text fields no longer make iPhones zoom, and the guide's bar gives the screen back on phones.",
+      "body": "- **Touch sizes.** On phones and tablets every button, tab, menu item and field in the Guides studio, on published guides and in Analytics is at least 44 × 44 px, text fields are 16 px (iOS no longer zooms in when you tap one) and nothing reads under 12 px. Mouse and trackpad layouts are unchanged.\n- **The guide's bar on phones** (and phones held sideways) scrolls away with the page instead of covering a third of the screen; the Live pill shows just *Live*.\n- **Editor.** The page list opens without raising the keyboard, its rows and drag handles are full size for a finger, and the bar under the page has a Find button instead of keyboard shortcuts.\n- **Ask AI on a published guide** rides on top of the on-screen keyboard on phones, so the question you're typing stays in view.\n- **Charts in Analytics and Insights** show a day's numbers when you tap it, and keep them until you tap elsewhere.\n- **Tablets.** On an iPad or Android tablet the guide's bar takes two rows instead of squeezing its buttons over its tabs, guide cards keep two columns until there's room for three, the studio header drops what the menus already show, and a published guide's Ask AI panel opens below the header in landscape.\n- **Typing in the editor.** The + Block bar sits on top of the on-screen keyboard instead of under it."
+    },
+    {
       "id": "meetings-auto-import",
       "date": "2026-11-05",
       "title": "Meetings import themselves: Connect Google Meet",
@@ -157,75 +226,6 @@
         "/get-started/first-file",
         "/workspaces/sign-in-on-your-domain"
       ]
-    },
-    {
-      "id": "markdrop-on-phones-and-tablets",
-      "date": "2026-11-05",
-      "title": "Markdrop on phones and tablets",
-      "kind": "new",
-      "area": "Web app",
-      "products": [
-        "web"
-      ],
-      "summary": "Markdrop works like a mobile app: install it on your phone, tablet or computer, and every screen (My files, workspaces, pages, files, the Guides studio, published guides and Analytics) fits a finger, from a small Android phone to an iPad Pro.",
-      "highlights": [
-        "Install it as an app",
-        "Finger-sized everywhere",
-        "Nothing scrolls sideways"
-      ],
-      "body": "- **Install the app**: **Install app** in the account menu puts Markdrop on your home screen or dock, opens on your dashboard, and shows a branded screen when you're offline. See [Install Markdrop as an app](/changelog/install-markdrop-app).\n- **My files, workspaces, folders, settings, sharing and search**: nothing scrolls sideways, a tap anywhere on a row or card opens it, and menus open as sheets on phones. See [The app on phones and tablets](/changelog/phones-and-tablets-app).\n- **Pages, documents and files**: covers keep their proportions, the New page gallery fits every screen, tablets get the editing toolbar above the keyboard, and PDFs zoom with two fingers. See [Pages, documents and files fit phones and tablets](/changelog/pages-on-phones-and-tablets).\n- **Markdrop Guides and Analytics**: the studio, published guides and Analytics are finger-sized, Ask AI rides on the keyboard, and a tap on a chart shows that day. See [Markdrop Guides and Analytics on phones and tablets](/changelog/guides-analytics-touch).\n- Everywhere on a touch screen: buttons, menu items, tabs and fields are at least 44 points, text fields don't make an iPhone zoom in, and nothing reads under 12 points. Mouse and trackpad layouts are unchanged.",
-      "docs": [
-        "/get-started/install-app",
-        "/get-started/tour#on-a-phone-or-tablet"
-      ]
-    },
-    {
-      "id": "install-markdrop-app",
-      "date": "2026-11-05",
-      "title": "Install Markdrop as an app",
-      "kind": "new",
-      "area": "Web app",
-      "products": [
-        "web"
-      ],
-      "summary": "Markdrop installs on your phone, tablet or computer: its own icon and window, straight to your dashboard, a branded offline screen, and a Reload prompt when a new version is out. Markdrop Guides installs as its own app too.",
-      "body": "- **Install app** in the account menu installs Markdrop in Chrome, Edge and Android browsers in one click, and shows the Add to Home Screen steps on iPhone and iPad (and File › Add to Dock in Safari on a Mac).\n- The installed app opens on your **dashboard** (through sign-in when you're signed out), never the marketing pages, with shortcuts for **New page**, **Search**, **Markdrop Guides** and **Analytics** on its icon.\n- Offline, it shows **You're offline** and reloads by itself when you're back. It keeps only its own code and icons on your device, never your documents or anything private.\n- A new version shows **A new version of Markdrop is ready** with **Reload**, so you update when it suits you.\n- On phones, bars, sheets and toasts stay clear of the notch and the home indicator.\n- **Markdrop Guides** (guides.markdrop.in) installs as its own app that opens on your guides.\n- See [Install Markdrop as an app](/get-started/install-app)."
-    },
-    {
-      "id": "phones-and-tablets-app",
-      "date": "2026-11-05",
-      "title": "The app on phones and tablets",
-      "kind": "improved",
-      "area": "App",
-      "products": [
-        "web"
-      ],
-      "summary": "My files, workspaces, folders, settings, sharing and search fit every phone and tablet: nothing scrolls sideways, every button is finger-sized, a tap anywhere on a row opens it, and menus open as sheets on phones.",
-      "body": "- **Nothing scrolls sideways** on any screen, from a small Android phone to an iPad Pro. On a narrow phone **Create** shows just its plus, so the top bar fits.\n- **Finger-sized controls**: buttons, menu items, tabs and fields are at least 44 points on a touch screen, and text is never smaller than 12 points. Text boxes use 16-point text, so iPhones don't zoom in when you type.\n- **Tap anywhere on a row or card** in My files, Shared with me, Recent, a workspace or a folder's table to open it. Its own buttons still work.\n- **Menus open as sheets** from the bottom of a phone's screen, over a dimmed page.\n- **Boards on touch screens**: tap a card to open the page, or press and hold to drag it to another column. A long press on a row or card no longer opens the phone's link preview.\n- A folder's views bar fades at the edge when more views are off screen.\n- See [On a phone or tablet](/get-started/tour#on-a-phone-or-tablet)."
-    },
-    {
-      "id": "pages-on-phones-and-tablets",
-      "date": "2026-11-05",
-      "title": "Pages, documents and files fit phones and tablets",
-      "kind": "improved",
-      "area": "Pages",
-      "products": [
-        "web"
-      ],
-      "summary": "A page's cover keeps its proportions on a tablet in portrait and on a phone, the New page gallery fits every screen and opens without the keyboard, and everything in a page is sized for a finger.",
-      "body": "- **Covers** keep their proportions as the screen narrows: a tablet in portrait or a phone shows the whole cover, smaller, never a cropped middle of it.\n- **New page**: the template gallery never runs off the side of a phone (a template's preview with a table used to widen it), lists the templates in one column on a phone, and on a touch screen opens on the templates, not in the title, so the keyboard doesn't cover them.\n- **Touch screens**: the cover's tools, **Add icon** and **Add cover**, and an embed's **Show as**, **Replace** and **Remove** no longer wait for a hover. Every button in the page's bar, head and body is big enough for a finger, text fields never make the page zoom in, and nothing reads under 12 px.\n- **Tablets** get the editing toolbar above the keyboard that phones have (add a block, the block menu, format, undo), as a bar in the middle of the screen.\n- **Files**: an image opens fitted to the screen (tap it for full size), two fingers zoom a PDF's pages, and the video player and spreadsheets are sized for a finger.\n- See [Colours, columns and block tools](/pages/blocks-and-layout#on-a-phone-or-tablet) and [Supported file types](/files/supported-types)."
-    },
-    {
-      "id": "guides-analytics-touch",
-      "date": "2026-11-05",
-      "title": "Markdrop Guides and Analytics on phones and tablets",
-      "kind": "improved",
-      "area": "Markdrop Guides",
-      "products": [
-        "web"
-      ],
-      "summary": "The Guides studio, published guides and Analytics fit a finger: every control is at least 44 px on a touch screen, text fields no longer make iPhones zoom, and the guide's bar gives the screen back on phones.",
-      "body": "- **Touch sizes.** On phones and tablets every button, tab, menu item and field in the Guides studio, on published guides and in Analytics is at least 44 × 44 px, text fields are 16 px (iOS no longer zooms in when you tap one) and nothing reads under 12 px. Mouse and trackpad layouts are unchanged.\n- **The guide's bar on phones** (and phones held sideways) scrolls away with the page instead of covering a third of the screen; the Live pill shows just *Live*.\n- **Editor.** The page list opens without raising the keyboard, its rows and drag handles are full size for a finger, and the bar under the page has a Find button instead of keyboard shortcuts.\n- **Ask AI on a published guide** rides on top of the on-screen keyboard on phones, so the question you're typing stays in view.\n- **Charts in Analytics and Insights** show a day's numbers when you tap it, and keep them until you tap elsewhere.\n- **Tablets.** On an iPad or Android tablet the guide's bar takes two rows instead of squeezing its buttons over its tabs, guide cards keep two columns until there's room for three, the studio header drops what the menus already show, and a published guide's Ask AI panel opens below the header in landscape.\n- **Typing in the editor.** The + Block bar sits on top of the on-screen keyboard instead of under it."
     },
     {
       "id": "board-without-select",
