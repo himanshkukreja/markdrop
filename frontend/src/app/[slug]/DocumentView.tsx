@@ -257,7 +257,7 @@ export default function DocumentView(props: DocumentViewProps) {
     const t = window.setTimeout(() => (w.requestIdleCallback ?? ((cb: () => void) => cb()))(() => void import("@/components/pages/PageEditor")), 1500);
     return () => window.clearTimeout(t);
   }, [canEditPage, editMode]);
-  const enterEdit = useCallback((how: "click" | "key") => {
+  const enterEdit = useCallback((how: "click" | "key" | "insert") => {
     setPageMode({ slug, mode: "edit" });
     track("page_edit_mode", { via: how });
     focusPageMode("done");
@@ -305,7 +305,7 @@ export default function DocumentView(props: DocumentViewProps) {
     const secret = v.secretInput || null;
     let locked = false;
     try {
-      await api.lockPage(slug, secret);
+      await api.lockPage(slug, secret, { intent: "edit" });
       locked = true;
       const doc = await api.savePage(slug, { title: displayTitle, content: next, baseRev: v.docRev }, secret);
       if (typeof doc.rev === "number") v.setDocRev(doc.rev);
@@ -521,6 +521,16 @@ export default function DocumentView(props: DocumentViewProps) {
     return true;
   }, [v, displayContent, readRef]);
   useAssistantEditor(askable && !isPage && secretUnlocked && !editing && !(encrypted && decryptState === "working") ? classicInsert : null, null);
+  // A page in View mode, for someone who can edit it: Insert opens Edit, and the answer goes at the
+  // end of the section in view once the editor is up (PageEditor insertOnOpen); it saves like any
+  // change. In Edit mode the editor's own Insert (at the caret) takes over.
+  const [pageInsert, setPageInsert] = useState<{ markdown: string; heading: string | null } | null>(null);
+  const viewInsert = useCallback((markdown: string) => {
+    setPageInsert({ markdown, heading: headingInView(readRef.current) });
+    enterEdit("insert");
+    return true;
+  }, [enterEdit, readRef]);
+  useAssistantEditor(askable && canEditPage && !showRaw && !editMode ? viewInsert : null, null);
 
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
@@ -1031,6 +1041,8 @@ export default function DocumentView(props: DocumentViewProps) {
               subscribeLive={v.subscribeLive}
               onReady={() => setEditorReady(true)}
               onMoved={(doc) => v.followMove(doc)}
+              insertOnOpen={editorReady ? pageInsert : null}
+              onInserted={() => setPageInsert(null)}
               othersEditing={othersEditing}
               onHeadings={setHeadings}
               coverPending={page?.cover_pending === true}

@@ -54,7 +54,7 @@ import { usePageSignoffs } from "./signoff/store";
 import { SignoffSummary } from "./signoff/SignoffSummary";
 import { clearPageDraft, dropLegacyPageDraft, readPageDraft, restorePageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
 import { useAssistantEditor } from "@/components/assistant/store";
-import { insertAfterCaret } from "./editorInsert";
+import { insertAfterCaret, insertAfterHeading } from "./editorInsert";
 import { sectionAround } from "./memory/memoryCore.mjs";
 import "./pages.css";
 import "./page-blocks.css";
@@ -139,6 +139,12 @@ export interface PageEditorProps {
   onMoved?: (doc: PageDocument) => void;
   /** The cover on the page was picked automatically. */
   coverAuto?: boolean;
+  /**
+   * Ask Markdrop's Insert, pressed in View mode (DocumentView): put this answer at the end of the
+   * section the reader had in view once the editor is up; `onInserted` says it's done (or couldn't be).
+   */
+  insertOnOpen?: { markdown: string; heading: string | null } | null;
+  onInserted?: () => void;
 }
 
 
@@ -192,7 +198,7 @@ function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (
   );
 }
 
-export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings, coverPending = false, coverAuto = false, onMoved }: PageEditorProps) {
+export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings, coverPending = false, coverAuto = false, onMoved, insertOnOpen = null, onInserted }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
@@ -365,6 +371,19 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     return { heading, selection: sel.empty ? null : editor.state.doc.textBetween(sel.from, sel.to, " ").slice(0, 1500) };
   }, [editor]);
   useAssistantEditor(editor && !readOnly ? assistantInsert : null, editor ? assistantReader : null);
+  // Insert pressed in View mode: the editor opened for it; the answer goes after the section that
+  // was in view (nothing more: it saves like any change).
+  const insertedRef = useRef(onInserted);
+  insertedRef.current = onInserted;
+  const insertTaken = useRef<object | null>(null);
+  useEffect(() => {
+    if (!insertOnOpen || insertTaken.current === insertOnOpen || !editor || mode !== "visual") return;
+    insertTaken.current = insertOnOpen;
+    void (readOnly ? Promise.resolve(false) : insertAfterHeading(editor, insertOnOpen.markdown, insertOnOpen.heading)).catch(() => false).then((ok) => {
+      if (!ok) toast.info("The page can't take it right now. Insert again once it's editable.");
+      insertedRef.current?.();
+    });
+  }, [insertOnOpen, editor, mode, readOnly]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const keepDraft = useCallback((next: { title?: string; content?: string }) => {
     // Storage full or blocked: the server copy still saves.
