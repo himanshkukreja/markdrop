@@ -3,7 +3,7 @@ Meetings folder's views.
 
 * **Folders** (owner, 2026-11-05): every meeting page lives in a subfolder of the workspace's
   Meetings folder — ``Meetings/<Series>`` for a recurring call ("Meetings/Daily Sync Up"), else
-  ``Meetings/Other meetings``. :func:`place_meeting` is THE placement function: every import path
+  ``Meetings/Other meetings``. ``meeting_place.place_meeting`` is THE placement function: every import path
   (the website, Import past meetings, the Google Meet inbox, MCP) and every series change goes
   through it. Subfolders are made on demand (found again by their ``meetings_series`` key, so a
   person may rename the folder), with the Meetings folder's properties and views, and open on
@@ -69,7 +69,7 @@ def clean_name(value: Any) -> str | None:
 
 async def organise_folder(db: AsyncIOMotorDatabase, folder: dict, user_id: str | None) -> dict:
     """The Series property on the Meetings folder (once; idempotent). Its meetings live in its
-    subfolders (:func:`place_meeting`), which get the properties and the meetings views; the Meetings
+    subfolders (meeting_place.place_meeting), which get the properties and the meetings views; the Meetings
     folder itself opens on those folders."""
     from app.services import page_db
 
@@ -217,9 +217,9 @@ async def adopt(db: AsyncIOMotorDatabase, user, workspace_id: str, key: str, ser
 async def set_series(db: AsyncIOMotorDatabase, row: dict, raw: dict | None, value: str | None, actor, ctx, *,
                      source: str = "user", check: bool = True) -> dict:
     """The meeting's series on its row and its page (the folder's Series property), and the page in
-    that series' folder (:func:`place_meeting`). ``source``: "user" (a person: wins over detection
+    that series' folder (meeting_place.place_meeting). ``source``: "user" (a person: wins over detection
     from now on) or "auto"."""
-    from app.services import meetings, page_db
+    from app.services import meeting_place, meetings, page_db
 
     name = clean_name(value)
     if raw is not None and check:
@@ -229,7 +229,7 @@ async def set_series(db: AsyncIOMotorDatabase, row: dict, raw: dict | None, valu
         "updated_at": meetings.now_utc()}})
     row = await db[COLL].find_one({"_id": row["_id"]}) or row
     try:
-        await place_meeting(db, row["workspace_id"], row)
+        await meeting_place.place_meeting(db, row["workspace_id"], row)
     except HTTPException as exc:
         log.info("meetings: %s not moved to its series' folder (%s)", row["_id"], exc.detail)
     row = await db[COLL].find_one({"_id": row["_id"]}) or row
@@ -307,32 +307,10 @@ async def target_folder(db: AsyncIOMotorDatabase, root: dict, series: str | None
     return await _copy_setup(db, root, f, user_id)
 
 
-async def place_meeting(db: AsyncIOMotorDatabase, workspace_id: str, meeting: dict) -> str:
-    """THE placement of a meeting: its page into ``Meetings/<its series>`` or ``Meetings/Other
-    meetings`` (made on demand), the row's ``folder_id`` updated, the series an option of that
-    folder's Series property. Acts as the meeting's importer. Returns the folder's id."""
-    from app.services import folder as folder_service
-    from app.services import meetings
-
-    root = await meetings.ensure_folder(db, workspace_id, meeting.get("created_by"))
-    series = meeting.get("series") or None
-    target = await target_folder(db, root, series, meeting.get("created_by"))
-    if series:
-        target = await ensure_option(db, target, series, meeting.get("created_by")) or target
-    fid = str(target["_id"])
-    raw = await db["documents"].find_one({"_id": meetings.oid(meeting.get("doc_id"))}) if meeting.get("doc_id") else None
-    if raw is not None and (raw.get("folder_id") or None) != fid and raw.get("parent_id") is None \
-            and raw.get("workspace_id") == workspace_id and not raw.get("deleted_at"):
-        await folder_service.file_document(db, raw, workspace_id, fid)
-    if meeting.get("folder_id") != fid:
-        await db[COLL].update_one({"_id": meeting["_id"]}, {"$set": {"folder_id": fid}})
-    return fid
-
-
 async def organize(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
     """"Organize meetings" (workspace admins): the meetings already here get their series (a name
     seen on two or more days, unless a person set it) and move into their folders. Returns counts."""
-    from app.services import meetings, notifications
+    from app.services import meeting_place, meetings, notifications
 
     if not await meetings.is_ws_admin(db, workspace_id, user.id):
         raise HTTPException(status_code=403, detail="Only workspace admins can organize the meetings.")
@@ -358,7 +336,7 @@ async def organize(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
                 named += 1
                 r = await db[COLL].find_one({"_id": r["_id"]}) or r
             try:
-                fid = await place_meeting(db, workspace_id, r)
+                fid = await meeting_place.place_meeting(db, workspace_id, r)
             except HTTPException as exc:
                 log.info("meetings: %s not organized (%s)", r["_id"], exc.detail)
                 continue

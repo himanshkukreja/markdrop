@@ -568,6 +568,31 @@ class Organise(BackfillWorld):
         d2 = await self.imported(sources=[{"name": g_title("Hiring loop", ago(3), hhmm="16:00"), "text": standup(" y")}])
         self.assertEqual({await self.folder_name(d1["id"]), await self.folder_name(d2["id"])}, {"Other meetings"})
 
+    async def test_place_meeting_contract(self):
+        from app.services import meeting_place
+
+        # Before the row exists (how every import path asks): the folder only, nothing written.
+        fid = await meeting_place.place_meeting(self.db, self.W, {"workspace_id": self.W, "created_by": self.uid["owner"],
+                                                                  "title": "Board review", "series": None})
+        f = await self.db["folders"].find_one({"_id": bf._oid(fid)})
+        self.assertEqual(f["name"], "Other meetings")
+        fid2 = await meeting_place.place_meeting(self.db, self.W, {"workspace_id": self.W, "created_by": self.uid["owner"],
+                                                                   "title": "Board review", "series": "Board review"})
+        f2 = await self.db["folders"].find_one({"_id": bf._oid(fid2)})
+        self.assertEqual((f2["name"], f2["meetings_series"]), ("Board review", "board review"))
+        self.assertEqual(await meeting_place.place_meeting(self.db, self.W, {"created_by": self.uid["owner"], "series": "board REVIEW"}), fid2)
+        # Every import goes through it.
+        real, calls = meeting_place.place_meeting, []
+
+        async def spy(db, ws, m):
+            calls.append(m.get("_id"))
+            return await real(db, ws, m)
+
+        with mock.patch.object(meeting_place, "place_meeting", spy):
+            a = await self.imported(sources=[{"name": g_title("Spy call", ago(4)), "text": standup(" spy")}])
+        self.assertEqual(calls, [None])
+        self.assertEqual(await self.folder_name(a["id"]), "Other meetings")
+
     async def test_visibility_by_attendees(self):
         two = await self.imported(sources=[{"name": g_title("Ada / Bo", ago(2)), "text": "Ada Lovelace: Hi.\nBo Chen: Hello.\n"}])
         self.assertTrue(two["restricted"])                                         # a two-person call

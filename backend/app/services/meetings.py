@@ -521,7 +521,7 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
     ``series``/``series_from``: the meeting's series as decided elsewhere (Import past meetings'
     review, services/meeting_backfill.py: "auto" detected, "user" set by the person, None for none);
     otherwise it is detected here (services/meeting_series.py). Each meeting is filed by
-    ``meeting_series.place_meeting``'s rule: ``Meetings/<Series>`` or ``Meetings/Other meetings``.
+    ``meeting_place.place_meeting``'s rule: ``Meetings/<Series>`` or ``Meetings/Other meetings``.
 
     ``restricted``: True restricts to attendees, False leaves it to the team, None (the default)
     decides by the call: a 1:1 or two-person call is restricted, 3+ people the team (owner)."""
@@ -789,11 +789,6 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     else:
         sname, skey = await meeting_series.detect(db, workspace_id, name, date_=d)
         series_from = "auto"
-    # Filed in Meetings/<Series> or Meetings/Other meetings (meeting_series.place_meeting's rule).
-    folder = await meeting_series.target_folder(db, folder, sname, user.id)
-    if sname:
-        folder = await meeting_series.ensure_option(db, folder, sname, user.id)
-        sname = meeting_series.option_name(folder, sname) or sname
     attendees = []
     for a in m.attendees:
         mem = people.match(a["name"], a.get("email"))
@@ -816,6 +811,14 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     }
     if history:
         row["history"] = True
+    # Where it goes (one function for every import path: services/meeting_place.py):
+    # Meetings/<Series> or Meetings/Other meetings.
+    from app.services import meeting_place
+
+    row["folder_id"] = await meeting_place.place_meeting(db, workspace_id, row)
+    folder = await db["folders"].find_one({"_id": oid(row["folder_id"])}) or folder
+    if sname:
+        row["series"] = sname = meeting_series.option_name(folder, sname) or sname
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
     actor, ctx = access.Actor.of(user), access.Ctx(db)
