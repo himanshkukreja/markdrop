@@ -39,6 +39,16 @@ export default function WorkspacesClient() {
   useEffect(() => {
     if (ready) load();
   }, [ready, load]);
+  // ?new=1 (the home's "New workspace" / "Create a workspace"): the New workspace dialog, open.
+  useEffect(() => {
+    if (!ready) return;
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("new") !== "1") return;
+    setOpen(true);
+    p.delete("new");
+    const qs = p.toString();
+    window.history.replaceState(window.history.state, "", `/settings/workspaces${qs ? `?${qs}` : ""}`);
+  }, [ready]);
 
   if (!ready) return <SettingsLoader />;
 

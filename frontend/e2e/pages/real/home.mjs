@@ -327,6 +327,13 @@ await step("empty", async () => {
       if (!(await p.getByTestId(id).isVisible())) fail(`${id} missing (${dev})`);
     }
     if (await p.getByTestId("home-continue").count()) fail("Continue shown to a new account");
+    if (dev === "desktop") {
+      // "Create a workspace" opens the New workspace dialog.
+      await p.getByTestId("home-start-workspace").click();
+      await p.waitForURL(`${APP}/settings/workspaces`, { timeout: 15000 });
+      await p.getByRole("dialog", { name: "New workspace" }).waitFor({ timeout: 10000 });
+      await home(p);
+    }
     await snap(p, `empty-${dev}-${theme}`, true);
     await c.close();
   }

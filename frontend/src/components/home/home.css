@@ -36,6 +36,9 @@
 .hm-ask__send:hover { background: var(--accent-hover); }
 .hm-ask__chips { display: flex; min-width: 0; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .hm-ask__chips::-webkit-scrollbar { display: none; }
+/* Phones and tablets: the chips scroll edge to edge (like the card rows), not cut at the padding. */
+@media (max-width: 1023.98px) { .hm-ask__chips { margin: 0 -16px; padding: 0 16px 2px; scroll-padding: 0 16px; } }
+@media (min-width: 640px) and (max-width: 1023.98px) { .hm-ask__chips { margin: 0 -24px; padding: 0 24px 2px; scroll-padding: 0 24px; } }
 .hm-chip {
   display: inline-flex; flex: none; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px;
   border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface);
