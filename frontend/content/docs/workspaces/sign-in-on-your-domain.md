@@ -1,7 +1,7 @@
 ---
 title: Sign-in on your domain
 description: How readers sign in on a workspace's own domain, what they can read and edit there, what the domain's owner can see, and how long the sign-in lasts.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/workspaces/custom-domain, /workspaces/privacy]
 keywords: [sign in, login, sso, custom domain, handoff, consent, locked, edit on your domain, request edit access]
 ---
@@ -56,7 +56,7 @@ To sign out on your domain, a reader opens the avatar menu in the bar at the top
 
 ## Edit on your domain
 
-Anyone who may edit a page can edit it right on your domain, exactly as on markdrop.in. That's a member of the workspace (on a page that isn't private), someone the page is shared with as **Can edit**, the page's owner, and anyone with the page's edit link. Signed in on `docs.acme.com`, they open the page and it's already in the editor.
+Anyone who may edit a page can edit it right on your domain, exactly as on markdrop.in. That's a member of the workspace (on a page that isn't private), someone the page is shared with as **Can edit**, the page's owner, and anyone with the page's edit link. Signed in on `docs.acme.com`, they open the page in View mode and choose **Edit** (or press **E**) to edit it; **Done** goes back to reading. See [View and Edit](/pages/overview#view-and-edit).
 
 On your domain they can:
 

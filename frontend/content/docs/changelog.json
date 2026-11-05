@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "page-view-mode",
+      "date": "2026-11-05",
+      "title": "Pages open in View mode: links open on a click, Edit when you want to write",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "A page now opens for reading, for everyone, including people who can edit it: links, mentions, sub-pages and embeds open when you click them. Choose Edit in the top bar (or press E) to write, and Done to go back. Works on markdrop.in and your workspace's own domain.",
+      "body": "- **View mode first.** No caret, no block handles, nothing changes by accident while you read; links, page mentions, sub-pages, embeds and database rows open on a click.\n- **Edit** in the top bar, or **E** (not while you're typing in a field), opens the editor in the same spot. **Done** saves anything still waiting, lets go of the page so someone else can edit at once, and goes back to reading.\n- **Straight into the editor** for a page you've just made (New page, Add a sub-page, a template, Duplicate, a meeting import), an empty page, and links ending in `?edit=1`.\n- **Tick to-dos in View mode** if you can edit the page: the box saves at once. Readers can't change them.\n- On phones and tablets **Edit** and **Done** are 44 px targets in the top bar. Who's viewing, edit locks, Request edit access and sign-offs work in both modes.",
+      "docs": [
+        "/pages/overview#view-and-edit",
+        "/pages/keyboard-shortcuts"
+      ]
+    },
+    {
       "id": "slack",
       "date": "2026-11-05",
       "title": "Markdrop for Slack: meeting notes, /markdrop, link previews and direct messages",

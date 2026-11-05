@@ -1,7 +1,7 @@
 ---
 title: A tour of the app
 description: Where your files, shared items, analytics, workspaces and settings live, and what each button on a document or file page does.
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/get-started/accounts]
 keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar]
 ---
@@ -70,7 +70,7 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 
 Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents.
 
-Two single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
+Single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, :kbd[E] edits a page you can edit, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
 
 ## Related
 
