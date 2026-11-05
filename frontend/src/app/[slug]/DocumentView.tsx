@@ -1207,7 +1207,6 @@ export default function DocumentView(props: DocumentViewProps) {
           onClose={() => setNewSubPage(false)}
           parent={slug}
           parentTitle={shownTitle}
-          templatesWorkspace={tenant ? null : page?.workspace_id ?? null}
           // On a workspace's domain a page lives under its folders and ancestors.
           onCreated={tenant ? (c) => router.push(`${pagePath(c.document.slug, { tenant: true, folderPath: c.document.folder_path ?? [] })}?edit=1`) : undefined}
         />

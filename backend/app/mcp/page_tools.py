@@ -458,7 +458,19 @@ async def list_page_templates(ctx: Context, args: dict) -> tuple[str, dict]:
     items = [{**{k: t[k] for k in ("id", "name", "description", "category")}, "scope": "builtin"}
              for t in page_templates.all_templates()]
     usable = await page_user_templates.all_usable(ctx.db, ctx.user)
-    if args.get("workspace"):
+    if args.get("parent") and args.get("workspace"):
+        raise ToolError("A sub-page lives in its parent's workspace: pass parent alone.")
+    folder_default = None
+    if args.get("parent"):
+        # What a sub-page of this page can start from: its workspace's templates (members+) and
+        # yours, and its folder's default (the one Add a sub-page preselects).
+        parent_raw = await load_for(ctx, args["parent"], "read", "read")
+        ws_id = parent_raw.get("workspace_id")
+        usable = [t for t in usable if t["workspace_id"] in (ws_id, None)]
+        if ws_id and parent_raw.get("folder_id"):
+            folder_default = await page_user_templates.folder_default(
+                ctx.db, ws_id, str(parent_raw["folder_id"]), ctx.user)
+    elif args.get("workspace"):
         ws_id, _ws, _role = await resolve_workspace(ctx, args["workspace"])
         usable = [t for t in usable if t["workspace_id"] == ws_id]
     for t in usable:
@@ -471,8 +483,13 @@ async def list_page_templates(ctx: Context, args: dict) -> tuple[str, dict]:
             t["scope"], f"workspace template in {t['category']}")
         return f"- {t['id']}: {t['name']} ({where})" + (f" — {t['description']}" if t["description"] else "")
 
-    return "Page templates (pass the id to create_page as template):\n" + "\n".join(map(line, items)), \
-        {"templates": items}
+    text = "Page templates (pass the id to create_page as template):\n" + "\n".join(map(line, items))
+    out: dict = {"templates": items, "folder_default": folder_default}
+    if args.get("parent"):
+        if folder_default:
+            text += (f"\nThe page's folder starts new pages from {folder_default}: Add a sub-page in the app "
+                     "preselects it. create_page with parent uses it only when you pass it as template.")
+    return text, out
 
 
 async def save_page_as_template(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -1188,13 +1205,17 @@ PAGE_TOOLS: list[Tool] = [
         description="The page templates create_page accepts, each with its id: the built-in ones (feature "
                     "guide, how-to, QA plan, spec, meeting notes, runbook, blank), then the user's personal "
                     "templates and the templates of each workspace they're a member of (with their slug). "
-                    "workspace: only the built-ins and that workspace's templates. Placeholders {{title}}, "
-                    "{{date}}, {{author}} and {{folder}} are filled in on each new page.",
+                    "workspace: only the built-ins and that workspace's templates. parent (a page: its URL "
+                    "or slug): what a sub-page of it can start from — the built-ins, its workspace's "
+                    "templates, your personal ones — and folder_default, its folder's default template. "
+                    "Placeholders {{title}}, {{date}}, {{author}} and {{folder}} are filled in on each new page.",
         scope=READ,
         input_schema={"type": "object", "properties": {
             "workspace": {**_WORKSPACE_ARG, "description": "Optional: list this workspace's templates (id, name "
-                                                           "or domain) with the built-ins."}}},
-        output_schema=_out({"templates": {"type": "array"}}),
+                                                           "or domain) with the built-ins."},
+            "parent": {"type": "string", "description": "Optional: a page (URL or slug) you're adding a "
+                                                        "sub-page to: list what that sub-page can start from."}}},
+        output_schema=_out({"templates": {"type": "array"}, "folder_default": {"type": ["string", "null"]}}),
         annotations=_ann(True, False, True),
         handler=list_page_templates,
     ),
