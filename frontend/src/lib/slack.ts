@@ -67,6 +67,7 @@ export const slackLinkInfo = (team: string) =>
     `/api/v1/slack/link/info?team_id=${encodeURIComponent(team)}`);
 
 export const slackLinkFinish = (code: string, state: string) =>
+  /** `workspace_id`: the connected workspace when you're a member of it (else null: just say it's linked). */
   request<{ team_id: string; team_name: string; workspace_id: string | null; linked: boolean; slack_name: string | null }>(
     "/api/v1/slack/link/finish", { method: "POST", body: JSON.stringify({ code, state }) });
 

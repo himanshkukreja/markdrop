@@ -504,8 +504,11 @@ async def finish_link(db: AsyncIOMotorDatabase, user, code: str, state: str) -> 
         raise HTTPException(status_code=409, detail=f"You signed in to another Slack workspace. Sign in to "
                                                      f"{inst.get('team_name') or 'the connected one'} instead.")
     await save_link(db, team_id, slack_user, user.id, info.get("name"))
-    return {"team_id": team_id, "team_name": inst.get("team_name") or "", "workspace_id": inst.get("workspace_id"),
-            "linked": True, "slack_name": info.get("name")}
+    from app.services import workspace as ws_service
+
+    member = bool(inst.get("workspace_id") and await ws_service.role_for(db, inst["workspace_id"], user.id))
+    return {"team_id": team_id, "team_name": inst.get("team_name") or "",
+            "workspace_id": inst.get("workspace_id") if member else None, "linked": True, "slack_name": info.get("name")}
 
 
 async def unlink(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:

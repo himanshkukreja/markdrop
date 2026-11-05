@@ -21,6 +21,7 @@ export default function SlackCallbackClient() {
   const denied = params.get("error");
   const { kind, workspace } = readSlackState(state);
   const [error, setError] = useState("");
+  const [linked, setLinked] = useState("");
   const started = useRef(false);
 
   useEffect(() => {
@@ -39,9 +40,8 @@ export default function SlackCallbackClient() {
           router.replace(`/settings/workspaces/${encodeURIComponent(workspace || "")}?tab=integrations&slack=connected`);
         } else {
           const out = await slackLinkFinish(code, state);
-          router.replace(out.workspace_id
-            ? `/settings/workspaces/${encodeURIComponent(out.workspace_id)}?tab=integrations&slack=linked`
-            : "/dashboard");
+          if (out.workspace_id) router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}?tab=integrations&slack=linked`);
+          else setLinked(out.team_name || "Slack");
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "Slack didn't finish connecting. Try again.");
@@ -54,6 +54,19 @@ export default function SlackCallbackClient() {
     ? (denied === "access_denied" ? "You cancelled in Slack. Nothing changed." : "Slack didn't finish connecting.")
     : (!code || !kind) ? "This page finishes connecting Slack. Start from Workspace settings › Integrations." : error;
 
+  if (linked) {
+    return (
+      <Card className="w-full max-w-[440px] sm:p-3">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <SlackMark size={32} />
+          <h1 className="m-0 text-h3 text-text">Your Slack account is linked</h1>
+          <p className="m-0 text-body text-text-secondary">
+            In <strong className="ph-sensitive ph-mask text-text">{linked}</strong>, <code>/markdrop</code> now answers you from what you can open. You can close this tab and go back to Slack.
+          </p>
+        </div>
+      </Card>
+    );
+  }
   if (!problem) {
     return (
       <>
