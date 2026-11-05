@@ -19,6 +19,7 @@
  * caret. On phones, a bottom toolbar (PagePhoneBar) and bottom sheets.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import type { Editor } from "@tiptap/react";
 import type { Heading } from "@/components/reading";
 import { Alert, Badge, Button, Icon, Switch, copyText, useToast, type MenuEntry } from "@/components/ui";
@@ -51,6 +52,9 @@ import { SignoffSummary } from "./signoff/SignoffSummary";
 import { clearPageDraft, dropLegacyPageDraft, readPageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
 import "./pages.css";
 import "./page-blocks.css";
+
+// Meeting memory (components/pages/memory): "✦ From meetings" beside the editor, loaded on demand.
+const MeetingMemory = dynamic(() => import("./memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
 
 /** What the document view puts around the page (the same for readers). */
 export interface PageChromeSlots {
@@ -779,6 +783,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
         />
       </div>
       {phone && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
+      {workspaceId && userId && <MeetingMemory slug={slug} workspaceId={workspaceId} title={title} editor={mode === "visual" ? editor : null} readOnly={readOnly} ai={aiUsable} />}
     </PageFrame>
   );
 }
