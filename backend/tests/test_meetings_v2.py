@@ -92,6 +92,14 @@ class PublicFetch(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(meeting_links.NotPublic):
             await meeting_links.fetch_public(DOC_ID, client=c)
 
+    async def test_google_unreachable_is_not_public(self):
+        def boom(req):
+            raise httpx.ConnectTimeout("slow")
+
+        c = httpx.AsyncClient(transport=httpx.MockTransport(boom))
+        with self.assertRaises(meeting_links.NotPublic):
+            await meeting_links.fetch_public(DOC_ID, client=c)
+
     async def test_size_and_type_limits(self):
         big = "A: " + "x" * (meeting_links.MAX_BYTES + 10)
         c = transport({EXPORT: httpx.Response(200, text=big, headers={"content-type": "text/plain"})})

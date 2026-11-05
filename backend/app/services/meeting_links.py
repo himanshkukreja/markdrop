@@ -194,6 +194,9 @@ async def fetch_public(file_id: str, *, client=None) -> tuple[str, str]:
                     title = re.sub(r"\.(txt)$", "", title, flags=re.I)
                     return title, text
         raise NotPublic(file_id)
+    except httpx.HTTPError as exc:
+        # Google unreachable or too slow: treat it like a private Doc (the person's script can still fetch it).
+        raise NotPublic(file_id) from exc
     finally:
         if own:
             await client.aclose()
