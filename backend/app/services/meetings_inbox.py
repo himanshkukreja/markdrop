@@ -380,7 +380,7 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         notify = not item.get("backfill")
         if item.get("requested"):
             notify = _recent(item.get("created"))
-        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=bool(rec.get("restricted")),
+        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=True if rec.get("restricted") else None,
                                               via="inbox", dedupe="all", notify=notify)
     except HTTPException as exc:
         await finish("failed", error=str(exc.detail)[:300])

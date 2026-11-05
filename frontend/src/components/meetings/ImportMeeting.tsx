@@ -52,14 +52,14 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
   const [links, setLinks] = useState("");
   const [linkResults, setLinkResults] = useState<LinkResult[] | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
-  const touched = useRef({ title: false, date: false });
+  const touched = useRef({ title: false, date: false, restricted: false });
 
   useEffect(() => {
     if (open) return;
     // Closed: start clean next time.
     setText(""); setFiles([]); setPicked([]); setDetected(null); setTitle(""); setDate(""); setType("");
     setRestricted(false); setError(null); setBusy(false); setTab("paste"); setLinks(""); setLinkResults(null);
-    touched.current = { title: false, date: false };
+    touched.current = { title: false, date: false, restricted: false };
   }, [open]);
 
   const linkList = useMemo(() => links.split(/[\s,]+/).map((l) => l.trim()).filter(Boolean).slice(0, 20), [links]);
@@ -84,6 +84,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         const one = r.meetings.length === 1 ? r.meetings[0] : null;
         if (one && !touched.current.title) setTitle(one.title || "");
         if (one && !touched.current.date) setDate(one.date || localToday());
+        // A 1:1 or two-person call starts restricted to the people who were there (3+: the team).
+        if (one && !touched.current.restricted) setRestricted(one.attendees.length >= 1 && one.attendees.length <= 2);
         setError(null);
       }).catch((e: Error) => { if (live) { setDetected(null); setError(e.message); } })
         .finally(() => { if (live) setDetecting(false); });
@@ -118,7 +120,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
     setBusy(true);
     setError(null);
     try {
-      const r = await importLinks({ workspace: workspaceId, urls: linkList, restricted });
+      const r = await importLinks({ workspace: workspaceId, urls: linkList, ...(touched.current.restricted ? { restricted } : {}) });
       const made = r.results.filter((x) => x.meeting).map((x) => x.meeting!) ;
       if (made.length) onImported?.(made);
       const waiting = r.results.filter((x) => !x.meeting);
@@ -149,7 +151,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         ...(one && title.trim() ? { title: title.trim() } : {}),
         ...(one && date ? { date } : {}),
         ...(type ? { type } : {}),
-        restricted,
+        // Unset (Google Docs, not previewed): the server decides by the number of people.
+        ...(touched.current.restricted || detected ? { restricted } : {}),
       });
       onImported?.(r.meetings);
       onClose();
@@ -309,9 +312,9 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
       <div className="mt-switchrow">
         <span className="mt-switchrow__text">
           <b>Only the people who were there</b>
-          The team sees meetings of three or more people. 1:1s and two-person calls are kept to their attendees automatically; this keeps any meeting to attendees who are members.
+          A 1:1 or two-person call starts this way; bigger calls are open to the team. It keeps the meeting to attendees who are members of this workspace.
         </span>
-        <Switch checked={restricted} onChange={(e) => setRestricted(e.target.checked)} aria-label="Restrict to attendees" />
+        <Switch checked={restricted} onChange={(e) => { touched.current.restricted = true; setRestricted(e.target.checked); }} aria-label="Restrict to attendees" />
       </div>
       {aiOff && <Alert tone="warning">{status?.ai.message || "AI is off"} The meeting is imported without the AI summary.</Alert>}
       {error && <Alert tone="danger">{error}</Alert>}
@@ -382,7 +385,7 @@ function loadGapi(): Promise<void> {
 }
 
 /** Opens the Picker on the person's Google Docs (multi-select); resolves with what they picked. */
-async function openPicker(creds: { access_token: string; api_key: string; app_id: string }): Promise<Picked[]> {
+export async function openPicker(creds: { access_token: string; api_key: string; app_id: string }): Promise<Picked[]> {
   await loadGapi();
   const gp = window.google!.picker;
   return new Promise<Picked[]>((resolve) => {

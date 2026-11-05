@@ -78,6 +78,8 @@ export interface Meeting {
   imported_by?: { user_id: string; name: string | null } | null;
   /** Restricted on import because it was a 1:1 or a two-person call. */
   auto_restricted?: boolean;
+  /** The recurring meeting it belongs to ("Daily Standup"), or null. */
+  series?: string | null;
 }
 
 /** A "Connect Google Meet" connection (never its token). */
@@ -148,6 +150,8 @@ export interface MeetingsStatus {
   google: { configured: boolean; connected: boolean };
   folder_id: string | null;
   can_import: boolean;
+  /** Workspace admins: "Organize meetings" (file every meeting in Meetings/<series> or Other meetings). */
+  can_organize?: boolean;
   types: string[];
 }
 
@@ -172,10 +176,21 @@ export function getMeetingsStatus(workspace: string) {
   return request<MeetingsStatus>(`/api/v1/meetings/status?workspace=${encodeURIComponent(workspace)}`);
 }
 
-export function listMeetings(workspace: string, q?: string) {
+export function listMeetings(workspace: string, opts?: { q?: string; series?: string; since?: string; until?: string; limit?: number }) {
   const qs = new URLSearchParams({ workspace });
-  if (q) qs.set("q", q);
+  if (opts?.q) qs.set("q", opts.q);
+  if (opts?.series) qs.set("series", opts.series);
+  if (opts?.since) qs.set("since", opts.since);
+  if (opts?.until) qs.set("until", opts.until);
+  qs.set("limit", String(opts?.limit ?? 300));
   return request<{ meetings: Meeting[]; hidden: HiddenMeeting[]; folder_id: string | null }>(`/api/v1/meetings?${qs}`);
+}
+
+export interface MeetingSeries { name: string; count: number; last: string | null }
+
+/** The series of the meetings the caller can open (most meetings first). */
+export function listSeries(workspace: string) {
+  return request<{ series: MeetingSeries[] }>(`/api/v1/meetings/series?workspace=${encodeURIComponent(workspace)}`);
 }
 
 export function getMeeting(id: string) {
@@ -213,7 +228,7 @@ export function driveFileId(url: string): string | null {
   return m ? m[1] : /^[A-Za-z0-9_-]{25,}$/.test(u) ? u : null;
 }
 
-export function patchMeeting(id: string, body: { restricted?: boolean; type?: string }) {
+export function patchMeeting(id: string, body: { restricted?: boolean; type?: string; series?: string | null }) {
   return request<Meeting>(`/api/v1/meetings/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
 }
 
@@ -242,13 +257,16 @@ export interface MeetingCitation {
   meeting_id?: string;
 }
 
-export interface RankedMeeting { n: number; id: string; title: string | null; date: string | null; type: string | null; slug: string }
+export interface RankedMeeting { n: number; id: string; title: string | null; date: string | null; type: string | null; series?: string | null; slug: string }
+
+/** Which meetings an answer across meetings used: given, or read from the question ("detected"). */
+export interface AskScope { series: string | null; since: string | null; until: string | null; detected: boolean; label: string }
 
 export type MeetingAskEvent =
   | { type: "status"; stage: "searching" | "answering" }
-  | { type: "results"; items: RankedMeeting[] }
+  | { type: "results"; items: RankedMeeting[]; scope?: AskScope | null }
   | { type: "delta"; text: string }
-  | { type: "done"; answer: string; citations: MeetingCitation[]; ranked?: RankedMeeting[]; truncated?: boolean }
+  | { type: "done"; answer: string; citations: MeetingCitation[]; ranked?: RankedMeeting[]; truncated?: boolean; scope?: AskScope | null }
   | { type: "limit"; reason: string; message: string }
   | { type: "error"; detail: string; code?: string };
 
@@ -302,8 +320,116 @@ export function askMeeting(id: string, body: { question: string; history?: Array
   return stream(`/api/v1/meetings/${encodeURIComponent(id)}/ask`, body, onEvent, signal);
 }
 
-export function askMeetings(body: { workspace: string; question: string }, onEvent: (e: MeetingAskEvent) => void, signal?: AbortSignal) {
+export function askMeetings(body: { workspace: string; question: string; series?: string; since?: string; until?: string },
+  onEvent: (e: MeetingAskEvent) => void, signal?: AbortSignal) {
   return stream(`/api/v1/meetings/ask`, body, onEvent, signal);
+}
+
+// ── Import past meetings (routers/meetings_backfill.py) ──────────────────────
+
+export type BackfillState = "draft" | "running" | "paused" | "waiting" | "done" | "cancelled";
+export type BackfillRowState = "pending" | "importing" | "imported" | "attached" | "duplicate" | "skipped" | "failed";
+
+export interface BackfillRow {
+  id: string;
+  /** The files (or pasted texts) this meeting was found in: Google's notes and the transcript pair up. */
+  names: string[];
+  kinds: Array<"notes" | "transcript">;
+  title: string | null;
+  date: string | null;
+  time: string | null;
+  /** Where the date came from: the file's name, the Google Doc's creation day, the text, or the person. */
+  date_from: "title" | "created" | "content" | "user" | null;
+  series: string | null;
+  series_from: "auto" | "user";
+  include: boolean;
+  needs_date: boolean;
+  /** Against the workspace's meetings: new, already here (skipped), or the missing half of one already here. */
+  dup: { status: "new" | "duplicate" | "attach"; meeting_id?: string; title?: string | null; date?: string | null; why?: "file" | "call" | "batch"; row?: string };
+  state: BackfillRowState;
+  error: string | null;
+  meeting_id: string | null;
+  slug: string | null;
+  segments: number;
+  attendees: string[];
+  est_usd: number;
+  cost_usd?: number | null;
+  order?: number | null;
+  /** Older than a day: imported without notifying anyone, whatever the switch says. */
+  past: boolean;
+  /** Where it's filed: the series' folder, or "Other meetings" (both inside Meetings). */
+  folder: string;
+  /** Only its attendees (a 1:1 or two-person call by default), or the team. */
+  restricted: boolean;
+  restricted_from: "auto" | "user" | "job";
+}
+
+export interface BackfillJob {
+  id: string;
+  workspace_id: string;
+  state: BackfillState;
+  quiet: boolean;
+  restricted: boolean;
+  created_at: string | null;
+  started_at: string | null;
+  done_at: string | null;
+  wait: { reason: string; until: string | null; message: string | null } | null;
+  counts: { rows: number; included: number; done: number; imported: number; attached: number; duplicate: number; skipped: number; failed: number; pending: number; needs_date: number };
+  problems: Array<{ name: string; error: string; kind?: string }>;
+  rows: BackfillRow[];
+  estimate?: { usd: number; meetings: number; left_today_usd: number | null; may_wait: boolean; ai: boolean; ai_message: string | null };
+}
+
+export interface BackfillSource extends SourceIn { created?: string }
+
+const BF = "/api/v1/meetings/backfill";
+
+export function listBackfills(workspace: string) {
+  return request<{ jobs: BackfillJob[] }>(`${BF}?workspace=${encodeURIComponent(workspace)}`);
+}
+export function createBackfill(body: { workspace: string; quiet?: boolean; restricted?: boolean }) {
+  return request<BackfillJob>(BF, { method: "POST", body: JSON.stringify(body) });
+}
+export function getBackfill(id: string) {
+  return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}`);
+}
+export function addBackfillSources(id: string, sources: BackfillSource[]) {
+  return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/sources`, {
+    method: "POST", body: JSON.stringify({ sources, tz_offset_min: -new Date().getTimezoneOffset() }),
+  });
+}
+export function editBackfill(id: string, body: { quiet?: boolean; restricted?: boolean; rows?: Array<{ id: string; title?: string; date?: string; series?: string | null; include?: boolean; restricted?: boolean }> }) {
+  return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(body) });
+}
+export function removeBackfillRow(id: string, row: string) {
+  return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/rows/${encodeURIComponent(row)}`, { method: "DELETE" });
+}
+export function backfillAction(id: string, action: "start" | "pause" | "resume") {
+  return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+}
+export function retryBackfillRow(id: string, row: string) {
+  return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/rows/${encodeURIComponent(row)}/retry`, { method: "POST" });
+}
+export function organizeMeetings(workspace: string) {
+  return request<{ meetings: number; moved: number; series_set: number; folders: number }>(`/api/v1/meetings/organize`, {
+    method: "POST", body: JSON.stringify({ workspace }),
+  });
+}
+
+export function discardBackfill(id: string) {
+  return request<{ deleted: boolean; stopped?: boolean }>(`${BF}/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+/** Several meetings pasted at once: split at a line of three or more "=" (or "———"). */
+export function splitPasted(text: string): string[] {
+  return text.split(/^\s*(?:={3,}|—{3,}|-{3,}\s*next meeting\s*-{3,})\s*$/im).map((t) => t.trim()).filter(Boolean);
+}
+
+/** "2026-10" → "October 2026". */
+export function monthLabel(key: string): string {
+  const [y, m] = key.split("-").map(Number);
+  if (!y || !m) return "No date";
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
 }
 
 // ── Small helpers (pure) ──────────────────────────────────────────────────────

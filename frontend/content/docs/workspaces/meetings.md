@@ -2,7 +2,7 @@
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
 updated: 2026-11-05
-keywords: [meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically]
+keywords: [meetings, meeting folders, subfolders, other meetings, organize meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, organise meetings, organize meetings]
 ---
 
 Meetings turns a call into a page in your workspace. Bring in Google Meet's transcript, Gemini's meeting notes, or both, and Markdrop writes:
@@ -16,7 +16,7 @@ It keeps the transcript, and it answers questions about one meeting or all of th
 
 ## Two ways to bring meetings in
 
-Use either, or both side by side. Markdrop recognizes a call it already has, so a meeting never shows up twice.
+Use either, or both side by side. Markdrop recognizes a call it already has, so a meeting never shows up twice. To bring in weeks of earlier calls at once, use [Import past meetings](/workspaces/meetings-import#import-past-meetings).
 
 ::::cards
 :::card[Import manually]{href="/workspaces/meetings-import" icon="upload"}
@@ -27,18 +27,29 @@ Connect Google Meet once. Every recorded or noted call shows up by itself, about
 :::
 ::::
 
-The first meeting creates a folder called **Meetings** in the workspace. Every meeting page is filed there, with these properties:
+## How meetings are organised
 
-- **Date**
-- **Type** (Standup, Planning, Review, 1:1, Interview, Customer or Other)
-- **Attendees**
-- **Organizer** (who ran the call, when Markdrop knows: see [Organizer and imported by](/workspaces/meetings-import#organizer-and-imported-by))
-- **Duration**
-- **Action items**
+The first meeting creates a folder called **Meetings** in the workspace. Inside it, every meeting is filed in a folder of its own kind:
 
-You can sort and filter by them, or show the folder as a board. See [Folders](/workspaces/folders). Renaming the folder is fine: it stays the Meetings folder.
+- **A recurring meeting** gets a folder named after it, such as **Meetings › Daily Sync Up**. A meeting is recurring once its name has come up on two or more different days. Names that differ only by numbers or dates, like "Sprint 23 review" and "Sprint 24 review", count as the same meeting. When the second one arrives, the first moves into the new folder too.
+- **Everything else** goes to **Meetings › Other meetings**.
 
-The workspace's **Meetings** page lists every meeting you can open. Open it with **Ask meetings** in the Meetings folder. A meeting that came in automatically is marked **Auto**.
+Each of these folders opens on **All meetings**: a table, newest first, grouped by month. Every meeting page has these properties:
+
+- **Date**: the day the meeting happened, not the day it was imported.
+- **Type** (Standup, Planning, Review, 1:1, Interview, Customer or Other).
+- **Series**: the recurring meeting it belongs to, such as "Daily Sync Up".
+- **Attendees**, **Organizer** (who ran the call, when Markdrop knows: see [Organizer and imported by](/workspaces/meetings-import#organizer-and-imported-by)), **Duration** and **Action items**.
+
+Sort, filter or add views as in any folder; see [Folders](/workspaces/folders). Renaming a folder is fine: Markdrop keeps filing that series there.
+
+To move a meeting to another series, or take it out of one, edit **Series** in the meeting's **Details**. The page moves to that series' folder, and Markdrop doesn't change it back. Meetings imported before folders, or moved by hand, can be filed again: a workspace admin selects **Organize meetings** on the Meetings page.
+
+**Who can open a meeting** depends on who was there. A 1:1 or a two-person call starts restricted to its attendees. A call with three or more people is open to the workspace's team. You can change it for any meeting; see [Privacy and cost](/workspaces/meetings-privacy).
+
+The workspace's **Meetings** page lists every meeting you can open by month, newest first. Select a series above the list to see only that series, or **One-offs**. Open the page with **Ask meetings** in the Meetings folder. A meeting that came in automatically is marked **Auto**.
+
+![The Meetings page: series to filter by (Daily Standup, One-offs) above the meetings, listed by month with their date, type and people.](/docs-assets/workspaces/meetings-import/organised.webp)
 
 ## What the meeting page holds
 
@@ -57,7 +68,7 @@ The page is an ordinary page. Edit it like any other: fix a name, add notes, tic
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`), list meetings (`list_meetings`, filtered by how they came in or by date), read one (`get_meeting`), ask them (`ask_meetings`), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
 
 ## Next
 

@@ -9,13 +9,14 @@
     POST   /api/v1/meetings/connection               {workspace, restricted?} → {token, script, manifest, …} (once)
     DELETE /api/v1/meetings/connection               Disconnect (the token is revoked; the script stops)
     POST   /api/v1/meetings/inbox                    the Google Meet script's deliveries (its own token only)
-    GET    /api/v1/meetings?workspace=&limit=&q=&source=&since=   {meetings, hidden, folder_id}
+    GET    /api/v1/meetings?workspace=&limit=&q=&source=&since=&until=&series=   {meetings, hidden, folder_id}
     GET    /api/v1/meetings/{id}                     a meeting
-    PATCH  /api/v1/meetings/{id}                     {restricted?, type?}
+    PATCH  /api/v1/meetings/{id}                     {restricted?, type?, series?}
     DELETE /api/v1/meetings/{id}                     the importer, or a workspace admin/owner (any meeting)
     POST   /api/v1/meetings/{id}/regenerate          writes the AI sections again (waits)
     POST   /api/v1/meetings/{id}/ask         SSE     {question, history?: [{question, answer}]}
-    POST   /api/v1/meetings/ask              SSE     {workspace, question}
+    POST   /api/v1/meetings/ask              SSE     {workspace, question, series?, since?, until?}
+    (Import past meetings and /series: routers/meetings_backfill.py)
 
 SSE events: ``status {stage}``, ``results {items}`` (across meetings), ``delta {text}``,
 ``done {request_id, usage, answer, citations: [{label, kind, text, href, slug}], ranked?}``,
@@ -80,7 +81,7 @@ class ImportBody(BaseModel):
     title: str | None = Field(None, max_length=150)
     date: str | None = Field(None, max_length=10)
     type: str | None = Field(None, max_length=20)
-    restricted: bool = False
+    restricted: bool | None = None   # None: by the call (a 1:1 or two-person call is restricted)
     wait: bool = False
 
 
@@ -136,13 +137,15 @@ class StatusBody(BaseModel):
 class LinkBody(BaseModel):
     workspace: str = Field(..., max_length=40)
     urls: list[str] = Field(..., min_length=1, max_length=20)
-    restricted: bool = False
+    restricted: bool | None = None   # None: by the call (a 1:1 or two-person call is restricted)
     wait: bool = False
 
 
 class PatchBody(BaseModel):
     restricted: bool | None = None
     type: str | None = Field(None, max_length=20)
+    # The meeting's series (services/meeting_series.py); null or "" takes it out of its series.
+    series: str | None = Field(None, max_length=60)
 
 
 class AskBody(BaseModel):
@@ -153,6 +156,10 @@ class AskBody(BaseModel):
 class AskAllBody(BaseModel):
     workspace: str = Field(..., max_length=40)
     question: str = Field(..., min_length=1, max_length=meetings_ai.MAX_QUESTION)
+    # Only these meetings (services/meeting_scope.py); none given: a scope named in the question.
+    series: str | None = Field(None, max_length=60)
+    since: str | None = Field(None, max_length=10)
+    until: str | None = Field(None, max_length=10)
 
 
 async def _incoming(db, user: User, sources: list[SourceIn], *, allow_google: bool) -> list[meetings.Incoming]:
@@ -196,6 +203,7 @@ async def status(request: Request, workspace: str = Query(..., max_length=40),
     folder = await meetings.folder_of(db, ws)
     return {"ai": await meetings_ai.status(db, user.id, ws), "google": meeting_google.state(user),
             "folder_id": str(folder["_id"]) if folder else None, "can_import": role_allows(role, "member"),
+            "can_organize": role_allows(role, "admin"),
             "types": list(meetings.TYPES)}
 
 
@@ -396,10 +404,12 @@ async def list_meetings(request: Request, workspace: str = Query(..., max_length
                         limit: int = Query(100, ge=1, le=meetings.MAX_LIST), q: str | None = Query(None, max_length=100),
                         source: Literal["manual", "auto", "mcp"] | None = Query(None),
                         since: str | None = Query(None, max_length=10),
+                        until: str | None = Query(None, max_length=10),
+                        series: str | None = Query(None, max_length=60),
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await meetings.list_meetings(db, _ws(workspace), actor, ctx, limit=limit, q=q,
-                                                         source=source, since=since))
+                                                         source=source, since=since, until=until, series=series))
 
 
 @router.post("/ask")
@@ -407,7 +417,8 @@ async def list_meetings(request: Request, workspace: str = Query(..., max_length
 async def ask_all(request: Request, body: AskAllBody, db: AsyncIOMotorDatabase = Depends(get_db),
                   user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return sse(meetings_ai.ask_meetings(db, actor, ctx, _ws(body.workspace), body.question))
+    return sse(meetings_ai.ask_meetings(db, actor, ctx, _ws(body.workspace), body.question, series=body.series,
+                                        since=body.since, until=body.until))
 
 
 @router.get("/{meeting_id}")
@@ -433,6 +444,11 @@ async def patch_meeting(request: Request, meeting_id: str, body: PatchBody,
     row, raw = await meetings.for_read(db, meeting_id, actor, ctx)
     if body.type is not None:
         row = await meetings.set_type(db, row, raw, body.type, actor, ctx)
+    if "series" in body.model_fields_set:
+        from app.services import meeting_series
+
+        row = await meeting_series.set_series(db, row, raw, body.series, actor, ctx)
+        raw = await meetings.page_of(db, row) or raw
     if body.restricted is not None and bool(body.restricted) != bool(row.get("restricted")):
         row = await meetings.set_restricted(db, row, bool(body.restricted), actor, ctx)
     raw = await meetings.page_of(db, row)

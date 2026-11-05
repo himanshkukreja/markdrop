@@ -391,7 +391,8 @@ async def props_values(db: AsyncIOMotorDatabase, meeting: dict, folder: dict | N
     # Who ran the meeting (never simply the importer): a member, else nobody (the name is on Details).
     oid_ = (meeting.get("organizer") or {}).get("user_id")
     org = oid_ if oid_ and any(m["id"] == oid_ for m in people.members) else None
-    want = {"date": meeting.get("date"), "type": meeting.get("type"), "attendees": names or None,
+    want = {"date": meeting.get("date"), "type": meeting.get("type"), "series": meeting.get("series"),
+            "attendees": names or None,
             "organizer": org, "duration": fmt_duration(meeting.get("duration_s")),
             "action_items": meeting.get("action_items")}
     out = {}
@@ -440,6 +441,10 @@ async def ensure_folder(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
         except HTTPException as exc:
             log.info("meetings: folder properties not set (%s)", exc.detail)
         f = await db["folders"].find_one({"_id": f["_id"]})
+    if not f.get("meetings_views"):
+        from app.services import meeting_series
+
+        f = await meeting_series.organise_folder(db, f, user_id)
     return f
 
 
@@ -503,8 +508,9 @@ def preview(incoming: list[Incoming]) -> list[dict]:
 
 async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
                           title: str | None = None, date_: str | None = None, type_: str | None = None,
-                          restricted: bool = False, wait: bool = False, via: str = "web",
-                          dedupe: str | None = None, notify: bool = True) -> list[dict]:
+                          restricted: bool | None = None, wait: bool = False, via: str = "web",
+                          dedupe: str | None = None, notify: bool = True, series: str | None = None,
+                          series_from: str | None = None) -> list[dict]:
     """Make a meeting per group of sources (notes + transcript of one call pair up). Returns the rows,
     each with ``_status``: "imported" (new), "attached" (it filled the other half of a meeting that was
     already here) or "duplicate" (already here; nothing changed).
@@ -514,20 +520,29 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
     :func:`find_existing`).
 
     ``notify=False``: history (a past meeting brought in by a backfill). Its @mentions stay links and
-    nobody is notified, now or when its AI sections are written; the meeting is marked ``history``."""
+    nobody is notified, now or when its AI sections are written; the meeting is marked ``history``.
+
+    ``series``/``series_from``: the meeting's series as decided elsewhere (Import past meetings'
+    review, services/meeting_backfill.py: "auto" detected, "user" set by the person, None for none);
+    otherwise it is detected here (services/meeting_series.py). Each meeting is filed by
+    ``meeting_place.place_meeting``'s rule: ``Meetings/<Series>`` or ``Meetings/Other meetings``.
+
+    ``restricted``: True restricts to attendees, False leaves it to the team, None (the default)
+    decides by the call: a 1:1 or two-person call is restricted, 3+ people the team (owner)."""
     from app.services import notifications
 
+    kw = dict(title=title, date_=date_, type_=type_, restricted=restricted, wait=wait, via=via, dedupe=dedupe,
+              series=series, series_from=series_from)
     if not notify:
         with notifications.quiet():
-            return await _import_meetings(db, user, workspace_id, incoming, title=title, date_=date_, type_=type_,
-                                          restricted=restricted, wait=wait, via=via, dedupe=dedupe, history=True)
-    return await _import_meetings(db, user, workspace_id, incoming, title=title, date_=date_, type_=type_,
-                                  restricted=restricted, wait=wait, via=via, dedupe=dedupe, history=False)
+            return await _import_meetings(db, user, workspace_id, incoming, history=True, **kw)
+    return await _import_meetings(db, user, workspace_id, incoming, history=False, **kw)
 
 
 async def _import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
-                           title: str | None, date_: str | None, type_: str | None, restricted: bool, wait: bool,
-                           via: str, dedupe: str | None, history: bool) -> list[dict]:
+                           title: str | None, date_: str | None, type_: str | None, restricted: bool | None, wait: bool,
+                           via: str, dedupe: str | None, history: bool, series: str | None = None,
+                           series_from: str | None = None) -> list[dict]:
     from app.services import workspace as ws_service
 
     await require_member(db, workspace_id, user.id)
@@ -587,7 +602,8 @@ async def _import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, in
                 continue
         row = await _create(db, user, workspace_id, folder, people, g,
                             title=title if one else None, date_=date_ if one else None,
-                            type_=type_, restricted=restricted, wait=wait, via=via, history=history)
+                            type_=type_, restricted=restricted, wait=wait, via=via, history=history,
+                            series=series if one else None, series_from=series_from if one else None)
         row["_status"] = "imported"
         rows.append(row)
     return rows
@@ -804,14 +820,21 @@ def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool
 
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
-                  restricted: bool, wait: bool, via: str, history: bool = False) -> dict:
+                  restricted: bool | None, wait: bool, via: str, history: bool = False, series: str | None = None,
+                  series_from: str | None = None) -> dict:
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
-    from app.services import meetings_ai, page_covers, pages
+    from app.services import meeting_series, meetings_ai, page_covers, pages
 
     m = mp.merge(group)
     name = " ".join((title or m.title or "Meeting").split())[:150]
     d = date_ or m.date or now_utc().date().isoformat()
+    # The series: as given (the bulk import's review), else detected from the workspace's meetings.
+    if series_from in ("auto", "user"):
+        sname, skey = meeting_series.clean_name(series), meeting_series.det.series_key(name)
+    else:
+        sname, skey = await meeting_series.detect(db, workspace_id, name, date_=d)
+        series_from = "auto"
     attendees = []
     for a in m.attendees:
         mem = people.match(a["name"], a.get("email"))
@@ -823,9 +846,10 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
     organizer = organizer_of(group, people)
-    small = auto_restricts(attendees, organizer)
-    if small:
-        restricted = True
+    # Not decided by the caller (None): 1:1s and two-person calls start restricted, 3+ the team's.
+    small = restricted is None and auto_restricts(attendees, organizer)
+    if restricted is None:
+        restricted = small
     now = now_utc()
     row = {
         "workspace_id": workspace_id, "folder_id": str(folder["_id"]), "doc_id": None, "transcript_doc_id": None,
@@ -835,15 +859,18 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
+        "series": sname, "series_from": series_from, "series_key": skey,
     }
     if history:
         row["history"] = True
-    # Where it goes (one function for every import path: services/meeting_place.py).
+    # Where it goes (one function for every import path: services/meeting_place.py):
+    # Meetings/<Series> or Meetings/Other meetings.
     from app.services import meeting_place
 
-    placed = await meeting_place.place_meeting(db, workspace_id, row)
-    if placed and placed != str(folder["_id"]):
-        row["folder_id"] = placed
+    row["folder_id"] = await meeting_place.place_meeting(db, workspace_id, row)
+    folder = await db["folders"].find_one({"_id": oid(row["folder_id"])}) or folder
+    if sname:
+        row["series"] = sname = meeting_series.option_name(folder, sname) or sname
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
     actor, ctx = access.Actor.of(user), access.Ctx(db)
@@ -879,6 +906,9 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     if restricted:
         await set_restricted(db, row, True, actor, ctx)
         row = await db[COLL].find_one({"_id": row["_id"]})
+    if sname and series_from == "auto":
+        # The earlier one-off of this name is the same series now.
+        await meeting_series.adopt(db, user, workspace_id, skey, sname, skip_id=row["_id"])
     if not reason:
         if wait:
             await meetings_ai.generate(db, str(row["_id"]), user)
@@ -1040,6 +1070,7 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "approx_times": bool(row.get("approx_times")),
         "source": source_of(row),
         "history": bool(row.get("history")),   # a past meeting from a backfill (imported quietly)
+        "series": row.get("series") or None,
     }
     if full:
         from app.services import urls
@@ -1116,12 +1147,13 @@ def source_of(row: dict) -> str:
 
 async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,
                         limit: int = 100, q: str | None = None, source: str | None = None,
-                        since: str | None = None) -> dict:
+                        since: str | None = None, until: str | None = None, series: str | None = None) -> dict:
     """The meetings of a workspace the caller can open, newest first. A workspace admin also sees
     restricted meetings they can't open, without their title (so they can delete them).
 
-    ``source``: only those that came in that way (:data:`SOURCES`); ``since``: only meetings on or
-    after that date (YYYY-MM-DD)."""
+    ``source``: only those that came in that way (:data:`SOURCES`); ``since`` / ``until``: only
+    meetings on or after / on or before that date (YYYY-MM-DD); ``series``: only that series (any
+    case; "none": meetings without one)."""
     await require_member(db, workspace_id, actor.user_id, write=False)
     admin = await is_ws_admin(db, workspace_id, actor.user_id)
     limit = max(1, min(limit, MAX_LIST))
@@ -1131,13 +1163,20 @@ async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: acce
         if source not in SOURCES:
             raise HTTPException(status_code=422, detail=f"source is one of {', '.join(SOURCES)}.")
         query["via"] = _VIA[source]
-    if since:
+    for name, v, op in (("since", since, "$gte"), ("until", until, "$lte")):
+        if not v:
+            continue
         try:
-            date.fromisoformat(since)
+            date.fromisoformat(v)
         except ValueError:
-            raise HTTPException(status_code=422, detail="since is a date, YYYY-MM-DD.")
-        query["date"] = {"$gte": since}
-    filtered = bool(q or source or since)
+            raise HTTPException(status_code=422, detail=f"{name} is a date, YYYY-MM-DD.")
+        query.setdefault("date", {})[op] = v
+    if series:
+        if series.strip().casefold() == "none":
+            query["series"] = {"$in": [None, ""]}
+        else:
+            query["series"] = {"$regex": f"^{re.escape(series.strip())}$", "$options": "i"}
+    filtered = bool(q or source or since or until or series)
     cursor = db[COLL].find(query, {"segments": 0}).sort([("date", -1), ("created_at", -1)])
     async for row in cursor:
         raw = await page_of(db, row)

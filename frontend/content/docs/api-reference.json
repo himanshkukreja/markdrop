@@ -1350,7 +1350,7 @@
     },
     "POST /api/v1/meetings/import": {
       "title": "Import a meeting",
-      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; `restricted: true` limits it to attendees who are members. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`, each with a `status`: `imported` (new), or `duplicate` (a Google Doc already imported into this workspace: that meeting, unchanged).",
+      "description": "Turns transcripts and/or Google Meet's Gemini notes into meeting pages in the workspace's Meetings folder (made on the first import). Each source is `{name, text}`, `{name, data_b64}` (a file, base64) or `{google_file_id}` (a Google Doc picked in the Google Picker; needs Google Docs connected). `title`, `date` (YYYY-MM-DD) and `type` apply when the sources make one meeting; Each meeting is filed in Meetings › <series> when it's a recurring call (a name seen on two or more days), else in Meetings › Other meetings. `restricted: true` limits a meeting to its attendees who are members and `false` opens it to the team; left out, a 1:1 or two-person call is restricted and three or more people are the team. The AI summary is written in the background (`ai.state` is `pending`, then `done`); `wait: true` waits for it. Members and up. Returns `{meetings}`, each with a `status`: `imported` (new), or `duplicate` (a Google Doc already imported into this workspace: that meeting, unchanged).",
       "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "sources": [{"name": "Weekly sync - Transcript", "text": "Ada Lovelace: Let's ship on Friday.\nBo Chen: Agreed."}]},
       "mcp": "import_meeting",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
@@ -1405,16 +1405,16 @@
     },
     "GET /api/v1/meetings": {
       "title": "List meetings",
-      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
-      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300).", "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).", "since": "Only meetings on or after this date (YYYY-MM-DD)."},
+      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date` (the day it happened), `series`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
+      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300).", "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).", "since": "Only meetings on or after this date (YYYY-MM-DD).", "until": "Only meetings on or before this date (YYYY-MM-DD).", "series": "Only this series (any case), or `none` for meetings without one."},
       "mcp": "list_meetings",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
     "POST /api/v1/meetings/ask": {
       "title": "Ask across meetings",
-      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. Claude Haiku 5.5 answers in English; each cited meeting is checked against your access again. Counts towards Meetings AI.",
+      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first, and the `scope`), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. `series`, `since` and `until` ask only those meetings; without them, a series or period named in the question is used (\"in Daily Standups last month\"), and `scope` says so (`detected: true`, with a `label`). Answers say when and in which meeting each point was made, and questions about the latest state prefer recent meetings. Claude Haiku 5.5 answers in English; each cited meeting is checked against your access again. Counts towards Meetings AI.",
       "returns": "text/event-stream",
-      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "question": "What did we decide about pricing?"},
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "question": "What did we decide about pricing?", "series": "Daily Standup", "since": "2026-10-01"},
       "mcp": "ask_meetings",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
@@ -1426,7 +1426,7 @@
     },
     "PATCH /api/v1/meetings/{meeting_id}": {
       "title": "Update a meeting",
-      "description": "`restricted: true` makes the meeting page private with access for the attendees who are workspace members; `false` gives it back to the team and removes exactly those grants (the page's owner only). `type` changes the meeting's type (anyone who can edit the page).",
+      "description": "`restricted: true` makes the meeting page private with access for the attendees who are workspace members; `false` gives it back to the team and removes exactly those grants (the page's owner only). `type` changes the meeting's type (anyone who can edit the page). `series` puts the meeting in a series (or takes it out with `null` or \"\"); detection never changes it back.",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
     "DELETE /api/v1/meetings/{meeting_id}": {
@@ -1446,6 +1446,78 @@
       "example": {"question": "What did we decide?"},
       "mcp": "ask_meetings",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "GET /api/v1/meetings/backfill": {
+      "title": "List your past-meeting imports",
+      "description": "Your imports of past meetings into `workspace` that are open or finished and not dismissed, newest first. Looking at a running import also picks it up again after a server restart. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: the Meetings AI budget), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (the AI cost of what's left, and whether today's budget covers it) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
+      "paramNotes": {"workspace": "The workspace's id."},
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "POST /api/v1/meetings/backfill": {
+      "title": "Start an import of past meetings",
+      "description": "A draft import into `workspace` (members and up). Your open draft there is returned instead when you have one, so a review survives a reload. `quiet` (default `true`): nobody is notified about the meetings' action items; meetings older than a day are imported quietly either way. `restricted`: each meeting is restricted to its attendees.",
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "quiet": true},
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "GET /api/v1/meetings/backfill/{job_id}": {
+      "title": "Get a past-meeting import",
+      "description": "One of your imports: the review before it starts, its progress after. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: the Meetings AI budget), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (the AI cost of what's left, and whether today's budget covers it) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "PATCH /api/v1/meetings/backfill/{job_id}": {
+      "title": "Change the review",
+      "description": "Before the import starts: per row (`rows: [{id, title?, date?, series?, include?}]`) its name, date (YYYY-MM-DD, not in the future), series (`null` for none) and whether it's imported; and the `quiet` and `restricted` switches. A duplicate of a meeting already here can't be included.",
+      "example": {"rows": [{"id": "r3f2a9c1d0e", "date": "2026-10-28", "series": "Daily Standup"}]},
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "DELETE /api/v1/meetings/backfill/{job_id}": {
+      "title": "Discard or stop an import",
+      "description": "A draft or a finished import is deleted (`deleted: true`). A running, paused or waiting one is stopped (`stopped: true`): the meetings already imported stay, the rest are left out.",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/sources": {
+      "title": "Add meetings to the review",
+      "description": "Adds up to 25 sources at a time to a draft and returns the review: `{name, text}`, a file as `{name, data_b64}` (.txt, .vtt, .srt, .sbv, .docx, .md; 4 MB each), or a Google Doc picked in the Drive picker as `{google_file_id}` (read with your Google Docs connection; it's dated by the day Google created it when its name has no date, in your time zone: `tz_offset_min`, minutes east of UTC). Up to 300 sources per import. The same text twice, an empty file or one without a transcript or meeting notes is listed under `problems` instead.",
+      "example": {"sources": [{"name": "Daily Standup – 2026_10_28 10_00 IST – Transcript.txt", "text": "Ada Lovelace: Morning all…", "origin": "upload"}], "tz_offset_min": 330},
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "DELETE /api/v1/meetings/backfill/{job_id}/rows/{row_id}": {
+      "title": "Remove a meeting from the review",
+      "description": "Takes a row, and its files, out of a draft.",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/start": {
+      "title": "Run the import",
+      "description": "Starts importing the included rows in the background, oldest first, one at a time, each with its AI summary (Meetings AI). Every included row needs a date (422 otherwise). It keeps going when the page is closed. When today's (or the month's) Meetings AI budget runs out it waits (`state: waiting`) and carries on by itself when the budget resets.",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/pause": {
+      "title": "Pause an import",
+      "description": "Stops after the meeting being imported now; `resume` carries on.",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/resume": {
+      "title": "Resume an import",
+      "description": "Carries on with a paused import, or one waiting for the AI budget (it waits again if the budget is still used up).",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "POST /api/v1/meetings/backfill/{job_id}/rows/{row_id}/retry": {
+      "title": "Retry a meeting",
+      "description": "Imports a meeting that failed again (its `error` said why). A finished import runs again for it.",
+      "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
+    },
+    "GET /api/v1/meetings/series": {
+      "title": "List meeting series",
+      "description": "The series of the meetings you can open in `workspace` (recurring meetings such as \"Daily Standup\"): `name`, how many meetings (`count`) and the latest one's date (`last`), most meetings first.",
+      "paramNotes": {"workspace": "The workspace's id."},
+      "guide": {"label": "How meetings are organised", "href": "/workspaces/meetings#how-meetings-are-organised"}
+    },
+    "POST /api/v1/meetings/organize": {
+      "title": "Organize meetings",
+      "description": "Workspace admins and owners: files every meeting in `workspace` the way new ones are filed. A recurring meeting (a name seen on two or more different days) goes to Meetings › <series> and gets that series, unless a person set its series; anything else goes to Meetings › Other meetings. The folders are made when needed and keep working when renamed. Safe to run again. Returns `meetings`, `moved`, `series_set` and `folders`.",
+      "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0"},
+      "mcp": "organize_meetings",
+      "guide": {"label": "How meetings are organised", "href": "/workspaces/meetings#how-meetings-are-organised"}
     },
     "GET /api/v1/slack/status": {
       "title": "Slack connection status",

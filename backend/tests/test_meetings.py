@@ -230,7 +230,7 @@ class Retrieval(unittest.TestCase):
     def test_prompts_cite_lines_only_for_what_they_say(self):
         self.assertIn("Cite a line only for what that line itself says", meetings_ai.ASK_SYSTEM)
         self.assertIn("Cite a transcript line only for what that line itself says", meetings_ai.ACROSS_SYSTEM)
-        self.assertIn('never "Meeting 2" or "M2"', meetings_ai.ACROSS_SYSTEM)
+        self.assertIn('never call a meeting "Meeting 2" or "M2"', meetings_ai.ACROSS_SYSTEM)
 
 
 # ── The world ─────────────────────────────────────────────────────────────────
@@ -337,8 +337,11 @@ class Import(MeetingsWorld):
         # The folder and its properties.
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
         self.assertEqual(folder["name"], "Meetings")
-        self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "attendees", "organizer", "duration", "action_items"])
-        self.assertEqual(page["folder_id"], str(folder["_id"]))
+        self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "series", "attendees", "organizer", "duration", "action_items"])
+        # Filed in Meetings/Other meetings (a one-off), with the Meetings folder's properties.
+        sub = await self.db["folders"].find_one({"_id": __import__("bson").ObjectId(page["folder_id"])})
+        self.assertEqual((sub["name"], sub["parent_id"], sub["meetings_other"]), ("Other meetings", str(folder["_id"]), True))
+        self.assertEqual([p["key"] for p in sub["properties"]], [p["key"] for p in folder["properties"]])
         # Who organized it isn't in a pasted transcript: unknown, never the importer.
         self.assertNotIn("organizer:", c)
         self.assertIsNone(m["organizer"])

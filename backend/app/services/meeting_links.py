@@ -62,7 +62,7 @@ def file_id_of(url: str) -> str | None:
 
 
 async def queue(db: AsyncIOMotorDatabase, rec: dict, user_id: str, workspace_id: str, file_id: str, *,
-                url: str | None = None, restricted: bool = False) -> dict:
+                url: str | None = None, restricted: bool | None = None) -> dict:
     """Ask ``rec``'s script (the person's own Google Meet connection) to fetch ``file_id``."""
     now = now_utc()
     n = await db[COLL].count_documents({"user_id": user_id, "state": "queued"})
@@ -73,7 +73,7 @@ async def queue(db: AsyncIOMotorDatabase, rec: dict, user_id: str, workspace_id:
     await db[COLL].update_one(
         {"workspace_id": workspace_id, "user_id": user_id, "file_id": file_id},
         {"$set": {"token_id": str(rec["_id"]), "state": "queued", "url": (url or "")[:500], "requested_at": now,
-                  "restricted": bool(restricted), "error": None, "done_at": None}},
+                  "restricted": restricted, "error": None, "done_at": None}},
         upsert=True)
     return {"status": "queued", "file_id": file_id}
 
@@ -213,7 +213,7 @@ NEEDS_ACCESS = ("Markdrop can't open that Doc: it isn't shared with \"anyone wit
                 "or download it and upload the file.")
 
 
-async def import_link(db: AsyncIOMotorDatabase, user, workspace_id: str, url: str, *, restricted: bool = False,
+async def import_link(db: AsyncIOMotorDatabase, user, workspace_id: str, url: str, *, restricted: bool | None = None,
                       via: str = "web", wait: bool = False, client=None) -> dict:
     """One Google Docs / Drive link → {status: imported | attached | duplicate | queued | needs_access,
     url, file_id, meeting_id?, message?}. Raises HTTPException 422 for a link that isn't Google's."""

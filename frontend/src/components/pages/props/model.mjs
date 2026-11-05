@@ -346,10 +346,18 @@ export function applyView(rows, view, schema, people) {
   return (view?.sort ?? []).length ? sortRows(filtered, view.sort, schema, people) : filtered;
 }
 
+/** "2026-10" → "October 2026" (UTC, so a date never slips into the next month). */
+export function monthName(ym) {
+  const [y, m] = String(ym).split("-").map(Number);
+  if (!y || !m) return String(ym);
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+}
+
 /**
  * Rows in groups by `key`: a select's options in order (then values it doesn't list), then
  * "No <name>" for empty ones. Multi-select rows appear in each of their options' groups; people
- * and checkboxes group by value.
+ * and checkboxes group by value; dates group by month ("October 2026"), in the rows' order (sort
+ * by the date first for a calendar).
  */
 export function groupRows(rows, key, schema, people) {
   const prop = findProp(schema, key);
@@ -359,6 +367,17 @@ export function groupRows(rows, key, schema, people) {
     if (!groups.has(id)) groups.set(id, { id, label, value, color, rows: [] });
     if (row) groups.get(id).rows.push(row);
   };
+  if (prop.type === "date") {
+    const none = { id: "__none", label: `No ${prop.name}`, value: null, color: null, rows: [] };
+    for (const r of rows) {
+      const v = r.values?.[prop.key];
+      const ym = typeof v === "string" && /^\d{4}-\d{2}/.test(v) ? v.slice(0, 7) : null;
+      if (!ym) none.rows.push(r);
+      // A month group has no value: a page added in it doesn't get a made-up date.
+      else add(`m:${ym}`, monthName(ym), null, null, r);
+    }
+    return [...groups.values(), none];
+  }
   if (prop.type === "select" || prop.type === "multi_select") for (const o of prop.options ?? []) add(`o:${o.name}`, o.name, o.name, o.color, null);
   if (prop.type === "checkbox") {
     add("c:true", "Checked", true, null, null);

@@ -92,6 +92,17 @@ test("groups: options in order, then empty", () => {
   assert.deepEqual(p.map((x) => x.label), ["Zed", "Ada", "No Owner"]);
 });
 
+test("groups: a date by month, in the rows' order", () => {
+  const schema = [{ key: "date", name: "Date", type: "date" }];
+  const rows = [
+    { slug: "a", values: { date: "2026-11-04" } }, { slug: "b", values: { date: "2026-10-28" } },
+    { slug: "c", values: {} }, { slug: "d", values: { date: "2026-10-02" } },
+  ];
+  const g = groupRows(rows, "date", schema, {});
+  assert.deepEqual(g.map((x) => [x.label, x.rows.map((r) => r.slug).join(""), x.value]),
+    [["November 2026", "a", null], ["October 2026", "bd", null], ["No Date", "c", null]]);
+});
+
 test("value checks", () => {
   assert.equal(checkValue(SCHEMA[0], "In QA"), null);
   assert.match(checkValue(SCHEMA[0], "Shipped"), /isn't one of/);

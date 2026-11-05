@@ -538,6 +538,8 @@ export interface TreeFolder {
   people_count?: number;
   /** The workspace's Meetings folder (imported calls; /meetings/<workspace>). */
   meetings?: boolean;
+  /** A folder inside it: Meetings/<series> or Meetings/Other meetings (backend services/meeting_series.py). */
+  meetings_sub?: boolean;
 }
 
 /** A person shown on a row: a name (null when unknown), an https photo or null, and whether it's you. */

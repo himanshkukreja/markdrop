@@ -46,7 +46,7 @@ An action item's owner is @mentioned when they've linked their Slack account.
 
 **Done** ticks the item on the meeting's page, as the person who clicked. It works for anyone who can edit that page in Markdrop. If you haven't linked your account yet, Slack shows you a link button instead. If someone is editing the page right then, try again in a minute.
 
-Only meetings everyone in the channel may open are posted. A meeting [restricted to its attendees](/workspaces/meetings) is never posted. In a channel shared with another organization (Slack Connect), only meetings anyone with the link can open are posted.
+Only meetings everyone in the channel may open are posted. A meeting [restricted to its attendees](/workspaces/meetings) is never posted. In a channel shared with another organization (Slack Connect), only meetings anyone with the link can open are posted. Meetings brought in with [Import past meetings](/workspaces/meetings-import) aren't posted on their own either, so a backlog doesn't flood the channel.
 
 To post a meeting again, or by hand when **Post new meetings automatically** is off, open the meeting's panel (**Ask this meeting**, bottom right) and select **Post to Slack**.
 

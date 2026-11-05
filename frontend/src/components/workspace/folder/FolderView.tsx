@@ -62,6 +62,9 @@ import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow
 import { docHref } from "@/components/analytics/format";
 import { openingKindOf, rememberOpening } from "@/lib/opening";
 import { meetingsHref } from "@/lib/meetings";
+
+/** The Meetings folder's default view (backend services/meeting_series.py VIEW_ALL). */
+const MEETINGS_VIEW = "vmtgall";
 import { FolderMeetConnect } from "@/components/meetings/ConnectGoogleMeet";
 import "@/components/meetings/meetings.css";
 
@@ -587,8 +590,11 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   const searching = !!query.q;
   const filtered = searching || !!query.kind;
-  // A table or board replaces the list (the views bar shows in every folder).
-  const dbView = !!folderId && !filtered && !!query.view;
+  // A table or board replaces the list (the views bar shows in every folder). A meeting folder inside
+  // Meetings (Meetings/<series>, Other meetings) opens on its "All meetings" table (newest first, by
+  // month: services/meeting_series.py); "list" = the List. Meetings itself opens on its folders.
+  const view_ = query.view === "list" ? null : query.view ?? (folder?.meetings_sub ? MEETINGS_VIEW : null);
+  const dbView = !!folderId && !filtered && !!view_;
   const folderEmpty = state === "ok" && items.length === 0 && redacted.length === 0 && subfolders.length === 0 && !filtered;
   const parentHref = folder ? (folder.parent_id ? folderHref(workspaceId, folder.parent_id) : wsHref(workspaceId)) : "/dashboard";
 
@@ -710,7 +716,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* ── The Meetings folder: import a call, ask across them ── */}
-      {folder?.meetings && !filtered && (
+      {(folder?.meetings || folder?.meetings_sub) && !filtered && (
         <div className="mt-folderbar" data-testid="meetings-folderbar">
           <Icon name="mic" className="mt-folderbar__glyph" />
           <span className="mt-folderbar__text">
@@ -719,6 +725,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
           </span>
           <Button size="sm" variant="secondary" iconLeft="sparkle" href={meetingsHref(workspaceId)}>Ask meetings</Button>
           {isMember && <FolderMeetConnect workspaceId={workspaceId} hubHref={meetingsHref(workspaceId)} />}
+          {isMember && <Button size="sm" variant="secondary" iconLeft="history" href={`${meetingsHref(workspaceId)}?import=past`}>Import past meetings</Button>}
           {isMember && <Button size="sm" iconLeft="plus" href={`${meetingsHref(workspaceId)}?import=1`}>Import meeting</Button>}
         </div>
       )}
@@ -754,7 +761,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
       {/* ── Views: List · Table · Board · saved views ── */}
       {folderId && tree && !filtered && (
-        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={query.view} onView={(v) => setQuery({ view: v }, false)} member={isMember} phone={phone} />
+        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings_sub ? "list" : null) }, false)} member={isMember} phone={phone} />
       )}
 
       {/* ── Selection bar ── */}

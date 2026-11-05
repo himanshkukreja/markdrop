@@ -8,8 +8,8 @@ keywords: [meetings privacy, restrict to attendees, attendees only, restricted m
 
 ## Who can see a meeting
 
-- **The team, for meetings of three or more.** Everyone in the workspace can open a meeting page and its transcript, like any page set to **Workspace**. See [Privacy](/workspaces/privacy).
-- **1:1s and two-person calls are restricted.** A call with one or two people in it (the attendees, plus the organizer) is [restricted to its attendees](#restricted-meetings) when it's imported, whichever way it comes in. Switch it back to the team in **Details**.
+- **The team, for calls with three or more people.** Everyone in the workspace can open the meeting page and its transcript, like any page set to **Workspace**. See [Privacy](/workspaces/privacy).
+- **The attendees, for 1:1s and two-person calls.** A call with one or two people in it (the attendees, plus the organizer) starts [restricted to its attendees](#restricted-meetings), whichever way it comes in: manual, automatic, Drive links, Import past meetings and AI apps. Change it in the meeting's **Details**.
 - **Answers follow your access.** Ask this meeting and Ask across meetings use only the meetings you can open. Each meeting is checked again when you ask, and every source in an answer is checked again before you see it. A meeting restricted from you never reaches the AI when you ask.
 - **Past meetings are quiet.** Meetings brought in from your Drive's history when you [connect Google Meet](/workspaces/meetings-auto-import#past-meetings) notify nobody; their @mentions stay links.
 - **Automatic imports are yours.** A meeting that [Connect Google Meet](/workspaces/meetings-auto-import) imported belongs to the person who connected it, as if they had imported it by hand.
@@ -18,9 +18,8 @@ keywords: [meetings privacy, restrict to attendees, attendees only, restricted m
 
 Restrict a meeting to its attendees and only the attendees who are members of the workspace can open it, its transcript, and its answers.
 
-- **By itself** for 1:1s and two-person calls, on every import: manual, automatic, Drive links and AI apps. **Details** says when that happened.
-- **When you import manually**, switch on **Restrict to attendees** in the import dialog.
-- **For automatic imports**, switch on **Only the people in each meeting can open its page** when you connect Google Meet. Every meeting the script imports is then restricted. To change it, make a new script.
+- **When you import manually**, the import dialog's **Only the people who were there** switch starts on for a 1:1 or a two-person call. Switch it on or off before you import. In [Import past meetings](/workspaces/meetings-import#import-past-meetings), each row says **Attendees** or **Team**, and you can switch it.
+- **For automatic imports**, 1:1s and two-person calls are restricted, and calls with three or more people are open to the team. Switch on **Only the people in each meeting can open its page** when you connect Google Meet to restrict every meeting the script imports. To change it, make a new script.
 - **Later**, from the meeting's **Details**. Only the person who imported it can switch this.
 
 Other members don't see a restricted meeting in lists, search or answers. Workspace admins and owners see that it exists, without its title, so they can delete it.
@@ -41,7 +40,7 @@ Transcripts are sent only to the AI model, Claude Haiku 5.5, and only to answer 
 
 Meetings uses its own budget, **Meetings AI**: $5 a day and $50 a month across Markdrop. A summary costs about a fifth of a cent for an hour-long call, and a question costs less. Automatic imports count towards the same budget.
 
-When a limit is reached, imports still work, manual and automatic, but without the AI sections. Select **Write it again** later. Meetings AI is also off in a workspace whose AI features are turned off. In that case meetings import with their transcript and Google's notes only.
+When a limit is reached, imports still work, manual and automatic, but without the AI sections. Select **Write it again** later. [Import past meetings](/workspaces/meetings-import#import-past-meetings) is the exception: it waits for the budget to reset and then carries on, so every past meeting gets its summary. Meetings AI is also off in a workspace whose AI features are turned off. In that case meetings import with their transcript and Google's notes only.
 
 ## Related
 
