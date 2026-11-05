@@ -922,7 +922,7 @@ export default function DocumentView(props: DocumentViewProps) {
         )}
       </div>
       {!pageEditable && <LiveUpdatePill show={livePill} />}
-      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} hidden={!!page?.meeting} />}
+      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} hidden={!!page?.meeting} workspace={!!page?.workspace_id} />}
       {readable && !!user && isPage && page?.meeting && !tenant && <MeetingLauncher meetingId={page.meeting.id} role={page.meeting.role} />}
     </div>
   ) : null;

@@ -273,6 +273,9 @@ async def connect() -> None:
         from app.services import meeting_backfill as _meeting_backfill
 
         await _meeting_backfill.ensure_indexes(db)
+        from app.services import meeting_memory as _meeting_memory
+
+        await _meeting_memory.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] meetings indexes skipped: {exc}")
     try:

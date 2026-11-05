@@ -15,6 +15,11 @@ with meetings' transcript moments, a thread for follow-ups, and two ready-made q
   first), summarised in one call.
 * **my_actions** — unchecked task lines that @mention the asker in pages they can read (meeting
   action items are exactly these). None: a fixed answer, no model call. Else one call groups them.
+* **page** — Ask AI inside a page (``page``: its slug), with the workspace's meeting memory
+  (services/meeting_memory.py, .work/meeting-memory/SPEC.md): the page itself is item 1, then the
+  meetings whose recorded decisions / action items / questions match (those facts and their best
+  transcript lines), then the usual search hits, all inside the page's workspace. Meetings first for
+  "when / why did we decide…" questions, with dates. Its threads (``via`` "page") stay off the home.
 
 **Access, strictly per cited item.** Only text the asker can read now is sent, inside
 ``<untrusted_…>`` tags (encrypted never, password-protected by title only, nothing from a workspace
@@ -54,12 +59,15 @@ FEATURE = search_ai.FEATURE          # the budget decision: see the module docst
 MODEL = search_ai.MODEL
 RESERVE = 0.015
 COLL = "ask_threads"
-INTENTS = ("ask", "catch_up", "my_actions")
+INTENTS = ("ask", "catch_up", "my_actions", "page")
 MAX_QUESTION = 500
 MAX_CANDIDATES = 30
 EXCERPT_CHARS = 600
 MEETING_EXCERPT_CHARS = 1200
 MEETINGS_WITH_LINES = 4
+PAGE_TEXT_CHARS = 8000             # the page itself, for intent "page"
+PAGE_MEETINGS = 5                  # meetings brought by their recorded facts, for intent "page"
+PAGE_FACTS_PER_MEETING = 6
 LINES_PER_MEETING = 6
 MAX_HISTORY = 4
 MAX_TURNS = 20
@@ -97,6 +105,16 @@ ANSWER_SYSTEM = f"""You are Ask Markdrop, the assistant on a person's Markdrop h
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). Leave out items that are not relevant. If none are, write <ranking></ranking>.
 2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line as [n-sK] (transcript lines are the best evidence of what was said). When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
+
+Write in the language of the question."""
+
+PAGE_SYSTEM = f"""You are Ask AI inside a page in Markdrop, a workspace app with meetings, documents, pages, files and guides. The person is writing or reading that page and asked a question. Item [1] is the page itself. The other items are things they can open: their team's meetings (with the decisions, action items and open questions recorded in each, its date, and transcript lines labelled [n-sK] time Speaker: words) and documents. Each arrives inside an <untrusted_document n="…"> tag with its title, kind, where it lives and an excerpt.
+
+{DATA_RULE}
+
+Reply in exactly this shape:
+1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). If none are, write <ranking></ranking>.
+2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine). For questions about when or why something was decided, who decided or owns it, or what was discussed or being worked on: answer from the meetings first and always name the meeting and its date (for example "on Oct 28, 2026 (Daily Standup)"); when meetings disagree, the later one wins and you say so. For questions about the page itself, answer from item [1]. Cite every claim right after it: an item as [n], a transcript line as [n-sK]. If the items don't answer the question, say so in one sentence. Never invent facts, names, dates, links or items that aren't listed.
 
 Write in the language of the question."""
 
@@ -524,7 +542,8 @@ def _thread_card(row: dict) -> dict:
 
 
 async def list_threads(db: AsyncIOMotorDatabase, user_id: str, *, limit: int = 20) -> list[dict]:
-    rows = await db[COLL].find({"user_id": user_id}, {"turns.citations": 0, "turns.a": 0}).sort(
+    # Ask AI in a page (intent "page") keeps its conversations to the page: not on the home.
+    rows = await db[COLL].find({"user_id": user_id, "via": {"$ne": "page"}}, {"turns.citations": 0, "turns.a": 0}).sort(
         "updated_at", -1).limit(max(1, min(limit, MAX_THREADS))).to_list(length=MAX_THREADS)
     return [_thread_card(r) for r in rows]
 
@@ -741,10 +760,72 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     return await _sources_from(db, actor, ctx, w, kept, standalone), len(cands), withheld
 
 
+async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, raw: dict, standalone: str,
+                        terms: list[str], scope: str | None) -> tuple[list[Source], int, int]:
+    """Intent "page": the page itself first, then the meetings whose recorded facts match (with those
+    facts), then the usual search hits — inside the page's workspace."""
+    from app.services import meeting_memory
+
+    uid = actor.user_id
+    page_cand = search._doc_cand(raw, uid)
+    mem_cands: list[search.Cand] = []
+    facts_of: dict[str, list[dict]] = {}
+    mid_of: dict[str, str] = {}
+    if scope:
+        rel = await meeting_memory.related(db, actor, ctx, scope, q=standalone, title=raw.get("title"),
+                                           limit=PAGE_MEETINGS * PAGE_FACTS_PER_MEETING,
+                                           exclude_meeting=raw.get("meeting_id"))
+        order: list[str] = []
+        for f in rel["facts"]:
+            mid = f["meeting"]["id"]
+            if mid not in facts_of:
+                if len(order) >= PAGE_MEETINGS:
+                    continue
+                order.append(mid)
+            if len(facts_of.setdefault(mid, [])) < PAGE_FACTS_PER_MEETING:
+                facts_of[mid].append(f)
+        if order:
+            rows = {r["meeting_id"]: r for r in await db["documents"].find(
+                {"meeting_id": {"$in": order}, "meeting_role": "page"}, search._DOC_PROJECTION | {"meeting_id": 1}).to_list(length=len(order) * 2)}
+            for mid in order:
+                d = rows.get(mid)
+                if d is not None and (await access.can(actor, d, "read", ctx)).allowed:
+                    c = search._doc_cand(d, uid)
+                    mem_cands.append(c)
+                    mid_of[c.key] = mid
+    q = search.Query(q=standalone, scope=scope, snippets=True)
+    found, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms])
+    seen = {page_cand.key, *(c.key for c in mem_cands)}
+    cands = [page_cand, *mem_cands, *(c for c in found if c.key not in seen)][:MAX_CANDIDATES]
+    kept, withheld = await _ai_off(db, cands)
+    sources = await _sources_from(db, actor, ctx, w, kept, standalone)
+    body = "" if search_index.title_only(raw) else st.markdown_text(meetings.page_text(raw))[:PAGE_TEXT_CHARS]
+    for src in sources:
+        if src.key == page_cand.key:
+            src.text = body
+            src.attrs["kind"] = "this page"
+            continue
+        mid = mid_of.get(src.key)
+        if mid and facts_of.get(mid):
+            fs = facts_of[mid]
+            src.attrs["date"] = fs[0]["meeting"].get("date") or src.attrs.get("date")
+            if fs[0]["meeting"].get("series"):
+                src.attrs["series"] = fs[0]["meeting"]["series"]
+            label = {"decision": "Decision", "action_item": "Action item", "open_question": "Open question", "topic": "Topic"}
+            lines = []
+            for f in fs:
+                who = ", ".join(x for x in (f.get("owner"), f"due {f['due']}" if f.get("due") else None,
+                                            f.get("status")) if x)
+                lines.append(f"- {label.get(f['kind'], 'Note')}{f' ({who})' if who else ''}: {f['text']}")
+            src.text = ("Recorded in this meeting:\n" + "\n".join(lines) + ("\n\n" + src.text if src.text else ""))
+    return sources, len(cands), withheld
+
+
 # ── The request ───────────────────────────────────────────────────────────────
 
 EMPTY = {
     "ask": "Nothing you can open matches that.",
+    "page": "Nothing in this page or its workspace answers that.",
     "catch_up": f"Nothing you can open changed in the last {CATCHUP_DAYS} days.",
     "my_actions": "You have no open action items. Tasks that @mention you in pages you can open show up here.",
 }
@@ -753,10 +834,13 @@ WITHHELD = "The items that match are in a workspace with AI turned off."
 
 async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str, *,
               thread_id: str | None = None, intent: str | None = None, scope: str | None = None,
-              via: str = "home", save: bool = True) -> AsyncIterator[tuple[str, dict]]:
+              via: str = "home", save: bool = True, page: str | None = None) -> AsyncIterator[tuple[str, dict]]:
     """Events: ``status {stage}``, ``results {items}``, ``delta {text}``,
     ``done {request_id, thread_id, intent, answer, citations, ranked, usage, truncated}``,
-    ``limit {reason, message}``, ``error {detail, code}``."""
+    ``limit {reason, message}``, ``error {detail, code}``.
+
+    ``page`` (a slug, with intent "page"): Ask AI in that page with its workspace's meeting memory;
+    ``scope`` becomes the page's workspace."""
     question = re.sub(r"[ \t]+", " ", (question or "").replace("\x00", "")).strip()[:MAX_QUESTION]
     uid = actor.user_id
     if not uid:
@@ -766,6 +850,13 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         yield ev("error", detail="Type a question first.", code="empty_question")
         return
     intent = intent if intent in INTENTS else detect_intent(question)
+    page_raw = None
+    if intent == "page" or page:
+        page_raw = await db["documents"].find_one({"slug": (page or "").strip()}) if page else None
+        if page_raw is None or not (await access.can(actor, page_raw, "read", ctx)).allowed or page_raw.get("encrypted"):
+            yield ev("error", detail="Page not found", code="not_found")
+            return
+        intent, scope, via = "page", page_raw.get("workspace_id"), "page"
     thread = None
     turns: list[dict] = []
     if thread_id:
@@ -810,7 +901,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     try:
         terms: list[str] = []
         standalone = question
-        if intent == "ask":
+        if intent in ("ask", "page"):
             yield ev("status", stage="understanding")
             try:
                 standalone, terms = await _expand(run, question, history)
@@ -819,8 +910,12 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 yield ev("error", detail=exc.detail, code="upstream")
                 return
             yield ev("status", stage="searching", terms=terms)
-            sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope)
-            system = ANSWER_SYSTEM
+            if intent == "page":
+                sources, _found, withheld = await _page_sources(db, actor, ctx, page_raw, standalone, terms, scope)
+                system = PAGE_SYSTEM
+            else:
+                sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope)
+                system = ANSWER_SYSTEM
             run.meta.update(candidates=len(sources), terms=len(terms), withheld=withheld)
         elif intent == "catch_up":
             yield ev("status", stage="searching")
@@ -841,6 +936,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         asked = (f"The question (from the person asking, not from a document): {question}"
                  + (f"\n(As a standalone question: {standalone})" if standalone != question else "")
                  + (f"\nToday is {ctx.now.strftime('%Y-%m-%d')}." if intent != "ask" else ""))
+        if intent == "page":
+            asked = f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n" + asked
         params = _params(system, [_context(sources), "\n\n".join(x for x in (history, asked) if x)], ANSWER_MAX_TOKENS)
         raw, stop, ranked = "", None, []
         try:
@@ -881,17 +978,17 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         run.release()
 
 
-EMPTY_Q = {"ask": "", "catch_up": "Catch me up on this week", "my_actions": "What are my open action items?"}
+EMPTY_Q = {"ask": "", "page": "", "catch_up": "Catch me up on this week", "my_actions": "What are my open action items?"}
 
 
 async def answer(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str, *,
                  thread_id: str | None = None, intent: str | None = None, scope: str | None = None,
-                 via: str = "slack", save: bool = False) -> dict:
+                 via: str = "slack", save: bool = False, page: str | None = None) -> dict:
     """Run :func:`ask` to its end: the ``done`` data. Raises ``pages_ai.AIError`` (429 limit, 404 thread
     not found, 400 empty question, 502 upstream)."""
     last = None
     async for event, data in ask(db, actor, ctx, question, thread_id=thread_id, intent=intent, scope=scope,
-                                 via=via, save=save):
+                                 via=via, save=save, page=page):
         if event == "limit":
             raise pages_ai.AIError(429, "limit", data.get("message") or "AI limit reached.", data.get("reason"))
         if event == "error":

@@ -1,7 +1,8 @@
 """Ask Markdrop (services/ask_markdrop.py): the home's question box.
 
     GET    /api/v1/ask/home             {status, suggestions, recent}
-    POST   /api/v1/ask                  SSE  {question, thread_id?, intent?}
+    POST   /api/v1/ask                  SSE  {question, thread_id?, intent?, page?}
+           page (a slug) + intent "page": Ask AI in that page with its workspace's meeting memory
            events: status {stage}, results {items}, delta {text},
                    done {request_id, thread_id, intent, answer, citations, ranked, usage, truncated},
                    limit {reason, message}, error {detail, code}
@@ -54,7 +55,9 @@ async def ask_home(request: Request, db: AsyncIOMotorDatabase = Depends(get_db),
 class AskBody(BaseModel):
     question: str = Field("", max_length=ask_markdrop.MAX_QUESTION)
     thread_id: Optional[str] = Field(None, max_length=40)
-    intent: Optional[Literal["ask", "catch_up", "my_actions"]] = None
+    intent: Optional[Literal["ask", "catch_up", "my_actions", "page"]] = None
+    page: Optional[str] = Field(None, max_length=200, description="Ask AI in this page (its slug): the page, then its "
+                                "workspace's meetings (recorded decisions first) and documents. Implies intent \"page\".")
 
 
 @router.post("")
@@ -64,7 +67,7 @@ async def ask(request: Request, body: AskBody, db: AsyncIOMotorDatabase = Depend
     """Ask a question (a follow-up with ``thread_id``); the answer streams as Server-Sent Events."""
     actor, ctx = _ac(request, db, user)
     return sse(ask_markdrop.ask(db, actor, ctx, body.question, thread_id=body.thread_id, intent=body.intent,
-                                via="home"))
+                                via="home", page=body.page))
 
 
 @router.get("/threads")

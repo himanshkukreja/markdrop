@@ -10,6 +10,11 @@
  *  - Multi-turn: the last 6 complete turns go with each question. The conversation lasts as long
  *    as the page is open (closing the panel keeps it; Clear starts again).
  *  - Stop, Clear, starter questions, and a calm message per refusal (lib/pages-ai/ask-core).
+ *  - "+ Meetings" (a page in a workspace, on by default): the question goes to Ask Markdrop with
+ *    the page (POST /api/v1/ask {page, intent: "page"}): this page, then the decisions, action items
+ *    and moments recorded in the workspace's meetings, then its documents, with numbered citations
+ *    that open the meeting (or the transcript moment). Questions about when / why something was
+ *    decided always ask the meetings (.work/meeting-memory/SPEC.md).
  */
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
@@ -18,6 +23,8 @@ import remarkGfm from "remark-gfm";
 import { Icon, IconButton, copyText, useToast } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { PageAiError, streamAsk } from "@/lib/pages-ai/ask";
+import { askMarkdrop, type AskCitation } from "@/lib/ask";
+import { citedMarkdown, isMemoryQuestion, type CitedSource } from "../memory/memoryCore.mjs";
 import { historyFor, limitMessage, sectionId, sectionsUsed, type AskTurn } from "@/lib/pages-ai/ask-core";
 import { revealSection } from "./revealSection";
 import "./ask.css";
@@ -27,9 +34,16 @@ export interface AskPanelProps {
   onClose: () => void;
   slug: string;
   title: string | null;
+  /** The page is in a workspace: "+ Meetings" is offered (and on). */
+  workspace?: boolean;
 }
 
 interface Turn extends AskTurn {
+  /** Asked with the workspace's meetings (Ask Markdrop, intent "page"). */
+  meetings?: boolean;
+  citations?: AskCitation[];
+  threadId?: string | null;
+  stage?: string | null;
   id: number;
   /** What to tell the reader instead of (or after) an answer. */
   note?: string;
@@ -48,8 +62,20 @@ const CUT = "The answer stopped early. Ask again to get the rest.";
 // The conversation per page, for as long as the tab is on it (the panel can close and reopen).
 const memory = new Map<string, Turn[]>();
 let seq = 0;
+const SIDE_EVENT = "md:sidepanel";
+const MEETINGS_PREF = "md_ask_meetings";
+const MEETING_SUGGESTION = { q: "What did we decide about this in meetings?", icon: "mic" };
+const STAGE_TEXT: Record<string, string> = { understanding: "Reading the question…", searching: "Searching this page and your meetings…", answering: "Writing the answer…" };
 
-export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
+function readMeetingsPref(): boolean {
+  try {
+    return localStorage.getItem(MEETINGS_PREF) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+export function AskPanel({ open, onClose, slug, title, workspace = false }: AskPanelProps) {
   const phone = useMediaQuery(PHONE_QUERY);
   const toast = useToast();
   const [turns, setTurnsState] = useState<Turn[]>(() => memory.get(slug) ?? []);
@@ -63,6 +89,13 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
     [slug],
   );
   const [q, setQ] = useState("");
+  const [withMeetings, setWithMeetings] = useState(readMeetingsPref);
+  const toggleMeetings = () => setWithMeetings((v) => {
+    try {
+      localStorage.setItem(MEETINGS_PREF, v ? "0" : "1");
+    } catch { /* this visit only */ }
+    return !v;
+  });
   const ctrl = useRef<AbortController | null>(null);
   const panel = useRef<HTMLElement>(null);
   const body = useRef<HTMLDivElement>(null);
@@ -76,6 +109,17 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
     setTurnsState(memory.get(slug) ?? []);
   }, [slug]);
   useEffect(() => () => ctrl.current?.abort(), []);
+
+  // One side panel at a time (From meetings closes when this opens, and the other way round).
+  useEffect(() => {
+    if (!open) return;
+    window.dispatchEvent(new CustomEvent(SIDE_EVENT, { detail: "ask" }));
+    const other = (e: Event) => {
+      if ((e as CustomEvent).detail !== "ask") onClose();
+    };
+    window.addEventListener(SIDE_EVENT, other);
+    return () => window.removeEventListener(SIDE_EVENT, other);
+  }, [open, onClose]);
 
   // Opening focuses the question (not on a phone, where the keyboard would cover the starters).
   useEffect(() => {
@@ -112,9 +156,42 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
     if (el) stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
   };
 
+  const askMeetings = async (text: string) => {
+    const id = ++seq;
+    const threadId = [...turns].reverse().find((t) => t.meetings && t.state === "done")?.threadId ?? null;
+    setTurns((t) => [...t, { id, q: text, a: "", state: "streaming", meetings: true }]);
+    setQ("");
+    if (input.current) input.current.style.height = "";
+    stick.current = true;
+    const c = new AbortController();
+    ctrl.current = c;
+    const patch = (fn: (t: Turn) => Turn) => setTurns((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
+    let ended = false;
+    await askMarkdrop({ question: text, thread_id: threadId, intent: "page", page: slug }, (e) => {
+      if (e.type === "status") patch((t) => ({ ...t, stage: e.stage }));
+      else if (e.type === "delta") patch((t) => ({ ...t, a: t.a + e.text, stage: "answering" }));
+      else if (e.type === "done") {
+        ended = true;
+        patch((t) => {
+          const a = e.answer?.trim() ? e.answer : t.a;
+          return { ...t, a, citations: e.citations ?? [], threadId: e.thread_id, state: a.trim() ? "done" : "error", note: a.trim() ? (e.truncated ? CUT : undefined) : FAILED };
+        });
+      } else if (e.type === "limit") {
+        ended = true;
+        patch((t) => ({ ...t, state: "limit", note: limitMessage(e.reason, e.message) }));
+      } else if (e.type === "error") {
+        ended = true;
+        patch((t) => ({ ...t, state: "error", note: e.detail || FAILED }));
+      }
+    }, c.signal);
+    if (!ended) patch((t) => (t.state === "streaming" ? { ...t, state: c.signal.aborted || t.a ? "stopped" : "error", note: c.signal.aborted ? undefined : t.a ? CUT : FAILED } : t));
+    if (ctrl.current === c) ctrl.current = null;
+  };
+
   const ask = async (question: string) => {
     const text = question.trim();
     if (!text || streaming) return;
+    if (workspace && (withMeetings || isMemoryQuestion(text))) return askMeetings(text);
     const history = historyFor(turns);
     const id = ++seq;
     setTurns((t) => [...t, { id, q: text, a: "", state: "streaming" }]);
@@ -233,9 +310,13 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
                 <Icon name="sparkle" />
               </span>
               <p className="pa-empty__title">What would you like to know?</p>
-              <p className="pa-empty__sub">Answers come from this page and the pages it embeds that you can open, with links to the sections they use.</p>
+              <p className="pa-empty__sub">
+                {workspace && withMeetings
+                  ? "Answers come from this page and your team's meetings and documents that you can open, with links to the meeting and the moment."
+                  : "Answers come from this page and the pages it embeds that you can open, with links to the sections they use."}
+              </p>
               <div className="pa-suggest" role="group" aria-label="Suggested questions">
-                {SUGGESTIONS.map((s, i) => (
+                {(workspace ? [...SUGGESTIONS.slice(0, 2), MEETING_SUGGESTION] : SUGGESTIONS).map((s, i) => (
                   <button key={s.q} type="button" className="pa-suggest__item" style={{ animationDelay: `${40 + i * 40}ms` }} onClick={() => void ask(s.q)}>
                     <Icon name={s.icon} className="pa-suggest__icon" />
                     <span>{s.q}</span>
@@ -286,7 +367,16 @@ export function AskPanel({ open, onClose, slug, title }: AskPanelProps) {
               </button>
             )}
           </div>
-          <p className="pa-ask__foot">Answers use only this page and pages you can open. AI can be wrong.</p>
+          <div className="pa-ask__foot">
+            {workspace && (
+              <button type="button" className="pa-meet" role="switch" aria-checked={withMeetings} onClick={toggleMeetings}
+                title={withMeetings ? "Answers also use your team's meetings. Click to ask this page only." : "Ask this page only. Click to also use your team's meetings."}>
+                <Icon name={withMeetings ? "check" : "plus"} className="pa-meet__icon" />
+                <span>Meetings</span>
+              </button>
+            )}
+            <span>{workspace && withMeetings ? "Answers use this page and meetings and documents you can open." : "Answers use only this page and pages you can open."} AI can be wrong.</span>
+          </div>
         </form>
       </section>
     </div>,
@@ -301,18 +391,20 @@ const TurnView = memo(function TurnView({ turn, onSection, onRetry, onCopy }: {
   onCopy: (answer: string) => void;
 }) {
   const live = turn.state === "streaming";
-  const sections = useMemo(() => (turn.state === "done" || turn.state === "stopped" ? sectionsUsed(turn.a) : []), [turn.a, turn.state]);
+  const sections = useMemo(() => (!turn.meetings && (turn.state === "done" || turn.state === "stopped") ? sectionsUsed(turn.a) : []), [turn.a, turn.state, turn.meetings]);
+  const cited = useMemo(() => (turn.meetings && turn.state === "done" ? citedMarkdown(turn.a, turn.citations ?? [], window.location.origin) : null), [turn.a, turn.state, turn.meetings, turn.citations]);
   return (
     <li className="pa-turn">
       <p className="pa-q ph-mask">{turn.q}</p>
+      {turn.meetings && <p className="pa-q__via"><Icon name="mic" /> With meetings</p>}
       <div className="pa-a">
         {live && !turn.a && (
           <p className="pa-thinking" role="status">
             <span className="pa-dots" aria-hidden><i /><i /><i /></span>
-            Reading the page…
+            {turn.meetings ? STAGE_TEXT[turn.stage ?? ""] ?? "Reading the page…" : "Reading the page…"}
           </p>
         )}
-        {turn.a && <Answer md={turn.a} streaming={live} onSection={onSection} />}
+        {turn.a && <Answer md={cited ? cited.markdown : turn.meetings ? turn.a.replace(/\[(\d{1,2})(?:-s\d{1,5})?\]/g, "") : turn.a} streaming={live} onSection={onSection} />}
         {turn.state === "stopped" && <p className="pa-a__meta">{turn.note ?? "Stopped."}</p>}
         {turn.trimmed && <p className="pa-a__meta">This page is long, so the answer used the parts most related to your question.</p>}
         {(turn.state === "limit" || turn.state === "error") && (
@@ -337,6 +429,7 @@ const TurnView = memo(function TurnView({ turn, onSection, onRetry, onCopy }: {
             ))}
           </div>
         )}
+        {cited && cited.sources.length > 0 && <MeetingSources sources={cited.sources} />}
         {turn.state === "done" && (
           <div className="pa-a__tools">
             <button type="button" className="pa-tool" onClick={() => onCopy(turn.a)} aria-label="Copy answer" title="Copy answer">
@@ -348,6 +441,25 @@ const TurnView = memo(function TurnView({ turn, onSection, onRetry, onCopy }: {
     </li>
   );
 });
+
+function MeetingSources({ sources }: { sources: CitedSource[] }) {
+  return (
+    <ol className="pa-cites" aria-label="Sources">
+      {sources.map((s) => (
+        <li key={s.n} className="pa-cites__item">
+          <span className="pa-cites__n">{s.shown}</span>
+          {s.href ? <a href={s.href} className="pa-cites__title">{s.title || "Untitled"}</a> : <span className="pa-cites__title">{s.title || "Untitled"}</span>}
+          {s.kind === "this page" && <span className="pa-cites__kind">This page</span>}
+          {s.moments.map((m, i) => (m.url ? (
+            <a key={m.label} href={m.url.startsWith(window.location.origin) ? m.url.slice(window.location.origin.length) : m.url} className="pa-cites__moment" title="Jump to this moment">
+              <Icon name="play" /> {m.moment || `${s.shown}·${i + 1}`}
+            </a>
+          ) : null))}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 const Answer = memo(function Answer({ md, streaming, onSection }: { md: string; streaming: boolean; onSection: (id: string) => void }) {
   const components = useMemo<Components>(
@@ -368,6 +480,8 @@ const Answer = memo(function Answer({ md, streaming, onSection }: { md: string; 
               {children}
             </a>
           );
+        const label = typeof children === "string" ? children : Array.isArray(children) && children.length === 1 && typeof children[0] === "string" ? children[0] : "";
+        if (href && /^\[\d+(·\d+)?\]$/.test(label)) return <a href={href} className="pa-cite" target={/^https?:/i.test(href) ? "_blank" : undefined} rel={/^https?:/i.test(href) ? "noopener noreferrer nofollow" : undefined}>{label.slice(1, -1)}</a>;
         if (href && /^https?:\/\//i.test(href)) return <a href={href} target="_blank" rel="noopener noreferrer nofollow">{children}</a>;
         if (href && href.startsWith("/") && !href.startsWith("//")) return <a href={href}>{children}</a>;
         return <>{children}</>;

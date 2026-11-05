@@ -14547,6 +14547,167 @@
         }
       }
     },
+    "/api/v1/meeting-memory/related": {
+      "post": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Related",
+        "description": "Decisions, action items, open questions and topics from the workspace's meetings related to what\nis being written, best first, each with its date, meeting, series, a link to the moment and the\ncited line to insert; ``hints``: a related decision the section seems to leave out (clear matches\nonly).",
+        "operationId": "related_api_v1_meeting_memory_related_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelatedBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meeting-memory/check": {
+      "post": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Check",
+        "description": "Claude Haiku's verdict on the section against these decisions: ``contradicts`` / ``omits`` /\n``consistent`` with a one-line note. Never edits the page.",
+        "operationId": "check_api_v1_meeting_memory_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meeting-memory/prefs": {
+      "get": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Get Prefs",
+        "description": "Your switches: ``panel`` (the \"From meetings\" panel shows by itself) and ``hints`` (suggestions\nwhen a section seems to leave out a decision). Both on by default.",
+        "operationId": "get_prefs_api_v1_meeting_memory_prefs_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "patch": {
+        "tags": [
+          "meeting-memory"
+        ],
+        "summary": "Set Prefs",
+        "operationId": "set_prefs_api_v1_meeting_memory_prefs_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PrefsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/slack/status": {
       "get": {
         "tags": [
@@ -17097,6 +17258,48 @@
         "type": "object",
         "title": "BrandingPayload",
         "description": "Every field optional — an unset workspace looks exactly like Markdrop."
+      },
+      "CheckBody": {
+        "properties": {
+          "page": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Page"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading"
+          },
+          "section": {
+            "type": "string",
+            "maxLength": 8000,
+            "title": "Section"
+          },
+          "facts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Facts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "page",
+          "section",
+          "facts"
+        ],
+        "title": "CheckBody"
       },
       "ClickBody": {
         "properties": {
@@ -21388,6 +21591,34 @@
         "title": "PreferencesUpdate",
         "description": "Either or both; what's left out is unchanged."
       },
+      "PrefsBody": {
+        "properties": {
+          "panel": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Panel"
+          },
+          "hints": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hints"
+          }
+        },
+        "type": "object",
+        "title": "PrefsBody"
+      },
       "PrefsIn": {
         "properties": {
           "mention": {
@@ -21484,6 +21715,129 @@
           "url"
         ],
         "title": "PreviewRequest"
+      },
+      "RelatedBody": {
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "The page being written (its slug): its workspace, and its own meeting left out."
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace",
+            "description": "A workspace id, when there is no page."
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "heading": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading",
+            "description": "The heading of the section under the caret."
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 6000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section",
+            "description": "The section's text (Markdown)."
+          },
+          "q": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q",
+            "description": "A typed search."
+          },
+          "kinds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "decision",
+                    "action_item",
+                    "open_question",
+                    "topic"
+                  ]
+                },
+                "type": "array",
+                "maxItems": 4
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kinds"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 40,
+            "minimum": 1,
+            "title": "Limit",
+            "default": 12
+          }
+        },
+        "type": "object",
+        "title": "RelatedBody"
       },
       "ReportRequest": {
         "properties": {
@@ -23311,7 +23665,8 @@
                 "enum": [
                   "ask",
                   "catch_up",
-                  "my_actions"
+                  "my_actions",
+                  "page"
                 ]
               },
               {
@@ -23319,6 +23674,19 @@
               }
             ],
             "title": "Intent"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page",
+            "description": "Ask AI in this page (its slug): the page, then its workspace's meetings (recorded decisions first) and documents. Implies intent \"page\"."
           }
         },
         "type": "object",
