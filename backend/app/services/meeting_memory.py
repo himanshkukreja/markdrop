@@ -230,11 +230,31 @@ async def drop_meeting(db: AsyncIOMotorDatabase, meeting_id: str) -> int:
 
 
 async def stale_meetings(db: AsyncIOMotorDatabase, limit: int = SYNC_BATCH) -> list[ObjectId]:
-    """Meetings whose facts are missing or older than the row (a change through a path without the
-    hook, an older VERSION, or never synced: the backfill)."""
-    q = {"$or": [{"memory.v": {"$ne": VERSION}}, {"$expr": {"$lt": ["$memory.at", "$updated_at"]}}]}
-    rows = await db[meetings.COLL].find(q, {"_id": 1}).sort("updated_at", 1).limit(limit).to_list(length=limit)
-    return [r["_id"] for r in rows]
+    """Meetings whose facts are missing or older than the row: never derived or derived by an older
+    VERSION (the backfill), or changed since through a path without the hook (meetings whose
+    ``updated_at`` moved past their ``memory.at`` since the last pass, with a minute of overlap)."""
+    out = [r["_id"] for r in await db[meetings.COLL].find({"memory.v": {"$ne": VERSION}}, {"_id": 1}).limit(
+        limit).to_list(length=limit)]
+    if len(out) >= limit:
+        return out
+    state = await db[search_index.META].find_one({"_id": "meeting_memory"}) or {}
+    since = _aware(state.get("since")) or (now_utc() - timedelta(days=1))
+    started = now_utc()
+    rows = await db[meetings.COLL].find({"updated_at": {"$gte": since - timedelta(minutes=1)}},
+                                        {"updated_at": 1, "memory": 1}).sort("updated_at", 1).limit(500).to_list(length=500)
+    for r in rows:
+        at = _aware((r.get("memory") or {}).get("at"))
+        up = _aware(r.get("updated_at"))
+        if r["_id"] not in out and (at is None or (up is not None and at < up)):
+            out.append(r["_id"])
+            if len(out) >= limit:
+                break
+    if len(out) < limit:
+        # (A full batch leaves the cursor where it was: the next pass looks again, the synced ones are fresh.)
+        nxt = started if len(rows) < 500 else (_aware(rows[-1].get("updated_at")) or started)
+        await db[search_index.META].update_one({"_id": "meeting_memory"}, {"$set": {"since": nxt, "at": now_utc()}},
+                                               upsert=True)
+    return out
 
 
 async def sweep_orphans(db: AsyncIOMotorDatabase) -> int:
@@ -394,7 +414,7 @@ async def rank_facts(db: AsyncIOMotorDatabase, facts: list[dict], queries: list[
 
 
 def _label(text: str | None) -> str:
-    return re.sub(r"[\[\]\\\n\r{}]+", " ", text or "").strip()[:120] or "Meeting"
+    return re.sub(r"\s+", " ", re.sub(r"[\[\]\\{}]+", " ", text or "")).strip()[:120] or "Meeting"
 
 
 def _status(page_content: str | None, text: str) -> str | None:
