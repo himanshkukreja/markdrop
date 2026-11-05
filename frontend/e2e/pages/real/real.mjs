@@ -14,7 +14,7 @@ import path from "node:path";
 import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars, uploadFile, fileLayout } from "./lib.mjs";
 
 const browser = await launch();
-const { step, results } = stepper(browser);
+const { step, results } = stepper(browser, { after: (name) => lockLeft(name) });
 const S = process.env.NO_RESEED ? seedNow() : reseed();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
 const WS = S.ws;
@@ -22,6 +22,14 @@ const FOLDER = S.folder;
 const statePath = path.join(SHOTS, "state.json");
 const state = process.env.NO_RESEED && fs.existsSync(statePath) ? JSON.parse(fs.readFileSync(statePath, "utf8")) : {};
 const save = () => fs.writeFileSync(statePath, JSON.stringify(state, null, 2));
+// After every step: an editor of the main page that didn't let go of its edit lock (it would hold off
+// the later steps' editors for two minutes) is named here, by the step that left it.
+const lockLeft = async (name) => {
+  if (!state.slug) return;
+  const r = await api("POST", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  if (r.status === 200) await api("DELETE", `/api/v1/documents/${state.slug}/lock`, T.admin);
+  else log(`(the edit lock of ${state.slug} is still taken after ${name}: ${r.status} ${JSON.stringify(r.body).slice(0, 120)})`);
+};
 const SECRET_TITLES = ["Team offsite photo", "Q3 report", "Pricing calculator", "Launch plan"];
 const content = async (slug) => (await docOf(slug, T.owner)).content;
 
