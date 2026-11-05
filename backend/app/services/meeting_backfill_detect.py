@@ -203,6 +203,14 @@ def series_key(title: str | None) -> str:
     return " ".join(words)
 
 
+def group_key(key_or_title: str | None, *, is_key: bool = False) -> str:
+    """The key meetings are grouped into one series by: :func:`series_key` without its spaces, so
+    "Daily Syncup", "Daily Sync Up" and "daily sync-up" are one series (case, spaces and punctuation
+    don't count) while "Daily Standup" stays another (owner, 2026-11-05)."""
+    k = key_or_title if is_key else series_key(key_or_title)
+    return re.sub(r"\s+", "", k or "")
+
+
 def pick_label(labels: Iterable[str | None]) -> str | None:
     """The series' name: the way it is written most often (the first such on a tie)."""
     xs = [x for x in labels if x]

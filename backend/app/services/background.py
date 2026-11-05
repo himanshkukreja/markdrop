@@ -176,9 +176,11 @@ async def _page_covers(db: AsyncIOMotorDatabase) -> None:
 
 
 async def _meetings_backfill(db: AsyncIOMotorDatabase) -> None:
-    from app.services import meeting_backfill
+    from app.services import meeting_backfill, meetings
 
     await meeting_backfill.background(db)
+    # Meetings from before covers and hidden transcripts: a batch per tick until none are left.
+    await meetings.upgrade_tick(db)
 
 
 async def _search_index(db: AsyncIOMotorDatabase) -> None:

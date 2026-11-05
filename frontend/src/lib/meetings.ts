@@ -411,7 +411,7 @@ export function retryBackfillRow(id: string, row: string) {
   return request<BackfillJob>(`${BF}/${encodeURIComponent(id)}/rows/${encodeURIComponent(row)}/retry`, { method: "POST" });
 }
 export function organizeMeetings(workspace: string) {
-  return request<{ meetings: number; moved: number; series_set: number; folders: number }>(`/api/v1/meetings/organize`, {
+  return request<{ meetings: number; moved: number; series_set: number; folders: number; series?: number; covers?: number }>(`/api/v1/meetings/organize`, {
     method: "POST", body: JSON.stringify({ workspace }),
   });
 }

@@ -137,7 +137,10 @@ def option_name(folder: dict | None, name: str | None) -> str | None:
 
 
 def key_of(row: dict) -> str:
-    return row.get("series_key") if row.get("series_key") is not None else det.series_key(row.get("title"))
+    """The meeting's series group (det.group_key): stored keys from before the spaces were dropped
+    group with the new ones."""
+    k = row.get("series_key") if row.get("series_key") is not None else det.series_key(row.get("title"))
+    return det.group_key(k, is_key=True)
 
 
 async def known(db: AsyncIOMotorDatabase, workspace_id: str) -> dict[str, dict]:
@@ -177,7 +180,7 @@ def decide(key: str, label: str | None, entry: dict | None, *, dates: set[str] |
 async def detect(db: AsyncIOMotorDatabase, workspace_id: str, title: str | None, *,
                  date_: str | None = None) -> tuple[str | None, str]:
     """(series or None, key) for a new meeting called ``title`` on ``date_``."""
-    key = det.series_key(title)
+    key = det.group_key(title)
     if not key:
         return None, ""
     entry = (await known(db, workspace_id)).get(key)
@@ -189,6 +192,7 @@ async def adopt(db: AsyncIOMotorDatabase, user, workspace_id: str, key: str, ser
     """The earlier meetings of that name without a series join it (row and page). Returns how many."""
     from app.services import notifications
 
+    key = det.group_key(key, is_key=True)
     if not key or not series:
         return 0
     n = 0
@@ -225,7 +229,7 @@ async def set_series(db: AsyncIOMotorDatabase, row: dict, raw: dict | None, valu
     if raw is not None and check:
         await access.require(actor, raw, "edit_content", ctx)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": {
-        "series": name, "series_from": source, "series_key": det.series_key(row.get("title")),
+        "series": name, "series_from": source, "series_key": det.group_key(row.get("title")),
         "updated_at": meetings.now_utc()}})
     row = await db[COLL].find_one({"_id": row["_id"]}) or row
     try:
@@ -243,6 +247,8 @@ async def set_series(db: AsyncIOMotorDatabase, row: dict, raw: dict | None, valu
                 await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
         except (HTTPException, page_db.PropsError) as exc:  # being edited, or the option couldn't be added
             log.info("meetings: series not written to %s (%s)", raw.get("slug"), getattr(exc, "detail", exc))
+    # The series' cover (the one-off's generic one goes) unless someone chose a cover.
+    await meetings.refresh_cover(db, await db[COLL].find_one({"_id": row["_id"]}) or row)
     return await db[COLL].find_one({"_id": row["_id"]})
 
 
@@ -321,15 +327,20 @@ async def organize(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
     for r in rows:
         by_key.setdefault(key_of(r), []).append(r)
     actor, ctx = access.Actor.of(user), access.Ctx(db)
-    named = moved = 0
+    named = moved = covers = 0
     folders: set[str] = set()
+    # Transcripts are their meeting page's sub-page, not items of their own (meetings.upgrade_tick).
+    await db["documents"].update_many({"workspace_id": workspace_id, "meeting_role": "transcript",
+                                       "hidden_in_listings": {"$ne": True}}, {"$set": {"hidden_in_listings": True}})
     for key, rs in by_key.items():
         have = Counter(r["series"] for r in rs if r.get("series"))
         name = have.most_common(1)[0][0] if have else (
             det.pick_label(det.series_label(r.get("title")) for r in rs) if key and len({r.get("date") for r in rs if r.get("date")}) >= 2 else None)
         for r in rs:
-            before = r.get("folder_id")
-            if name and not r.get("series") and r.get("series_from") != "user":
+            before, cover_before = r.get("folder_id"), r.get("cover")
+            # One series per group: a meeting without one joins it, and so does one that detection
+            # named differently ("Daily Sync Up" beside "Daily Syncup"). A person's choice stays.
+            if name and r.get("series") != name and r.get("series_from") != "user":
                 raw = await db["documents"].find_one({"_id": r.get("doc_id")}) if r.get("doc_id") else None
                 with notifications.quiet():
                     await set_series(db, r, raw, name, actor, ctx, source="auto", check=False)
@@ -342,7 +353,15 @@ async def organize(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
                 continue
             folders.add(fid)
             moved += int(before != fid)
-    return {"meetings": len(rows), "moved": moved, "series_set": named, "folders": len(folders)}
+            r = await db[COLL].find_one({"_id": r["_id"]}) or r
+            await meetings.refresh_cover(db, r)
+            r = await db[COLL].find_one({"_id": r["_id"]}) or r
+            covers += int(r.get("cover") != cover_before)
+            if not r.get("v2"):
+                await db[COLL].update_one({"_id": r["_id"]}, {"$set": {"v2": True}})
+    names = {r.get("series") for r in await db[COLL].find({"workspace_id": workspace_id}, {"series": 1}).to_list(length=5000)}
+    return {"meetings": len(rows), "moved": moved, "series_set": named, "folders": len(folders),
+            "series": len({n for n in names if n}), "covers": covers}
 
 
 # ── Reading ───────────────────────────────────────────────────────────────────

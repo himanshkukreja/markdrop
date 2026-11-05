@@ -75,6 +75,15 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const [askSeries, setAskSeries] = useState("");
   const [askPeriod, setAskPeriod] = useState("");
   const [organizing, setOrganizing] = useState(false);
+  // The list's order, remembered on this device (like a folder's listing view).
+  const [sort, setSortState] = useState<MeetingSort>("date_desc");
+  useEffect(() => {
+    try { const v = window.localStorage.getItem(SORT_KEY); if (v && v in SORTS) setSortState(v as MeetingSort); } catch { /* storage off */ }
+  }, []);
+  const setSort = (v: MeetingSort) => {
+    setSortState(v);
+    try { window.localStorage.setItem(SORT_KEY, v); } catch { /* storage off */ }
+  };
 
   const loadConn = useCallback(() => getMeetConnection(workspaceId)
     .then((c) => setConn({ mine: c.connection, others: c.others })).catch(() => {}), [workspaceId]);
@@ -115,13 +124,15 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const shown = useMemo(() => {
     const f = filter.trim().toLowerCase();
     return (items ?? []).filter((m) => (!f || (m.title || "").toLowerCase().includes(f) || m.attendees.some((a) => a.name.toLowerCase().includes(f)))
-      && (seriesFilter === null || (seriesFilter === "" ? !m.series : m.series === seriesFilter)));
-  }, [items, filter, seriesFilter]);
-  // By month, newest first (the list comes newest first).
+      && (seriesFilter === null || (seriesFilter === "" ? !m.series : m.series === seriesFilter)))
+      .sort(SORTS[sort].cmp);
+  }, [items, filter, seriesFilter, sort]);
+  // By month for the date orders; one flat list for the others.
   const months = useMemo(() => {
     const out: Array<{ key: string; items: Meeting[] }> = [];
+    const byMonth = sort === "date_desc" || sort === "date_asc";
     for (const m of shown) {
-      const key = (m.date || "").slice(0, 7) || "none";
+      const key = byMonth ? (m.date || "").slice(0, 7) || "none" : "all";
       const last = out[out.length - 1];
       if (last && last.key === key) last.items.push(m);
       else out.push({ key, items: [m] });
@@ -227,6 +238,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
             <h2 id="mt-list-title">{shown.length} {shown.length === 1 ? "meeting" : "meetings"}</h2>
             <span className="mt-section-title__tools">
               {status?.can_organize && <Button size="sm" variant="ghost" iconLeft="folder" onClick={() => setOrganizing(true)} data-testid="organize-meetings">Organize meetings</Button>}
+              <Select aria-label="Sort meetings" value={sort} onChange={(e) => setSort(e.target.value as MeetingSort)} data-testid="meetings-sort"
+                options={(Object.keys(SORTS) as MeetingSort[]).map((k) => ({ value: k, label: SORTS[k].label }))} />
               <Input className="mt-filter" type="search" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Filter by title or person" aria-label="Filter meetings" />
             </span>
           </div>
@@ -246,7 +259,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
           <div className="mt-months" data-testid="meetings-list">
           {months.map((g) => (
             <div key={g.key} className="mt-monthgroup">
-              <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)} <small>{g.items.length}</small></h3>
+              {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)} <small>{g.items.length}</small></h3>}
               <ul className="mt-list">
                 {g.items.map((m) => <MeetingCard key={m.id} m={m} />)}
               </ul>
@@ -281,7 +294,9 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         confirmLabel="Organize"
         onConfirm={async () => {
           const r = await organizeMeetings(workspaceId);
-          toast.success(r.moved ? `${r.moved} meeting${r.moved === 1 ? "" : "s"} filed in ${r.folders} folder${r.folders === 1 ? "" : "s"}.` : "Every meeting is already in its folder.");
+          const series = r.series ? ` · ${r.series} series` : "";
+          toast.success(r.moved ? `${r.moved} of ${r.meetings} meeting${r.meetings === 1 ? "" : "s"} filed in ${r.folders} folder${r.folders === 1 ? "" : "s"}${series}.`
+            : `Every meeting is already in its folder (${r.meetings} meeting${r.meetings === 1 ? "" : "s"}${series}).`);
           setOrganizing(false);
           void load();
         }} />
@@ -298,6 +313,17 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     </div>
   );
 }
+
+type MeetingSort = "date_desc" | "date_asc" | "title" | "imported";
+const SORT_KEY = "md:meetings-sort";
+/** "2026-11-04 10:00" for ordering by when the meeting happened (no date: last). */
+const when = (m: Meeting) => (m.date ? `${m.date} ${m.time || ""}` : "");
+const SORTS: Record<MeetingSort, { label: string; cmp: (a: Meeting, b: Meeting) => number }> = {
+  date_desc: { label: "Meeting date, newest", cmp: (a, b) => (!a.date ? 1 : !b.date ? -1 : when(b).localeCompare(when(a))) },
+  date_asc: { label: "Meeting date, oldest", cmp: (a, b) => (!a.date ? 1 : !b.date ? -1 : when(a).localeCompare(when(b))) },
+  title: { label: "Title", cmp: (a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }) || when(b).localeCompare(when(a)) },
+  imported: { label: "Recently imported", cmp: (a, b) => (b.created_at || "").localeCompare(a.created_at || "") },
+};
 
 function DateTile({ date }: { date: string | null }) {
   const [y, mo, d] = (date || "").split("-").map(Number);

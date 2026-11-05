@@ -299,7 +299,7 @@ async def _series_for(db: AsyncIOMotorDatabase, workspace_id: str, rows: list[di
     known = await meeting_series.known(db, workspace_id)
     by_key: dict[str, list[dict]] = {}
     for r in rows:
-        r["series_key"] = det.series_key(r["title"])
+        r["series_key"] = det.group_key(r["title"])
         if r["dup"]["status"] != "new" and r["dup"].get("meeting_id"):
             hit = await db[meetings.COLL].find_one({"_id": _oid(r["dup"]["meeting_id"])}, {"series": 1})
             r["series"] = (hit or {}).get("series")

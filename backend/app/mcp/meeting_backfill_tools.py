@@ -170,7 +170,8 @@ async def organize_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     return (f"Organized {out['meetings']} meetings: {out['moved']} moved, {out['series_set']} put in a series, "
-            f"{out['folders']} folders in use (Meetings/<series>, Meetings/Other meetings)."), out
+            f"{out['folders']} folders in use (Meetings/<series>, Meetings/Other meetings), {out.get('series', 0)} series, "
+            f"{out.get('covers', 0)} covers set."), out
 
 
 _ITEM = {"type": "object", "properties": {
@@ -219,7 +220,7 @@ BACKFILL_TOOLS: list[Tool] = [
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
-        output_schema=_out({"meetings": {"type": "integer"}, "moved": {"type": "integer"}, "series_set": {"type": "integer"},
+        output_schema=_out({"meetings": {"type": "integer"}, "moved": {"type": "integer"}, "series_set": {"type": "integer"}, "series": {"type": "integer"}, "covers": {"type": "integer"},
                             "folders": {"type": "integer"}}),
         annotations=_ann(False, False, True),
         handler=organize_meetings,

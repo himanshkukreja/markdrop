@@ -65,6 +65,26 @@ PENDING_STALE = timedelta(minutes=15)
 PAGE_ICON = "🎙️"
 TRANSCRIPT_ICON = "📜"
 
+# Covers (owner, 2026-11-05): every meeting page gets one of the built-in gallery covers
+# (services/page_covers.py), never an AI pick: one per series, the same for every meeting of it
+# (a hash of the series' group key over SERIES_COVERS), and GENERIC_COVER for a one-off. The row's
+# ``cover`` is the cover Markdrop chose; the page keeps it while nobody changed the cover by hand.
+GENERIC_COVER = "circles"
+SERIES_COVERS = ("orbit", "gather", "route", "horizon", "tide", "contour", "lanterns", "waypoints",
+                 "dawn", "sage", "fold", "ascent")
+
+
+def cover_for(series: str | None) -> str:
+    """The gallery cover of a meeting in ``series`` (None: a one-off)."""
+    import hashlib
+
+    from app.services import meeting_backfill_detect as det
+
+    key = det.group_key(series) if series else ""
+    if not key:
+        return GENERIC_COVER
+    return SERIES_COVERS[int(hashlib.sha1(key.encode("utf-8")).hexdigest()[:8], 16) % len(SERIES_COVERS)]
+
 _bg: set[asyncio.Task] = set()
 
 
@@ -413,7 +433,8 @@ async def full_markdown(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | Non
 
     folder = await db["folders"].find_one({"_id": oid(meeting.get("folder_id"))}) if meeting.get("folder_id") else None
     body = page_markdown(meeting, gen, people)
-    md = page_props.apply(body, {"icon": PAGE_ICON})
+    md = page_props.apply(body, {"icon": PAGE_ICON, **({"cover": page_props.gallery_cover(meeting["cover"])}
+                                                       if meeting.get("cover") else {})})
     vals = await props_values(db, meeting, folder, people)
     return page_db.write_values(md, vals) if vals else md
 
@@ -831,7 +852,7 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     d = date_ or m.date or now_utc().date().isoformat()
     # The series: as given (the bulk import's review), else detected from the workspace's meetings.
     if series_from in ("auto", "user"):
-        sname, skey = meeting_series.clean_name(series), meeting_series.det.series_key(name)
+        sname, skey = meeting_series.clean_name(series), meeting_series.det.group_key(name)
     else:
         sname, skey = await meeting_series.detect(db, workspace_id, name, date_=d)
         series_from = "auto"
@@ -859,7 +880,7 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
-        "series": sname, "series_from": series_from, "series_key": skey,
+        "series": sname, "series_from": series_from, "series_key": skey, "v2": True,
     }
     if history:
         row["history"] = True
@@ -871,6 +892,8 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     folder = await db["folders"].find_one({"_id": oid(row["folder_id"])}) or folder
     if sname:
         row["series"] = sname = meeting_series.option_name(folder, sname) or sname
+    if await page_covers.workspace_allows(db, workspace_id):
+        row["cover"] = cover_for(sname)
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
     actor, ctx = access.Actor.of(user), access.Ctx(db)
@@ -917,6 +940,60 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     return await db[COLL].find_one({"_id": row["_id"]})
 
 
+async def refresh_cover(db: AsyncIOMotorDatabase, row: dict) -> str | None:
+    """The meeting page's cover for its series now (cover_for), when Markdrop may set it: the page
+    has no cover, or still has the one Markdrop chose, and nobody removed it. The cover set, or None.
+    A page nobody edited since import stays "untouched" (base_rev follows), so the AI's sections
+    still replace it whole."""
+    from app.services import page_covers, page_props
+
+    raw = await db["documents"].find_one({"_id": oid(row.get("doc_id"))}) if row.get("doc_id") else None
+    if raw is None or raw.get("cover_removed_at") or not await page_covers.workspace_allows(db, row.get("workspace_id")):
+        return None
+    want = cover_for(row.get("series"))
+    cur = page_props.parse(raw.get("content")).get("cover")
+    ours = page_props.gallery_cover(row["cover"]) if row.get("cover") else None
+    if cur and cur != ours:
+        return None   # a cover someone chose
+    if cur == page_props.gallery_cover(want):
+        if row.get("cover") != want:
+            await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"cover": want}})
+        return None
+    untouched = int(raw.get("rev") or 1) == int(row.get("base_rev") or 0)
+    after = await page_covers.apply(db, raw["_id"], want, how="meeting", replace=True)
+    if after is None:
+        return None
+    sets: dict = {"cover": want}
+    if untouched:
+        sets["base_rev"] = int(after.get("rev") or 1)
+    await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+    return want
+
+
+async def upgrade_tick(db: AsyncIOMotorDatabase, *, batch: int = 20) -> int:
+    """Meetings imported before covers and hidden transcripts (2026-11-05), a batch at a time from
+    the background loop (services/background.py "meetings_backfill"); idempotent: a meeting is
+    done once its row has ``v2: True``. Returns how many it did."""
+    if _UPGRADED["done"]:
+        return 0
+    await db["documents"].update_many({"meeting_role": "transcript", "hidden_in_listings": {"$ne": True}},
+                                      {"$set": {"hidden_in_listings": True}})
+    n = 0
+    async for row in db[COLL].find({"v2": {"$ne": True}}, {"segments": 0}).limit(batch):
+        try:
+            await refresh_cover(db, row)
+        except Exception:
+            log.warning("meetings: cover not set on %s", row.get("_id"), exc_info=True)
+        await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"v2": True}})
+        n += 1
+    if n == 0:
+        _UPGRADED["done"] = True   # new meetings are made with v2 (this process never needs to look again)
+    return n
+
+
+_UPGRADED = {"done": False}
+
+
 async def _make_transcript(db: AsyncIOMotorDatabase, user, row: dict, page: dict, segments: list[dict],
                            approx: bool) -> dict:
     """The Transcript sub-page under the meeting page."""
@@ -926,8 +1003,11 @@ async def _make_transcript(db: AsyncIOMotorDatabase, user, row: dict, page: dict
     traw, _s, _e = await pages.create_page(
         db, user, actor, ctx, title="Transcript", parent=page["slug"],
         content=transcript_markdown(segments, approx=approx))
+    # One item per meeting: the transcript is the meeting page's sub-page, not an item of its own
+    # in folder views, counts or search (workspace_items.NOT_HIDDEN, search._owner_page).
     await db["documents"].update_one({"_id": traw["_id"]}, {"$set": {"meeting_id": str(row["_id"]),
-                                                                     "meeting_role": "transcript"}})
+                                                                     "meeting_role": "transcript",
+                                                                     "hidden_in_listings": True}})
     await page_covers.opt_out(db, traw)
     await _save(db, traw, page_props.apply(traw.get("content") or "", {"icon": TRANSCRIPT_ICON}), actor, ctx)
     return traw

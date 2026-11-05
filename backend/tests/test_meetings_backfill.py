@@ -775,3 +775,129 @@ class MCPBulk(BackfillWorld):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class OneItemCoversSeries(BackfillWorld):
+    """Owner requests for the meetings release (2026-11-05): a cover per series, one item per meeting
+    (the Transcript sub-page hidden from listings and search), near-duplicate titles one series."""
+
+    folder_name = Organise.folder_name
+
+    def test_group_key_normalises_case_spaces_punctuation(self):
+        k = det.group_key("Daily Syncup")
+        self.assertEqual(det.group_key("Daily Sync Up"), k)
+        self.assertEqual(det.group_key("daily sync-up"), k)
+        self.assertEqual(det.group_key("DAILY SYNCUP #12"), k)
+        self.assertNotEqual(det.group_key("Daily Standup"), k)          # different titles stay different
+        self.assertEqual(det.group_key("daily standup", is_key=True), det.group_key("Daily Standup"))
+
+    def test_cover_for_is_per_series(self):
+        self.assertEqual(meetings.cover_for(None), meetings.GENERIC_COVER)
+        self.assertEqual(meetings.cover_for("Daily Syncup"), meetings.cover_for("Daily Sync Up"))
+        self.assertIn(meetings.cover_for("Weekly ops"), meetings.SERIES_COVERS)
+        covers = {meetings.cover_for(n) for n in ("Weekly ops", "Daily Syncup", "Sprint review", "Design crit", "Hiring sync")}
+        self.assertGreater(len(covers), 1)                                # different series look different
+
+    async def cover_of(self, m: dict) -> str | None:
+        raw = await self.db["documents"].find_one({"slug": m["slug"]})
+        from app.services import page_props
+
+        return page_props.parse(raw["content"]).get("cover")
+
+    async def test_covers_on_import_and_when_a_series_forms(self):
+        first = await self.imported(sources=[{"name": g_title("Weekly ops", ago(9)), "text": standup(" a")}])
+        self.assertEqual(await self.cover_of(first), "gallery:" + meetings.GENERIC_COVER)   # a one-off so far
+        second = await self.imported(sources=[{"name": g_title("Weekly ops", ago(2)), "text": standup(" b")}])
+        want = "gallery:" + meetings.cover_for("Weekly ops")
+        self.assertEqual(await self.cover_of(second), want)
+        self.assertEqual(await self.cover_of(first), want)                # the first joined the series: its cover too
+        # A cover someone chose stays when the series changes.
+        raw = await self.db["documents"].find_one({"slug": second["slug"]})
+        from app.services import page_props
+
+        await self.db["documents"].update_one({"_id": raw["_id"]}, {"$set": {
+            "content": page_props.apply(raw["content"], {"cover": "gallery:ledger"}), "rev": int(raw.get("rev") or 1) + 1}})
+        r = await self.http.patch(f"/api/v1/meetings/{second['id']}", headers=self.session("owner"), json={"series": "Ops weekly"})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(await self.cover_of(second), "gallery:ledger")
+
+    async def test_existing_meetings_get_covers_and_hidden_transcripts(self):
+        m = await self.imported(sources=[{"name": g_title("Retro", ago(4)), "text": standup(" r")}])
+        row = await self.db[meetings.COLL].find_one({"_id": bf._oid(m["id"])})
+        page = await self.db["documents"].find_one({"_id": row["doc_id"]})
+        from app.services import page_props
+
+        # As before this release: no cover, transcript listed, not upgraded.
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {
+            "content": page_props.apply(page["content"], {"cover": None})}})
+        await self.db["documents"].update_one({"_id": row["transcript_doc_id"]}, {"$unset": {"hidden_in_listings": ""}})
+        await self.db[meetings.COLL].update_one({"_id": row["_id"]}, {"$unset": {"v2": "", "cover": ""}})
+        meetings._UPGRADED["done"] = False
+        self.assertEqual(await meetings.upgrade_tick(self.db), 1)
+        self.assertEqual(await self.cover_of(m), "gallery:" + meetings.GENERIC_COVER)
+        t = await self.db["documents"].find_one({"_id": row["transcript_doc_id"]})
+        self.assertTrue(t["hidden_in_listings"])
+        self.assertEqual(await meetings.upgrade_tick(self.db), 0)          # idempotent
+        # A page whose cover someone removed is left alone.
+        await self.db[meetings.COLL].update_one({"_id": row["_id"]}, {"$unset": {"v2": "", "cover": ""}})
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {
+            "content": page_props.apply(page["content"], {"cover": None}), "cover_removed_at": datetime.now(timezone.utc)}})
+        meetings._UPGRADED["done"] = False
+        await meetings.upgrade_tick(self.db)
+        self.assertIsNone(await self.cover_of(m))
+
+    async def test_one_item_per_meeting(self):
+        from app.services import search_index
+
+        await search_index.ensure_indexes(self.db)
+        m = await self.imported(sources=[{"name": g_title("Planning", ago(3)),
+                                          "text": "Ada Lovelace: The zanzibarquokka plan is ready.\nBo Chen: Good.\nRavi Kumar: Ship it."}])
+        row = await self.db[meetings.COLL].find_one({"_id": bf._oid(m["id"])})
+        r = await self.http.get(f"/api/v1/workspaces/{self.W}/items", params={"folder": row["folder_id"]}, headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        slugs = [i["slug"] for i in r.json()["items"]]
+        self.assertEqual(slugs, [m["slug"]])                               # the transcript isn't a second row
+        r = await self.http.get(f"/api/v1/workspaces/{self.W}/items", params={"folder": "all"}, headers=self.session("owner"))
+        self.assertNotIn(m["transcript_slug"], [i["slug"] for i in r.json()["items"]])
+        # Still the meeting page's child (the rail), and the page links it.
+        r = await self.http.get(f"/api/v1/documents/{m['slug']}/children", headers=self.session("owner"))
+        self.assertIn(m["transcript_slug"], [c["slug"] for c in r.json()])
+        # Search: a word only in the transcript finds the meeting page, not the transcript.
+        await search_index.drain()
+        await self.db[search_index.META].delete_many({"_id": "backfill"})
+        for _ in range(100):
+            if (await search_index.backfill_tick(self.db))["done"]:
+                break
+        r = await self.http.get("/api/v1/search", params={"q": "zanzibarquokka"}, headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        found = [i.get("slug") for i in r.json()["items"]]
+        self.assertIn(m["slug"], found)
+        self.assertNotIn(m["transcript_slug"], found)
+
+    async def test_organize_merges_near_duplicate_titles_and_moves_transcripts(self):
+        a = await self.imported(sources=[{"name": g_title("Daily Syncup", ago(12)), "text": standup(" 1")}])
+        b = await self.imported(sources=[{"name": g_title("Daily Sync Up", ago(5)), "text": standup(" 2")}])
+        c = await self.imported(sources=[{"name": g_title("Daily Standup", ago(4)), "text": standup(" 3")}])
+        root = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
+        # As the owner has them today: everything in the Meetings folder itself, two spellings as two series.
+        for m, s in ((a, "Daily Syncup"), (b, "Daily Sync Up"), (c, None)):
+            await self.db[meetings.COLL].update_one({"_id": bf._oid(m["id"])}, {"$set": {
+                "series": s, "series_from": "auto" if s else None, "folder_id": str(root["_id"])}, "$unset": {"series_key": ""}})
+            await self.db["documents"].update_one({"slug": m["slug"]}, {"$set": {"folder_id": str(root["_id"])}})
+            await self.db["documents"].update_one({"slug": m["transcript_slug"]}, {"$set": {"folder_id": str(root["_id"])}})
+        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
+        self.assertEqual(r.status_code, 200, r.text)
+        out = r.json()
+        self.assertEqual((out["meetings"], out["moved"]), (3, 3))
+        ra = await self.db[meetings.COLL].find_one({"_id": bf._oid(a["id"])})
+        rb = await self.db[meetings.COLL].find_one({"_id": bf._oid(b["id"])})
+        rc = await self.db[meetings.COLL].find_one({"_id": bf._oid(c["id"])})
+        self.assertEqual(ra["series"], rb["series"])                       # one series for both spellings
+        self.assertEqual(ra["folder_id"], rb["folder_id"])
+        self.assertEqual(await self.folder_name(rc), "Other meetings")     # Standup isn't Syncup
+        self.assertEqual(out["series"], 1)
+        for row in (ra, rb, rc):
+            t = await self.db["documents"].find_one({"_id": row["transcript_doc_id"]})
+            self.assertEqual(t["folder_id"], row["folder_id"])             # the transcript moved with its page
+        r = await self.http.post("/api/v1/meetings/organize", headers=self.session("wa"), json={"workspace": self.W})
+        self.assertEqual((r.json()["moved"], r.json()["covers"]), (0, 0))  # idempotent
