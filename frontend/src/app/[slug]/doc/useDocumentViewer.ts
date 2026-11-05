@@ -728,6 +728,11 @@ export function useDocumentViewer({
   // kept. Raising the flag a second time then, with the retry long finished and nothing left to
   // clear it, left a published password document on the loading skeleton for good.
   const fetchHinted = useRef(false);
+  // Up from that raise until the signed-in retry has answered: the retry is what opens the item. A
+  // ref, not state: the owner check below reads it the moment its own read answers, and React may
+  // commit that answer before the raise (an effect's update can land in a later render than a
+  // fetch's), which painted the framed reader between the cover and full screen (fix/open-flash).
+  const retryOpening = useRef(false);
   // Whether this browser has decided what a gated page shows. Until it has, the page shows
   // "Opening…" rather than the gate: the server render is anonymous, so its gate is the right
   // answer only for a reader with no session anywhere, and printing it first put "This document is
@@ -740,6 +745,7 @@ export function useDocumentViewer({
     if (!isPasswordProtected) return;
     // usableSessionToken also drops a tenant token that has expired, before anything reads it.
     if (peekHandoffToken() || usableSessionToken()) {
+      retryOpening.current = true;
       setPwdFetching(true);
       // The listing said what it is opening: fetch that view's code alongside the read.
       void preloadView(document.documentElement.getAttribute(OPENING_ATTR) as OpeningKind | null);
@@ -917,8 +923,13 @@ export function useDocumentViewer({
         // edits the user may have unlocked via secret.
         if (!secretUnlocked) {
           setSecretUnlocked(true);
-          setPwdLocked(false);
-          adoptDoc(doc);
+          // A gated item the signed-in retry is opening: that read hands over (the cover, then the
+          // item full screen). Unlocking here as well, a beat earlier, showed the framed reader in
+          // between, and then the cover again.
+          if (!retryOpening.current) {
+            setPwdLocked(false);
+            adoptDoc(doc);
+          }
         }
       })
       .catch(() => { if (!cancelled) setOwnerCheckedFor(uid); });
@@ -1124,6 +1135,7 @@ export function useDocumentViewer({
       // (this view can hydrate after the app shell, so that check may have answered first). Ask
       // markdrop.in for a fresh one on a workspace's domain, or show the gate; never leave the
       // "Opening…" raised above with nothing left to lower it.
+      retryOpening.current = false; // no retry: the owner check may open it
       if (initialSecret) return; // the edit-secret read owns pwdFetching
       if (pwdLocked && startSilentHandoff(signInUrl)) {
         stashKeyForSignIn();
@@ -1175,7 +1187,11 @@ export function useDocumentViewer({
         if (denied) void loadRequestState();
         setPwdLocked(true);
       })
-      .finally(() => { if (!cancelled() && !leaving) setPwdFetching(false); });
+      .finally(() => {
+        if (cancelled() || leaving) return;
+        retryOpening.current = false;
+        setPwdFetching(false);
+      });
   }, [handoffDone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
