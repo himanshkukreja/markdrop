@@ -66,6 +66,8 @@
     right: min(0px, calc((100% - 44px) / 2));
   }
   html[data-studio] :is(.dxe-code__lang, .dxe-code__title, .dxe-cards__cols select) { min-height: 44px; }
+  /* WebKit sizes a native <select> by height, not min-height. */
+  html[data-studio] .dxe-cards__cols select { height: 44px; }
   html[data-studio] .dxe-code__wrap { min-width: 44px; min-height: 44px; align-items: center; justify-content: center; }
   html[data-studio] .dxe-card__grip { min-width: 44px; min-height: 44px; }
   /* The "/" menu's section heads and Markdown shortcuts. */
