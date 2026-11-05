@@ -234,3 +234,22 @@ export async function fileLayout(p) {
   });
   return { bars, ...more, gap: more.frameTop == null ? null : more.frameTop - more.barBottom };
 }
+
+/**
+ * Pages open in View mode (DocumentView): press the bar's Edit and wait for the editor (a page
+ * already in Edit mode, from ?edit=1 or an empty page, is left as it is). `p` may be a Page or a
+ * Frame's page; `timeout` covers the editor's load.
+ */
+export async function editPage(p, timeout = 30000) {
+  const live = p.locator('.pb-live .ProseMirror');
+  const edit = p.locator('[data-page-mode="edit"]');
+  await Promise.race([live.first().waitFor({ timeout }), edit.first().waitFor({ timeout })]).catch(() => {});
+  if (!(await live.count()) && (await edit.count())) await edit.first().click();
+  await live.first().waitFor({ timeout });
+}
+
+/** Edit mode → View mode: the editor bar's Done (saves first), then the reader is back. */
+export async function donePage(p, timeout = 30000) {
+  await p.locator('[data-page-mode="done"]').first().click();
+  await p.locator('[data-page-mode="edit"]').first().waitFor({ timeout });
+}

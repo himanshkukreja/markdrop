@@ -279,6 +279,48 @@ export default function DocumentView(props: DocumentViewProps) {
       .catch(() => {});
     focusPageMode("edit");
   };
+  // View mode, for people who can edit: a checklist's box ticks and saves at once (lock, save on
+  // the rev this view shows, let go). Not on a locked page they can't edit, nor while someone else
+  // is editing; a refusal puts the box back and says why.
+  const tickBusy = useRef(false);
+  const toggleTask = async (offset: number) => {
+    if (tickBusy.current) return;
+    const before = displayContent;
+    // (The renderer's offsets are in the body: the front matter comes first.)
+    const at = before.length - withoutFrontMatter(before).length + offset;
+    const m = /^((?:[-*+]|\d{1,9}[.)])[ \t]+)\[([ xX])\]/.exec(before.slice(at));
+    if (!m) {
+      toast.info("Press Edit to change this one.");
+      return;
+    }
+    const pos = at + m[1].length + 1;
+    const next = before.slice(0, pos) + (m[2] === " " ? "x" : " ") + before.slice(pos + 1);
+    tickBusy.current = true;
+    v.setDisplayContent(next);
+    const api = await pagesApi();
+    const secret = v.secretInput || null;
+    let locked = false;
+    try {
+      await api.lockPage(slug, secret);
+      locked = true;
+      const doc = await api.savePage(slug, { title: displayTitle, content: next, baseRev: v.docRev }, secret);
+      if (typeof doc.rev === "number") v.setDocRev(doc.rev);
+      if (typeof doc.content === "string") v.setDisplayContent(doc.content);
+      pendingRevalidate.current = true;
+      revalidate();
+    } catch (e) {
+      v.setDisplayContent(before);
+      const status = api.pagesErrorStatus(e);
+      toast.error(
+        status === 423 ? (api.lockHolder(e) ? `${api.lockHolder(e)} is editing this page. Try again when they're done.` : "Someone else is editing this page. Try again when they're done.")
+          : status === 409 ? "This page changed since you opened it. Reload to see the latest, then tick it again."
+          : e instanceof Error && e.message ? e.message : "Couldn't save that. Try again.",
+      );
+    } finally {
+      if (locked) void api.unlockPage(slug, { secret }).catch(() => {});
+      tickBusy.current = false;
+    }
+  };
   // E: Edit (single-key rule: not while typing, not in a dialog, shortcuts on).
   useEffect(() => {
     if (!canEditPage || editMode || showRaw) return;
@@ -512,6 +554,8 @@ export default function DocumentView(props: DocumentViewProps) {
         try {
           await (await pagesApi()).setEditor(slug, "blocks", v.secretInput || null);
           v.setPage({ ...(page ?? {}), editor: "blocks" });
+          // Asked for the block editor: it opens in Edit mode.
+          setPageMode({ slug, mode: "edit" });
           setToBlocks(false);
           track(wasPage ? "page_back_to_blocks" : "page_open_blocks");
           handleEditClick();
@@ -921,6 +965,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 href={pageHref}
                 viewer={user?.id ?? null}
                 subscribeLive={v.subscribeLive}
+                onToggleTask={canEditPage && !editMode && !othersEditing && !(pageProps?.locked && !isOwner && !v.access?.can?.edit_locked) ? toggleTask : null}
               />
             )}
             {!showRaw && !(wideRail && pageRail && tocEntries.length > 0) && <PresenceMargin root={readRef} markers={markers} left={-14} />}

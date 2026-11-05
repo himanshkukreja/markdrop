@@ -123,7 +123,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
       onClose();
       if (r.meetings.length === 1) {
         toast.success("Meeting imported. The summary is on its way.");
-        router.push(`/${r.meetings[0].slug}`);
+        // A page just made opens in Edit mode (pages open in View mode otherwise).
+        router.push(`/${r.meetings[0].slug}?edit=1`);
       } else {
         toast.success(`${r.meetings.length} meetings imported.`);
       }

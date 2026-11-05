@@ -75,8 +75,12 @@ interface Ctx {
   href: (slug: string, ancestors: string[]) => string;
   /** The page's sign-offs for this viewer. */
   signoffs: SignoffStore | null;
+  /** View mode, for people who can edit: a checklist item's box ticks (its list item's offset in the body). */
+  onToggleTask?: ((offset: number) => void) | null;
 }
 const PageCtx = createContext<Ctx>({ embeds: {}, headings: [], crumbs: [], title: null, href: (s) => `/${encodeURIComponent(s)}`, signoffs: null });
+/** The list item a checkbox belongs to: where it starts in the body (from the Markdown's positions). */
+const TaskCtx = createContext<number | null>(null);
 
 function textOf(node: ReactNode): string {
   if (typeof node === "string") return node;
@@ -362,11 +366,28 @@ function FigureImage({ src, alt, caption, size }: { src: string; alt: string; ca
   );
 }
 
-function Input({ node: _n, type, checked, ...props }: P<"input">) {
-  if (type !== "checkbox") return <input type={type} checked={checked} {...(props as object)} />;
+function Li({ node, children, ...rest }: P<"li">) {
+  const at = (node as { position?: { start?: { offset?: number } } } | undefined)?.position?.start?.offset;
   return (
-    <span className="md-task-check">
-      <input type="checkbox" checked={!!checked} disabled readOnly aria-label={checked ? "Completed task" : "Incomplete task"} />
+    <li {...(rest as object)}>
+      <TaskCtx.Provider value={typeof at === "number" ? at : null}>{children}</TaskCtx.Provider>
+    </li>
+  );
+}
+
+function Input({ node: _n, type, checked, ...props }: P<"input">) {
+  const { onToggleTask } = useContext(PageCtx);
+  const at = useContext(TaskCtx);
+  if (type !== "checkbox") return <input type={type} checked={checked} {...(props as object)} />;
+  // View mode, for people who can edit: ticking is a quick action that saves at once.
+  const live = !!onToggleTask && at !== null;
+  return (
+    <span className={live ? "md-task-check md-task-check--live" : "md-task-check"}>
+      {live ? (
+        <input type="checkbox" checked={!!checked} onChange={() => onToggleTask(at)} aria-label={checked ? "Completed task" : "Incomplete task"} />
+      ) : (
+        <input type="checkbox" checked={!!checked} disabled readOnly aria-label={checked ? "Completed task" : "Incomplete task"} />
+      )}
       <span className="md-task-check__box" aria-hidden>
         <Icon name="check" />
       </span>
@@ -374,7 +395,7 @@ function Input({ node: _n, type, checked, ...props }: P<"input">) {
   );
 }
 
-const COMPONENTS = { div: Div, span: Span, details: Details, pre: Pre, table: Table, img: Img, input: Input } as unknown as Components;
+const COMPONENTS = { div: Div, span: Span, details: Details, pre: Pre, table: Table, img: Img, input: Input, li: Li } as unknown as Components;
 export interface PageRendererProps {
   /** The page's slug: embeds and mentions are resolved through it, for this viewer. */
   slug: string;
@@ -395,11 +416,16 @@ export interface PageRendererProps {
   viewer?: string | null;
   /** The document's live socket (sign-offs refresh when someone signs). */
   subscribeLive?: ((fn: (msg: Record<string, unknown>) => void) => () => void) | null;
+  /**
+   * View mode, for people who can edit: a checklist item's box ticks. Called with the offset in the
+   * page's body (after its front matter) where that item's list marker starts.
+   */
+  onToggleTask?: ((offset: number) => void) | null;
 }
 
 const defaultHref = (s: string) => `/${encodeURIComponent(s)}`;
 
-export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null, subscribeLive = null }: PageRendererProps) {
+export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null, subscribeLive = null, onToggleTask = null }: PageRendererProps) {
   // The page's properties (icon, cover, width…) live in its front matter; the body is the rest.
   const content = useMemo(() => splitFrontmatter(source).body, [source]);
   const refs = useMemo(() => pageRefs(content), [content]);
@@ -438,7 +464,12 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
     onHeadingsRef.current?.(collected.current);
   }, [content]);
 
-  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs }), [embeds, signInHref, headings, crumbs, title, href, signoffs]);
+  // The latest handler, read at click time (the context stays put between renders).
+  const toggleRef = useRef(onToggleTask);
+  toggleRef.current = onToggleTask;
+  const canToggle = !!onToggleTask;
+  const toggle = useMemo(() => (canToggle ? (at: number) => toggleRef.current?.(at) : null), [canToggle]);
+  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle]);
   const root = useRef<HTMLDivElement>(null);
   useBlockAnchor(root);
   return (

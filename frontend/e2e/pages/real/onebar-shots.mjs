@@ -5,7 +5,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, log, reseed, api, docOf, launch, ctx } from "./lib.mjs";
+import { APP, TENANT, log, reseed, api, docOf, launch, ctx, editPage } from "./lib.mjs";
 
 const OUT = process.env.OUT || "/tmp/onebar";
 fs.mkdirSync(OUT, { recursive: true });
@@ -76,7 +76,7 @@ if (!only || only.has("rail")) {
   const bad = [];
   const { c, p } = await ctx(browser, { token: T.owner, theme: "light", width: 1440 });
   await p.goto(`${APP}/${leaf}`, { waitUntil: "networkidle" });
-  await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 25000 });
+  await editPage(p, 25000);
   await p.waitForTimeout(800);
   const railX = () => p.locator(".pb-rail").evaluate((el) => Math.round(el.getBoundingClientRect().right));
   if ((await railX()) < 200) bad.push("rail not open at first");
@@ -123,6 +123,7 @@ if (!only || only.has("rail")) {
 if (!only || only.has("editing")) {
   const ed = await ctx(browser, { token: T.owner, width: 1440 });
   await ed.p.goto(`${APP}/${leaf}`, { waitUntil: "networkidle" });
+  await editPage(ed.p, 25000);
   await ed.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 25000 });
   await ed.p.locator(".pb-live .ProseMirror").getByText("More notes follow").click();
   await ed.p.keyboard.press("End");
