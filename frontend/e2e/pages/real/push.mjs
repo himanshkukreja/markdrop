@@ -308,6 +308,7 @@ if (chromium) {
 /* ── privacy / prefs / gone ───────────────────────────────────────────── */
 await step("privacy", async () => {
   if (!(await devices("member")).length) fail("needs a device (settings)");
+  await flush(); // whatever earlier suites left queued on this stack (WebKit has no deliver step to drain it)
   const before = (await received(PHONE)).length;
   const m = await mentionPage("member", "secret merger");
   const lv = await api("PUT", `/api/v1/documents/${m.slug}/access/level`, T.owner, { level: "private" });
