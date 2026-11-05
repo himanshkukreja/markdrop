@@ -368,7 +368,7 @@ export function usePageEditSession({
     }
   }, [slug, secret, lose, setLock, catchUp]);
 
-  // Leave: save what's pending, then let go of the lock. (Opening takes nothing; activity does.)
+  // Leave: save what's pending, then let go of the lock. (Opening takes nothing; a change does.)
   useEffect(() => {
     return () => {
       clearTimer();

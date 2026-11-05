@@ -12,8 +12,9 @@
  *                  resolved for the author through POST /documents/{slug}/embeds
  *   read only    → while someone else holds the edit lock, or the page is locked
  *
- * One editor at a time (usePageEditSession): the lock is taken on the first key, click or change
- * and let go of after a few idle minutes; autosave runs 2 s after the last change with `base_rev`,
+ * One editor at a time (usePageEditSession): the lock is taken on the first change (never by opening
+ * or clicking) and let go of 2 minutes after the last change or 60 s in a hidden tab; the owner and
+ * workspace admins can Edit anyway; autosave runs 2 s after the last change with `base_rev`,
  * and every change is kept in this browser until the server has it (restored after a crash or a
  * reload); an AI app's append_blocks arrives live and goes in at the end without disturbing the
  * caret. On phones, a bottom toolbar (PagePhoneBar) and bottom sheets.
