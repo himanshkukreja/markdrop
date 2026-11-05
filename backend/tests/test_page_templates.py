@@ -49,6 +49,24 @@ class TemplateWorld(PageWorld):
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()
 
+    async def folder(self, name: str, parent: str | None = None, who: str = "wa") -> str:
+        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/folders",
+                                 json={"name": name, "parent_id": parent}, headers=self.session(who))
+        self.assertEqual(r.status_code, 201, r.text)
+        return r.json()["id"]
+
+    async def mcp_ok(self, who: str, name: str, args: dict) -> dict:
+        status, res = await self.mcp_call(await self.mcp_token(who, write=True), name, args)
+        self.assertEqual(status, 200)
+        self.assertFalse(res["isError"], res["content"][0]["text"])
+        return res["structuredContent"]
+
+    async def mcp_err(self, who: str, name: str, args: dict) -> str:
+        status, res = await self.mcp_call(await self.mcp_token(who, write=True), name, args)
+        self.assertEqual(status, 200)
+        self.assertTrue(res["isError"], res)
+        return res["content"][0]["text"]
+
     async def use(self, tid: str, who: str, expect: int = 201, **body) -> dict:
         body.setdefault("title", "Q4 retro")
         r = await self.http.post("/api/v1/pages", json={"template": tid, **body}, headers=self.session(who))
@@ -486,24 +504,6 @@ class Mcp(TemplateWorld):
 
 
 class Deltas(TemplateWorld):
-    async def folder(self, name: str, parent: str | None = None, who: str = "wa") -> str:
-        r = await self.http.post(f"/api/v1/workspaces/{self.ws['W1']}/folders",
-                                 json={"name": name, "parent_id": parent}, headers=self.session(who))
-        self.assertEqual(r.status_code, 201, r.text)
-        return r.json()["id"]
-
-    async def mcp_ok(self, who: str, name: str, args: dict) -> dict:
-        status, res = await self.mcp_call(await self.mcp_token(who, write=True), name, args)
-        self.assertEqual(status, 200)
-        self.assertFalse(res["isError"], res["content"][0]["text"])
-        return res["structuredContent"]
-
-    async def mcp_err(self, who: str, name: str, args: dict) -> str:
-        status, res = await self.mcp_call(await self.mcp_token(who, write=True), name, args)
-        self.assertEqual(status, 200)
-        self.assertTrue(res["isError"], res)
-        return res["content"][0]["text"]
-
     async def test_done_when_prd_in_product_hub(self):
         """The customer's check: New page in product-hub/02-prds → "PRD" → a filled page in that
         folder with today's date and the author's name; the same through create_page."""
@@ -702,3 +702,161 @@ class Deltas(TemplateWorld):
         await self.http.delete(f"/api/v1/page-templates/{t['id']}", headers=self.session("wa"))
         final = await self.doc(made["slug"])
         self.assertEqual((final["content"], final["title"]), (before["content"], "Monday"))
+
+
+# ── Add a sub-page: the gallery reads the parent's workspace and folder (2026-11-05) ──────
+
+
+class SubPageGallery(TemplateWorld):
+    """``GET /page-templates/all?parent=``: every way to add a sub-page (the page's ⋯ menu,
+    Pages inside, the sidebar's /pages/new?parent=, the workspace's own domain) offers the
+    parent's workspace templates and its folder's default — to members of that workspace only."""
+
+    async def gallery(self, parent: str, headers: dict, expect: int = 200, **params) -> dict:
+        r = await self.http.get("/api/v1/page-templates/all", params={"parent": parent, **params},
+                                headers=headers)
+        self.assertEqual(r.status_code, expect, r.text)
+        return r.json()
+
+    async def world(self) -> None:
+        self.f = await self.folder("Specs")
+        self.t = await self.save((await self.create("wm", workspace=self.ws["W1"], title="Spec"))["slug"], "wm",
+                                 name="Team spec")
+        self.mine = await self.save((await self.create("wm", title="Mine"))["slug"], "wm", name="My notes")
+        self.assertEqual(self.mine["scope"], "personal")
+        await self.add_member("W2", "wm", "member")
+        self.t2 = await self.save((await self.create("wm2", workspace=self.ws["W2"], title="Other"))["slug"],
+                                  "wm2")
+        r = await self.http.put(f"/api/v1/workspaces/{self.ws['W1']}/folders/{self.f}/default-template",
+                                json={"template": self.t["id"]}, headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.P = await self.create("wm", workspace=self.ws["W1"], folder=self.f, title="Parent")
+        self.C = await self.sub(self.P["slug"], "wm", title="Child")
+
+    async def test_parent_gives_workspace_and_folder(self):
+        await self.world()
+        for parent in (self.P["slug"], self.C["slug"]):  # a sub-page of a sub-page too
+            out = await self.gallery(parent, self.session("wm"))
+            self.assertEqual([x["id"] for x in out["workspace"]], [self.t["id"]], parent)
+            self.assertEqual((out["workspace_id"], out["workspace_name"]), (self.ws["W1"], "Acme"))
+            self.assertEqual(out["folder"], {"id": self.f, "name": "Specs", "default_template": self.t["id"],
+                                             "can_set_default": False})
+            self.assertEqual([x["id"] for x in out["personal"]], [self.mine["id"]])
+        self.assertTrue((await self.gallery(self.P["slug"], self.session("wa")))["folder"]["can_set_default"])
+        # The same as naming the workspace and folder (what New page in that folder lists).
+        named = await self.http.get("/api/v1/page-templates/all", params={"workspace": self.ws["W1"],
+                                                                           "folder": self.f},
+                                    headers=self.session("wm"))
+        self.assertEqual(named.json()["workspace"], (await self.gallery(self.P["slug"], self.session("wm")))["workspace"])
+        # Making the sub-page from it.
+        made = await self.use(self.t["id"], "wm", parent=self.P["slug"], title="Search spec")
+        self.assertEqual((made["template_id"], made["workspace_id"]), (self.t["id"], self.ws["W1"]))
+        # The workspace named too: the parent's is fine, another is not.
+        await self.gallery(self.P["slug"], self.session("wm"), workspace=self.ws["W1"])
+        await self.gallery(self.P["slug"], self.session("wm"), 422, workspace=self.ws["W2"])
+
+    async def test_no_workspace_templates_for_non_members(self):
+        await self.world()
+        await self.set_level(self.P["slug"], "link", "wm")
+        # Readers who aren't members (a workspace viewer, someone outside it) see no workspace
+        # templates, no folder, not even which workspace; their own personal ones still.
+        mine2 = await self.save((await self.create("wm2", title="Theirs"))["slug"], "wm2")
+        for who in ("wv", "wm2", "stranger"):
+            out = await self.gallery(self.P["slug"], self.session(who))
+            self.assertEqual((out["workspace"], out["folder"]), ([], None), who)
+            self.assertFalse(out["can_save_workspace"], who)
+            if who != "wv":
+                self.assertIsNone(out["workspace_id"], who)
+        self.assertEqual([x["id"] for x in (await self.gallery(self.P["slug"], self.session("wm2")))["personal"]],
+                         [mine2["id"]])
+        # A page they can't read: 404, as if it weren't there.
+        await self.set_level(self.P["slug"], "private", "wm")
+        for who in ("wm2", "stranger"):
+            await self.gallery(self.P["slug"], self.session(who), 404)
+        await self.gallery("no-such-page", self.session("wm"), 404)
+        r = await self.http.get("/api/v1/page-templates/all", params={"parent": self.P["slug"]})
+        self.assertEqual(r.status_code, 401)
+
+    async def test_personal_parent(self):
+        await self.world()
+        U = await self.create("wm", title="Personal parent")
+        out = await self.gallery(U["slug"], self.session("wm"))
+        self.assertEqual((out["workspace"], out["workspace_id"], out["folder"]), ([], None, None))
+        self.assertEqual([x["id"] for x in out["personal"]], [self.mine["id"]])
+        self.assertEqual(out["builtin"][-1]["id"], "blank")
+
+    async def test_sub_pages_start_blank_without_a_template(self):
+        # The folder's default is preselected in the gallery (the app sends it as template); a
+        # sub-page made with neither template nor content (the editor's /page block, the API)
+        # starts blank, as before.
+        await self.world()
+        made = await self.sub(self.P["slug"], "wm", title="Blank inside")
+        self.assertIsNone(made["template_id"])
+        self.assertEqual(made["content"].strip(), "")
+
+    async def test_tenant_domain_pinned(self):
+        await self.world()
+        h = self.tenant("wm", "W1")
+        out = await self.gallery(self.P["slug"], h)
+        self.assertEqual([x["id"] for x in out["workspace"]], [self.t["id"]])
+        # Its own templates only: no personal ones (they stay on markdrop.in), nothing to manage.
+        self.assertEqual(out["personal"], [])
+        self.assertFalse(any(x["can_manage"] for x in out["workspace"]))
+        self.assertFalse(out["can_save_workspace"] or out["can_reorder_workspace"])
+        self.assertEqual(out["folder"]["default_template"], self.t["id"])
+        self.assertFalse((await self.gallery(self.P["slug"], self.tenant("wa", "W1")))["folder"]["can_set_default"])
+        # A parent of another workspace, or of none: 404. No parent: refused.
+        X = await self.create("wm2", workspace=self.ws["W2"], title="W2 page")
+        await self.set_level(X["slug"], "link", "wm2")
+        U = await self.create("wm", title="Personal")
+        for parent in (X["slug"], U["slug"]):
+            await self.gallery(parent, h, 404)
+        r = await self.http.get("/api/v1/page-templates/all", headers=h)
+        self.assertEqual(r.status_code, 403, r.text)
+        r = await self.http.get("/api/v1/page-templates/all", params={"workspace": self.ws["W2"]}, headers=h)
+        self.assertEqual(r.status_code, 403, r.text)
+        # From the wrong origin, or another workspace's token: nothing.
+        r = await self.http.get("/api/v1/page-templates/all", params={"parent": self.P["slug"]},
+                                headers=self.tenant("wm", "W1", origin="https://evil.test"))
+        self.assertEqual(r.status_code, 401)
+        await self.gallery(self.P["slug"], self.tenant("wm", "W2"), 404)
+        # The preview: this workspace's templates only.
+        r = await self.http.get(f"/api/v1/page-templates/{self.t['id']}", headers=h)
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertFalse(r.json()["can_manage"])
+        for other in (self.t2["id"], self.mine["id"]):
+            r = await self.http.get(f"/api/v1/page-templates/{other}", headers=h)
+            self.assertEqual(r.status_code, 404, other)
+        # Making the sub-page from it on the domain; another workspace's or a personal one: refused.
+        r = await self.http.post("/api/v1/pages", json={"title": "On the domain", "parent": self.P["slug"],
+                                                         "template": self.t["id"]}, headers=h)
+        self.assertEqual(r.status_code, 201, r.text)
+        self.assertEqual(r.json()["document"]["template_id"], self.t["id"])
+        self.assertIsNone(r.json()["edit_secret"])
+        for other in (self.t2["id"], self.mine["id"], self.t2["slug"]):
+            r = await self.http.post("/api/v1/pages", json={"title": "x", "parent": self.P["slug"],
+                                                             "template": other}, headers=h)
+            self.assertEqual(r.status_code, 403, other)
+        # Managing templates stays on markdrop.in.
+        for method, path, body in (("PATCH", f"/api/v1/page-templates/{self.t['id']}", {"name": "Taken"}),
+                                   ("DELETE", f"/api/v1/page-templates/{self.t['id']}", None),
+                                   ("PUT", "/api/v1/page-templates/order", {"workspace": self.ws["W1"],
+                                                                            "ids": [self.t["id"]]}),
+                                   ("PUT", f"/api/v1/workspaces/{self.ws['W1']}/folders/{self.f}/default-template",
+                                    {"template": None})):
+            r = await self.http.request(method, path, json=body, headers=self.tenant("wa", "W1"))
+            self.assertEqual(r.status_code, 401, (method, path, r.text))
+
+    async def test_mcp_list_for_a_parent(self):
+        await self.world()
+        out = await self.mcp_ok("wm", "list_page_templates", {"parent": self.P["slug"]})
+        ids = [x["id"] for x in out["templates"]]
+        self.assertIn(self.t["id"], ids)
+        self.assertIn(self.mine["id"], ids)
+        self.assertNotIn(self.t2["id"], ids)
+        self.assertEqual(out["folder_default"], self.t["id"])
+        self.assertIsNone((await self.mcp_ok("wm", "list_page_templates", {}))["folder_default"])
+        self.assertIn("parent alone", await self.mcp_err("wm", "list_page_templates",
+                                                         {"parent": self.P["slug"], "workspace": self.ws["W1"]}))
+        await self.set_level(self.P["slug"], "private", "wm")
+        await self.mcp_err("stranger", "list_page_templates", {"parent": self.P["slug"]})

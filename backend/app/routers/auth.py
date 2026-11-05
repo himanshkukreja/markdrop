@@ -152,6 +152,11 @@ _TENANT_ALLOWED = (
     # Sub-pages only: routers/pages.create_page refuses a tenant token without `parent`, or with
     # `workspace`, `folder` or a workspace template; the parent needs can(edit_content).
     ("POST", re.compile(r"^/api/v1/pages$")),
+    # Add a sub-page's template gallery (routers/pages.py): the listing needs ?parent= (read with
+    # can(read), pinned like every read) and offers the built-ins and that workspace's templates
+    # (members+); one template's preview answers 404 for any template not of the token's workspace.
+    ("GET", re.compile(r"^/api/v1/page-templates/all$")),
+    ("GET", re.compile(r"^/api/v1/page-templates/[0-9a-f]{24}$")),
     # Version history (routers/page_history.py: can(edit_content) for all three).
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/versions$")),
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/versions/\d+$")),

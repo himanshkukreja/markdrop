@@ -22,6 +22,8 @@ export interface YourTemplatesProps {
   workspace?: string | null;
   /** The folder the new page goes in (id): its default template is chosen at first. */
   folder?: string | null;
+  /** A sub-page of this page (slug): its workspace's templates and its folder's default, read from it. */
+  parent?: string | null;
   workspaceName?: string | null;
   chosen: string;
   onChoose: (t: ChosenTemplate | null) => void;
@@ -29,7 +31,7 @@ export interface YourTemplatesProps {
   onCreate?: (t: ChosenTemplate) => void;
 }
 
-export function YourTemplates({ open, workspace, folder, workspaceName, chosen, onChoose, onCreate }: YourTemplatesProps) {
+export function YourTemplates({ open, workspace, folder, parent, workspaceName, chosen, onChoose, onCreate }: YourTemplatesProps) {
   const { user } = useAuth();
   const toast = useToast();
   const appliedDefault = useRef(false);
@@ -41,13 +43,13 @@ export function YourTemplates({ open, workspace, folder, workspaceName, chosen, 
 
   const reload = useCallback(() => {
     if (!user) return;
-    listTemplates(workspace, folder)
+    listTemplates(workspace, folder, parent)
       .then((l) => {
         setList(l);
         setFailed(false);
       })
       .catch(() => setFailed(true));
-  }, [user, workspace, folder]);
+  }, [user, workspace, folder, parent]);
 
   useEffect(() => {
     if (open) reload();
@@ -84,9 +86,10 @@ export function YourTemplates({ open, workspace, folder, workspaceName, chosen, 
   }, [list]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function changeDefault(value: string) {
-    if (!list?.folder || !workspace) return;
+    const ws = list?.workspace_id ?? workspace;
+    if (!list?.folder || !ws) return;
     try {
-      const out = await setFolderDefault(workspace, list.folder.id, value || null);
+      const out = await setFolderDefault(ws, list.folder.id, value || null);
       setList({ ...list, folder: { ...list.folder, default_template: out.default_template } });
       toast.success(out.default_template ? `New pages in ${list.folder.name} start from it` : `New pages in ${list.folder.name} start blank`);
     } catch (e) {
@@ -107,8 +110,8 @@ export function YourTemplates({ open, workspace, folder, workspaceName, chosen, 
     );
   }
 
-  const wsName = workspaceName || "Your workspace";
-  const wsIn = workspaceName || "this workspace";
+  const wsName = workspaceName || list.workspace_name || "Your workspace";
+  const wsIn = workspaceName || list.workspace_name || "this workspace";
   const showWs = !!list.workspace_id && (list.workspace.length > 0 || list.can_save_workspace);
   const hasFolderLine = !!list.folder?.can_set_default || !!list.folder?.default_template;
   const canManageAny = [...list.workspace, ...list.personal].some((t) => t.can_manage) || list.can_reorder_workspace;

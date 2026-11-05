@@ -61,7 +61,7 @@ Anyone who may edit a page can edit it right on your domain, exactly as on markd
 On your domain they can:
 
 - write the page and its title (**Saving…** then **Saved** in the top bar, and the other people on the page see the change)
-- add images, add sub-pages, and set the page's properties (icon, cover, width, font)
+- add images, add sub-pages (from the built-in templates or the workspace's own), and set the page's properties (icon, cover, width, font)
 - use the AI writing tools, and see and restore **Version history**
 - see who else is on the page, and who is editing it
 

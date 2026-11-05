@@ -297,6 +297,25 @@
       ]
     },
     {
+      "id": "subpage-templates",
+      "date": "2026-11-05",
+      "title": "Add a sub-page offers your workspace's templates everywhere",
+      "kind": "fixed",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Adding a sub-page to a page in a workspace now offers that workspace's templates wherever you start it: the page's menu, Pages inside, the sidebar and the workspace's own domain. A page in a folder with a default template starts its sub-pages from it too.",
+      "body": "- **The workspace's templates for every sub-page.** **Add a sub-page** reads the templates from the page you're adding it to, so the sidebar's **+** and **Add a sub-page**, **Pages inside** and the page's **⋯** menu all offer its workspace's templates (to members of that workspace), yours and the built-in ones. Before, some of them showed only the built-in ones.\n- **On your workspace's own domain** the gallery shows the workspace's templates and the built-in ones, and the sub-page can be made from either. Personal templates and managing templates stay on markdrop.in.\n- **A folder's default template** is chosen for a sub-page of a page in that folder, like for **New page** there. Pick **Blank** or another template if you like.\n- **AI apps:** `list_page_templates` takes `parent` to list what a sub-page of that page can start from, with its folder's default as `folder_default`.\n- **API:** `GET /api/v1/page-templates/all` takes `parent` (a page's slug) and reads the workspace and folder from it.",
+      "docs": [
+        "/pages/templates#templates-for-a-sub-page",
+        "/pages/sub-pages",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",

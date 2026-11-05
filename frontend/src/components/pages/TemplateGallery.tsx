@@ -48,11 +48,9 @@ export interface TemplateGalleryProps {
   placeLabel?: React.ReactNode;
   /** Default: open the new page in the editor. */
   onCreated?: (created: CreatedPage) => void;
-  /** Whose workspace templates to offer when `workspace` isn't set (a sub-page: its parent's). */
-  templatesWorkspace?: string | null;
 }
 
-export function TemplateGallery({ open, onClose, workspace, folder, parent, parentTitle, placeLabel, onCreated, templatesWorkspace }: TemplateGalleryProps) {
+export function TemplateGallery({ open, onClose, workspace, folder, parent, parentTitle, placeLabel, onCreated }: TemplateGalleryProps) {
   const router = useRouter();
   const [templates, setTemplates] = useState<PageTemplate[] | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -178,7 +176,7 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           {loadError ? (
             <Alert tone="warning">{loadError} You can still start from a blank page.</Alert>
           ) : null}
-          <YourTemplates open={open} workspace={workspace ?? templatesWorkspace} folder={workspace ? folder : null} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={(t) => void create(undefined, t)} />
+          <YourTemplates open={open} workspace={workspace} folder={workspace ? folder : null} parent={parent} chosen={chosen} onChoose={(t) => { setCustom(t); setChosen(t?.id ?? "blank"); }} onCreate={(t) => void create(undefined, t)} />
           <div ref={gridRef} tabIndex={-1} className="pb-templates" role="group" aria-labelledby={`${titleId}-t`}>
             {!templates && !loadError
               ? Array.from({ length: 6 }, (_, i) => <Skeleton key={i} variant="rect" height={96} />)
