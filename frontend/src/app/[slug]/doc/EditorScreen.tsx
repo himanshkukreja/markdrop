@@ -185,7 +185,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
           disabled={!v.canEditContent}
           dir="auto"
           wrapClassName="min-w-0 flex-1 basis-60"
-          className="min-w-0 flex-1 basis-60 text-body-strong"
+          className="min-w-0 flex-1 basis-60 text-body-strong pointer-coarse:text-[16px]"
         />
         <div className="flex flex-wrap items-center gap-2">
           {dirty && <Badge tone="warning" dot size="sm">Unsaved changes</Badge>}
