@@ -14,6 +14,8 @@ Once you sign in, Markdrop opens on your **home**: what needs you today, what yo
 
 **Home**, at the top of the sidebar (and the screen the [installed app](/get-started/install-app) opens on), is in this order:
 
+![The home: a greeting with the date and what's waiting, the Ask bar with Catch me up, My action items and Ask my meetings, Continue where you left off as preview cards, Today with a meeting and an access request, two action items, and the latest meeting.](/docs-assets/get-started/tour/home.webp)
+
 | Section | What's there |
 | --- | --- |
 | **Greeting** | The date and what's waiting: meetings today, open action items, unread notifications and access requests. |
@@ -30,16 +32,18 @@ Your own documents and files are in **My files** in the sidebar.
 
 ## Create something
 
-**Create** sits at the top of the app. It has four choices:
+**Create** sits at the top of the app. It has six choices:
 
-![The Create menu open in the app header, listing Markdown document, Artifact, README builder and Send a file, each with a one-line description.](/docs-assets/get-started/tour/create-menu.webp)
+![The Create menu open in the app header, listing Markdown document, Page, Artifact, README builder, Send a file and Guide, each with a one-line description.](/docs-assets/get-started/tour/create-menu.webp)
 
 | Choice | What it does |
 | --- | --- |
 | **Markdown document** | Write or paste Markdown and publish a link. Opens [markdrop.in/new](https://markdrop.in/new). |
+| **Page** | Write with blocks, embed your files and add sub-pages. See [Pages](/pages/overview). |
 | **Artifact** | Upload an HTML page, PDF, spreadsheet, Word document or video. Opens [markdrop.in/upload](https://markdrop.in/upload). |
 | **README builder** | Assemble a README from ready-made sections. See [README builder](/documents/readme-builder). |
 | **Send a file** | Send files peer to peer; they aren't stored on Markdrop's servers. See [Send files peer to peer](/share/send-files). |
+| **Guide** | A help center or product guide, in [Markdrop Guides](/guides/overview). |
 
 ## The sidebar
 
@@ -61,7 +65,7 @@ Your own documents and files are in **My files** in the sidebar.
 
 **Collapse**, at the bottom, shrinks the sidebar to a rail of icons (point at one for its name); **Expand** at the top of the rail brings it back. Your browser remembers which you chose.
 
-![The app sidebar with My files, Shared with me (2 new), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
+![The app sidebar: Home, Search, Ask Markdrop and Inbox; My files, Shared with me (2 new), Recent, Analytics and Trash; the Workspaces section with Acme open on Meetings, Guides, Releases and Sales, then Northwind and New workspace; Settings, Help & docs, Send feedback and Collapse at the bottom.](/docs-assets/get-started/tour/sidebar.webp), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
 
 Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
 

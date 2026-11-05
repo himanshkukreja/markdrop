@@ -7,6 +7,7 @@
  */
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { demoPage, meeting, ok } from "./_demo.mjs";
 
 const HELPER = new URL("../seed_extra_a.py", import.meta.url).pathname;
 const PY = process.env.DOCS_MEDIA_PYTHON || new URL("../../../../backend/.venv/bin/python", import.meta.url).pathname;
@@ -230,7 +231,7 @@ export default [
     page: "/get-started/tour",
     kind: "screenshot",
     auth: "owner",
-    url: "/dashboard",
+    url: "/dashboard/files",
     prepare: async (h) => {
       await h.loc({ role: "heading", name: "My files" }).waitFor();
       await h.loc({ role: "button", name: "Create" }).click();
@@ -242,6 +243,35 @@ export default [
     crop: async (h) => unionBox(h, [{ role: "button", name: "Create" }, ".md-menu", { role: "button", name: /Account menu/ }], { pad: 16, padLeft: 6 }),
   },
   {
+    // The home (/dashboard): greeting, Ask bar, Continue, Today, action items, meetings, workspaces.
+    // Needs the AI fakes (shots/_demo.mjs: api_run.py with PB_FAKE_ASK_AI=1 PB_FAKE_MEETINGS_AI=1).
+    id: "home",
+    page: "/get-started/tour",
+    kind: "screenshot",
+    auth: "owner",
+    url: "/dashboard",
+    viewport: { width: 1440, height: 1040 },
+    prepare: async (h) => {
+      // Something to continue (oldest first: the last one opened leads), a meeting, and two to-dos for Riya.
+      for (const slug of ["getting-started", "q3-forecast", "release-notes-2-4", "product-demo", "q3-board-deck"]) {
+        await ok(h, "GET", `/api/v1/documents/${slug}`);
+      }
+      await meeting(h, { title: "Weekly product sync", date: "2026-11-05", time: "10:00" });
+      const me = `:person[Riya Sharma]{id="${h.fx.users.riya.id}"}`;
+      await demoPage(h, {
+        title: "Launch checklist: 2.5",
+        folder: "Releases",
+        content: `What has to happen before 2.5 ships on Friday.\n\n- [x] Freeze the branch\n- [ ] ${me} Approve the 2.5 release notes\n- [ ] ${me} Confirm the launch date with Globex\n- [ ] Dry run of the migration on staging\n`,
+      });
+      await h.page.reload({ waitUntil: "domcontentloaded" });
+      await h.loc({ role: "heading", name: "Continue where you left off" }).waitFor({ timeout: 30_000 });
+      await h.loc({ text: "Approve the 2.5 release notes" }).waitFor({ timeout: 30_000 });
+      await h.settle(1500); // the cards' previews load in view
+      await parkMouse(h);
+    },
+    crop: "viewport",
+  },
+  {
     id: "sidebar",
     page: "/get-started/tour",
     kind: "screenshot",
@@ -249,7 +279,7 @@ export default [
     url: "/dashboard",
     viewport: { width: 1440, height: 800 },
     prepare: async (h) => {
-      await h.loc({ role: "heading", name: "My files" }).waitFor();
+      await h.loc({ role: "heading", name: "Continue where you left off" }).waitFor().catch(() => {});
       const acme = h.loc({ role: "treeitem", name: "Acme" });
       if ((await acme.getAttribute("aria-expanded")) !== "true") {
         await acme.locator("span[aria-hidden='true']").first().click(); // the chevron
@@ -258,7 +288,8 @@ export default [
       }
       await parkMouse(h);
     },
-    crop: { selector: "aside:has(nav[aria-label='Your drive'])", pad: 0 },
+    // Two asides carry the nav (the drawer's is hidden on a desktop): the visible one.
+    crop: async (h) => ({ selector: h.page.locator("aside:has(nav[aria-label='Your drive'])").filter({ visible: true }).first(), pad: 0 }),
   },
   {
     id: "document-bar",
@@ -486,7 +517,7 @@ export default [
     page: "/documents/addresses",
     kind: "clip",
     auth: "owner",
-    url: "/dashboard",
+    url: "/dashboard/files",
     viewport: { width: 1280, height: 720 },
     out: 1440,
     prepare: async (h) => {
@@ -641,7 +672,7 @@ export default [
     page: "/get-started/tour",
     kind: "video",
     auth: "owner",
-    url: "/dashboard",
+    url: "/dashboard/files",
     prepare: async (h) => {
       await h.loc({ role: "heading", name: "My files" }).waitFor();
       await h.sleep(600);

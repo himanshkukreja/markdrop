@@ -38,13 +38,13 @@
   "/docs-assets/ai/hosted-mcp/connected-apps.dark.webp": {
     "w": 1740,
     "h": 800,
-    "bytes": 38904,
+    "bytes": 39948,
     "kind": "image"
   },
   "/docs-assets/ai/hosted-mcp/connected-apps.webp": {
     "w": 1740,
     "h": 800,
-    "bytes": 39738,
+    "bytes": 40958,
     "kind": "image"
   },
   "/docs-assets/ai/hosted-mcp/oauth-consent.dark.webp": {
@@ -616,15 +616,15 @@
     "kind": "image"
   },
   "/docs-assets/get-started/tour/create-menu.dark.webp": {
-    "w": 740,
-    "h": 708,
-    "bytes": 22940,
+    "w": 828,
+    "h": 996,
+    "bytes": 31424,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/create-menu.webp": {
-    "w": 740,
-    "h": 708,
-    "bytes": 24878,
+    "w": 828,
+    "h": 996,
+    "bytes": 34768,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/document-bar.dark.webp": {
@@ -639,28 +639,40 @@
     "bytes": 86758,
     "kind": "image"
   },
+  "/docs-assets/get-started/tour/home.dark.webp": {
+    "w": 2880,
+    "h": 2080,
+    "bytes": 142504,
+    "kind": "image"
+  },
+  "/docs-assets/get-started/tour/home.webp": {
+    "w": 2880,
+    "h": 2080,
+    "bytes": 145622,
+    "kind": "image"
+  },
   "/docs-assets/get-started/tour/my-files.dark.webp": {
-    "w": 2580,
+    "w": 2760,
     "h": 1400,
-    "bytes": 96234,
+    "bytes": 105940,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/my-files.webp": {
-    "w": 2580,
+    "w": 2760,
     "h": 1400,
-    "bytes": 100376,
+    "bytes": 111182,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/sidebar.dark.webp": {
     "w": 496,
     "h": 1488,
-    "bytes": 22694,
+    "bytes": 25998,
     "kind": "image"
   },
   "/docs-assets/get-started/tour/sidebar.webp": {
     "w": 496,
     "h": 1488,
-    "bytes": 21698,
+    "bytes": 25496,
     "kind": "image"
   },
   "/docs-assets/get-started/what-is-markdrop/what-is-rendered-document.dark.webp": {
@@ -3198,13 +3210,13 @@
   "/docs-assets/workspaces/folders/folders-overview.dark.webp": {
     "w": 2720,
     "h": 1280,
-    "bytes": 81454,
+    "bytes": 87016,
     "kind": "image"
   },
   "/docs-assets/workspaces/folders/folders-overview.webp": {
     "w": 2720,
     "h": 1280,
-    "bytes": 82600,
+    "bytes": 87580,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-ask/ask-across.dark.webp": {

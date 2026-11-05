@@ -41,20 +41,20 @@ const escapeImmersive = async (h) => {
 };
 
 export default [
-  // ── 1. My files (dashboard) ────────────────────────────────────────────────
+  // ── 1. My files (/dashboard/files; /dashboard is the home) ─────────────────
   {
     id: "my-files",
     page: "/get-started/tour",
     kind: "screenshot",
     auth: "owner",
-    url: "/dashboard",
+    url: "/dashboard/files",
     viewport: { width: 1440, height: 900 },
     prepare: async (h) => {
       await h.loc({ role: "heading", name: "My files" }).waitFor();
       await h.page.mouse.move(5, 895); // no hover state on a row
     },
     // The sidebar and the first rows of My files.
-    crop: { box: { x: 0, y: 56, width: 1290, height: 700 } },
+    crop: { box: { x: 0, y: 56, width: 1380, height: 700 } },
   },
 
   // ── 2. Share dialog: who can open it ───────────────────────────────────────
