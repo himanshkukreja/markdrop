@@ -225,7 +225,7 @@ await step("restricted", async () => {
   if (!wl.hidden.some((h) => h.id === secret.id) || JSON.stringify(wl).includes("Board prep")) fail("admin view of a restricted meeting");
   const { p: pa } = await ctx(browser, { token: T.admin });
   await pa.goto(HUB);
-  await pa.getByText("A meeting restricted to its attendees").waitFor({ timeout: 20000 });
+  await pa.getByText("A meeting restricted to its attendees").first().waitFor({ timeout: 20000 });  // also the two-person upload (restricted by itself)
   await snap(pa, "hub-admin-hidden-light");
 });
 
