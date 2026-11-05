@@ -1,7 +1,9 @@
 // Runs the generated Google Meet script (Code.gs) against fake Apps Script services, for
 // tests/test_meetings_auto.py. Usage: node meeting_script_harness.js <script.gs> <scenario.json>
-// The scenario: {files: [{id, name, created, modified, owned, doc?, text?}], responses: [code…],
-// runs: ["setup" | "syncMeetings" …], docsFails?: bool}. Prints a JSON report.
+// The scenario: {files: [{id, name, created, modified, owned, owner?, parents?, driveId?, mime?, doc?, text?}],
+// folders?: [{id, name}], responses: [code…] (the inbox's answers), statusResponses?: [{code, body}…],
+// queue?: [file ids] (handed out by the first 'start' status), runs: ["setup" | "syncMeetings" | "check" …],
+// docsFails?: bool, driveFails?: bool (Drive v3 errors: the script falls back to DriveApp). Prints a JSON report.
 const fs = require("fs");
 const vm = require("vm");
 
@@ -9,7 +11,40 @@ const [scriptPath, scenarioPath] = process.argv.slice(2);
 const code = fs.readFileSync(scriptPath, "utf8");
 const sc = JSON.parse(fs.readFileSync(scenarioPath, "utf8"));
 
-const report = { posts: [], triggers: [], deletedTriggers: 0, searches: [], logs: [], exports: [] };
+const report = { posts: [], statuses: [], triggers: [], deletedTriggers: 0, searches: [], v3: [], logs: [], exports: [] };
+const statusResponses = (sc.statusResponses || []).slice();
+let queue = (sc.queue || []).slice();
+
+function v3File(f) {
+  const owned = f.owned !== false;
+  return {
+    id: f.id, name: f.name, mimeType: f.mime || "application/vnd.google-apps.document",
+    createdTime: f.created, modifiedTime: f.modified, webViewLink: `https://docs.google.com/document/d/${f.id}/edit`,
+    parents: f.parents || [], driveId: f.driveId,
+    owners: f.driveId ? undefined : [owned ? { me: true, displayName: "Me", emailAddress: "me@acme.test" }
+      : Object.assign({ me: false, displayName: "Gautam", emailAddress: "gautam@acme.test" }, f.owner || {})],
+  };
+}
+
+function driveV3(url) {
+  if (sc.driveFails) return { getResponseCode: () => 403, getContentText: () => "Drive API off" };
+  const u = new URL(url);
+  const q = u.searchParams.get("q") || "";
+  report.v3.push({ path: u.pathname, q, corpora: u.searchParams.get("corpora"), all: u.searchParams.get("includeItemsFromAllDrives") });
+  const ok = (body) => ({ getResponseCode: () => 200, getContentText: () => (typeof body === "string" ? body : JSON.stringify(body)) });
+  const m = /\/drive\/v3\/files\/([^/?]+)/.exec(u.pathname);
+  if (m) {
+    const f = sc.files.find((x) => x.id === decodeURIComponent(m[1]));
+    if (!f) return { getResponseCode: () => 404, getContentText: () => "not found" };
+    if (u.searchParams.get("alt") === "media") return ok(f.text || "");
+    return ok(v3File(f));
+  }
+  if (q.includes("vnd.google-apps.folder")) return ok({ files: sc.folders || [] });
+  const since = /modifiedTime > '([^']+)'/.exec(q)[1];
+  const hits = sc.files.filter((f) => new Date(f.modified) > new Date(since + "Z") &&
+    (f.listed !== false) && (!(f.parents || []).length || true));
+  return ok({ files: hits.map(v3File) });
+}
 const props = {};
 let triggers = [];
 const responses = (sc.responses || []).slice();
@@ -21,6 +56,8 @@ function fileObj(f) {
     getDateCreated: () => new Date(f.created),
     getLastUpdated: () => new Date(f.modified),
     getUrl: () => `https://docs.google.com/document/d/${f.id}/edit`,
+    getOwner: () => (f.owned === false ? { getName: () => "Gautam", getEmail: () => "gautam@acme.test" }
+      : { getName: () => "Me", getEmail: () => "me@acme.test" }),
   };
 }
 
@@ -29,7 +66,7 @@ const sandbox = {
     log: (m) => report.logs.push(String(m)),
     warn: (m) => report.logs.push("WARN " + String(m)),
   },
-  Date, JSON, Object, Number, String, Math, RegExp, Error,
+  Date, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
   LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
   PropertiesService: {
     getScriptProperties: () => ({
@@ -53,7 +90,7 @@ const sandbox = {
       report.searches.push(q);
       const since = /modifiedDate > '([^']+)'/.exec(q)[1];
       const onlyMine = q.includes("'me' in owners");
-      const hits = sc.files.filter((f) => new Date(f.modified) > new Date(since + "Z") && (!onlyMine || f.owned !== false));
+      const hits = sc.files.filter((f) => new Date(f.modified) > new Date(since + "Z") && (!onlyMine || f.owned !== false) && f.listed !== false);
       let i = 0;
       return { hasNext: () => i < hits.length, next: () => fileObj(hits[i++]) };
     },
@@ -71,6 +108,15 @@ const sandbox = {
   },
   UrlFetchApp: {
     fetch: (url, opts) => {
+      if (url.startsWith("https://www.googleapis.com/drive/v3/")) return driveV3(url);
+      if (url.endsWith("/status")) {
+        const body = JSON.parse(opts.payload);
+        report.statuses.push(Object.assign({ auth: opts.headers.Authorization }, body));
+        const r = statusResponses.length ? statusResponses.shift() : { code: 200 };
+        let out = r.body || { ok: true, latest_version: 2 };
+        if (body.phase === "start" && !r.body) { out = Object.assign({ queue: queue.map((id) => ({ file_id: id })) }, out); queue = []; }
+        return { getResponseCode: () => r.code, getContentText: () => JSON.stringify(out) };
+      }
       if (url.includes("/export?format=txt")) {
         report.exports.push(url);
         const id = /document\/d\/([^/]+)\/export/.exec(url)[1];
@@ -89,5 +135,5 @@ for (const fn of sc.runs || ["setup"]) vm.runInContext(fn.includes("(") ? fn : f
 report.triggers = triggers.map((t) => ({ fn: t.fn, every: t.every }));
 report.props = Object.keys(props).filter((k) => !k.startsWith("sent:"));
 report.sent = Object.keys(props).filter((k) => k.startsWith("sent:")).map((k) => k.slice(5)).sort();
-report.constants = vm.runInContext("({endpoint: MARKDROP_ENDPOINT, token: MARKDROP_TOKEN, lookback: LOOKBACK_HOURS})", sandbox);
+report.constants = vm.runInContext("({endpoint: MARKDROP_ENDPOINT, token: MARKDROP_TOKEN, lookback: LOOKBACK_HOURS, version: SCRIPT_VERSION, shared: INCLUDE_SHARED})", sandbox);
 process.stdout.write(JSON.stringify(report));
