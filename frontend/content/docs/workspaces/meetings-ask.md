@@ -39,7 +39,6 @@ To ask across meetings and everything else at once, use [Ask Markdrop](/workspac
 ## Related
 
 - [Ask Markdrop](/workspaces/ask-markdrop)
-
 - [Meetings](/workspaces/meetings)
 - [Search](/workspaces/search)
 - [Privacy and cost](/workspaces/meetings-privacy)
