@@ -75,7 +75,8 @@ export function getHome(): Promise<HomeData> {
   return request<HomeData>("/api/v1/home");
 }
 
-/** Mark one of your to-dos done. Throws (with the server's words) on 403 / 404 / 409 / 423. */
-export function tickAction(slug: string, block: string): Promise<{ done: boolean }> {
-  return request<{ done: boolean }>("/api/v1/home/actions/tick", { method: "POST", body: JSON.stringify({ slug, block }) });
+/** Mark one of your to-dos done (`done: false`: open it again). Throws (with the server's words) on
+ *  403 / 404 / 409 / 423. */
+export function tickAction(slug: string, block: string, done = true): Promise<{ done: boolean }> {
+  return request<{ done: boolean }>("/api/v1/home/actions/tick", { method: "POST", body: JSON.stringify({ slug, block, done }) });
 }

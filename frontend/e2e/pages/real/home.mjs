@@ -26,7 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { APP, BROWSER, STACK, STACK_ID, WORK, log, fail, reseed, seedNow, api, launch, ctx, stepper } from "./lib.mjs";
-import { measure } from "./mobile-measure.mjs";
+import { measure } from "./mobile-shell-measure.mjs";
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const ROOT = path.resolve(HERE, "../../../..").split("/.claude/worktrees/")[0];
@@ -155,7 +155,7 @@ async function device(name, { token = T.owner, theme = "light", standalone = fal
       localStorage.setItem("md_theme_beta", "1");
       localStorage.setItem("md_consent", "denied");
       localStorage.setItem("md_install_dismissed", "1");
-      localStorage.removeItem("md_rail_collapsed");
+      if (!sessionStorage.getItem("hm_fresh")) { localStorage.removeItem("md_rail_collapsed"); sessionStorage.setItem("hm_fresh", "1"); }
     } catch {}
     if (sa) {
       const mm = window.matchMedia.bind(window);
@@ -227,8 +227,9 @@ await step("continue", async () => {
   await home(p);
   const card = p.getByTestId("home-continue-card").first();
   const href = await card.getAttribute("href");
+  const slug = new URL(href, APP).pathname;
   await card.click();
-  await p.waitForURL((u) => u.pathname === href || u.href === href, { timeout: 15000 });
+  await p.waitForURL((u) => u.pathname === slug, { timeout: 15000 });
 });
 
 await step("tick", async () => {
@@ -401,6 +402,7 @@ await step("audit", async () => {
       await p.getByTestId("app-menu").click();
       const drawer = p.locator('[role="dialog"]').filter({ has: p.locator('nav[aria-label="Your drive"]') });
       await drawer.waitFor({ timeout: 5000 });
+      await p.waitForTimeout(700); // the slide-in
       const acme = drawer.getByRole("treeitem", { name: /Acme/ }).first();
       if ((await acme.getAttribute("aria-expanded")) !== "true") await acme.press("ArrowRight").catch(() => {});
       await drawer.locator(`a[href="/meetings/${WS}"]`).waitFor({ timeout: 8000 }).catch(() => fail(`${dev}: no Meetings in the drawer`));
@@ -413,6 +415,7 @@ await step("audit", async () => {
       await rail.getByTestId("rail-expand").click();
       const drawer = p.locator('[role="dialog"]').filter({ has: p.locator('nav[aria-label="Your drive"]') });
       await drawer.waitFor({ timeout: 5000 });
+      await p.waitForTimeout(700);
       for (const f of await p.evaluate(measure, { checkTargets: true })) findings.push({ dev, theme, state: "drawer", ...f });
       await snap(p, `${dev}-${theme}-drawer`);
     }

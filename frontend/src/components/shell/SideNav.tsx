@@ -347,7 +347,9 @@ function workspaceNode(
     };
     const open = c.expanded.has(wsRootKey(ws.id));
     // Meetings first: the hub (/meetings/<id>) for members (they can import) and anyone once there are meetings.
-    const meetingsRow: TreeNode[] = member || tree.folders.some((f) => f.meetings) ? [{
+    // It stands for the Meetings folder too (one "Meetings" in the tree; the hub opens the folder).
+    const hub = member || tree.folders.some((f) => f.meetings);
+    const meetingsRow: TreeNode[] = hub ? [{
       key: wsMeetingsKey(ws.id),
       sig: sig("mt", ws.id),
       label: "Meetings",
@@ -355,7 +357,7 @@ function workspaceNode(
       href: meetingsHref(ws.id),
       leaf: true,
     }] : [];
-    children = [...meetingsRow, ...(kids.get(null) ?? []).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
+    children = [...meetingsRow, ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings)).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
     if (children.length === meetingsRow.length) {
       children = [...meetingsRow, { key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];
     }

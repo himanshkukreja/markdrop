@@ -169,8 +169,8 @@ export default function Home() {
   if (data) {
     if (meetingsToday.length) facts.push(plural(meetingsToday.length, "meeting") + " today");
     if (data.actions.items.length) facts.push(plural(data.actions.items.length, "open action item"));
-    const att = data.attention.unread + data.attention.requests_count;
-    if (att) facts.push(`${att} waiting on you`);
+    if (data.attention.unread) facts.push(plural(data.attention.unread, "unread notification"));
+    if (data.attention.requests_count) facts.push(plural(data.attention.requests_count, "access request"));
   }
   const dateLine = mounted ? new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }) : "";
 
@@ -209,7 +209,9 @@ export default function Home() {
           <ContinueSection items={recent} />
           <div className="hm-pair">
             <TodaySection data={data} meetings={meetingsToday} today={today} />
-            <ActionsSection data={data} onTicked={(a) => setData((d) => d && { ...d, actions: { ...d.actions, items: d.actions.items.filter((x) => x !== a) } })} toast={toast} />
+            <ActionsSection data={data} toast={toast}
+              onTicked={(a) => setData((d) => d && { ...d, actions: { ...d.actions, items: d.actions.items.filter((x) => x !== a) } })}
+              onUndone={() => { getHome().then(setData).catch(() => {}); }} />
           </div>
           <MeetingsSection data={data} today={today} onAsk={askMeetings} />
           <WorkspacesSection data={data} />
@@ -453,7 +455,9 @@ function TodaySection({ data, meetings, today }: { data: HomeData | null; meetin
 
 /* ── Action items ──────────────────────────────────────────────────────── */
 
-function ActionsSection({ data, onTicked, toast }: { data: HomeData | null; onTicked: (a: HomeAction) => void; toast: ReturnType<typeof useToast> }) {
+function ActionsSection({ data, onTicked, onUndone, toast }: {
+  data: HomeData | null; onTicked: (a: HomeAction) => void; onUndone: () => void; toast: ReturnType<typeof useToast>;
+}) {
   const [all, setAll] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<Set<string>>(() => new Set());
@@ -470,7 +474,17 @@ function ActionsSection({ data, onTicked, toast }: { data: HomeData | null; onTi
       await tickAction(a.slug, a.block);
       setDone((s) => new Set(s).add(k));
       track("home_action", { what: "tick" });
-      toast.success("Marked done");
+      toast.toast({
+        message: "Marked done", kind: "success",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void tickAction(a.slug, a.block!, false)
+              .then(() => { setDone((s) => { const n = new Set(s); n.delete(k); return n; }); onUndone(); })
+              .catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't undo that."));
+          },
+        },
+      });
       window.setTimeout(() => onTicked(a), 700);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't mark it done. Try again.");

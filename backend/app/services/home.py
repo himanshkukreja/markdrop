@@ -110,9 +110,11 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     return {"items": out, "more": more}
 
 
-async def tick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, slug: str, block: str) -> dict:
-    """Mark one of the caller's to-dos done. 404: no such page (or unreadable) / no such to-do;
-    403: can't edit the page or the to-do isn't theirs; 409: already done; 423: someone is editing."""
+async def tick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, slug: str, block: str,
+               done: bool = True) -> dict:
+    """Mark one of the caller's to-dos done (``done=False``: open again, the home's Undo). 404: no such
+    page (or unreadable) / no such to-do; 403: can't edit the page or the to-do isn't theirs; 409: already
+    that way; 423: someone is editing."""
     from app.services import meetings, pages
 
     uid = actor.user_id
@@ -128,9 +130,9 @@ async def tick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, s
             raise HTTPException(status_code=404, detail="That to-do was changed or removed on the page.")
         if f'id="{uid}"' not in hit.group(0):
             raise HTTPException(status_code=403, detail="That to-do isn't assigned to you.")
-        if hit.group("mark") in "xX":
-            raise HTTPException(status_code=409, detail="That one is already done.")
-        new = content[: hit.start("mark")] + "x" + content[hit.end("mark"):]
+        if (hit.group("mark") in "xX") == done:
+            raise HTTPException(status_code=409, detail="That one is already done." if done else "That one is already open.")
+        new = content[: hit.start("mark")] + ("x" if done else " ") + content[hit.end("mark"):]
         try:
             await pages.check_page_lock(raw, actor, ctx, new)
             await meetings._save(db, raw, new, actor, ctx, base_rev=int(raw.get("rev") or 1))
@@ -139,7 +141,7 @@ async def tick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, s
                 raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
                 continue
             raise
-        return {"done": True}
+        return {"done": done}
     raise HTTPException(status_code=409, detail="That page keeps changing. Try again in a moment.")
 
 

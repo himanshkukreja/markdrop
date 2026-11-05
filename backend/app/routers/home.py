@@ -51,6 +51,7 @@ async def get_home(request: Request, db: AsyncIOMotorDatabase = Depends(get_db),
 class TickBody(BaseModel):
     slug: str = Field(..., min_length=1, max_length=200)
     block: str = Field(..., pattern=r"^b-[0-9A-Za-z_-]{1,40}$")
+    done: bool = Field(True, description="false: open it again (Undo)")
 
 
 @router.post("/home/actions/tick")
@@ -58,10 +59,11 @@ class TickBody(BaseModel):
 async def tick_action(request: Request, body: TickBody, db: AsyncIOMotorDatabase = Depends(get_db),
                       user: User = Depends(require_user)):
     """Mark one of your to-dos done (``- [ ]`` → ``- [x]``, found by its block id) through the normal
-    save path. 404: the page or to-do is gone (or you can't open it); 403: you can't edit the page, or
-    the to-do doesn't mention you; 409: already done; 423: someone is editing the page."""
+    save path; ``done: false`` opens it again. 404: the page or to-do is gone (or you can't open it);
+    403: you can't edit the page, or the to-do doesn't mention you; 409: already that way; 423: someone
+    is editing the page."""
     actor, ctx = _ac(request, db, user)
-    return await home_service.tick(db, actor, ctx, body.slug, body.block)
+    return await home_service.tick(db, actor, ctx, body.slug, body.block, body.done)
 
 
 class PreviewsBody(BaseModel):

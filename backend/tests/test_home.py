@@ -83,6 +83,15 @@ class Tick(HomeWorld):
         self.assertIn(todo(wm, "Bo", "Second", "b-t2t2t2t2", done=True), doc["content"])
         self.assertEqual(doc["rev"], 2)                              # the normal save path
         self.assertEqual((await self.tick("wm", "plan", "b-t2t2t2t2")).status_code, 409)
+        # Undo opens it again, once.
+        r = await self.http.post("/api/v1/home/actions/tick", headers=self.session("wm"),
+                                 json={"slug": "plan", "block": "b-t2t2t2t2", "done": False})
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertIn(todo(wm, "Bo", "Second", "b-t2t2t2t2"), (await self.doc("plan"))["content"])
+        r = await self.http.post("/api/v1/home/actions/tick", headers=self.session("wm"),
+                                 json={"slug": "plan", "block": "b-t2t2t2t2", "done": False})
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual((await self.tick("wm", "plan", "b-t2t2t2t2")).status_code, 200)
         h = await self.home("wm")
         self.assertEqual([a["text"] for a in h["actions"]["items"]], ["First"])
         # Not yours: refused, page untouched.
@@ -92,7 +101,7 @@ class Tick(HomeWorld):
         # Unknown block, unknown page.
         self.assertEqual((await self.tick("wm", "plan", "b-nope0000")).status_code, 404)
         self.assertEqual((await self.tick("wm", "no-such-page", "b-t1t1t1t1")).status_code, 404)
-        self.assertEqual((await self.doc("plan"))["rev"], 2)
+        self.assertEqual((await self.doc("plan"))["rev"], 4)
 
     async def test_unreadable_page_is_404(self):
         wm = self.uid["wm"]
