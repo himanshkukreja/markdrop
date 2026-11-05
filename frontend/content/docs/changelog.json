@@ -24,6 +24,21 @@
   "next": [],
   "entries": [
     {
+      "id": "meeting-memory-view-mode",
+      "date": "2026-11-06",
+      "title": "From meetings while you read a page",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "Pages open in View mode, and now From meetings is there too: a button in the page's top bar shows what your team decided, the action items and the topics your meetings recorded about the section you're reading, with the date, the meeting and a link to the moment.",
+      "body": "- **From meetings in the top bar.** In View mode, select **From meetings** next to **✦ Ask** and **Edit**. The same panel opens, following the section you've scrolled to and any text you select: decisions, action items, open questions and topics, each with its date, meeting, series and **Jump to moment**.\n- **Insert from View mode.** For people who can edit the page, **Insert** switches to Edit and adds the dated, cited line at the end of the section you were reading, like Ask Markdrop's Insert. Everyone else reads, jumps to the moment and asks, without Insert.\n- **Suggestions stay in Edit mode.** The missed-decision cards only appear while you write.\n- **Phones.** The button is a microphone in the bar, and the panel opens as a sheet from the bottom with 44 px buttons.\n- **Same privacy.** Only meetings you can open count; a meeting restricted to its attendees never appears for anyone else.",
+      "docs": [
+        "/pages/meeting-memory"
+      ]
+    },
+    {
       "id": "docs-nov5-features",
       "date": "2026-11-06",
       "title": "Docs for Pages, Meetings, Ask Markdrop and Slack, with screenshots; two Slack tools for AI apps",

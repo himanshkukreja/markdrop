@@ -327,7 +327,7 @@ export default [
     },
   },
 
-  // ── Meeting memory: From meetings while you write ───────────────────────────
+  // ── Meeting memory: From meetings in View mode (the bar's button) ───────────
   {
     id: "pages-meeting-memory",
     page: "/pages/meeting-memory",
@@ -338,14 +338,20 @@ export default [
     prepare: async (h) => {
       await meeting(h);
       const slug = await demoPage(h, { title: "Onboarding guide refresh", content: ONBOARDING });
-      await openEdit(h, slug);
-      await h.loc(".mm-pill").waitFor({ timeout: 40000 });
-      await h.page.locator(".mm-pill").first().click();
-      await h.loc(".mm__panel").waitFor({ timeout: 20000 });
+      await openView(h, slug);
+      await h.loc("[data-testid='mm-bar']").waitFor({ timeout: 40000 });
+      await h.page.locator("[data-testid='mm-bar']").first().click();
+      await h.loc(".mm[data-open] .mm__panel").waitFor({ timeout: 20000 });
       await h.loc(".mm-fact").first().waitFor({ timeout: 20000 });
       await h.settle(700);
       await h.page.mouse.move(5, 895);
     },
-    crop: { selector: ".mm__panel", pad: 0 },
+    // The right of the bar (From meetings, Edit) and the panel under it.
+    crop: async (h) => {
+      const bar = await h.page.locator(".pb-barwrap").first().boundingBox();
+      const panel = await h.page.locator(".mm[data-open] .mm__panel").boundingBox();
+      const x = Math.max(0, panel.x - 340);
+      return { box: { x, y: bar ? bar.y : 0, width: 1440 - x, height: panel.y + panel.height + 16 - (bar ? bar.y : 0) } };
+    },
   },
 ];
