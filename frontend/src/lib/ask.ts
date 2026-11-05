@@ -2,7 +2,8 @@
  * Ask Markdrop's client (backend routers/ask.py):
  *
  *   GET    /api/v1/ask/home              {status, suggestions, recent}
- *   POST   /api/v1/ask  (SSE)            {question, thread_id?, intent?}
+ *   POST   /api/v1/ask  (SSE)            {question, thread_id?, intent?, page?}
+ *          page (a slug) + intent "page": Ask this page with its workspace's meetings (pages/ai/AskPanel)
  *   GET    /api/v1/ask/threads/{id}      one conversation (turns whose sources closed come back withheld)
  *   DELETE /api/v1/ask/threads[/{id}]    forget one / all
  *
@@ -64,7 +65,7 @@ export function clearAskThreads(): Promise<{ deleted: number }> {
 }
 
 /** POST /ask, read as SSE until it ends or `signal` aborts. */
-export async function askMarkdrop(body: { question: string; thread_id?: string | null; intent?: AskIntent | null },
+export async function askMarkdrop(body: { question: string; thread_id?: string | null; intent?: AskIntent | "page" | null; page?: string | null },
   onEvent: (e: AskEvent) => void, signal?: AbortSignal): Promise<void> {
   const token = getToken();
   let res: Response;
@@ -78,6 +79,7 @@ export async function askMarkdrop(body: { question: string; thread_id?: string |
         question: body.question,
         ...(body.thread_id ? { thread_id: body.thread_id } : {}),
         ...(body.intent ? { intent: body.intent } : {}),
+        ...(body.page ? { page: body.page } : {}),
       }),
     });
   } catch {

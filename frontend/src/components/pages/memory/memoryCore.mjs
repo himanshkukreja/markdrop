@@ -3,6 +3,7 @@
  * (memoryCore.test.mjs) — which section the caret is in, what to ask the server for it, when a
  * question in Ask this page is about meetings, and when a section is worth the AI check.
  */
+import { chipOf, sourcesOf } from "../../../lib/askCore.mjs";
 
 /**
  * The section around top-level block `index`: from the nearest heading at or above it to the next
@@ -80,4 +81,35 @@ export function textHash(s) {
     h = Math.imul(h, 16777619);
   }
   return (h >>> 0).toString(36);
+}
+
+/** A link the page can follow: same-origin URLs become paths (they open in place). */
+export function localHref(url, origin) {
+  const u = String(url ?? "");
+  if (!u) return null;
+  if (origin && (u === origin || u.startsWith(`${origin}/`))) return u.slice(origin.length) || "/";
+  if (/^https?:\/\//i.test(u) || (u.startsWith("/") && !u.startsWith("//"))) return u;
+  return null;
+}
+
+/**
+ * An Ask-with-meetings answer (Ask Markdrop's `[n]` / `[n-sK]` citations) as Markdown whose citations
+ * are links: `[n]` → `[[k]](item url)`, `[n-sK]` → `[[k·i]](the transcript moment)`, numbered in
+ * first-cited order (askCore.sourcesOf). Labels the server didn't keep stay as they are. Returns
+ * `{ markdown, sources }` (sources: askCore's, each with `href`).
+ */
+export function citedMarkdown(answer, citations, origin) {
+  const text = String(answer ?? "");
+  const byLabel = new Map();
+  for (const c of citations || []) if (c && c.label) byLabel.set(String(c.label), c);
+  const sources = sourcesOf(text, citations).map((s) => ({ ...s, href: localHref(s.url, origin) }));
+  const markdown = text.replace(/\[(\d{1,2})(?:-s(\d{1,5}))?\]/g, (all) => {
+    const label = all.slice(1, -1);
+    const c = byLabel.get(label);
+    if (!c) return all;
+    const href = localHref(c.url, origin) ?? sources.find((s) => s.n === Number(label.split("-")[0]))?.href;
+    const chip = chipOf(sources, label);
+    return href ? `[\\[${chip}\\]](${href.replace(/[()\s]/g, encodeURIComponent)})` : `\\[${chip}\\]`;
+  });
+  return { markdown, sources };
 }

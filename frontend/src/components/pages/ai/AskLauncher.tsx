@@ -28,9 +28,11 @@ export interface AskLauncherProps {
   onStatus?: (status: PageAiStatus | null) => void;
   /** Status only, no pill: a meeting page has its own (components/meetings/MeetingPanel). */
   hidden?: boolean;
+  /** The page is in a workspace: Ask can also use its meetings ("+ Meetings"). */
+  workspace?: boolean;
 }
 
-export function AskLauncher({ slug, title, onStatus, hidden }: AskLauncherProps) {
+export function AskLauncher({ slug, title, onStatus, hidden, workspace = false }: AskLauncherProps) {
   const [status, setStatus] = useState<PageAiStatus | null>(null);
   const [Panel, setPanel] = useState<ComponentType<AskPanelProps> | null>(null);
   const [open, setOpen] = useState(false);
@@ -91,7 +93,7 @@ export function AskLauncher({ slug, title, onStatus, hidden }: AskLauncherProps)
         <Icon name="sparkle" className="pa-pill__icon" />
         <span>Ask</span>
       </button>
-      {Panel && <Panel open={open} onClose={close} slug={slug} title={title} />}
+      {Panel && <Panel open={open} onClose={close} slug={slug} title={title} workspace={workspace} />}
     </>
   );
 }
