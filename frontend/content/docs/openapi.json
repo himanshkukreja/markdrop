@@ -20490,9 +20490,15 @@
             "title": "Urls"
           },
           "restricted": {
-            "type": "boolean",
-            "title": "Restricted",
-            "default": false
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restricted"
           },
           "wait": {
             "type": "boolean",

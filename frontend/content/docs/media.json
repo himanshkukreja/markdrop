@@ -2997,26 +2997,26 @@
   },
   "/docs-assets/workspaces/meetings-import/organised.dark.webp": {
     "w": 1568,
-    "h": 1034,
-    "bytes": 42280,
+    "h": 1028,
+    "bytes": 52424,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-import/organised.webp": {
     "w": 1568,
-    "h": 1034,
-    "bytes": 45188,
+    "h": 1028,
+    "bytes": 57648,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-import/review.dark.webp": {
     "w": 1680,
-    "h": 1508,
-    "bytes": 92242,
+    "h": 1544,
+    "bytes": 106936,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-import/review.webp": {
     "w": 1680,
-    "h": 1508,
-    "bytes": 96722,
+    "h": 1544,
+    "bytes": 112976,
     "kind": "image"
   },
   "/docs-assets/workspaces/members-and-roles/invite-dialog.dark.webp": {
