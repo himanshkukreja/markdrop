@@ -985,7 +985,12 @@ export function useDocumentViewer({
         setLive(true);
         backoff = 3000;
         presence.channel.attach(sock);
-        if (opened) sock.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ type: "resync" }) }));
+        // Spread over two seconds: after a server restart every open tab reconnects at once.
+        if (opened) {
+          window.setTimeout(() => {
+            if (ws === sock && sock.readyState === WebSocket.OPEN) sock.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ type: "resync" }) }));
+          }, Math.random() * 2000);
+        }
         opened = true;
       };
       ws.onmessage = (ev) => {
