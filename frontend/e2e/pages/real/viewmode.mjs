@@ -69,9 +69,12 @@ await step("view", async () => {
   await p.getByText("The target page.").first().waitFor({ timeout: 20000 });
   await p.goBack({ waitUntil: "networkidle" });
   await inView(p);
-  await p.locator(".pb-page .pb-mention").first().click();
-  await p.waitForURL((u) => u.pathname.endsWith(`/${target}`), { timeout: 20000, waitUntil: "commit" });
-  await p.getByText("The target page.").first().waitFor({ timeout: 20000 });
+  // A page mention is a plain link in View mode (to the item's own address: here the workspace's
+  // domain, which this stack doesn't serve, so the address is checked rather than followed).
+  const mention = p.locator(".pb-page a.pb-mention").first();
+  const href = await mention.getAttribute("href", { timeout: 20000 });
+  if (!href || !href.endsWith(`/${target}`)) fail(`the mention links to ${href}`);
+  if (await p.locator(".pb-page .pb-mention[contenteditable], .pb-page [contenteditable=true]").count()) fail("something is editable in View mode");
   await c.close();
 });
 
