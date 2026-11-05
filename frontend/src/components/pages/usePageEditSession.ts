@@ -311,6 +311,18 @@ export function usePageEditSession({
     }
   }, [slug, secret, adopt, fetchLatest, setLock]);
 
+  /** Nothing unsaved here: show the page's newest version if someone wrote one meanwhile. */
+  const catchUp = useCallback(async () => {
+    if (dirty.current || saving.current) return;
+    try {
+      const latest = await fetchLatest();
+      if (dirty.current || saving.current) return;
+      if (typeof latest.rev === "number" && (baseRev.current === null || latest.rev > baseRev.current)) adopt(latest);
+    } catch {
+      /* the next live change or save brings it */
+    }
+  }, [fetchLatest, adopt]);
+
   /** Renew the lock (`intent=heartbeat`): never takes back one that lapsed or was taken over. */
   const beat = useCallback(async () => {
     if (lockRef.current.kind !== "mine") return;
@@ -329,9 +341,13 @@ export function usePageEditSession({
     applyTimers(r.timers);
     if (r.mine !== false || lockRef.current.kind !== "mine") return;
     if (r.reason === "taken_over") await lose(null, r.taken_over?.by ?? "Someone");
-    // Lapsed (idle, hidden, no heartbeat): nobody's now. The next change takes it again.
-    else if (!saving.current) setLock({ kind: "idle" });
-  }, [slug, secret, lose, setLock]);
+    // Lapsed (idle, hidden, no heartbeat): nobody's now, and someone may have written since. The
+    // next change takes it again.
+    else if (!saving.current) {
+      setLock({ kind: "idle" });
+      void catchUp();
+    }
+  }, [slug, secret, lose, setLock, catchUp]);
 
   // Leave: save what's pending, then let go of the lock. (Opening takes nothing; activity does.)
   useEffect(() => {
@@ -390,12 +406,14 @@ export function usePageEditSession({
     };
   }, [lock.kind, doSave, beat, release]);
 
-  // Live `lock` (someone took a lock over; no names on the socket): ask what happened.
+  // Live `lock` (someone took a lock over; no names on the socket), or someone else's version while
+  // we think we hold it (it lapsed and they wrote): ask the server where we stand.
   useEffect(() => {
     if (!subscribeLive) return;
     return subscribeLive((msg) => {
-      if (msg.type !== "lock") return;
-      if (lockRef.current.kind === "mine") void beat();
+      if (lockRef.current.kind !== "mine") return;
+      const rev = typeof msg.rev === "number" ? msg.rev : null;
+      if (msg.type === "lock" || (msg.type === "changed" && rev !== null && baseRev.current !== null && rev > baseRev.current && !saving.current)) void beat();
     });
   }, [subscribeLive, beat]);
 
