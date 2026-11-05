@@ -93,6 +93,8 @@ const pagesApi = () => import("@/lib/pages");
 // Meetings (components/meetings): a meeting page's own pill and panel (Ask this meeting, details).
 const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
 const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
+// From meetings (components/pages/memory) in View mode: the bar's button and the same panel as in Edit.
+const MeetingMemory = dynamic(() => import("@/components/pages/memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
 
 /**
@@ -920,6 +922,20 @@ export default function DocumentView(props: DocumentViewProps) {
   // A meeting page (or its transcript): who was there, who can open it, Transcript and Ask.
   const meetingBar = readable && !!user && isPage && page?.meeting && !tenant
     ? <MeetingHeader meetingId={page.meeting.id} role={page.meeting.role} /> : null;
+  // From meetings in View mode (signed-in members of the page's workspace; the server decides what
+  // they see): related decisions and action items for the section in view. Insert, for someone who
+  // can edit, opens Edit with it after that section, as Ask Markdrop's Insert does.
+  const viewMemory = readable && !!user && isPage && !!page?.workspace_id && !showRaw && !gated ? (
+    <MeetingMemory
+      slug={slug}
+      workspaceId={page.workspace_id}
+      title={displayTitle ?? ""}
+      editor={null}
+      readOnly
+      ai={false}
+      view={{ root: readRef, content: withoutFrontMatter(displayContent), onInsert: canEditPage && !editMode ? viewInsert : null }}
+    />
+  ) : null;
   const propsHref = tenant ? undefined : (s: string) => `/${encodeURIComponent(s)}`;
   const readerProps = page?.page_properties ? <PropertiesPanel info={page.page_properties} workspaceId={page.workspace_id ?? null} pageHref={propsHref} /> : null;
   const pageFooter = isPage ? (
@@ -990,7 +1006,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 resolve={resolvePageAsset}
                 addressing={addressing}
                 presence={pagePresence}
-                tools={canEditPage && !showRaw ? <PageModeButton mode="edit" busy={pageEditable} onClick={() => enterEdit("click")} /> : undefined}
+                tools={viewMemory || (canEditPage && !showRaw) ? <>{viewMemory}{canEditPage && !showRaw && <PageModeButton mode="edit" busy={pageEditable} onClick={() => enterEdit("click")} />}</> : undefined}
                 onShare={pageShare}
                 shareUrl={shareUrl}
                 onCopied={copyLinkEvent}
