@@ -2,8 +2,9 @@
  * Ask Markdrop's client (backend routers/ask.py):
  *
  *   GET    /api/v1/ask/home              {status, suggestions, recent}
- *   POST   /api/v1/ask  (SSE)            {question, thread_id?, intent?, page?}
- *          page (a slug) + intent "page": Ask this page with its workspace's meetings (pages/ai/AskPanel)
+ *   POST   /api/v1/ask  (SSE)            {question, thread_id?, intent?, page?, scope?, context?}
+ *          scope: the assistant's (components/assistant): doc | meetings | folder | workspace | everything
+ *   GET    /api/v1/ask/context           what the assistant offers where you are
  *   GET    /api/v1/ask/threads/{id}      one conversation (turns whose sources closed come back withheld)
  *   DELETE /api/v1/ask/threads[/{id}]    forget one / all
  *
@@ -23,13 +24,48 @@ export interface AskThreadCard { id: string; title: string; turns: number; updat
 export interface AskHomeData { status: AskStatus; suggestions: AskSuggestion[]; recent: AskThreadCard[] }
 
 export interface AskCitation {
-  label: string; n: number; key: string; title: string | null; url: string | null; web_url?: string | null;
+  label: string; n?: number; key: string; title: string | null; url: string | null; web_url?: string | null;
   kind: string | null; slug?: string | null; moment?: string | null; text?: string | null;
+  /** What it says there (a transcript line, a snippet). */
+  quote?: string | null;
+  /** When and where ("Oct 28, 2026 · Daily Standup"). */
+  subtitle?: string | null;
+  speaker?: string | null; at?: string | null; meeting_id?: string | null;
+  /** "this page", "meeting", "moment", "page", "doc"… */
+  source_kind?: string | null;
+}
+
+/** What the assistant answers from (backend services/assistant.py). */
+export type AssistantScopeKind = "doc" | "meetings" | "folder" | "workspace" | "everything";
+export interface AssistantScope {
+  kind: AssistantScopeKind;
+  page?: string | null; workspace?: string | null; folder?: string | null; meeting?: string | null;
+  series?: string | null; since?: string | null; until?: string | null;
+}
+export interface AssistantReader { heading?: string | null; selection?: string | null }
+export interface AssistantContext {
+  scopes: { kind: AssistantScopeKind; label: string; sub: string | null }[];
+  default: AssistantScopeKind;
+  page: { slug: string; title: string | null; editor: string; meeting_id?: string | null; meeting_role?: string | null } | null;
+  workspace: { id: string; name: string | null } | null;
+  folder: { id: string; name: string | null } | null;
+  meeting: { id: string; title: string | null; date?: string | null; series?: string | null } | null;
+  series: string[];
+  can_insert: boolean;
+  status: { search: AskStatus; meetings: AskStatus | null };
+}
+
+export function getAssistantContext(q: { page?: string | null; workspace?: string | null; folder?: string | null; meeting?: string | null }): Promise<AssistantContext> {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(q)) if (v) p.set(k, v);
+  return request<AssistantContext>(`/api/v1/ask/context?${p.toString()}`);
 }
 
 export interface AskTurn {
   question: string;
-  intent: AskIntent;
+  intent: AskIntent | "page" | "meetings";
+  /** The assistant's scope for this turn. */
+  scope?: { kind: AssistantScopeKind; label: string } | null;
   answer: string | null;
   citations: AskCitation[];
   withheld?: boolean;
@@ -42,9 +78,10 @@ export type AskResultItem = SearchItem & { n: number; task?: string | null };
 
 export type AskEvent =
   | { type: "status"; stage: "understanding" | "searching" | "answering"; terms?: string[] }
-  | { type: "results"; items: AskResultItem[] }
+  | { type: "results"; items: AskResultItem[]; note?: string | null }
   | { type: "delta"; text: string }
-  | { type: "done"; request_id: string; thread_id: string | null; intent: AskIntent; answer: string; citations: AskCitation[]; ranked: AskResultItem[]; truncated?: boolean }
+  | { type: "done"; request_id: string; thread_id: string | null; intent: AskIntent | "page" | "meetings"; answer: string; citations: AskCitation[]; ranked: AskResultItem[]; truncated?: boolean;
+      scope?: { kind: AssistantScopeKind; label: string } | null; engine?: string | null }
   | { type: "limit"; reason: string; message: string }
   | { type: "error"; detail: string; code?: string };
 
@@ -65,7 +102,8 @@ export function clearAskThreads(): Promise<{ deleted: number }> {
 }
 
 /** POST /ask, read as SSE until it ends or `signal` aborts. */
-export async function askMarkdrop(body: { question: string; thread_id?: string | null; intent?: AskIntent | "page" | null; page?: string | null },
+export async function askMarkdrop(body: { question: string; thread_id?: string | null; intent?: AskIntent | "page" | null; page?: string | null;
+  scope?: AssistantScope | null; context?: AssistantReader | null },
   onEvent: (e: AskEvent) => void, signal?: AbortSignal): Promise<void> {
   const token = getToken();
   let res: Response;
@@ -80,6 +118,11 @@ export async function askMarkdrop(body: { question: string; thread_id?: string |
         ...(body.thread_id ? { thread_id: body.thread_id } : {}),
         ...(body.intent ? { intent: body.intent } : {}),
         ...(body.page ? { page: body.page } : {}),
+        ...(body.scope ? { scope: Object.fromEntries(Object.entries(body.scope).filter(([, v]) => v != null && v !== "")) } : {}),
+        ...(body.context && (body.context.heading || body.context.selection) ? { context: {
+          ...(body.context.heading ? { heading: body.context.heading.slice(0, 200) } : {}),
+          ...(body.context.selection ? { selection: body.context.selection.slice(0, 1500) } : {}),
+        } } : {}),
       }),
     });
   } catch {
