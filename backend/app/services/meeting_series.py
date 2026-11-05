@@ -7,8 +7,8 @@ Meetings folder's views.
   (the website, Import past meetings, the Google Meet inbox, MCP) and every series change goes
   through it. Subfolders are made on demand (found again by their ``meetings_series`` key, so a
   person may rename the folder), with the Meetings folder's properties and views, and open on
-  "All meetings" (newest first, by month). :func:`organize` places the meetings that are already
-  there (workspace admins: "Organize meetings").
+  "All meetings" (newest first, by month). services/meeting_organize.py places the meetings that
+  are already there (workspace admins: "Organize meetings", a background job).
 * **Who sees a meeting** (owner): 1:1s and two-person calls start restricted to their attendees,
   three or more people are visible to the team (:func:`auto_restricted`); changeable per meeting.
 
@@ -311,57 +311,6 @@ async def target_folder(db: AsyncIOMotorDatabase, root: dict, series: str | None
             f = first
         f = await db["folders"].find_one({"_id": f["_id"]}) or f
     return await _copy_setup(db, root, f, user_id)
-
-
-async def organize(db: AsyncIOMotorDatabase, workspace_id: str, user) -> dict:
-    """"Organize meetings" (workspace admins): the meetings already here get their series (a name
-    seen on two or more days, unless a person set it) and move into their folders. Returns counts."""
-    from app.services import meeting_place, meetings, notifications
-
-    if not await meetings.is_ws_admin(db, workspace_id, user.id):
-        raise HTTPException(status_code=403, detail="Only workspace admins can organize the meetings.")
-    root = await meetings.ensure_folder(db, workspace_id, user.id)
-    root = await organise_folder(db, root, user.id)
-    rows = await db[COLL].find({"workspace_id": workspace_id}, {"segments": 0}).sort("date", 1).to_list(length=5000)
-    by_key: dict[str, list[dict]] = {}
-    for r in rows:
-        by_key.setdefault(key_of(r), []).append(r)
-    actor, ctx = access.Actor.of(user), access.Ctx(db)
-    named = moved = covers = 0
-    folders: set[str] = set()
-    # Transcripts are their meeting page's sub-page, not items of their own (meetings.upgrade_tick).
-    await db["documents"].update_many({"workspace_id": workspace_id, "meeting_role": "transcript",
-                                       "hidden_in_listings": {"$ne": True}}, {"$set": {"hidden_in_listings": True}})
-    for key, rs in by_key.items():
-        have = Counter(r["series"] for r in rs if r.get("series"))
-        name = have.most_common(1)[0][0] if have else (
-            det.pick_label(det.series_label(r.get("title")) for r in rs) if key and len({r.get("date") for r in rs if r.get("date")}) >= 2 else None)
-        for r in rs:
-            before, cover_before = r.get("folder_id"), r.get("cover")
-            # One series per group: a meeting without one joins it, and so does one that detection
-            # named differently ("Daily Sync Up" beside "Daily Syncup"). A person's choice stays.
-            if name and r.get("series") != name and r.get("series_from") != "user":
-                raw = await db["documents"].find_one({"_id": r.get("doc_id")}) if r.get("doc_id") else None
-                with notifications.quiet():
-                    await set_series(db, r, raw, name, actor, ctx, source="auto", check=False)
-                named += 1
-                r = await db[COLL].find_one({"_id": r["_id"]}) or r
-            try:
-                fid = await meeting_place.place_meeting(db, workspace_id, r)
-            except HTTPException as exc:
-                log.info("meetings: %s not organized (%s)", r["_id"], exc.detail)
-                continue
-            folders.add(fid)
-            moved += int(before != fid)
-            r = await db[COLL].find_one({"_id": r["_id"]}) or r
-            await meetings.refresh_cover(db, r)
-            r = await db[COLL].find_one({"_id": r["_id"]}) or r
-            covers += int(r.get("cover") != cover_before)
-            if not r.get("v2"):
-                await db[COLL].update_one({"_id": r["_id"]}, {"$set": {"v2": True}})
-    names = {r.get("series") for r in await db[COLL].find({"workspace_id": workspace_id}, {"series": 1}).to_list(length=5000)}
-    return {"meetings": len(rows), "moved": moved, "series_set": named, "folders": len(folders),
-            "series": len({n for n in names if n}), "covers": covers}
 
 
 # ── Reading ───────────────────────────────────────────────────────────────────

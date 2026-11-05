@@ -46,7 +46,7 @@ import { parseFolderHref, registerListing, type FolderTarget } from "@/lib/folde
 import { Listing, Person, ViewSwitch, useListingView, type FolderEntryProps, type ItemEntryProps } from "./Listing";
 import { AddExistingDialog, DeleteFolderDialog, MAX_FOLDER_DEPTH, MoveToDialog, RenameFolderDialog, type MoveTarget } from "./FolderDialogs";
 import ShareFolderDialog, { type ShareFolderTab } from "./ShareFolderDialog";
-import { ExposureBar, FolderDefaultDialog, exposureOf } from "./ExposureBar";
+import { FolderDefaultDialog } from "./ExposureBar";
 import ItemSheet, { type SheetAction } from "./ItemSheet";
 import PreviewMode from "./PreviewMode";
 import dynamic from "next/dynamic";
@@ -500,14 +500,6 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     </div>
   );
 
-  /* ── Exposure ─────────────────────────────────────────────────────── */
-  const serverExposure = folder ? folder.exposure : tree?.root_exposure;
-  const exposure = serverExposure ?? (state === "ok" && !cursor && !query.q && !query.kind ? exposureOf(items) : null);
-  const exposureTotal = exposure ? exposure.link + exposure.workspace + exposure.private : 0;
-  const changeDefault = isAdmin
-    ? folder ? () => setDefaultFor(folder) : () => router.push(`/settings/workspaces/${encodeURIComponent(workspaceId)}?tab=advanced`)
-    : null;
-
   /* ── Get set up ───────────────────────────────────────────────────── */
   const { hidden: checklistHidden, hide: hideChecklist } = useChecklistHidden(workspaceId);
   const steps = [
@@ -733,11 +725,6 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
           {isMember && <Button size="sm" variant="secondary" iconLeft="history" href={`${meetingsHref(workspaceId)}?import=past`}>Import past meetings</Button>}
           {isMember && <Button size="sm" iconLeft="plus" href={`${meetingsHref(workspaceId)}?import=1`}>Import meeting</Button>}
         </div>
-      )}
-
-      {/* ── Who can open what's in here ── */}
-      {exposure && exposureTotal > 0 && !filtered && (
-        <ExposureBar exposure={exposure} team={team} startsAs={isMember ? startsAs : null} onChange={changeDefault} phone={phone} />
       )}
 
       {/* ── Search / filter in the URL (from ⌘K or an old link) ── */}

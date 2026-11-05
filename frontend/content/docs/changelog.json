@@ -42,6 +42,23 @@
       ]
     },
     {
+      "id": "organize-meetings-background",
+      "date": "2026-11-05",
+      "title": "Organize meetings no longer times out, and shows what it will do",
+      "kind": "fixed",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Organize meetings works in workspaces with many meetings: it runs on Markdrop's servers with live progress instead of stopping with \"Couldn't reach Markdrop\". Its window now shows what will happen first, and the Meetings page's ⋯ menu is easier to read.",
+      "body": "- **No more \"Couldn't reach Markdrop\".** With dozens of meetings, Organize meetings could take longer than a request may, and stopped half way. It now runs on the server: it starts at once and shows \"Organizing 34 of 80 meetings\". Close the window if you like; the Meetings page keeps a progress line and refreshes when it's done.\n- **See it before you start.** The window shows how many meetings go into how many series folders and Other meetings, the folders as they'll look, how many meetings move or join a series, and the transcripts tucked under their meeting page. At the end it sums up what moved and names any meeting it couldn't file.\n- **Safe after an interrupted run.** Running it again finishes the job, never makes a second folder for a series, and removes empty extra folders an interrupted run left. Two admins who start it at once follow the same run.\n- **A clearer ⋯ menu** on the Meetings page: wider, with a line about each item, only what isn't a button already, and a bottom sheet with large rows on phones.\n- **AI apps:** `organize_meetings` waits up to about 50 seconds, then returns the progress so far; calling it again follows the same run.\n- **API:** `POST /api/v1/meetings/organize` answers `202` with the run; `GET /api/v1/meetings/organize/{run}` has its progress, and `GET /api/v1/meetings/organize?workspace=` has the preview.",
+      "docs": [
+        "/workspaces/meetings"
+      ]
+    },
+    {
       "id": "page-view-mode",
       "date": "2026-11-05",
       "title": "Pages open in View mode: links open on a click, Edit when you want to write",
@@ -516,6 +533,18 @@
       "docs": [
         "/ai/overview"
       ]
+    },
+    {
+      "id": "folders-without-access-bar",
+      "date": "2026-11-05",
+      "title": "Folders open straight to their items",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web"
+      ],
+      "summary": "The \"Who can open what's in here\" bar above every folder is gone, so folders open straight to their items.",
+      "body": "- Folders and the workspace's top level no longer show the access counts bar above the items.\n- What new items start as is still in the folder's **⋯** menu (**New items start as…**) and, for the top level, in **Workspace settings**.\n- Each item's own access is still shown on its row and in **Who can open it**."
     },
     {
       "id": "board-without-select",

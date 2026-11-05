@@ -1578,12 +1578,24 @@
       "paramNotes": {"workspace": "The workspace's id."},
       "guide": {"label": "How meetings are organised", "href": "/workspaces/meetings#how-meetings-are-organised"}
     },
+    "GET /api/v1/meetings/organize": {
+      "title": "Preview Organize meetings",
+      "description": "Workspace admins and owners: what **Organize meetings** would do in `workspace` now, and its current or last run. `preview`: how many `meetings`, how many `series` folders they go into and how many go to Other meetings (`other`), how many would move (`to_move`) or join a series (`series_set`), the transcripts still listed beside their meeting page (`transcripts_to_hide`), and the biggest series (`series_names`: `name`, `count`). `job`: the run, as in **Organize meetings progress**, or null. Reading it also picks up a run a stopped server left behind.",
+      "paramNotes": {"workspace": "The workspace's id."},
+      "guide": {"label": "Organize meetings", "href": "/workspaces/meetings#organize-meetings"}
+    },
     "POST /api/v1/meetings/organize": {
       "title": "Organize meetings",
-      "description": "Workspace admins and owners: files every meeting in `workspace` the way new ones are filed. A recurring meeting (a name seen on two or more different days) goes to Meetings › <series> and gets that series, unless a person set its series; anything else goes to Meetings › Other meetings. The folders are made when needed and keep working when renamed. Safe to run again. Returns `meetings`, `moved`, `series_set` and `folders`.",
+      "description": "Workspace admins and owners: files every meeting in `workspace` the way new ones are filed. A recurring meeting (a name seen on two or more different days) goes to Meetings › <series> and gets that series, unless a person set its series; anything else goes to Meetings › Other meetings. Transcripts move with their meetings, series covers are set where nobody chose a cover, and empty extra series folders are removed. It runs in the background: the answer is `202` with the run (`job`) at once; follow it with **Organize meetings progress**. One run per workspace: starting it while it runs joins that run. Safe to run again. 12 a minute.",
       "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0"},
       "mcp": "organize_meetings",
-      "guide": {"label": "How meetings are organised", "href": "/workspaces/meetings#how-meetings-are-organised"}
+      "guide": {"label": "Organize meetings", "href": "/workspaces/meetings#organize-meetings"}
+    },
+    "GET /api/v1/meetings/organize/{run}": {
+      "title": "Organize meetings progress",
+      "description": "A run of **Organize meetings** (`job`): `state` (`running`, `done` or `failed`, with a `message`), `done` of `total` meetings, how many moved (`filed`), joined a series (`series_set`) or got a cover (`covers`), how many couldn't be organized (`errors`, with a few `error_samples`: `title`, `error`), and once done the `folders` and `series` in use, `transcripts_hidden` and `duplicates_removed`. Poll it every second or two while it runs. The workspace's admins and owners; 404 for anyone else.",
+      "paramNotes": {"run": "The run's `id` from Organize meetings."},
+      "guide": {"label": "Organize meetings", "href": "/workspaces/meetings#organize-meetings"}
     },
     "GET /api/v1/slack/status": {
       "title": "Slack connection status",

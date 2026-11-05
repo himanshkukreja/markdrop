@@ -48,7 +48,21 @@ Each of these folders opens on **All meetings**: a table, newest first, grouped 
 
 Sort, filter or add views as in any folder; see [Folders](/workspaces/folders). Renaming a folder is fine: Markdrop keeps filing that series there.
 
-To move a meeting to another series, or take it out of one, edit **Series** in the meeting's **Details**. The page moves to that series' folder, and Markdrop doesn't change it back. Meetings imported before folders, or moved by hand, can be filed again: a workspace admin selects **⋯ › Organize into folders** on the Meetings page. It moves each meeting, with its transcript, into its folder, puts the spellings of one series together, and says how many meetings it filed and how many series there are. Running it again changes nothing that's already in place.
+To move a meeting to another series, or take it out of one, edit **Series** in the meeting's **Details**. The page moves to that series' folder, and Markdrop doesn't change it back.
+
+### Organize meetings
+
+Meetings imported before folders, or moved by hand, can be filed again. A workspace admin selects **⋯ › Organize meetings** on the Meetings page. Before anything changes, the window shows what will happen:
+
+- How many meetings there are, how many **series folders** they go into, and how many go to **Other meetings**, with the folders listed as they'll look inside **Meetings**.
+- How many meetings move into another folder (each with its transcript), and how many join a series. The spellings of one series are put together, so "Daily Syncup" joins "Daily Sync Up".
+- That each series gets its cover, on pages nobody chose a cover for, and how many transcripts are tucked under their meeting page instead of listed beside it.
+
+Select **Organize** to start. It runs on Markdrop's servers and shows its progress, such as "Organizing 34 of 80 meetings". You can close the window: the Meetings page keeps a progress line, and the list refreshes when it's done. At the end you see how many meetings moved, how many series and folders there are, and how many covers were set. If a meeting couldn't be organized, it's named, and running **Organize meetings** again retries it.
+
+Nothing is deleted, every link keeps working, and a series someone set by hand stays as it is. Running it again changes nothing that's already in place. If two people start it at the same time, they both follow the same run. Empty extra folders of a series, and the empty folder of a series whose meetings joined another, are removed; a folder with anything in it always stays.
+
+AI apps can do the same with the `organize_meetings` tool. It waits up to about 50 seconds; for a big workspace it returns the progress so far, and calling it again follows the same run.
 
 **Who can open a meeting** depends on who was there. A 1:1 or a two-person call starts restricted to its attendees. A call with three or more people is open to the workspace's team. You can change it for any meeting; see [Privacy and cost](/workspaces/meetings-privacy).
 

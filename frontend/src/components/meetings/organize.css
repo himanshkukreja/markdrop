@@ -1,0 +1,80 @@
+/* "Organize meetings" (OrganizeMeetings): the preview (N meetings → series folders + Other meetings, the
+   folder tree, what happens), the live progress and the summary. Mist tokens only; readable light/dark,
+   phone sheets; 44px targets on touch come from the Dialog/Drawer buttons. */
+
+.mt-org { display: flex; flex-direction: column; gap: 16px; min-width: 0; font-size: 14px; line-height: 20px; color: var(--text-secondary); }
+.mt-org b { color: var(--text); font-weight: 650; }
+.mt-org__empty { margin: 0; color: var(--text-muted); }
+.mt-org__skel { display: flex; flex-direction: column; gap: 12px; }
+
+/* N meetings → M series folders + K in Other meetings */
+.mt-org__flow {
+  display: flex; align-items: center; gap: 10px; padding: 14px 16px; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  background: var(--surface-inset);
+}
+.mt-org__stat { display: flex; flex-direction: column; min-width: 0; }
+.mt-org__stat b { font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.mt-org__stat span { font-size: 12.5px; line-height: 17px; color: var(--text-muted); }
+.mt-org__arrow { flex: none; width: 18px; height: 18px; color: var(--text-subtle); }
+.mt-org__plus { flex: none; font-size: 18px; color: var(--text-subtle); }
+
+/* The Meetings folder afterwards */
+.mt-org__tree { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); padding: 10px 12px; }
+.mt-org__root { display: flex; align-items: center; gap: 8px; font-weight: 650; color: var(--text); }
+.mt-org__tree svg { flex: none; width: 16px; height: 16px; color: var(--accent-text); }
+.mt-org__tree ul { margin: 6px 0 0 7px; padding: 0 0 0 14px; list-style: none; border-left: 1px solid var(--border); }
+.mt-org__tree li { display: flex; align-items: center; gap: 8px; min-height: 30px; min-width: 0; color: var(--text); }
+.mt-org__tree li.mt-org__more { color: var(--text-muted); }
+.mt-org__tree li.mt-org__more svg { color: var(--text-subtle); }
+.mt-org__name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-org__n {
+  flex: none; min-width: 26px; padding: 1px 8px; border-radius: var(--radius-full); background: var(--surface-inset);
+  font-size: 12px; line-height: 18px; text-align: center; color: var(--text-secondary); font-variant-numeric: tabular-nums;
+}
+
+/* What happens */
+.mt-org__what { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mt-org__what li { display: flex; align-items: flex-start; gap: 10px; }
+.mt-org__what svg { flex: none; width: 16px; height: 16px; margin-top: 2px; color: var(--accent-text); }
+.mt-org__note { display: flex; align-items: flex-start; gap: 8px; margin: 0; font-size: 13px; line-height: 19px; color: var(--text-muted); }
+.mt-org__note svg { flex: none; width: 14px; height: 14px; margin-top: 2px; color: var(--text-subtle); }
+
+/* Running */
+.mt-org__run { display: flex; flex-direction: column; gap: 14px; }
+.mt-org__run .md-progress__row { font-size: 14px; color: var(--text); font-weight: 600; }
+.mt-org__live { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.mt-org__live li {
+  padding: 4px 10px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface-inset);
+  font-size: 13px; line-height: 18px; font-variant-numeric: tabular-nums;
+}
+.mt-org__live li.mt-org__bad { border-color: var(--warning, var(--border-strong)); }
+
+/* Done */
+.mt-org__done { display: flex; flex-direction: column; gap: 14px; }
+.mt-org__headline { margin: 0; font-size: 15px; line-height: 22px; color: var(--text); }
+.mt-org__grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.mt-org__grid > div { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface-inset); min-width: 0; }
+.mt-org__grid dt { font-size: 12px; line-height: 16px; color: var(--text-muted); }
+.mt-org__grid dd { margin: 2px 0 0; font-size: 20px; line-height: 26px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+.mt-org__errs { margin: 4px 0 6px; padding-left: 18px; }
+
+/* The hub's line while a run goes on with the dialog closed */
+.mt-orgbar {
+  display: flex; align-items: center; gap: 12px; margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--border);
+  border-radius: var(--radius-lg); background: var(--surface);
+}
+.mt-orgbar > svg { flex: none; width: 18px; height: 18px; color: var(--accent-text); }
+.mt-orgbar .md-progress { flex: 1; min-width: 0; }
+.mt-orgbar .md-progress__row { font-size: 13.5px; color: var(--text); font-weight: 600; }
+
+@media (max-width: 639px) {
+  .mt-org__flow { flex-wrap: wrap; gap: 6px 10px; padding: 12px; }
+  .mt-org__stat b { font-size: 19px; line-height: 24px; }
+  .mt-org__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mt-org .md-dialog__foot .md-btn, .md-drawer__foot .md-btn { flex: 1; }
+  .mt-orgbar { flex-wrap: wrap; }
+}
+@media (pointer: coarse) {
+  .mt-org__tree li { min-height: 36px; }
+  .mt-orgbar .md-btn { min-height: 44px; }
+}
