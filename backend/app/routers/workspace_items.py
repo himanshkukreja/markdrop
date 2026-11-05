@@ -74,6 +74,9 @@ class FolderPatch(BaseModel):
     # What new items filed here start as; null = inherit the workspace's
     # default_access. Present ⇒ applied (absent ⇒ unchanged).
     default_access: Literal["private", "workspace", "link"] | None = None
+    # A new address something already holds there: "error" (default) = 409
+    # saying what holds it; "suffix" = the next free one (-2, -3…).
+    on_conflict: Literal["error", "suffix"] = "error"
 
 
 class FolderShare(BaseModel):
@@ -285,7 +288,8 @@ async def patch_folder(request: Request, workspace_id: str, folder_id: str, data
     async with revalidate.batch(db):  # B-R1
         folder = await folder_service.update_folder(
             db, workspace_id, folder_id, name=data.name, slug=data.slug,
-            parent_id=data.parent_id, reparent=reparent, **extra)
+            parent_id=data.parent_id, reparent=reparent, on_conflict=data.on_conflict,
+            actor=access.actor_from_request(request, user), ctx=access.Ctx(db), **extra)
     path = await folder_service.path_of(db, workspace_id, folder.id)
     return jsonable_encoder({
         "id": folder.id, "workspace_id": folder.workspace_id, "name": folder.name,

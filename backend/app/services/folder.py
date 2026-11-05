@@ -96,12 +96,60 @@ def _clean_name(name: str) -> str:
     return name
 
 
+# What happens when a new or renamed folder's address is already used where it
+# goes. "error" (what the app, the REST API and MCP do unless asked): refuse with
+# a 409 that says what holds it. "suffix": take the next free one (-2, -3…),
+# which is what internal callers that have nobody to ask keep doing.
+ON_CONFLICT = ("error", "suffix")
+OLD_PATHS_KEPT = 20
+
+
+async def address_clash(db: AsyncIOMotorDatabase, workspace_id: str, parent_id: str | None, slug: str,
+                        *, exclude_id: ObjectId | None = None, actor=None, ctx=None) -> str | None:
+    """None when ``slug`` is free directly in ``parent_id`` (None = the top),
+    else the sentence for the 409.
+
+    A sibling folder is named (every member sees the folders). A document is
+    named only when ``actor`` may read it (C-N7); otherwise the answer says
+    only that the address is taken there, which is the one thing the old
+    ``-2`` suffix gave away too. Either way the caller can pick another name
+    or ask for a suffixed address, so a document they can't see never blocks
+    them."""
+    where = "/" + "/".join([*await path_of(db, workspace_id, parent_id), slug])
+    query: dict = {"workspace_id": workspace_id, "parent_id": parent_id or None, "slug": slug}
+    if exclude_id is not None:
+        query["_id"] = {"$ne": exclude_id}
+    f = await db["folders"].find_one(query, {"name": 1})
+    if f:
+        return (f"There's already a folder “{f.get('name') or slug}” at {where}. "
+                "Pick another name, or rename or move that folder first.")
+    d = await db["documents"].find_one(
+        {"workspace_id": workspace_id, "folder_id": parent_id or None, "slug": slug})
+    if d is None:
+        return None
+    if actor is not None:
+        from app.services import access
+
+        if (await access.can(actor, d, "read", ctx or access.Ctx(db))).allowed:
+            from app.services import pages
+
+            item = pages.deleted_item(d)
+            title = f"“{item['title']}” " if item.get("title") else ""
+            return (f"The {item['kind']} {title}({slug}) already has the address {where}. "
+                    "Pick another folder name, or change that item's link first.")
+    return f"The address {where} is already taken in that folder. Pick another name."
+
+
 async def _unique_slug(
     db: AsyncIOMotorDatabase,
     workspace_id: str,
     name: str,
     parent_id: str | None,
     exclude_id: ObjectId | None = None,
+    *,
+    on_conflict: str = "suffix",
+    actor=None,
+    ctx=None,
 ) -> str:
     """A URL-safe segment for this folder, unique among its siblings — the
     folders *and* the documents filed next to it (B5, C-N7).
@@ -120,6 +168,12 @@ async def _unique_slug(
             status_code=422,
             detail=f"“{name}” can't be a top-level folder name — it clashes with a Markdrop URL.",
         )
+    if on_conflict == "error":
+        clash = await address_clash(db, workspace_id, parent_id, base, exclude_id=exclude_id,
+                                    actor=actor, ctx=ctx)
+        if clash:
+            raise HTTPException(status_code=409, detail=clash)
+        return base
 
     candidate, n = base, 1
     while True:
@@ -489,8 +543,11 @@ async def list_folders(db: AsyncIOMotorDatabase, workspace_id: str) -> list[Fold
 
 
 async def create_folder(
-    db: AsyncIOMotorDatabase, workspace_id: str, name: str, parent_id: str | None
+    db: AsyncIOMotorDatabase, workspace_id: str, name: str, parent_id: str | None,
+    *, on_conflict: str = "suffix", actor=None, ctx=None,
 ) -> Folder:
+    """``on_conflict`` (ON_CONFLICT): the routes and MCP pass what the caller
+    asked for ("error" unless they opted in); internal callers suffix."""
     from app.services import workspace as ws_service
 
     name = _clean_name(name)
@@ -509,7 +566,8 @@ async def create_folder(
             await _get_owned(db, workspace_id, parent_id)  # must exist, and be ours
             if await _depth_of(db, workspace_id, parent_id) >= MAX_DEPTH:
                 raise HTTPException(status_code=422, detail=f"Folders can nest at most {MAX_DEPTH} deep.")
-        slug = await _unique_slug(db, workspace_id, name, parent_id)
+        slug = await _unique_slug(db, workspace_id, name, parent_id,
+                                  on_conflict=on_conflict, actor=actor, ctx=ctx)
         if await doc_slug_taken(db, workspace_id, parent_id, slug):  # filed meanwhile
             raise HTTPException(status_code=409, detail=_clash_detail(None))
         if not parent_id:
@@ -539,9 +597,13 @@ async def create_folder(
     return _to_folder(doc)
 
 
-async def ensure_path(db: AsyncIOMotorDatabase, workspace_id: str, path: str) -> tuple[str, list[str]]:
+async def ensure_path(db: AsyncIOMotorDatabase, workspace_id: str, path: str, *,
+                      on_conflict: str = "error", actor=None, ctx=None) -> tuple[str, list[str]]:
     """Create every missing folder along a name path ("Guides/Setup"); returns
-    (folder id, names created). For agents (MCP create_folder)."""
+    (folder id, names created). For agents (MCP create_folder). A folder that
+    already exists along the way is used as it is; a missing one whose address
+    something else holds there is refused (``on_conflict="error"``, the
+    default: never a silent ``-2``) or suffixed (``"suffix"``)."""
     segments = [p.strip() for p in (path or "").strip().strip("/").split("/") if p.strip()]
     if not segments:
         raise HTTPException(status_code=422, detail="Give a folder path, like 'guides/setup'.")
@@ -562,7 +624,8 @@ async def ensure_path(db: AsyncIOMotorDatabase, workspace_id: str, path: str) ->
                                                 "slug": segment}, {"_id": 1})
             existing = str(hit["_id"]) if hit else None
         if existing is None:
-            folder = await create_folder(db, workspace_id, segment, parent)
+            folder = await create_folder(db, workspace_id, segment, parent,
+                                         on_conflict=on_conflict, actor=actor, ctx=ctx)
             existing = folder.id
             created.append(segment)
         parent = existing
@@ -595,14 +658,25 @@ async def update_folder(
     reparent: bool = False,
     expected_rev: int | None = ...,  # type: ignore[assignment]
     default_access: str | None = ...,  # type: ignore[assignment]
+    on_conflict: str = "suffix",
+    actor=None,
+    ctx=None,
 ) -> Folder:
     """Rename (name/slug) and/or move (reparent → parent_id; None = top level).
 
     A move validates the whole subtree: target depth + subtree height ≤
     MAX_DEPTH, no cycle, under the workspace's folder lock. Every document in
     the subtree gets its new `folder_path` and a purge; old document URLs keep
-    working (307 to canonical); folder shares keep working (share id)."""
+    working (307 to canonical); folder shares keep working (share id); the
+    folder's own old address joins ``old_paths`` and redirects too
+    (:func:`resolve_moved`).
+
+    ``on_conflict="error"`` (the routes and MCP, unless asked): a new address
+    something already holds there is a 409 (:func:`address_clash`) instead of
+    a ``-2``. Renaming only the display name of a folder whose address is a
+    suffixed form of the new name keeps that address."""
     raw = await _get_owned(db, workspace_id, folder_id)
+    old_path = await path_of(db, workspace_id, folder_id)
     rev = await folders_rev(db, workspace_id) if expected_rev is ... else expected_rev
     updates: dict = {"updated_at": datetime.now(timezone.utc)}
     target_parent = (parent_id or None) if reparent else raw.get("parent_id")
@@ -644,7 +718,12 @@ async def update_folder(
             if not cleaned:
                 raise HTTPException(status_code=422, detail="That folder address isn't valid.")
             base_name = cleaned
-        new_slug = await _unique_slug(db, workspace_id, base_name, target_parent, exclude_id=raw["_id"])
+        current = raw.get("slug") or ""
+        keep = (on_conflict == "error" and "parent_id" not in updates
+                and _same_address(base_name, current))
+        new_slug = current if keep else await _unique_slug(
+            db, workspace_id, base_name, target_parent, exclude_id=raw["_id"],
+            on_conflict=on_conflict, actor=actor, ctx=ctx)
         if new_slug != raw.get("slug") or "parent_id" in updates:
             if await doc_slug_taken(db, workspace_id, target_parent, new_slug):  # filed meanwhile
                 raise HTTPException(status_code=409, detail=_clash_detail(None))
@@ -659,12 +738,72 @@ async def update_folder(
     for key in unset:
         raw.pop(key, None)
     if structural:
+        await _remember_old_path(db, raw["_id"], old_path, await path_of(db, workspace_id, folder_id))
         slugs = await _reindex_subtree(db, workspace_id, folder_id)
         current = await list_folders(db, workspace_id)
         below = set(subtree_ids(current, folder_id))
         shares = [f.share.get("id") for f in current if f.share and f.id in below]
         await _purge(db, workspace_id, slugs, shares)
     return _to_folder(raw)
+
+
+def _same_address(name: str, current: str) -> bool:
+    """``current`` is already the address ``name`` would get, or a suffixed
+    form of it (``reports-2`` for "Reports")."""
+    import re
+
+    base = slugify(name)[:MAX_SLUG].strip("-") or "folder"
+    return current == base or bool(re.fullmatch(re.escape(base) + r"-\d+", current or ""))
+
+
+async def _remember_old_path(db: AsyncIOMotorDatabase, oid: ObjectId, old: list[str], new: list[str]) -> None:
+    """The folder's former address answers with a redirect to the new one
+    (:func:`resolve_moved`); its subfolders follow by prefix."""
+    before, after = "/".join(old), "/".join(new)
+    if not before or before == after:
+        return
+    await db["folders"].update_one({"_id": oid}, {"$pull": {"old_paths": {"$in": [before, after]}}})
+    await db["folders"].update_one(
+        {"_id": oid}, {"$push": {"old_paths": {"$each": [before], "$slice": -OLD_PATHS_KEPT}}})
+
+
+async def _walk_from(db: AsyncIOMotorDatabase, workspace_id: str, parent: str,
+                     segments: list[str]) -> str | None:
+    for segment in segments:
+        raw = await db["folders"].find_one(
+            {"workspace_id": workspace_id, "parent_id": parent, "slug": segment}, {"_id": 1})
+        if not raw:
+            return None
+        parent = str(raw["_id"])
+    return parent
+
+
+async def resolve_moved(db: AsyncIOMotorDatabase, workspace_id: str,
+                        segments: list[str]) -> tuple[str, list[str]] | None:
+    """A folder address that no longer resolves but used to: ``(folder id,
+    current path)``, or None.
+
+    The longest prefix of ``segments`` that some folder of this workspace was
+    once addressed at (``old_paths``, kept by renames and moves), then the rest
+    walked down from where that folder is now — so a subfolder of a renamed
+    folder redirects too, without every descendant keeping its own history. A
+    folder that lives at an address now always wins over a former one (the
+    caller only asks after :func:`resolve_path` failed)."""
+    if not segments or len(segments) > MAX_DEPTH:
+        return None
+    for i in range(len(segments), 0, -1):
+        prefix = "/".join(segments[:i])
+        raw = await db["folders"].find_one({"workspace_id": workspace_id, "old_paths": prefix}, {"_id": 1})
+        if raw is None:
+            continue
+        fid = await _walk_from(db, workspace_id, str(raw["_id"]), segments[i:]) if i < len(segments) \
+            else str(raw["_id"])
+        if fid is None:
+            continue
+        path = await path_of(db, workspace_id, fid)
+        if path and path != segments:
+            return fid, path
+    return None
 
 
 async def delete_folder(db: AsyncIOMotorDatabase, workspace_id: str, folder_id: str,

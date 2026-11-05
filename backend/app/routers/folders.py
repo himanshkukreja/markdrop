@@ -101,7 +101,9 @@ async def create_folder(
 ):
     # Filing is ordinary work, so member rather than admin.
     await ws_service.require_role(db, workspace_id, user.id, "member")
-    folder = await folder_service.create_folder(db, workspace_id, data.name, data.parent_id)
+    folder = await folder_service.create_folder(
+        db, workspace_id, data.name, data.parent_id, on_conflict=data.on_conflict,
+        actor=access.actor_from_request(request, user), ctx=access.Ctx(db))
     return await _with_path(db, folder)
 
 
@@ -117,6 +119,8 @@ async def update_folder(
         folder = await folder_service.update_folder(
             db, workspace_id, folder_id,
             name=data.name, parent_id=data.parent_id, reparent=data.reparent,
+            on_conflict=data.on_conflict, actor=access.actor_from_request(request, user),
+            ctx=access.Ctx(db),
         )
     return await _with_path(db, folder)
 

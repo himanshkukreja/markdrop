@@ -352,7 +352,7 @@ async def _call_tool(request_id, params: dict, principal: Principal, *, modern: 
             tools.audit_result(slug=structured["slug"])
     except tools.ToolError as exc:
         error = str(exc)
-        result = _tool_result(str(exc), None, True, modern)
+        result = _tool_result(str(exc), getattr(exc, "data", None), True, modern)
     except Exception:
         log.exception("MCP tool %s failed", tool.name)
         error = "internal error"
