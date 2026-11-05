@@ -290,3 +290,10 @@ class CardPreviews(AccessWorld):
         # Without the flag: no preview key, as before.
         status, res = await self.mcp_call(token, "list_workspace_items", {"workspace": self.ws["W1"]})
         self.assertNotIn("preview", res["structuredContent"]["items"][0])
+
+
+class BlockIds(__import__("unittest").TestCase):
+    def test_block_ids_are_not_text(self):
+        blocks = card_preview.markdown_blocks('- [ ] :person[Ada]{id="0123456789abcdef01234567"} Approve the budget {#b-a1b2c3d4}\n\nA line {#b-ffff0000}\n')
+        texts = [b.get("x") for b in blocks]
+        self.assertEqual(texts, ["Ada Approve the budget", "A line"])

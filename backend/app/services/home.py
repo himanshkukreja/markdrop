@@ -45,6 +45,9 @@ MEETINGS_MAX = 8
 MEETINGS_DAYS = 21
 PEOPLE_SHOWN = 4
 
+# A meeting note's citation of a transcript line ("[00:04](…#b-t3)", "[#3](…#b-t3)"): not part of the to-do.
+_CITE = re.compile(r"\s*\[(?:#?\d{1,4}|\d{1,2}:\d{2}(?::\d{2})?)\]\([^)\s]*#b-t\d+\)")
+
 _TODO = re.compile(r"^(?P<lead>[ \t]{0,3}(?:[-*+]|\d+[.)])[ \t]+)\[(?P<mark>[ xX])\](?P<rest>[ \t].*?)[ \t]*"
                    r"\{#(?P<block>b-[0-9A-Za-z_-]+)[^}]*\}[ \t]*$", re.M)
 
@@ -75,7 +78,7 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     for raw in rows:
         if search_index.title_only(raw):
             continue
-        tasks = task_lines(raw.get("content") or "", uid)
+        tasks = task_lines(_CITE.sub("", raw.get("content") or ""), uid)
         if not tasks:
             continue
         if not (await access.can(actor, raw, "read", ctx)).allowed:
@@ -90,6 +93,7 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
             for m in me:
                 text = text.replace(m, " ")
             text = re.sub(r"\s+", " ", text).strip(" ,;:-") or full
+            text = text[:1].upper() + text[1:]
             if len(out) >= ACTIONS_MAX:
                 more = True
                 break

@@ -250,7 +250,7 @@ function AskBar({ onAsk, onAskMeetings }: { onAsk: (q?: string) => void; onAskMe
           className="hm-ask__input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Ask about your meetings, docs and files…"
+          placeholder="Ask about your work…"
           aria-label="Ask Markdrop"
           maxLength={500}
           enterKeyHint="send"
@@ -640,7 +640,7 @@ function WorkspacesSection({ data }: { data: HomeData | null }) {
               </span>
               {w.people.length > 0 && (
                 <AvatarGroup className="hm-wscard__people">
-                  {w.people.slice(0, 3).map((p, i) => <Avatar key={i} name={p.is_you ? "You" : p.name || "Someone"} src={p.picture ?? undefined} size="sm" />)}
+                  {w.people.slice(0, 3).map((p, i) => <Avatar key={i} name={p.is_you ? `${p.name || "You"} (you)` : p.name || "Someone"} src={p.picture ?? undefined} size="sm" />)}
                 </AvatarGroup>
               )}
             </li>

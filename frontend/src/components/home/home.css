@@ -28,7 +28,7 @@
 }
 .hm-ask__input::placeholder { color: var(--text-muted); }
 .hm-ask__kbd { display: none; flex: none; gap: 3px; }
-@media (hover: hover) and (pointer: fine) { .hm-ask__kbd { display: inline-flex; } }
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) { .hm-ask__kbd { display: inline-flex; } }
 .hm-ask__send {
   display: inline-grid; flex: none; width: 44px; height: 44px; place-items: center; border: 0; border-radius: var(--radius-lg);
   background: var(--accent); color: var(--on-accent); cursor: pointer;
@@ -150,7 +150,7 @@
 .hm-row__avatar { flex: none; }
 .hm-row__main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }
 .hm-row__title { overflow: hidden; font-size: 14px; line-height: 20px; color: var(--text); text-overflow: ellipsis; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
-.hm-row__meta { display: flex; min-width: 0; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--text-muted); }
+.hm-row__meta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 2px 6px; font-size: 12px; line-height: 16px; color: var(--text-muted); }
 .hm-more {
   align-self: flex-start; min-height: 36px; padding: 0 2px; border: 0; background: none;
   font: inherit; font-size: 13px; font-weight: 600; color: var(--accent-text); cursor: pointer;

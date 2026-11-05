@@ -65,6 +65,9 @@ class Actions(HomeWorld):
         self.assertTrue(mine)
         self.assertTrue(all(a["meeting"] for a in mine))
         self.assertIn("Email the Senseloaf team", " ".join(a["text"] for a in mine))
+        for a in mine:                                      # no transcript citations, a capital first letter
+            self.assertNotRegex(a["text"], r"#\d|b-t\d|\]\(")
+            self.assertEqual(a["text"][:1], a["text"][:1].upper())
 
 
 class Tick(HomeWorld):

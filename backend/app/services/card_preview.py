@@ -156,6 +156,8 @@ _FENCE_DIRECTIVE = re.compile(r"^\s*:{3,}[A-Za-z]?[\w-]*(?:\[[^\]\n]*\])?(?:\{[^
 _LEAF_DIRECTIVE = re.compile(r"^\s*::[A-Za-z][\w-]*(?:\[[^\]\n]*\])?(?:\{[^}\n]*\})?\s*$")
 _INLINE_DIRECTIVE = re.compile(r"(?<![A-Za-z0-9_:\\]):[A-Za-z][\w-]*\[((?:\\.|[^\]\\\n])*)\](?:\{[^}\n]*\})?")
 _TASK = re.compile(r"^\[([ xX])\]\s+")
+# A block's id at the end of its line (the page editor's "{#b-…}"): never text.
+_BLOCK_ID = re.compile(r"\s*\{#b-[A-Za-z0-9_-]+[^}\n]*\}\s*$")
 _MD = None
 
 
@@ -192,7 +194,7 @@ def markdown_blocks(markdown: str) -> list[dict]:
     for ln in markdown.split("\n"):
         if _FENCE_DIRECTIVE.match(ln) or _LEAF_DIRECTIVE.match(ln):
             continue  # :::callout / ::markdrop{...} / ::toc: fences and embeds, not text
-        lines.append(ln)
+        lines.append(_BLOCK_ID.sub("", ln))
     text = _INLINE_DIRECTIVE.sub(lambda m: m.group(1).replace("\\]", "]"), "\n".join(lines))
     tokens = _md().parse(text)
     out = _Blocks()

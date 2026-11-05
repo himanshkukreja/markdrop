@@ -162,10 +162,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <UploadProvider resolveAccess={resolveAccess}>
     <WorkspaceDndProvider>
     <div className="flex w-full min-w-0 flex-1">
-      {/* Desktop (≥ 1024): the full sidebar, or the icon rail when collapsed. Tablets (768–1023): the
+      {/* Desktop (≥ 1024): the full sidebar, or the icon rail when collapsed. Tablets (720–1023): the
           icon rail, whose Expand opens the full sidebar as a drawer. Phones: the header's Menu opens it. */}
       <aside className={cx(
-        "sticky top-[calc(3.5rem+var(--safe-top))] hidden h-[calc(100dvh-3.5rem-var(--safe-top))] shrink-0 overflow-y-auto border-r border-border bg-bg md:block lg:hidden",
+        "sticky top-[calc(3.5rem+var(--safe-top))] hidden h-[calc(100dvh-3.5rem-var(--safe-top))] shrink-0 overflow-y-auto border-r border-border bg-bg min-[720px]:block lg:hidden",
         "w-16",
       )} data-rail="tablet">
         <SideNav data={data} active={active} expanded={expanded} onToggle={setOpen} onFeedback={feedback} collapsed onExpand={openBrowseDrawer} />

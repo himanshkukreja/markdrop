@@ -116,7 +116,7 @@ export function SiteHeader({ variant = "default", width = "contained", createVar
       <div className="h-full w-full px-4 sm:px-6">
         <div className={cx("mx-auto flex h-full min-w-0 items-center gap-2", width === "contained" && (marketing ? "max-w-marketing" : "max-w-tool"))}>
           {menu && user && (
-            <IconButton icon="menu" label="Menu" variant="ghost" className="-ml-2 size-11 shrink-0 md:hidden" onClick={openBrowse} aria-haspopup="dialog" data-testid="app-menu" />
+            <IconButton icon="menu" label="Menu" variant="ghost" className="-ml-2 size-11 shrink-0 min-[720px]:hidden" onClick={openBrowse} aria-haspopup="dialog" data-testid="app-menu" />
           )}
           <MarkdropLogo size={24} className="shrink-0 md:hidden" />
           <MarkdropLogo size={28} className="hidden shrink-0 md:inline-flex" />
