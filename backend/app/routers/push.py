@@ -2,6 +2,7 @@
 
     GET    /api/v1/push?endpoint=                    {enabled, public_key, devices, prefs, kinds}
     POST   /api/v1/push/subscriptions               this device's subscription → {device}
+                                                    ({refresh: true}: only an already known one → {device|null})
     POST   /api/v1/push/subscriptions/remove        {endpoint} this device stops → {removed}
     DELETE /api/v1/push/devices/{id}                any of their devices → {removed}
     PATCH  /api/v1/push/prefs                       {mention?: bool, …} → {prefs}
@@ -50,6 +51,8 @@ class Subscription(BaseModel):
     expirationTime: float | None = None
     # Running as the installed app (display-mode: standalone).
     standalone: bool = False
+    # The app opening (not "Turn on"): only keeps a device this account already has.
+    refresh: bool = False
 
 
 class Endpoint(BaseModel):
@@ -89,7 +92,8 @@ async def subscribe(request: Request, data: Subscription, db: AsyncIOMotorDataba
         except (OverflowError, OSError, ValueError):
             expires = None
     device = await svc.subscribe(db, user.id, data.endpoint, data.keys.p256dh, data.keys.auth,
-                                 ua=request.headers.get("user-agent"), standalone=data.standalone, expires_at=expires)
+                                 ua=request.headers.get("user-agent"), standalone=data.standalone, expires_at=expires,
+                                 refresh=data.refresh)
     return {"device": device}
 
 

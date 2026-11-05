@@ -214,9 +214,15 @@ def _view(row: dict, current: str | None = None) -> dict:
 
 
 async def subscribe(db: AsyncIOMotorDatabase, user_id: str, endpoint: str, p256dh: str, auth: str, *,
-                    ua: str | None = None, standalone: bool = False, expires_at: datetime | None = None) -> dict:
-    """Save (or refresh) this device's subscription for ``user_id``. The endpoint moves to them if
-    another account had it on this browser. Keeps the newest ``MAX_DEVICES``."""
+                    ua: str | None = None, standalone: bool = False, expires_at: datetime | None = None,
+                    refresh: bool = False) -> dict | None:
+    """Save (or refresh) this device's subscription for ``user_id`` (they turned it on). The
+    endpoint moves to them if another account had it on this browser. Keeps the newest
+    ``MAX_DEVICES``.
+
+    ``refresh``: the app opening, not a choice. It only keeps a device they already have up to
+    date (None otherwise), and drops another account's claim on it (that person isn't using this
+    browser any more): nobody gets notifications on a device they didn't turn them on for."""
     if not configured():
         raise HTTPException(status_code=503, detail="Push notifications aren't set up on this server.")
     if not webpush.endpoint_allowed(endpoint):
@@ -226,6 +232,10 @@ async def subscribe(db: AsyncIOMotorDatabase, user_id: str, endpoint: str, p256d
     sets = {"user_id": user_id, "p256dh": p256dh, "auth": auth, "label": device_label(ua),
             "standalone": bool(standalone), "seen_at": now, "expires_at": expires_at}
     prior = await db[SUBS].find_one({"endpoint": endpoint}, {"user_id": 1, "p256dh": 1})
+    if refresh and (prior is None or prior.get("user_id") != user_id):
+        if prior is not None:
+            await db[SUBS].delete_one({"_id": prior["_id"]})
+        return None
     if prior is not None and (prior.get("user_id") != user_id or prior.get("p256dh") != p256dh):
         # Another account's (or an old key's) device until now: it starts over as theirs.
         await db[SUBS].update_one({"_id": prior["_id"]}, {"$set": {"created_at": now, "last_ok_at": None,

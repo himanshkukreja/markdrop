@@ -12,10 +12,11 @@ import { useTheme } from "@/lib/theme";
 import { useShortcutsEnabled } from "@/lib/shortcuts";
 import { useMounted } from "@/components/shell/useLocation";
 import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
+import { PushCard } from "./PushCard";
 
 const NAME_MAX = 80;
 
-/** /settings/account (REVAMP_PLAN 7.11): profile, appearance, sign out. */
+/** /settings/account (REVAMP_PLAN 7.11): profile, appearance, notifications on devices, email, sign out. */
 export default function AccountClient() {
   const { user, ready } = useRequireUser("/settings/account");
   const { updateUser, signOut: authSignOut } = useAuth();
@@ -173,6 +174,8 @@ export default function AccountClient() {
           </div>
         </div>
       </Card>
+
+      <PushCard />
 
       <Card title="Email" id="email">
         <SwitchRow

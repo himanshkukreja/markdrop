@@ -150,15 +150,16 @@ function standalone(): boolean {
   }
 }
 
-async function save(sub: PushSubscription): Promise<PushDevice> {
+async function save(sub: PushSubscription, refresh = false): Promise<PushDevice | null> {
   const json = sub.toJSON() as { endpoint: string; keys?: { p256dh?: string; auth?: string }; expirationTime?: number | null };
-  const res = await request<{ device: PushDevice }>("/api/v1/push/subscriptions", {
+  const res = await request<{ device: PushDevice | null }>("/api/v1/push/subscriptions", {
     method: "POST",
     body: JSON.stringify({
       endpoint: json.endpoint,
       keys: { p256dh: json.keys?.p256dh || "", auth: json.keys?.auth || "" },
       expirationTime: json.expirationTime ?? null,
       standalone: standalone(),
+      refresh,
     }),
   });
   return res.device;
@@ -191,7 +192,9 @@ export async function enablePush(publicKey: string): Promise<PushDevice> {
       throw new PushError("This browser couldn't sign up for notifications. Check your connection and try again.", 0);
     }
   }
-  return save(sub);
+  const device = await save(sub);
+  if (!device) throw new PushError("Couldn't save this device. Try again.", 0);
+  return device;
 }
 
 /** Turn them off here: the server forgets this device and the browser drops the subscription. */
@@ -210,12 +213,38 @@ export async function forgetThisDevice(): Promise<void> {
 
 /**
  * On app start, signed in, with permission already granted: tell the server this device is still
- * here (it prunes devices unseen for 90 days, and the subscription may have moved to this account
- * from another on this browser, or been renewed by the browser). Silent; never prompts.
+ * here (it prunes devices unseen for 90 days; the browser may have renewed the subscription). It
+ * never adds a device: only one this account already turned on is kept (the server drops another
+ * account's claim on this browser). Silent, never prompts, at most every 12 hours.
  */
-export async function refreshPush(publicKey: string | null): Promise<PushDevice | null> {
-  if (pushSupport() !== "ok" || permission() !== "granted" || !publicKey) return null;
+const SEEN_KEY = "md_push_seen";
+const SEEN_EVERY_MS = 12 * 3600_000;
+
+export async function refreshPush(userId: string): Promise<void> {
+  if (pushSupport() !== "ok" || permission() !== "granted") return;
+  const mark = `${userId}:`;
+  try {
+    const last = localStorage.getItem(SEEN_KEY) || "";
+    if (last.startsWith(mark) && Date.now() - Number(last.slice(mark.length)) < SEEN_EVERY_MS) return;
+  } catch { /* storage blocked: refresh anyway */ }
   const sub = await currentSubscription();
-  if (!sub || !sameKey(sub, publicKey)) return null;
-  return save(sub).catch(() => null);
+  if (!sub) return;
+  await save(sub, true).catch(() => null);
+  try { localStorage.setItem(SEEN_KEY, mark + Date.now()); } catch { /* ignore */ }
+}
+
+/**
+ * Go to an in-app href (`/slug#b-…`) the way the bell does: on the same page only the hash moves
+ * (re-set when it's the same one, so the block flashes again); otherwise a client-side push.
+ */
+export function openInApp(href: string, push: (href: string) => void): void {
+  const url = new URL(href, window.location.origin);
+  if (url.origin !== window.location.origin) return;
+  if (url.pathname === window.location.pathname && url.search === window.location.search) {
+    if (!url.hash) return;
+    if (window.location.hash === url.hash) history.replaceState(history.state, "", url.pathname + url.search);
+    window.location.hash = url.hash;
+    return;
+  }
+  push(url.pathname + url.search + url.hash);
 }
