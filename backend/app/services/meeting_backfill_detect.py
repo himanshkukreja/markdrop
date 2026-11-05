@@ -51,6 +51,7 @@ _GOOGLE_SUFFIX = re.compile(r"[-–—:]\s*(?:transcript|notes by gemini|meeting
 _ISO_IN_NAME = re.compile(
     r"\(?\s*\d{4}[-/_.]\d{1,2}[-/_.]\d{1,2}(?:[ T_]+\d{1,2}[:_.]\d{2}(?:[:_.]\d{2})?)?"
     r"(?:\s*(?:[A-Z]{2,5}(?:[+-]\d{1,2}(?::?\d{2})?)?|[+-]\d{2}:?\d{2}))?\s*\)?")
+GOOGLE_NAME = re.compile(r"[-–—]\s*(?:transcript|notes by gemini)\s*(?:\.\w{2,4})?\s*$", re.I)
 _STARTED = re.compile(r"^\s*meeting started\b.*$", re.I)
 
 

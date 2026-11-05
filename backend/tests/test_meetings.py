@@ -287,7 +287,7 @@ class Import(MeetingsWorld):
         # The folder and its properties.
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
         self.assertEqual(folder["name"], "Meetings")
-        self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "attendees", "organizer", "duration", "action_items"])
+        self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "series", "attendees", "organizer", "duration", "action_items"])
         self.assertEqual(page["folder_id"], str(folder["_id"]))
         self.assertIn(f'organizer: "{self.uid["owner"]}"', c)
         self.assertIn('duration: "13 min"', c)

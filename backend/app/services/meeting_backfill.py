@@ -194,8 +194,10 @@ async def add_sources(db: AsyncIOMotorDatabase, job: dict, incoming: list[dict],
             problems.append({"name": name, "error": "No transcript or meeting notes found in it."})
             continue
         d, t, d_from = det.date_of(name, item.get("created"), src.date, src.time, today=today)
-        title = det.title_from_name(name) if item.get("origin") != "paste" else None
-        title = title or src.title or det.title_from_name(name)
+        # A Google-style name (a date, "- Transcript", "Notes by Gemini") names the meeting best; else the
+        # text's own first line does, then whatever the file is called.
+        strong = d_from == "title" or bool(det.GOOGLE_NAME.search(name))
+        title = (det.title_from_name(name) or src.title) if strong else (src.title or det.title_from_name(name))
         n += 1
         doc = {"job_id": job["_id"], "n": n, "name": name, "text": text, "sha": sha,
                "origin": item.get("origin") or "upload", "file_id": item.get("file_id"), "url": item.get("url"),
@@ -597,8 +599,8 @@ async def _row(db: AsyncIOMotorDatabase, job: dict, row: dict, user) -> None:
         log.warning("meetings backfill: row %s of %s failed", row["id"], oid, exc_info=True)
         await _set_row(db, oid, row["id"], state="failed", error="Something went wrong. Try again.")
         return
-    m = rows[0]
-    status = m.get("_status") or "imported"
+    status = rows[0].get("_status") or "imported"
+    m = await meetings.get_row(db, str(rows[0]["_id"])) or rows[0]
     since = _aware(row.get("started_at")) if again and row.get("started_at") else started
     if status == "duplicate" and m.get("created_by") == user.id and m.get("via") == "backfill" \
             and _aware(m.get("created_at")) and _aware(m.get("created_at")) >= since - timedelta(seconds=5):
