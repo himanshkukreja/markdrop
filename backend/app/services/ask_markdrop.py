@@ -70,7 +70,11 @@ CATCHUP_MAX = 30
 ACTIONS_MAX = 40
 ACTIONS_SCAN = 300
 EXPAND_MAX_TOKENS = 300
-ANSWER_MAX_TOKENS = 1000
+# Haiku 5.5 thinks before answering even at effort "low", and thinking counts against max_tokens
+# (real-model eval 2026-11-05: a catch-up over 7 meetings spent ~900 of 1000 on thinking and came
+# back empty or cut off mid-tag). The prompts bound the visible answer (≤180 words); this is headroom.
+ANSWER_MAX_TOKENS = 3000
+CUT_SHORT = "The answer was cut short before it started. Ask again, or ask something narrower."
 
 LIMIT_MESSAGES = {**pages_ai.LIMIT_MESSAGES, "signin": "Sign in to ask Markdrop."}
 
@@ -214,6 +218,8 @@ async def _stream(run: search_ai.Run, params: dict, on_text=None) -> tuple[str, 
 
 
 _RANKING = re.compile(r"<ranking>\s*([0-9,\s]*)\s*</ranking>", re.I)
+# An answer cut off inside its first line ("<ranking>6,1,2</rank"): its numbers, and the leftover to strip.
+_RANKING_CUT = re.compile(r"^\s*<ranking>\s*([0-9,\s]*)(?:</?r?a?n?k?i?n?g?>?)?", re.I)
 _CITE = re.compile(r"\[(\d{1,2})(?:-s(\d{1,5}))?\]")
 
 
@@ -270,7 +276,7 @@ async def _relay(run: search_ai.Run, params: dict) -> AsyncIterator[tuple[str, A
             break
         raw, stop = task.result()
         if state["ranked"] is None:
-            m = _RANKING.search(raw)
+            m = _RANKING.search(raw) or _RANKING_CUT.search(raw)
             yield ("ranking", nums(m.group(1)) if m else [])
         yield ("final", (raw, stop))
     finally:
@@ -287,6 +293,7 @@ def ev(event: str, **data) -> tuple[str, dict]:
 def clean_answer(text: str, known: set[str]) -> str:
     """The answer without the ranking line and tags; citations kept only for labels in ``known``."""
     body = _RANKING.sub("", text or "", count=1).strip()
+    body = _RANKING_CUT.sub("", body, count=1).strip()
     body = re.sub(r"</?untrusted_\w+[^>]*>", "", body)
     body = _CITE.sub(lambda m: m.group(0) if m.group(0)[1:-1] in known else "", body)
     body = re.sub(r"[ \t]+([.,;:])", r"\1", body)
@@ -349,7 +356,7 @@ async def _transcript_lines(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: 
         return [], row.get("transcript_slug"), row
     from app.services import meetings_ai
 
-    keep = meetings_ai.best_segments(segs, question, LINES_PER_MEETING, neighbours=0)
+    keep = meetings_ai.best_segments(segs, question, LINES_PER_MEETING, neighbours=0, follow=2)
     return [(k + 1, segs[k]) for k in keep], row.get("transcript_slug"), row
 
 
@@ -855,6 +862,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             return
         known = _known(sources)
         answer = clean_answer(raw, known)
+        if not answer and stop == "max_tokens":
+            answer = CUT_SHORT
         labels = labels_in(answer)
         # Every cited item is decided again now (access may have changed while the model wrote).
         cited_keys = sorted({by_n[int(lab.split("-", 1)[0])].key for lab in labels})

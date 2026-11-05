@@ -183,6 +183,56 @@ class ParserTests(unittest.TestCase):
         self.assertGreater(len(s.segments), 3)
 
 
+class Retrieval(unittest.TestCase):
+    """Real-model eval 2026-11-05 (.work/meetings/eval): "Which email provider did we choose?" matched
+    only the line saying "email"; the line with who migrates to Postmark (no word in common with the
+    question) wasn't sent, so the model cited a neighbouring line for it."""
+
+    SEGS = [{"speaker": s, "text": t} for s, t in [
+        ("Ada", "Morning everyone. Main topic today is the v3 launch date."),
+        ("Bo", "The search rewrite is late."),
+        ("Bo", "Also, we picked Postmark over SendGrid for transactional email, right?"),
+        ("Ada", "Yes, Postmark. Cheaper at our volume and better deliverability in India."),
+        ("Ravi", "Unrelated: lunch is at one."),
+        ("Priya", "I'll migrate the templates to Postmark by October 31."),
+        ("Ada", "Thanks all, the Markdrop demo rocks."),
+    ]]
+
+    def test_names(self):
+        self.assertEqual(meetings_ai._names("Also, we picked Postmark over SendGrid. Cheaper too"), {"postmark", "sendgrid"})
+        self.assertEqual(meetings_ai._names("I'll go. Okay then"), set())
+
+    def test_follow_brings_lines_naming_the_same_thing(self):
+        q = "Which email provider did we choose and why?"
+        self.assertEqual(meetings_ai.best_segments(self.SEGS, q, 10, neighbours=0), [2])
+        self.assertEqual(meetings_ai.best_segments(self.SEGS, q, 10, neighbours=0, follow=3), [2, 3, 5])
+        self.assertEqual(meetings_ai.best_segments(self.SEGS, q, 10, neighbours=0, follow=1), [2, 3])
+
+    def test_follow_skips_common_names(self):
+        segs = self.SEGS + [{"speaker": "Bo", "text": f"So Markdrop item {i}."} for i in range(5)]
+        got = meetings_ai.best_segments(segs, "Who said rocks?", 10, neighbours=0, follow=3)
+        self.assertEqual(got, [6])   # "Markdrop" is on 6 lines: following it would add noise
+        self.assertEqual(meetings_ai.best_segments(self.SEGS + segs[7:9], "Who said rocks?", 10, neighbours=0, follow=3), [6, 7, 8])
+
+    def test_answer_cut_off_in_its_ranking_line(self):
+        # Eval run 2: Haiku 5.5's thinking used the whole max_tokens; the answer was "<ranking>6,1,2</ranking".
+        from app.services import ask_markdrop
+
+        for text in ("<ranking>6,1,2,4</ranking", "<ranking>6,1</rank", "<ranking>6,", "  <ranking>"):
+            self.assertEqual(meetings_ai.clean_answer(text), "", text)
+            self.assertEqual(ask_markdrop.clean_answer(text, set()), "", text)
+        self.assertEqual(meetings_ai.clean_answer("<ranking>1</ranking>\n\nShip Friday [M1]."), "Ship Friday [M1].")
+        self.assertEqual(ask_markdrop._RANKING_CUT.search("<ranking>3,1</rank").group(1), "3,1")
+        # Headroom for thinking (the prompts bound the visible answer).
+        self.assertGreaterEqual(meetings_ai.ASK_MAX_TOKENS, 3000)
+        self.assertGreaterEqual(ask_markdrop.ANSWER_MAX_TOKENS, 3000)
+
+    def test_prompts_cite_lines_only_for_what_they_say(self):
+        self.assertIn("Cite a line only for what that line itself says", meetings_ai.ASK_SYSTEM)
+        self.assertIn("Cite a transcript line only for what that line itself says", meetings_ai.ACROSS_SYSTEM)
+        self.assertIn('never "Meeting 2" or "M2"', meetings_ai.ACROSS_SYSTEM)
+
+
 # ── The world ─────────────────────────────────────────────────────────────────
 
 GEN = {
