@@ -181,6 +181,11 @@ export interface LockInfo {
   taken_over?: { by: string; at: string | null; via?: string | null };
   /** This call took it over from someone. */
   took_over?: { from: string; dirty: boolean };
+  /**
+   * For the beacon that lets go of this lock as the page closes (`unlockPage` with `keepalive`):
+   * it releases this person's own lock on this page and nothing else, and is no session.
+   */
+  release_token?: string;
 }
 
 /** What a 423 `locked` (or GET …/lock) says about the person holding the page. */
@@ -366,11 +371,16 @@ export function keepUnsaved(slug: string, body: { title: string | null; content:
   return call<{ kept: boolean; version: number | null }>(`/api/v1/documents/${enc(slug)}/lock/keep`, { method: "POST", body: JSON.stringify(body), secret });
 }
 
-export function unlockPage(slug: string, opts?: { keepalive?: boolean; secret?: string | null }) {
-  // The page is closing: a beacon, with the session token as its body. A keepalive DELETE needs a
-  // CORS preflight (the API is on another origin) that browsers don't make while a page unloads, so
-  // the lock would stay taken for two more minutes.
-  const t = opts?.keepalive ? getToken() : null;
+/**
+ * Let go of the edit lock. `keepalive` (the editor is leaving: unmount, the tab closing): a beacon
+ * whose body is the lock's `releaseToken` (from its lock answers; it lets go of this person's own
+ * lock on this page only), or the session token when there is none yet.
+ */
+export function unlockPage(slug: string, opts?: { keepalive?: boolean; secret?: string | null; releaseToken?: string | null }) {
+  // The page is closing: a beacon. A keepalive DELETE needs a CORS preflight (the API is on another
+  // origin) that browsers don't make while a page unloads, so the lock would stay taken for two
+  // more minutes; and a beacon can't carry the Authorization header.
+  const t = opts?.keepalive ? opts.releaseToken || getToken() : null;
   if (t && typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
     try {
       if (navigator.sendBeacon(`${API_BASE}/api/v1/documents/${enc(slug)}/lock/release`, new Blob([t], { type: "text/plain" }))) {

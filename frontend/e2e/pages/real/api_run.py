@@ -22,8 +22,9 @@ mod.settings.page_revalidate_enabled = True
 # 127.0.0.1); the domain service refuses *.localhost as reserved, so its origin is allowed statically.
 mod.settings.cors_origins.append(f"http://acme.localhost:{NEXT_PORT}")
 # Short page edit-lock timers for editlock.mjs (services/pages.py: idle, hidden, heartbeat TTL; the
-# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S.
-for _k in ("idle", "hidden", "ttl"):
+# editor reads them from the lock answers): PB_LOCK_IDLE_S / PB_LOCK_HIDDEN_S / PB_LOCK_TTL_S, and
+# PB_LOCK_GONE_S (the holder's tabs closed without a word: services/viewers._editor_left).
+for _k in ("idle", "hidden", "ttl", "gone"):
     if os.environ.get(f"PB_LOCK_{_k.upper()}_S"):
         setattr(mod.settings, f"page_lock_{_k}_s", float(os.environ[f"PB_LOCK_{_k.upper()}_S"]))
 
@@ -522,4 +523,9 @@ if os.environ.get("PB_FAKE_SLACK"):
 
 import uvicorn  # noqa: E402
 
-uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning")
+# Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
+# At uvicorn's default 5 s the scripts' first request after a blocking step (mcpToken / reseed run
+# Python with execFileSync, which holds Node's event loop for 2–5 s, so its 4 s timer never fires)
+# went out on a socket the server had just closed: "fetch failed" (ECONNRESET on macOS,
+# UND_ERR_SOCKET "other side closed" on Linux), e.g. bughunt draft-after-append's append_blocks.
+uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning", timeout_keep_alive=60)

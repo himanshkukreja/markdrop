@@ -399,6 +399,13 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node ${{ matrix.script }}.mjs
 
+      # The edit lock goes as its editor leaves (sub-page, navigation, a closed or killed tab, the
+      # workspace's domain): ~1.5 min, on the shorter bughunt job.
+      - name: lockleave.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node lockleave.mjs
+
       - name: Stack logs
         if: failure()
         run: for f in api worker web; do echo "== $f"; tail -n 80 "$PB_WORK/stack/$f.log" 2>/dev/null; done

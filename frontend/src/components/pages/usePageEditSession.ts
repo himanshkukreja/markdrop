@@ -152,6 +152,13 @@ export function usePageEditSession({
     timers.current = { heartbeat: ms(t.heartbeat_s, HEARTBEAT_MS), idle: ms(t.idle_s, IDLE_MS), hidden: ms(t.hidden_s, HIDDEN_MS) };
   };
   const acquiring = useRef<Promise<boolean> | null>(null);
+  /** The lock's release token (its answers carry one): what the leaving beacon sends. */
+  const releaseToken = useRef<string | null>(null);
+  const keepToken = (r: LockInfo) => {
+    if (typeof r.release_token === "string" && r.release_token) releaseToken.current = r.release_token;
+  };
+  /** The editor is going (unmount, another page): nothing new is scheduled, the lock is let go. */
+  const leaving = useRef(false);
   /** Taking the lock failed for want of a network (or a server error) with text to save: try again. */
   const acquireRetry = useRef<number | null>(null);
   const cbs = useRef({ onSaved, onAppend, onRemote, onCover, onMoved });
@@ -291,24 +298,29 @@ export function usePageEditSession({
       }
     } finally {
       saving.current = false;
-      if (dirty.current && lockRef.current.kind === "mine" && !timer.current) timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
+      if (dirty.current && lockRef.current.kind === "mine" && !timer.current && !leaving.current) timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
     }
   }, [slug, secret, fetchLatest, setLock, rebase, setConflict]);
 
   /** Take the lock (once at a time). True when it's ours. */
-  const acquire = useCallback((): Promise<boolean> => {
+  const acquire = useCallback((opts?: { leaving?: boolean }): Promise<boolean> => {
     if (lockRef.current.kind === "mine") return Promise.resolve(true);
+    // Never taken by an editor on its way out (a change its teardown reports, a late retry), but
+    // for the moment it takes to save what was typed just before (letGo).
+    if (leaving.current && !opts?.leaving) return Promise.resolve(false);
     if (acquiring.current) return acquiring.current;
     setLock({ kind: "acquiring" });
     const p = (async () => {
       try {
         const r = await lockPage(slugRef.current, secret, { intent: "edit", dirty: dirty.current });
         applyTimers(r.timers);
+        keepToken(r);
         lastBeat.current = Date.now();
         setNotice(null);
         setLock({ kind: "mine" });
-        // What was typed while the lock was on its way saves now.
-        if (dirty.current && !timer.current) timer.current = window.setTimeout(() => void doSave(), 300);
+        // What was typed while the lock was on its way saves now (or, the editor gone meanwhile,
+        // as it lets go: see the leave effect).
+        if (dirty.current && !timer.current && !leaving.current) timer.current = window.setTimeout(() => void doSave(), 300);
         return true;
       } catch (e) {
         const status = pagesErrorStatus(e);
@@ -351,6 +363,43 @@ export function usePageEditSession({
     setLock({ kind: "idle" });
     void unlockPage(slugRef.current, { secret }).catch(() => {});
   }, [slug, secret, doSave, setLock]);
+
+  /**
+   * The editor is leaving (unmount: another page, the sub-page it just made): what's pending is
+   * saved, then the lock goes, whatever state it was caught in. A lock still on its way (the first
+   * change was just made) is let go of as soon as it's ours; a save on its way lands first, so
+   * what came after it saves on top. The text also stays in this browser's draft.
+   */
+  const letGo = useCallback(async (at: string) => {
+    // The editor inside hands up its last keystrokes as it unmounts, after this (its parent's)
+    // cleanup ran: take them too.
+    await new Promise((r) => window.setTimeout(r, 0));
+    if (lockRef.current.kind === "acquiring" && acquiring.current) {
+      if (!(await acquiring.current.catch(() => false))) return;
+    }
+    // Typed in the last moments, before the lock was even asked for (the editor's unmount flush):
+    // take it just to save that, then let go.
+    if (leaving.current && lockRef.current.kind === "idle" && dirty.current && !conflictRef.current) {
+      if (!(await acquireRef.current({ leaving: true }))) return;
+    }
+    if (lockRef.current.kind !== "mine") return;
+    for (let i = 0; saving.current && i < 200; i++) await new Promise((r) => window.setTimeout(r, 50));
+    clearTimer();
+    if (dirty.current && lockRef.current.kind === "mine" && !conflictRef.current) {
+      const f = { ...fields.current };
+      dirty.current = false;
+      try {
+        const doc = await savePage(at, { title: f.title, content: f.content, baseRev: baseRev.current }, secret);
+        baseRev.current = typeof doc.rev === "number" ? doc.rev : baseRev.current;
+        base.current = f;
+      } catch {
+        dirty.current = true; /* kept in this browser's draft */
+      }
+    }
+    if (lockRef.current.kind !== "mine") return;
+    setLock({ kind: "idle" });
+    void unlockPage(at, { keepalive: true, secret, releaseToken: releaseToken.current }).catch(() => {});
+  }, [secret, setLock]);
 
   /**
    * A key, a click or a focus in the page: the person is here. It takes nothing: only a real
@@ -469,6 +518,7 @@ export function usePageEditSession({
       return;
     }
     applyTimers(r.timers);
+    keepToken(r);
     if (r.mine !== false || lockRef.current.kind !== "mine") return;
     if (r.reason === "taken_over") await lose(null, r.taken_over?.by ?? "Someone");
     // Lapsed (idle, hidden, no heartbeat): nobody's now, and someone may have written since. The
@@ -479,21 +529,17 @@ export function usePageEditSession({
     }
   }, [secret, lose, setLock]);
 
-  // Leave: save what's pending, then let go of the lock. (Opening takes nothing; a change does.)
+  // Leave: save what's pending, then let go of the lock (letGo). Opening takes nothing; a change does.
+  const letGoRef = useRef(letGo);
+  letGoRef.current = letGo;
   useEffect(() => {
+    leaving.current = false;
     return () => {
+      leaving.current = true;
       clearTimer();
-      const held = lockRef.current.kind === "mine";
-      const at = slugRef.current;
-      if (held && dirty.current) {
-        const f = fields.current;
-        void savePage(at, { title: f.title, content: f.content, baseRev: baseRev.current }, secret)
-          .then((doc) => cbs.current.onSaved?.(doc))
-          .catch(() => {})
-          .finally(() => void unlockPage(at, { keepalive: true, secret }).catch(() => {}));
-      } else if (held) {
-        void unlockPage(at, { keepalive: true, secret }).catch(() => {});
-      }
+      if (acquireRetry.current !== null) window.clearTimeout(acquireRetry.current);
+      acquireRetry.current = null;
+      void letGoRef.current(slugRef.current);
     };
   }, [slug, secret]);
 
@@ -578,6 +624,7 @@ export function usePageEditSession({
       try {
         const r = await lockPage(slugRef.current, secret, { intent: "edit", dirty: true });
         applyTimers(r.timers);
+        keepToken(r);
         lastEdit.current = Date.now();
       } catch {
         return; /* taken again meanwhile */
@@ -773,8 +820,13 @@ export function usePageEditSession({
     const before = (e: BeforeUnloadEvent) => {
       if (dirty.current || saving.current) e.preventDefault();
     };
+    // The tab closing (or going to another site): the beacon goes now — there's no time to save
+    // first (what's unsaved stays in this browser's draft, and leaving asked). A lock still on its
+    // way is let go of too: a release token from an earlier lock here (the same person and page)
+    // or the session says who.
     const hide = () => {
-      if (lockRef.current.kind === "mine") void unlockPage(slugRef.current, { keepalive: true, secret }).catch(() => {});
+      const k = lockRef.current.kind;
+      if (k === "mine" || k === "acquiring") void unlockPage(slugRef.current, { keepalive: true, secret, releaseToken: releaseToken.current }).catch(() => {});
     };
     window.addEventListener("beforeunload", before);
     window.addEventListener("pagehide", hide);
@@ -792,6 +844,8 @@ export function usePageEditSession({
     if (kind === "theirs" || kind === "readonly") return;
     const same = next.title === base.current.title && next.content === base.current.content;
     dirty.current = !same;
+    // Leaving: noted (letGo saves it if the lock is ours; the draft keeps it), never a new lock.
+    if (leaving.current) return;
     if (same) {
       if (!saving.current) setSave((s) => (s.state === "dirty" ? { state: "saved", at: Date.now() } : s));
       clearTimer();
@@ -857,6 +911,7 @@ export function usePageEditSession({
     try {
       const r = await lockPage(slugRef.current, secret, { intent: "edit", takeOver: true, dirty: dirty.current });
       applyTimers(r.timers);
+      keepToken(r);
       lastEdit.current = Date.now();
       lastBeat.current = Date.now();
       setNotice(null);
