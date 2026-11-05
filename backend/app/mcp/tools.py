@@ -90,7 +90,14 @@ MAX_RETURNED_CHARS = 200_000
 
 
 class ToolError(Exception):
-    """A failure to report to the model as `isError: true`."""
+    """A failure to report to the model as `isError: true`. ``data``, when
+    given, goes out as the result's ``structuredContent`` (it must fit the
+    tool's output schema): a refusal the model can act on field by field,
+    like delete_folder's listing of what is inside."""
+
+    def __init__(self, message: str = "", data: dict | None = None):
+        super().__init__(message)
+        self.data = data
 
 
 @dataclass
@@ -1729,7 +1736,8 @@ async def list_folders(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id, _ws, role = await resolve_workspace(ctx, args["workspace"])
     tree = await workspace_items.tree(ctx.db, access_service.Actor.of(ctx.user),
                                       access_service.Ctx(ctx.db), ws_id, role)
-    folders = [{"id": f["id"], "name": f["name"], "path": f["path"], "depth": f["depth"],
+    folders = [{"id": f["id"], "name": f["name"], "slug": f["slug"], "parent_id": f["parent_id"],
+                "path": f["path"], "depth": f["depth"],
                 "items": f["total_count"], "updated_at": iso(f.get("updated_at")),
                 "people": ["you" if p["is_you"] else p["name"] for p in f.get("people") or [] if p.get("name") or p["is_you"]]}
                for f in tree["folders"]]
@@ -1880,15 +1888,27 @@ async def create_folder(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id, _ws, role = await resolve_workspace(ctx, args["workspace"])
     if not role_allows(role, "member"):
         raise ToolError("The user is a viewer of that workspace, so they can't create folders.")
+    on_conflict = args.get("on_conflict") or "error"
     try:
-        folder_id, created = await folder_service.ensure_path(ctx.db, ws_id, args["path"])
+        folder_id, created = await folder_service.ensure_path(
+            ctx.db, ws_id, args["path"], on_conflict=on_conflict, actor=actor_of(ctx),
+            ctx=access_service.Ctx(ctx.db, surface="mcp"))
         path = await folder_service.path_of(ctx.db, ws_id, folder_id)
     except HTTPException as exc:
+        if exc.status_code == 409 and on_conflict == "error":
+            raise ToolError(f"{http_message(exc)} Nothing was created. To use the next free address "
+                            "instead (…-2), call again with on_conflict: \"suffix\".")
         raise ToolError(http_message(exc))
     out = {"workspace_id": ws_id, "folder_id": folder_id, "path": "/".join(path), "created": created}
     if not created:
         return f"The folder {out['path']} already exists.", out
-    return f"Created {out['path']}.", out
+    # Only the first folder made can have met a taken address (the rest are inside it).
+    first = path[len(path) - len(created)] if len(path) >= len(created) else None
+    note = (folder_service.suffixed_note(folder_service.base_slug(created[0]), first)
+            if on_conflict == "error" and first else None)
+    if note:
+        out["note"] = note
+    return f"Created {out['path']}." + (f" {note}" if note else ""), out
 
 
 async def move_to_folder(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2269,6 +2289,10 @@ _URL_PROPS = {
 _WORKSPACE_ARG = {"type": "string", "minLength": 1, "maxLength": 300,
                   "description": ("A workspace the user belongs to: its id, its name, or one of its "
                                   "custom domains (see list_workspaces). The user must be a member.")}
+_ON_CONFLICT_ARG = {"type": "string", "enum": ["error", "suffix"], "default": "error",
+                    "description": ("When the folder's address is already taken where it goes: \"error\" "
+                                    "(default) refuses and says what holds it; \"suffix\" takes the next "
+                                    "free address (name-2, name-3…).")}
 _FOLDER_ARG = {"type": "string", "minLength": 1, "maxLength": 400,
                "description": ("An existing folder of that workspace, as a path like 'guides/setup' "
                                "(see list_folders). It must exist; create it with create_folder.")}
@@ -3174,7 +3198,8 @@ TOOLS += [
         name="list_folders",
         title="List a workspace's folders",
         description=("The folders of a workspace as paths (e.g. 'guides/setup'), with how many items the user can open "
-                     "in each, when something in each last changed, and whose items are in it (up to three people)."),
+                     "in each, when something in each last changed, and whose items are in it (up to three people). "
+                     "Each folder's path or id is what rename_folder, move_folder and delete_folder take."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folders": {"type": "array"},
@@ -3256,16 +3281,25 @@ TOOLS += [
     Tool(
         name="create_folder",
         title="Create a folder",
-        description="Create a folder in a workspace by path ('guides/setup'), including any missing parent folders.",
+        description=("Create a folder in a workspace by path ('guides/setup'), including any missing parent "
+                     "folders; folders that already exist along the path are used as they are. If the new "
+                     "folder's address is already taken where it goes (a page, document, file or another "
+                     "folder there has that slug), nothing is created and the error says what holds it — never "
+                     "a silent '-2'. on_conflict: \"suffix\" takes the next free address instead. Members "
+                     "can create folders; rename_folder, move_folder and delete_folder need an admin."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
             "path": {"type": "string", "minLength": 1, "maxLength": 400,
                      "description": "Folder path, e.g. 'guides/setup'."},
+            "on_conflict": _ON_CONFLICT_ARG,
         }, "required": ["workspace", "path"]},
         output_schema=_out({"workspace_id": {"type": "string"}, "folder_id": {"type": "string"},
-                            "path": {"type": "string"}, "created": {"type": "array"}}),
+                            "path": {"type": "string"}, "created": {"type": "array"},
+                            "note": {"type": "string", "description": "Set when the address had to be "
+                                                                      "suffixed (an item the user can't open has it)."}},
+                           ["workspace_id", "folder_id", "path", "created"]),
         annotations=_ann(False, False, True),
         handler=create_folder,
     ),
@@ -3294,6 +3328,11 @@ TOOLS += PAGE_TOOLS
 from app.mcp.history_tools import HISTORY_TOOLS  # noqa: E402
 
 TOOLS += HISTORY_TOOLS
+
+# Rename, move and delete folders: app/mcp/folder_tools.py.
+from app.mcp.folder_tools import FOLDER_TOOLS  # noqa: E402
+
+TOOLS += FOLDER_TOOLS
 
 # A document's link (set_slug): app/mcp/slug_tools.py.
 from app.mcp.slug_tools import SLUG_TOOLS  # noqa: E402

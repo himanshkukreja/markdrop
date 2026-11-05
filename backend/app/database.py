@@ -86,6 +86,8 @@ async def connect() -> None:
         unique=True,
         partialFilterExpression={"slug": {"$exists": True}},
     )
+    # A renamed or moved folder's former addresses (services/folder.resolve_moved).
+    await db["folders"].create_index([("workspace_id", 1), ("old_paths", 1)])
     await db["documents"].create_index([("workspace_id", 1), ("folder_id", 1)], sparse=True)
     # The folder view (GET /workspaces/{id}/items?folder=…): one folder's rows, newest edit first,
     # cursor-paged on (updated_at, _id) — served from the index, no in-memory sort.

@@ -18343,6 +18343,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -18467,6 +18477,16 @@
               }
             ],
             "title": "Default Access"
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
@@ -18578,6 +18598,16 @@
             "type": "boolean",
             "title": "Reparent",
             "default": false
+          },
+          "on_conflict": {
+            "type": "string",
+            "enum": [
+              "error",
+              "suffix"
+            ],
+            "title": "On Conflict",
+            "description": "When the folder's address is already taken where it goes: `error` (default) returns 409 saying what holds it; `suffix` takes the next free address (name-2, name-3…).",
+            "default": "error"
           }
         },
         "type": "object",
