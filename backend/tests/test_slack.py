@@ -737,6 +737,26 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 2)
 
 
+class Drain(unittest.TestCase):
+    def test_finished_work_of_a_closed_loop_doesnt_hang_drain(self):
+        # A test's loop that closes before a finished task's done callbacks run leaves it in _bg; the
+        # next test's drain() gathered it (returns at once, never yields) and spun forever (CI hangs).
+        old = asyncio.new_event_loop()
+
+        async def nothing():
+            return 1
+
+        t = old.create_task(nothing())
+        old.run_until_complete(t)
+        old.close()
+        slack._bg.add(t)
+        try:
+            asyncio.run(asyncio.wait_for(slack.drain(), 5))
+            self.assertNotIn(t, slack._bg)
+        finally:
+            slack._bg.discard(t)
+
+
 if __name__ == "__main__":
     import unittest
 
