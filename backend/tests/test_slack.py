@@ -12,6 +12,7 @@ import asyncio
 import json
 import re
 import time
+import unittest
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -257,6 +258,31 @@ class Verification(SlackWorld):
                          {"link_shared", "app_uninstalled", "tokens_revoked"})
         self.assertIn("https://www.markdrop.in/integrations/slack/callback", m["oauth_config"]["redirect_urls"])
         self.assertNotRegex(path.read_text(), r"xox[abp]-|[0-9a-f]{32}")
+
+
+class SwitchOn(unittest.TestCase):
+    """Production today has no Slack keys; the owner adds the three (plus the encryption key) to .env and restarts."""
+
+    def test_three_keys_in_env_file_switch_it_on(self):
+        import tempfile
+
+        from app.config import Settings
+
+        with tempfile.TemporaryDirectory() as d:
+            env = Path(d) / ".env"
+            env.write_text("MARKDROP_TOKEN_ENCRYPTION_KEY=" + FERNET + "\n")
+            self.assertFalse(Settings(_env_file=env).slack_configured)
+            env.write_text(env.read_text() + "MARKDROP_SLACK_CLIENT_ID=111.222\nMARKDROP_SLACK_CLIENT_SECRET=cs\n")
+            self.assertFalse(Settings(_env_file=env).slack_configured)          # all three, or it stays off
+            env.write_text(env.read_text() + "MARKDROP_SLACK_SIGNING_SECRET=ss\n")
+            s = Settings(_env_file=env)
+            self.assertTrue(s.slack_configured)
+            self.assertEqual((s.slack_client_id, s.slack_client_secret, s.slack_signing_secret), ("111.222", "cs", "ss"))
+            # The names SETUP.md and .env.example tell the owner to use are the ones read here.
+            root = Path(__file__).resolve().parents[2]
+            for doc in (root / "docs-platform" / "slack" / "SETUP.md", root / "backend" / ".env.example"):
+                for key in ("MARKDROP_SLACK_CLIENT_ID", "MARKDROP_SLACK_CLIENT_SECRET", "MARKDROP_SLACK_SIGNING_SECRET"):
+                    self.assertIn(key, doc.read_text(), f"{key} in {doc.name}")
 
 
 # ── Install and links ─────────────────────────────────────────────────────────
