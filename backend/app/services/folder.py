@@ -98,8 +98,9 @@ def _clean_name(name: str) -> str:
 
 # What happens when a new or renamed folder's address is already used where it
 # goes. "error" (what the app, the REST API and MCP do unless asked): refuse with
-# a 409 that says what holds it. "suffix": take the next free one (-2, -3…),
-# which is what internal callers that have nobody to ask keep doing.
+# a 409 that says what holds it — a sibling folder or a document the caller can
+# read; a document they can't read still gets the suffix (C-N7). "suffix": take
+# the next free one (-2, -3…), which internal callers with nobody to ask keep doing.
 ON_CONFLICT = ("error", "suffix")
 OLD_PATHS_KEPT = 20
 # address_clash's answer for a document the caller can't read: not a refusal.
@@ -113,12 +114,11 @@ async def address_clash(db: AsyncIOMotorDatabase, workspace_id: str, parent_id: 
     else the sentence for the 409.
 
     A sibling folder is named (every member sees the folders). A document is
-    named only when ``actor`` may read it (C-N7); otherwise the answer says
-    only that the address is taken there. Callers that refuse on a clash
-    (:func:`_unique_slug` with ``on_conflict="error"``) never refuse on that
-    one: a document the caller can't read neither blocks them nor answers
-    differently from a free address (C-N7, tests/test_wsv2_fix_round2) — the
-    folder takes the next free address, as it always did."""
+    named only when ``actor`` may read it. One the caller can't read is
+    never a refusal (:func:`_unique_slug` with ``on_conflict="error"``): it
+    neither blocks them nor answers differently from a free address (C-N7,
+    tests/test_wsv2_fix_round2) — the folder takes the next free address, as
+    it always did."""
     where = "/" + "/".join([*await path_of(db, workspace_id, parent_id), slug])
     query: dict = {"workspace_id": workspace_id, "parent_id": parent_id or None, "slug": slug}
     if exclude_id is not None:
