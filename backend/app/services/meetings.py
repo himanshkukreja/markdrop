@@ -867,10 +867,16 @@ async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | N
     mentions notify nobody."""
     from app.services import notifications
 
-    if meeting.get("history") and not notifications.is_quiet():
-        with notifications.quiet():
-            return await _write_generated(db, meeting, gen, user)
-    return await _write_generated(db, meeting, gen, user)
+    from app.services import meeting_memory
+
+    try:
+        if meeting.get("history") and not notifications.is_quiet():
+            with notifications.quiet():
+                return await _write_generated(db, meeting, gen, user)
+        return await _write_generated(db, meeting, gen, user)
+    finally:
+        # Meeting memory (services/meeting_memory.py): the summary's decisions, action items… as facts.
+        await meeting_memory.sync_quietly(db, meeting.get("_id"))
 
 
 async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
@@ -1119,6 +1125,9 @@ async def delete_meeting(db: AsyncIOMotorDatabase, row: dict, actor: access.Acto
     elif not admin and row.get("created_by") != uid:
         raise HTTPException(status_code=404, detail="Meeting not found")
     await db[COLL].delete_one({"_id": row["_id"]})
+    from app.services import meeting_memory
+
+    await meeting_memory.drop_meeting(db, str(row["_id"]))
     return {"deleted": True, "id": str(row["_id"]), "trashed": raw is not None}
 
 
