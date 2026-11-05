@@ -232,7 +232,8 @@ await step("ask", async () => {
 await step("continue", async () => {
   const { p } = await device("desktop");
   await home(p);
-  const card = p.getByTestId("home-continue-card").first();
+  // (WebKit can't resolve acme.localhost: take an item that opens on this host.)
+  const card = p.locator('[data-testid="home-continue-card"][href^="/"]').first();
   const href = await card.getAttribute("href");
   // An item in a workspace with a live domain opens there (openHref, like Recent); the rest here.
   const slug = new URL(href, APP).pathname;
@@ -345,7 +346,7 @@ await step("tasks", async () => {
     };
     const tap = async (loc) => { await loc.scrollIntoViewIfNeeded(); await loc.click(); };
     await run("continue my last page", async (p) => {
-      await tap(p.getByTestId("home-continue-card").first());
+      await tap(p.locator('[data-testid="home-continue-card"][href^="/"]').first());
       await p.waitForURL((u) => !u.pathname.startsWith("/dashboard"), { timeout: 15000 });
       return 1;
     });
