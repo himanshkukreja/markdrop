@@ -172,7 +172,7 @@ await step("slash", async () => {
   await openAt(p, PRD, "A faster checkout");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/meetings");
-  const item = p.locator(".dxe-slash [role=option], .dxe-menu [role=option]", { hasText: /meetings/i }).first();
+  const item = p.locator(".dxe-slash__opt", { hasText: /From meetings/ }).first();
   await item.waitFor({ timeout: 8000 });
   await p.keyboard.press("Enter");
   await panel(p).waitFor({ timeout: 8000 });
@@ -238,9 +238,7 @@ await step("prefs", async () => {
   const { p } = await ctx(browser, { token: T.admin });
   await openAt(p, PRD, "Customers pay on a hosted page");
   await openPanel(p);
-  await panel(p).getByRole("switch", { name: "Show by itself" }).click().catch(async () => {
-    await panel(p).getByText("Show by itself").click();
-  });
+  await panel(p).locator("label.md-switch", { hasText: "Show by itself" }).click();
   await p.waitForTimeout(800);
   await panel(p).getByRole("button", { name: "Close" }).click();
   await p.waitForTimeout(500);
@@ -256,7 +254,7 @@ await step("prefs", async () => {
   await p.keyboard.press("End");
   await p.keyboard.press("Enter");
   await p.keyboard.type("/meetings");
-  await p.locator(".dxe-slash [role=option], .dxe-menu [role=option]", { hasText: /meetings/i }).first().waitFor({ timeout: 8000 });
+  await p.locator(".dxe-slash__opt", { hasText: /From meetings/ }).first().waitFor({ timeout: 8000 });
   await p.keyboard.press("Enter");
   await panel(p).waitFor({ timeout: 8000 });
   await shot(p, "mm09-prefs-off");
