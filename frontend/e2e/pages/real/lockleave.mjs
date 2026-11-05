@@ -155,7 +155,10 @@ await step("close-tab", async () => {
   await waitHolder(slug, "Ada Owner");
   await waitSaved(p);
   await p.close({ runBeforeUnload: true });
-  await freeWithin(slug, BEACON_MS, "after closing the tab");
+  // The close beacon frees it at once (≤ 0.3 s locally, both engines). Headless Chromium on Linux
+  // dropped it once on CI (run 42030768428): then the socket check does, within page_lock_gone_s.
+  const ms = await freeWithin(slug, GONE_MS, "after closing the tab");
+  if (ms > BEACON_MS) log(`(the close beacon didn't land: freed by the socket check after ${(ms / 1000).toFixed(1)} s)`);
   await mcpWrites(slug, "AI after the tab closed.");
 });
 
@@ -190,7 +193,7 @@ await step("tenant", async () => {
   await waitHolder(slug, "Ben Member");
   await waitSaved(m.p);
   await m.p.close({ runBeforeUnload: true });
-  await freeWithin(slug, BEACON_MS, "after closing the domain tab");
+  await freeWithin(slug, GONE_MS, "after closing the domain tab");
   await mcpWrites(slug, "AI after the domain tab closed.");
   await m.c.close();
 
@@ -216,7 +219,7 @@ await step("tenant", async () => {
   const h = await holder(slug);
   if (h) log(`(the owner's visit took the lock: ${h})`);
   await o.p.close({ runBeforeUnload: true });
-  await freeWithin(slug, BEACON_MS, "after the owner closed the domain tab");
+  await freeWithin(slug, GONE_MS, "after the owner closed the domain tab");
   await mcpWrites(slug, "AI after the owner left the domain.");
 });
 
