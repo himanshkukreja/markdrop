@@ -1,8 +1,8 @@
 ---
 title: Write and format documents
 description: Markdrop renders GitHub-flavoured Markdown with tables, task lists, highlighted code, KaTeX math and Mermaid diagrams.
-updated: 2026-11-04
-keywords: [markdown, gfm, mermaid, katex, math, diagrams, tables, code, editor, preview, edit in preview, wysiwyg]
+updated: 2026-11-05
+keywords: [markdown, ask markdrop, ✦ ask, insert, gfm, mermaid, katex, math, diagrams, tables, code, editor, preview, edit in preview, wysiwyg]
 ---
 
 A Markdrop document is Markdown. You write it at [markdrop.in/new](https://markdrop.in/new), paste it from an AI assistant, or publish it from VS Code, and readers get a formatted page. This page covers what the renderer supports and how the editor helps.
@@ -96,6 +96,8 @@ If you aren't signed in as the owner, you'll need the document's edit secret. Se
 ## What readers can do
 
 Readers can copy a link to any heading with its **Copy link to section** button, read full screen, see the raw Markdown with **View raw**, and save a PDF with **Export PDF**. Signed-in readers can choose **Save a copy** to put their own copy in **My files**.
+
+Signed-in readers can also ask the document questions with **✦ Ask** in its bar, or :kbd[⌘ J]: [Ask Markdrop](/workspaces/ask-markdrop) answers from the document first, with its sources. If you can edit the document, **Insert** under an answer opens the editor with the answer after the section you were reading; nothing is saved until you choose **Save changes**. End-to-end encrypted documents don't have **✦ Ask**.
 
 ## More about documents
 

@@ -3,14 +3,14 @@ title: Version history
 description: Every page keeps its earlier versions. See what changed, and bring any version back. A restore can be undone.
 updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [version history, unsaved changes, kept, take over, versions, history, restore, undo, revert, roll back, changes, diff, compare, earlier version, ai edits, mcp]
+keywords: [version history, done, edit anyway, unsaved changes, kept, take over, versions, history, restore, undo, revert, roll back, changes, diff, compare, earlier version, ai edits, mcp]
 ---
 
 Markdrop keeps earlier versions of every page as it's edited. Open them from the page's **⋯** menu › **Version history**.
 
 ## When a version is saved
 
-- **While you edit:** one version per 10 minutes of editing, and one when you leave the page or close it.
+- **While you edit:** one version per 10 minutes of editing, and one when you choose **Done**, leave the page or close it.
 - **Before and after an AI edit:** every change an AI app makes through [MCP](/ai/tools#pages) is its own version, labelled with the app's name, and the page as it was just before is kept too.
 - **When you restore a version** (below).
 - **When someone takes over editing from you:** what you hadn't saved yet is kept as its own version, labelled **Your name's unsaved changes, kept when … took over editing**. The page itself doesn't change: open the version to copy from it or restore it. See [Editing together](/pages/editing-together#edit-anyway).
@@ -34,7 +34,7 @@ On a phone, tap a version to open it, and **Back** to return to the list.
 
 Choose the version and **Restore this version**, then confirm. The page goes back to how it was, and the restore is saved as a new version. The page as it was just before is kept in the history, so you can undo a restore by restoring that one.
 
-You can't restore while someone else has the page open in the editor: Markdrop says who, and you can try again when they're done. A page that's [locked](/pages/overview) can be restored only by its owner or a workspace admin.
+You can't restore while someone else is [editing the page](/pages/editing-together) (having it open doesn't count, only changing it): Markdrop says who, and you can try again when they're done. The page's owner and workspace admins can take it over with **Edit anyway** first. A page that's [locked](/pages/overview) can be restored only by its owner or a workspace admin.
 
 ## How long versions are kept
 

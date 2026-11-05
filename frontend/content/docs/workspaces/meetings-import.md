@@ -3,22 +3,22 @@ title: Import a meeting manually
 nav: Import manually
 description: Paste a transcript, upload a caption or Word file, paste a Google Drive link, or pick Google Meet's transcript and Gemini notes from your Drive.
 updated: 2026-11-05
-keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by]
+keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, slack, pause, resume, retry, waiting for the ai budget]
 ---
 
 Import a call when it's over. It works for any call: Google Meet, Zoom, Microsoft Teams, or a transcript from anywhere else. To have Google Meet calls show up by themselves, see [Import meetings automatically](/workspaces/meetings-auto-import). You can use both.
 
 ## Import a meeting
 
-1. Open your workspace and choose **New** › **Import a meeting**. You can also open the **Meetings** folder and select **Import meeting**.
-2. Bring the meeting in one of four ways:
+1. Open your workspace and choose **New** › **Import a meeting**. You can also select **Import meeting** in the **Meetings** folder or on the [Meetings page](/workspaces/meetings#the-meetings-page).
+2. Bring the meeting in one of four ways, the tabs of the **Import a meeting** dialog:
    - **Paste** the transcript or the notes.
-   - **Upload** `.txt`, `.vtt`, `.srt`, `.sbv`, `.docx` or `.md` files, up to 6 at a time and 4 MB each.
+   - **Upload** `.txt`, `.vtt`, `.srt`, `.sbv`, `.docx` or `.md` files, up to 6 at a time and 4 MB each. A transcript and Google's notes of one call make one meeting.
    - **Drive link**: paste links to the Google Docs. See [Paste a Google Drive link](#paste-a-google-drive-link).
-   - **Google Docs**: pick the Docs Google saved in your Drive. See [From Google Drive](#from-google-drive).
-3. Check what Markdrop found: the meeting's name, its date, how many transcript lines, and who spoke. Change the **Title**, **Date** or **Type** if you need to.
-4. Optionally switch on **Restrict to attendees**. A 1:1 or a two-person call is restricted by itself. See [Privacy and cost](/workspaces/meetings-privacy).
-5. Select **Import meeting**. The page opens straight away, and the summary fills in a few seconds later.
+   - **Google Docs**: pick the Docs Google saved in your Drive, up to 6. See [From Google Drive](#from-google-drive).
+3. For pasted text and files, check what Markdrop found: the meeting's name, its date and length, how many transcript lines, whether Google's notes are in it, and who spoke. Change the **Title**, **Date** or **Type** if you need to. **Type** starts on **Guess from the title**.
+4. Check **Only the people who were there**. It starts on for a 1:1 or a two-person call, and off for three or more people. For picked Google Docs, leave it alone and Markdrop decides the same way when it reads them, or switch it to choose yourself. See [Privacy and cost](/workspaces/meetings-privacy).
+5. Select **Import meeting** (or **Import N meetings** when the files hold several calls). The page opens straight away, ready to edit, and the summary fills in a few seconds later. A call that's already here opens the meeting you have instead (**Already imported**), and the other half of a call you have is added to it.
 
 ## Formats Markdrop reads
 
@@ -40,18 +40,20 @@ After a call, Google can save two Docs in your Drive:
 
 Import either one, or both. When you pick both, Markdrop pairs them by the meeting's name and date into one meeting.
 
-To pick them, choose **Google Docs** in the import dialog. The first time, select **Connect Google Docs** to link your Google account. This is the same Google connection as **Publish to Google Docs**; see [Connected apps](/account/connected-apps). Then select **Choose from Google Drive** and pick the Docs. Markdrop can open only the files you pick: it never sees the rest of your Drive.
+To pick them, choose **Google Docs** in the import dialog. The first time, select **Connect Google Docs** to link your Google account. This is the same Google connection as **Publish to Google Docs**; see [Connected apps](/account/connected-apps). Then select **Choose from Google Drive** and pick the Docs, up to 6 at once. Markdrop can open only the files you pick: it never sees the rest of your Drive. The Docs are read when you import, so there's no preview; the **Title**, **Date** and **Type** you set still apply.
+
+No **Google Docs** tab? The Google picker isn't available on this Markdrop server. Use **Drive link** instead, or download the Docs and upload them.
 
 If you import only the notes, without a transcript, you still get the page, and **Ask this meeting** answers from the notes.
 
 ## Paste a Google Drive link
 
-Someone shared the call's transcript or Gemini notes with you, or sent you the link? Choose **Drive link** in the import dialog and paste it. Several links, one per line, make several meetings (up to 20 at once).
+Someone shared the call's transcript or Gemini notes with you, or sent you the link? Choose **Drive link** in the import dialog, paste it and select **Import from link**. Several links, one per line, make several meetings (up to 20 at once): the dialog then lists each link with what happened to it.
 
 Markdrop takes links to Google Docs (`docs.google.com/document/d/…`) and Drive files (`drive.google.com/file/d/…`, `drive.google.com/open?id=…`), such as a `.vtt` or `.txt` transcript. Then:
 
 - **Shared with "anyone with the link"**: Markdrop reads it right away and imports it.
-- **Not shared that way, and your [Google Meet script](/workspaces/meetings-auto-import) is connected to this workspace**: you see **Queued**. The script fetches it with your own Google access on its next run, within 15 minutes (or run `syncMeetings` in Apps Script to do it now). People are notified as for any import, unless the call is more than a day old.
+- **Not shared that way, and your [Google Meet script](/workspaces/meetings-auto-import) is connected to this workspace**: you see **Queued**. The script fetches it with your own Google access on its next run, within 15 minutes (or run `syncMeetings` in Apps Script to do it now). People are notified as for any import, unless the Doc is more than a day old: then it's imported quietly and isn't posted to [Slack](/integrations/slack).
 - **Otherwise**: Markdrop says it can't open the Doc. Connect Google Meet, ask the owner to share it with "anyone with the link", or download it and upload the file.
 
 Markdrop only fetches from Google's own addresses (`docs.google.com`, `drive.google.com`), and only the file the link names.
@@ -75,7 +77,7 @@ It works the other way round as well. When the script finds a Doc you already im
 
 Have weeks of transcripts and Gemini notes already? Import them all at once, and each lands on the day it happened.
 
-1. On the workspace's Meetings page, select **Import past meetings**. It's also in the Meetings folder.
+1. On the workspace's [Meetings page](/workspaces/meetings#the-meetings-page), select **Import past meetings** (with no meetings yet, it's under **Have a backlog?**; it's also in the **⋯** menu). It's in the Meetings folder too.
 2. Add the meetings, any mix of:
    - **Files**: drop or choose as many `.txt`, `.vtt`, `.srt`, `.sbv`, `.docx` and `.md` files as you have (up to 300), transcripts and notes mixed.
    - **Google Docs**: pick several Docs at once in the Google Drive picker.
@@ -84,15 +86,15 @@ Have weeks of transcripts and Gemini notes already? Import them all at once, and
    - **Date**, and where it came from. Google names its Docs like "Daily Standup – 2026/10/28 10:00 IST – Transcript", so the date usually comes from the name. Otherwise it's the day Google created the Doc, or a date near the top of the text.
    - **Name** and **Series**, for recurring meetings such as a daily standup, and the **folder** it goes to: **Meetings › Daily Standup**, or **Meetings › Other meetings** for a one-off. See [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
    - **Who sees it**: **Attendees** for a 1:1 or a two-person call, **Team** for three or more people. Switch it per meeting.
-   - Which halves were found: **Notes**, **Transcript**, or both. Google's notes and the transcript of one call become one row.
-   - Whether it's new, **Already imported** (left out), or **Adds notes to the meeting already here**.
+   - Which halves were found: **Notes**, **Transcript**, or both. Google's notes and the transcript of one call become one row. A row older than a day is marked **quiet**: it notifies nobody.
+   - Whether it's new, **Already imported** or **Twice in this import** (left out), or **Adds notes** (or **the transcript**) **to the meeting already here**.
 
-   Fix any date, name or series in place. A row without a date is marked **Needs a date**: give it one, or untick it, before you can start.
+   Fix any date, name or series in place, untick a row to leave it out, or remove it with **×**. A row without a date is marked **Needs a date**: give it one, or untick it, before you can start (the button says **Add N dates first** until then). **Add more** brings in more files; **Discard** throws the review away. Switch on **Only the people who were there, for every meeting** to restrict them all.
 4. Select **Import N meetings**.
 
    ![The Import past meetings review: one row per meeting with its date (and where it came from), its name, its series and its status. Two standups are new, one is already imported and left out, and a file without a date needs one before the import can start.](/docs-assets/workspaces/meetings-import/review.webp)
 
-The import runs in the background, **oldest first**, and keeps going if you close the page. The Meetings page shows how far it got, for example "12 of 40". You can **Pause**, **Resume** or **Stop** it. Stopping keeps what was already imported. If a meeting fails, the reason is shown next to it, with **Retry**.
+The import runs in the background, **oldest first**, and keeps going if you close the page. The Meetings page shows how far it got, for example "12 of 40", and the meeting it's on. You can **Pause**, **Resume** or **Stop** it. Stopping keeps what was already imported. If a meeting fails, the reason is shown next to it, with **Retry**. Each meeting goes into its series' folder, like any import: see [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
 
 ### Nobody is notified about old action items
 
@@ -100,7 +102,7 @@ Action items in past meetings still @mention their owners, as links. But **Don't
 
 ### Many meetings and the AI budget
 
-Each meeting gets its AI summary as it's imported, from the workspace's **Meetings AI** budget. The review shows roughly what the summaries cost; an hour-long call is about a fifth of a cent. If a big backlog runs past today's budget, the import waits and carries on by itself when the budget resets, the next day (UTC). See [Privacy and cost](/workspaces/meetings-privacy).
+Each meeting gets its AI summary as it's imported, from the workspace's **Meetings AI** budget. The review shows roughly what the summaries cost; an hour-long call is about a fifth of a cent. If a big backlog runs past today's budget, the import shows **Waiting for the AI budget** and carries on by itself when the budget resets, the next day (UTC). **Try now** checks again straight away. See [Privacy and cost](/workspaces/meetings-privacy).
 
 ### From an AI app
 

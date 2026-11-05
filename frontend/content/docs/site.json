@@ -54,7 +54,7 @@
       "Put my workspace on my own domain",
       "Publish a PDF from the terminal",
       "Who can see a “team” document?",
-      "Connect Claude to Markdrop"
+      "Ask about my meetings with ⌘J"
     ],
     "start": [
       {
@@ -76,10 +76,13 @@
     "areas": [
       "Documents",
       "Pages",
+      "Search and Ask",
       "Files",
       "Sharing and access",
       "Workspaces and domains",
+      "Meetings",
       "Analytics",
+      "Integrations",
       "CLI",
       "VS Code",
       "AI and MCP"
@@ -152,6 +155,7 @@
       "pages": [
         "/pages/overview",
         "/pages/editing-together",
+        "/pages/working-together",
         "/pages/templates",
         "/pages/embed-and-mention",
         "/pages/mentions-and-notifications",
@@ -159,7 +163,6 @@
         "/pages/properties-and-views",
         "/pages/images",
         "/pages/history",
-        "/pages/working-together",
         "/pages/sign-off",
         "/pages/blocks-and-layout",
         "/pages/paste",
@@ -168,6 +171,16 @@
         "/pages/export",
         "/pages/markdown-reference",
         "/pages/keyboard-shortcuts"
+      ]
+    },
+    {
+      "group": "Search and Ask",
+      "icon": "zap",
+      "tab": "platform",
+      "new": true,
+      "pages": [
+        "/workspaces/ask-markdrop",
+        "/workspaces/search"
       ]
     },
     {
@@ -205,8 +218,6 @@
         "/workspaces/members-and-roles",
         "/workspaces/privacy",
         "/workspaces/folders",
-        "/workspaces/search",
-        "/workspaces/ask-markdrop",
         "/workspaces/share-a-folder",
         "/workspaces/custom-domain",
         "/workspaces/branding",

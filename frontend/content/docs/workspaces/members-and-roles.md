@@ -1,9 +1,9 @@
 ---
 title: Members and roles
 description: "Invite people to a workspace by email and choose what each person can do: Can view, Can edit, Admin or Owner."
-updated: 2026-11-04
+updated: 2026-11-05
 prerequisites: [/workspaces/create]
-keywords: [invite, member, role, admin, owner, viewer, editor, team, locked page, unlock, trash, templates]
+keywords: [invite, member, role, admin, owner, viewer, editor, team, locked page, unlock, trash, templates, slack, integrations, admins only]
 ---
 
 Everyone in a workspace has one role. The role decides what they can open and change across the whole workspace. You can change a person's role at any time.
@@ -14,7 +14,7 @@ Everyone in a workspace has one role. The role decides what they can open and ch
 | --- | --- |
 | **Can view** | Open everything the team can open. |
 | **Can edit** | Also add files, change files the team can open, and make folders. |
-| **Admin** | Also invite people, manage folders and the workspace's [templates](/pages/templates), edit, lock and unlock [locked pages](/pages/overview#page-options), restore anything in the workspace's [Trash](/documents/trash), and change the workspace's privacy, domains, branding and **AI features** and **Auto covers** switches. |
+| **Admin** | Also invite people, manage folders and the workspace's [templates](/pages/templates), edit, lock and unlock [locked pages](/pages/overview#page-options), restore anything in the workspace's [Trash](/documents/trash), change the workspace's privacy, domains, branding and **AI features** and **Auto covers** switches, and [connect Slack](/integrations/slack) and choose its meetings channel. |
 | **Owner** | Everything an admin can do, plus manage admins, hand the workspace on and delete it. Each workspace has one owner. At first it's the person who created it. |
 
 A few things only the owner can do:
@@ -82,7 +82,7 @@ They become the owner right away, and you become an admin. Files, links, grants 
 
 ## Who sees what in settings
 
-Everyone in the workspace can open its settings, but only admins change them. Controls that need the Admin role, such as **Privacy**, **Invite people**, **New items start as**, the workspace's names and **Add a domain**, don't respond, and pointing at one or tabbing to it shows "Admins only". Row menus with admin actions, like the one on a person or a domain, don't show at all. Members see which domains the workspace has and whether each one is live, but not the DNS records behind them.
+Everyone in the workspace can open its settings, but only admins change them. Controls that need the Admin role, such as **Privacy**, **Invite people**, **New items start as**, the workspace's names, **Add a domain**, **Add to Slack** and the Slack **Meetings channel**, don't respond, and pointing at one or tabbing to it shows "Admins only". Row menus with admin actions, like the one on a person or a domain, don't show at all. Members see which domains the workspace has and whether each one is live, but not the DNS records behind them. On the **Integrations** tab, everyone can link their own Slack account and choose which direct messages they get.
 
 ## Related
 

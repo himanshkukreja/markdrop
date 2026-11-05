@@ -1,7 +1,7 @@
 ---
 title: Connected apps
 description: See which AI apps can use your Markdrop account, what each one may do, and disconnect any of them.
-updated: 2026-10-30
+updated: 2026-11-05
 keywords: [connected apps, oauth, mcp, claude, chatgpt, cursor, revoke, disconnect, permissions, scopes]
 ---
 
@@ -40,3 +40,5 @@ An app's access renews every hour on its own while you use it. If an app isn't u
 
 - **The VS Code extension** and **the CLI** use [API tokens](/account/api-tokens). Revoke them on the API tokens page.
 - **Google Docs** is connected and disconnected from your documents dashboard. Choose **Disconnect** next to "Google Docs is connected." Docs you already exported stay in your Google Drive but stop syncing.
+- **Slack** is linked per workspace, in **Workspace settings** › **Integrations**: **Unlink** removes your Slack account's link, and an admin's **Disconnect Slack…** removes the app. See [Slack](/integrations/slack).
+- **Connect Google Meet** runs as a script in your Google account with its own token for one workspace. See [Automatic import](/workspaces/meetings-auto-import).

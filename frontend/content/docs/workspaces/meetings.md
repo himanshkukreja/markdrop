@@ -2,7 +2,7 @@
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
 updated: 2026-11-05
-keywords: [meetings, meeting cards, search meetings, meeting folders, subfolders, other meetings, organize meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, organise meetings, organize meetings]
+keywords: [meetings, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
 ---
 
 Meetings turns a call into a page in your workspace. Bring in Google Meet's transcript, Gemini's meeting notes, or both, and Markdrop writes:
@@ -34,7 +34,7 @@ The first meeting creates a folder called **Meetings** in the workspace. Inside 
 - **A recurring meeting** gets a folder named after it, such as **Meetings › Daily Sync Up**. A meeting is recurring once its name has come up on two or more different days. Names that differ only by numbers or dates, like "Sprint 23 review" and "Sprint 24 review", count as the same meeting. When the second one arrives, the first moves into the new folder too. Case, spaces and punctuation don't count either: "Daily Syncup", "Daily Sync Up" and "daily sync-up" are one series. Different words stay different meetings: "Daily Standup" isn't "Daily Syncup".
 - **Everything else** goes to **Meetings › Other meetings**.
 
-Each of these folders opens on **All meetings**: a table, newest first, grouped by month. Every meeting page has these properties:
+The **Meetings** folder itself opens on these folders. Each of them opens on **All meetings**: a table, newest first, grouped by month. **Other meetings** also has a **By series** board and a **Series table**. Every meeting page has these properties:
 
 - **Date**: the day the meeting happened, not the day it was imported.
 - **Type** (Standup, Planning, Review, 1:1, Interview, Customer or Other).
@@ -43,19 +43,36 @@ Each of these folders opens on **All meetings**: a table, newest first, grouped 
 
 Sort, filter or add views as in any folder; see [Folders](/workspaces/folders). Renaming a folder is fine: Markdrop keeps filing that series there.
 
-To move a meeting to another series, or take it out of one, edit **Series** in the meeting's **Details**. The page moves to that series' folder, and Markdrop doesn't change it back. Meetings imported before folders, or moved by hand, can be filed again: a workspace admin selects **⋯ › Organize into folders** on the Meetings page. It moves each meeting, with its transcript, into its folder, puts the spellings of one series together, and says how many meetings it filed and how many series there are. Running it again changes nothing that's already in place.
+To move a meeting to another series, or take it out of one, edit **Series** in the meeting's details (select **Meeting** at the bottom right of the page). The page moves to that series' folder, and Markdrop doesn't change it back. Leave **Series** empty to make it a one-off.
+
+Meetings imported before folders, or moved by hand, can be filed again: a workspace admin selects **⋯ › Organize into folders** on the Meetings page, then **Organize**. It moves each meeting, with its transcript, into its folder, puts the spellings of one series together, gives each meeting its series' cover (unless someone changed the cover), and says how many meetings it filed and how many series there are. A series someone set by hand stays as it is, and running it again changes nothing that's already in place.
 
 **Who can open a meeting** depends on who was there. A 1:1 or a two-person call starts restricted to its attendees. A call with three or more people is open to the workspace's team. You can change it for any meeting; see [Privacy and cost](/workspaces/meetings-privacy).
 
-The workspace's **Meetings** page lists every meeting you can open by the day it happened, newest first, under month headings that stay at the top as you scroll. Each meeting shows its series' cover with the date, the title, the day, time and length, a line of its summary, who was there, and how many decisions, action items and open questions it has. A meeting that came in automatically is marked **Auto**, and one only its attendees can open is marked **Attendees only**. Point at a meeting (or tap **⋯** on a phone) to open its transcript, ask it, or copy its link.
+## The Meetings page
 
-Search by title, series or person in the box above the list. To change the order, use the sort menu next to it: **Meeting date, newest**, **Meeting date, oldest**, **Title** or **Recently imported**. Markdrop remembers your choice on this device. Select a series to see only that series, or **One-offs**. Open the page with **Ask meetings** in the Meetings folder.
+The workspace's **Meetings** page is where you import meetings, connect Google Meet and ask across them. To open it, select **Meeting** at the bottom right of any meeting page, then **All meetings**. The Meetings folder's **Import meeting**, **Import past meetings** and **Connect Google Meet** buttons open it too, with that step ready.
+
+It lists every meeting you can open by the day it happened, newest first, under month headings that stay at the top as you scroll. One meeting is one card: its transcript isn't listed separately. Each card shows:
+
+- the series' cover with the month and day;
+- the title, with the day, time and length, and the series it belongs to;
+- a line of its summary (or "Google's notes are on the page" when only Google's notes came in);
+- who was there, and how many decisions, action items and open questions it has.
+
+A meeting that came in automatically is marked **Auto**, one only its attendees can open is marked **Attendees only**, and one whose summary is still being written shows **Summarizing**. Point at a meeting (or tap **⋯** on a phone) to open its transcript or ask it. Its **⋯** menu also copies its link, and **Delete meeting** is there for the person who imported it and workspace admins.
+
+Search by title, series or person in the box above the list. To change the order, use the sort menu next to it: **Meeting date, newest**, **Meeting date, oldest**, **Title** or **Recently imported**. The two date orders group by month; the others are one list. Markdrop remembers your choice on this device. Select a series chip to see only that series, or **One-offs** for meetings without one.
+
+The **Ask anything about your meetings** box above the list opens [Ask Markdrop](/workspaces/ask-markdrop) on your meetings. See [Ask your meetings](/workspaces/meetings-ask).
+
+Workspace admins also see a card for each meeting restricted to attendees they weren't part of, without its title, so they can delete it.
 
 ![The Meetings page: search, sort and the series to filter by above the meetings, listed by month with their cover and date, summary, people and counts.](/docs-assets/workspaces/meetings-import/organised.webp)
 
 ## What the meeting page holds
 
-Every meeting page has a cover from Markdrop's cover gallery. All the meetings of one series share a cover, so a series is easy to spot, and other series get different ones. A one-off meeting gets the general meeting cover. Change or remove a cover like on any page; Markdrop doesn't put its own back.
+Every meeting page has a cover from Markdrop's cover gallery. All the meetings of one series share a cover, so a series is easy to spot, and other series usually get different ones (there are twelve series covers). A one-off meeting gets the general meeting cover. Change or remove a cover like on any page; Markdrop doesn't put its own back. In a workspace with **Auto covers** turned off, meetings get no cover.
 
 - **Summary.** Either AI's summary, or Google's notes when they came in.
 - **Decisions.**
@@ -72,7 +89,11 @@ The page is an ordinary page. Edit it like any other: fix a name, add notes, tic
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), and check whether automatic import is on (`meetings_connection`). See [MCP tools](/ai/tools#meetings).
+
+## While you write
+
+In any page of the workspace, **From meetings** (or `/meetings` in the editor) shows what your meetings decided about the page, and inserts it as a cited line. See [Meeting memory while writing](/pages/meeting-memory). New meetings can also be posted to a Slack channel; see [Slack](/integrations/slack).
 
 ## Next
 

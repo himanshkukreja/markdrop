@@ -2,7 +2,7 @@
 title: Analytics overview
 description: See how people read, watch and share what you publish. Every link you own, in one place, with your own views left out.
 updated: 2026-11-05
-keywords: [analytics, stats, views, dashboard, insights, csv, metrics, ai insights, ask your analytics, what changed]
+keywords: [analytics, stats, views, dashboard, insights, csv, metrics, ai insights, ask your analytics, what changed, analytics ai, refresh, look]
 ---
 
 Analytics shows what happens after you share a link: how many people opened it, how far they read, where they stopped watching, and where they came from. You see totals and patterns, never who someone is.
@@ -60,11 +60,11 @@ The other tabs are covered in [Documents and PDFs](/analytics/documents-and-pdfs
 
 ## Insights and Ask
 
-**Insights** sums up the period in 3 to 5 sentences: what changed compared with the period before, and the likely reason, like a link that took off, a site that sent more people, a new version of a file, or a shift in devices or countries. Each sentence links to where you can look closer. Choose **7 days**, **30 days** or **90 days** to change the period (**All time** shows the last 30 days).
+**Insights** sums up the period in a one-line headline and 3 to 5 points: what changed compared with the period before, and the likely reason, like a link that took off, a site that sent more people, a new version of a file, or a shift in devices or countries. Each point ends with **Look** (that link's analytics) or **Open**, to look closer. Choose **7 days**, **30 days** or **90 days** to change the period (**All time** shows the last 30 days).
 
-The summary is written once a day and kept; choose **Refresh** to write it again. It appears once your links have about 20 views between this period and the one before.
+The summary is written once a day and kept (the card says **from earlier today**); choose **Refresh** to write it again. It appears once your links have about 20 views between this period and the one before.
 
-Under it, type a question in **Ask your analytics**, like "Which link did best this month?" or "Where did Tuesday's spike come from?". The answer streams in and links to the analytics pages it used. If your question isn't something Markdrop measures, it says so.
+Under it, type a question in the box that says "Ask your analytics…" and choose **Ask**, or pick a suggestion: **What changed this week?**, **Which link did best this month?** or **Where do my readers come from?**. The answer streams in and links to the analytics pages it used. If your question isn't something Markdrop measures, it says so. A question already asked today answers from then (**from earlier today**); choose **Ask again** for a fresh answer. An answer is never blank: if it stops early, it says "The answer stopped early. Try again."
 
 Both use Claude Haiku 5.5. What it gets:
 

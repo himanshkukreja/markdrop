@@ -2,7 +2,7 @@
 title: Ask Markdrop
 description: One assistant everywhere. Ask about the doc you're in, your meetings, a folder, a workspace or everything you can open, with cited sources, follow-ups and ⌘J.
 updated: 2026-11-05
-keywords: [ask markdrop, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
+keywords: [ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---
 
 **Ask Markdrop** is one assistant, everywhere in Markdrop. Ask a question in plain words about the doc you're reading, your meetings, a folder, a workspace or everything you can open. Each answer cites where it came from, so you can check it in one tap, and the conversation follows you from screen to screen.
@@ -28,7 +28,7 @@ The chips at the top of the panel say what Ask Markdrop answers from. It starts 
 | **Workspace** | Everything in the workspace you can open, meetings included | A workspace |
 | **Everything** | Every meeting, document, page, file and [Guide](/guides/overview) you can open | Your home, and anywhere else |
 
-Only the chips for things you can open are shown. A document in your personal space has **This doc** and **Everything**.
+Only the chips for things you can open are shown. A document in your personal space has **This doc** and **Everything**. If Markdrop can't tell where you are, for example when the connection drops, the panel says "Couldn't check this place" and answers from **Everything**.
 
 ### This doc
 
@@ -55,7 +55,7 @@ Under an answer:
 - **Ask again** asks the same question again.
 - Follow-up questions to pick in one tap.
 
-AI can be wrong, so check the sources. When nothing you can open answers the question, the answer says so.
+AI can be wrong, so check the sources. When nothing you can open answers the question, the answer says so. An answer is never blank: if one runs long, you get what was written with a note that it was cut short, and you can ask a narrower question for the rest.
 
 ## Insert an answer into the doc
 
@@ -128,7 +128,9 @@ On a phone, Ask Markdrop opens as a sheet that stays above the keyboard. The chi
 | **↑** in an empty box | Bring back your last question to edit |
 | **Esc** | Stop an answer that is still being written, close the sources, or close the panel |
 
-## From an AI app or the API
+## From Slack, an AI app or the API
+
+- **Slack.** `/markdrop ask` answers the way **Everything** does (or **Workspace**, for the workspace Slack is connected to), and `/markdrop meetings` the way **Meetings** does. Only you see the answer. See [Slack](/integrations/slack#search-and-ask-from-slack).
 
 - **MCP.** The hosted MCP server's `ask_documents` tool asks the same way. Pass its `thread_id` back to ask a follow-up, set `intent` to `catch_up` or `my_actions`, `page` to ask about a doc first, or `folder` (with `scope`) to ask one folder. `ask_meetings` asks meetings and `meeting_context` finds what was decided about a topic. See [MCP tools](/ai/tools#read-and-find).
 - **API.** `POST /api/v1/ask` streams an answer as Server-Sent Events; its `scope` says what to answer from (`doc`, `meetings`, `folder`, `workspace` or `everything`). `GET /api/v1/ask/context` says which scopes are offered where you are, and `/api/v1/ask/threads` lists, opens and deletes your conversations. See the [API reference](/api/overview).
@@ -139,3 +141,4 @@ On a phone, Ask Markdrop opens as a sheet that stays above the keyboard. The chi
 - [Meeting memory while writing](/pages/meeting-memory)
 - [AI in pages](/pages/ai)
 - [Search](/workspaces/search)
+- [Slack](/integrations/slack)

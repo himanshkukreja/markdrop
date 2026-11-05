@@ -2,7 +2,7 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-05
-keywords: [view mode, edit mode, read mode, reading view, edit button, done, e shortcut, checkbox, tick, page, pages, top bar, sidebar, collapse sidebar, menu, more actions, use as template, version history, request edit access, admins, unlock, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
+keywords: [view mode, edit mode, ✦ ask, ask markdrop, leave anyway, edit anyway, is editing, idle, insert, read mode, reading view, edit button, done, e shortcut, checkbox, tick, page, pages, top bar, sidebar, collapse sidebar, menu, more actions, use as template, version history, request edit access, admins, unlock, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -26,19 +26,24 @@ Once it's a page, it stays a page: its menus don't switch it to another editor. 
 
 A page opens in **View mode** for everyone, including you when you can edit it. Links, mentions, sub-pages, embeds and database rows open when you click them, there's no caret and no block handles, and nothing changes by accident while you read.
 
-To change the page, choose **Edit** in the top bar, or press **E** (not while you're typing in a field). The editor takes the page's place in the same spot, and your changes save as you go. Choose **Done** to go back to reading: Markdrop saves anything still waiting first and lets go of the page, so someone else can edit it straight away. If a change can't be saved yet (someone else took over the page, or you're offline), the editor stays open and says so; **Leave anyway** keeps your changes in this browser for next time.
+To change the page, choose **Edit** in the top bar, or press **E** (not while you're typing in a field). The editor takes the page's place in the same spot, and your changes save as you go. Opening the editor doesn't hold the page: only your first real change does, so others can still edit until you type (see [Editing together](/pages/editing-together)). Choose **Done** to go back to reading: Markdrop saves anything still waiting first and lets go of the page, so someone else can edit it straight away. If a change can't be saved yet (someone else took over the page, or you're offline), the editor stays open and says **Your latest changes aren't saved yet, so the editor stays open**; **Leave anyway** keeps your changes in this browser for next time.
+
+**✦ Ask** sits beside **Edit** (and **Done**) for anyone signed in: it opens [Ask Markdrop](/workspaces/ask-markdrop) on this page. In View mode, **Insert** under an answer switches the page to Edit with the answer at the end of the section you were reading. See [Ask this page](/pages/ai#ask-this-page).
 
 Some pages open straight in the editor:
 
 - a page you've just made, from **New page**, **Add a sub-page**, a template, **Duplicate** or a meeting import
 - an empty page
 - a link ending in `?edit=1`, and a document you've just switched with **Open in block editor**
+- a page you open with **Apply in page** from [AI insights in analytics](/analytics/ai-insights)
+
+If the page's link changes while you're editing it (you or an AI app choose a new one), you stay in Edit at the new address.
 
 It works the same on markdrop.in and on your workspace's [own domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain), on a computer, a tablet or a phone (on a phone, **Edit** and **Done** are the pencil and the tick in the top bar). People who can only read the page see the same View mode without **Edit**.
 
 ### Tick a to-do in View mode
 
-If you can edit a page, you can tick or untick its to-do boxes without opening the editor: the change saves at once. If someone else is editing the page right then, or the page is [locked](#page-options), the box goes back and Markdrop tells you why. Readers see the boxes but can't change them.
+If you can edit a page, you can tick or untick its to-do boxes without opening the editor: the change saves at once. While someone else is editing the page, or the page is [locked](#page-options), the boxes don't tick; if someone started editing a moment ago, the box goes back and Markdrop tells you who, for example **Ana is editing this page. Try again when they're done.** Readers see the boxes but can't change them.
 
 ## Write with blocks
 
@@ -82,13 +87,17 @@ Pages made before automatic covers existed got a cover the same way, once, unles
 
 ## The top bar
 
-A page has one bar at the top, and it stays in place as you scroll. On the left are the sidebar button, the logo (your workspace's logo on its own domain) and the breadcrumbs: the workspace and folder (if you're a member), the pages above this one, each with its icon, and this page. When there are more than three, the middle ones fold into **…**; on a phone everything above this page folds into **…**. On the right are [who's viewing](/sharing/see-whos-viewing), **Saving…** or **Saved**, **Share** (or **Copy link** if you can't share the page), the **⋯** menu, **Create** and your account menu (or **Sign in**). If you're signed out, the theme is in the **⋯** menu. A Markdown document has the same bar when you leave full screen; see [On a document](/get-started/tour#on-a-document).
+A page has one bar at the top, and it stays in place as you scroll. On the left are the sidebar button, the logo (your workspace's logo on its own domain) and the breadcrumbs: the workspace and folder (if you're a member), the pages above this one, each with its icon, and this page. When there are more than three, the middle ones fold into **…**; on a phone everything above this page folds into **…**. On the right are [who's viewing](/sharing/see-whos-viewing), **Saving…** or **Saved** (while you edit), **✦ Ask** (signed in), **Edit** in View mode or **Done** in the editor (if you can edit the page), **Share** (or **Copy link** if you can't share the page), the **⋯** menu, **Create** and your account menu (or **Sign in**). If you're signed out, the theme is in the **⋯** menu. A Markdown document has the same bar when you leave full screen; see [On a document](/get-started/tour#on-a-document).
 
 The sidebar beside the page holds the page tree and the page's contents. To hide it, choose the sidebar button or press **⌘ \\** (**Ctrl \\** on Windows and Linux); your browser remembers the choice. While it's hidden, point at the left edge of the window to peek at it. On smaller screens the sidebar opens over the page from the same button.
 
 ## Page options
 
-The **⋯** menu in the top bar has, if you can edit the page:
+What the **⋯** menu in the top bar has depends on the mode.
+
+**In View mode**, if you can edit the page: **Copy link** (when **Share** is in the bar), **View raw**, **Export…**, **Save a copy** (a page you don't own), **Publish to Google Docs** (owners who have connected Google), **Add a sub-page**, **Move to…**, **Duplicate**, **Version history**, **Use as template**, **Change link…** (owners), **Remove me** (if someone shared the page with you) and **Details**. The page's own options below are in the editor: choose **Edit** first.
+
+**In the editor** (Edit mode):
 
 - The font: **Default**, **Serif** or **Mono**, then the **Small text**, **Full width** and **Readers can export** switches.
 - AI: **Summarize page**, **Find action items** and **Suggest title & icon** (and **Translate…** further down). See [AI in pages](/pages/ai).
@@ -164,9 +173,9 @@ Pages save themselves about two seconds after you stop typing. The top bar shows
 
 ## One editor at a time
 
-The first time you type or click in the editor, the page is held for you (reading it in View mode never holds it), and others see **Editing** next to your name in [who's viewing](/sharing/see-whos-viewing). Anyone else who opens it meanwhile sees a banner under the top bar, **Your name is editing — you'll be able to edit when they're done**. They follow your changes live, and the page becomes editable for them on its own once it's free again.
+Your first real change in the editor (typing, pasting, moving a block, changing the cover or a page option) holds the page for you. Reading it in View mode, choosing **Edit**, clicking or selecting text never does. While you hold it, others see **Editing** next to your name in [who's viewing](/sharing/see-whos-viewing), and anyone else who opens the editor sees a banner under the top bar, such as **Your name is editing (idle for 1 min, unsaved changes · free in about 1 min) — you'll be able to edit when they're done**. They follow your changes live, and the page becomes editable for them on its own once it's free again. The page's owner and workspace admins also get **Edit anyway** in that banner.
 
-A page is let go when you choose **Done** or leave it, or after three minutes without typing or clicking in it, so someone who only has a page open never blocks anyone. It's also released two minutes after the editor stops responding, for example when a laptop goes to sleep.
+A page is let go when you choose **Done** or leave it, after two minutes without a change, after your tab has been in the background for a minute, or about 10 seconds after your browser quits without a word, so someone who only has a page open never blocks anyone. The details are in [Editing together](/pages/editing-together).
 
 If someone saved a newer version anyway (from the classic editor, VS Code or an AI app, or while your laptop slept), your change is merged into it: changes to different parts are both kept. Only when you both changed the same lines do you see a banner, with **Keep both**, **Use theirs** or **Use mine**. When an AI app only adds blocks to the end of a page you're editing, they appear at the end of your page without interrupting you. See [Working together on a page](/pages/working-together).
 
@@ -176,7 +185,9 @@ Pages work the same on a phone or tablet. While you edit, a toolbar above the ke
 
 ## AI in pages
 
-If you can edit a page, AI can rewrite a selection, draft with `/ai` (or **⌘ J**), summarize the page, find its action items, translate it and suggest alt text for its images. Signed-in readers can ask the page questions with **✦ Ask**. Every result is a suggestion until you accept it. See [AI in pages](/pages/ai).
+If you can edit a page, AI can rewrite a selection, draft with `/ai` (or **⌘ J**), summarize the page, find its action items, translate it and suggest alt text for its images. These are in the editor: choose **Edit** first. Anyone signed in who can open the page can ask it questions with **✦ Ask**, in View mode or Edit. Every result is a suggestion until you accept it. See [AI in pages](/pages/ai).
+
+In a workspace page, **From meetings** at the bottom right of the editor shows what your team decided about the page in meetings, ready to insert as a cited line. See [Meeting memory while writing](/pages/meeting-memory).
 
 ## Readers
 
@@ -184,10 +195,13 @@ People who can open the page see it as you laid it out, with the same blocks. Em
 
 ## Related
 
+- [Editing together](/pages/editing-together)
+- [Working together on a page](/pages/working-together)
 - [Templates](/pages/templates)
 - [Sub-pages and access inheritance](/pages/sub-pages)
 - [Images in pages](/pages/images)
 - [Paste into a page](/pages/paste)
 - [AI in pages](/pages/ai)
+- [Meeting memory while writing](/pages/meeting-memory)
 - [Export a page](/pages/export)
 - [Page Markdown reference](/pages/markdown-reference)

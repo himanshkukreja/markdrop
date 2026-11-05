@@ -4,16 +4,16 @@ nav: Meeting memory
 description: See what your team decided about a page in meetings while you write it, insert it as a cited line, and ask the page with your meetings.
 updated: 2026-11-05
 prerequisites: [/pages/overview, /workspaces/meetings]
-keywords: [meeting memory, from meetings, decisions, what did we decide, when did we decide, prd, spec, feature document, action items, open questions, cited line, insert decision, jump to moment, /meetings, hints, missed decision, contradicts, ask this page, + meetings, meeting_context, mcp]
+keywords: [meeting memory, edit mode, view mode, ask markdrop, from meetings, decisions, what did we decide, when did we decide, prd, spec, feature document, action items, open questions, cited line, insert decision, jump to moment, /meetings, hints, missed decision, contradicts, ask this page, + meetings, meeting_context, mcp]
 ---
 
 When you write a PRD, a spec or any page in a workspace, Markdrop shows what your team already decided and discussed about it in your [meetings](/workspaces/meetings): "On Oct 28 the team decided to ship checkout on Friday", with the meeting, its date and a link to the moment it was said. You can insert it into the page as a cited line, and ask the page questions that your meetings answer.
 
-It works in every page of a workspace that has meetings, for the workspace's members.
+It works in every page of a workspace that has meetings, for the workspace's members, while they edit the page: choose **Edit** (or press **E**) first. In [View mode](/pages/overview#view-and-edit), ask with **✦ Ask** instead (see [Ask the page with your meetings](#ask-the-page-with-your-meetings)).
 
 ## From meetings
 
-Select **From meetings** at the bottom right of the page. The number on it is how many related items it found. A panel opens beside the page (a sheet from the bottom on a phone).
+In the editor, select **From meetings** at the bottom right of the page. The number on it is how many related items it found. A panel opens beside the page (a sheet from the bottom on a phone).
 
 The panel follows what you're writing: the page's title, the heading of the section you're in, and your selection. Move to another section and the list changes. It shows:
 

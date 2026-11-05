@@ -1,8 +1,8 @@
 ---
 title: Troubleshooting
-description: Fixes for the problems people hit most - signing in, links that won't open, uploads, invitations, domains, analytics and transfers.
-updated: 2026-11-03
-keywords: [help, problem, error, not working, can't sign in, link broken, 404, 429, upload failed, troubleshoot]
+description: Fixes for the problems people hit most - signing in, links that won't open, uploads, pages, invitations, domains, analytics and transfers.
+updated: 2026-11-05
+keywords: [help, problem, can't edit page, can't type, is editing, edit anyway, conflict, keep both, page locked, leave anyway, not saved, notifications iphone, error, not working, can't sign in, link broken, 404, 429, upload failed, troubleshoot]
 ---
 
 Find the message you see, or the thing that isn't working. Each answer says what it means and what to do.
@@ -63,6 +63,36 @@ Your account holds up to 20 GB, and old versions of files count toward it. Delet
 
 :::details[My file type isn't accepted]
 Markdrop takes a fixed list of file types. Anything else is refused when you upload it, with "Unsupported file type…". See [Supported file types](/files/supported-types) for the list. For a site with several files, zip it and upload it as a [website](/files/websites). For any other kind of file, [send it peer to peer](/share/send-files).
+:::
+
+## Pages
+
+:::details[I can't type in a page]
+Pages open in View mode, for reading. Choose **Edit** in the top bar, or press :kbd[E], to open the editor, and **Done** when you're finished. If there's no **Edit**, you can only read the page: choose **Request edit access** in its **⋯** menu. See [View and Edit](/pages/overview#view-and-edit).
+:::
+
+:::details[Someone is editing — you'll be able to edit when they're done]
+One person edits a page at a time, and only while they're changing it. The page frees itself when they choose **Done** or leave, after two minutes without a change, or a minute after their tab goes to the background, and becomes editable for you without a reload. The page's owner and workspace admins can choose **Edit anyway**; what the other person hadn't saved is kept in version history. See [Editing together](/pages/editing-together).
+:::
+
+:::details[Someone else changed the same part of this page while you were editing]
+You and someone else (or an AI app) changed the same lines. Choose **Keep both** to get their version and then yours, **Use theirs** or **Use mine**. Their changes to other parts of the page stay either way. See [When two changes meet](/pages/working-together#when-two-changes-meet).
+:::
+
+:::details[Your latest changes aren't saved yet, so the editor stays open]
+**Done** couldn't save, usually because you're offline or someone took over the page. Wait for **Saved** in the top bar and choose **Done** again. **Leave anyway** goes back to reading and keeps your changes in this browser: the next time you open the page, choose **Restore them**.
+:::
+
+:::details[This page is locked by its owner, so it can't be edited]
+The page's owner or a workspace admin chose **Lock page**. Only they can edit it, or choose **Unlock page** in the editor's **⋯** menu. See [Page options](/pages/overview#page-options).
+:::
+
+:::details[My AI app says the page is locked or someone is editing it]
+While someone is editing a page, AI apps can't change it, except to add blocks to the end. The app is told who it is and when the page will be free, and can try again then. If you own the page or are a workspace admin, the app can take over with `take_over: true`. See [From an AI app](/pages/editing-together#from-an-ai-app).
+:::
+
+:::details[I don't get notifications on my iPhone]
+On an iPhone or iPad, notifications work only in the installed app (iOS 16.4 or later). [Install Markdrop](/get-started/install-app), open it from your Home Screen, and turn notifications on in **Settings › Account** inside the app. See [Push notifications](/pages/mentions-and-notifications#push-notifications).
 :::
 
 ## Workspaces and domains

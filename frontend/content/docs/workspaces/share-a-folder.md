@@ -1,9 +1,9 @@
 ---
 title: Share a folder
 description: Send one link that lists a folder's contents. A folder link never opens anything by itself; each visitor sees only what they could already open.
-updated: 2026-10-30
+updated: 2026-11-05
 prerequisites: [/workspaces/folders, /workspaces/privacy]
-keywords: [folder link, share folder, f link, public folder, team link]
+keywords: [folder link, share folder, f link, public folder, team link, slack, link preview, unfurl]
 ---
 
 A folder link is one address, like `markdrop.in/f/…`, that opens a page listing a folder's contents and its subfolders. It's handy for a set of handouts, a release's files, or a team's guides.
@@ -24,7 +24,7 @@ Open the folder in the workspace and choose **Share**, then the **Folder link** 
 ![The Share "Releases" dialog on the Folder link tab with Anyone with the link selected, the folder link with Copy link, a warning that 3 of 12 items won't show for visitors, and See it as a visitor →.](/docs-assets/workspaces/share-a-folder/folder-link-tab.webp)
 
 ### Copy the link
-Choose **Copy link** and send it.
+Choose **Copy link** and send it. Pasted into Slack with [Markdrop for Slack](/integrations/slack#link-previews) connected, the link shows the folder's name when everyone in the channel may open it: an **Anyone with the link** folder anywhere, or an **Acme team** folder in a channel of your own Slack workspace that isn't shared with another organization.
 ::::
 
 ![The shared folder page for Releases, "Shared from Acme", listing the 9 items open to anyone, such as Launch notes: Workflows beta, the Product demo video and the release notes.](/docs-assets/workspaces/share-a-folder/shared-folder-page.webp "A visitor sees only what's open to anyone: 9 of the folder's 12 items.")

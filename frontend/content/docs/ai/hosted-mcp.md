@@ -2,9 +2,9 @@
 title: Connect an AI app to Markdrop
 nav: Connect an AI app
 description: Add Markdrop's hosted MCP server to Claude, ChatGPT, Claude Code, Cursor or VS Code, approve it on Markdrop, and manage or disconnect it later.
-updated: 2026-11-03
+updated: 2026-11-05
 prerequisites: [/get-started/accounts]
-keywords: [mcp, connector, claude, chatgpt, cursor, vs code, copilot, windsurf, oauth, connected apps, remote server]
+keywords: [mcp, connector, claude, chatgpt, cursor, vs code, copilot, windsurf, oauth, connected apps, remote server, idempotency_key, retry, base_rev, conflict, locked, ask markdrop, meetings, folders]
 ---
 
 Markdrop's hosted MCP server lives at one address. Paste it into your AI app, sign in to Markdrop when the app sends you there, and approve. There is no API key, client ID or secret to copy.
@@ -124,6 +124,20 @@ Say it the way you would to a colleague:
 - "Make a runbook page for the payments outage in Acme and embed the dashboard file."
 - "Add today's decisions to the end of the meeting notes page."
 - "Is this share link still working? markdrop.in/share/4f9a2c71e0"
+- "Catch me up on this week in Markdrop." or "What are my open action items?"
+- "What did we decide about pricing in last month's standups?"
+- "Why do readers stop reading my getting-started guide?"
+- "Rename Acme's Releases folder to Release notes and move it under Guides."
+
+## Retries and conflicts
+
+AI apps sometimes retry a call after a timeout. Markdrop's tools are built so that doesn't do anything twice or overwrite someone's work:
+
+- **`idempotency_key`.** Every writing tool takes an optional `idempotency_key`, a unique id for the change (a UUID). A retry with the same key within 24 hours returns the first call's result instead of writing again: no second page, block, folder or upload.
+- **`base_rev`.** `update_page` (required) and `update_document` (optional) take the revision the app read, from `get_page` or `get_document`. If the page or document changed since, nothing is written and the app is told to read it again.
+- **Someone is editing.** While a person is editing a page, tools that would replace their text are refused with `locked`, saying who it is and when the page will be free. `append_blocks` still works. See [Editing together](/pages/editing-together).
+
+[MCP tools](/ai/tools) lists which tools take what.
 
 ## Manage connected apps
 

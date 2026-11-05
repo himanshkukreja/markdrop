@@ -3,7 +3,7 @@ title: Keyboard shortcuts
 description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks, and E to start editing.
 updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [e, edit, view mode, done, keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j, sidebar, collapse, cmd backslash]
+keywords: [e, edit, ask markdrop, ⌘j, ctrl j, view mode, done, keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j, sidebar, collapse, cmd backslash]
 ---
 
 On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** where it says **⌥**.
@@ -16,6 +16,8 @@ Pages open in [View mode](/pages/overview#view-and-edit).
 | --- | --- |
 | **E** | Edit the page (if you can edit it). Not while you're typing in a field or a dialog is open |
 | **⌘ \\** | Hide or show the sidebar |
+| **⌘ J** | Open or close [Ask Markdrop](/workspaces/ask-markdrop) on this page (signed in) |
+| **Esc** | Close Ask Markdrop |
 
 **Done** in the top bar goes back to View mode. To turn single-key shortcuts like **E** off, open **Settings › Account** and switch off **Keyboard shortcuts**.
 
@@ -47,7 +49,7 @@ Pages open in [View mode](/pages/overview#view-and-edit).
 
 | Shortcut | What it does |
 | --- | --- |
-| **⌘ J** | With text selected: **Ask AI** for the selection. Otherwise: draft with `/ai` at the caret |
+| **⌘ J** | In the text: with text selected, **Ask AI** for the selection, otherwise draft with `/ai` at the caret. Outside the text (or in View mode): open [Ask Markdrop](/workspaces/ask-markdrop) |
 | **Space** on an empty line | Draft with `/ai` |
 | **Esc** | Discard an AI suggestion |
 

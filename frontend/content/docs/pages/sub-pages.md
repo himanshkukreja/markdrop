@@ -10,8 +10,8 @@ A page can hold other pages. Sub-pages show at the bottom of their parent under 
 
 ## Add a sub-page
 
-- At the bottom of a page, choose **Add a sub-page**, pick a template and choose **Create page**. The gallery offers the page's workspace templates (for its members), yours and the built-in ones, with the folder's default already chosen. See [Templates for a sub-page](/pages/templates#templates-for-a-sub-page).
-- In the page, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
+- At the bottom of a page, under **Pages inside**, or from the page's **⋯** menu, choose **Add a sub-page** (in View mode or while you edit). The **New sub-page** gallery opens: pick a template and choose **Create page**, and the new page opens in the editor. The gallery offers the page's workspace templates (for its members), yours and the built-in ones, with the folder's default already chosen. See [Templates for a sub-page](/pages/templates#templates-for-a-sub-page).
+- While you edit the page, type `/page`: Markdrop makes an empty sub-page and puts a link to it where you typed.
 - In the page tree beside the page, or in your workspace's sidebar, point at a page and choose **+**.
 
 You need to be signed in and able to edit the parent.

@@ -2,9 +2,9 @@
 title: API overview
 nav: Overview
 description: Base URL, authentication with API tokens and edit secrets, the X-Read-Password and X-Edit-Secret headers, errors and rate limits of the Markdrop REST API.
-updated: 2026-10-30
-checked: 2026-10-30
-keywords: [api, rest, http, curl, try it, authentication, bearer, mdk, edit secret, X-Edit-Secret, X-Read-Password, errors, rate limits, openapi]
+updated: 2026-11-05
+checked: 2026-11-05
+keywords: [api, rest, http, curl, try it, authentication, bearer, mdk, edit secret, X-Edit-Secret, X-Read-Password, errors, rate limits, openapi, rev, base_rev, 409, conflict, X-Markdrop-Rev, retry, idempotency, idempotency_key]
 ---
 
 Everything you can do on markdrop.in goes through a JSON API at `https://api.markdrop.in`. Use it to publish from your own scripts and services. For publishing files from a terminal, the [CLI](/cli/install) is usually simpler; for AI apps, use the [MCP server](/ai/overview).
@@ -134,6 +134,23 @@ A `422` looks like this:
 ### Renamed documents
 
 When a document's address was renamed, reading the old slug answers `200` with `{"moved": true, "slug": "<new slug>", "url": "…"}` and the header `X-Markdrop-Moved: <new slug>`, but only to someone allowed to read the document. Follow it to the new slug.
+
+### Don't overwrite newer changes
+
+Reading a document returns its `rev`, a number that goes up with every change. Send it back as `base_rev` when you update the document:
+
+```bash
+curl -X PUT https://api.markdrop.in/api/v1/documents/q3-plan \
+  -H "Authorization: Bearer $MARKDROP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "# Q3 plan\n\nUpdated.", "base_rev": 7}'
+```
+
+If someone changed the document since you read revision 7, nothing is saved. The API answers `409` with "This document was changed somewhere else since you opened it. Nothing was saved. Load the latest version, then make your change again." and the header `X-Markdrop-Rev` with the current revision. Read it again, make your change on the new text, and send the new `rev`. Without `base_rev`, the last write wins, so scripts that edit shared documents should always send it.
+
+### Retrying a request
+
+A request that timed out may still have gone through. The REST API doesn't take an idempotency key, so read the item before you send a create again. AI apps on the [hosted MCP server](/ai/hosted-mcp#retries-and-conflicts) can send an `idempotency_key` instead, and get the first result back on a retry.
 
 ## Rate limits
 

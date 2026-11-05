@@ -2,7 +2,7 @@
 title: Slack
 description: Post meeting notes with Done buttons to a channel, search and ask Markdrop from Slack, preview links, and get mentions and requests as direct messages.
 updated: 2026-11-05
-keywords: [slack, slack app, integration, /markdrop, slash command, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, mentions, sign-off, access requests, approve, decline, slack connect]
+keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack]
 ---
 
 Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It does four things:
@@ -14,74 +14,113 @@ Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It do
 
 ## Connect a Slack workspace
 
-You need to be an admin or the owner of the Markdrop workspace, and allowed to add apps in Slack.
+Slack is set up from the Markdrop workspace's settings: open **Workspace settings** and choose the **Integrations** tab. The **Slack** card there shows one of three states:
 
-1. Open **Workspace settings** and choose the **Integrations** tab.
-2. Select **Add to Slack**, pick the Slack workspace, and select **Allow**.
-3. Back in Markdrop, choose a **Meetings channel**. Public channels work straight away. For a private channel, first type `/invite @Markdrop` in it.
+| The card shows | What it means |
+| --- | --- |
+| **Not set up yet**, and "Markdrop for Slack isn't switched on for this server yet." | Slack isn't available on this Markdrop server, so there's nothing to connect. Nothing is wrong with your workspace. |
+| **Add to Slack** | Slack is available, and this workspace isn't connected. |
+| **Connected** | The Slack workspace, who connected it and when, how many people linked their Slack account, and the **Meetings channel**. |
 
-Your own Slack account is linked as part of this. Everyone else links theirs once (see the next section).
+Only workspace **admins** and the **owner** connect Slack, choose the channel and disconnect it. Everyone else in the workspace sees the same card, read-only: its buttons and the channel picker show "Admins only". In Slack, you also need to be allowed to add apps to the Slack workspace.
+
+To connect:
+
+1. On the **Integrations** tab, select **Add to Slack**.
+2. Pick the Slack workspace in Slack, and select **Allow**. You come back to the **Integrations** tab, and the card says **Connected**.
+3. Choose the **Meetings channel** (see the next section).
+
+Your own Slack account is linked as part of this. Everyone else links theirs once (see [Link your Slack account](#link-your-slack-account)).
 
 A Slack workspace can be connected to only one Markdrop workspace at a time. To move it, **Disconnect Slack…** in the first workspace, then add it in the other.
+
+### Choose the meetings channel
+
+The **Meetings channel** list has the Slack workspace's public channels, marked `#`, and the private channels Markdrop was invited to, marked with a lock. A channel shared with another organization (Slack Connect) says **(shared with another organization)**. For a private channel, first type `/invite @Markdrop` in it, then reload the settings.
+
+- Pick a channel and Markdrop says "Meeting notes go to that channel now."
+- **Don't post meetings** stops posting meeting notes. Search, link previews and direct messages keep working.
+- **Post new meetings automatically** appears once a channel is chosen, and is on. Turn it off to post meetings only by hand, with **Post to Slack** (see [Meeting notes and Done](#meeting-notes-and-done)).
+
+If the card says **Slack's connection broke** (someone removed the app's access in Slack, for example), select **Disconnect Slack…**, then **Add to Slack** again.
 
 ## Link your Slack account
 
 Markdrop answers you in Slack as your Markdrop account, so it needs to know who you are there. Link once, either way:
 
-- In Markdrop: **Workspace settings** › **Integrations** › **Link my Slack account**.
-- In Slack: type `/markdrop link` and select **Link my Markdrop account**.
+- In Markdrop: **Workspace settings** › **Integrations** › **Your Slack account** › **Link my Slack account**. This card appears once the workspace is connected to Slack.
+- In Slack: type `/markdrop link` and select **Link my Markdrop account**. A **Link your Slack account** page opens on markdrop.in; select **Continue with Slack**.
 
-Slack then asks you to confirm who you are (Sign in with Slack). Markdrop keeps no Slack password or token for you. To undo it, select **Unlink** in the same place, or type `/markdrop unlink`.
+Slack then asks you to confirm who you are (Sign in with Slack). Markdrop keeps no Slack password or token for you. Once linked, the card says **Linked as** your Slack name. To undo it, select **Unlink** in the same place, or type `/markdrop unlink`.
+
+Until you link, `/markdrop` answers with a **Link my Markdrop account** button instead of results, and so do **Done**, **Approve** and sign-off buttons.
 
 ## Meeting notes and Done
 
-When you import a meeting and its summary is ready, Markdrop posts it to the meetings channel. The post has:
+When a meeting is imported and its AI summary is ready, Markdrop posts it to the meetings channel. The post has:
 
-- the meeting's name and date;
-- the summary;
-- the decisions;
-- each action item, with a **Done** button.
+- the meeting's name, linked to its page, and its date and time;
+- **Summary**;
+- **Decisions**;
+- **Action items**, each with a **Done** button;
+- **Open the meeting**.
 
-An action item's owner is @mentioned when they've linked their Slack account.
+An action item's owner is @mentioned when they've linked their Slack account. Otherwise their name is shown.
 
-**Done** ticks the item on the meeting's page, as the person who clicked. It works for anyone who can edit that page in Markdrop. If you haven't linked your account yet, Slack shows you a link button instead. If someone is editing the page right then, try again in a minute.
+**Done** ticks the item on the meeting's page, as the person who clicked, and the post then shows it crossed out with "Done by" and their name. It works for anyone who can edit that page in Markdrop. If you haven't linked your account yet, Slack shows you a link button instead. If someone is editing the page right then, try again in a minute. An item ticked in Markdrop before the post went out shows as done already.
 
-Only meetings everyone in the channel may open are posted. A meeting [restricted to its attendees](/workspaces/meetings) is never posted. In a channel shared with another organization (Slack Connect), only meetings anyone with the link can open are posted. Meetings brought in with [Import past meetings](/workspaces/meetings-import) aren't posted on their own either, so a backlog doesn't flood the channel.
+Which meetings are posted:
 
-To post a meeting again, or by hand when **Post new meetings automatically** is off, open the meeting's panel (**Ask this meeting**, bottom right) and select **Post to Slack**.
+- Only meetings everyone in the channel may open. A meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings) is never posted.
+- In a channel shared with another organization (Slack Connect), only meetings anyone with the link can open.
+- Each meeting is posted on its own once. Writing its summary again doesn't post it again.
+- Past meetings brought in quietly aren't posted on their own, so a backlog doesn't flood the channel. That's [Import past meetings](/workspaces/meetings-import#import-past-meetings) with **Don't notify anyone** on (the default), and the past days that [Connect Google Meet](/workspaces/meetings-auto-import#past-meetings) brings in.
+
+### Post a meeting by hand
+
+To post a meeting again, a past one, or any meeting when **Post new meetings automatically** is off: open the meeting's page, select **Meeting** at the bottom right, then **Post to Slack**. Markdrop says "Posted to #channel in Slack." The button shows for people who can edit the meeting's page, once the workspace has a meetings channel, and not on a restricted meeting.
+
+If it can't post, it says why: for example, "Invite @Markdrop to the meetings channel first (/invite @Markdrop)." when the app isn't in a private channel, or that the channel is archived or gone.
 
 ## Search and ask from Slack
 
 | Type | What you get |
 | --- | --- |
-| `/markdrop search onboarding` | The documents, pages, files and folders you can open that match |
+| `/markdrop search onboarding` | Up to 8 documents, pages, files and folders you can open that match, each with a line of its text, and **See all in Markdrop** |
 | `/markdrop ask how do contractors get a laptop?` | An answer with numbered sources |
 | `/markdrop meetings what did we decide about pricing?` | An answer from your workspace's meetings |
-| `/markdrop help` | What it can do, and whether you're linked |
+| `/markdrop link`, `/markdrop unlink` | Link or unlink your Slack account |
+| `/markdrop help`, or `/markdrop` on its own | What it can do, and whether you're linked |
 
 Every reply is visible **only to you**, even in a busy channel. Answers use only what your Markdrop account can open, the same as [search](/workspaces/search) in the app. Words without a command search, and a question asks.
 
-Answers are written by Markdrop AI and count towards the same limits as AI search and Meetings AI. A workspace with AI features off gets search but no answers.
+When you're a member of the Markdrop workspace this Slack is connected to, search and answers look in that workspace. Otherwise they look in everything you can open. `/markdrop meetings` needs you to be a member of that workspace.
+
+An answer quotes your question, then the answer with its **Sources** as links, and "Only you can see this answer. Markdrop AI can make mistakes; check the sources." Answers are written by Markdrop AI and count towards the same limits as [AI search](/workspaces/search#ask-ai) and [Meetings AI](/workspaces/meetings-privacy). An answer is never blank: when nothing you can open answers the question, it says so. A workspace with AI features off gets search but no answers.
+
+If Slack isn't connected to a Markdrop workspace, `/markdrop` says so and that a workspace admin can connect it in **Workspace settings › Integrations › Slack**.
 
 ## Link previews
 
-Paste a markdrop.in link into Slack and Markdrop adds a preview with its title, a few lines, and where it lives. The whole channel sees a preview, so Markdrop shows one only when everyone there may open the item:
+Paste a markdrop.in link into Slack and Markdrop adds a preview with its title, a few lines, its kind, its workspace and when it was last updated. Links to a [shared folder](/workspaces/share-a-folder) get a preview with the folder's name. Links on a workspace's [own domain](/workspaces/custom-domain), like docs.acme.com, don't get a preview from Markdrop. The whole channel sees a preview, so Markdrop shows one only when everyone there may open the item:
 
 - anything anyone with the link can open (no password, and the workspace doesn't require sign-in); or
 - your workspace's own items, in a channel that isn't shared with another organization.
 
-For anything else, the preview just says **Markdrop link — sign in to view**, without the title. Password-protected and private items always get that.
+For anything else, the preview just says **Markdrop link — sign in to view**, without the title, and "Only people who can open it in Markdrop see what's behind this link." Password-protected and private items always get that. While you're still typing a message, before it's sent, Markdrop treats the channel as shared, so the preview there is the strict one.
 
 ## Direct messages
 
 Once your account is linked, Markdrop sends you a direct message when:
 
-- someone **mentions** you on a page;
-- someone asks for your **sign-off**. Choose an option from the message;
-- someone **shares** something with you;
-- someone asks to **open or edit** something you own. Select **Approve** or **Decline**.
+- someone **mentions** you on a page (**Mentions**), with the line you were mentioned in and **Open in Markdrop**;
+- someone asks for your **sign-off** (**Sign-off requests**). Choose an option from the message;
+- someone **shares** something with you (**Shared with you**), with what you can do with it and their note;
+- someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin".
 
-Turn each kind on or off in **Workspace settings** › **Integrations** › **Direct messages from Markdrop**. The bell and email notifications don't change. If you lose access to something before the message goes out, it isn't sent.
+After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
+
+Turn each kind on or off in **Workspace settings** › **Integrations** › **Your Slack account** › **Direct messages from Markdrop**. All four are on when you link. The bell and email notifications don't change. If you lose access to something before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
 
 ## Disconnect
 
@@ -95,3 +134,13 @@ An admin selects **Disconnect Slack…** on the **Integrations** tab. You can al
 - Each person's direct-message choices.
 
 It doesn't read your channels. It only sees messages that contain a markdrop.in link, and only the link itself.
+
+## From an AI app
+
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can check a workspace's Slack connection with `slack_status` (connected or not, the meetings channel, whether new meetings are posted, and whether your own account is linked) and post a meeting with `post_meeting_to_slack`, with the same rules as **Post to Slack**. Connecting Slack, choosing the channel and linking your account stay on the website, because they go through Slack's own screens. See [MCP tools](/ai/tools).
+
+## Related
+
+- [Meetings](/workspaces/meetings)
+- [Ask Markdrop](/workspaces/ask-markdrop)
+- [Members and roles](/workspaces/members-and-roles)

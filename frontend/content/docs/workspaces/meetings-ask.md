@@ -3,16 +3,18 @@ title: Ask your meetings
 nav: Ask meetings
 description: Ask one meeting or every meeting in a workspace with Ask Markdrop. Answers are in English and link to the moment it was said.
 updated: 2026-11-05
-keywords: [ask markdrop, cmd j, ask this meeting, ask across meetings, ask meetings, meeting questions, what did we decide, action items, citations, sources, transcript moment, jump to the moment, follow-ups, new chat, stop, conversation, details, write it again, series, last month, date range, latest, keyboard]
+keywords: [ask markdrop, cmd j, ask meetings button, meetings chat, meeting chat, meeting bar, organized by, meeting details, post to slack, all meetings, this meeting, any series, any time, ask this meeting, ask across meetings, ask meetings, meeting questions, what did we decide, action items, citations, sources, transcript moment, jump to the moment, follow-ups, new chat, stop, conversation, details, write it again, series, last month, date range, latest, keyboard]
 ---
 
 Ask a question about one meeting, or about all the meetings you can open in a workspace. Answers come from the transcripts and the meeting pages, including your edits, and every answer links to where it came from.
 
-You ask with [Ask Markdrop](/workspaces/ask-markdrop), the one assistant in Markdrop, on its **Meetings** chip. **⌘ J** opens it from anywhere; on a meeting page and on the Meetings page it starts on **Meetings**.
+You ask with [Ask Markdrop](/workspaces/ask-markdrop), the one assistant in Markdrop, on its **Meetings** chip. **⌘ J** opens it from anywhere; on a meeting page, on the Meetings page and in the Meetings folders it starts on **Meetings**. (Ask Markdrop replaced the separate meetings chat.)
 
 ## Ask a meeting
 
 On a meeting page, select **Ask this meeting** in the bar under the meeting's properties, or **✦ Ask** in the top bar. Ask Markdrop opens on **Meetings** with **This meeting** picked. Pick a suggested question or ask your own, for example "What did we decide about pricing?" or "What did Priya take on?". Switch to **All meetings**, a series or a period in the question box to widen the question, or to **This doc** to ask about the page itself.
+
+The meeting bar shows who was there, who organized the call (**Organized by**, when Markdrop knows), and who can open the page: **Everyone in the workspace** or **Only the people who were there**. On the transcript page, the bar has **The meeting** to go back instead of **Transcript**.
 
 ![The meeting bar under a meeting's properties: who was there, who can open it, Transcript and Ask this meeting.](/docs-assets/workspaces/meetings-ask/meeting-bar.webp)
 
@@ -22,17 +24,20 @@ Ask follow-ups in the same conversation, or pick one of the follow-up questions 
 
 If the meeting has only Google's notes, without a transcript, the answer comes from the notes.
 
-**Meeting**, at the bottom right of a meeting page, opens its details:
+**Meeting**, at the bottom right of a meeting page (and its transcript), opens its details, with **Ask this meeting** at the top:
 
-- who was there, and where the meeting came from (imported by hand, by [Connect Google Meet](/workspaces/meetings-auto-import), or by an AI app);
-- the cost of its AI summary;
-- **Write it again**, to redo the summary;
-- **Restrict to attendees**;
-- **Delete meeting**.
+- the date, time and length, the **Type** and the **Series** (change either here; see [How meetings are organised](/workspaces/meetings#how-meetings-are-organised)), how many transcript lines and action items it has;
+- the **Organizer** and who imported it (**Imported by**);
+- who was there (members of the workspace are marked), and the sources: the Google Docs or files it came from, and whether it came in by [Connect Google Meet](/workspaces/meetings-auto-import) or an AI app;
+- **Only the people who were there**, to restrict it to its attendees (the person who imported it can switch it);
+- the cost of its AI summary, and **Write it again** to redo the summary;
+- **All meetings**, which opens the [Meetings page](/workspaces/meetings#the-meetings-page);
+- **Post to Slack**, when the workspace has a [Slack meetings channel](/integrations/slack) and the meeting isn't restricted;
+- **Delete meeting**, for the person who imported it and workspace admins.
 
 ## Ask across meetings
 
-Open the workspace's Meetings page: select **Ask meetings** in the Meetings folder, or go to **All meetings** from a meeting's details. Select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What did we decide this week?" or "Which questions are still open?". Ask Markdrop opens on **Meetings**, beside your meetings on a computer and as a sheet on a phone.
+In the workspace's **Meetings** folder (or one of its series folders), select **Ask meetings** in the bar at the top. Or, on the [Meetings page](/workspaces/meetings#the-meetings-page), select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What did we decide this week?", "What's the latest on the release?" or "Which questions are still open?". Ask Markdrop opens on **Meetings**, beside your meetings on a computer and as a sheet on a phone.
 
 ![Ask across meetings beside the Meetings page: the question, an answer with numbered sources, and follow-up questions under it.](/docs-assets/workspaces/meetings-ask/ask-across.webp)
 

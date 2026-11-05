@@ -3,7 +3,7 @@ title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
 updated: 2026-11-05
 prerequisites: [/workspaces/create]
-keywords: [folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, owner]
+keywords: [folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, card view, previews, default view, owner, create_folder, rename_folder, move_folder, delete_folder, move_to_parent, idempotency_key]
 ---
 
 Folders keep a workspace tidy, and on your own domain they shape the address. A document filed under **Guides › Setup** is served at `docs.acme.com/guides/setup/<document>`.
@@ -50,7 +50,7 @@ A live HTML preview runs the file the same way its own page does: on Markdrop's 
 
 **Who owns what.** Every item shows its owner's photo (or first initial) and name, and **You** for your own. A folder shows the people whose items are inside it. The item's menu on a phone shows its owner too. Only members of the workspace see the workspace's list, so only they see who owns what. Someone who opens an item from a public link never sees names.
 
-On a phone, the list shows the name with the owner and date under it. Tap **⋯** for the item's actions.
+On a phone, **List** shows the name with the owner and date under it, **Grid** has two tiles a row and **Cards** one card a row. Tap **⋯** for the item's actions.
 
 ## Make a folder
 
@@ -89,7 +89,11 @@ markdrop.in links never change when you rename or move a folder. Only addresses 
 
 ### With an AI app
 
-An AI app connected over [MCP](/ai/overview) can do the same: `create_folder`, `rename_folder`, `move_folder` and `delete_folder`, with the same permissions. `delete_folder` deletes an empty folder. For a folder with anything in it, the app has to choose what happens to what's inside. It can move everything up one level, or move the folder with everything in it to Trash. Until it chooses, the folder stays, and the app is told what's inside. See [MCP tools](/ai/tools#workspaces-and-folders).
+An AI app connected over [MCP](/ai/overview) can do the same: `create_folder`, `rename_folder`, `move_folder` and `delete_folder`, with the same permissions. `move_folder` with `new_parent` `"/"` moves a folder to the top of the workspace.
+
+`delete_folder` deletes an empty folder. For a folder with anything in it, the app has to choose what happens to what's inside with `contents`: `move_to_parent` moves everything up one level and then deletes the folder, and `trash` moves the folder with everything in it to Trash, like **Delete folder…**. Until it chooses, the folder stays, and the app is told what's inside (only items you can open are named). A trashed folder comes back with `restore_document`.
+
+Like the app, `create_folder`, `rename_folder` and `move_folder` refuse an address that's taken and say what holds it, unless the app sends `on_conflict: "suffix"`. Each of these tools also takes an optional `idempotency_key`, so an app that retries after a timeout doesn't make a second folder. See [MCP tools](/ai/tools#workspaces-and-folders).
 
 For the [API](/api/overview), `POST /api/v1/workspaces/{id}/folders` and the folder rename and move requests return `409` when the address is taken. Send `"on_conflict": "suffix"` to get the next free address (`reports-2`) instead.
 

@@ -66,7 +66,7 @@ The [Guides studio](/guides/overview) lives at guides.markdrop.in, so it install
 1. Open [guides.markdrop.in](https://guides.markdrop.in).
 2. Choose **Install app** in your account menu, or follow the steps for your device above.
 
-**Markdrop Guides** opens on your guides, with a **New guide** shortcut on its icon.
+**Markdrop Guides** opens on your guides, with **New guide** and **Members** shortcuts on its icon.
 
 ## Uninstall
 

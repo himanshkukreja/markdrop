@@ -4,10 +4,12 @@ nav: AI in pages
 description: Rewrite, draft, summarize and translate pages with AI, turn notes into a page, and let readers ask a page questions. Who can use it, what's sent, the limits.
 updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [ai, claude, anthropic, ask ai, ask this page, summarize, summary, translate, translation, action items, to-do, notes, alt text, title, icon, /ai, cmd j, ctrl j, workspace ai, privacy, training, limits, cover, auto cover, automatic cover]
+keywords: [ai, claude, view mode, edit mode, ✦ ask, insert, anthropic, ask ai, ask this page, summarize, summary, translate, translation, action items, to-do, notes, alt text, title, icon, /ai, cmd j, ctrl j, workspace ai, privacy, training, limits, cover, auto cover, automatic cover]
 ---
 
 Pages have AI built in. If you can edit a page, you can rewrite a passage, draft a section, summarize the page, find its action items, translate it and get alt text for its images. If you can only read a page, you can ask it questions. Every AI result is a suggestion: nothing changes on the page until you accept it.
+
+Pages open in [View mode](/pages/overview#view-and-edit), so the writing tools are in the editor: choose **Edit** (or press **E**) first. **✦ Ask** works in both modes.
 
 Markdrop's AI uses Anthropic's Claude. Pages are in beta, and so is AI in pages.
 
@@ -18,11 +20,11 @@ Markdrop's AI uses Anthropic's Claude. Pages are in beta, and so is AI in pages.
 | [Rewrite a selection](#rewrite-a-selection) | Editors | **Ask AI**, **⌘ J** |
 | [Draft with /ai](#draft-with-ai) | Editors | `/ai`, **⌘ J** |
 | [Start from notes](#start-a-page-from-notes) | Editors | **New page** |
-| [Find action items](#find-action-items) | Editors | **⋯** menu, **Ask AI** |
-| [Summarize a page](#summarize-a-page) | Editors | **⋯** menu |
-| [Ask this page](#ask-this-page) | Signed-in readers | **✦ Ask** in the top bar |
-| [Title and icon](#suggest-a-title-description-and-icon) | Editors | **⋯** menu |
-| [Translate a page](#translate-a-page) | Editors | **⋯** menu |
+| [Find action items](#find-action-items) | Editors | **⋯** menu in the editor, **Ask AI** |
+| [Summarize a page](#summarize-a-page) | Editors | **⋯** menu in the editor |
+| [Ask this page](#ask-this-page) | Everyone signed in who can open it | **✦ Ask** in the top bar, **⌘ J** |
+| [Title and icon](#suggest-a-title-description-and-icon) | Editors | **⋯** menu in the editor |
+| [Translate a page](#translate-a-page) | Editors | **⋯** menu in the editor |
 | [Alt text](#alt-text-for-images) | Editors | Adding an image |
 | [Cover](#pick-a-cover) | Anyone making a page | Automatic, and **Pick for me** |
 
@@ -53,11 +55,11 @@ Choose **New page**, then **Start from notes**. Paste your notes (meeting notes,
 
 ## Find action items
 
-Choose **Find action items** in the page's **⋯** menu for the whole page, or in **Ask AI** for a selection. AI lists the to-dos it finds as a to-do list. When a to-do names someone in the page's workspace, it gets a person chip, and a date becomes a date chip. The list is a suggestion you accept or discard.
+Choose **Find action items** in the page's **⋯** menu while you edit, for the whole page, or in **Ask AI** for a selection. AI lists the to-dos it finds as a to-do list. When a to-do names someone in the page's workspace, it gets a person chip, and a date becomes a date chip. The list is a suggestion you accept or discard.
 
 ## Summarize a page
 
-Choose **Summarize page** in the page's **⋯** menu. A short summary, a note titled **Summary**, is suggested at the top of the page. Accept it and it's part of the page, for every reader. Markdrop never adds a summary for readers on its own.
+While you edit, choose **Summarize page** in the page's **⋯** menu. A short summary, a note titled **Summary**, is suggested at the top of the page. Accept it and it's part of the page, for every reader. Markdrop never adds a summary for readers on its own.
 
 ## Ask this page
 
@@ -78,11 +80,11 @@ AI can be wrong, so check what matters on the page itself. Asking counts towards
 
 ## Suggest a title, description and icon
 
-When a new page is first saved without a title, a chip under the title suggests one, with an icon and a one-line description: "Use title ‘Q3 launch plan’ · 🚀 · description". Choose it to use them all, or dismiss it. To ask at any time, choose **Suggest title & icon** in the page's **⋯** menu.
+When a new page is first saved without a title, a chip under the title suggests one, with an icon and a one-line description: "Use title ‘Q3 launch plan’ · 🚀 · description". Choose it to use them all, or dismiss it. To ask at any time, choose **Suggest title & icon** in the page's **⋯** menu while you edit.
 
 ## Translate a page
 
-Choose **Translate…** in the page's **⋯** menu, pick a language, then **Translate to** that language. Markdrop makes a new page next to this one, called "Title (Español)" for Spanish, and shows its progress section by section. When it's done, choose **Open the copy**.
+While you edit, choose **Translate…** in the page's **⋯** menu, pick a language, then **Translate to** that language. Markdrop makes a new page next to this one, called "Title (Español)" for Spanish, and shows its progress section by section. When it's done, choose **Open the copy**.
 
 - The copy has the same blocks, embeds, images and page options, and it sits next to the original, so it follows the same access.
 - Only the text is translated. Links, mentions, embeds, code and the page's Markdown stay exactly as they were, and Markdrop checks that the copy has the same structure before saving it.

@@ -1,7 +1,7 @@
 ---
 title: Embed and mention Markdrop items
 description: Put your PDFs, videos, images, HTML pages and documents inside a page, or link to them with a chip. Each reader sees an item only if they can open it.
-updated: 2026-11-03
+updated: 2026-11-05
 prerequisites: [/pages/overview]
 keywords: [embed, mention, markdrop file, pdf, video, image, html, artifact, locked, placeholder, access, restricted item]
 ---
@@ -10,7 +10,7 @@ A page can show your other Markdrop items inside it: a PDF you can scroll, a vid
 
 ## Embed an item
 
-Type `/embed` and press **Enter**. Search your own files, or switch to your workspace's tab to search what you can open there. Choose how it shows, then pick the item:
+While you edit the page (choose **Edit** first), type `/embed` and press **Enter**. Search your own files, or switch to your workspace's tab to search what you can open there. Choose how it shows, then pick the item:
 
 | Show as | What readers see |
 | --- | --- |

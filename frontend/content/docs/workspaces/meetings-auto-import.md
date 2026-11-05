@@ -3,7 +3,7 @@ title: Import meetings automatically
 nav: Import automatically
 description: Connect Google Meet once, and every call's transcript and Gemini notes become a meeting page by themselves, with a small script in your own Google account.
 updated: 2026-11-05
-keywords: [shared meetings, meetings shared with me, organizer, nothing imported, check, script status, update script, new script, shared drives, auto import, backfill, past meetings, import old meetings, automatic import, connect google meet, google meet, apps script, google apps script, gemini notes, notes by gemini, transcript, meet transcript, script.google.com, unverified app, trigger, every 15 minutes, backfill, disconnect, meetings token]
+keywords: [shared meetings, meetings shared with me, organizer, nothing imported, check, script status, update script, new script, shared drives, auto import, backfill, past meetings, import old meetings, automatic import, connect google meet, google meet, apps script, google apps script, gemini notes, notes by gemini, transcript, meet transcript, script.google.com, unverified app, trigger, every 15 minutes, disconnect, meetings token, include_shared, script version 3, syncmeetings, max_per_run, backfill_days, last 30 days, drive api, script ran, also importing here, get the new script, slack, quiet import]
 ---
 
 Connect Google Meet once, and every call that Google transcribes or takes notes for becomes a page in your workspace's **Meetings** folder by itself, about 15 minutes after it ends.
@@ -18,7 +18,7 @@ It works with a small Google Apps Script that runs in your own Google account. M
 
 ## Connect Google Meet
 
-1. Open the workspace's **Meetings** page (select **Ask meetings** in the Meetings folder) and select **Connect Google Meet**. It sits next to **Import meeting**.
+1. In the workspace's **Meetings** folder, select **Connect Google Meet** in the bar at the top. It opens the [Meetings page](/workspaces/meetings#the-meetings-page) with the dialog. On the Meetings page itself, **Connect Google Meet** sits next to **Import meeting** (and in the **⋯** menu).
 
    ![The Connect Google Meet dialog: what the script reads, that it's read-only, that it has its own token for this workspace only, that it doesn't duplicate meetings, how far back to import past meetings, Include meetings shared with me (on), a switch to restrict meetings to their attendees, and Make my script.](/docs-assets/workspaces/meetings-auto-import/connect-dialog.webp)
 
@@ -36,9 +36,11 @@ Then, in Google:
 3. **Paste the script.** Open `Code.gs`, replace everything in it with the script you copied, and press **Save**.
 4. **Run setup once and allow.** Pick `setup` next to **Run** and press **Run**. Google asks you to allow the script. Because it's your own script, Google shows **Google hasn't verified this app**: select **Advanced**, then **Go to … (unsafe)**, then **Allow**.
 
-`setup` imports the meetings of the last 48 hours straight away, starts on the past meetings you chose, and schedules itself every 15 minutes. Back in Markdrop, the Meetings page shows **Google Meet connected**, when it last imported and how many meetings it brought in, and how the script's last run went (see [See what the script found](#see-what-the-script-found)).
+`setup` imports the meetings of the last 48 hours straight away, starts on the past meetings you chose, and schedules itself every 15 minutes. Back in Markdrop, the Meetings page shows **Google Meet connected**, when it last imported and how many meetings it brought in (or *waiting for the script's first run* until `setup` has run), and how the script's last run went (see [See what the script found](#see-what-the-script-found)). The Meetings folder shows the same line in its bar.
 
-![The Meetings page with Google Meet connected: last import a few minutes ago, the number of meetings, New script and Disconnect, and how the script's last run went; the meeting it imported is marked Auto.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
+When other members connected their own scripts to this workspace, the line says so: **Also importing here:** and their names.
+
+![The Meetings page with Google Meet connected: last import just now, the number of meetings, New script and Disconnect, how the script's last run went (79 found, 60 sent, 19 more in the next run), the shared-drives hint and who else imports here; the meeting it imported is marked Auto.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
 
 ## What the script can see and do
 
@@ -61,11 +63,18 @@ Each run tells Markdrop how it went, and the Meetings page shows it under **Goog
 - A Doc the script couldn't read, or Markdrop turned away, shows as an error with its title.
 - *Shared drives aren't searched* is a hint, not an error: see [Shared-drive search is off](#troubleshooting).
 
-To see the list itself, open the project in Apps Script, pick `check` next to **Run** and press **Run**. It lists every Doc it would send and why it skips the others, in the **Execution log**, and sends nothing.
+To see the list itself, open the project in Apps Script, pick `check` next to **Run** and press **Run**. It lists every Doc it would send (`WOULD SEND`) and why it skips the others, in the **Execution log**, and sends nothing. The Meetings page then shows the counts as **Checked** *5 min ago* instead of **Script ran**.
+
+When the last run found nothing, the page says what to look at: meetings left out because they're shared with you (make a new script with **Include meetings shared with me** on), or, with nothing at all, whether transcription or **Take notes with Gemini** is on in your calls.
 
 ## Update the script
 
-When Markdrop has a newer script than the one you installed, the Meetings page shows **New script** with **Get the new script**. Scripts installed before November 5, 2026 don't import meetings shared with you and don't report their runs, so update them. Version 3 (also November 5) sends as many Docs as a run has time for instead of 20, and says when the Drive API is off in one calm line:
+The current script is **version 3**: the top of `Code.gs` says *script version 3*. When yours is older, the Meetings page shows **New script** with **Get the new script**. Update it:
+
+- Version 1 (before November 5, 2026) doesn't import meetings shared with you and doesn't report its runs, so the line under **Google Meet connected** stays empty.
+- Version 2 sends at most 20 Docs a run and warns when the Drive API is off. Version 3 sends as many as a run has time for and says it once a day, as a hint.
+
+To update:
 
 1. Select **Get the new script** (or **New script**), choose your options and select **Make a new script**. The old script's token stops working.
 2. Open your existing project at [script.google.com](https://script.google.com/home), replace everything in `Code.gs` with the new script and press **Save**. The manifest hasn't changed.
@@ -76,8 +85,8 @@ When Markdrop has a newer script than the one you installed, the Meetings page s
 When you connect, the script can also bring in the meetings already in your Drive: the last 7, 30 or 90 days.
 
 - **Oldest first**, as many as a run has time for (about 4½ minutes, at most 200 Docs), so a long history takes a run or two, 15 minutes apart. To send the next batch right away, pick `syncMeetings` next to **Run** and press **Run**. The script's log in Apps Script says **Backfill finished** when it's done.
-- **Nobody is notified.** A past meeting's action items still name their owners, and the @mentions are links, but no one gets a notification or an email about a call that's long over. Meetings from the last 48 hours notify as usual.
-- **Dated by the call**, not by the import: the date in Google's title, or when Google made the Doc. The Meetings page lists them by date.
+- **Nobody is notified.** A past meeting's action items still name their owners, and the @mentions are links, but no one gets a notification or an email about a call that's long over, and it isn't posted to your [Slack meetings channel](/integrations/slack). Meetings from the last 48 hours notify (and post) as usual.
+- **Dated by the call**, not by the import: the date in Google's title, or when Google made the Doc. The Meetings page lists them by date, and each goes into its series' folder. See [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
 - **No duplicates.** Meetings already in the workspace, imported by hand or by an earlier run, are skipped.
 
 To go further back later, open the script, pick `backfill` next to **Run** and press **Run**. It goes back `BACKFILL_DAYS` days (set at the top of the script; 30 when it's `0`). To choose another number, change `BACKFILL_DAYS` first.

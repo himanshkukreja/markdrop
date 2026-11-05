@@ -3,7 +3,7 @@ title: A tour of the app
 description: Where your files, shared items, analytics, workspaces and settings live, and what each button on a document or file page does.
 updated: 2026-11-05
 prerequisites: [/get-started/accounts]
-keywords: [dashboard, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch]
+keywords: [dashboard, view mode, edit, done, ask markdrop, ✦ ask, cmd j, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch]
 ---
 
 Once you sign in, Markdrop works like a drive for things that render. This page walks through the sidebar, the **Create** menu, and the bar on top of every document and file.
@@ -48,6 +48,7 @@ Each row in **My files** has a **Copy link** button and a menu with **Open**, **
 A document opens full screen, with nothing but the text. Press :kbd[Esc] or choose **Show details** in the corner to bring back its bar. It's one bar at the top, the same as a [page](/pages/overview#the-top-bar)'s, and it stays in place as you scroll. On the left are the sidebar button, the logo (your workspace's logo on its own domain) and the title, after the workspace and folder if you're a member. On the right:
 
 - [Who's viewing](/sharing/see-whos-viewing), when someone else has it open too.
+- **✦ Ask** (signed in): opens [Ask Markdrop](/workspaces/ask-markdrop) on this document. If you can edit it, **Insert** under an answer opens the editor with the answer after the section you were reading.
 - **Edit**: shown to the owner, to people who can edit it, and to whoever holds the edit secret in this tab. Everyone else finds **Edit** in **More actions**, where it asks for the edit secret.
 - **Read full screen**: hides everything but the text again. Press :kbd[F]; press :kbd[Esc] to come back.
 - **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people). Everyone else gets **Copy link** here instead: it copies the address, and for an encrypted document it includes the key.
@@ -60,7 +61,7 @@ A document opens full screen, with nothing but the text. Press :kbd[Esc] or choo
 
 ## On a page
 
-A [page](/pages/overview) has the same bar, with breadcrumbs for the pages above it and **Saved** beside **Share**, and its sidebar holds the page tree. Press **⌘ \\** (**Ctrl \\** on Windows and Linux) to hide the sidebar, and point at the left edge of the window to peek at it. See [The top bar](/pages/overview#the-top-bar).
+A [page](/pages/overview) has the same bar, with breadcrumbs for the pages above it, and its sidebar holds the page tree. A page opens in [View mode](/pages/overview#view-and-edit): if you can edit it, choose **Edit** in the bar (or press :kbd[E]), and **Done** when you're finished. **Saved** shows beside **Share** while you edit, and **✦ Ask** sits beside **Edit**. Press **⌘ \\** (**Ctrl \\** on Windows and Linux) to hide the sidebar, and point at the left edge of the window to peek at it. See [The top bar](/pages/overview#the-top-bar).
 
 ## On a file
 
@@ -68,7 +69,7 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 
 ## Search and shortcuts
 
-Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents.
+Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents. Press :kbd[⌘J] (:kbd[Ctrl J]) to open [Ask Markdrop](/workspaces/ask-markdrop), the assistant that answers about the doc you're in, your meetings or everything you can open.
 
 Single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, :kbd[E] edits a page you can edit, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
 

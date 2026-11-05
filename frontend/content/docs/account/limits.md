@@ -1,8 +1,8 @@
 ---
 title: Limits
 description: Every limit in one place - document size, file sizes, storage, versions, sharing, workspaces, domains and request rates.
-updated: 2026-11-03
-keywords: [limits, quota, storage, max size, file size, rate limit, how many, maximum]
+updated: 2026-11-05
+keywords: [limits, quota, storage, max size, file size, rate limit, how many, maximum, ai limits, ai search, meetings ai, analytics ai, ask markdrop, conversations, 90 days]
 ---
 
 These are the limits Markdrop applies today. Sizes in MB and GB are binary units (1 MB = 1,024 KB).
@@ -55,6 +55,19 @@ The PDF viewer shows the first 50 pages of a PDF and offers the rest as a downlo
 | Custom domains | 25 per workspace |
 | Unverified domain | Dropped after 7 days |
 | Logo or favicon upload | 2 MB |
+
+## AI
+
+AI features share spending limits across everyone on Markdrop, and your own limits apply too. When one is reached, the feature says which limit and when AI is back; everything else keeps working.
+
+| What | Limit |
+| --- | --- |
+| [Ask Markdrop](/workspaces/ask-markdrop) (except **Meetings**) and [Ask AI in search](/workspaces/search#ask-ai) | **AI search**: $2 a day and $20 a month across Markdrop |
+| Ask Markdrop on **Meetings**, and meeting summaries | **Meetings AI**: $5 a day and $50 a month across Markdrop. See [Meetings privacy and cost](/workspaces/meetings-privacy#ai-and-cost) |
+| [AI in pages](/pages/ai#limits), [AI insights](/analytics/ai-insights#limits) and [Insights and Ask](/analytics/overview#insights-and-ask) in Analytics | Fair-use limits, per person and across Markdrop |
+| One question to Ask Markdrop | 500 characters |
+| Ask Markdrop conversations | Kept 90 days after your last question in each |
+| AI insights for one link | Need 20 sessions in the period; kept 90 days |
 
 ## Sign-in and tokens
 
