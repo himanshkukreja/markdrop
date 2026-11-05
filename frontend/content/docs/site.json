@@ -236,6 +236,15 @@
       ]
     },
     {
+      "group": "Integrations",
+      "icon": "layers",
+      "tab": "platform",
+      "new": true,
+      "pages": [
+        "/integrations/slack"
+      ]
+    },
+    {
       "group": "VS Code",
       "icon": "edit",
       "tab": "platform",

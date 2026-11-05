@@ -24,6 +24,22 @@
   "next": [],
   "entries": [
     {
+      "id": "slack",
+      "date": "2026-11-05",
+      "title": "Markdrop for Slack: meeting notes, /markdrop, link previews and direct messages",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Connect a Slack workspace from Workspace settings › Integrations. Meeting notes go to a channel with Done buttons that tick the action items on the page, /markdrop search and ask answer you privately from what you can open, links preview when the whole channel may see them, and mentions, sign-offs, shares and access requests arrive as direct messages.",
+      "body": "- **Meeting notes in a channel:** the summary, decisions and action items of each imported meeting, with a **Done** button per action item that ticks it on the Markdrop page as the person who clicked. Meetings restricted to their attendees are never posted; **Post to Slack** in the meeting panel posts one again.\n- **`/markdrop search`, `/markdrop ask` and `/markdrop meetings`:** replies only you see, built only from what your Markdrop account can open.\n- **Link previews** for markdrop.in links: a preview when anyone with the link, or everyone in your workspace, may open it (and the channel isn't shared with another organization); otherwise \"Markdrop link — sign in to view\".\n- **Direct messages** for mentions, sign-off requests (choose an option in Slack), shares, and access requests (Approve or Decline in Slack), each one switchable.\n- **Link your Slack account** once with Sign in with Slack. Markdrop keeps no Slack token for you; the workspace's app token is encrypted.",
+      "docs": [
+        "/integrations/slack"
+      ]
+    },
+    {
       "id": "meetings",
       "date": "2026-11-05",
       "title": "Meetings: every call becomes a page you can ask",

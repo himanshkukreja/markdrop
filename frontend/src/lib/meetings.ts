@@ -58,6 +58,8 @@ export interface Meeting {
   created_by: string | null;
   can_manage: boolean;
   can_delete: boolean;
+  /** The workspace's Slack meetings channel (GET /meetings/{id} only), for "Post to Slack". */
+  slack_channel?: string | null;
   can_regenerate: boolean;
   approx_times?: boolean;
 }

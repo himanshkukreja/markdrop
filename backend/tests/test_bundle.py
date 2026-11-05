@@ -7,6 +7,8 @@ import zipfile
 from io import BytesIO
 from unittest import mock
 
+from tests import _email_env  # noqa: F401  (pins settings before app.config is first imported)
+
 from app.services import bundle
 
 

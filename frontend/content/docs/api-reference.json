@@ -16,6 +16,7 @@
     { "id": "folders", "title": "Folders and filing", "tags": ["folders", "workspace-items", "library", "folder-pages"] },
     { "id": "search", "title": "Search", "tags": ["search"] },
     { "id": "meetings", "title": "Meetings", "tags": ["meetings"] },
+    { "id": "slack", "title": "Slack", "tags": ["slack"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
@@ -1365,6 +1366,72 @@
       "example": {"question": "What did we decide?"},
       "mcp": "ask_meetings",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
+    },
+    "GET /api/v1/slack/status": {
+      "title": "Slack connection status",
+      "description": "What Workspace settings › Integrations › Slack shows: whether Markdrop for Slack is set up on this server (`configured`), the Slack workspace connected here (`install`: its name, who connected it, the meetings channel, how many people linked their account), whether you can change it (`can_manage`: admins and owners), and your own link and direct-message preferences (`me`). Members of the workspace only.",
+      "paramNotes": {"workspace_id": "The workspace's id."},
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "POST /api/v1/slack/install": {
+      "title": "Start Add to Slack",
+      "description": "Returns the Slack address that installs the Markdrop app in a Slack workspace (OAuth). Slack sends you back to markdrop.in, which finishes with **Finish Add to Slack**. Admins and owners of the workspace. 503 when Markdrop for Slack isn't set up on this server.",
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "POST /api/v1/slack/connect": {
+      "title": "Finish Add to Slack",
+      "description": "The end of Add to Slack: `code` and `state` from Slack's redirect. Connects that Slack workspace to this Markdrop workspace (one Slack workspace per Markdrop workspace: 409 when it's connected elsewhere) and links your own Slack account. The `state` is for the account that started, and works once.",
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "DELETE /api/v1/slack/install": {
+      "title": "Disconnect Slack",
+      "description": "Removes the Markdrop app from the connected Slack workspace and forgets everyone's Slack link here. Messages already posted stay in Slack. Admins and owners.",
+      "paramNotes": {"workspace_id": "The workspace's id."},
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "GET /api/v1/slack/channels": {
+      "title": "Slack channels for meeting posts",
+      "description": "Channels the meeting notes can go to: public channels, and private ones the app was invited to (`/invite @Markdrop`). `shared` marks a channel shared with another organization (Slack Connect), where only meetings anyone with the link can open are posted. Admins and owners.",
+      "paramNotes": {"workspace_id": "The workspace's id."},
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "PATCH /api/v1/slack/settings": {
+      "title": "Choose the meetings channel",
+      "description": "Sets the channel meeting notes are posted to (`meetings_channel_id`, one from **Slack channels for meeting posts**), stops posting (`clear_channel: true`), or turns automatic posting of new meetings on or off (`post_meetings`). Admins and owners.",
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "POST /api/v1/slack/link/start": {
+      "title": "Start linking my Slack account",
+      "description": "Returns the Sign in with Slack address that links your Slack account to your Markdrop account. Pass `workspace_id` (members of that workspace) or `team_id` (the Slack workspace a /markdrop link button names). Slack proves who you are there; Markdrop keeps no Slack token for you.",
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "GET /api/v1/slack/link/info": {
+      "title": "The Slack workspace a link page is for",
+      "description": "The connected Slack workspace's name, and whether your account is linked in it already. 404 when Markdrop isn't connected to that Slack workspace.",
+      "paramNotes": {"team_id": "The Slack workspace's id (T…)."},
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "POST /api/v1/slack/link/finish": {
+      "title": "Finish linking my Slack account",
+      "description": "The end of Sign in with Slack: `code` and `state` from Slack's redirect. 409 when you signed in to another Slack workspace than the one connected.",
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "DELETE /api/v1/slack/link": {
+      "title": "Unlink my Slack account",
+      "description": "Forgets the link between your Slack account and your Markdrop account in the Slack workspace connected here. /markdrop then asks you to link again, and Markdrop stops sending you direct messages there.",
+      "paramNotes": {"workspace_id": "The workspace's id."},
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "PATCH /api/v1/slack/me/prefs": {
+      "title": "My Slack notifications",
+      "description": "Which direct messages Markdrop sends you in Slack: `mention`, `signoff_requested`, `shared` and `access_request` (each on unless turned off). Send only the ones you change. Bell and email notifications aren't affected.",
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "POST /api/v1/slack/meetings/{meeting_id}/post": {
+      "title": "Post a meeting to Slack",
+      "description": "Posts the meeting's summary, decisions and action items (with Done buttons) to the workspace's meetings channel, again if it was posted before. Anyone who can edit the meeting's page. 409 with the reason when it can't be posted: no channel chosen, the app isn't in a private channel, or the meeting is restricted (only meetings everyone in the channel may open are posted).",
+      "paramNotes": {"meeting_id": "The meeting's id."},
+      "guide": {"label": "Slack", "href": "/integrations/slack"}
     }
   }
 }

@@ -373,6 +373,57 @@ if _lat:
     r2.set_public = _slow_set_public
     r2.set_public_prefix = _slow_set_public_prefix
 
+# Markdrop for Slack against a fake Slack (PB_FAKE_SLACK=1, slack.mjs): the app counts as set up, and
+# every Web API call is answered in process (oauth.v2.access → team "Acme Slack", Sign in with Slack →
+# a Slack user per code, a few channels). The browser's trips to slack.fake are intercepted by the test.
+# Nothing leaves the machine; no real Slack app or secret exists here.
+if os.environ.get("PB_FAKE_SLACK"):
+    import json as _sjson
+    from urllib.parse import parse_qs as _sqs
+
+    from app.services import slack_api as _slack_api
+    from app.utils import crypto as _crypto
+
+    mod.settings.slack_client_id = "fake.client"
+    mod.settings.slack_client_secret = "fake-client-secret"
+    mod.settings.slack_signing_secret = "fake-signing-secret"
+    mod.settings.slack_api_base = "https://slack.fake/api"
+    mod.settings.slack_web_base = "https://slack.fake"
+    if not mod.settings.token_encryption_key:
+        mod.settings.token_encryption_key = "8Kq0Qb3oQ1n3yYbqQh1w8sV9t6rXo5Wm2Zc4Jd7Lp0E="
+    _crypto._fernet.cache_clear()
+    SLACK_CALLS = os.path.join(os.environ.get("PB_WORK", "/tmp"), "stack", "slack-calls.jsonl")
+
+    def _slack(request: httpx.Request) -> httpx.Response:
+        method = request.url.path.rsplit("/", 1)[-1]
+        body = request.content.decode() if request.content else ""
+        data = _sjson.loads(body or "{}") if body.startswith("{") else {k: v[0] for k, v in _sqs(body).items()}
+        with open(SLACK_CALLS, "a") as fh:
+            fh.write(_sjson.dumps({"method": method, "data": data}) + "\n")
+        if method == "oauth.v2.access":
+            return httpx.Response(200, json={"ok": True, "access_token": "xoxb-fake", "token_type": "bot",
+                                             "scope": "commands,chat:write", "bot_user_id": "UBOT", "app_id": "AFAKE",
+                                             "team": {"id": "TFAKE", "name": "Acme Slack"}, "authed_user": {"id": "U-INSTALLER"}})
+        if method == "openid.connect.token":
+            return httpx.Response(200, json={"ok": True, "access_token": "xoxp-" + data.get("code", "x")})
+        if method == "openid.connect.userInfo":
+            who = request.headers.get("authorization", "").rsplit("-", 1)[-1]
+            return httpx.Response(200, json={"ok": True, "name": f"slack-{who}", "https://slack.com/team_id": "TFAKE",
+                                             "https://slack.com/user_id": f"U-{who.upper()}"})
+        if method == "conversations.list":
+            return httpx.Response(200, json={"ok": True, "channels": [
+                {"id": "C1", "name": "general", "is_private": False},
+                {"id": "C2", "name": "meetings", "is_private": False},
+                {"id": "C3", "name": "partners", "is_private": False, "is_ext_shared": True},
+                {"id": "G1", "name": "leads", "is_private": True, "is_member": True}]})
+        if method == "conversations.info":
+            return httpx.Response(200, json={"ok": True, "channel": {"id": data.get("channel"), "is_ext_shared": False}})
+        if method == "chat.postMessage":
+            return httpx.Response(200, json={"ok": True, "channel": data.get("channel"), "ts": "1.0001"})
+        return httpx.Response(200, json={"ok": True})
+
+    _slack_api.TRANSPORT = httpx.MockTransport(_slack)
+
 import uvicorn  # noqa: E402
 
 uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning")

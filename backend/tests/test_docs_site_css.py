@@ -12,6 +12,8 @@ import json
 import unittest
 from pathlib import Path
 
+from tests import _email_env  # noqa: F401  (pins settings before app.config is first imported)
+
 from app.services import docs_site_settings as site_settings
 from app.services.docs_site_settings import CUSTOM_CSS_MAX, css_problem
 
