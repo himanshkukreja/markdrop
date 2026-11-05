@@ -8,13 +8,13 @@ import type { AccessSync, Domain, Invitation, Member, Workspace } from "@/lib/wo
  *  the limit rather than letting the server refuse the create. */
 export const MAX_FOLDER_DEPTH = 8;
 
-export type TabId = "people" | "look" | "advanced";
-export const TAB_IDS: TabId[] = ["people", "look", "advanced"];
+export type TabId = "people" | "look" | "integrations" | "advanced";
+export const TAB_IDS: TabId[] = ["people", "look", "integrations", "advanced"];
 
 /** Old `?tab=` names (before the simpler settings) and where they live now. "folders" isn't a tab
  *  any more: it opens the workspace's folder view. */
 export const OLD_TABS: Record<string, TabId | "folders"> = {
-  general: "look", brand: "look", domains: "look", people: "people", folders: "folders",
+  general: "look", brand: "look", domains: "look", people: "people", folders: "folders", slack: "integrations",
 };
 
 /** What every tab gets from the page: the workspace, the caller's powers and the lazily loaded collections. */
@@ -43,6 +43,7 @@ export type Resource = "domains" | "people";
 export const TAB_NEEDS: Record<TabId, Resource[]> = {
   people: ["people"],
   look: ["domains"],
+  integrations: [],
   advanced: [],
 };
 

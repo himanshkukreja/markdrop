@@ -271,10 +271,11 @@ async def event(db: AsyncIOMotorDatabase, payload: dict) -> None:
             await unfurl(db, inst, ev)
 
 
-_RESERVED = frozenset({
-    "api", "auth", "login", "settings", "dashboard", "search", "recent", "shared", "trash", "requests", "pages",
-    "meetings", "w", "h", "guides", "docs", "admin", "privacy", "terms", "pricing", "builder", "integrations",
-    "oauth", "extension", "invite", "d", "new", "about", "blog", "changelog", "features", "tools",
+# Top-level app routes (frontend/src/app) that aren't documents; utils/slug.RESERVED_SLUGS too.
+_APP_ROUTES = frozenset({
+    "dashboard", "meetings", "pages", "recent", "requests", "search", "settings", "shared", "trash", "w", "h", "f",
+    "guides", "enterprise", "mcp", "privacy", "builder", "new", "share", "upload", "admin", "login", "auth", "invite",
+    "oauth", "extension", "d", "integrations", "docs-site",
 })
 
 
@@ -306,7 +307,10 @@ async def card_for(db: AsyncIOMotorDatabase, inst: dict, url: str, *, shared: bo
         if not ok:
             return kit.minimal_unfurl(url)
         return kit.item_unfurl(url, fo.get("name") or "Folder", kind="Folder", excerpt=None, where=None, updated=None)
-    if len(segs) != 1 or segs[0].lower() in _RESERVED or not re.fullmatch(r"[A-Za-z0-9_-]{3,80}", segs[0]):
+    from app.utils.slug import is_reserved_slug
+
+    if len(segs) != 1 or segs[0].lower() in _APP_ROUTES or is_reserved_slug(segs[0]) \
+            or not re.fullmatch(r"[A-Za-z0-9_-]{3,80}", segs[0]):
         return None
     raw, _moved = await document.find_for_read(db, segs[0])
     if raw is None:
