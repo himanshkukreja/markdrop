@@ -214,7 +214,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         <div className="mt-links" data-testid="import-link">
           <Field label="Google Docs or Drive links" htmlFor="mt-links"
             hint="One per line: the call's transcript Doc, Gemini's notes, or a .vtt / .txt file in Drive. Several links make several meetings.">
-            <Textarea id="mt-links" value={links} rows={3} spellCheck={false} data-testid="import-link-input"
+            <Textarea id="mt-links" value={links} rows={3} spellCheck={false} style={{ minHeight: 96 }} data-testid="import-link-input"
               onChange={(e) => { setLinks(e.target.value); setLinkResults(null); }}
               placeholder="https://docs.google.com/document/d/…" />
           </Field>
@@ -232,7 +232,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
                     {r.meeting ? <a href={`/${r.meeting.slug}`}><b>{r.meeting.title || "Meeting"}</b></a> : <b className="mt-linkres__url">{r.url}</b>}
                     {" · "}
                     {LINK_SAID[r.status]}
-                    {r.message && !r.meeting ? <><br />{r.message}</> : null}
+                    {r.message && (r.status === "needs_access" || r.status === "error") ? <><br />{r.message}</> : null}
                   </span>
                 </li>
               ))}
