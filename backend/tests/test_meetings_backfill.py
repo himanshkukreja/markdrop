@@ -106,11 +106,18 @@ class Detect(unittest.TestCase):
         self.assertEqual(det.series_key("Copy of Daily Standup"), "daily standup")
         self.assertNotEqual(det.series_key("Design review"), det.series_key("Sprint review"))
         self.assertEqual(det.pick_label(["Daily Standup", "Daily standup", "Daily Standup"]), "Daily Standup")
-        e = {"series": __import__("collections").Counter(), "rows": 0, "loose": []}
-        self.assertIsNone(meeting_series.decide("acme kickoff", "Acme kickoff", None, batch=0))
-        self.assertEqual(meeting_series.decide("daily standup", "Daily Standup", e, batch=1), "Daily Standup")
-        e2 = {"series": __import__("collections").Counter({"Standup": 3}), "rows": 3, "loose": []}
+        C = __import__("collections").Counter
+        e = {"series": C(), "rows": 1, "loose": [], "dates": {"2026-10-27"}}
+        self.assertIsNone(meeting_series.decide("acme kickoff", "Acme kickoff", None, dates={"2026-10-28"}))
+        # A name seen on two different days is a series; two calls on one day aren't.
+        self.assertEqual(meeting_series.decide("daily standup", "Daily Standup", e, dates={"2026-10-28"}), "Daily Standup")
+        self.assertIsNone(meeting_series.decide("daily standup", "Daily Standup", e, dates={"2026-10-27"}))
+        self.assertEqual(meeting_series.decide("daily standup", "Daily Standup", None, dates={"2026-10-27", "2026-10-28"}), "Daily Standup")
+        e2 = {"series": C({"Standup": 3}), "rows": 3, "loose": [], "dates": set()}
         self.assertEqual(meeting_series.decide("daily standup", "Daily Standup", e2), "Standup")
+        self.assertTrue(meeting_series.auto_restricted([{"name": "Ada"}, {"name": "Bo"}]))
+        self.assertFalse(meeting_series.auto_restricted([{"name": "Ada"}, {"name": "Bo"}, {"name": "Cy"}]))
+        self.assertFalse(meeting_series.auto_restricted([]))
 
     def test_estimate_and_past(self):
         self.assertAlmostEqual(det.estimate_usd(54_000, False), 0.00234, places=5)   # ~1 h call
@@ -333,10 +340,19 @@ class Queue(BackfillWorld):
         self.assertIn(":person[Ravi Kumar]", page["content"])
         self.assertIn('series: "Daily Standup"', page["content"])
         self.assertEqual(await self.db["notifications"].count_documents({}), 0)
-        # The folder: a Series property with the series as an option, and the meetings views.
+        # The folders: Meetings/Daily Standup (a Series option there) and Meetings/Other meetings, with the views.
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
-        props = {p["key"]: p for p in folder["properties"]}
+        subs = {f["name"]: f async for f in self.db["folders"].find({"parent_id": str(folder["_id"])})}
+        self.assertEqual(set(subs), {"Daily Standup", "Other meetings"})
+        self.assertEqual({r["title"]: r["folder_id"] for r in rows},
+                         {"Daily Standup": str(subs["Daily Standup"]["_id"]), "Acme kickoff": str(subs["Other meetings"]["_id"])})
+        docs = await self.db["documents"].find({"meeting_role": "page", "workspace_id": self.W}).to_list(10)
+        self.assertTrue(all(d["folder_id"] == next(r["folder_id"] for r in rows if r["doc_id"] == d["_id"]) for d in docs))
+        props = {p["key"]: p for p in subs["Daily Standup"]["properties"]}
         self.assertEqual([o["name"] for o in props["series"]["options"]], ["Daily Standup"])
+        self.assertEqual(subs["Daily Standup"]["meetings_series"], "daily standup")
+        self.assertEqual([v_["id"] for v_ in subs["Daily Standup"]["views"]], [meeting_series.VIEW_ALL])
+        self.assertEqual(subs["Other meetings"]["views"][0]["group"], "date")
         views = {v_["id"]: v_ for v_ in folder["views"]}
         self.assertEqual(views[meeting_series.VIEW_ALL]["group"], "date")
         self.assertEqual(views[meeting_series.VIEW_ALL]["sort"], [{"key": "date", "dir": "desc"}])

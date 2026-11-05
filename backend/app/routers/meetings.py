@@ -81,7 +81,7 @@ class ImportBody(BaseModel):
     title: str | None = Field(None, max_length=150)
     date: str | None = Field(None, max_length=10)
     type: str | None = Field(None, max_length=20)
-    restricted: bool = False
+    restricted: bool | None = None   # None: by the call (a 1:1 or two-person call is restricted)
     wait: bool = False
 
 
@@ -167,6 +167,7 @@ async def status(request: Request, workspace: str = Query(..., max_length=40),
     folder = await meetings.folder_of(db, ws)
     return {"ai": await meetings_ai.status(db, user.id, ws), "google": meeting_google.state(user),
             "folder_id": str(folder["_id"]) if folder else None, "can_import": role_allows(role, "member"),
+            "can_organize": role_allows(role, "admin"),
             "types": list(meetings.TYPES)}
 
 

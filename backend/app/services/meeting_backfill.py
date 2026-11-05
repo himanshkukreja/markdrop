@@ -279,6 +279,14 @@ async def rebuild(db: AsyncIOMotorDatabase, job: dict) -> dict:
         elif "include" in e:
             r["include"] = bool(e["include"])
         r["needs_date"] = r["include"] and not r["date"]
+        # Where it goes, and who sees it (a 1:1 or two-person call: its attendees; 3+: the team).
+        r["folder"] = r["series"] or meeting_series.OTHER
+        if job.get("restricted"):
+            r["restricted"], r["restricted_from"] = True, "job"
+        elif "restricted" in e:
+            r["restricted"], r["restricted_from"] = bool(e["restricted"]), "user"
+        else:
+            r["restricted"], r["restricted_from"] = meeting_series.auto_restricted(r["attendees"]), "auto"
     rows.sort(key=lambda r: (r["date"] is not None, r["date"] or "", r["time"] or "", r["title"] or ""))
     await db[JOBS].update_one({"_id": job["_id"]}, {"$set": {"rows": rows, "updated_at": now_utc()}})
     return await db[JOBS].find_one({"_id": job["_id"]})
@@ -302,7 +310,7 @@ async def _series_for(db: AsyncIOMotorDatabase, workspace_id: str, rows: list[di
             by_key.setdefault(r["series_key"], []).append(r)
     for key, rs in by_key.items():
         label = det.pick_label(det.series_label(r["title"]) for r in rs)
-        name = meeting_series.decide(key, label, known.get(key), batch=len(rs) - 1)
+        name = meeting_series.decide(key, label, known.get(key), dates={r["date"] for r in rs if r["date"]})
         for r in rs:
             r["series"] = name
     for r in rows:
@@ -384,11 +392,13 @@ async def edit(db: AsyncIOMotorDatabase, job: dict, *, quiet: bool | None = None
                 e["series"] = meeting_series.clean_name(ch["series"])
             if "include" in ch and ch["include"] is not None:
                 e["include"] = bool(ch["include"])
+            if "restricted" in ch and ch["restricted"] is not None:
+                e["restricted"] = bool(ch["restricted"])
             edits[rid] = e
         sets["edits"] = edits
     await db[JOBS].update_one({"_id": job["_id"]}, {"$set": sets})
     job = await db[JOBS].find_one({"_id": job["_id"]})
-    return await rebuild(db, job) if rows else job
+    return await rebuild(db, job) if rows or restricted is not None else job
 
 
 # ── Running ───────────────────────────────────────────────────────────────────
@@ -599,7 +609,8 @@ async def _row(db: AsyncIOMotorDatabase, job: dict, row: dict, user) -> None:
     try:
         rows = await meetings.import_meetings(
             db, user, job["workspace_id"], incoming, title=row["title"], date_=row["date"],
-            restricted=bool(job.get("restricted")), wait=True, via="backfill", dedupe="all",
+            restricted=bool(row["restricted"]) if "restricted" in row else (True if job.get("restricted") else None),
+            wait=True, via="backfill", dedupe="all",
             series=row.get("series"), series_from=row.get("series_from") or "auto", notify=not quiet)
     except HTTPException as exc:
         detail = exc.detail if isinstance(exc.detail, str) else "The import was refused."
@@ -704,6 +715,8 @@ async def view(db: AsyncIOMotorDatabase, job: dict, *, with_estimate: bool = Tru
             "slug": slugs.get(r.get("meeting_id") or ""), "segments": r.get("segments"), "attendees": r.get("attendees") or [],
             "est_usd": r.get("est_usd"), "cost_usd": r.get("cost_usd"), "order": r.get("order"),
             "past": is_past(r["date"], r.get("time")), "ai": r.get("ai"),
+            "folder": r.get("folder") or r.get("series") or meeting_series.OTHER,
+            "restricted": bool(r.get("restricted")), "restricted_from": r.get("restricted_from") or "auto",
         } for r in rows],
     }
     if with_estimate:

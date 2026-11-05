@@ -288,7 +288,10 @@ class Import(MeetingsWorld):
         folder = await self.db["folders"].find_one({"workspace_id": self.W, "meetings": True})
         self.assertEqual(folder["name"], "Meetings")
         self.assertEqual([p["key"] for p in folder["properties"]], ["date", "type", "series", "attendees", "organizer", "duration", "action_items"])
-        self.assertEqual(page["folder_id"], str(folder["_id"]))
+        # Filed in Meetings/Other meetings (a one-off), with the Meetings folder's properties.
+        sub = await self.db["folders"].find_one({"_id": __import__("bson").ObjectId(page["folder_id"])})
+        self.assertEqual((sub["name"], sub["parent_id"], sub["meetings_other"]), ("Other meetings", str(folder["_id"]), True))
+        self.assertEqual([p["key"] for p in sub["properties"]], [p["key"] for p in folder["properties"]])
         self.assertIn(f'organizer: "{self.uid["owner"]}"', c)
         self.assertIn('duration: "13 min"', c)
         # The transcript sub-page: anchored paragraphs.
@@ -522,7 +525,8 @@ class Access(MeetingsWorld):
         self.assertEqual(lst["hidden"][0]["id"], m["id"])
         self.assertNotIn("title", lst["hidden"][0])
         # Ask across meetings as Ravi: the restricted meeting's words never reach the model.
-        await self.imported(sources=[{"name": "Open sync", "text": "Ada Lovelace: Release on Friday.\nBo Chen: Fine."}])
+        await self.imported(sources=[{"name": "Open sync", "text": "Ada Lovelace: Release on Friday.\nBo Chen: Fine."}],
+                            restricted=False)   # two people: restricted unless told otherwise
         self.fake.calls.clear()
         r = await self.http.post("/api/v1/meetings/ask", headers=self.session("wv"), json={"workspace": self.W, "question": "what is the secret plan codename?"})
         evs = parse_sse(r.text)

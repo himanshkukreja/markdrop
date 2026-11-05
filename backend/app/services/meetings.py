@@ -504,7 +504,7 @@ def preview(incoming: list[Incoming]) -> list[dict]:
 
 async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
                           title: str | None = None, date_: str | None = None, type_: str | None = None,
-                          restricted: bool = False, wait: bool = False, via: str = "web",
+                          restricted: bool | None = None, wait: bool = False, via: str = "web",
                           dedupe: str | None = None, notify: bool = True, series: str | None = None,
                           series_from: str | None = None) -> list[dict]:
     """Make a meeting per group of sources (notes + transcript of one call pair up). Returns the rows,
@@ -520,7 +520,11 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
 
     ``series``/``series_from``: the meeting's series as decided elsewhere (Import past meetings'
     review, services/meeting_backfill.py: "auto" detected, "user" set by the person, None for none);
-    otherwise it is detected here (services/meeting_series.py)."""
+    otherwise it is detected here (services/meeting_series.py). Each meeting is filed by
+    ``meeting_series.place_meeting``'s rule: ``Meetings/<Series>`` or ``Meetings/Other meetings``.
+
+    ``restricted``: True restricts to attendees, False leaves it to the team, None (the default)
+    decides by the call: a 1:1 or two-person call is restricted, 3+ people the team (owner)."""
     from app.services import notifications
 
     kw = dict(title=title, date_=date_, type_=type_, restricted=restricted, wait=wait, via=via, dedupe=dedupe,
@@ -532,7 +536,7 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
 
 
 async def _import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
-                           title: str | None, date_: str | None, type_: str | None, restricted: bool, wait: bool,
+                           title: str | None, date_: str | None, type_: str | None, restricted: bool | None, wait: bool,
                            via: str, dedupe: str | None, history: bool, series: str | None = None,
                            series_from: str | None = None) -> list[dict]:
     from app.services import workspace as ws_service
@@ -770,7 +774,7 @@ async def _regenerate_when_free(db: AsyncIOMotorDatabase, meeting_id: str, user)
 
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
-                  restricted: bool, wait: bool, via: str, history: bool = False, series: str | None = None,
+                  restricted: bool | None, wait: bool, via: str, history: bool = False, series: str | None = None,
                   series_from: str | None = None) -> dict:
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
@@ -783,8 +787,10 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     if series_from in ("auto", "user"):
         sname, skey = meeting_series.clean_name(series), meeting_series.det.series_key(name)
     else:
-        sname, skey = await meeting_series.detect(db, workspace_id, name)
+        sname, skey = await meeting_series.detect(db, workspace_id, name, date_=d)
         series_from = "auto"
+    # Filed in Meetings/<Series> or Meetings/Other meetings (meeting_series.place_meeting's rule).
+    folder = await meeting_series.target_folder(db, folder, sname, user.id)
     if sname:
         folder = await meeting_series.ensure_option(db, folder, sname, user.id)
         sname = meeting_series.option_name(folder, sname) or sname
@@ -842,6 +848,8 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
     after = await _save(db, fresh, await full_markdown(db, row, None, people), actor, ctx)
     row["base_rev"] = int((after or fresh).get("rev") or 1)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": row["base_rev"]}})
+    if restricted is None:
+        restricted = meeting_series.auto_restricted(attendees)
     if restricted:
         await set_restricted(db, row, True, actor, ctx)
         row = await db[COLL].find_one({"_id": row["_id"]})

@@ -51,6 +51,7 @@ def _to_folder(raw: dict) -> Folder:
         default_access=(raw.get("default_access")
                         if raw.get("default_access") in FOLDER_DEFAULT_LEVELS else None),
         meetings=bool(raw.get("meetings")),
+        meetings_sub=bool(raw.get("meetings_sub")),
     )
 
 

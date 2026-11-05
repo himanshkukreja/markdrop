@@ -265,7 +265,7 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         inc = meetings.Incoming(name=title, text=text, origin="google", file_id=file_id,
                                 url=_doc_url(item.get("doc_url"), file_id))
         # A past meeting sent by the script's backfill is history: nobody is notified about it.
-        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=bool(rec.get("restricted")),
+        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=True if rec.get("restricted") else None,
                                               via="inbox", dedupe="all", notify=not item.get("backfill"))
     except HTTPException as exc:
         await finish("failed", error=str(exc.detail)[:300])

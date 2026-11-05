@@ -12,6 +12,7 @@
     POST   /api/v1/meetings/backfill/{id}/rows/{row}/retry
     DELETE /api/v1/meetings/backfill/{id}                  discard (a draft / a finished one) or stop (a running one)
     GET    /api/v1/meetings/series?workspace=              {series: [{name, count, last}]} of the meetings the caller can open
+    POST   /api/v1/meetings/organize                       {workspace} "Organize meetings" (admins): series + Meetings/<Series> folders
 
 Signed-in workspace members (importing: member+). An import is its owner's alone: anyone else gets 404.
 """
@@ -63,6 +64,8 @@ class EditRow(BaseModel):
     date: str | None = Field(None, max_length=10)
     series: str | None = Field(None, max_length=60)
     include: bool | None = None
+    # Who sees it: true = its attendees, false = the team (default: by the number of attendees).
+    restricted: bool | None = None
 
 
 class EditBody(BaseModel):
@@ -245,3 +248,18 @@ async def list_series(request: Request, workspace: str = Query(..., max_length=4
     await meetings.require_member(db, ws, user.id, write=False)
     actor, ctx = _ac(request, db, user)
     return {"series": await meeting_series.list_series(db, ws, actor, ctx)}
+
+
+class OrganizeBody(BaseModel):
+    workspace: str = Field(..., max_length=40)
+
+
+@router.post("/organize")
+@limiter.limit("6/minute")
+async def organize(request: Request, body: OrganizeBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                   user: User = Depends(require_user)):
+    """The meetings already here get their series and move into Meetings/<Series> (or Meetings/Other
+    meetings): workspace admins and owners."""
+    ws = _ws(body.workspace)
+    await meetings.require_member(db, ws, user.id, write=False)
+    return await meeting_series.organize(db, ws, user)

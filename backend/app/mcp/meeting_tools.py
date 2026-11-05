@@ -93,7 +93,7 @@ async def import_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     try:
         rows = await meetings.import_meetings(ctx.db, ctx.user, ws_id, incoming, title=args.get("title"),
                                               date_=args.get("date"), type_=args.get("type"),
-                                              restricted=bool(args.get("restricted")), wait=True, via="mcp",
+                                              restricted=args.get("restricted"), wait=True, via="mcp",
                                               dedupe="all")
     except HTTPException as exc:
         raise ToolError(http_message(exc))
@@ -249,8 +249,9 @@ MEETING_TOOLS: list[Tool] = [
                      "lines…), or a file as file_name + content_base64 (.txt .vtt .srt .sbv .docx), and/or "
                      "Google Meet's Gemini notes (Summary / Details / Suggested next steps) as notes_text: "
                      "Google's notes are used as written and the AI only fills the gaps. Everything the AI "
-                     "writes is in English. Default visibility: the workspace's team; restricted=true limits it "
-                     "to attendees who are members. No duplicates: a call already in the workspace (same name, "
+                     "writes is in English. It's filed in Meetings/<series> for a recurring call (a name seen on 2+ "
+                     "days), else Meetings/Other meetings. Visibility: a 1:1 or two-person call is restricted to its "
+                     "attendees, 3+ people the workspace's team; restricted=true/false decides it yourself. No duplicates: a call already in the workspace (same name, "
                      "date and start time) is returned with status 'duplicate', and Google's notes for a call whose "
                      "transcript is already there (or the other way round) are added to it (status 'attached'). "
                      "Waits for the summary (a few seconds); counts towards the "
@@ -266,7 +267,7 @@ MEETING_TOOLS: list[Tool] = [
             "title": {"type": "string", "maxLength": 150, "description": "Optional: the meeting's name."},
             "date": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: YYYY-MM-DD."},
             "type": {"type": "string", "enum": list(meetings.TYPES)},
-            "restricted": {"type": "boolean", "default": False},
+            "restricted": {"type": "boolean", "description": "Optional: true = only attendees who are members, false = the team. Left out: decided by the number of attendees."},
         }, "required": ["workspace"]},
         output_schema=_out({"meetings": {"type": "array", "items": {**_MEETING_OUT, "properties": {
             **_MEETING_OUT["properties"], "status": {"type": "string", "enum": ["imported", "attached", "duplicate"]}}}}}),
