@@ -25,6 +25,24 @@ import { openInApp } from "@/lib/push";
 import s from "./NotificationBell.module.css";
 
 const POLL_MS = 60_000;
+const OPEN_EVENT = "md:notifications";
+
+/** Open the bell's panel from elsewhere (the sidebar's Inbox, the home's "All notifications"). */
+export function openNotifications() {
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(OPEN_EVENT));
+}
+
+/* The unread count, shared with the sidebar's Inbox (the bell polls; others just read it). */
+let unreadNow = 0;
+const unreadSubs = new Set<() => void>();
+function publishUnread(n: number) {
+  if (n === unreadNow) return;
+  unreadNow = n;
+  unreadSubs.forEach((f) => f());
+}
+export function useUnreadCount(): number {
+  return useSyncExternalStore((f) => (unreadSubs.add(f), () => unreadSubs.delete(f)), () => unreadNow, () => 0);
+}
 const PAGE = 20;
 
 function subscribePhone(cb: () => void) {
@@ -250,6 +268,13 @@ export function NotificationBell({ className }: { className?: string }) {
   const phone = usePhone();
   const [open, setOpen] = useState(false);
   const wasOpen = useRef(false);
+
+  useEffect(() => publishUnread(count), [count]);
+  useEffect(() => {
+    const on = () => setOpen(true);
+    window.addEventListener(OPEN_EVENT, on);
+    return () => window.removeEventListener(OPEN_EVENT, on);
+  }, []);
 
   useEffect(() => {
     if (wasOpen.current && !open) void refresh();

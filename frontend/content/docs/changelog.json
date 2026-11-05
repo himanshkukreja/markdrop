@@ -77,6 +77,24 @@
       ]
     },
     {
+      "id": "home-redesign",
+      "date": "2026-11-06",
+      "title": "A new home: what needs you, where you left off, your meetings and workspaces",
+      "kind": "new",
+      "area": "App",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Your home (and the installed app's start screen) now shows what needs you today, your open action items, what you were working on with previews, your latest meetings and your workspaces, with an Ask bar on top. My files has its own page, and the sidebar is redesigned, with Meetings under each workspace.",
+      "body": "- **Ask bar** under the greeting: type a question and press Enter, or choose **Catch me up**, **My action items** or **Ask my meetings**. **Recent questions** opens your last conversations.\n- **Continue where you left off**: what you opened last, as cards with a preview of the page, document or file.\n- **Today**: today's meetings, mentions, sign-off requests, shares and access requests.\n- **Your action items**: every open to-do that @mentions you, in meeting notes or any page you can open. Tick one to mark it done on its page, with **Undo**.\n- **Meetings**: the latest meetings across your workspaces, with **Ask**, **Import meeting**, **Open Meetings** and **Connect Google Meet**.\n- **Workspaces**: each with its people, item and meeting counts, and **New workspace**. A new account sees **Get started**.\n- **My files** moves to its own page (`/dashboard/files`) with everything it did; old links forward there.\n- **Sidebar**: Home, Search, Ask Markdrop and Inbox on top; **Meetings** under each workspace; **Collapse** to a rail of icons. Phones open it from **Menu** in the top bar; tablets held upright show the icon rail.\n- **API**: `GET /api/v1/home`, `POST /api/v1/home/actions/tick` and `POST /api/v1/me/previews`.",
+      "docs": [
+        "/get-started/tour#your-home",
+        "/workspaces/meetings#find-your-meetings",
+        "/workspaces/ask-markdrop#recent-conversations"
+      ]
+    },
+    {
       "id": "organize-meetings-background",
       "date": "2026-11-05",
       "title": "Organize meetings no longer times out, and shows what it will do",

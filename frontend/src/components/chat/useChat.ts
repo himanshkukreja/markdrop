@@ -162,3 +162,8 @@ export function useChat<C>({ transport, persistKey, scope, context, threadId: th
 export function forgetChats() {
   memory.clear();
 }
+
+/** Forget one remembered conversation (the home's "Recent questions" opens another in its place). */
+export function forgetChat(persistKey: string) {
+  memory.delete(persistKey);
+}

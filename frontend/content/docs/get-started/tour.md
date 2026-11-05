@@ -1,14 +1,32 @@
 ---
 title: A tour of the app
-description: Where your files, shared items, analytics, workspaces and settings live, and what each button on a document or file page does.
-updated: 2026-11-05
+description: Your home, the sidebar, where your files, meetings, analytics, workspaces and settings live, and what each button on a document or file page does.
+updated: 2026-11-06
 prerequisites: [/get-started/accounts]
-keywords: [dashboard, view mode, edit, done, ask markdrop, ✦ ask, cmd j, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch]
+keywords: [dashboard, view mode, edit, done, ask markdrop, ✦ ask, cmd j, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch, home, continue, today, action items, to-dos, meetings, workspaces, get started, collapse sidebar, icon rail, inbox]
 ---
 
-Once you sign in, Markdrop works like a drive for things that render. This page walks through the sidebar, the **Create** menu, and the bar on top of every document and file.
+Once you sign in, Markdrop opens on your **home**: what needs you today, what you were working on, your meetings and your workspaces. This page walks through the home, the sidebar, the **Create** menu, and the bar on top of every document and file.
 
 ::video{id="app-tour" title="A tour of the app" duration="0:56"}
+
+## Your home
+
+**Home**, at the top of the sidebar (and the screen the [installed app](/get-started/install-app) opens on), is in this order:
+
+| Section | What's there |
+| --- | --- |
+| **Greeting** | The date and what's waiting: meetings today, open action items, unread notifications and access requests. |
+| **Ask bar** | Type a question and press **Enter**: [Ask Markdrop](/workspaces/ask-markdrop) answers in its panel. **Catch me up**, **My action items** and **Ask my meetings** ask for you. **Recent questions** opens your last conversations. |
+| **Continue where you left off** | What you opened last, as cards with a preview. Swipe or scroll sideways for more; **All recent** opens [Recent](#the-sidebar). |
+| **Today** | Today's meetings, mentions, sign-off requests, shares and access requests. **All notifications** opens the bell. |
+| **Your action items** | Every open to-do that @mentions you, in meeting notes or any page you can open. Tick the box to mark it done on its page (**Undo** puts it back); select the text to open the page at that to-do. A box you can't tick is on a page you can't edit. |
+| **Meetings** | The latest meetings across your workspaces, with their date, time, people and summary. **Ask** asks about them, **Import meeting** brings one in, **Open Meetings** opens the workspace's [Meetings](/workspaces/meetings) page, and **Connect Google Meet** shows until you've connected it. |
+| **Workspaces** | Each of your workspaces with its people, how many items you can open and its meetings. **New workspace** creates one. |
+
+A new account sees **Get started** instead: write a page, upload a file, create a workspace or connect your tools.
+
+Your own documents and files are in **My files** in the sidebar.
 
 ## Create something
 
@@ -27,15 +45,21 @@ Once you sign in, Markdrop works like a drive for things that render. This page 
 
 | Item | What's there |
 | --- | --- |
+| **Home** | Your [home](#your-home). |
+| **Search** | [Search](/workspaces/search) everything you can open. |
+| **Ask Markdrop** | Opens [Ask Markdrop](/workspaces/ask-markdrop) (**⌘ J**). |
+| **Inbox** | Your notifications: mentions, sign-off requests and shares, with how many are unread. |
 | **My files** | Everything you own. Filter by **All**, **Documents** or **Artifacts**, and search by title or link. |
 | **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. |
 | **Recent** | What you opened lately, signed in. |
 | **Analytics** | Views and engagement across everything you own. See [Analytics](/analytics/overview). |
 | **Trash** | What you deleted in the last 30 days, to restore or delete forever. See [Trash and restoring](/documents/trash). |
-| **Workspaces** | Each workspace you belong to, with its folders, pages, documents and files. Pages show their emoji, and what you have open is highlighted and scrolled into view. Point at a row for **+** (add a page inside) and **⋯**. Drop files onto a folder to upload them there. **New workspace** creates one. |
-| **VS Code** | Your [API tokens](/account/api-tokens), which the VS Code extension and the CLI use. |
-| **Connected apps** | AI assistants and other apps you've allowed in. See [Connected apps](/account/connected-apps). |
-| **Settings** | Your display name, theme and the weekly analytics email. |
+| **Workspaces** | Each workspace you belong to. Open one for **Meetings** (its [Meetings](/workspaces/meetings) page) and its folders, pages, documents and files. Pages show their emoji, and what you have open is highlighted and scrolled into view. Point at a row for **+** (add a page inside) and **⋯**. Drop files onto a folder to upload them there. **New workspace** creates one. |
+| **Install app** | Shown when your browser can [install Markdrop](/get-started/install-app). |
+| **Settings** | Your display name, theme, the weekly analytics email, your [API tokens](/account/api-tokens) and [connected apps](/account/connected-apps). |
+| **Help & docs** | This documentation. |
+
+**Collapse**, at the bottom, shrinks the sidebar to a rail of icons (point at one for its name); **Expand** at the top of the rail brings it back. Your browser remembers which you chose.
 
 ![The app sidebar with My files, Shared with me (2 new), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
 
@@ -77,7 +101,8 @@ Single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a docum
 
 The app works the same on a phone or a tablet, sized for your fingers:
 
-- **The sidebar** is behind **Browse** at the top of the page, unless the screen is wide enough to show it, like an iPad held sideways.
+- **The sidebar**: on a phone, tap **Menu** (☰) at the top left. A tablet held upright shows the rail of icons; tap **Expand** at its top for the whole sidebar. A tablet held sideways shows the whole sidebar.
+- **Your home** stacks its sections; swipe **Continue** and **Meetings** sideways.
 - **Tap anywhere on a row** to open the item. Its **⋯** button opens its actions.
 - **Menus** such as **Create**, your account menu and a row's **⋯** open as a sheet from the bottom of a phone's screen. Tap outside the sheet to close it.
 - **Search** fills the screen on a phone. Tap the magnifier in the top bar.

@@ -156,6 +156,8 @@ _FENCE_DIRECTIVE = re.compile(r"^\s*:{3,}[A-Za-z]?[\w-]*(?:\[[^\]\n]*\])?(?:\{[^
 _LEAF_DIRECTIVE = re.compile(r"^\s*::[A-Za-z][\w-]*(?:\[[^\]\n]*\])?(?:\{[^}\n]*\})?\s*$")
 _INLINE_DIRECTIVE = re.compile(r"(?<![A-Za-z0-9_:\\]):[A-Za-z][\w-]*\[((?:\\.|[^\]\\\n])*)\](?:\{[^}\n]*\})?")
 _TASK = re.compile(r"^\[([ xX])\]\s+")
+# A block's id at the end of its line (the page editor's "{#b-…}"): never text.
+_BLOCK_ID = re.compile(r"\s*\{#b-[A-Za-z0-9_-]+[^}\n]*\}\s*$")
 _MD = None
 
 
@@ -192,7 +194,7 @@ def markdown_blocks(markdown: str) -> list[dict]:
     for ln in markdown.split("\n"):
         if _FENCE_DIRECTIVE.match(ln) or _LEAF_DIRECTIVE.match(ln):
             continue  # :::callout / ::markdrop{...} / ::toc: fences and embeds, not text
-        lines.append(ln)
+        lines.append(_BLOCK_ID.sub("", ln))
     text = _INLINE_DIRECTIVE.sub(lambda m: m.group(1).replace("\\]", "]"), "\n".join(lines))
     tokens = _md().parse(text)
     out = _Blocks()
@@ -656,11 +658,15 @@ def with_payload(base: dict, payload: dict) -> dict:
 # -- The batch -----------------------------------------------------------------
 
 
-async def _load(db: AsyncIOMotorDatabase, workspace_id: str, slugs: list[str]) -> dict[str, dict]:
-    """The rows (in this workspace only), everything a read decision needs, and of a document's
-    body only its first characters: a long document never crosses the wire whole."""
+async def _load(db: AsyncIOMotorDatabase, workspace_id: str | None, slugs: list[str]) -> dict[str, dict]:
+    """The rows (in this workspace only; ``None``: wherever they are, the home's "Continue" cards),
+    everything a read decision needs, and of a document's body only its first characters: a long
+    document never crosses the wire whole."""
+    match: dict = {"slug": {"$in": slugs}, "deleted_at": None}
+    if workspace_id is not None:
+        match = {"slug": {"$in": slugs}, "workspace_id": workspace_id}
     pipeline = [
-        {"$match": {"slug": {"$in": slugs}, "workspace_id": workspace_id}},
+        {"$match": match},
         {"$addFields": {"content": {"$cond": [
             {"$eq": [{"$type": "$content"}, "string"]},
             {"$substrCP": ["$content", 0, CONTENT_PEEK + 1]}, None]}}},
@@ -669,7 +675,7 @@ async def _load(db: AsyncIOMotorDatabase, workspace_id: str, slugs: list[str]) -
     return {r["slug"]: r for r in rows}
 
 
-async def previews(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
+async def previews(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str | None,
                    slugs: list[str], *, wait: float = WAIT_S) -> dict[str, dict]:
     """``{slug: preview}`` for ``slugs``; past the first MAX_SLUGS they answer ``locked``."""
     from app.services.pages import SLUG_RE

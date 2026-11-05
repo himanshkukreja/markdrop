@@ -469,8 +469,8 @@ await step("trash", async () => {
   await waitStatus(page, 200);
   log("undo → restored", p.url());
 
-  // 2. Delete again (the dashboard row this time), then Trash → Restore.
-  await p.goto(`${APP}/dashboard`, { waitUntil: "networkidle" });
+  // 2. Delete again (the My files row this time), then Trash → Restore.
+  await p.goto(`${APP}/dashboard/files`, { waitUntil: "networkidle" });
   const row = p.locator("li", { hasText: page }).first();
   await row.waitFor({ timeout: 20000 });
   await row.getByRole("button", { name: /^Actions for/ }).click();

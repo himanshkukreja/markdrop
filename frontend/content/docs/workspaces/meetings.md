@@ -1,7 +1,7 @@
 ---
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
-updated: 2026-11-05
+updated: 2026-11-06
 keywords: [meetings, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
 ---
 
@@ -13,6 +13,11 @@ Meetings turns a call into a page in your workspace. Bring in Google Meet's tran
 - the open questions and the topics.
 
 It keeps the transcript, and it answers questions about one meeting or all of them. Every answer links to the moment something was said.
+
+## Find your meetings
+
+- **Your [home](/get-started/tour#your-home)** shows the latest meetings across your workspaces, and today's in **Today**. Your action items from them are in **Your action items**.
+- **In the sidebar**, open a workspace and choose **Meetings** for its Meetings page: every meeting as a card, search, series and **Ask**.
 
 ## Two ways to bring meetings in
 
