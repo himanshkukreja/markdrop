@@ -2143,7 +2143,7 @@
           "pages"
         ],
         "summary": "List All Templates",
-        "description": "The New page gallery: ``{builtin, workspace, personal, workspace_role,\ncan_save_workspace, can_reorder_workspace, folder}``. ``workspace`` lists\nthat workspace's templates when you're a member (not a viewer) of it;\n``folder`` (an id or path of it) adds ``folder: {id, name,\ndefault_template, can_set_default}``.",
+        "description": "The New page gallery: ``{builtin, workspace, personal, workspace_id,\nworkspace_name, workspace_role, can_save_workspace, can_reorder_workspace,\nfolder}``. ``workspace`` lists that workspace's templates when you're a\nmember (not a viewer) of it; ``folder`` (an id or path of it) adds\n``folder: {id, name, default_template, can_set_default}``. ``parent`` (a\npage's slug: Add a sub-page) reads both from that page instead, which you\nmust be able to read. On a workspace's own domain ``parent`` is required,\nand the gallery offers the built-ins and that workspace's templates.",
         "operationId": "list_all_templates_api_v1_page_templates_all_get",
         "parameters": [
           {
@@ -2176,6 +2176,22 @@
                 }
               ],
               "title": "Folder"
+            }
+          },
+          {
+            "name": "parent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Parent"
             }
           }
         ],
@@ -2213,7 +2229,7 @@
           "pages"
         ],
         "summary": "Get Template",
-        "description": "One workspace or personal template with its Markdown and image links (the preview).",
+        "description": "One workspace or personal template with its Markdown and image links (the preview). On a\nworkspace's own domain: that workspace's templates only.",
         "operationId": "get_template_api_v1_page_templates__template_id__get",
         "parameters": [
           {
