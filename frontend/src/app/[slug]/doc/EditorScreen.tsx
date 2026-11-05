@@ -168,7 +168,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
 
   const textareaCls =
     // ph-no-capture: the document being edited is never part of a session recording.
-    "ph-no-capture block h-full min-h-[50dvh] w-full resize-none bg-transparent p-4 font-mono text-code text-text outline-none placeholder:text-text-muted";
+    "ph-no-capture block h-full min-h-[50dvh] w-full resize-none bg-transparent p-4 font-mono text-code pointer-coarse:text-[16px] text-text outline-none placeholder:text-text-muted";
 
   return (
     <div className="mx-auto flex w-full max-w-marketing flex-col gap-3 px-4 py-4 sm:px-6">
@@ -365,7 +365,7 @@ export function EditorScreen({ v, slug, isPasswordProtected, encrypted, displayT
                     suffix={v.editNewPassword ? (
                       <button
                         type="button"
-                        className="md-focus grid h-8 w-8 place-items-center rounded-md text-text-muted hover:text-text"
+                        className="md-focus grid h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 place-items-center rounded-md text-text-muted hover:text-text"
                         aria-label={v.editShowPassword ? "Hide password" : "Show password"}
                         aria-pressed={v.editShowPassword}
                         onClick={() => v.setEditShowPassword((s: boolean) => !s)}
@@ -514,7 +514,7 @@ function EncryptedPasswordSection({ v }: { v: Viewer }) {
         suffix={
           <button
             type="button"
-            className="md-focus grid h-8 w-8 place-items-center rounded-md text-text-muted hover:text-text"
+            className="md-focus grid h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11 place-items-center rounded-md text-text-muted hover:text-text"
             aria-label={reveal ? "Hide password" : "Show password"}
             aria-pressed={reveal}
             onClick={() => setReveal((r) => !r)}

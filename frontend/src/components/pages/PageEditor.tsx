@@ -33,7 +33,7 @@ import { rememberSecret } from "./TemplateGallery";
 import { filterPeople } from "@/components/docs-editor/menus/peopleMatch";
 import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, listPageTemplates, resolveEmbeds, pageMentionable, searchMine, searchWorkspace, uploadPageAsset, type AssetUrl, type Crumb, type PageDocument, type PageTemplate } from "@/lib/pages";
 import { PageEmbed, PageMention } from "./PageEmbed";
-import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, type PageAddressing } from "./PageChrome";
+import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, useTouch, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
 import { PagePhoneBar } from "./PagePhoneBar";
 import { readPageProps, type PageFont, type PageProps } from "./pageProps";
@@ -177,6 +177,8 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
+  // Tablets too: the bottom toolbar (format, blocks, undo) sits on the keyboard, where a thumb is.
+  const touch = useTouch();
   const [title, setTitle] = useState(initialTitle ?? "");
   const [content, setContent] = useState(initialContent);
   const [mode, setMode] = useState<EditorMode>("visual");
@@ -778,7 +780,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           autoFocus={false}
         />
       </div>
-      {phone && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
+      {(phone || touch) && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
     </PageFrame>
   );
 }

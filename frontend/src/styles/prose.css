@@ -492,3 +492,18 @@
   .md-prose img[src$="#gh-dark-mode-only"] { display: none !important; }
   .md-prose img[src$="#gh-light-mode-only"] { display: revert !important; }
 }
+
+/* ── Touch screens (fix/mobile-content) ────────────────────────────────────────
+   No hover: the heading's copy-link button and the section ticks wait for one, so on a touch screen
+   they step aside (Contents in the bar and Copy link in ⋯ do those jobs). A finger: the code block's
+   and the diagram's strips are 44 px tall, so Copy, View source and Open larger are too, and their
+   labels read at 12 px. */
+@media (hover: none) {
+  .md-anchor, .md-ticks { display: none; }
+}
+@media (pointer: coarse) {
+  .md-codeblock__head { height: 44px; }
+  .md-codeblock__copy, .md-diagram__tools .md-btn { min-height: 44px; min-width: 44px; }
+  .md-codeblock__copy::after { content: none; }
+  .md-codeblock__lang, .md-diagram__kind { font-size: 12px; }
+}

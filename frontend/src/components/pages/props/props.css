@@ -92,7 +92,7 @@ button.pp-row__value:hover { background: var(--surface-hover); }
 
 /* ── Popovers (and bottom sheets on phones) ────────────────────────────── */
 .pp-pop {
-  position: fixed; z-index: var(--z-dropdown, 60); width: 300px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100vh - 24px));
+  position: fixed; z-index: var(--z-dropdown, 60); width: 300px; max-width: calc(100vw - 16px); max-height: min(440px, calc(100dvh - 24px));
   display: flex; flex-direction: column; overflow: hidden;
   background: var(--surface-raised); color: var(--text); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow-lg);
   font-size: 14px; line-height: 20px; transform-origin: top left;
@@ -291,4 +291,9 @@ button.pp-td:focus-visible { outline: 2px solid var(--border-focus); outline-off
 @media (prefers-reduced-motion: reduce) {
   .pp-pop, .pp-sheet, .pp-sheet-backdrop, .pp-check--on { animation: none; }
   .pp-card, .pp-group__head svg, .pp-swatch, .pp-col { transition: none; }
+}
+
+/* A finger (fix/mobile-content): nothing under 12 px. */
+@media (pointer: coarse) {
+  .pp-avatar, .pp-avatar--lg, .pp-cal__dow { font-size: 12px; }
 }

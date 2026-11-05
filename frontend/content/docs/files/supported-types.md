@@ -1,7 +1,7 @@
 ---
 title: Supported file types
 description: Every file type Markdrop renders, from HTML pages and PDFs to spreadsheets, Word documents, images, video, audio and zipped sites.
-updated: 2026-11-02
+updated: 2026-11-05
 prerequisites: [/get-started/first-file]
 keywords: [file types, formats, pdf, xlsx, csv, docx, html, svg, mp4, mov, zip, artifacts]
 ---
@@ -36,7 +36,7 @@ An HTML file is served as the page, so its scripts, styles and fonts work. It ru
 
 ### PDFs
 
-PDFs open in a built-in reader with page-by-page scrolling and zoom. It shows the first 50 pages; for a longer PDF it says "Showing the first 50 of N pages. Download to see the rest."
+PDFs open in a built-in reader with page-by-page scrolling and zoom. On a phone or tablet, pinch with two fingers to zoom the pages; they re-draw sharp when you let go. It shows the first 50 pages; for a longer PDF it says "Showing the first 50 of N pages. Download to see the rest."
 
 ![A PDF opened on Markdrop in the built-in reader, with the toolbar showing Page 1 of 12, zoom out and zoom in around 86%, Fit width and Download.](/docs-assets/files/supported-types/viewer-pdf.webp)
 
@@ -54,7 +54,7 @@ A `.docx` is converted to clean web text: headings, paragraphs, lists, tables, l
 
 ### Images
 
-Images open at full size. An SVG can contain scripts, so it gets the same sandbox on a separate domain as an HTML page.
+Images open fitted to the screen, whole, on any screen and in either orientation; tap or click the image to see it at full size, and again to fit it. An SVG can contain scripts, so it gets the same sandbox on a separate domain as an HTML page.
 
 ### Text and JSON
 
