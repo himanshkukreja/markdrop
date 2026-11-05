@@ -164,7 +164,8 @@ async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
         raise ToolError(http_message(exc))
     conns = await meetings_inbox.for_workspace(ctx.db, ws_id)
     out = [{k: c[k] for k in ("connected_by", "created_at", "last_received_at", "last_imported_at", "imported",
-                              "attached", "duplicates", "restricted", "last_error")} | {"mine": c["connected_by"]["id"] == ctx.user.id}
+                              "attached", "duplicates", "restricted", "last_error", "include_shared", "script",
+                              "needs_update")} | {"mine": c["connected_by"]["id"] == ctx.user.id}
            for c in conns]
     if not out:
         return ("Automatic import isn't connected for this workspace. Anyone who can import meetings can "
@@ -177,6 +178,14 @@ async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
         last = c["last_imported_at"] or "nothing yet"
         lines.append(f"- {who}, since {c['created_at']}: {c['imported']} imported, {c['attached']} paired with an "
                      f"existing meeting; last import {last}" + (f"; last problem: {c['last_error']}" if c["last_error"] else ""))
+        sc = c.get("script")
+        if sc:
+            skipped = ", ".join(f"{v} {k.replace('_', ' ')}" for k, v in (sc.get("skipped") or {}).items() if v)
+            lines.append(f"  script last ran {sc.get('ran_at') or sc.get('started_at')}: found {sc.get('found')} meeting Docs, "
+                         f"sent {sc.get('sent')}" + (f"; skipped {skipped}" if skipped else ""))
+        if c.get("needs_update"):
+            lines.append("  their script is out of date: Meetings › Connect Google Meet › Get the new script "
+                         "(the new one also imports meetings shared with them)")
     return "\n".join(lines), {"connected": True, "connections": out}
 
 
