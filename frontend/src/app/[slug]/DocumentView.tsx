@@ -35,7 +35,7 @@ import vs from "./doc/viewer.module.css";
 import type { PageActionRequest } from "@/components/pages/PageActions";
 import { hasPageProps, readPageProps, withoutFrontMatter } from "@/components/pages/pageProps";
 import { assetId, pagePath } from "@/lib/pageAddress.mjs";
-import type { PageAiStatus } from "@/lib/pages-ai/ask";
+import { fetchPageAiStatus, type PageAiStatus } from "@/lib/pages-ai/ask";
 import { useAssistantEditor, useAssistantHere } from "@/components/assistant/store";
 import { headingInView, useDocReader } from "@/components/assistant/reader";
 import { insertAfterSection } from "@/components/assistant/assistantCore.mjs";
@@ -87,7 +87,6 @@ const ExportDialog = dynamic(() => import("@/components/pages/export/ExportDialo
 const ChangeLinkDialog = dynamic(() => import("@/components/pages/slug/ChangeLinkDialog").then((m) => m.ChangeLinkDialog), { loading: () => null });
 const pagesApi = () => import("@/lib/pages");
 // Page AI (reader side): the Ask pill for signed-in readers, and Translate… for editors. Both load on demand.
-const AskLauncher = dynamic(() => import("@/components/pages/ai/AskLauncher").then((m) => m.AskLauncher), { ssr: false, loading: () => null });
 // Meetings (components/meetings): a meeting page's own pill and panel (Ask this meeting, details).
 const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
 const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
@@ -271,6 +270,15 @@ export default function DocumentView(props: DocumentViewProps) {
   // Move to / Duplicate (signed-in editors on markdrop.in, like Add a sub-page).
   const [pageAction, setPageAction] = useState<PageActionRequest | null>(null);
   const [aiStatus, setAiStatus] = useState<PageAiStatus | null>(null);
+  // Page AI's status, for Translate… in an editor's ⋯ menu (asking is Ask Markdrop's: ✦ Ask, ⌘J).
+  const aiStatusFor = v.readable && !!v.user && v.page?.editor === "blocks" && !v.encrypted ? slug : null;
+  useEffect(() => {
+    setAiStatus(null);
+    if (!aiStatusFor) return;
+    let live = true;
+    void fetchPageAiStatus(aiStatusFor).then((s) => { if (live) setAiStatus(s); });
+    return () => { live = false; };
+  }, [aiStatusFor]);
   const [translating, setTranslating] = useState(false);
   const [historyOpen, setHistoryOpen] = useState<boolean | null>(null); // null: never opened (not loaded)
   const [treeKey, setTreeKey] = useState(0);
@@ -946,8 +954,6 @@ export default function DocumentView(props: DocumentViewProps) {
         )}
       </div>
       {!pageEditable && <LiveUpdatePill show={livePill} />}
-      {/* Page AI's status (Translate… in the ⋯ menu); asking is Ask Markdrop's (✦ Ask in the bar, ⌘J). */}
-      {readable && !!user && <AskLauncher slug={slug} title={displayTitle} onStatus={setAiStatus} hidden workspace={!!page?.workspace_id} />}
       {readable && !!user && isPage && page?.meeting && !tenant && <MeetingLauncher meetingId={page.meeting.id} role={page.meeting.role} />}
     </div>
   ) : null;
