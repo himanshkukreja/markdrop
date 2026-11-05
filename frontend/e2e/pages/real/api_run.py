@@ -411,6 +411,12 @@ if os.environ.get("PB_FAKE_ASK_AI"):
 
     _aclient = _ANS(messages=_AMessages())
     ask_markdrop.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
+    # PB_FAKE_PAGES_AI=1 too (meeting-memory.mjs): Page AI counts as set up, so pages show Ask and the editor's
+    # AI features (answers come from the same fake).
+    if os.environ.get("PB_FAKE_PAGES_AI"):
+        from app.services import pages_ai as _pages_ai
+
+        _pages_ai.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
 
 # PB_R2_LATENCY_MS=N: every publicity change on the fake R2 takes N ms, like a HEAD + copy against the
 # real bucket, so a big workspace's sign-in change takes long enough to watch (lock.mjs).
