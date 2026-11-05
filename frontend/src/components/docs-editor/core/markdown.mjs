@@ -338,8 +338,9 @@ function block(n, ctx, strip, src) {
         return { type: "directiveLeaf", attrs: { name: n.name, label: leafLabel(src), attributes: { ...(n.attributes ?? {}) }, md: null } };
       return raw(src);
     default:
-      // html, definition, footnoteDefinition, anything new: verbatim.
-      return raw(src);
+      // html, definition, footnoteDefinition, anything new: verbatim. Without trailing blank lines:
+      // inside a quote a footnote definition's range runs on over the blank `>` line after it.
+      return raw(src.replace(/(\n[ \t]*)+$/, ""));
   }
 }
 
