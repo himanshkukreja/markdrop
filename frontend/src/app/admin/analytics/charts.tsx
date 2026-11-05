@@ -143,7 +143,7 @@ export function TrendChart({
   const h = hover !== null ? points[hover] : null;
   return (
     <div>
-      <div className="-mt-1 mb-1 flex justify-end">
+      <div className="-mt-1 mb-1 flex justify-end pointer-coarse:mb-2">
         <TableToggle table={table} onToggle={() => setTable((t) => !t)} />
       </div>
       {table ? (

@@ -197,7 +197,7 @@ export default function WorkspaceClient({ id }: { id: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-5">
-      <Anchor href={`/w/${encodeURIComponent(id)}`} className="md-focus inline-flex items-center gap-1.5 self-start rounded-sm text-[13px] font-medium text-accent-text no-underline hover:underline">
+      <Anchor href={`/w/${encodeURIComponent(id)}`} className="md-focus md-hit inline-flex items-center gap-1.5 self-start rounded-sm text-[13px] font-medium text-accent-text no-underline hover:underline">
         <Icon name="chevronLeft" size={14} /> Back to <span className="ph-sensitive ph-mask">{ws.name}</span>
       </Anchor>
       <div className="flex min-w-0 items-center gap-3.5">

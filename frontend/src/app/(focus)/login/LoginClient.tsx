@@ -73,7 +73,7 @@ export default function LoginClient() {
         />
       </section>
       <p className={`${s.below} text-caption text-text-muted`}>
-        <Anchor href="/privacy" className="md-focus inline-flex min-h-6 items-center rounded-sm text-text-muted no-underline hover:text-text">
+        <Anchor href="/privacy" className="md-focus md-hit inline-flex min-h-6 items-center rounded-sm text-text-muted no-underline hover:text-text">
           Privacy
         </Anchor>
       </p>

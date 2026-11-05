@@ -191,7 +191,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
                   badges={mode === "shared" && it.new ? <Badge size="sm" tone="info">New</Badge> : undefined}
                   chip={where ? (
                     <Anchor href={`/w/${encodeURIComponent(it.workspace!.id)}${it.folder ? `/f/${encodeURIComponent(it.folder.id)}` : ""}`}
-                      className="md-focus inline-flex max-w-40 shrink-0 items-center rounded-sm bg-surface-active px-1.5 text-micro text-text-secondary no-underline hover:underline">
+                      className="md-focus md-row-chip inline-flex max-w-40 shrink-0 items-center rounded-sm bg-surface-active px-1.5 text-micro text-text-secondary no-underline hover:underline">
                       <span className="truncate" dir="auto">{where}</span>
                     </Anchor>
                   ) : undefined}

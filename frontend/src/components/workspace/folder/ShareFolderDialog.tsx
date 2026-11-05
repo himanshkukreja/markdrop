@@ -348,7 +348,7 @@ function LinkPanel({
         ) : null
       )}
 
-      <button type="button" onClick={onPreview} className="md-focus cursor-pointer self-start rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text hover:underline hover:underline-offset-3">
+      <button type="button" onClick={onPreview} className="md-focus md-hit cursor-pointer self-start rounded-sm bg-transparent p-0 text-[13px] font-semibold text-accent-text hover:underline hover:underline-offset-3">
         See it as a visitor →
       </button>
     </div>

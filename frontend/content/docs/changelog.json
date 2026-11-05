@@ -136,6 +136,18 @@
       "body": "- **Install app** in the account menu installs Markdrop in Chrome, Edge and Android browsers in one click, and shows the Add to Home Screen steps on iPhone and iPad (and File › Add to Dock in Safari on a Mac).\n- The installed app opens on your **dashboard** (through sign-in when you're signed out), never the marketing pages, with shortcuts for **New page**, **Search**, **Markdrop Guides** and **Analytics** on its icon.\n- Offline, it shows **You're offline** and reloads by itself when you're back. It keeps only its own code and icons on your device, never your documents or anything private.\n- A new version shows **A new version of Markdrop is ready** with **Reload**, so you update when it suits you.\n- On phones, bars, sheets and toasts stay clear of the notch and the home indicator.\n- **Markdrop Guides** (guides.markdrop.in) installs as its own app that opens on your guides.\n- See [Install Markdrop as an app](/get-started/install-app)."
     },
     {
+      "id": "phones-and-tablets-app",
+      "date": "2026-11-05",
+      "title": "The app on phones and tablets",
+      "kind": "improved",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "My files, workspaces, folders, settings, sharing and search fit every phone and tablet: nothing scrolls sideways, every button is finger-sized, a tap anywhere on a row opens it, and menus open as sheets on phones.",
+      "body": "- **Nothing scrolls sideways** on any screen, from a small Android phone to an iPad Pro. On a narrow phone **Create** shows just its plus, so the top bar fits.\n- **Finger-sized controls**: buttons, menu items, tabs and fields are at least 44 points on a touch screen, and text is never smaller than 12 points. Text boxes use 16-point text, so iPhones don't zoom in when you type.\n- **Tap anywhere on a row or card** in My files, Shared with me, Recent, a workspace or a folder's table to open it. Its own buttons still work.\n- **Menus open as sheets** from the bottom of a phone's screen, over a dimmed page.\n- **Boards on touch screens**: tap a card to open the page, or press and hold to drag it to another column. A long press on a row or card no longer opens the phone's link preview.\n- A folder's views bar fades at the edge when more views are off screen.\n- See [On a phone or tablet](/get-started/tour#on-a-phone-or-tablet)."
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",

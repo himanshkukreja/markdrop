@@ -18,7 +18,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 }
 
 /* ── Utilities: visually hidden, skip link, theme scope, portal root ───── */
-.md-visually-hidden { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* top/left 0: at its static position it can sit past the right edge (the end of a long, truncated line)
+   and, absolute, escape that line's clip, widening the page on a phone. */
+.md-visually-hidden { position: absolute !important; top: 0; left: 0; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 .md-skiplink { position: fixed; top: var(--space-2); left: var(--space-4); z-index: var(--z-toast); padding: var(--space-2) var(--space-4); border: 1px solid var(--border-strong); border-radius: var(--radius-lg); background: var(--surface-raised); color: var(--text); box-shadow: var(--shadow-lg); font-size: 14px; line-height: 20px; font-weight: 600; text-decoration: none; }
 .md-skiplink:not(:focus) { width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 .md-scope { background: var(--bg); color: var(--text); }
@@ -315,6 +317,10 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-menu__custom { padding: var(--space-1\.5) var(--space-2\.5); }
 .md-menu__sep { height: 1px; margin: var(--space-1\.5) calc(var(--space-1\.5) * -1); background: var(--border); }
 .md-menu__kbd { margin-left: auto; }
+/* Phones: the menu as a sheet along the bottom edge (Dropdown, useSheetMenus), over a scrim. */
+.md-menu--sheet { position: fixed; top: auto; left: var(--space-2); right: var(--space-2); bottom: calc(var(--space-2) + env(safe-area-inset-bottom, 0px)); min-width: 0; max-width: none; max-height: min(75dvh, calc(100dvh - 64px)); overflow-y: auto; overscroll-behavior: contain; z-index: var(--z-overlay); padding: var(--space-2); border-radius: var(--radius-2xl); animation: md-slide-u var(--duration-panel) var(--ease-out); }
+.md-menu--sheet .md-menu__item { padding-block: 10px; }
+.md-menu-scrim { position: fixed; inset: 0; z-index: var(--z-overlay); background: var(--overlay); animation: md-fade var(--duration-dialog) var(--ease-out); }
 
 /* ── Popover ────────────────────────────────────────────────────────────── */
 .md-popover-wrap { position: relative; display: inline-block; }
@@ -447,9 +453,9 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-header__nav a:hover { color: var(--text); background: var(--surface-hover); }
 .md-header__nav a[aria-current="page"] { color: var(--text); background: var(--surface-active); }
 .md-header__actions { display: flex; align-items: center; gap: var(--space-2); }
-/* Create keeps its label down to 360; below that it's the plus alone (REVAMP_PLAN 4.4). */
-@media (max-width: 359px) {
-  .md-create { width: 36px; padding: 0; }
+/* Create keeps its label from 420 up; narrower phones get the plus alone so the bar fits (REVAMP_PLAN 4.4, fix/mobile-shell). */
+@media (max-width: 419px) {
+  .md-create { width: auto; aspect-ratio: 1 / 1; padding: 0; }
   .md-create > .md-icon:last-of-type { display: none; }
   .md-create__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 }

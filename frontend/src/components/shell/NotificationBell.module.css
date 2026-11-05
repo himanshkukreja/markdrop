@@ -177,3 +177,12 @@
   .badge, .item { animation: none; }
   .dot, .bell, .tab { transition: none; }
 }
+
+/* Touch screens: 44 px targets without growing the header row (hit areas around the small controls). */
+@media (pointer: coarse) {
+  .bell { width: 44px; height: 44px; flex: none; }
+  .tab { height: 44px; min-width: 44px; }
+  .markAll { height: 44px; }
+  .foot a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 4px; margin-block: -12px; }
+  .more { height: 44px; }
+}

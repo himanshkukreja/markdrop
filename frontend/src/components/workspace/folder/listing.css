@@ -80,7 +80,7 @@
   .wl-c-kind { display: none; }
 }
 @container (max-width: 700px) {
-  .wl-list { --wl-cols: minmax(0, 1fr) 40px 88px 40px 72px; }
+  .wl-list { --wl-cols: minmax(0, 1fr) 56px 88px 40px 72px; }
   .wl-list .wl-person__name, .wl-list .wl-access-words, .wl-head .wl-c-owner, .wl-head .wl-c-access { display: none; }
   .wl-list .wl-more { display: none; }
 }
@@ -259,4 +259,25 @@
 @container (max-width: 520px) {
   .wl-grid:not(.wl-cards) { gap: 10px; }
   .wl-grid:not(.wl-cards) .wl-tile { min-height: 108px; padding: 12px; gap: 10px; }
+}
+
+/* Touch screens (fix/mobile-shell): a long press on a row drags it (WorkspaceDnd), so no iOS link
+   preview and no text selection on the stretched link; the kind label meets the 12 px floor. */
+@media (pointer: coarse) {
+  .wl-name { -webkit-touch-callout: none; }
+  .wl-row, .wl-prow, .wl-tile { -webkit-user-select: none; user-select: none; }
+  .wl-card__kind { font-size: 12px; }
+  /* List rows: Copy link is in the row's menu, so the row keeps two finger-sized controls (who can
+     open it, ⋯) with room between them. */
+  .wl-list .wl-copy { display: none; }
+  .wl-row { min-height: 52px; }
+  .wl-access { min-height: 44px; min-width: 44px; justify-content: center; }
+  /* A card's footer (owner, people, when, who can open it) only has hover tooltips: on a touch
+     screen a tap there opens the card like the rest of it. */
+  .wl-card__foot { pointer-events: none; }
+}
+@media (pointer: coarse) {
+  @container (max-width: 700px) {
+    .wl-list { --wl-cols: minmax(0, 1fr) 56px 88px 48px 52px; }
+  }
 }

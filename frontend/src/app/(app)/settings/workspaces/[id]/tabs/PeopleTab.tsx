@@ -166,7 +166,7 @@ export default function PeopleTab({ id, ws, isOwner, isAdmin, meId, members, inv
       </section>
 
       <section aria-labelledby="ws-people-h" className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-surface p-5">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 pointer-coarse:mb-2">
           <h2 id="ws-people-h" className="flex-1 text-h3 text-text">People</h2>
           <Locked locked={!isAdmin}>
             <Button variant="primary" iconLeft="plus" {...lockProps(!isAdmin)}
