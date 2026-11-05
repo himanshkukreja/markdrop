@@ -306,7 +306,7 @@ async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         raw = await db["documents"].find_one({"slug": page.strip()[:200]}, {"content": 0})
         if (raw is not None and not raw.get("deleted_at") and not raw.get("encrypted") and raw.get("kind") != "artifact"
                 and (await access.can(actor, raw, "read", ctx)).allowed):
-            can_edit = (await access.can(actor, raw, "edit", ctx)).allowed
+            can_edit = (await access.can(actor, raw, "edit_content", ctx)).allowed
             out["page"] = {"slug": raw["slug"], "title": raw.get("title"), "editor": raw.get("editor") or "markdown",
                            "meeting_id": raw.get("meeting_id"), "meeting_role": raw.get("meeting_role")}
             out["can_insert"] = bool(can_edit)
