@@ -90,7 +90,13 @@ function writeFiles() {
 
 async function openReview(p, files) {
   await p.goto(HUB);
-  await p.getByTestId("import-past").first().click();
+  // Desktop: the button in the header; phones: the ⋯ menu.
+  const btn = p.locator("[data-testid='import-past']:visible").first();
+  if (await btn.count()) await btn.click();
+  else {
+    await p.getByTestId("meetings-more").click();
+    await p.getByRole("menuitem", { name: "Import past meetings" }).click();
+  }
   const dlg = p.getByRole("dialog");
   await dlg.getByText("Import past meetings").first().waitFor();
   await dlg.locator('input[type="file"]').setInputFiles(files);
