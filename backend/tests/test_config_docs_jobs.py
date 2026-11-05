@@ -1,6 +1,8 @@
 """Every docs job setting is also declared on the app's Settings, whose .env forbids unknown keys."""
 import unittest
 
+from tests import _email_env  # noqa: F401  (pins settings before app.config is first imported)
+
 from app.config import Settings
 from app.services.docs_jobs import DocsJobsSettings
 

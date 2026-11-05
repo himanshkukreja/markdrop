@@ -9,6 +9,8 @@ import re
 import unittest
 from pathlib import Path
 
+from tests import _email_env  # noqa: F401  (pins settings before app.config is first imported)
+
 from app.services import docs_site_settings as site_settings
 from app.services.docs_site_settings import PRESETS, SettingsError, default_settings, deep_merge, validate
 
