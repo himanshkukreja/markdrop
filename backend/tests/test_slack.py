@@ -678,6 +678,21 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         await slack.drain()
         self.assertIn("already done", json.dumps(self.sk.responds[-1]))
 
+    async def test_once_per_meeting_and_a_failed_post_is_retried(self):
+        self.sk.fail["chat.postMessage"] = "not_in_channel"
+        m = await self.imported()
+        self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 1)
+        self.assertEqual((await self.db[slack_notify.POSTS].find_one({}))["state"], "failed")
+        self.sk.fail.clear()
+        r = await self.http.post(f"/api/v1/meetings/{m['id']}/regenerate", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        await slack.drain()
+        self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 2)
+        # Writing the summary again doesn't post it again.
+        r = await self.http.post(f"/api/v1/meetings/{m['id']}/regenerate", headers=self.session("owner"))
+        await slack.drain()
+        self.assertEqual(len([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"]), 2)
+
     async def test_restricted_meetings_are_never_posted(self):
         await self.imported(restricted=True)
         self.assertEqual([d for d in self.sk.of("chat.postMessage") if d["channel"] == "C2"], [])

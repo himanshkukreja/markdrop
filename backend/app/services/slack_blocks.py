@@ -182,10 +182,13 @@ def dm_shared(actor: str, title: str, url: str, role: str | None, message: str |
     return {"blocks": [section(text), actions(open_button(url))], "text": f"{actor} shared {cut(title, 80)} with you"}
 
 
-def dm_signoff(team_id: str, actor: str, title: str, url: str, label: str | None, doc_id: str, block: str,
+def dm_signoff(team_id: str, actor: str | None, title: str, url: str, label: str | None, doc_id: str, block: str,
                options: list[str], done: str | None = None) -> dict:
     what = f" on *{esc(cut(label, 120))}*" if label else ""
-    text = f"*{esc(actor)}* asked for your sign-off{what} in *{link(url, cut(title, 120))}*"
+    if actor:
+        text = f"*{esc(actor)}* asked for your sign-off{what} in *{link(url, cut(title, 120))}*"
+    else:
+        text = f"Your sign-off{what} in *{link(url, cut(title, 120))}*"
     blocks = [section(text)]
     if done:
         blocks.append(context(done))
@@ -194,7 +197,7 @@ def dm_signoff(team_id: str, actor: str, title: str, url: str, label: str | None
         btns = [button(o, action_id=f"md_so_{i}", value=slack.sign_value(team_id, "so", doc_id, block, str(i)),
                        style="primary" if i == 0 else None) for i, o in enumerate(options[:4])]
         blocks.append(actions(*btns, open_button(url)))
-    return {"blocks": blocks, "text": f"{actor} asked for your sign-off in {cut(title, 80)}"}
+    return {"blocks": blocks, "text": f"{actor or 'Someone'} asked for your sign-off in {cut(title, 80)}"}
 
 
 def dm_access_request(team_id: str, requester: str, email: str | None, title: str, url: str, request_id: str,

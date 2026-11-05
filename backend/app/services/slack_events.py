@@ -242,10 +242,8 @@ async def _sign(db: AsyncIOMotorDatabase, inst: dict, user, doc_id: str, block: 
         await slack_api.respond(response_url, kit.notice(str(exc.detail) if isinstance(exc.detail, str) else
                                                          "Markdrop couldn't do that."))
         return
-    msg = kit.dm_signoff(inst["_id"], "You were", md_outline.display_title(raw), urls.markdrop_url(raw["slug"]) + f"#{block}",
+    msg = kit.dm_signoff(inst["_id"], None, md_outline.display_title(raw), urls.markdrop_url(raw["slug"]) + f"#{block}",
                          b.label, doc_id, block, b.options, done=f"You chose *{kit.esc(option)}*.")
-    msg["blocks"][0] = kit.section(f"Sign-off{(' on *' + kit.esc(b.label) + '*') if b.label else ''} in "
-                                   f"*{kit.link(urls.markdrop_url(raw['slug']), md_outline.display_title(raw))}*")
     await _update_message(inst, payload, msg)
 
 

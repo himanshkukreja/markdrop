@@ -190,9 +190,8 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     summary = (notes.get("summary") or gen.get("summary") or "").strip()
     decisions = [d.get("text") if isinstance(d, dict) else str(d) for d in gen.get("decisions") or []]
     items = await action_items(db, inst["_id"], raw.get("content") or "")
-    key = f"m:{meeting_id}:{inst['_id']}:{(row.get('ai') or {}).get('at') or ''}"
-    if again:
-        key += f":{_now().timestamp()}"
+    # Posted on its own once per meeting (writing the summary again doesn't post again); by hand, every time.
+    key = f"m:{meeting_id}:{inst['_id']}" + (f":{_now().timestamp()}" if again else "")
     post = {"key": key, "team_id": inst["_id"], "channel": chan, "ts": None, "meeting_id": str(row["_id"]),
             "doc_id": str(raw["_id"]), "title": md_outline.display_title(raw), "url": urls.markdrop_url(raw["slug"]),
             "when": _when(row), "summary": summary or None, "decisions": [d for d in decisions if d][:8],
@@ -201,7 +200,11 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     try:
         res = await db[POSTS].insert_one(post)
     except DuplicateKeyError:
-        return {"posted": False, "reason": "already"}
+        # A post that failed (the app wasn't in the channel, say) doesn't block the next try.
+        gone = await db[POSTS].delete_one({"key": key, "state": "failed"})
+        if not gone.deleted_count:
+            return {"posted": False, "reason": "already"}
+        res = await db[POSTS].insert_one(post)
     post["_id"] = res.inserted_id
     msg = _render_post(post)
     try:
