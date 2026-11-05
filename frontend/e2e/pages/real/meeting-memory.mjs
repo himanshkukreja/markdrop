@@ -335,7 +335,8 @@ await step("view", async () => {
   const at = md.indexOf("Decided on Nov 3, 2026");
   if (at < 0) fail(`not saved: ${md.slice(0, 400)}`);
   if (at < md.indexOf("hosted page") || at > md.indexOf("## Rollout")) fail(`not after the section in view: ${md.slice(0, 500)}`);
-  if (!md.slice(at - 200, at + 400).includes(team.slug)) fail("no mention of the meeting");
+  const line = md.slice(at).split("\n")[0];
+  if (!line.includes(":markdrop[") || !line.includes(team.slug)) fail(`no mention of the meeting: ${line}`);
   await shot(p, "mm12-view-inserted");
   for (const b of bodies) if (b.body.toLowerCase().includes(SECRET)) fail(`an API response to Wes carried the secret: ${b.url}`);
 
