@@ -12,6 +12,10 @@
  *   POST   /api/v1/meetings/{id}/regenerate
  *   POST   /api/v1/meetings/{id}/ask      (SSE)   Ask this meeting
  *   POST   /api/v1/meetings/ask           (SSE)   Ask across meetings
+ *   GET    /api/v1/meetings/connection?workspace=  Connect Google Meet: mine, and others sending here
+ *   POST   /api/v1/meetings/connection    {workspace, restricted} → the script (with its token), once
+ *   DELETE /api/v1/meetings/connection    Disconnect (the script's token stops working)
+ *   (POST  /api/v1/meetings/inbox is the script's; services/meetings_inbox.py)
  *
  * Signed-in members only; every meeting is decided on its page by the server. Kept out of lib/api.ts
  * (that one loads on public pages).
@@ -62,6 +66,49 @@ export interface Meeting {
   slack_channel?: string | null;
   can_regenerate: boolean;
   approx_times?: boolean;
+  /** How it came in: the website, the Google Meet script, or an AI tool (MCP). */
+  source?: "manual" | "auto" | "mcp";
+  /** On import: a new meeting, the missing half added to one already here, or nothing new. */
+  status?: "imported" | "attached" | "duplicate";
+  /** A past meeting brought in by a backfill: imported quietly (nobody was notified). */
+  history?: boolean;
+}
+
+/** A "Connect Google Meet" connection (never its token). */
+export interface MeetConnection {
+  id: string;
+  workspace_id: string;
+  workspace_name: string | null;
+  restricted: boolean;
+  created_at: string | null;
+  connected_by: { id: string; name: string | null };
+  mine: boolean;
+  last_received_at: string | null;
+  last_imported_at: string | null;
+  received: number;
+  imported: number;
+  attached: number;
+  duplicates: number;
+  ignored: number;
+  last_error: string | null;
+  prefix: string | null;
+}
+
+export function getMeetConnection(workspace: string) {
+  return request<{ connection: MeetConnection | null; others: MeetConnection[]; endpoint: string }>(
+    `/api/v1/meetings/connection?workspace=${encodeURIComponent(workspace)}`);
+}
+
+export const BACKFILL_DAYS = [0, 7, 30, 90] as const;
+
+/** `backfill_days`: past meetings the script's setup brings in once (quietly); `tz`: the browser's zone. */
+export function connectGoogleMeet(body: { workspace: string; restricted?: boolean; backfill_days?: (typeof BACKFILL_DAYS)[number]; tz?: string }) {
+  return request<{ token: string; script: string; manifest: string; endpoint: string; connection: MeetConnection }>(
+    `/api/v1/meetings/connection`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function disconnectGoogleMeet() {
+  return request<{ disconnected: boolean }>(`/api/v1/meetings/connection`, { method: "DELETE" });
 }
 
 export interface HiddenMeeting { id: string; date: string | null; restricted: true; redacted: true; can_delete: true }

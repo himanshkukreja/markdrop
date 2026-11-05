@@ -788,7 +788,7 @@ def gdoc_text(doc: dict) -> str:
                     text = f"# {text}"
                 elif style.startswith("HEADING_") and text:
                     text = f"{'#' * min(6, int(style[-1]) + 1)} {text}"
-                elif para.get("bullet") and text:
+                elif para.get("bullet") is not None and text:
                     text = f"- {text}"
                 out.append(text)
             elif el.get("table"):

@@ -62,6 +62,7 @@ import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow
 import { docHref } from "@/components/analytics/format";
 import { openingKindOf, rememberOpening } from "@/lib/opening";
 import { meetingsHref } from "@/lib/meetings";
+import { FolderMeetConnect } from "@/components/meetings/ConnectGoogleMeet";
 import "@/components/meetings/meetings.css";
 
 type Kind = "" | "markdown" | "artifact";
@@ -717,6 +718,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
             Each call is a page with its summary, decisions, action items and transcript. Ask across all of them.
           </span>
           <Button size="sm" variant="secondary" iconLeft="sparkle" href={meetingsHref(workspaceId)}>Ask meetings</Button>
+          {isMember && <FolderMeetConnect workspaceId={workspaceId} hubHref={meetingsHref(workspaceId)} />}
           {isMember && <Button size="sm" iconLeft="plus" href={`${meetingsHref(workspaceId)}?import=1`}>Import meeting</Button>}
         </div>
       )}

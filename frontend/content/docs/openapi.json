@@ -13049,6 +13049,244 @@
         }
       }
     },
+    "/api/v1/meetings/connection": {
+      "get": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Get Connection",
+        "description": "Mine (wherever it sends meetings), and the others sending to ``workspace`` (a member's view).",
+        "operationId": "get_connection_api_v1_meetings_connection_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Connect",
+        "description": "A new token for the Google Meet script, shown once, inside the script. Replaces an earlier one.",
+        "operationId": "connect_api_v1_meetings_connection_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/hour"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Disconnect",
+        "operationId": "disconnect_api_v1_meetings_connection_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/inbox": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Inbox",
+        "description": "One Google Doc from the Google Meet script (Bearer: a ``meetings:import`` token, which works\nhere and nowhere else). Idempotent on the Doc's id: → {status: imported | attached | duplicate |\nignored, meeting_id?, url?}.",
+        "operationId": "inbox_api_v1_meetings_inbox_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "source": {
+                    "type": "string",
+                    "const": "google-meet-script",
+                    "title": "Source",
+                    "default": "google-meet-script"
+                  },
+                  "file_id": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "title": "File Id"
+                  },
+                  "title": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Title"
+                  },
+                  "created": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Created"
+                  },
+                  "kind_hint": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "transcript",
+                          "notes"
+                        ]
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Kind Hint"
+                  },
+                  "text": {
+                    "type": "string",
+                    "title": "Text"
+                  },
+                  "doc_url": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 500
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "title": "Doc Url"
+                  },
+                  "backfill": {
+                    "type": "boolean",
+                    "title": "Backfill",
+                    "default": false
+                  }
+                },
+                "type": "object",
+                "required": [
+                  "file_id",
+                  "text"
+                ],
+                "title": "InboxBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "600/day",
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings": {
       "get": {
         "tags": [
@@ -13094,6 +13332,44 @@
                 }
               ],
               "title": "Q"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "manual",
+                    "auto",
+                    "mcp"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "since",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 10
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
             }
           }
         ],
@@ -15625,6 +15901,48 @@
           "state"
         ],
         "title": "CodeIn"
+      },
+      "ConnectBody": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Workspace"
+          },
+          "restricted": {
+            "type": "boolean",
+            "title": "Restricted",
+            "default": false
+          },
+          "backfill_days": {
+            "type": "integer",
+            "enum": [
+              0,
+              7,
+              30,
+              90
+            ],
+            "title": "Backfill Days",
+            "default": 0
+          },
+          "tz": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tz"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace"
+        ],
+        "title": "ConnectBody"
       },
       "ContactItem": {
         "properties": {

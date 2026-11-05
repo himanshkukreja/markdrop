@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * /meetings/<workspace>: the team's meetings. Import one (paste, upload, Google Docs), ask across all
- * of them, and open any meeting page. Only meetings the caller can open are listed (the server
+ * /meetings/<workspace>: the team's meetings. Import one (paste, upload, Google Docs) or connect Google
+ * Meet to import them automatically (side by side), ask across all of them, and open any meeting page. Only meetings the caller can open are listed (the server
  * decides); a workspace admin also sees that restricted meetings exist (no title) so they can delete
  * them. Phones get one column, a full-width Import button and the import as a bottom sheet.
  */
@@ -14,10 +14,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
-  deleteMeeting, fmtDuration, getMeetingsStatus, listMeetings,
-  type HiddenMeeting, type Meeting, type MeetingsStatus,
+  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, listMeetings,
+  type HiddenMeeting, type MeetConnection, type Meeting, type MeetingsStatus,
 } from "@/lib/meetings";
 import { ImportMeeting } from "./ImportMeeting";
+import { ConnectGoogleMeet, MeetConnectionStatus } from "./ConnectGoogleMeet";
 import { MeetingChat } from "./MeetingChat";
 import "./meetings.css";
 
@@ -38,6 +39,11 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState("");
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [conn, setConn] = useState<{ mine: MeetConnection | null; others: MeetConnection[] }>({ mine: null, others: [] });
+
+  const loadConn = useCallback(() => getMeetConnection(workspaceId)
+    .then((c) => setConn({ mine: c.connection, others: c.others })).catch(() => {}), [workspaceId]);
 
   const load = useCallback(async () => {
     try {
@@ -49,7 +55,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     }
   }, [workspaceId]);
 
-  useEffect(() => { if (user) void load(); }, [user, load]);
+  useEffect(() => { if (user) { void load(); void loadConn(); } }, [user, load, loadConn]);
   // A summary is being written: refresh the list now and then.
   const pending = items?.some((m) => m.ai.state === "pending");
   useEffect(() => {
@@ -60,6 +66,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("import") === "1") setImporting(true);
+    else if (q.get("connect") === "1") setConnecting(true);
   }, []);
 
   const shown = useMemo(() => {
@@ -73,6 +80,10 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const canImport = !!status?.can_import;
   const folderHref = status?.folder_id ? `/w/${encodeURIComponent(workspaceId)}/f/${encodeURIComponent(status.folder_id)}` : null;
   const any = (items?.length ?? 0) > 0;
+  const connectedHere = !!conn.mine && conn.mine.workspace_id === workspaceId;
+  const connectButton = canImport && !connectedHere && (
+    <Button variant="secondary" iconLeft="refresh" onClick={() => setConnecting(true)} data-testid="connect-meet">Connect Google Meet</Button>
+  );
 
   return (
     <div className="mt-hub">
@@ -91,9 +102,12 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         </div>
         <div className="mt-hub__actions">
           {folderHref && <Button variant="secondary" iconLeft="folder" href={folderHref}>Open folder</Button>}
+          {connectButton}
           {canImport && <Button iconLeft="plus" onClick={() => setImporting(true)} data-testid="import-meeting">Import meeting</Button>}
         </div>
       </header>
+      <MeetConnectionStatus mine={conn.mine} others={conn.others} workspaceId={workspaceId}
+        onChanged={() => void loadConn()} onReconnect={() => setConnecting(true)} />
 
       {error && <Alert tone="danger" className="mb-4">{error}</Alert>}
 
@@ -124,10 +138,14 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
           <span className="mt-empty-hub__glyph" aria-hidden><Icon name="mic" /></span>
           <h3>Turn your calls into team memory</h3>
           <p>Import a Google Meet transcript or Gemini's meeting notes. Markdrop writes the summary, decisions and action items (and @mentions the people who own them), keeps the transcript, and answers questions about it.</p>
-          {canImport ? <Button iconLeft="plus" onClick={() => setImporting(true)}>Import your first meeting</Button>
-            : <p style={{ margin: 0 }}>Members of this workspace can import meetings.</p>}
+          {canImport ? (
+            <div className="mt-hub__actions" style={{ justifyContent: "center" }}>
+              <Button iconLeft="plus" onClick={() => setImporting(true)}>Import your first meeting</Button>
+              {connectButton}
+            </div>
+          ) : <p style={{ margin: 0 }}>Members of this workspace can import meetings.</p>}
           <div className="mt-steps">
-            <div className="mt-step"><b>1 · Import</b>Paste it, upload .txt/.vtt/.srt/.docx, or pick the Docs Google saved in your Drive.</div>
+            <div className="mt-step"><b>1 · Import</b>Paste it, upload .txt/.vtt/.srt/.docx, pick the Docs Google saved in your Drive, or connect Google Meet to import every call by itself.</div>
             <div className="mt-step"><b>2 · Review</b>A page in Meetings: summary, decisions, action items with owners, open questions.</div>
             <div className="mt-step"><b>3 · Ask</b>“What did we decide about pricing?” — answers link to the moment it was said.</div>
           </div>
@@ -158,6 +176,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
 
       <ImportMeeting open={importing} onClose={() => setImporting(false)} workspaceId={workspaceId} status={status}
         onImported={() => void load()} />
+      <ConnectGoogleMeet open={connecting} onClose={() => { setConnecting(false); void load(); }} workspaceId={workspaceId}
+        workspaceName={ws?.name ?? null} current={conn.mine} onConnected={(c) => setConn((x) => ({ ...x, mine: c }))} />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} tone="danger" title="Delete this meeting?"
         description="Its pages go to the Trash for 30 days and its stored transcript is deleted now."
         confirmLabel="Delete meeting"
@@ -203,6 +223,7 @@ function MeetingCard({ m }: { m: Meeting }) {
       </div>
       <div className="mt-card__side">
         {m.ai.state === "pending" && <span className="mt-state"><Spinner size={12} /> Summarizing</span>}
+        {m.source === "auto" && <Badge size="sm" tone="neutral" icon="refresh">Auto</Badge>}
         {m.has_notes && <Badge size="sm" tone="info">Google notes</Badge>}
         {m.restricted && <Badge size="sm" tone="warning" icon="lock">Attendees only</Badge>}
       </div>
