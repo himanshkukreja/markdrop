@@ -72,6 +72,8 @@ export function useDocumentViewer({
   // The live socket's messages, for the page editor while it's open (it follows `appended` and
   // `changed` itself; the reader below ignores them while editing).
   const liveListeners = useRef(new Set<(msg: Record<string, unknown>) => void>());
+  // The access re-read (defined further down), for the live socket's `access` event.
+  const loadAccessRef = useRef<(() => void) | null>(null);
   const subscribeLive = useCallback((fn: (msg: Record<string, unknown>) => void) => {
     liveListeners.current.add(fn);
     return () => { liveListeners.current.delete(fn); };
@@ -347,6 +349,18 @@ export function useDocumentViewer({
    * an artifact's `content` is only a filename stand-in, so rendering it as
    * markdown shows a title and nothing else.
    */
+  /** The document now lives at `doc.slug` (renamed): go there, keeping the query and the #k= key. */
+  function followMove(doc: { slug: string; folder_path?: unknown }) {
+    // On a workspace's own domain a document lives at `/<folders…>/<slug>` (B-N5).
+    const folders = !isPrimaryHost(window.location.host) && Array.isArray(doc.folder_path)
+      ? doc.folder_path.filter((s): s is string => typeof s === "string" && s.length > 0)
+      : [];
+    const target = [...folders, doc.slug].map(encodeURIComponent).join("/");
+    // A key this browser kept for the old address follows the document.
+    e2e.moveRememberedKey(slug, doc.slug);
+    router.replace(`/${target}${window.location.search}${window.location.hash}`);
+  }
+
   function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
     if (doc.read_ticket) setReadTicket(doc.read_ticket);
     if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
@@ -354,14 +368,7 @@ export function useDocumentViewer({
     // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
     // one, keeping the query and the #k= key. The server render redirects the anonymous case.
     if (doc.moved && doc.slug && doc.slug !== slug) {
-      // On a workspace's own domain a document lives at `/<folders…>/<slug>` (B-N5).
-      const folders = !isPrimaryHost(window.location.host) && Array.isArray(doc.folder_path)
-        ? doc.folder_path.filter((s): s is string => typeof s === "string" && s.length > 0)
-        : [];
-      const target = [...folders, doc.slug].map(encodeURIComponent).join("/");
-      // A key this browser kept for the old address follows the document.
-      e2e.moveRememberedKey(slug, doc.slug);
-      router.replace(`/${target}${window.location.search}${window.location.hash}`);
+      followMove(doc);
       return true;
     }
     if (doc.kind === "artifact") {
@@ -963,6 +970,9 @@ export function useDocumentViewer({
     let retry: ReturnType<typeof setTimeout> | null = null;
     let closed = false;
     let backoff = 3000;
+    // Opened before: a reopen is a reconnect, and events sent meanwhile were lost (sleep, a network
+    // drop, a server restart). The page editor catches up itself (`resync`); a reader re-reads.
+    let opened = false;
 
     function connect() {
       try {
@@ -971,7 +981,13 @@ export function useDocumentViewer({
         return;
       }
       const sock = ws;
-      ws.onopen = () => { setLive(true); backoff = 3000; presence.channel.attach(sock); };
+      ws.onopen = () => {
+        setLive(true);
+        backoff = 3000;
+        presence.channel.attach(sock);
+        if (opened) sock.onmessage?.(new MessageEvent("message", { data: JSON.stringify({ type: "resync" }) }));
+        opened = true;
+      };
       ws.onmessage = (ev) => {
         let msg: { type?: string } | null = null;
         try { msg = JSON.parse(ev.data); } catch { return; }
@@ -983,6 +999,8 @@ export function useDocumentViewer({
         if (msg?.type === "appended") msg = { type: "changed" };
         // Deleted, expired or renamed away: the page itself has to answer now (404 or a redirect).
         if (msg?.type === "gone") { if (!editingRef.current) window.location.reload(); return; }
+        // Back after a gap: re-read like a change (the reader may have missed several).
+        if (msg?.type === "resync") msg = { type: "changed" };
         // Who may read it narrowed: the server closes this socket and the old ticket stops
         // working. Re-read through the normal path — still allowed gives a fresh ticket (and a
         // reconnect); refused means the page must show the gate instead of the old content.
@@ -998,6 +1016,8 @@ export function useDocumentViewer({
               announce("md:pages-change", { slug, title: doc.title, ...((doc as { editor?: string | null }).editor === "blocks" ? { icon: readPageProps(doc.content ?? "").icon } : {}) });
             }
             if (adoptDoc(doc, { created: false })) return;
+            // Who may do what changed (a workspace role, a removal): what this person may do now.
+            if (narrowed) loadAccessRef.current?.();
             setLiveUpdate((n) => n + 1);
             setVscodeSynced(!!doc.vscode_synced);
             if (doc.is_owner) setGoogleDocStale(!!doc.google_doc_stale);
@@ -1508,6 +1528,12 @@ export function useDocumentViewer({
   useEffect(() => {
     if (sessionEditor && !secretUnlocked) setSecretUnlocked(true);
   }, [sessionEditor, secretUnlocked]);
+  // No longer an editor (made a viewer while the page was open; the live socket's `access`
+  // re-read the access): the page goes back to reading. Owners and edit-secret holders keep it.
+  useEffect(() => {
+    if (secretUnlocked && user && access?.can && !access.can.edit && !isOwner && !secretInput.trim()) setSecretUnlocked(false);
+  }, [access, secretUnlocked, user, isOwner, secretInput]);
+  loadAccessRef.current = loadAccess;
   // Password, expiry, key rotation and delete stay with the owner (or the edit secret's holder) —
   // on markdrop.in only: a workspace's own domain edits the text, never the settings.
   const canEditSettings = (isOwner || !!secretInput.trim()) && !onTenantHost;
@@ -1535,6 +1561,7 @@ export function useDocumentViewer({
     page,
     setPage,
     subscribeLive,
+    followMove,
     setDocRev,
     setDisplayContent,
     setDisplayTitle,

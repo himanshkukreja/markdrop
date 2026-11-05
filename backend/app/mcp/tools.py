@@ -796,6 +796,11 @@ async def publish_page(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Published {filename}: {out['url']}", out
 
 
+def _stale(base_rev: int, now) -> str:
+    return (f"The document changed since revision {base_rev} (it is at revision {now}). Nothing was "
+            "written. Read it again with get_document and redo the change on the newer text.")
+
+
 async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
     raw = await load_for(ctx, args["document"], "edit_content", "update")
     slug = raw["slug"]
@@ -805,6 +810,13 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
     title = args.get("title")
     actor = actor_of(ctx)
     actx = access_service.Ctx(ctx.db, surface="mcp")
+    # base_rev (get_document's rev): never write over a version this caller hasn't read — someone
+    # (or another AI app) may have changed it since (fix/collab-audit).
+    base_rev = args.get("base_rev")
+    if base_rev is not None:
+        base_rev = int(base_rev)
+        if base_rev != int(raw.get("rev") or 1):
+            raise ToolError(_stale(base_rev, int(raw.get("rev") or 1)))
     if raw.get("kind") == "artifact":
         if not art_service.is_syncable(raw.get("mime")) or raw.get("bundle_prefix"):
             label = art_service.label_for(raw.get("mime") or "")
@@ -849,12 +861,15 @@ async def update_document(ctx: Context, args: dict) -> tuple[str, dict]:
             data = DocumentUpdate(
                 title=title if title is not None else raw.get("title"),
                 content=content,
+                base_rev=base_rev,
             )
         except ValidationError:
             raise ToolError("That title or content isn't valid.")
         try:
             after = await doc_service.update_document(ctx.db, slug, data, actor, actx)
         except HTTPException as exc:
+            if exc.status_code == 409 and base_rev is not None:
+                raise ToolError(_stale(base_rev, (exc.headers or {}).get("X-Markdrop-Rev", "newer")))
             raise ToolError(http_message(exc))
         from app.services.document import _doc_from_mongo
 
@@ -921,6 +936,8 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
         "updated_at": iso(doc.updated_at),
         "views": doc.views,
         "owner": "you" if doc.owner_id == ctx.user.id else "someone else",
+        # What update_document takes as base_rev (it refuses to write over a newer version).
+        "rev": int(doc.rev or 1),
         **meta,
     }
     if content is not None:
@@ -2425,7 +2442,10 @@ TOOLS: list[Tool] = [
         description=(
             "Replace the full content of a document or text file the user owns or can edit (a "
             "document shared with them as an editor, or a non-private document of a workspace they "
-            "are a member of), keeping its link. Encrypted documents and non-text files can't be updated."
+            "are a member of), keeping its link. Encrypted documents and non-text files can't be updated. "
+            "Pass base_rev (the rev get_document returned) so a change someone made after you read it "
+            "is never overwritten: if the document moved on, nothing is written and you're told to read "
+            "it again. For pages, prefer update_page / replace_section / append_blocks."
         ),
         scope=WRITE,
         writes=True,
@@ -2436,6 +2456,9 @@ TOOLS: list[Tool] = [
                 "content": {"type": "string", "minLength": 1,
                             "description": "The new full content (markdown for documents, the file text for files)."},
                 "title": {"type": "string", "maxLength": 200, "description": "Optional new title."},
+                "base_rev": {"type": "integer", "minimum": 1,
+                             "description": "The rev get_document returned. Recommended: the update is refused "
+                                            "if the document changed since (no silent overwrite)."},
             },
             "required": ["document", "content"],
         },
@@ -2465,7 +2488,7 @@ TOOLS: list[Tool] = [
                 "kind": {"type": "string", "enum": ["document", "artifact"]},
                 "content": {"type": "string"}, "note": {"type": "string"},
                 "access": _ACCESS_OUT, "created_at": {"type": "string"},
-                "updated_at": {"type": "string"}, "views": {"type": "integer"},
+                "updated_at": {"type": "string"}, "views": {"type": "integer"}, "rev": {"type": "integer"},
                 "owner": {"type": "string", "enum": ["you", "someone else"]},
                 "file": _FILE_INFO,
             },

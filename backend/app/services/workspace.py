@@ -282,6 +282,11 @@ async def set_member_role(
         raise HTTPException(status_code=404, detail="That person isn't in this workspace.")
     await lifecycle.member_demoted(db, workspace_id, user_id, role)
     await docs_studio_roles.revoke_lost(db, docs_sites, could_read, user_id, "role_changed")
+    # Pages they have open re-check what they may do now (an editor that became a viewer stops
+    # saving and says why; a viewer made a member can edit) — fix/collab-audit.
+    from app.services import viewers
+
+    viewers.access_changed_for(user_id)
 
 
 async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: str,
@@ -320,6 +325,11 @@ async def remove_member(db: AsyncIOMotorDatabase, workspace_id: str, user_id: st
         await lifecycle.member_left(db, workspace_id, user_id)
         # Their Guides roles there go too (read time already ignores them).
         await docs_studio_roles.member_left(db, workspace_id, user_id, actor_id=actor_id, could_read=could_read)
+        # Pages they still have open re-check through the read path (fix/collab-audit): a
+        # workspace page shows its gate instead of an editor that can't save.
+        from app.services import viewers
+
+        viewers.access_changed_for(user_id)
 
 
 async def transfer_ownership(db: AsyncIOMotorDatabase, workspace_id: str, actor_id: str,

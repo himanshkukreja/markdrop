@@ -48,7 +48,7 @@ import "./ai/pageAi.css";
 import { usePageAssets } from "./usePageEmbeds";
 import { usePageSignoffs } from "./signoff/store";
 import { SignoffSummary } from "./signoff/SignoffSummary";
-import { clearPageDraft, dropLegacyPageDraft, readPageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
+import { clearPageDraft, dropLegacyPageDraft, readPageDraft, restorePageDraft, writePageDraft, type PageDraft } from "@/lib/pageDrafts.mjs";
 import "./pages.css";
 import "./page-blocks.css";
 
@@ -118,6 +118,8 @@ export interface PageEditorProps {
   onHeadings?: (headings: Heading[]) => void;
   /** Auto covers: one is being picked for this page (it fades in when it lands). */
   coverPending?: boolean;
+  /** Renamed while open (what was typed is already saved there): go to its new address. */
+  onMoved?: (doc: PageDocument) => void;
   /** The cover on the page was picked automatically. */
   coverAuto?: boolean;
 }
@@ -173,7 +175,7 @@ function FontTiles({ value, onChange, disabled }: { value: PageFont; onChange: (
   );
 }
 
-export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings, coverPending = false, coverAuto = false }: PageEditorProps) {
+export function PageEditor({ slug, userId = null, title: initialTitle, content: initialContent, rev, secret = null, workspaceId, crumbs, assets: initialAssets, addressing, isOwner = false, mayEditLocked = false, url, updatedAt, subscribeLive, onSaved, onReady, othersEditing = null, onAddSubPage, onDelete, onMoveTo, onDuplicate, chrome = {}, onHeadings, coverPending = false, coverAuto = false, onMoved }: PageEditorProps) {
   const toast = useToast();
   const online = useOnline();
   const phone = usePhone();
@@ -238,6 +240,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       setContent(doc.content);
     },
     subscribeLive,
+    onMoved,
   });
   contentRef.current = content;
   const props = useMemo(() => readPageProps(content), [content]);
@@ -324,8 +327,11 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
   const keepDraft = useCallback((next: { title?: string; content?: string }) => {
     // Storage full or blocked: the server copy still saves.
     const prev = readPageDraft(store(), slug, userId);
-    writePageDraft(store(), slug, userId, { title: next.title ?? prev?.title ?? title, content: next.content ?? prev?.content ?? content, rev, at: Date.now() });
-  }, [slug, userId, title, content, rev]);
+    // With what it was typed on (the server's copy as this editor knows it), so offering it back
+    // later merges it into a newer version instead of saving it over one (restorePageDraft).
+    const b = session.baseline();
+    writePageDraft(store(), slug, userId, { title: next.title ?? prev?.title ?? title, content: next.content ?? prev?.content ?? content, rev: b.rev ?? rev, at: Date.now(), base: b.content, baseTitle: b.title });
+  }, [slug, userId, title, content, rev, session]);
 
   const assets = usePageAssets(slug, initialAssets, content);
   // Sign-offs (components/pages/signoff): their state, the lock on signed blocks, the summary.
@@ -448,6 +454,20 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     },
     [session, keepDraft],
   );
+  // A local draft back on the page: merged into the page as it is now when someone changed it since
+  // (never saved over their version).
+  const restoreDraft = () => {
+    if (!draft) return;
+    const now = session.baseline();
+    const r = restorePageDraft(draft, { title: now.title, content: now.content, rev: now.rev });
+    setTitle(r.title);
+    session.update({ title: r.title });
+    setBody(r.content);
+    setDraft(null);
+    if (r.how === "merged") toast.info("Your unsaved changes are back, merged with the changes made since.");
+    else if (r.how === "both") toast.info("Your unsaved changes are back. Where someone changed the same lines since, both versions are on the page: theirs first, then yours.");
+    else if (r.how === "appended") toast.info("This page changed since. Your unsaved version is under the current one; keep what you need.");
+  };
   const setProps = (patch: Partial<PageProps>) => {
     if ("cover" in patch) {
       // A cover chosen (or removed) here is the person's own; a removed one is never added back.
@@ -640,12 +660,14 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
         tone="warn"
         actions={
           <>
-            <Button size="sm" variant="secondary" onClick={() => void session.resolveConflict("theirs")}>Load the latest</Button>
-            <Button size="sm" variant="ghost" onClick={() => void session.resolveConflict("mine")}>Keep mine</Button>
+            <Button size="sm" variant="secondary" onClick={() => void session.resolveConflict(session.conflict?.merged ? "both" : "mine")}>Keep both</Button>
+            <Button size="sm" variant="ghost" onClick={() => void session.resolveConflict("theirs")}>Use theirs</Button>
+            <Button size="sm" variant="ghost" onClick={() => void session.resolveConflict("mine")}>Use mine</Button>
           </>
         }
       >
-        Someone saved a newer version while you were editing. Load theirs (your unsaved changes are dropped) or keep yours.
+        Someone changed the same {session.conflict.merged && session.conflict.merged.count > 1 ? `${session.conflict.merged.count} places` : "part"} of this page while you were editing; everything else is merged.
+        {" "}<strong>Keep both</strong> puts their version and then yours there, <strong>Use theirs</strong> drops your change to it (it stays in this browser), <strong>Use mine</strong> replaces theirs (it stays in version history).
       </PageBanner>
     ) : session.save.state === "error" && online ? (
       <PageBanner icon="alert" tone="warn" actions={<Button size="sm" variant="secondary" onClick={session.retry}>Try again</Button>}>
@@ -721,7 +743,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           className="pb-notice"
           actions={
             <>
-              <Button size="sm" variant="secondary" onClick={() => { setTitle(draft.title); session.update({ title: draft.title }); setBody(draft.content); setDraft(null); }}>Restore them</Button>
+              <Button size="sm" variant="secondary" onClick={restoreDraft}>Restore them</Button>
               <Button size="sm" variant="ghost" onClick={() => { clearPageDraft(store(), slug, userId); setDraft(null); }}>Discard</Button>
             </>
           }
