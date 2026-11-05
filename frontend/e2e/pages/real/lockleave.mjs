@@ -117,33 +117,33 @@ for (const typed of [false, true]) {
   });
 }
 
-/* ── typing, then another page in the app (client-side navigation) ── */
-await step("navigate", async () => {
-  const slug = await newPage("Navigate away");
-  const { p } = await ctx(browser, { token: T.owner });
-  const calls = [];
-  p.on("request", (r) => { if (r.url().includes(`/documents/${slug}`) && r.method() !== "GET") calls.push(`${new Date().toISOString().slice(17, 23)} ${r.method()} ${r.url().split(slug)[1] || "/"}`); });
-  p.on("response", (r) => { if (r.url().includes(`/documents/${slug}`) && r.request().method() !== "GET") calls.push(`${new Date().toISOString().slice(17, 23)} → ${r.status()} ${r.url().split(slug)[1] || "/"}`); });
-  p.on("console", (m) => { if (m.text().startsWith("[lock]")) calls.push(m.text()); });
-  await openEditor(p, `${APP}/${slug}?edit=1`);
-  await typeAtEnd(p, "Typed, then I went to the dashboard.");
-  await waitHolder(slug, "Ada Owner");
-  // Straight away (the autosave hasn't run yet), through the app (a link in its own chrome: the
-  // page's breadcrumb, client-side): what's typed is saved on the way out.
-  const from = p.url();
-  const crumb = p.locator(".pb-crumbs a").first();
-  log("breadcrumb →", await crumb.getAttribute("href"));
-  await p.evaluate(() => { window.__still = true; });
-  await crumb.click();
-  await p.waitForURL((u) => u.href !== from, { timeout: 30000 });
-  if (!(await p.evaluate(() => window.__still === true))) fail("the breadcrumb loaded a new document (not client-side)");
-  await freeWithin(slug, BEACON_MS, "after going to the dashboard");
-  await sleep(1500);
-  log("calls:", calls.join(" | "));
-  const md = (await docOf(slug, T.owner)).content;
-  if (!md.includes("Typed, then I went to the dashboard.")) fail(`unsaved text lost on the way out: ${JSON.stringify(md)}`);
-  await mcpWrites(slug, "AI after navigating.");
-});
+/* ── typing, then another page in the app (client-side navigation): once the lock is taken, and
+   straight after the last key (before the editor even handed the text up) ── */
+for (const quick of [false, true]) {
+  await step(quick ? "navigate-quick" : "navigate", async () => {
+    const slug = await newPage(quick ? "Navigate at once" : "Navigate away");
+    const text = quick ? "Typed, and away at once." : "Typed, then I went to the folder.";
+    const { p } = await ctx(browser, { token: T.owner });
+    const calls = [];
+    p.on("request", (r) => { if (r.url().includes(`/documents/${slug}`) && r.method() !== "GET") calls.push(`${new Date().toISOString().slice(17, 23)} ${r.method()} ${r.url().split(slug)[1] || "/"}`); });
+    await openEditor(p, `${APP}/${slug}?edit=1`);
+    await typeAtEnd(p, text);
+    if (!quick) await waitHolder(slug, "Ada Owner");
+    // Through the app (the page's breadcrumb, a client-side link), before the autosave ran: what's
+    // typed is saved on the way out, then the lock goes.
+    const from = p.url();
+    await p.evaluate(() => { window.__still = true; });
+    await p.locator(".pb-crumbs a").first().click();
+    await p.waitForURL((u) => u.href !== from, { timeout: 30000 });
+    if (!(await p.evaluate(() => window.__still === true))) fail("the breadcrumb loaded a new document (not client-side)");
+    if (quick) await sleep(1500);
+    await freeWithin(slug, BEACON_MS, "after going to the folder");
+    log("calls:", calls.join(" | "));
+    const md = (await docOf(slug, T.owner)).content;
+    if (!md.includes(text)) fail(`unsaved text lost on the way out: ${JSON.stringify(md)}`);
+    await mcpWrites(slug, "AI after navigating.");
+  });
+}
 
 /* ── typing, then closing the tab (the close beacon) ── */
 await step("close-tab", async () => {

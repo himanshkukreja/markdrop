@@ -303,10 +303,11 @@ export function usePageEditSession({
   }, [slug, secret, fetchLatest, setLock, rebase, setConflict]);
 
   /** Take the lock (once at a time). True when it's ours. */
-  const acquire = useCallback((): Promise<boolean> => {
+  const acquire = useCallback((opts?: { leaving?: boolean }): Promise<boolean> => {
     if (lockRef.current.kind === "mine") return Promise.resolve(true);
-    // Never taken by an editor on its way out (a change its teardown reports, a late retry).
-    if (leaving.current) return Promise.resolve(false);
+    // Never taken by an editor on its way out (a change its teardown reports, a late retry), but
+    // for the moment it takes to save what was typed just before (letGo).
+    if (leaving.current && !opts?.leaving) return Promise.resolve(false);
     if (acquiring.current) return acquiring.current;
     setLock({ kind: "acquiring" });
     const p = (async () => {
@@ -375,6 +376,11 @@ export function usePageEditSession({
     await new Promise((r) => window.setTimeout(r, 0));
     if (lockRef.current.kind === "acquiring" && acquiring.current) {
       if (!(await acquiring.current.catch(() => false))) return;
+    }
+    // Typed in the last moments, before the lock was even asked for (the editor's unmount flush):
+    // take it just to save that, then let go.
+    if (lockRef.current.kind === "idle" && dirty.current && !conflictRef.current) {
+      if (!(await acquireRef.current({ leaving: true }))) return;
     }
     if (lockRef.current.kind !== "mine") return;
     for (let i = 0; saving.current && i < 200; i++) await new Promise((r) => window.setTimeout(r, 50));
