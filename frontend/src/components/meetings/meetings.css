@@ -202,6 +202,30 @@
 .mt-folderbar__text b { display: block; color: var(--text); font-size: 14px; }
 .mt-folderbar svg.mt-folderbar__glyph { width: 20px; height: 20px; color: var(--accent-text); }
 
+/* ── Connect Google Meet ───────────────────────────────────────────────── */
+.mt-connect { display: grid; gap: 14px; font-size: 14px; line-height: 21px; color: var(--text-secondary); }
+.mt-connect__lead { margin: 0; }
+.mt-connect__lead b, .mt-connect__steps b { color: var(--text); }
+.mt-connect__facts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.mt-connect__facts li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: start; font-size: 13px; line-height: 19px; }
+.mt-connect__facts svg { width: 16px; height: 16px; margin-top: 2px; color: var(--accent-text); }
+.mt-connect__steps { margin: 0; padding-left: 20px; display: grid; gap: 14px; }
+.mt-connect__steps li { padding-left: 4px; }
+.mt-connect__steps code, .mt-connect__fine code { font-size: 12.5px; padding: 1px 5px; border-radius: 6px; background: var(--surface-sunken, var(--surface-raised)); border: 1px solid var(--border); }
+.mt-connect__fine { margin: 0; font-size: 12.5px; line-height: 18px; color: var(--text-muted); }
+.mt-code { margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-raised); }
+.mt-code__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border); font: 500 12px/18px var(--font-mono, ui-monospace, monospace); color: var(--text-muted); }
+.mt-code__pre { margin: 0; padding: 10px 12px; max-height: 140px; overflow: auto; font: 12px/18px var(--font-mono, ui-monospace, monospace); color: var(--text); white-space: pre; }
+.mt-code__pre--tall { max-height: 220px; }
+.mt-conn { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: -8px 0 16px; font-size: 13px; color: var(--text-secondary); }
+.mt-conn--compact { margin: 0; flex-basis: 100%; }
+.mt-conn__mine { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.mt-conn__meta { color: var(--text-muted); }
+.mt-conn__err { display: inline-flex; align-items: center; gap: 4px; color: var(--danger-text, var(--danger)); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mt-conn__err svg, .mt-conn__others svg { width: 14px; height: 14px; flex: none; }
+.mt-conn__others { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+@media (max-width: 639px) { .mt-code__pre { font-size: 11.5px; } .mt-conn__err { max-width: 100%; } }
+
 @media (prefers-reduced-motion: reduce) {
   .mt-card, .mt-cite, .mt-chip, .mt-drop { transition: none; }
 }
