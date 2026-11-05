@@ -20,7 +20,7 @@ It works with a small Google Apps Script that runs in your own Google account. M
 
 1. Open the workspace's **Meetings** page (select **Ask meetings** in the Meetings folder) and select **Connect Google Meet**. It sits next to **Import meeting**.
 
-   ![The Connect Google Meet dialog: what the script reads, that it's read-only, that it has its own token for this workspace only, that it doesn't duplicate meetings, how far back to import past meetings, a switch to restrict meetings to their attendees, and Make my script.](/docs-assets/workspaces/meetings-auto-import/connect-dialog.webp)
+   ![The Connect Google Meet dialog: what the script reads, that it's read-only, that it has its own token for this workspace only, that it doesn't duplicate meetings, how far back to import past meetings, Include meetings shared with me (on), a switch to restrict meetings to their attendees, and Make my script.](/docs-assets/workspaces/meetings-auto-import/connect-dialog.webp)
 
 2. Under **Also import past meetings from your Drive**, choose how far back to go: **No, only new meetings**, or the **Last 7**, **30** (the default) or **90 days**. See [Past meetings](#past-meetings).
 3. Leave **Include meetings shared with me** on to import every meeting you attended, including the ones someone else organized. Switch it off to import only the Docs in your own Drive.
@@ -38,7 +38,7 @@ Then, in Google:
 
 `setup` imports the meetings of the last 48 hours straight away, starts on the past meetings you chose, and schedules itself every 15 minutes. Back in Markdrop, the Meetings page shows **Google Meet connected**, when it last imported and how many meetings it brought in, and how the script's last run went (see [See what the script found](#see-what-the-script-found)).
 
-![The Meetings page with Google Meet connected: last import a few minutes ago, the number of meetings, New script and Disconnect; the meeting it imported is marked Auto.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
+![The Meetings page with Google Meet connected: last import a few minutes ago, the number of meetings, New script and Disconnect, and how the script's last run went; the meeting it imported is marked Auto.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
 
 ## What the script can see and do
 
