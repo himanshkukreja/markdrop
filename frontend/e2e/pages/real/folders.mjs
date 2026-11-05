@@ -78,15 +78,22 @@ await step("mcp", async () => {
 await step("redirect", async () => {
   if (!S.slug) fail("needs the mcp step");
   const { c, p } = await ctx(browser, {});
+  // The site caches which workspace a host serves for 60 s (stale-while-revalidate), and reseeding
+  // made a new workspace: one visit lets it refresh before the checks.
+  for (let i = 0; i < 40; i++) {
+    const r = await fetch(`${TENANT}/product-hub/prds/${S.slug}`, { redirect: "manual" }).catch(() => null);
+    if (r?.status === 307) break;
+    await new Promise((res) => setTimeout(res, 1500));
+  }
   await p.goto(`${TENANT}/product-hub`, { waitUntil: "domcontentloaded" });
-  await p.waitForURL(/\/product$/, { timeout: 15000 });
-  await p.getByRole("heading", { name: "Product" }).first().waitFor({ timeout: 15000 });
+  await p.waitForURL(/\/product$/, { timeout: 15000, waitUntil: "commit" });
+  await p.getByRole("heading", { name: "Product" }).first().waitFor({ timeout: 15000, waitUntil: "commit" });
   await shot(p, "folders-redirect-folder");
   await p.goto(`${TENANT}/product-hub/prds`, { waitUntil: "domcontentloaded" });
-  await p.waitForURL(/\/product\/prds$/, { timeout: 15000 });
+  await p.waitForURL(/\/product\/prds$/, { timeout: 15000, waitUntil: "commit" });
   await p.goto(`${TENANT}/product-hub/prds/${S.slug}`, { waitUntil: "domcontentloaded" });
-  await p.waitForURL(new RegExp(`/product/prds/${S.slug}$`), { timeout: 15000 });
-  await p.getByText("The PRD.").first().waitFor({ timeout: 15000 });
+  await p.waitForURL(new RegExp(`/product/prds/${S.slug}$`), { timeout: 15000, waitUntil: "commit" });
+  await p.getByText("The PRD.").first().waitFor({ timeout: 15000, waitUntil: "commit" });
   const nothing = await p.goto(`${TENANT}/product-hub/nope`, { waitUntil: "domcontentloaded" });
   if (nothing.status() !== 404) fail(`a path that never existed answered ${nothing.status()}`);
   await c.close();
