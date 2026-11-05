@@ -136,10 +136,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      # docs:openapi --check imports the backend to compare the API reference snapshot.
+      # docs:openapi --check imports the backend to compare the API reference snapshot. The snapshot
+      # is generated on the dev Mac (Python 3.12), and Python 3.13+ dedents docstrings at compile
+      # time, which changes the generated descriptions: check it with the Python that writes it.
       - uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: "3.12"
           allow-prereleases: true
           cache: pip
           cache-dependency-path: backend/requirements*.txt
@@ -165,7 +167,16 @@ jobs:
           PYTHON: python
         run: |
           set -o pipefail
-          npm run -s docs:check 2>&1 | tee /tmp/docs-check.log
+          npm run -s docs:check 2>&1 | tee /tmp/docs-check.log || {
+            if grep -q "is STALE" /tmp/docs-check.log; then
+              npm run -s docs:openapi >/dev/null 2>&1 || true
+              echo "::group::openapi.json diff (backend here vs the committed snapshot)"
+              git diff --stat -- content/docs/openapi.json; git diff -U2 -- content/docs/openapi.json | head -n 150
+              echo "::endgroup::"
+              pip freeze | grep -iE "^(pydantic|fastapi|starlette)" || true
+            fi
+            exit 1
+          }
           # docs:openapi only warns when it can't import the backend; in CI that is a failure.
           if grep -q "SKIPPED the freshness check" /tmp/docs-check.log; then
             echo "::error::docs:openapi --check couldn't import the backend"; exit 1
