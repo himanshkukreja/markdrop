@@ -220,6 +220,7 @@
 .mt-connect__fine { margin: 0; font-size: 12.5px; line-height: 18px; color: var(--text-muted); }
 .mt-code { max-width: 100%; min-width: 0; margin-top: 8px; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; background: var(--surface-raised); }
 .mt-code__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; border-bottom: 1px solid var(--border); font: 500 12px/18px var(--font-mono, ui-monospace, monospace); color: var(--text-muted); }
+.mt-code__bar .md-btn { font-family: var(--font-sans, inherit); }
 .mt-code__pre code { all: unset; }
 .mt-code__pre { margin: 0; max-width: 100%; padding: 10px 12px; max-height: 140px; overflow: auto; font: 12px/18px var(--font-mono, ui-monospace, monospace); color: var(--text); white-space: pre; }
 .mt-code__pre--tall { max-height: 220px; }

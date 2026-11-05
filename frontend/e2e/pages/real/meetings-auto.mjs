@@ -251,7 +251,7 @@ await step("docs-media", async () => {
       localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th);
       localStorage.setItem("md_theme_beta", "1"); localStorage.setItem("md_consent", "denied");
     }, [T.admin, theme]);
-    const p = await c.newPage();
+    let p = await c.newPage();
     await p.goto(`${HUB}?connect=1`);
     const panel = p.locator(".md-dialog").filter({ has: p.getByTestId("meet-create") });
     await panel.getByTestId("meet-create").waitFor({ timeout: 20000 });
@@ -265,18 +265,26 @@ await step("docs-media", async () => {
     await made.screenshot({ path: path.join(raw, `connect-script${suffix}.png`) });
     webp(path.join(raw, `connect-script${suffix}.png`), `connect-script${suffix}`);
     await made.getByTestId("meet-done").click();
+    await c.close();
+    // The Meetings page of the owner, whose script has imported a call.
+    const c2 = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: theme });
+    await c2.addInitScript(([t, th]) => {
+      localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th);
+      localStorage.setItem("md_theme_beta", "1"); localStorage.setItem("md_consent", "denied");
+    }, [T.owner, theme]);
+    p = await c2.newPage();
     await p.goto(HUB);
-    await p.getByTestId("meet-connection").waitFor({ timeout: 20000 });
+    await p.getByTestId("meet-connection").getByText(/last import/).waitFor({ timeout: 20000 });
     await p.getByTestId("meeting-card").first().waitFor();
     await p.waitForTimeout(800);
     // The header, the connection line and the first meetings.
     const head = await p.locator(".mt-hub__head").boundingBox();
     const list = await p.getByTestId("meetings-list").boundingBox();
-    const box = { x: Math.max(0, head.x - 24), y: Math.max(0, head.y - 16), width: Math.min(1440, head.width + 48) };
+    const box = { x: Math.max(0, head.x - 24), y: Math.max(0, head.y - 6), width: Math.min(1440, head.width + 48) };
     box.height = Math.min(list.y + list.height + 16, 900) - box.y;
     await p.screenshot({ path: path.join(raw, `connected${suffix}.png`), clip: box });
     webp(path.join(raw, `connected${suffix}.png`), `connected${suffix}`);
-    await c.close();
+    await c2.close();
   }
 });
 
