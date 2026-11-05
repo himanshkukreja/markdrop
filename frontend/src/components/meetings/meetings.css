@@ -85,7 +85,7 @@
 .mt-dock__titles p { margin: 0; font-size: 12px; line-height: 16px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Wide screens: the list makes room beside the open panel. */
 @media (min-width: 1280px) {
-  body:has(.mt-dock[data-open][data-layout="panel"]) .mt-hub { width: auto; max-width: 980px; margin: 0 472px 0 max(24px, calc(100% - 980px - 472px)); }
+  body:has(.mt-dock[data-open][data-layout="panel"]) .mt-hub { max-width: 1460px; padding-left: 32px; padding-right: 488px; }
 }
 
 /* the list's tools */
@@ -115,7 +115,7 @@
 .mt-monthgroup + .mt-monthgroup { margin-top: 18px; }
 .mt-month {
   position: sticky; top: var(--mt-sticky); z-index: 3; display: flex; align-items: baseline; gap: 8px;
-  margin: 0 -8px 6px; padding: 10px 8px 8px; background: color-mix(in srgb, var(--surface) 88%, transparent);
+  margin: 0 -8px 6px; padding: 10px 8px 8px; background: color-mix(in srgb, var(--bg, var(--surface)) 90%, transparent);
   backdrop-filter: saturate(1.4) blur(8px); -webkit-backdrop-filter: saturate(1.4) blur(8px);
   font-size: 13px; font-weight: 700; letter-spacing: 0.01em; color: var(--text);
 }
@@ -139,7 +139,7 @@
   position: relative; display: grid; place-items: end start; width: 76px; height: 76px; border-radius: 14px; overflow: hidden;
   background-size: cover; background-position: center;
 }
-.mt-card__thumb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 30%, rgb(0 0 0 / 0.38)); }
+.mt-card__thumb::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgb(0 0 0 / 0.04) 10%, rgb(0 0 0 / 0.58)); }
 .mt-card__day { position: relative; z-index: 1; display: flex; flex-direction: column; padding: 0 0 7px 9px; color: #fff; font-size: 22px; line-height: 22px; font-weight: 750; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px rgb(0 0 0 / 0.35); }
 .mt-card__day small { font-size: 10.5px; line-height: 14px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.92; }
 .mt-card__thumb--hidden { place-items: center; background: var(--surface-inset); color: var(--text-muted); }

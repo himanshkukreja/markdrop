@@ -200,7 +200,6 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
             </div>
             <span className="mt-tools__right">
               <span className="mt-count" aria-live="polite">{shown.length} {shown.length === 1 ? "meeting" : "meetings"}{filtered && items ? ` of ${items.length}` : ""}</span>
-              {status?.can_organize && <button type="button" className="mt-sr" onClick={() => setOrganizing(true)} data-testid="organize-meetings">Organize meetings</button>}
               <Select aria-label="Sort meetings" value={sort} onChange={(e) => setSort(e.target.value as MeetingSort)} data-testid="meetings-sort" className="mt-sort"
                 options={(Object.keys(SORTS) as MeetingSort[]).map((k) => ({ value: k, label: SORTS[k].label }))} />
             </span>

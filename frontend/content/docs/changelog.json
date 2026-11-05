@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-chat-and-cards",
+      "date": "2026-11-05",
+      "title": "Asking meetings is a real conversation; the Meetings page shows what each meeting was about",
+      "kind": "improved",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Ask this meeting and Ask across meetings are now one chat: answers stream in with numbered sources that show who said it, when, and the line itself, with follow-up questions and a conversation that's still there when you come back. The Meetings page lists each meeting with its cover, summary, people and counts.",
+      "body": "- **One chat for asking meetings.** Your question on the right, the answer on the left as it's written, with what it's reading while it works. **Stop** (or Esc) ends an answer early.\n- **Numbered sources.** Select **1**, **2**… in an answer, or **N sources** under it: each source shows the meeting, its date and series, who spoke and when, and the line itself. **Jump to the moment** opens the transcript there.\n- **Follow-ups.** Suggested follow-up questions under each answer, and follow-ups across meetings now know what you asked before.\n- **Conversations are kept.** Reopen a meeting, or the Meetings page, and your conversation is still there (on any device you sign in on). **New chat** starts over. If you can no longer open a meeting an answer used, that answer is hidden.\n- **Ask across meetings opens beside your meetings** on a computer (or page-wide with **Expand**) and full screen on a phone. Pick a series and a period with the chips in the question box.\n- **Keyboard.** Enter sends, Shift+Enter is a new line, ↑ brings back your last question, Esc stops an answer or closes the sources.\n- **The Meetings page** shows each meeting's series cover with its date, the day, time and length, a line of the summary, who was there, and how many decisions, action items and open questions it has. Month headings stay on screen as you scroll; search covers titles, series and people; point at a meeting to open its transcript or ask it. Connect Google Meet, Import past meetings, the Meetings folder and Organize are under one calm header.\n- **A meeting bar on every meeting page**: who was there, who can open it, **Transcript** and **Ask this meeting**.\n- API: `GET /api/v1/meetings` rows add `summary`, `decisions`, `open_questions` and `cover`; ask citations add `speaker`, `at` and `quote`; both asks take `thread_id` (and Ask across takes `history`) and return `thread_id`, readable with `GET /api/v1/ask/threads/{id}`.",
+      "docs": [
+        "/workspaces/meetings-ask",
+        "/workspaces/meetings"
+      ]
+    },
+    {
       "id": "meetings-drive-links-organizer",
       "date": "2026-11-05",
       "title": "Import a meeting from a Google Drive link; Organizer is who ran the call; 1:1s stay private",
