@@ -379,7 +379,7 @@ export function usePageEditSession({
     }
     // Typed in the last moments, before the lock was even asked for (the editor's unmount flush):
     // take it just to save that, then let go.
-    if (lockRef.current.kind === "idle" && dirty.current && !conflictRef.current) {
+    if (leaving.current && lockRef.current.kind === "idle" && dirty.current && !conflictRef.current) {
       if (!(await acquireRef.current({ leaving: true }))) return;
     }
     if (lockRef.current.kind !== "mine") return;
