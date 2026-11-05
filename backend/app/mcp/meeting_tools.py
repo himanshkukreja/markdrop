@@ -6,6 +6,13 @@
   them (its page's Markdown, and the transcript when asked).
 * ``ask_meetings``: a question about one meeting, or every meeting in a workspace the user can
   open; the answer cites transcript moments.
+* ``meetings_connection``: whether meetings are imported automatically into a workspace ("Connect
+  Google Meet", services/meetings_inbox.py): who connected it, when it last imported, how many.
+  Read-only: never the token or the script (connecting is done on the website).
+
+``import_meeting`` dedupes like the Google Meet script's inbox: the same call (name, date, start
+time) already in the workspace with that half is returned as a duplicate, and the other half of a
+call that is already there is added to it.
 
 Same rules as the website: members import, everything is decided on the meeting page with
 ``access.can`` (a meeting restricted to its attendees doesn't exist for anyone else), and the AI
@@ -33,7 +40,7 @@ from app.mcp.tools import (
     resolve_workspace,
 )
 from app.services import access as access_service
-from app.services import meetings, meetings_ai, urls
+from app.services import meetings, meetings_ai, meetings_inbox, urls
 from app.services import meeting_parse as mp
 
 MAX_TRANSCRIPT_RETURN = 400
@@ -50,7 +57,7 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         "transcript_url": urls.markdrop_url(m["transcript_slug"]) if m.get("transcript_slug") else None,
         "attendees": [a["name"] for a in m.get("attendees") or []], "restricted": m.get("restricted"),
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
-        "segments": m.get("segments"), "ai": m.get("ai"),
+        "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"),
     }
 
 
@@ -86,18 +93,27 @@ async def import_meeting(ctx: Context, args: dict) -> tuple[str, dict]:
     try:
         rows = await meetings.import_meetings(ctx.db, ctx.user, ws_id, incoming, title=args.get("title"),
                                               date_=args.get("date"), type_=args.get("type"),
-                                              restricted=bool(args.get("restricted")), wait=True, via="mcp")
+                                              restricted=bool(args.get("restricted")), wait=True, via="mcp",
+                                              dedupe="all")
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     actor, actx = actor_of(ctx), _actx(ctx)
     out = []
+    hidden = 0
     for row in rows:
-        raw = await meetings.page_of(ctx.db, row)
+        raw = await meetings.readable(ctx.db, row, actor, actx)
         if raw is not None:
-            out.append(_meeting_out(await meetings.shape(ctx.db, row, raw, actor, actx)))
-    lines = [f"Imported {len(out)} meeting(s):", *(_line(m) for m in out)]
+            out.append({**_meeting_out(await meetings.shape(ctx.db, row, raw, actor, actx)),
+                        "status": row.get("_status") or "imported"})
+        else:
+            hidden += 1
+    said = {"imported": "imported", "attached": "added to the meeting that was already there",
+            "duplicate": "already imported (nothing changed)"}
+    lines = [f"{len(out)} meeting(s):", *(f"{_line(m)} — {said.get(m['status'], m['status'])}" for m in out)]
+    if hidden:
+        lines.append(f"{hidden} already in the workspace, restricted to attendees the user isn't one of.")
     for m in out:
-        if m["ai"]["state"] != "done":
+        if m["status"] != "duplicate" and m["ai"]["state"] != "done":
             lines.append(f"{m['title']}: no AI summary ({m['ai'].get('message') or m['ai']['state']}).")
     lines.append("Always give the user the page url.")
     return "\n".join(lines), {"meetings": out}
@@ -107,13 +123,37 @@ async def list_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id = await _ws(ctx, args["workspace"])
     try:
         got = await meetings.list_meetings(ctx.db, ws_id, actor_of(ctx), _actx(ctx), limit=int(args.get("limit") or 50),
-                                           q=args.get("query"))
+                                           q=args.get("query"), source=args.get("source"), since=args.get("since"))
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     out = [_meeting_out(m) for m in got["meetings"]]
     if not out:
         return "No meetings the user can open in that workspace yet (import one with import_meeting).", {"meetings": []}
     return "\n".join([f"{len(out)} meeting(s), newest first:", *(_line(m) for m in out)]), {"meetings": out}
+
+
+async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws_id = await _ws(ctx, args["workspace"])
+    try:
+        await meetings.require_member(ctx.db, ws_id, ctx.user.id, write=False)
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    conns = await meetings_inbox.for_workspace(ctx.db, ws_id)
+    out = [{k: c[k] for k in ("connected_by", "created_at", "last_received_at", "last_imported_at", "imported",
+                              "attached", "duplicates", "restricted", "last_error")} | {"mine": c["connected_by"]["id"] == ctx.user.id}
+           for c in conns]
+    if not out:
+        return ("Automatic import isn't connected for this workspace. Anyone who can import meetings can "
+                "connect it on the website: Meetings › Connect Google Meet. Meanwhile import_meeting imports "
+                "a meeting by hand."), {"connected": False, "connections": []}
+    lines = [f"Automatic import (Google Meet) is connected for this workspace by {len(out)} "
+             f"{'person' if len(out) == 1 else 'people'}:"]
+    for c in out:
+        who = (c["connected_by"].get("name") or "Someone") + (" (the user)" if c["mine"] else "")
+        last = c["last_imported_at"] or "nothing yet"
+        lines.append(f"- {who}, since {c['created_at']}: {c['imported']} imported, {c['attached']} paired with an "
+                     f"existing meeting; last import {last}" + (f"; last problem: {c['last_error']}" if c["last_error"] else ""))
+    return "\n".join(lines), {"connected": True, "connections": out}
 
 
 async def _row(ctx: Context, ref: str) -> tuple[dict, dict]:
@@ -187,7 +227,7 @@ _MEETING_OUT = {"type": "object", "properties": {
     "url": {"type": "string"}, "slug": {"type": "string"}, "transcript_url": _NULLABLE_STR,
     "attendees": {"type": "array", "items": {"type": "string"}}, "restricted": {"type": "boolean"},
     "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "segments": {"type": "integer"},
-    "ai": {"type": "object"},
+    "ai": {"type": "object"}, "source": {"type": "string", "enum": list(meetings.SOURCES)},
 }}
 _MEETING_REF = {"type": "string", "minLength": 1, "maxLength": 300,
                 "description": "A meeting's id (from list_meetings), or its page's slug or link."}
@@ -204,7 +244,10 @@ MEETING_TOOLS: list[Tool] = [
                      "Google Meet's Gemini notes (Summary / Details / Suggested next steps) as notes_text: "
                      "Google's notes are used as written and the AI only fills the gaps. Everything the AI "
                      "writes is in English. Default visibility: the workspace's team; restricted=true limits it "
-                     "to attendees who are members. Waits for the summary (a few seconds); counts towards the "
+                     "to attendees who are members. No duplicates: a call already in the workspace (same name, "
+                     "date and start time) is returned with status 'duplicate', and Google's notes for a call whose "
+                     "transcript is already there (or the other way round) are added to it (status 'attached'). "
+                     "Waits for the summary (a few seconds); counts towards the "
                      "user's 'Meetings AI' limit. Always give the user the returned url."),
         scope=WRITE,
         writes=True,
@@ -219,18 +262,23 @@ MEETING_TOOLS: list[Tool] = [
             "type": {"type": "string", "enum": list(meetings.TYPES)},
             "restricted": {"type": "boolean", "default": False},
         }, "required": ["workspace"]},
-        output_schema=_out({"meetings": {"type": "array", "items": _MEETING_OUT}}),
+        output_schema=_out({"meetings": {"type": "array", "items": {**_MEETING_OUT, "properties": {
+            **_MEETING_OUT["properties"], "status": {"type": "string", "enum": ["imported", "attached", "duplicate"]}}}}}),
         annotations=_ann(False, False, False),
         handler=import_meeting,
     ),
     Tool(
         name="list_meetings",
         title="List meetings",
-        description="The meetings of a workspace the user can open, newest first (title, date, type, attendees, action items, link).",
+        description=("The meetings of a workspace the user can open, newest first (title, date, type, attendees, action "
+                     "items, link, and source: manual, auto or mcp). Filter by source and since (a date)."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
             "query": {"type": "string", "maxLength": 100, "description": "Optional: only titles containing this."},
+            "source": {"type": "string", "enum": list(meetings.SOURCES),
+                       "description": "Optional: only meetings imported by hand on the website (manual), by the Google Meet script (auto) or over MCP (mcp)."},
+            "since": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: only meetings on or after this date (YYYY-MM-DD)."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 300, "default": 50},
         }, "required": ["workspace"]},
         output_schema=_out({"meetings": {"type": "array", "items": _MEETING_OUT}}),
@@ -270,5 +318,18 @@ MEETING_TOOLS: list[Tool] = [
         output_schema=_out({"answer": {"type": "string"}, "citations": {"type": "array"}, "meetings": {"type": "array"}}),
         annotations=_ann(True, False, False),
         handler=ask_meetings,
+    ),
+    Tool(
+        name="meetings_connection",
+        title="Automatic meeting import",
+        description=("Whether meetings are imported automatically into a workspace (Connect Google Meet: a Google "
+                     "Apps Script in a member's Google account sends their Meet transcripts and Gemini notes): who "
+                     "connected it, since when, how many meetings it imported and when it last did. Read-only; "
+                     "connecting and disconnecting are done on the website (Meetings › Connect Google Meet)."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
+        output_schema=_out({"connected": {"type": "boolean"}, "connections": {"type": "array", "items": {"type": "object"}}}),
+        annotations=_ann(True, False, True),
+        handler=meetings_connection,
     ),
 ]

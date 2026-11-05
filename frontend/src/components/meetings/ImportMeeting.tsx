@@ -122,7 +122,10 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
       onImported?.(r.meetings);
       onClose();
       if (r.meetings.length === 1) {
-        toast.success("Meeting imported. The summary is on its way.");
+        const st = r.meetings[0].status;
+        if (st === "duplicate") toast.info("Already imported: here's that meeting.");
+        else if (st === "attached") toast.success("Added to the meeting already here. The summary is being updated.");
+        else toast.success("Meeting imported. The summary is on its way.");
         router.push(`/${r.meetings[0].slug}`);
       } else {
         toast.success(`${r.meetings.length} meetings imported.`);

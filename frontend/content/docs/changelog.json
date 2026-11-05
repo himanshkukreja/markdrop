@@ -140,6 +140,25 @@
       ]
     },
     {
+      "id": "meetings-auto-import",
+      "date": "2026-11-05",
+      "title": "Meetings import themselves: Connect Google Meet",
+      "kind": "new",
+      "area": "Workspaces",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Connect Google Meet once and every call that Google transcribes or takes notes for becomes a meeting page by itself, about 15 minutes after it ends. A small script in your own Google account does it, read-only, with a token that only imports meetings into one workspace. Manual import stays, side by side.",
+      "body": "- **Connect Google Meet** on the Meetings page, next to **Import meeting**: Markdrop writes a Google Apps Script with its own token filled in. Paste it at script.google.com, run `setup` once, and it checks your Drive every 15 minutes.\n- **Reads only meeting Docs**: Meet transcripts and Gemini's notes in your Drive, created in the last 48 hours. Read-only: it never edits, moves or deletes anything. Its token works for this one inbox and nothing else, and isn't listed with your API tokens.\n- **One meeting per call**: the notes and the transcript, arriving minutes apart, become one page; a Doc you already imported by hand isn't imported again.\n- **Connected** shows when it last imported and how many meetings it brought in; **Disconnect** stops it at once. Meetings it imported are marked **Auto**.\n- **Past meetings too**: choose the last 7, 30 or 90 days when you connect. They come in oldest first, dated by the call, and quietly: nobody is notified about a meeting that's long over. Run `backfill` in the script to go further back.\n- **Restrict to attendees** for every automatic import, chosen when you connect.\n- **For AI apps:** `meetings_connection` says whether automatic import is on, and `list_meetings` filters by `source` (`manual`, `auto`, `mcp`) and `since`. `import_meeting` doesn't duplicate a call that's already there (76 MCP tools now).\n- **Docs:** Meetings is its own section now: import manually, import automatically, ask, and privacy and cost.",
+      "docs": [
+        "/workspaces/meetings-auto-import",
+        "/workspaces/meetings-import",
+        "/workspaces/meetings"
+      ]
+    },
+    {
       "id": "board-without-select",
       "date": "2026-11-04",
       "title": "A folder's Board shows its pages before it has a Select",

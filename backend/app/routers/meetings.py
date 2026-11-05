@@ -5,7 +5,11 @@
     POST   /api/v1/meetings/import                   {workspace, sources: [{name, text | data_b64 | google_file_id}],
                                                       title?, date?, type?, restricted?, wait?} → {meetings}
     POST   /api/v1/meetings/google/token             {access_token, api_key, app_id, client_id}  (the Picker)
-    GET    /api/v1/meetings?workspace=&limit=&q=     {meetings, hidden, folder_id}
+    GET    /api/v1/meetings/connection?workspace=    "Connect Google Meet": {connection | null, others}
+    POST   /api/v1/meetings/connection               {workspace, restricted?} → {token, script, manifest, …} (once)
+    DELETE /api/v1/meetings/connection               Disconnect (the token is revoked; the script stops)
+    POST   /api/v1/meetings/inbox                    the Google Meet script's deliveries (its own token only)
+    GET    /api/v1/meetings?workspace=&limit=&q=&source=&since=   {meetings, hidden, folder_id}
     GET    /api/v1/meetings/{id}                     a meeting
     PATCH  /api/v1/meetings/{id}                     {restricted?, type?}
     DELETE /api/v1/meetings/{id}                     the importer, or a workspace admin/owner (any meeting)
@@ -18,7 +22,7 @@ SSE events: ``status {stage}``, ``results {items}`` (across meetings), ``delta {
 ``limit {reason, message}``, ``error {detail, code}``.
 
 Signed-in members of the workspace only (a workspace domain's session is not on the tenant
-allowlist). Every meeting read is decided on its page with ``access.can``: a restricted meeting is
+allowlist); the inbox takes only a ``meetings:import`` token (services/meetings_inbox.py). Every meeting read is decided on its page with ``access.can``: a restricted meeting is
 404 to everyone it wasn't shared with.
 """
 
@@ -35,7 +39,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.pages_ai import sse
-from app.services import access, gdocs, meeting_google, meetings, meetings_ai
+from app.services import access, api_token, gdocs, meeting_google, meetings, meetings_ai, meetings_inbox
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
@@ -78,6 +82,27 @@ class ImportBody(BaseModel):
     type: str | None = Field(None, max_length=20)
     restricted: bool = False
     wait: bool = False
+
+
+class ConnectBody(BaseModel):
+    workspace: str = Field(..., max_length=40)
+    restricted: bool = False
+    # Past meetings the script's setup brings in once (0, 7, 30 or 90 days; quietly: no notifications).
+    backfill_days: Literal[0, 7, 30, 90] = 0
+    # The browser's time zone (IANA), to date a Doc without a date in its title.
+    tz: str | None = Field(None, max_length=64)
+
+
+class InboxBody(BaseModel):
+    source: Literal["google-meet-script"] = "google-meet-script"
+    file_id: str = Field(..., min_length=1, max_length=200)
+    title: str | None = Field(None, max_length=500)
+    created: str | None = Field(None, max_length=40)
+    kind_hint: Literal["transcript", "notes"] | None = None
+    text: str = Field(...)
+    doc_url: str | None = Field(None, max_length=500)
+    # Sent by the script's backfill: a past meeting, imported without notifying anyone.
+    backfill: bool = False
 
 
 class PatchBody(BaseModel):
@@ -153,14 +178,20 @@ async def import_meeting(request: Request, body: ImportBody, db: AsyncIOMotorDat
     ws = _ws(body.workspace)
     await meetings.require_member(db, ws, user.id)
     incoming = await _incoming(db, user, body.sources, allow_google=True)
+    # A Google Doc already imported into this workspace (by hand or by the Google Meet script) opens
+    # that meeting instead of making a second one.
     rows = await meetings.import_meetings(db, user, ws, incoming, title=body.title, date_=body.date,
-                                          type_=body.type, restricted=body.restricted, wait=body.wait)
+                                          type_=body.type, restricted=body.restricted, wait=body.wait,
+                                          dedupe="file")
     actor, ctx = _ac(request, db, user)
     out = []
     for row in rows:
-        raw = await meetings.page_of(db, row)
+        raw = await meetings.readable(db, row, actor, ctx)
         if raw is not None:
-            out.append(await meetings.shape(db, row, raw, actor, ctx))
+            out.append({**await meetings.shape(db, row, raw, actor, ctx), "status": row.get("_status") or "imported"})
+    if not out and rows:
+        raise HTTPException(status_code=409, detail="That Google Doc is already a meeting in this workspace, "
+                                                    "restricted to its attendees.")
     return {"meetings": out}
 
 
@@ -176,13 +207,88 @@ async def google_token(request: Request, db: AsyncIOMotorDatabase = Depends(get_
         raise HTTPException(status_code=428, detail={"error": "reconnect_required", "message": str(exc)})
 
 
+# ── Connect Google Meet (services/meetings_inbox.py) ──────────────────────────
+
+
+@router.get("/connection")
+@limiter.limit("120/minute")
+async def get_connection(request: Request, workspace: str | None = Query(None, max_length=40),
+                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Mine (wherever it sends meetings), and the others sending to ``workspace`` (a member's view)."""
+    mine = await meetings_inbox.view(db, await meetings_inbox.mine(db, user.id), viewer_id=user.id)
+    others: list[dict] = []
+    if workspace:
+        ws = _ws(workspace)
+        await meetings.require_member(db, ws, user.id, write=False)
+        others = [c for c in await meetings_inbox.for_workspace(db, ws) if c["connected_by"]["id"] != user.id]
+    return {"connection": mine, "others": others, "endpoint": meetings_inbox.endpoint()}
+
+
+@router.post("/connection")
+@limiter.limit("10/hour")
+async def connect(request: Request, body: ConnectBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                  user: User = Depends(require_user)):
+    """A new token for the Google Meet script, shown once, inside the script. Replaces an earlier one."""
+    from app.services import workspace as ws_service
+
+    ws = _ws(body.workspace)
+    raw, rec = await meetings_inbox.connect(db, user, ws, restricted=body.restricted, tz=body.tz)
+    w = await ws_service.get_workspace(db, ws)
+    return {"token": raw, "script": meetings_inbox.script(raw, getattr(w, "name", "") or "", backfill_days=body.backfill_days),
+            "manifest": meetings_inbox.manifest(), "endpoint": meetings_inbox.endpoint(),
+            "connection": await meetings_inbox.view(db, rec, viewer_id=user.id)}
+
+
+@router.delete("/connection")
+@limiter.limit("30/minute")
+async def disconnect(request: Request, db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    return {"disconnected": await meetings_inbox.disconnect(db, user.id)}
+
+
+def _inbox_key(request: Request) -> str:
+    auth = request.headers.get("Authorization", "")
+    return meetings_inbox.token_key(auth.removeprefix("Bearer ").strip())
+
+
+@router.post("/inbox", openapi_extra={
+    # The body is read raw (size-checked first) and validated as InboxBody; the token is a scoped one.
+    "requestBody": {"required": True, "content": {"application/json": {"schema": InboxBody.model_json_schema()}}},
+    "x-markdrop": {"auth": "token"},   # a Bearer token: the script's meetings:import one
+})
+@limiter.limit("30/minute", key_func=_inbox_key)
+@limiter.limit("600/day", key_func=_inbox_key)
+async def inbox(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
+    """One Google Doc from the Google Meet script (Bearer: a ``meetings:import`` token, which works
+    here and nowhere else). Idempotent on the Doc's id: → {status: imported | attached | duplicate |
+    ignored, meeting_id?, url?}."""
+    auth = request.headers.get("Authorization", "")
+    raw = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+    rec = await api_token.verify_scoped(db, raw, meetings_inbox.SCOPE) if raw else None
+    if rec is None:
+        raise HTTPException(status_code=401, detail="This script is disconnected. Connect Google Meet again in Markdrop.")
+    size = request.headers.get("content-length")
+    if size and size.isdigit() and int(size) > meetings_inbox.MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="That Doc is too big to import.")
+    data = await request.body()
+    if len(data) > meetings_inbox.MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="That Doc is too big to import.")
+    try:
+        body = InboxBody.model_validate_json(data)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=f"That isn't a delivery from the Google Meet script ({str(exc)[:200]}).")
+    return await meetings_inbox.receive(db, rec, body.model_dump())
+
+
 @router.get("")
 @limiter.limit("120/minute")
 async def list_meetings(request: Request, workspace: str = Query(..., max_length=40),
                         limit: int = Query(100, ge=1, le=meetings.MAX_LIST), q: str | None = Query(None, max_length=100),
+                        source: Literal["manual", "auto", "mcp"] | None = Query(None),
+                        since: str | None = Query(None, max_length=10),
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await meetings.list_meetings(db, _ws(workspace), actor, ctx, limit=limit, q=q))
+    return jsonable_encoder(await meetings.list_meetings(db, _ws(workspace), actor, ctx, limit=limit, q=q,
+                                                         source=source, since=since))
 
 
 @router.post("/ask")
