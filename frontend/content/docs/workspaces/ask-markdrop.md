@@ -46,7 +46,7 @@ Only you can see your conversations. Markdrop keeps them for 90 days after your 
 Ask Markdrop finds items with the same search as [Search](/workspaces/search), so it sees exactly what you can open:
 
 - **Your access, checked twice.** Only items you can open now are read. Every source in an answer is checked again before you see it, and again when you reopen a conversation. If you lost access to something an earlier answer cited, that answer is hidden.
-- **Meetings follow their rules.** A meeting [restricted to its attendees](/workspaces/meetings#who-can-see-a-meeting) is never read for anyone else. Transcript lines are read only when you can open the transcript.
+- **Meetings follow their rules.** A meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings) is never read for anyone else. Transcript lines are read only when you can open the transcript.
 - **Protected items stay protected.** [End-to-end encrypted](/sharing/end-to-end-encryption) items are never read. A password-protected item is read by its title only.
 - **AI off means off.** Nothing is read from a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off.
 
