@@ -11,7 +11,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars, uploadFile, fileLayout } from "./lib.mjs";
+import { APP, TENANT, API, WORKER, SHOTS, BROWSER, log, fail, reseed, seedNow, mcpToken, api, mcp, docOf, launch, ctx, captureApi, shot, stepper, pngBytes, waitSaved, topBars, uploadFile, fileLayout, editPage } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser, { after: (name) => lockLeft(name) });
@@ -171,8 +171,11 @@ await step("create", async () => {
   if (assetIds.length < 2) fail(`expected two page images, got ${assetIds.length}\n${md}`);
   state.assets = assetIds;
   save();
-  // Always editable: no Done. A reload opens the editor again, as saved.
+  // A reload opens the page in View mode (what was typed, saved); Edit opens the editor again.
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
+  await p.locator('[data-page-mode="edit"]').waitFor({ timeout: 30000 });
+  if (!(await p.locator(".pb-page").innerText()).includes("Read the plan first")) fail("the reloaded page lacks what was typed");
+  await editPage(p);
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   if (!(await p.locator(".pb-live").innerText()).includes("Read the plan first")) fail("the reloaded editor lacks what was typed");
   await shot(p, "08-owner-editor-after-reload", { wait: 2000 });
@@ -199,9 +202,10 @@ await step("open-link", async () => {
 
 /* ── 2. member, stranger, anonymous ── */
 await step("member", async () => {
-  // A member can edit: the page opens in the editor, every item in place.
+  // A member can edit: Edit opens the editor, every item in place.
   const { c, p } = await ctx(browser, { token: T.member });
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
+  await editPage(p);
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 20000 });
   await p.locator(".pb-live .pb-embed__img").first().waitFor({ timeout: 20000 });
   const inEditor = await p.locator(".pb-live").innerText();
@@ -264,8 +268,9 @@ for (const [who, key, want] of [["stranger", "stranger", "Not available"], ["ano
 await step("subpage", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${state.slug}`, { waitUntil: "networkidle" });
-  // The owner lands in the editor: it takes the read view's place once ready (its own "Add a
+  // The owner opens the editor: it takes the read view's place once ready (its own "Add a
   // sub-page"), so click the one that stays.
+  await editPage(p);
   await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   // Page images keep their room while they load (their size comes with the page): scrolling to the
   // button lazy-loads the ones near it, and unsized they pushed it down between the press and the
@@ -717,10 +722,11 @@ await step("tenant-edit", async () => {
   const d = await docOf(state.slug, T.owner);
   const addr = `${TENANT}/${[...(d.folder_path || []), state.slug].join("/")}`;
   const marker = `Edited on acme.localhost ${Date.now().toString(36)}`;
-  // Ben (a member) on the workspace's domain: the page opens in the editor, he types, it saves.
+  // Ben (a member) on the workspace's domain: the page opens in View mode, Edit, he types, it saves.
   const m = await ctx(browser, { token: T.member });
   const calls = captureApi(m.p);
   await tenantSignIn(m.p, addr);
+  await editPage(m.p);
   await m.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   if (await m.p.getByText("only works for documents on that workspace").count()) fail("the domain session was refused");
   await m.p.locator(".pb-live .ProseMirror > p").last().click();
@@ -766,6 +772,7 @@ await step("tenant-edit", async () => {
   if (ok.status !== 200 || ok.body.role_granted !== "editor") fail(`approve → ${ok.status} ${JSON.stringify(ok.body)}`);
   const r2 = await ctx(browser, { token: T.reader });
   await tenantSignIn(r2.p, addr);
+  await editPage(r2.p);
   await r2.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await shot(r2.p, "33-tenant-reader-approved-editor", { wait: 1200 });
   await r2.c.close();
@@ -777,6 +784,7 @@ await step("tenant-edit", async () => {
     if (q.method() === "POST" && /\/lock(\?|$)/.test(q.url())) ownerLocks.push(`${new Date().toISOString().slice(17, 23)} ${q.url().split("/documents/")[1]}`);
   });
   await tenantSignIn(o.p, addr);
+  await editPage(o.p);
   await o.p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
   await pageMenu(o.p);
   await o.p.getByRole("menuitem", { name: /General access on markdrop\.in/ }).or(o.p.getByRole("link", { name: /General access on markdrop\.in/ })).waitFor({ timeout: 10000 });

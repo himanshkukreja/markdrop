@@ -58,8 +58,9 @@ export interface Conflict {
 const errStatus = (e: unknown): number => (e instanceof PagesApiError || e instanceof ApiError ? e.status : 0);
 
 /**
- * One page open in the block editor (one editor at a time). A page is always editable for the
- * people who can edit it (no Edit / Done), so the edit lock follows what they do:
+ * One page open in the block editor (one editor at a time). A page opens in View mode; Edit
+ * mounts the editor and Done (`finish`) saves and lets go. While it's open the edit lock follows
+ * what they do:
  *
  * - the first real change (`update`) takes the lock — opening, clicking, moving the caret or
  *   selecting never do (`activity` only notes the person is here); it's heartbeated every 30 s
@@ -896,6 +897,34 @@ export function usePageEditSession({
     await doSave();
   }, [doSave, acquire]);
 
+  /**
+   * Done editing (View mode): save what's pending (waiting for a save or a lock already on its
+   * way; a newer version is merged as any save is), then let go of the lock the way leaving does
+   * (letGo: the release token, keepalive) so someone else can edit straight away. False when
+   * something is still unsaved (someone else holds the lock, both changed the same lines, offline…):
+   * the caller keeps the editor open.
+   */
+  const finish = useCallback(async (): Promise<boolean> => {
+    const wait = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
+    let tries = 0;
+    for (let i = 0; i < 100; i++) {
+      if (saving.current || acquiring.current) {
+        await wait(100);
+        continue;
+      }
+      if (!dirty.current) break;
+      const k = lockRef.current.kind;
+      if (k === "theirs" || k === "readonly" || conflictRef.current) return false;
+      if (k !== "mine" && !(await acquire())) return false;
+      if (++tries > 3) return false;
+      clearTimer();
+      await doSave();
+    }
+    if (dirty.current || saving.current || conflictRef.current) return false;
+    await letGo(slugRef.current);
+    return !dirty.current;
+  }, [doSave, acquire, letGo]);
+
   const retry = useCallback(() => {
     dirty.current = true;
     if (lockRef.current.kind !== "mine") void acquire();
@@ -945,7 +974,7 @@ export function usePageEditSession({
   /** What the server holds as far as this editor knows (a local draft's base). */
   const baseline = useCallback(() => ({ ...base.current, rev: baseRev.current }), []);
 
-  return { save, lock, conflict, update, resolveConflict, flush, retry, activity, remoteCover, baseline, takeOver, notice, dismissNotice, probe };
+  return { save, lock, conflict, update, resolveConflict, flush, finish, retry, activity, remoteCover, baseline, takeOver, notice, dismissNotice, probe };
 }
 
 /** The cover `latest` added when that is all that differs from `base` (else null). */

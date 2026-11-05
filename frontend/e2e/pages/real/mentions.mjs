@@ -13,7 +13,7 @@
  *
  *   [BROWSER=webkit] [ONLY=at,table] node mentions.mjs
  */
-import { APP, TENANT, log, fail, seedNow, api, docOf, launch, ctx, stepper, shot, waitSaved } from "./lib.mjs";
+import { APP, TENANT, log, fail, seedNow, api, docOf, launch, ctx, stepper, shot, waitSaved, editPage } from "./lib.mjs";
 
 const S = seedNow();
 const T = Object.fromEntries(Object.entries(S.users).map(([k, u]) => [k, u.token]));
@@ -33,6 +33,7 @@ const content = async (slug) => (await docOf(slug, T.owner)).content;
 /** Opens a page in the editor and puts the caret at the end of the text `at`. */
 async function openAt(p, url, at) {
   await p.goto(url, { waitUntil: "networkidle" });
+  await editPage(p);
   const ed = p.locator('.pb-live .ProseMirror[contenteditable="true"]');
   await ed.waitFor({ timeout: 30000 });
   await p.waitForTimeout(1200);
@@ -117,7 +118,7 @@ await step("at", async () => {
   if (!new RegExp(`Ask :person\\[Wes Admin\\]\\{id="?${ID.admin}"?\\} and :person\\[Vic Viewer\\]\\{id="?${ID.reader}"?\\} today\\.`).test(md)) fail(`saved: ${md}`);
   if (!/\{#b-[a-z0-9]+\}/.test(md)) fail(`the mention's block has no anchor: ${md}`);
   await p.reload({ waitUntil: "networkidle" });
-  await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 30000 });
+  await editPage(p);
   await p.locator(".pb-mention--person", { hasText: "Wes Admin" }).first().waitFor({ timeout: 15000 });
   await p.locator(".pb-mention--person", { hasText: "Vic Viewer" }).first().waitFor({ timeout: 15000 });
   await shot(p, "m04-at-after-reload");
@@ -231,6 +232,7 @@ await step("table", async () => {
   if (!/\| Launch \| Lead :person\[Ben Member\]\{id="?[0-9a-f]+"?\} *\| Soon :date\[\d{4}-\d{2}-\d{2}\]/.test(md)) fail(`saved row 1: ${md}`);
   if (!/\| Docs \| Writer :person\[Wes Admin\]\{id="?[0-9a-f]+"?\}/.test(md)) fail(`saved row 2: ${md}`);
   await p.reload({ waitUntil: "networkidle" });
+  await editPage(p);
   await p.locator(".pb-live td .pb-mention--person", { hasText: "Wes Admin" }).waitFor({ timeout: 20000 });
   await shot(p, "m09-table-after-reload");
 });
@@ -269,13 +271,14 @@ await step("tenant", async () => {
   await p.goto(`${APP}/robots.txt`);
   await p.goto(addr, { waitUntil: "networkidle" });
   const ed = p.locator('.pb-live .ProseMirror[contenteditable="true"]');
-  if (!(await ed.count())) {
+  if (!(await p.locator('[data-page-mode="edit"], .pb-live').count())) {
     const signIn = p.getByRole("button", { name: /Sign in to read/ }).or(p.getByRole("link", { name: /Sign in to read/ }))
       .or(p.getByRole("link", { name: /^Sign in$/ })).or(p.getByRole("button", { name: /^Sign in$/ }));
     await signIn.first().click({ timeout: 20000 });
     await p.waitForURL((u) => u.hostname === "acme.localhost" && !u.hash.includes("mdt="), { timeout: 30000 }).catch(() => {});
     await p.waitForLoadState("networkidle");
   }
+  await editPage(p);
   await ed.waitFor({ timeout: 30000 });
   await p.waitForTimeout(1200);
   await caretAfter(p, "Domain line");

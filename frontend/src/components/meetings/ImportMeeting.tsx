@@ -161,7 +161,9 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         if (st === "duplicate") toast.info("Already imported: here's that meeting.");
         else if (st === "attached") toast.success("Added to the meeting already here. The summary is being updated.");
         else toast.success("Meeting imported. The summary is on its way.");
-        router.push(`/${r.meetings[0].slug}`);
+        // A page just made opens in Edit mode (pages open in View mode otherwise); one that was
+        // already here opens for reading.
+        router.push(`/${r.meetings[0].slug}${st === "duplicate" || st === "attached" ? "" : "?edit=1"}`);
       } else {
         toast.success(`${r.meetings.length} meetings imported.`);
       }

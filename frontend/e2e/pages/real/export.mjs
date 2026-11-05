@@ -17,7 +17,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { APP, TENANT, API, SHOTS, BROWSER, log, fail, reseed, seedNow, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper, waitSaved } from "./lib.mjs";
+import { APP, TENANT, API, SHOTS, BROWSER, log, fail, reseed, seedNow, api, mcp, mcpToken, docOf, launch, ctx, shot, stepper, waitSaved, editPage } from "./lib.mjs";
 
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -387,7 +387,7 @@ await step("head", async () => {
     const { c, p } = await ctx(browser, { token: T.owner, width: 1200, height: 900 });
     await stubPrint(c);
     await p.goto(`${APP}/${slug}`, { waitUntil: "networkidle" });
-    await p.locator(".pb-live .ProseMirror").waitFor({ timeout: 30000 });
+    await editPage(p);
     await p.waitForTimeout(800);
     // 2. The HTML export, opened as a file, on screen and printed.
     const html = await exportVia(p, { format: "html" });
@@ -420,7 +420,11 @@ await step("head", async () => {
 });
 
 // ── Editor type: no classic option on a page; Markdown mode is temporary; back from classic ──
-const blocksReady = (p) => p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+// Pages open in View mode: Edit (when it isn't open already), then the editor.
+const blocksReady = async (p) => {
+  await editPage(p);
+  await p.locator('.pb-live .ProseMirror[contenteditable="true"]').waitFor({ timeout: 30000 });
+};
 await step("no-classic", async () => {
   const { c, p } = await ctx(browser, { token: T.owner });
   await p.goto(`${APP}/${W.page}`, { waitUntil: "networkidle" });

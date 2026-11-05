@@ -2,7 +2,7 @@
 title: Pages and the block editor
 description: A page is a Markdrop document you write with blocks, like in Notion, with a cover, an icon, sub-pages and live embeds of your files. It stays Markdown.
 updated: 2026-11-05
-keywords: [page, pages, top bar, sidebar, collapse sidebar, menu, more actions, use as template, version history, request edit access, admins, unlock, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
+keywords: [view mode, edit mode, read mode, reading view, edit button, done, e shortcut, checkbox, tick, page, pages, top bar, sidebar, collapse sidebar, menu, more actions, use as template, version history, request edit access, admins, unlock, block editor, beta, notion, blocks, slash menu, editor, autosave, lock, cover, icon, auto cover, automatic cover, cover image, pick for me, duplicate, copy, move, ai, ask, link, slug, change link, url, redirect, duplicate_page, copy of]
 ---
 
 A page is a Markdrop document that you write with blocks instead of plain Markdown. You type `/` to add a heading, a to-do list, a callout, a table, an image or one of your Markdrop files, and you drag blocks to reorder them. Underneath, a page is still a Markdown document, with the same link, sharing, custom domain, analytics and who's-viewing as any other.
@@ -22,9 +22,27 @@ You need to be signed in.
 
 Once it's a page, it stays a page: its menus don't switch it to another editor. To work on its Markdown directly, use **Edit as Markdown** (see [Edit the Markdown](#edit-the-markdown)).
 
+## View and Edit
+
+A page opens in **View mode** for everyone, including you when you can edit it. Links, mentions, sub-pages, embeds and database rows open when you click them, there's no caret and no block handles, and nothing changes by accident while you read.
+
+To change the page, choose **Edit** in the top bar, or press **E** (not while you're typing in a field). The editor takes the page's place in the same spot, and your changes save as you go. Choose **Done** to go back to reading: Markdrop saves anything still waiting first and lets go of the page, so someone else can edit it straight away. If a change can't be saved yet (someone else took over the page, or you're offline), the editor stays open and says so; **Leave anyway** keeps your changes in this browser for next time.
+
+Some pages open straight in the editor:
+
+- a page you've just made, from **New page**, **Add a sub-page**, a template, **Duplicate** or a meeting import
+- an empty page
+- a link ending in `?edit=1`, and a document you've just switched with **Open in block editor**
+
+It works the same on markdrop.in and on your workspace's [own domain](/workspaces/sign-in-on-your-domain#edit-on-your-domain), on a computer, a tablet or a phone (on a phone, **Edit** and **Done** are the pencil and the tick in the top bar). People who can only read the page see the same View mode without **Edit**.
+
+### Tick a to-do in View mode
+
+If you can edit a page, you can tick or untick its to-do boxes without opening the editor: the change saves at once. If someone else is editing the page right then, or the page is [locked](#page-options), the box goes back and Markdrop tells you why. Readers see the boxes but can't change them.
+
 ## Write with blocks
 
-If you can edit a page, it opens ready to edit: click anywhere and type. There's no **Edit** or **Done**, and your changes save as you go. People who can only read the page see exactly the same layout, without the editing controls.
+In the editor, click anywhere and type. People who can only read the page see exactly the same layout, without the editing controls.
 
 Type `/` on any line to open the block menu. Keep typing to filter it, use the arrow keys and press **Enter**. The menu has:
 
@@ -117,7 +135,7 @@ You can also choose the link when an AI app makes the page, and change it later 
 
 ## Duplicate a page
 
-Choose **Duplicate** from the page's **⋯** menu, or from the **⋯** next to a page in the page tree. Markdrop makes a copy beside it, in the same parent, folder and workspace, called "Title (1)" (then "(2)", and so on), and opens it in the editor.
+Choose **Duplicate** from the page's **⋯** menu, or from the **⋯** next to a page in the page tree. Markdrop makes a copy beside it, in the same parent, folder and workspace, called "Title (1)" (then "(2)", and so on), and opens it in the editor (Edit mode).
 
 The copy has the same blocks, icon, cover and page options, and its own copies of the page's images. Its sub-pages are copied too, and links to them point at the copies. A sub-page with its own access isn't copied, because its copy would follow the new page's access; the message names it.
 
@@ -146,9 +164,9 @@ Pages save themselves about two seconds after you stop typing. The top bar shows
 
 ## One editor at a time
 
-The first time you type or click in a page, it's held for you, and others see **Editing** next to your name in [who's viewing](/sharing/see-whos-viewing). Anyone else who opens it meanwhile sees a banner under the top bar, **Your name is editing — you'll be able to edit when they're done**. They follow your changes live, and the page becomes editable for them on its own once it's free again.
+The first time you type or click in the editor, the page is held for you (reading it in View mode never holds it), and others see **Editing** next to your name in [who's viewing](/sharing/see-whos-viewing). Anyone else who opens it meanwhile sees a banner under the top bar, **Your name is editing — you'll be able to edit when they're done**. They follow your changes live, and the page becomes editable for them on its own once it's free again.
 
-A page is let go when you leave it, or after three minutes without typing or clicking in it, so someone who only has a page open never blocks anyone. It's also released two minutes after the editor stops responding, for example when a laptop goes to sleep.
+A page is let go when you choose **Done** or leave it, or after three minutes without typing or clicking in it, so someone who only has a page open never blocks anyone. It's also released two minutes after the editor stops responding, for example when a laptop goes to sleep.
 
 If someone saved a newer version anyway (from the classic editor, VS Code or an AI app, or while your laptop slept), your change is merged into it: changes to different parts are both kept. Only when you both changed the same lines do you see a banner, with **Keep both**, **Use theirs** or **Use mine**. When an AI app only adds blocks to the end of a page you're editing, they appear at the end of your page without interrupting you. See [Working together on a page](/pages/working-together).
 

@@ -1,14 +1,25 @@
 ---
 title: Keyboard shortcuts
-description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks.
-updated: 2026-11-04
+description: Every shortcut in the page editor, from Markdown as you type to moving and turning blocks, and E to start editing.
+updated: 2026-11-05
 prerequisites: [/pages/overview]
-keywords: [keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j, sidebar, collapse, cmd backslash]
+keywords: [e, edit, view mode, done, keyboard, shortcuts, hotkeys, markdown, slash, turn into, move block, duplicate, undo, underline, colour, select blocks, nest, ai, cmd j, sidebar, collapse, cmd backslash]
 ---
 
 On Windows and Linux, use **Ctrl** where this page says **⌘** and **Alt** where it says **⌥**.
 
-## Anywhere in the page
+## Reading a page
+
+Pages open in [View mode](/pages/overview#view-and-edit).
+
+| Shortcut | What it does |
+| --- | --- |
+| **E** | Edit the page (if you can edit it). Not while you're typing in a field or a dialog is open |
+| **⌘ \\** | Hide or show the sidebar |
+
+**Done** in the top bar goes back to View mode. To turn single-key shortcuts like **E** off, open **Settings › Account** and switch off **Keyboard shortcuts**.
+
+## Anywhere in the editor
 
 | Shortcut | What it does |
 | --- | --- |

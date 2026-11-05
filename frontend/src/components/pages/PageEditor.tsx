@@ -1,8 +1,8 @@
 "use client";
 
 /**
- * A page for the people who can edit it (a document with `editor: "blocks"`): always editable, no
- * Edit / Done. The Guides editor (components/docs-editor) in the page's frame (PageChrome
+ * A page for the people who can edit it (a document with `editor: "blocks"`), in Edit mode: pages
+ * open in View mode and Edit (E) mounts this, Done saves and goes back (DocumentView). The Guides editor (components/docs-editor) in the page's frame (PageChrome
  * PageFrame): the sticky top bar (breadcrumbs, who's viewing, Saved / Saving…, Share, ⋯), the head
  * (cover, icon, title) and the body, laid out exactly like the reader's page.
  *
@@ -38,6 +38,7 @@ import { PAGE_IMAGE_MAX, createPage, getCoverStatus, suggestCover, linkPreview, 
 import { PageEmbed, PageMention } from "./PageEmbed";
 import { PageBanner, PageFrame, PageTopBar, SaveIndicator, usePhone, useTouch, type PageAddressing } from "./PageChrome";
 import { PageHead } from "./PageHead";
+import { PageModeButton } from "./PageModeButton";
 import { PagePhoneBar } from "./PagePhoneBar";
 import { readPageProps, type PageFont, type PageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
@@ -83,6 +84,11 @@ export interface PageChromeSlots {
   footer?: ReactNode;
   /** Notices at the top of the column (Save to account, …). */
   notices?: ReactNode;
+  /**
+   * Done: back to View mode. Called once what's pending is saved and the lock is let go, with the
+   * page as it stands here (the reader shows it until its own read lands).
+   */
+  onDone?: ((latest: { title: string; content: string }) => void) | null;
 }
 
 export interface PageEditorProps {
@@ -644,6 +650,27 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     session.activity();
   };
 
+  // Done: save what's pending and let go of the lock, then back to View mode. Something that can't
+  // be saved yet (someone else is editing, the page changed, offline) keeps the editor open.
+  const [finishing, setFinishing] = useState(false);
+  const latest = useRef({ title, content });
+  latest.current = { title, content };
+  const onDone = chrome.onDone;
+  const done = async () => {
+    if (!onDone || finishing) return;
+    setFinishing(true);
+    const ok = await session.finish();
+    setFinishing(false);
+    if (ok) {
+      onDone(latest.current);
+      return;
+    }
+    toast.error("Your latest changes aren't saved yet, so the editor stays open.", {
+      action: { label: "Leave anyway", onClick: () => onDone(latest.current) },
+      duration: 10000,
+    });
+  };
+
   const menu: MenuEntry[] = [
     { custom: <FontTiles value={props.font} onChange={(f) => setProps({ font: f })} disabled={readOnly} /> },
     {
@@ -758,6 +785,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
           addressing={addressing}
           presence={chrome.presence}
           status={status}
+          tools={onDone ? <PageModeButton mode="done" busy={finishing} onClick={() => void done()} /> : undefined}
           onShare={chrome.onShare}
           shareUrl={chrome.shareUrl ?? url}
           onCopied={chrome.onCopied}

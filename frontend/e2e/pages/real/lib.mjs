@@ -246,3 +246,31 @@ export async function fileLayout(p) {
   });
   return { bars, ...more, gap: more.frameTop == null ? null : more.frameTop - more.barBottom };
 }
+
+/**
+ * Pages open in View mode (DocumentView): press the bar's Edit and wait for the editor (a page
+ * already in Edit mode, from ?edit=1 or an empty page, is left as it is). `p` may be a Page or a
+ * Frame's page; `timeout` covers the editor's load.
+ */
+export async function editPage(p, timeout = 30000) {
+  const live = p.locator('.pb-live .ProseMirror');
+  const edit = p.locator('[data-page-mode="edit"]');
+  const t0 = Date.now();
+  let clicked = false;
+  while (!(await live.count())) {
+    if (Date.now() - t0 > timeout) break;
+    // (A busy Edit: the editor is already on its way, e.g. ?edit=1 or "Open in block editor".)
+    if (!clicked && (await edit.count())) {
+      const busy = await edit.first().getAttribute("aria-busy", { timeout: 1000 }).catch(() => null);
+      if (busy !== "true") clicked = await edit.first().click({ timeout: 2000 }).then(() => true, () => false);
+    }
+    await p.waitForTimeout(250);
+  }
+  await live.first().waitFor({ timeout: Math.max(1000, timeout - (Date.now() - t0)) });
+}
+
+/** Edit mode → View mode: the editor bar's Done (saves first), then the reader is back. */
+export async function donePage(p, timeout = 30000) {
+  await p.locator('[data-page-mode="done"]').first().click();
+  await p.locator('[data-page-mode="edit"]').first().waitFor({ timeout });
+}

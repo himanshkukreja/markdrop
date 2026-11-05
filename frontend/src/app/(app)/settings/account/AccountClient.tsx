@@ -163,7 +163,7 @@ export default function AccountClient() {
             <SwitchRow
               id="shortcuts"
               label="Keyboard shortcuts"
-              hint="Single keys that act without Ctrl or ⌘: F for full screen on a document, / to search My files."
+              hint="Single keys that act without Ctrl or ⌘: F for full screen on a document, E to edit a page, / to search My files."
               checked={shortcuts}
               onChange={(on) => {
                 setShortcuts(on);

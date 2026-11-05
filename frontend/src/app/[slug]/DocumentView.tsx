@@ -18,6 +18,7 @@ import { sectionMarkers, viewerColor } from "@/lib/presence";
 import { removePerson } from "@/lib/access";
 import { recordEvent } from "@/lib/api";
 import { track } from "@/lib/track";
+import { singleKeyAllowed } from "@/lib/shortcuts";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { useDocumentViewer } from "./doc/useDocumentViewer";
 import { pageFieldsOf, type DocumentViewProps } from "./doc/types";
@@ -66,6 +67,8 @@ const PageRenderer = dynamic(() => import("@/components/pages/PageRenderer").the
 // Sign-offs under a page's title (the reader's page fills the store: components/pages/signoff).
 const SignoffSummary = dynamic(() => import("@/components/pages/signoff/SignoffSummary").then((m) => m.SignoffSummary), { loading: () => null });
 const PageEditor = dynamic(() => import("@/components/pages/PageEditor").then((m) => m.PageEditor), { loading: () => null });
+const PageModeButton = dynamic(() => import("@/components/pages/PageModeButton").then((m) => m.PageModeButton), { loading: () => null });
+const focusPageMode = (which: "edit" | "done") => void import("@/components/pages/PageModeButton").then((m) => m.focusPageMode(which));
 // Drag and drop, Move to and Duplicate load only for pages.
 const PageTree = dynamic(() => import("@/components/pages/PageTree").then((m) => m.PageTree), { loading: () => null });
 const PageActions = dynamic(() => import("@/components/pages/PageActions").then((m) => m.PageActions), { loading: () => null });
@@ -220,13 +223,120 @@ export default function DocumentView(props: DocumentViewProps) {
     const id = assetId(src);
     return id ? page?.assets?.[id]?.url ?? "" : src;
   };
-  // A page is always editable for the people who can edit it: the editor loads behind the
-  // server-rendered page and takes its place when it's ready (the same frame, so nothing moves).
-  const pageEditable = isPage && secretUnlocked && readable && !showRaw;
+  // View mode first, Edit on demand. A page opens for reading, for everyone: links, mentions,
+  // embeds and sub-pages open on a click. The people who can edit it get Edit (E) in the bar; the
+  // editor loads behind the page and takes its place when it's ready (the same frame, so nothing
+  // moves), and Done saves and comes back. Straight into Edit: ?edit=1 (a page just made from New
+  // page, Add a sub-page, a template, Duplicate…), Analytics' "Apply in page", and an empty page.
+  const canEditPage = isPage && secretUnlocked && readable;
+  const [pageMode, setPageMode] = useState<{ slug: string; mode: "view" | "edit" } | null>(null);
+  const editMode = pageMode?.slug === slug && pageMode.mode === "edit";
+  const pageBodyEmpty = isPage && !withoutFrontMatter(displayContent).trim();
+  useEffect(() => {
+    if (!canEditPage || !v.flagsReady || pageMode?.slug === slug) return;
+    const apply = new URLSearchParams(window.location.search).get("apply") === "insight";
+    // (`editing`: they asked for the editor before it could open, e.g. ⋯ › Edit and the edit secret.)
+    setPageMode({ slug, mode: v.startInEdit || apply || pageBodyEmpty || editing ? "edit" : "view" });
+  }, [canEditPage, v.flagsReady, slug, pageMode, v.startInEdit, pageBodyEmpty, editing]);
+  const pageEditable = canEditPage && editMode && !showRaw;
   const [editorReady, setEditorReady] = useState(false);
   useEffect(() => {
     if (!pageEditable) setEditorReady(false);
   }, [pageEditable]);
+  // The edit flow (⋯ › Edit, which asks for the edit secret) just unlocked the page: edit it.
+  const editRise = useRef(editing);
+  useEffect(() => {
+    const rose = editing && !editRise.current;
+    editRise.current = editing;
+    if (rose && canEditPage && !editorReady) setPageMode({ slug, mode: "edit" });
+  }, [editing, canEditPage, editorReady, slug]);
+  // View mode: the editor's code comes down while the page is read, so Edit is quick.
+  useEffect(() => {
+    if (!canEditPage || editMode) return;
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    const t = window.setTimeout(() => (w.requestIdleCallback ?? ((cb: () => void) => cb()))(() => void import("@/components/pages/PageEditor")), 1500);
+    return () => window.clearTimeout(t);
+  }, [canEditPage, editMode]);
+  const enterEdit = useCallback((how: "click" | "key") => {
+    setPageMode({ slug, mode: "edit" });
+    track("page_edit_mode", { via: how });
+    focusPageMode("done");
+  }, [slug]);
+  // Done (PageEditor saved what was pending and let go of the lock): back to reading, showing the
+  // page as it stood in the editor; a fresh read follows (images uploaded there, someone's edit).
+  const leaveEdit = (latest: { title: string; content: string }) => {
+    v.setDisplayContent(latest.content);
+    v.setDisplayTitle(latest.title || null);
+    setPageMode({ slug, mode: "view" });
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("edit") === "1") {
+      q.delete("edit");
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${q.size ? `?${q}` : ""}${window.location.hash}`);
+    }
+    pagesApi()
+      .then((m) => m.getPage(slug))
+      .then((doc) => {
+        v.setPage(pageFieldsOf(doc as unknown as Record<string, unknown>));
+        if (typeof doc.content === "string") v.setDisplayContent(doc.content);
+        if (typeof doc.rev === "number") v.setDocRev(doc.rev);
+      })
+      .catch(() => {});
+    focusPageMode("edit");
+  };
+  // View mode, for people who can edit: a checklist's box ticks and saves at once (lock, save on
+  // the rev this view shows, let go). Not on a locked page they can't edit, nor while someone else
+  // is editing; a refusal puts the box back and says why.
+  const tickBusy = useRef(false);
+  const toggleTask = async (offset: number) => {
+    if (tickBusy.current) return;
+    const before = displayContent;
+    // (The renderer's offsets are in the body: the front matter comes first.)
+    const at = before.length - withoutFrontMatter(before).length + offset;
+    const m = /^((?:[-*+]|\d{1,9}[.)])[ \t]+)\[([ xX])\]/.exec(before.slice(at));
+    if (!m) {
+      toast.info("Press Edit to change this one.");
+      return;
+    }
+    const pos = at + m[1].length + 1;
+    const next = before.slice(0, pos) + (m[2] === " " ? "x" : " ") + before.slice(pos + 1);
+    tickBusy.current = true;
+    v.setDisplayContent(next);
+    const api = await pagesApi();
+    const secret = v.secretInput || null;
+    let locked = false;
+    try {
+      await api.lockPage(slug, secret);
+      locked = true;
+      const doc = await api.savePage(slug, { title: displayTitle, content: next, baseRev: v.docRev }, secret);
+      if (typeof doc.rev === "number") v.setDocRev(doc.rev);
+      if (typeof doc.content === "string") v.setDisplayContent(doc.content);
+      pendingRevalidate.current = true;
+      revalidate();
+    } catch (e) {
+      v.setDisplayContent(before);
+      const status = api.pagesErrorStatus(e);
+      toast.error(
+        status === 423 ? (api.lockHolder(e) ? `${api.lockHolder(e)} is editing this page. Try again when they're done.` : "Someone else is editing this page. Try again when they're done.")
+          : status === 409 ? "This page changed since you opened it. Reload to see the latest, then tick it again."
+          : e instanceof Error && e.message ? e.message : "Couldn't save that. Try again.",
+      );
+    } finally {
+      if (locked) void api.unlockPage(slug, { secret }).catch(() => {});
+      tickBusy.current = false;
+    }
+  };
+  // E: Edit (single-key rule: not while typing, not in a dialog, shortcuts on).
+  useEffect(() => {
+    if (!canEditPage || editMode || showRaw) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === "e" || e.key === "E") && !e.shiftKey && singleKeyAllowed(e)) {
+        e.preventDefault();
+        enterEdit("key");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [canEditPage, editMode, showRaw, enterEdit]);
   // While the page's editor is on screen it follows the live socket itself; the viewer stops
   // re-reading on every save (useDocumentViewer ignores `changed` while editing).
   const setViewerEditing = v.setEditing;
@@ -484,6 +594,8 @@ export default function DocumentView(props: DocumentViewProps) {
         try {
           await (await pagesApi()).setEditor(slug, "blocks", v.secretInput || null);
           v.setPage({ ...(page ?? {}), editor: "blocks" });
+          // Asked for the block editor: it opens in Edit mode.
+          setPageMode({ slug, mode: "edit" });
           setToBlocks(false);
           track(wasPage ? "page_back_to_blocks" : "page_open_blocks");
           handleEditClick();
@@ -865,6 +977,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 resolve={resolvePageAsset}
                 addressing={addressing}
                 presence={pagePresence}
+                tools={canEditPage && !showRaw ? <PageModeButton mode="edit" busy={pageEditable} onClick={() => enterEdit("click")} /> : undefined}
                 onShare={pageShare}
                 shareUrl={shareUrl}
                 onCopied={copyLinkEvent}
@@ -896,6 +1009,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 href={pageHref}
                 viewer={user?.id ?? null}
                 subscribeLive={v.subscribeLive}
+                onToggleTask={canEditPage && !editMode && !othersEditing && !(pageProps?.locked && !isOwner && !v.access?.can?.edit_locked) ? toggleTask : null}
               />
             )}
             {!showRaw && !(wideRail && pageRail && tocEntries.length > 0) && <PresenceMargin root={readRef} markers={markers} left={-14} />}
@@ -948,6 +1062,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 propertiesHref: propsHref,
                 footer: pageFooter,
                 notices,
+                onDone: leaveEdit,
               }}
             />
           </div>
