@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getDocument } from "@/lib/api";
 import { keepUnsaved, lockFacts, lockHolder, lockPage, lockStatus, pagesErrorStatus, savePage, unlockPage, PagesApiError, type LockFacts, type LockInfo, type LockTimers, type PageDocument } from "@/lib/pages";
 import { splitFrontmatter } from "@/components/docs-editor/core/frontmatter.mjs";
+import { merge3 } from "@/lib/pageMerge.mjs";
 import { readPageProps } from "./pageProps";
 import { writePageProps } from "./pagePropsWrite";
 
@@ -472,12 +473,26 @@ export function usePageEditSession({
       try {
         const latest = await fetchLatest();
         const mine = dirty.current ? { ...fields.current } : null;
+        const was = { ...base.current };
         adopt(latest);
         setLock({ kind: "mine" });
-        // Text typed before the lock was lost: keep it on screen and save it as the next version.
+        // Text typed before the lock was lost: merged into their newer version (lib/pageMerge) and
+        // saved as the next version. Where both changed the same lines, theirs stays on the page and
+        // ours is kept in version history first — never dropped.
         if (mine && mine.content !== latest.content) {
-          fields.current = mine;
-          cbs.current.onRemote({ ...mine, rev: baseRev.current });
+          const theirs = { title: latest.title ?? "", content: latest.content ?? "" };
+          const m = merge3(was.content, mine.content, theirs.content);
+          if (!m.clean) {
+            try {
+              await keepUnsaved(slug, { title: mine.title, content: m.mineContent, base_rev: baseRev.current, reason: "conflict" }, secret);
+            } catch {
+              /* couldn't keep it: leave our text on screen as it was, and save it */
+              m.content = mine.content;
+            }
+          }
+          const title = mine.title !== was.title ? mine.title : theirs.title;
+          fields.current = { title, content: m.content };
+          cbs.current.onRemote({ ...fields.current, rev: baseRev.current });
           dirty.current = true;
           setSave({ state: "dirty" });
           timer.current = window.setTimeout(() => void doSave(), AUTOSAVE_MS);
