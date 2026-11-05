@@ -588,6 +588,20 @@ class Settings(BaseSettings):
     slack_api_base: str = "https://slack.com/api"
     slack_web_base: str = "https://slack.com"
 
+    # ── Push notifications (Web Push: services/webpush.py, services/push.py) ──
+    # The server's VAPID key pair (RFC 8292). Generate one with
+    #   python -m app.services.webpush keys
+    # (prints all three lines); check a .env with  python -m app.services.webpush check.
+    # Private: 32 raw bytes, base64url (or a PEM). Public: 65 bytes uncompressed, base64url; derived
+    # from the private key when blank. Subject: a mailto: or https: contact for the push services.
+    # Until the private key is set, the Push card says "Not set up yet" and nothing is sent.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    vapid_subject: str = "https://markdrop.in"
+    # Extra push-service hosts (comma separated, host or host:port; plain http allowed): the tests'
+    # and the e2e stack's fake push service. Never set in production.
+    push_endpoint_hosts_extra: str = ""
+
     @property
     def slack_configured(self) -> bool:
         return bool(self.slack_client_id and self.slack_client_secret and self.slack_signing_secret
