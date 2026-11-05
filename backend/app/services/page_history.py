@@ -297,6 +297,8 @@ async def keep(db: AsyncIOMotorDatabase, raw: dict, actor, *, title: str | None,
     sha = _sha(title, markdown or "")
     if sha == _sha(fresh.get("title"), fresh.get("content") or ""):
         return None
+    if await db[COLL].find_one({"doc_id": str(fresh["_id"]), "sha": sha, "event.type": "kept"}, {"_id": 1}):
+        return None  # already kept (a retry)
     await capture(db, fresh, reason="before_keep")
     top = await latest(db, str(fresh["_id"]), {"sha": 1, "event": 1})
     if top is not None and top.get("sha") == sha:

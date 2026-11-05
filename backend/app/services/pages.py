@@ -602,6 +602,8 @@ async def acquire_lock(db: AsyncIOMotorDatabase, raw: dict, actor: access.Actor,
             return _answer(lock, fresh, took_over={"from": held["name"], "dirty": bool(held.get("dirty"))})
 
         if intent == "heartbeat" and not mine:
+            if held is None and viewers.editor_of(raw.get("slug")) == actor.user_id:
+                viewers.set_editor(raw.get("slug"), None, 0)  # lapsed: off the presence list now
             taken = _taken_for(fresh, actor.user_id)
             reason = "taken_over" if taken else (
                 _lapse(prev)[1] if prev is not None and prev.get("user_id") == actor.user_id else "expired")
