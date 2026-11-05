@@ -288,11 +288,8 @@ await step("docs-media", async () => {
     await p.goto(HUB);
     await p.getByTestId("month-header").first().waitFor({ timeout: 20000 });
     await p.waitForTimeout(800);
-    const top = await p.getByTestId("series-chips").boundingBox();
-    const list = await p.getByTestId("meetings-list").boundingBox();
-    const box = { x: Math.max(0, list.x - 24), y: Math.max(0, top.y - 50), width: Math.min(1440, list.width + 48) };
-    box.height = Math.min(list.y + list.height + 16, 900) - box.y;
-    await p.screenshot({ path: path.join(raw, `organised${suffix}.png`), clip: box });
+    // The list section: its series chips and every month.
+    await p.locator('section[aria-labelledby="mt-list-title"]').screenshot({ path: path.join(raw, `organised${suffix}.png`) });
     webp(path.join(raw, `organised${suffix}.png`), `organised${suffix}`);
     await c.close();
   }

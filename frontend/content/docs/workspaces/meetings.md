@@ -42,7 +42,7 @@ The Meetings folder opens on **All meetings**: a table, newest first, grouped by
 
 The workspace's **Meetings** page lists every meeting you can open by month, newest first. Select a series above the list to see only that series, or **One-offs**. Open the page with **Ask meetings** in the Meetings folder. A meeting that came in automatically is marked **Auto**.
 
-![The Meetings page: series to filter by (Daily Standup, One-offs) above the meetings, listed by month with their date, series, type and people.](/docs-assets/workspaces/meetings-import/organised.webp)
+![The Meetings page: series to filter by (Daily Standup, One-offs) above the meetings, listed by month with their date, type and people.](/docs-assets/workspaces/meetings-import/organised.webp)
 
 ## What the meeting page holds
 

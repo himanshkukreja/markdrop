@@ -101,8 +101,8 @@
 .mt-series__chip:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
 .mt-series__n { font-size: 11.5px; color: var(--text-subtle); font-variant-numeric: tabular-nums; }
 .mt-series__chip[aria-pressed="true"] .mt-series__n { color: inherit; }
-.mt-month { margin: 18px 0 8px; font-size: 13px; font-weight: 700; color: var(--text-secondary); display: flex; align-items: baseline; gap: 8px; }
-.mt-month:first-child { margin-top: 0; }
+.mt-month { margin: 0 0 8px; font-size: 13px; font-weight: 700; color: var(--text-secondary); display: flex; align-items: baseline; gap: 8px; }
+.mt-monthgroup + .mt-monthgroup { margin-top: 22px; }
 .mt-month small { font-weight: 500; color: var(--text-subtle); font-size: 12px; }
 .mt-card__series { display: inline-flex; align-items: center; padding: 0 8px; border-radius: var(--radius-full); background: var(--surface-inset); color: var(--text-secondary); font-size: 12px; line-height: 20px; }
 
