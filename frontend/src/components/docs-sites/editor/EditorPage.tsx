@@ -30,7 +30,7 @@ import { markdropHost } from "@/lib/docsEmbeds";
 import { fixApplied, getFix, type FixDraft } from "@/lib/guideFixes";
 import { firstName, timeAgo } from "../format";
 import { usePublishState } from "../PublishState";
-import SiteBar, { STUDIO_CHROME, STUDIO_CHROME_H } from "../SiteBar";
+import SiteBar, { STUDIO_CHROME, STUDIO_CHROME_H, studioHeaderH } from "../SiteBar";
 import { useSite } from "../SiteContext";
 import { HEADER_SLOT_ID } from "../studio/StudioShell";
 import { CommentsTab, usePageComments } from "./CommentsTab";
@@ -80,11 +80,11 @@ function SaveStatus({ save, lock, onRetry }: { save: SaveState; lock: LockState;
 
 /**
  * Where the sticky studio header and site bar end (the site bar wraps to two or three rows below lg;
- * on phones and short landscape screens it scrolls away, leaving the 56 px header).
+ * on phones and short landscape screens it scrolls away, leaving the header: 56 px + the top inset).
  */
 function chromeBottom(): number {
   const bar = document.querySelector<HTMLElement>('nav[aria-label="Guide"]')?.parentElement;
-  return bar ? Math.max(56, Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
+  return bar ? Math.max(studioHeaderH(), Math.round(bar.getBoundingClientRect().bottom)) : STUDIO_CHROME_H;
 }
 
 /** The guide's API reference operations, offered by the editor's API endpoint block (none without one). */

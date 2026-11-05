@@ -74,14 +74,21 @@ export const STUDIO_CHROME_H = 56 + SITE_BAR_H;
  */
 export const STUDIO_CHROME = `var(--studio-chrome, ${STUDIO_CHROME_H}px)`;
 
-/** Keeps --studio-chrome at the bottom of the sticky header and site bar (56 px when the bar scrolls away). */
+/** The sticky studio header's height: 56 px, plus the top safe-area inset in the installed app (StudioShell). */
+export function studioHeaderH(): number {
+  const head = document.querySelector<HTMLElement>("[data-studio-header]");
+  return head ? Math.round(head.getBoundingClientRect().height) : 56;
+}
+
+/** Keeps --studio-chrome at the bottom of the sticky header and site bar (the header alone when the bar scrolls away). */
 function useChromeVar(bar: React.RefObject<HTMLDivElement | null>) {
   useLayoutEffect(() => {
     const el = bar.current;
     if (!el) return;
     const root = document.documentElement;
     const up = () => {
-      const h = getComputedStyle(el).position === "sticky" ? 56 + Math.round(el.getBoundingClientRect().height) : 56;
+      const head = studioHeaderH();
+      const h = getComputedStyle(el).position === "sticky" ? head + Math.round(el.getBoundingClientRect().height) : head;
       root.style.setProperty("--studio-chrome", `${h}px`);
     };
     up();
@@ -259,7 +266,7 @@ export function SiteBar({ section, crumb, status, actions, className, preview = 
 
   return (
     // One 52 px row from lg with a mouse; touch screens (44 px tabs and buttons) wrap to two rows until xl.
-    <div ref={barRef} className={cx("sticky top-14 z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 pointer-fine:lg:h-[52px] pointer-fine:lg:flex-nowrap pointer-fine:lg:py-0 xl:h-[52px] xl:flex-nowrap xl:py-0 max-sm:static [@media(max-height:500px)]:static", className)}>
+    <div ref={barRef} className={cx("sticky top-[calc(3.5rem+var(--safe-top))] z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2 sm:px-5 pointer-fine:lg:h-[52px] pointer-fine:lg:flex-nowrap pointer-fine:lg:py-0 xl:h-[52px] xl:flex-nowrap xl:py-0 max-sm:static [@media(max-height:500px)]:static", className)}>
       <nav aria-label="Guide" className="relative order-last -mx-1 flex w-full gap-0.5 overflow-x-auto px-1 md:order-none md:w-auto md:shrink-0">
         {TABS.map((t) => {
           const on = t.id === section;
