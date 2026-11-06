@@ -10,7 +10,7 @@ keywords: [team, team memory, set_my_status, set_focus_note, hide_team_line, cor
 
 Team is off until a workspace admin turns it on. To see how it fits with meetings, Ask and Slack, read [Meetings and Team: how it fits together](/workspaces/meetings-and-team).
 
-:::details[Watch: Your workspace remembers (2:23)]
+:::details[Watch: Your workspace remembers (2½ min)]
 A two-and-a-half-minute video of one team's day: Team's board, one person's page with dated targets, a correction, and asking the workspace what someone is working on.
 
 ::video{id="team-meetings" title="Your workspace remembers: meetings become pages, Team shows who's on what, and you can just ask" duration="2:23"}

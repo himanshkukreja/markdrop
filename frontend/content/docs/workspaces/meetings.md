@@ -16,7 +16,7 @@ It keeps the transcript, and it answers questions about one meeting or all of th
 
 To see how meetings feed Team, Ask and Slack, read [Meetings and Team: how it fits together](/workspaces/meetings-and-team).
 
-:::details[Watch: Your workspace remembers (2:23)]
+:::details[Watch: Your workspace remembers (2½ min)]
 A two-and-a-half-minute video of one team's day: the call's notes arrive by themselves, each person gets their action items in Slack, Team shows who's on what, and anyone can ask.
 
 ::video{id="team-meetings" title="Your workspace remembers: meetings become pages, Team shows who's on what, and you can just ask" duration="2:23"}
