@@ -12,6 +12,9 @@
  *   filters   status filter "Blocked or waiting", the person search, the project filter
  *   person    a card opens the person page: timeline by day, targets, sources link to the meeting
  *   project   Projects tab: the swimlane; the project page lists people and decisions
+ *   groups    the admin makes a group from the meeting-series suggestion; the group filter and its tiles; a member
+ *             can't make one
+ *   week      "This week" shows the week so far; the admin's Send now keeps it (team-visible lines only: never the 1:1)
  *   off       the admin turns it off in Settings › Advanced: Team says it's off; the facts are gone
  *   devices   phones (360, 390, 412, landscape) and tablets (744, 820, 1024) on the board and a person page: no sideways
  *             scroll, nothing outside the viewport, touch targets ≥ 44 px, inputs ≥ 16 px; screenshots light + dark
@@ -261,6 +264,40 @@ await step("devices", async () => {
   }
   const uniq = [...new Set(problems)];
   if (uniq.length) fail(`${uniq.length} layout problem(s):\n${uniq.slice(0, 40).join("\n")}`);
+});
+
+await step("groups", async () => {
+  const { p } = await ctx(browser, { token: T.admin });
+  await p.goto(teamUrl);
+  await p.getByTestId("team-groups").click();
+  await p.getByTestId("team-group-use").first().click();
+  const name = await p.getByTestId("team-group-name").inputValue();
+  if (!/Sourcing standup/.test(name)) fail(`suggested name ${name}`);
+  await p.getByTestId("team-group-name").fill("Sourcing team");
+  await p.getByTestId("team-group-save").click();
+  await p.getByRole("dialog").getByText("Sourcing team").first().waitFor();
+  await p.keyboard.press("Escape");
+  await p.getByTestId("team-filter-group").waitFor({ timeout: 10000 });
+  await p.getByTestId("team-filter-group").selectOption({ label: "Sourcing team" });
+  const names = await p.locator('[data-testid="team-card"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-person")));
+  if (!names.includes("Ben Member") || names.includes("Vic Viewer")) fail(`group filter: ${names}`);
+  const r = await api("POST", `/api/v1/team/${WS}/groups`, T.member, { name: "Mine", member_ids: [] });
+  if (r.status !== 403) fail(`member made a group: ${r.status}`);
+  await shot(p, "team-group-light");
+});
+
+await step("week", async () => {
+  const { p } = await ctx(browser, { token: T.admin });
+  await p.goto(teamUrl);
+  await p.getByTestId("team-this-week").waitFor({ timeout: 20000 });
+  await p.getByTestId("team-week-send").click();
+  await p.getByText(/^Sent /).first().waitFor({ timeout: 20000 });
+  const b = ok(await api("GET", `/api/v1/team/${WS}`, T.reader), "board as Vic");
+  if (!b.this_week || b.this_week.live) fail(`this week: ${JSON.stringify(b.this_week).slice(0, 200)}`);
+  if (JSON.stringify(b.this_week).toLowerCase().includes(SECRET)) fail("the weekly summary carried the 1:1");
+  const m = ok(await api("GET", `/api/v1/team/${WS}`, T.member), "board as Ben");
+  if (JSON.stringify(m.this_week).toLowerCase().includes(SECRET)) fail("the weekly summary carried the 1:1 (even for Ben)");
+  await shot(p, "team-week-light");
 });
 
 await step("dark", async () => {

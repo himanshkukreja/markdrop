@@ -3,7 +3,7 @@ title: "Team: your workspace memory"
 nav: Team
 description: Who is doing what in your workspace, from its meetings and pages. Status, focus, targets, blockers and projects, each line linked to its source.
 updated: 2026-11-06
-keywords: [team, team memory, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
+keywords: [team, team memory, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
 ---
 
 **Team** answers "what is Abhishek working on?" and "where are we on the sourcing beta?" without anyone writing a status report. Markdrop reads your workspace's meetings and pages in the background and keeps short, dated lines about each person: what they're working on, what they finished, what they committed to and by when, and what's blocking them. Every line links to the meeting or page it came from.
@@ -38,7 +38,21 @@ Above the cards, five numbers: on track, blocked or waiting, due this week, over
 - **Updates per day** for each person over the period you picked. Darker means more updates that day.
 - **Blockers**: who is blocked, on what, waiting on whom, and since when.
 
-Filter by person, status or project, and pick **This week** or **2 weeks**. The **Projects** tab shows each recurring project with the people on it and what each of them last said about it.
+Filter by person, status, [group](#groups) or project, and pick **This week** or **2 weeks**. The five numbers follow the filters, so picking a group sums up that group. The **Projects** tab shows each recurring project with the people on it and what each of them last said about it.
+
+## Groups
+
+Admins can make simple groups, like "Sourcing team", with **Groups** on the board: a name and its members. Everyone can then filter the board by group. Markdrop suggests groups from your recurring meetings: the people at half or more of a series' meetings in the last 60 days. Pick **Use** to start from a suggestion.
+
+## The weekly summary
+
+Every Monday at 9 am in the workspace's timezone, Team puts together the week: **highlights** (what shipped, decisions, changes of plan), current **blockers**, and the **commitments due this week** and overdue.
+
+- It's emailed to the workspace's admins and owner.
+- It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected.
+- It's the **This week** card at the top of Team. Before the first Monday, the card shows the week so far.
+
+The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card.
 
 ## A person's page
 
@@ -87,4 +101,4 @@ AI apps connected to Markdrop can use three tools: `list_team`, `get_person_prof
 
 ## AI and cost
 
-Team memory uses Claude Haiku 5.5, in the background, once per changed meeting or page. A meeting costs about a fifth of a cent and a page less. It has its own budget, **Team memory**, of $3 a day and $30 a month across Markdrop, which the Markdrop admin can change. When it runs out, updates pause until the next day and admins see a note on Team; nothing is lost. What's sent is never used to train models.
+Team memory uses Claude Haiku 5.5, in the background, once per changed meeting or page. A meeting costs about a fifth of a cent and a page less. The weekly summary's highlights are one more call per workspace a week. It has its own budget, **Team memory**, of $3 a day and $30 a month across Markdrop, which the Markdrop admin can change. When it runs out, updates pause until the next day and admins see a note on Team; nothing is lost. What's sent is never used to train models.

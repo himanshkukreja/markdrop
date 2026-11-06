@@ -260,3 +260,25 @@
   .tm-bars th a, .tm-heat__name, .tm-src__link { display: inline-flex; align-items: center; min-height: 44px; }
   .tm-crumbs a { display: inline-flex; align-items: center; min-height: 44px; }
 }
+
+/* ── this week / groups ── */
+.tm-week { margin: 0 0 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--surface); }
+.tm-week__head { display: flex; align-items: center; gap: 6px 12px; flex-wrap: wrap; margin-bottom: 8px; }
+.tm-week__head .tm-h2 { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.tm-week__head .tm-h2 svg { width: 15px; height: 15px; color: var(--accent-text); }
+.tm-week__send { margin-left: auto; }
+.tm-week__grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+.tm-week__list { margin: 4px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 20px; color: var(--text); }
+.tm-week__list .tm-due { margin-left: 4px; vertical-align: middle; }
+.tm-week__src { color: var(--text-muted); font-size: 12.5px; }
+.tm-groups { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.tm-groups__list { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; }
+.tm-groups__list li { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-top: 1px solid var(--border); }
+.tm-groups__list li:first-child { border-top: 0; }
+.tm-groups__main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.tm-groups__main .tm-muted { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-groups__sugs { width: 100%; }
+.tm-groupedit__people { border: 0; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; }
+.tm-groupedit__people legend { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+@media (max-width: 860px) { .tm-week__grid { grid-template-columns: minmax(0, 1fr); } }
+@media (pointer: coarse), (max-width: 639px) { .tm-week__send, .tm-week__src { min-height: 44px; display: inline-flex; align-items: center; } }

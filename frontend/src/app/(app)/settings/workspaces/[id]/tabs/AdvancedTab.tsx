@@ -126,7 +126,7 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               checked={ws.settings.team_memory === true}
               disabled={saving === "team"}
               locked={!isAdmin}
-              onChange={(on) => void save("team", { team_memory: on }, on ? "Team memory is on. Team fills in over the next minutes." : "Team memory is off. What it gathered is deleted.")}
+              onChange={(on) => void save("team", { team_memory: on, ...(on && !ws.settings.timezone ? { timezone: browserTz() } : {}) }, on ? "Team memory is on. Team fills in over the next minutes." : "Team memory is off. What it gathered is deleted.")}
             />
           </div>
         </Locked>
@@ -195,4 +195,9 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
       />
     </div>
   );
+}
+
+/** The admin's timezone, for Team's Monday 9 am summary. */
+function browserTz(): string | null {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
 }

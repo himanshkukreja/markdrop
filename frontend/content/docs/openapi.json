@@ -15440,7 +15440,7 @@
           "team"
         ],
         "summary": "Board",
-        "description": "The Team board for you: each member's status, focus, targets, open items and recent activity;\nblockers; projects × people. ``{enabled: false, can_enable}`` when Team memory is off.",
+        "description": "The Team board for you: each member's status, focus, targets, open items and recent activity;\nblockers; projects × people; groups; the \"This week\" summary. ``{enabled: false, can_enable}`` when\nTeam memory is off.",
         "operationId": "board_api_v1_team__workspace_id__get",
         "parameters": [
           {
@@ -15925,6 +15925,272 @@
           "auth": "token",
           "rateLimits": [
             "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/team/{workspace_id}/groups": {
+      "get": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Groups",
+        "description": "The workspace's Team groups; for admins also ``suggestions``: a group per meeting series, of the\nmembers at half or more of its meetings in the last 60 days.",
+        "operationId": "groups_api_v1_team__workspace_id__groups_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Create Group",
+        "operationId": "create_group_api_v1_team__workspace_id__groups_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/team/{workspace_id}/groups/{group_id}": {
+      "put": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Update Group",
+        "operationId": "update_group_api_v1_team__workspace_id__groups__group_id__put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GroupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Remove Group",
+        "operationId": "remove_group_api_v1_team__workspace_id__groups__group_id__delete",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "group_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Group Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/team/{workspace_id}/weekly/send": {
+      "post": {
+        "tags": [
+          "team"
+        ],
+        "summary": "Send Weekly",
+        "description": "This week's summary now (it goes out on its own on Mondays at 9 am, workspace time): posted to the\nSlack meetings channel when Slack is connected, emailed to the admins, kept as Team's \"This week\".",
+        "operationId": "send_weekly_api_v1_team__workspace_id__weekly_send_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "6/hour"
           ]
         }
       }
@@ -21738,6 +22004,29 @@
         ],
         "title": "GrantResponse"
       },
+      "GroupBody": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Member Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "GroupBody"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -23858,6 +24147,18 @@
             "type": "boolean",
             "title": "Team Memory",
             "default": false
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
           }
         },
         "type": "object",

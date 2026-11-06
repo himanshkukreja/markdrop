@@ -82,7 +82,16 @@ async def list_team(ctx: Context, args: dict) -> tuple[str, dict]:
                "url": _abs(f"/team/{ws.id}/people/{p['id']}")} for p in got["people"]]
     projects = [{"key": p["key"], "name": p["name"], "status": p.get("status"), "people": [x["name"] for x in p["people"]],
                  "url": _abs(f"/team/{ws.id}/projects/{p['key']}")} for p in got["projects"]]
-    out = {"workspace": ws.name, "people": people, "projects": projects,
+    from app.services import team_extras
+
+    groups = await team_extras.list_groups(ctx.db, ws.id)
+    for p in people:
+        p["groups"] = [g["name"] for g in groups if p["id"] in g["member_ids"]]
+    week = await team_extras.this_week(ctx.db, ws)
+    out = {"workspace": ws.name, "people": people, "projects": projects, "groups": [g["name"] for g in groups],
+           "this_week": ({"highlights": [h["text"] for h in week["highlights"]],
+                          "due": [f"{x['person']}: {x['text']} (due {x['due']})" for x in week["due"]],
+                          "overdue": [f"{x['person']}: {x['text']} (due {x['due']})" for x in week["overdue"]]} if week else None),
            "blockers": [{"person": b["person"]["name"], "text": b["text"], "since": b.get("since"),
                          "waiting_on": (b.get("waiting_on") or {}).get("name")} for b in got["blockers"]],
            "url": _abs(f"/team/{ws.id}")}
@@ -186,7 +195,8 @@ TEAM_TOOLS = [
         title="Who is doing what (Team)",
         description=("The Team board of a workspace: every member with their status (On track, Blocked, Waiting "
                      "on someone, Quiet lately, or the status they set themselves), what they're on now, targets "
-                     "with due dates, open items; current blockers; recurring projects. Built from the "
+                     "with due dates, open items, their groups; current blockers; recurring projects; this week's "
+                     "summary (highlights, due this week, overdue). Built from the "
                      "workspace's meetings and pages by Team memory, filtered to what the user can open. "
                      "Workspace members only; the workspace must have Team memory on."),
         scope=READ,
@@ -194,7 +204,9 @@ TEAM_TOOLS = [
         output_schema=_out({"workspace": _STR, "url": _STR,
                             "people": {"type": "array", "items": {"type": "object"}},
                             "projects": {"type": "array", "items": {"type": "object"}},
-                            "blockers": {"type": "array", "items": {"type": "object"}}},
+                            "blockers": {"type": "array", "items": {"type": "object"}},
+                            "groups": {"type": "array", "items": _STR},
+                            "this_week": {"type": ["object", "null"]}},
                            ["workspace", "people", "projects"]),
         annotations=_ann(True, False, True),
         handler=list_team,

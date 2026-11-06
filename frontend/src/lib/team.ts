@@ -132,6 +132,20 @@ export interface Board {
   you: string;
   role: string;
   since: string | null;
+  groups: Group[];
+  can_manage: boolean;
+  this_week: ThisWeek | null;
+}
+
+export interface Group { id: string; name: string; member_ids: string[] }
+export interface GroupSuggestion { name: string; member_ids: string[]; meetings: number }
+export interface WeekItem { person: string; text: string; due: string; source: Status["source"] }
+export interface ThisWeek {
+  week: string; from: string; to: string; at: string | null; live: boolean;
+  highlights: Array<{ text: string; cites?: number[]; sources?: NonNullable<Status["source"]>[] }>;
+  blockers: Array<{ person: string; text: string | null; waiting_on: string | null; since: string | null; source: Status["source"] }>;
+  due: WeekItem[];
+  overdue: WeekItem[];
 }
 
 export interface BoardOff { enabled: false; can_enable: boolean; role: string; workspace: { id: string; name: string } }
@@ -172,6 +186,15 @@ const base = (ws: string) => `/api/v1/team/${encodeURIComponent(ws)}`;
 export const teamHref = (ws: string) => `/team/${encodeURIComponent(ws)}`;
 export const personHref = (ws: string, uid: string) => `${teamHref(ws)}/people/${encodeURIComponent(uid)}`;
 export const projectHref = (ws: string, key: string) => `${teamHref(ws)}/projects/${encodeURIComponent(key)}`;
+
+export const listGroups = (ws: string) => request<{ groups: Group[]; suggestions: GroupSuggestion[] }>(`${base(ws)}/groups`);
+export const createGroup = (ws: string, body: { name: string; member_ids: string[] }) =>
+  request<Group>(`${base(ws)}/groups`, { method: "POST", body: JSON.stringify(body) });
+export const updateGroup = (ws: string, id: string, body: { name: string; member_ids: string[] }) =>
+  request<Group>(`${base(ws)}/groups/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(body) });
+export const deleteGroup = (ws: string, id: string) => request(`${base(ws)}/groups/${encodeURIComponent(id)}`, { method: "DELETE" });
+export const sendWeekly = (ws: string) =>
+  request<{ week: string; delivery: { slack: string | null; emails: number }; highlights: number }>(`${base(ws)}/weekly/send`, { method: "POST" });
 
 export const getBoard = (ws: string) => request<Board | BoardOff>(base(ws));
 export const getPerson = (ws: string, uid: string) => request<Person>(`${base(ws)}/people/${encodeURIComponent(uid)}`);

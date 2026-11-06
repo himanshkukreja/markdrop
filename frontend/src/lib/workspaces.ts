@@ -86,6 +86,8 @@ export interface WorkspaceSettings {
   auto_covers?: boolean;
   /** Team memory (Team board: who is doing what, from meetings and pages). Default off; admins turn it on. */
   team_memory?: boolean;
+  /** IANA timezone for Team's weekly summary (Monday 9 am). Set from an admin's browser when Team memory is turned on. */
+  timezone?: string | null;
 }
 
 /** v2 `GET /workspaces` item domain summary. */

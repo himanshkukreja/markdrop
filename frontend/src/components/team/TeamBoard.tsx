@@ -19,6 +19,7 @@ import {
 } from "@/lib/team";
 import { useAssistantHere } from "@/components/assistant/store";
 import { ActivityStrip, FocusDialog, HeatLegend, StatusChip, StatusDialog, TargetChip } from "./parts";
+import { GroupsDialog, ThisWeekCard } from "./extras";
 import "./team.css";
 
 type Range = "7" | "14";
@@ -30,8 +31,9 @@ export default function TeamBoard({ workspaceId }: { workspaceId: string }) {
   const [q, setQ] = useState("");
   const [status, setStatusF] = useState<"" | StatusState>("");
   const [project, setProject] = useState("");
+  const [group, setGroup] = useState("");
   const [range, setRange] = useState<Range>("14");
-  const [editing, setEditing] = useState<"status" | "focus" | null>(null);
+  const [editing, setEditing] = useState<"status" | "focus" | "groups" | null>(null);
   useAssistantHere({ workspace: workspaceId });
 
   const load = useCallback(async () => {
@@ -51,7 +53,7 @@ export default function TeamBoard({ workspaceId }: { workspaceId: string }) {
   }
   if (!board.enabled) return <TeamOff board={board} onOn={load} />;
   return <TeamOn board={board} workspaceId={workspaceId} reload={load} tab={tab} setTab={setTab}
-    q={q} setQ={setQ} status={status} setStatusF={setStatusF} project={project} setProject={setProject}
+    q={q} setQ={setQ} status={status} setStatusF={setStatusF} project={project} setProject={setProject} group={group} setGroup={setGroup}
     range={range} setRange={setRange} editing={editing} setEditing={setEditing} />;
 }
 
@@ -79,7 +81,9 @@ function TeamOff({ board, onOn }: { board: BoardOff; onOn: () => void }) {
     setBusy(true);
     try {
       const ws = await getWorkspace(board.workspace.id);
-      await updateWorkspace(board.workspace.id, { settings: { ...ws.settings, team_memory: true } });
+      let timezone = ws.settings.timezone ?? null;
+      try { timezone = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { /* no Intl */ }
+      await updateWorkspace(board.workspace.id, { settings: { ...ws.settings, team_memory: true, timezone } });
       workspacesChanged();
       toast.success("Team memory is on. It reads the last 30 days first; cards fill in over the next minutes.");
       onOn();
@@ -118,7 +122,8 @@ function TeamOn(p: {
   board: Board; workspaceId: string; reload: () => void; tab: "people" | "projects"; setTab: (t: "people" | "projects") => void;
   q: string; setQ: (v: string) => void; status: "" | StatusState; setStatusF: (v: "" | StatusState) => void;
   project: string; setProject: (v: string) => void; range: Range; setRange: (r: Range) => void;
-  editing: "status" | "focus" | null; setEditing: (v: "status" | "focus" | null) => void;
+  group: string; setGroup: (v: string) => void;
+  editing: "status" | "focus" | "groups" | null; setEditing: (v: "status" | "focus" | "groups" | null) => void;
 }) {
   const { board, workspaceId } = p;
   const days = Number(p.range);
@@ -127,9 +132,18 @@ function TeamOn(p: {
     const needle = p.q.trim().toLowerCase();
     return board.people.filter((c) => (!needle || c.name.toLowerCase().includes(needle))
       && (!p.status || c.status.state === p.status || (p.status === "blocked" && c.status.state === "waiting"))
-      && (!p.project || c.projects.some((x) => x.key === p.project)));
-  }, [board.people, p.q, p.status, p.project]);
-  const filtered = !!(p.q || p.status || p.project);
+      && (!p.project || c.projects.some((x) => x.key === p.project))
+      && (!p.group || c.groups.includes(p.group)));
+  }, [board.people, p.q, p.status, p.project, p.group]);
+  const filtered = !!(p.q || p.status || p.project || p.group);
+  // The tiles sum up who is shown (a group's own summary when a group is picked).
+  const totals = useMemo(() => ({
+    on_track: people.filter((c) => c.status.state === "on_track").length,
+    blocked: people.filter((c) => c.status.state === "blocked" || c.status.state === "waiting").length,
+    due_week: people.reduce((a, c) => a + c.due_week, 0),
+    overdue: people.reduce((a, c) => a + c.overdue, 0),
+    open_items: people.reduce((a, c) => a + c.open_items, 0),
+  }), [people]);
   const lanes = board.lanes.filter((l) => !p.project || l.key === p.project);
   return (
     <div className="tm-page" data-testid="team-board">
@@ -142,6 +156,7 @@ function TeamOn(p: {
             <Button variant="secondary" iconLeft="edit" onClick={() => p.setEditing("focus")} data-testid="team-set-focus">My focus</Button>
           </>
         )}
+        {board.can_manage && <Button variant="secondary" iconLeft="users" onClick={() => p.setEditing("groups")} data-testid="team-groups">Groups</Button>}
       </Head>
       {board.paused && (
         <Alert tone="warning" className="tm-alert">
@@ -157,13 +172,14 @@ function TeamOn(p: {
         </Alert>
       )}
 
-      <section className="tm-tiles" aria-label="The team at a glance">
-        <Tile n={board.totals.on_track} label="On track" icon="checkCircle" tone="good" />
-        <Tile n={board.totals.blocked} label="Blocked or waiting" icon="alertCircle" tone="bad" />
-        <Tile n={board.totals.due_week} label="Due this week" icon="calendar" />
-        <Tile n={board.totals.overdue} label="Overdue" icon="alert" tone={board.totals.overdue ? "bad" : undefined} />
-        <Tile n={board.totals.open_items} label="Open items" icon="checkSquare" />
+      <section className="tm-tiles" aria-label={p.group ? `${board.groups.find((g) => g.id === p.group)?.name ?? "Group"} at a glance` : "The team at a glance"} data-testid="team-tiles">
+        <Tile n={totals.on_track} label="On track" icon="checkCircle" tone="good" />
+        <Tile n={totals.blocked} label="Blocked or waiting" icon="alertCircle" tone="bad" />
+        <Tile n={totals.due_week} label="Due this week" icon="calendar" />
+        <Tile n={totals.overdue} label="Overdue" icon="alert" tone={totals.overdue ? "bad" : undefined} />
+        <Tile n={totals.open_items} label="Open items" icon="checkSquare" />
       </section>
+      <ThisWeekCard week={board.this_week} ws={workspaceId} canSend={board.can_manage} onSent={p.reload} />
 
       <div className="tm-filters" role="search">
         <div className="tm-search">
@@ -172,6 +188,10 @@ function TeamOn(p: {
         </div>
         <Select aria-label="Status" value={p.status} onChange={(e) => p.setStatusF(e.target.value as "" | StatusState)} data-testid="team-filter-status"
           options={[{ value: "", label: "Any status" }, ...STATUS_ORDER.filter((s) => s !== "waiting" && s !== "self").map((s) => ({ value: s, label: s === "blocked" ? "Blocked or waiting" : STATUS_LABEL[s] }))]} />
+        {board.groups.length > 0 && (
+          <Select aria-label="Group" value={p.group} onChange={(e) => p.setGroup(e.target.value)} data-testid="team-filter-group"
+            options={[{ value: "", label: "Everyone" }, ...board.groups.map((g) => ({ value: g.id, label: g.name }))]} />
+        )}
         {board.projects.length > 0 && (
           <Select aria-label="Project" value={p.project} onChange={(e) => p.setProject(e.target.value)} data-testid="team-filter-project"
             options={[{ value: "", label: "All projects" }, ...board.projects.map((x) => ({ value: x.key, label: x.name }))]} />
@@ -187,7 +207,7 @@ function TeamOn(p: {
         <div role="tabpanel" id="tm-panel-people" aria-labelledby="tm-tab-people">
           {people.length === 0 ? (
             <div className="tm-empty"><p>{filtered ? "Nobody matches these filters." : "No members yet."}</p>
-              {filtered && <Button size="sm" variant="secondary" onClick={() => { p.setQ(""); p.setStatusF(""); p.setProject(""); }}>Clear the filters</Button>}</div>
+              {filtered && <Button size="sm" variant="secondary" onClick={() => { p.setQ(""); p.setStatusF(""); p.setProject(""); p.setGroup(""); }}>Clear the filters</Button>}</div>
           ) : (
             <ul className="tm-cards" data-testid="team-cards">
               {people.map((c) => <MemberCard key={c.id} c={c} ws={workspaceId} days={days} today={board.today} />)}
@@ -205,6 +225,8 @@ function TeamOn(p: {
         </div>
       )}
 
+      {board.can_manage && <GroupsDialog ws={workspaceId} open={p.editing === "groups"} people={board.people}
+        onClose={() => p.setEditing(null)} onChanged={p.reload} />}
       {me && (
         <>
           <StatusDialog ws={workspaceId} open={p.editing === "status"} current={me.own_status} onClose={() => p.setEditing(null)} onDone={p.reload} />
