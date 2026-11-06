@@ -1,6 +1,6 @@
 ---
 title: Mentions and notifications
-description: Mention someone and they're told under the bell, by email, on their phone or computer and in Slack, with a link to the exact block. Only people who can open the page.
+description: Mention someone and they're told under the bell, by email, on their devices and in Slack, with a link to the exact block. Only people who can open the page.
 updated: 2026-11-06
 prerequisites: [/pages/overview]
 keywords: [mention, mentions, remove a mention, undo mention, mistaken mention, wrong person, take a mention back, withdrawn, meeting mentions, email me less, hourly bundle, daily digest, instant, email frequency, too many emails, catch-up, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, slack, slack notifications, slack direct message, get these in slack, list_notifications, mark_notifications_read, share_with_people]
