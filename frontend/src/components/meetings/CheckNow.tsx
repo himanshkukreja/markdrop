@@ -48,7 +48,12 @@ export function useCheckNow({ workspaceId, mine, others, onChecked }: {
     setBusy(true);
     try {
       const r = await checkMeetingsNow(workspaceId);
-      if (!r.ok) toast.error(r.message);
+      const stillGoing = !r.ok && r.connections.every((c) => c.ok || c.error === "timeout");
+      if (stillGoing) {
+        // The script carries on: its meetings arrive as it sends them.
+        toast.info(r.message);
+        window.setTimeout(() => onChecked?.(), 30_000);
+      } else if (!r.ok) toast.error(r.message);
       else if (r.imported || r.attached || r.updated) toast.success(r.message);
       else toast.info(r.message);
       onChecked?.();

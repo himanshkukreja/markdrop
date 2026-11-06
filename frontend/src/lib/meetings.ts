@@ -199,7 +199,7 @@ export function setCheckNow(url: string | null) {
     { method: "PUT", body: JSON.stringify({ url }) });
 }
 
-/** "Check for new meetings": the workspace's scripts run now (waits up to about a minute and a half).
+/** "Check for new meetings": the workspace's scripts run now (waits up to about 50 s).
  *  409 not_connected / not_set_up and 429 too_soon carry {error, message}. */
 export function checkMeetingsNow(workspace: string) {
   return request<CheckNowResult>(`/api/v1/meetings/check-now`, { method: "POST", body: JSON.stringify({ workspace }) });

@@ -14762,7 +14762,7 @@
           "meetings"
         ],
         "summary": "Check Now",
-        "description": "\"Check for new meetings\": the Google Meet scripts connected to the workspace (with Check now on)\nrun now instead of at their next 15-minute run; waits for them (up to about a minute and a half) →\n{ok, message, imported, attached, writing, remaining, checked, failed, connections}. Members; once a\nminute per workspace (429 + retry_after).",
+        "description": "\"Check for new meetings\": the Google Meet scripts connected to the workspace (with Check now on)\nrun now instead of at their next scheduled run; waits for them (up to about 50 s) →\n{ok, message, imported, attached, writing, remaining, checked, failed, connections}. Members; once a\nminute per workspace (429 + retry_after).",
         "operationId": "check_now_api_v1_meetings_check_now_post",
         "requestBody": {
           "content": {

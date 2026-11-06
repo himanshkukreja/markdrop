@@ -78,9 +78,9 @@ var DOC_MIME = 'application/vnd.google-apps.document';
 var TIME_BUDGET_MS = 4.5 * 60 * 1000;
 var HARD_CAP = 200;
 var DRIVE_API_PAGE = 'https://console.developers.google.com/apis/api/drive.googleapis.com/overview';
-// Check now (doPost): a quick run (about a minute at most), at most once a minute, that sends a Doc
-// Google finished writing a couple of minutes ago (a scheduled run waits QUIET_MINUTES).
-var NOW_BUDGET_MS = 70 * 1000;
+// Check now (doPost): a quick run (Markdrop waits about 50 s for the answer), at most once a minute, that
+// sends a Doc Google finished writing a couple of minutes ago (a scheduled run waits QUIET_MINUTES).
+var NOW_BUDGET_MS = 35 * 1000;
 var NOW_QUIET_MINUTES = 2;
 var NOW_GAP_MS = 60 * 1000;
 // The token this execution calls Markdrop with. A scheduled run uses the one in this file (and keeps a

@@ -283,6 +283,25 @@ class CheckNow(AutoWorld):
             self.assertEqual(out["connections"][0]["error"], error)
             self.assertEqual([c.url.host for c in self.calls], ["script.google.com"])
 
+    async def test_a_slow_script_is_not_waited_for_past_the_deadline(self):
+        """nginx gives a request 60 s: past CHECK_DEADLINE Markdrop answers "timeout" (the script carries on)."""
+        import asyncio
+
+        tok = (await self.connect())["token"]
+        await self.key(tok)
+        await self.turn_on()
+        self.addCleanup(setattr, meetings_inbox, "CHECK_DEADLINE", meetings_inbox.CHECK_DEADLINE)
+        meetings_inbox.CHECK_DEADLINE = 0.2
+
+        async def slow(req: httpx.Request) -> httpx.Response:
+            await asyncio.sleep(2)
+            return httpx.Response(200, json={"ok": True})
+        meetings_inbox.CHECK_TRANSPORT = httpx.MockTransport(slow)
+        out = (await self.check("owner")).json()
+        self.assertEqual((out["ok"], out["connections"][0]["error"]), (False, "timeout"))
+        self.assertIn("still working", out["message"])
+        self.assertLess(meetings_inbox.CHECK_TIMEOUT.read, 60)
+
     async def test_two_scripts_one_not_set_up(self):
         tok = (await self.connect())["token"]
         await self.key(tok)

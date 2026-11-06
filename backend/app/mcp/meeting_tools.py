@@ -507,7 +507,7 @@ MEETING_TOOLS: list[Tool] = [
         description=("Check for new meetings in a workspace now (\"Check for new meetings\" on the Meetings page): the "
                      "Google Meet scripts connected to it run right away instead of at their next scheduled run, "
                      "and the transcripts and Gemini notes Google has finished arrive as meeting pages. Takes up to "
-                     "about a minute. Members only; once a minute per workspace. Works when whoever connected "
+                     "about 50 seconds. Members only; once a minute per workspace. Works when whoever connected "
                      "Google Meet turned Check now on (Meetings › Turn on Check now); otherwise says so."),
         scope=WRITE,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},

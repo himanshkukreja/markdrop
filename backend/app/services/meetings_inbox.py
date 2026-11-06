@@ -304,7 +304,10 @@ async def run_status(db: AsyncIOMotorDatabase, rec: dict, body: dict) -> dict:
 WEB_APP = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]{1,253}/|macros/)s/[A-Za-z0-9_-]{20,200}/exec$")
 CHECK_COLL = "meeting_check_now"
 CHECK_GAP = timedelta(seconds=60)
-CHECK_TIMEOUT = httpx.Timeout(100.0, connect=10.0)
+# The answer must beat nginx's 60 s proxy timeout: the script sends for at most ~35 s (NOW_BUDGET_MS); past
+# CHECK_DEADLINE Markdrop stops waiting (the script carries on, and its meetings arrive as it sends them).
+CHECK_TIMEOUT = httpx.Timeout(50.0, connect=10.0)
+CHECK_DEADLINE = 50.0
 CHECK_TRANSPORT: httpx.AsyncBaseTransport | None = None   # tests: a fake script (httpx.MockTransport)
 _ECHO_HOST = "script.googleusercontent.com"
 
@@ -419,7 +422,7 @@ def check_message(out: dict) -> str:
 
 async def check_now(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     """"Check for new meetings": run every connected script of the workspace that has Check now on, now
-    (in parallel), wait for their answers (a minute or so) → {ok, checked, imported, attached, writing,
+    (in parallel), wait for their answers (under a minute) → {ok, checked, imported, attached, writing,
     remaining, failed, message, connections: [{connected_by, mine, ok, error?, message?, …}]}. Members
     only; once a minute per workspace (429 with retry_after)."""
     await meetings.require_member(db, workspace_id, user.id)
@@ -444,8 +447,14 @@ async def check_now(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         wait = max(1, int((CHECK_GAP - (now - at)).total_seconds()))
         raise HTTPException(status_code=429, detail={"error": "too_soon", "retry_after": wait,
                                                      "message": f"Checked less than a minute ago. Try again in {wait} s."})
+    async def bounded(client: httpx.AsyncClient, c: dict) -> dict:
+        try:
+            return await asyncio.wait_for(_call_script(client, c), CHECK_DEADLINE)
+        except asyncio.TimeoutError:
+            return {"ok": False, "error": "timeout"}
+
     async with httpx.AsyncClient(timeout=CHECK_TIMEOUT, transport=CHECK_TRANSPORT, follow_redirects=False) as client:
-        answers = await asyncio.gather(*(_call_script(client, c) for c in ready))
+        answers = await asyncio.gather(*(bounded(client, c) for c in ready))
     people = await _names(db, [c["user_id"] for c in ready])
     rows = []
     for rec, a in zip(ready, answers):

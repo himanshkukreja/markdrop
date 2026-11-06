@@ -364,7 +364,7 @@ async def set_check_now(request: Request, body: WebAppBody, db: AsyncIOMotorData
 async def check_now(request: Request, body: CheckNowBody, db: AsyncIOMotorDatabase = Depends(get_db),
                     user: User = Depends(require_user)):
     """"Check for new meetings": the Google Meet scripts connected to the workspace (with Check now on)
-    run now instead of at their next 15-minute run; waits for them (up to about a minute and a half) →
+    run now instead of at their next scheduled run; waits for them (up to about 50 s) →
     {ok, message, imported, attached, writing, remaining, checked, failed, connections}. Members; once a
     minute per workspace (429 + retry_after)."""
     return await meetings_inbox.check_now(db, user, _ws(body.workspace))
