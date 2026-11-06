@@ -2187,6 +2187,18 @@
     "bytes": 50402,
     "kind": "image"
   },
+  "/docs-assets/integrations/slack/illustration-dm-action-items.dark.webp": {
+    "w": 1280,
+    "h": 1052,
+    "bytes": 61992,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-dm-action-items.webp": {
+    "w": 1280,
+    "h": 1052,
+    "bytes": 63646,
+    "kind": "image"
+  },
   "/docs-assets/integrations/slack/illustration-dm-mention.dark.webp": {
     "w": 1280,
     "h": 388,

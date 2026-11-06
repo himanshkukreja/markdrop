@@ -81,6 +81,20 @@ access_done = kit.dm_access_request(
     done="Approved by you: they can edit it now.")
 help_msg = kit.help_message("Riya Sharma")
 
+# Each person's own action items after a meeting (services/slack_action_items.py): a member who can
+# edit the page (Open the notes, Done), and someone outside Markdrop (their items and who to ask).
+ai_member = kit.dm_action_items(TEAM, "6aecc9488c77e564c2be27b0", [{
+    "title": "Weekly product sync", "when": "Nov 4", "url": f"{BASE}/weekly-product-sync-nov-4", "organizer": None,
+    "can_edit": True, "items": [
+        {"block": "b-1a2b3c4d", "text": esc("Update the onboarding docs before the release"),
+         "due": "next Wednesday (Wed, Nov 11)", "done": False},
+        {"block": "b-4d5e6f70", "text": esc("Send Alex the new screenshots"), "due": "Thu, Nov 5", "done": False},
+    ]}], stop_value=kit.slack.sign_value(TEAM, "stop", "U0MAYA", "6aecc9488c77e564c2be27b1"))
+ai_outside = kit.dm_action_items(TEAM, "6aecc9488c77e564c2be27b2", [{
+    "title": "Weekly product sync", "when": "Nov 4", "url": None, "organizer": "Riya Sharma", "can_edit": False,
+    "items": [{"block": "b-5e6f7081", "text": esc("Share the partner pricing sheet with finance"), "due": "Fri, Nov 6",
+               "done": False}]}], stop_value=kit.slack.sign_value(TEAM, "stop", "U0JORDAN", ""))
+
 out = {
     # Slack user ids in the messages → the names a reader would see.
     "users": {"U0MAYA": "Maya Patel", "U0ALEX": "Alex Chen", "U0SAM": "Sam Lee"},
@@ -94,6 +108,8 @@ out = {
     "dm_mention": {"where": "Direct message", "from": "Markdrop", "message": mention},
     "dm_access_request": {"where": "Direct message", "from": "Markdrop", "message": access_request, "after": access_done},
     "help": {"where": "/markdrop help", "from": "Markdrop", "ephemeral": True, "message": help_msg},
+    "dm_action_items": {"where": "Direct message", "from": "Markdrop", "message": ai_member, "after": ai_outside,
+                        "afterLabel": "Someone who isn't in Markdrop gets only their own items:"},
 }
 # Button values are signed with the throwaway secret above; they mean nothing outside this file.
 (HERE / "payloads.json").write_text(json.dumps(out, indent=1, ensure_ascii=False) + "\n")

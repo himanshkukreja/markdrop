@@ -307,6 +307,15 @@
        "url": "https://markdrop.in/release-notes-2-4#b-9f8e7d6c"
       }
      ]
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/account#slack|Turn off>"
+      }
+     ]
     }
    ],
    "text": "Alex Chen mentioned you in Release notes 2.4"
@@ -360,6 +369,15 @@
        "url": "https://markdrop.in/requests/6aecc9488c77e564c2be2796"
       }
      ]
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/account#slack|Turn off>"
+      }
+     ]
     }
    ],
    "text": "Jordan Park asked to edit Q3 plan"
@@ -396,6 +414,15 @@
        "url": "https://markdrop.in/requests/6aecc9488c77e564c2be2796"
       }
      ]
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "You turned these on in Markdrop · <http://localhost:3000/settings/account#slack|Turn off>"
+      }
+     ]
     }
    ],
    "text": "Jordan Park asked to edit Q3 plan"
@@ -411,7 +438,7 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Markdrop in Slack* (only you see these replies)\n• `/markdrop search <words>` finds documents, pages, files and folders you can open\n• `/markdrop ask <question>` answers from what you can open, with sources\n• `/markdrop meetings <question>` answers from your workspace's meetings\n• `/markdrop link` links your Slack account to your Markdrop account (once)\n• `/markdrop unlink` removes that link"
+      "text": "*Markdrop in Slack* (only you see these replies)\n• `/markdrop search <words>` finds documents, pages, files and folders you can open\n• `/markdrop ask <question>` asks your workspace (Ask <Workspace>): answers from what you can open, with sources\n• `/markdrop meetings <question>` answers from your workspace's meetings\n• `/markdrop link` links your Slack account to your Markdrop account (once)\n• `/markdrop unlink` removes that link\nDirect messages for mentions, sign-off requests, shares and access requests are off until you turn them on in Markdrop: Settings › Account › Slack notifications."
      }
     },
     {
@@ -426,5 +453,139 @@
    ],
    "text": "Markdrop help"
   }
+ },
+ "dm_action_items": {
+  "where": "Direct message",
+  "from": "Markdrop",
+  "message": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":clipboard: Your action items from *Weekly product sync* · Nov 4"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":white_large_square: Update the onboarding docs before the release  _due next Wednesday (Wed, Nov 11)_"
+     },
+     "accessory": {
+      "type": "button",
+      "text": {
+       "type": "plain_text",
+       "text": "Done",
+       "emoji": true
+      },
+      "action_id": "md_ai_done",
+      "value": "aid|6aecc9488c77e564c2be27b0|b-1a2b3c4d|1NXFa4mk-0HAVZlN"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":white_large_square: Send Alex the new screenshots  _due Thu, Nov 5_"
+     },
+     "accessory": {
+      "type": "button",
+      "text": {
+       "type": "plain_text",
+       "text": "Done",
+       "emoji": true
+      },
+      "action_id": "md_ai_done",
+      "value": "aid|6aecc9488c77e564c2be27b0|b-4d5e6f70|zlvrVaxb9NgB7CD4"
+     }
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Open the notes",
+        "emoji": true
+       },
+       "action_id": "md_open",
+       "url": "https://markdrop.in/weekly-product-sync-nov-4"
+      }
+     ]
+    },
+    {
+     "type": "divider"
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "_Sent after each meeting_"
+     },
+     "accessory": {
+      "type": "button",
+      "text": {
+       "type": "plain_text",
+       "text": "Stop these",
+       "emoji": true
+      },
+      "action_id": "md_ai_stop",
+      "value": "stop|U0MAYA|6aecc9488c77e564c2be27b1|D5oOxX2dFGZbNMyw"
+     }
+    }
+   ],
+   "text": "Your action items from Weekly product sync"
+  },
+  "after": {
+   "blocks": [
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":clipboard: Your action items from *Weekly product sync* · Nov 4"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ":white_large_square: Share the partner pricing sheet with finance  _due Fri, Nov 6_"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Notes are in Markdrop (ask Riya Sharma for access)"
+      }
+     ]
+    },
+    {
+     "type": "divider"
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "_Sent after each meeting_"
+     },
+     "accessory": {
+      "type": "button",
+      "text": {
+       "type": "plain_text",
+       "text": "Stop these",
+       "emoji": true
+      },
+      "action_id": "md_ai_stop",
+      "value": "stop|U0JORDAN||8WTG3bckvwX9fR0u"
+     }
+    }
+   ],
+   "text": "Your action items from Weekly product sync"
+  },
+  "afterLabel": "Someone who isn't in Markdrop gets only their own items:"
  }
 }

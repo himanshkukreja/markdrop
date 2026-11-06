@@ -13,7 +13,8 @@ display_information:
   long_description: >-
     Markdrop for Slack brings your team's Markdrop documents, files, pages and meetings into Slack.
     Meeting summaries, decisions and action items are posted to the channel you choose, and each
-    action item has a Done button that ticks it on the Markdrop page. Type /markdrop search or
+    action item has a Done button that ticks it on the Markdrop page. After each meeting, every
+    attendee also gets their own action items as a direct message (with Stop these). Type /markdrop search or
     /markdrop ask to find things or get an answer with sources, shown only to you and built only
     from what you can open in Markdrop. Markdrop links unfurl with a preview when the whole channel
     may see them. Mentions, sign-off requests, shares and access requests arrive as direct messages
@@ -60,8 +61,9 @@ oauth_config:
       - groups:read       # private channels the app was invited to, for the same picker
       - im:read           # is a direct message shared with another organization? (unfurls there)
       - mpim:read         # the same for group direct messages
-      - users:read        # with users:read.email: find a person who turned Slack notifications on
-      - users:read.email  #   by their own Markdrop email (users.lookupByEmail), so they needn't link first
+      - users:read        # with users:read.email: find a person who turned Slack notifications on, and each
+      - users:read.email  #   meeting attendee with action items, by email (users.lookupByEmail), so nobody needs
+                          #   to link first; users:read alone: a last-resort exact-name match (users.list)
 settings:
   event_subscriptions:
     request_url: https://api.markdrop.in/api/v1/slack/events

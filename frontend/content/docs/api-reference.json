@@ -1667,8 +1667,14 @@
     },
     "PATCH /api/v1/slack/settings": {
       "title": "Choose the meetings channel",
-      "description": "Sets the channel meeting notes are posted to (`meetings_channel_id`, one from **Slack channels for meeting posts**), stops posting (`clear_channel: true`), or turns automatic posting of new meetings on or off (`post_meetings`). Admins and owners.",
+      "description": "Sets the channel meeting notes are posted to (`meetings_channel_id`, one from **Slack channels for meeting posts**), stops posting (`clear_channel: true`), or turns automatic posting of new meetings on or off (`post_meetings`), or each person's action items as a direct message after meetings (`action_item_dms`, on by default). Admins and owners.",
       "guide": {"label": "Slack", "href": "/integrations/slack"}
+    },
+    "GET /api/v1/slack/action-items/preview": {
+      "title": "Preview the action-items messages",
+      "description": "Admins and owners: from the newest meeting you can open that has action items with a person, who would get a direct message with their own items after it (`people`: name, whether they're a member, how many items, and how Markdrop would find them in Slack: `linked`, `email`, `name` or `none`), and what the fullest message would read (`message`: its items with due dates, `open_link` for a member, `organizer` to ask for everyone else). Nothing is sent and Slack isn't asked. `meeting` is null when no meeting has such items yet.",
+      "paramNotes": {"workspace_id": "The workspace's id."},
+      "guide": {"label": "Action items after meetings", "href": "/integrations/slack#your-action-items-after-each-meeting"}
     },
     "POST /api/v1/slack/link/start": {
       "title": "Start linking my Slack account",
@@ -1694,7 +1700,7 @@
     },
     "GET /api/v1/slack/me": {
       "title": "My Slack notifications",
-      "description": "Whether your Slack notifications are on (`on`, off by default), which kinds (`prefs`), and each Slack workspace connected to a Markdrop workspace you're in (`teams`: whether Markdrop found you there, as whom, and how: `email`, `oauth`, `install` or `legacy`). `configured` is false when this server has no Slack app.",
+      "description": "Whether your Slack notifications are on (`on`, off by default), which kinds (`prefs`), whether you get your action items after meetings (`action_items`, on by default and separate from `on`), and each Slack workspace connected to a Markdrop workspace you're in (`teams`: whether Markdrop found you there, as whom, and how: `email`, `oauth`, `install` or `legacy`). `configured` is false when this server has no Slack app.",
       "guide": {"label": "Slack notifications", "href": "/integrations/slack#slack-notifications"}
     },
     "PUT /api/v1/slack/me/notifications": {
@@ -1704,7 +1710,7 @@
     },
     "PATCH /api/v1/slack/me/prefs": {
       "title": "My Slack notifications per kind",
-      "description": "Which direct messages Markdrop sends you in Slack once your Slack notifications are on: `mention`, `signoff_requested`, `shared` and `access_request` (each on unless turned off). Send only the ones you change. Bell and email notifications aren't affected.",
+      "description": "Which direct messages Markdrop sends you in Slack once your Slack notifications are on: `mention`, `signoff_requested`, `shared` and `access_request` (each on unless turned off). `action_items`: your own action items after each meeting (on by default, even while Slack notifications are off; turning it on also undoes a Stop these from your Slack account). Send only the ones you change. Bell and email notifications aren't affected.",
       "guide": {"label": "Slack", "href": "/integrations/slack"}
     },
     "POST /api/v1/slack/meetings/{meeting_id}/post": {

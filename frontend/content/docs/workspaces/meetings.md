@@ -105,12 +105,16 @@ Links like **12:34** next to a decision or an action item open the transcript at
 When Google's notes are there, Markdrop uses them as written, marked **From Google Meet notes**. That covers the summary, the details and the suggested next steps. AI only adds what the notes leave out: the decisions, the open questions, the topics, and any action items the next steps miss.
 
 :::note[Mentions in meeting notes don't notify anyone]
-Markdrop never notifies anyone about the @mentions it writes into a meeting: no bell, email, phone notification or Slack message, whether the meeting came in by hand, from a Drive link, from the Google Meet script, from an AI app or with Import past meetings, and not when its summary is written again later. People find their action items on their home and in the meeting page. The meeting can still be [posted to your Slack meetings channel](/integrations/slack). If you edit a meeting page yourself and @mention someone, they're notified as on any page.
+Markdrop never notifies anyone about the @mentions it writes into a meeting: no bell, email, phone notification or Slack mention message, whether the meeting came in by hand, from a Drive link, from the Google Meet script, from an AI app or with Import past meetings, and not when its summary is written again later. People find their action items on their home and in the meeting page, and, when your workspace has Slack connected, in [one Slack message after the meeting](#action-items-in-slack). The meeting can still be [posted to your Slack meetings channel](/integrations/slack). If you edit a meeting page yourself and @mention someone, they're notified as on any page.
 :::
 
 The page is an ordinary page. Edit it like any other: fix a name, add notes, tick off action items. Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken.
 
 ![A meeting page with its Meeting details panel open: Ask this meeting, the date, type, series, transcript, action items, organizer and who imported it, who was there, the sources, the Only the people who were there switch, the AI summary, and All meetings, Post to Slack and Delete meeting.](/docs-assets/workspaces/meetings/meeting-details.webp)
+
+## Action items in Slack
+
+When your workspace has [Slack connected](/integrations/slack), each attendee with an action item gets a direct message from Markdrop about a minute after the summary is ready: "Your action items from *the meeting*", with only their own items and their due dates. That includes people who aren't in your Markdrop workspace: they get the item text and who to ask for the notes, nothing else. Members get **Open the notes**, and a **Done** button on each item when they can edit the page. Anyone can select **Stop these**; an admin can turn it off for the workspace. See [Your action items after each meeting](/integrations/slack#your-action-items-after-each-meeting).
 
 ## From an AI app
 

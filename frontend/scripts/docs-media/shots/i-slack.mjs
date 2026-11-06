@@ -20,7 +20,7 @@ const PAGE = "/integrations/slack";
 
 // ── Block Kit → HTML (the subset Markdrop's messages use) ─────────────────────
 
-const EMOJI = { spiral_note_pad: "🗒️", white_large_square: "⬜", white_check_mark: "✅" };
+const EMOJI = { spiral_note_pad: "🗒️", white_large_square: "⬜", white_check_mark: "✅", clipboard: "📋" };
 const unesc = (s) => s.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
 const html = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
@@ -52,6 +52,7 @@ function blocks(list) {
     }
     if (b.type === "context") return `<div class="ctx">${b.elements.map((e) => mrkdwn(e.text)).join(" ")}</div>`;
     if (b.type === "actions") return `<div class="acts">${b.elements.map(button).join("")}</div>`;
+    if (b.type === "divider") return `<hr class="div">`;
     return "";
   }).join("");
 }
@@ -91,11 +92,12 @@ code { font:12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background:va
 .card { margin-top:10px; border-left:3px solid var(--line); padding:2px 0 2px 12px; }
 .text { margin-top:2px; }
 .after { border-top:1px dashed var(--line); }
+.div { border:0; border-top:1px solid var(--line); margin:12px 0 4px; }
 .after .lbl { padding:8px 18px 0; font-size:12px; color:var(--mute); }
 `;
 
 /** One message (or unfurls under a person's message) on a neutral card, labelled as an illustration. */
-function page({ where, from, ephemeral, message, text, unfurls, after, afterLabel }, theme) {
+export function page({ where, from, ephemeral, message, text, unfurls, after, afterLabel }, theme) {
   const person = from !== "Markdrop";
   const head = `<div class="who">${html(from)}<small>${ephemeral ? "only you can see this" : person ? "" : "app"}</small></div>`;
   let body;
@@ -211,4 +213,5 @@ export default [
   illustration("unfurl", "unfurl"),
   illustration("dm-mention", "dm_mention"),
   illustration("dm-access-request", "dm_access_request", { afterLabel: "After Approve, the message says who decided:" }),
+  illustration("dm-action-items", "dm_action_items"),
 ];

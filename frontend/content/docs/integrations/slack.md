@@ -1,13 +1,14 @@
 ---
 title: Slack
-description: Post meeting notes with Done buttons to a channel, search and ask Markdrop from Slack, preview links, and turn on Slack notifications for mentions and requests.
+description: Meeting notes with Done buttons in a channel, each person's own action items after a meeting, search and ask from Slack, link previews, and Slack notifications.
 updated: 2026-11-06
-keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, slack notifications, get notifications in slack, turn on, turn off, off by default, opt in, found by email, users:read.email, update permissions, update markdrop for slack, look again, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack]
+keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, slack notifications, get notifications in slack, turn on, turn off, off by default, opt in, found by email, users:read.email, update permissions, update markdrop for slack, look again, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack, action items after meetings, your action items, direct message, stop these, turn back on, send each person their action items, daily syncup, not in markdrop, ask for access]
 ---
 
-Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It does four things:
+Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It does five things:
 
 - **Meeting notes in a channel.** When a meeting's summary is ready, its decisions and action items are posted to the channel you choose. Each action item has a **Done** button that ticks it on the Markdrop page.
+- **Your action items, to you.** After each meeting, everyone who was there and has an action item gets a direct message with only their own, whether or not they're in Markdrop.
 - **`/markdrop search` and `/markdrop ask`.** Find documents, pages and files, or get an answer with sources. Only you see the reply, and it uses only what you can open in Markdrop.
 - **Link previews.** Markdrop links show a preview when everyone in the channel may open them.
 - **Slack notifications**: direct messages for mentions, sign-off requests, shares and access requests, for people who turn them on. You can approve or decline an access request, or sign off, right in Slack.
@@ -91,6 +92,40 @@ Which meetings are posted:
 To post a meeting again, a past one, or any meeting when **Post new meetings automatically** is off: open the meeting's page, select **Meeting** at the bottom right, then **Post to Slack**. Markdrop says "Posted to #channel in Slack." The button shows for people who can edit the meeting's page, once the workspace has a meetings channel, and not on a restricted meeting.
 
 If it can't post, it says why: for example, "Invite @Markdrop to the meetings channel first (/invite @Markdrop)." when the app isn't in a private channel, or that the channel is archived or gone.
+
+## Your action items after each meeting
+
+When a meeting's summary is ready, every attendee with an open action item gets one direct message from the Markdrop app: "Your action items from **Daily Syncup** · Nov 6", then their items as a checklist, each with its due date when the meeting gave one ("by Friday" is shown as the date it means). It goes to people who aren't members of your Markdrop workspace too, so a team where only a few people use Markdrop still gets everyone's to-dos to them. It's on for everyone who was in the meeting; nobody has to turn it on.
+
+What each person sees depends on whether Markdrop knows their Markdrop account and what it can open:
+
+| They are | Their message has |
+| --- | --- |
+| A member who can edit the meeting's page | Their items, a **Done** button on each, and **Open the notes** |
+| A member who can only view it | Their items and **Open the notes** |
+| Anyone else | Their items and "Notes are in Markdrop (ask *the organizer* for access)": no link and nothing else from the meeting |
+
+**Done** ticks the item on the meeting's page as that person, the same as **Done** in the meetings channel (which then shows it done too). Only the person the message was sent to can use its buttons, and they don't need to link their Slack account first.
+
+![Illustration of two action-items messages: a member's, with two items due next Wednesday and Thursday, a Done button on each, Open the notes, and Sent after each meeting with Stop these; and the message someone outside Markdrop gets, with their one item and Notes are in Markdrop (ask Riya Sharma for access).](/docs-assets/integrations/slack/illustration-dm-action-items.webp)
+
+### Who gets one
+
+An action item belongs to the person it starts with: someone @mentioned at its start, or a name the notes start it with, like "Ravi Kumar will email the release notes". That person has to be one of the meeting's attendees, or its organizer. Items with no person, or with someone who wasn't in the meeting, aren't sent to anyone.
+
+Markdrop finds each person in Slack:
+
+1. by the Slack account they linked to Markdrop;
+2. by email: their Markdrop sign-in email, or the address Google's meeting notes gave for them. This needs the app's newer permissions; until an admin selects **Update permissions** on the **Integrations** tab, only people who linked their Slack account get one;
+3. as a last resort, by their exact name, when exactly one person in the Slack workspace has it. Someone found only by name always gets the plain version (their items, no link), and never for a meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings).
+
+Each person gets at most one message per meeting, about a minute after the summary is ready. An item ticked off in that minute is left out, and someone with nothing left gets no message. If more meetings finish within half an hour, they're added to the same message ("Your action items from 2 meetings") instead of sending another. Writing a meeting's summary again doesn't send it again. Past meetings brought in quietly and meetings held more than a day ago don't send any.
+
+### Stop them
+
+Every message ends with "Sent after each meeting" and **Stop these**. **Stop these** stops them for that Slack account, whether or not the person uses Markdrop, and offers **Turn back on**. Members can also turn off **Action items after meetings** in **Settings › Account › Slack notifications**. It's separate from the other Slack notifications: it's on even while those are off, and **Stop these** in Slack turns that switch off too.
+
+An admin can turn them off for the whole workspace: **Workspace settings › Integrations › Slack › Send each person their action items after meetings**. Under the switch, admins see a preview built from the newest meeting they can open: what the fullest message would read, everyone who'd get one, and how Markdrop would find them in Slack. Nothing is sent from the preview. After each meeting the card also says how many people were messaged and how many Markdrop couldn't find in Slack.
 
 ## Search and ask from Slack
 
@@ -178,13 +213,15 @@ An admin selects **Disconnect Slack…** on the **Integrations** tab. You can al
 - The Slack workspace's name and its app token. The token is encrypted.
 - Who linked which Slack account, and how (found by email, or Sign in with Slack).
 - The meetings channel.
-- Each person's Slack notification choices: on or off, and which kinds.
+- Each person's Slack notification choices: on or off, and which kinds, and whether they get their action items after meetings.
+- Who selected **Stop these**, by Slack account. Disconnecting keeps it, so reconnecting doesn't message them again.
+- The email addresses Google's meeting notes gave for attendees, on the meeting, to find them in Slack. They're never shown in Markdrop.
 
 It doesn't read your channels. It only sees messages that contain a markdrop.in link, and only the link itself.
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can check a workspace's Slack connection with `slack_status` (connected or not, the meetings channel, whether new meetings are posted, whether your own account is linked, and whether your Slack notifications are on) and post a meeting with `post_meeting_to_slack`, with the same rules as **Post to Slack**. Connecting Slack, choosing the channel, linking your account and turning on Slack notifications stay on the website, because they go through Slack's own screens. See [MCP tools](/ai/tools).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can check a workspace's Slack connection with `slack_status` (connected or not, the meetings channel, whether new meetings are posted, whether your own account is linked, whether your Slack notifications are on, and whether each person gets their action items after meetings) and post a meeting with `post_meeting_to_slack`, with the same rules as **Post to Slack**. Connecting Slack, choosing the channel, linking your account and turning on Slack notifications stay on the website, because they go through Slack's own screens. See [MCP tools](/ai/tools).
 
 ## Related
 

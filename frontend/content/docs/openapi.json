@@ -16685,6 +16685,54 @@
         }
       }
     },
+    "/api/v1/slack/action-items/preview": {
+      "get": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Preview the action-items messages",
+        "description": "Admins: from the newest meeting you can open that has action items with a person, who would get\na direct message with their own items after it (and how Markdrop finds them in Slack), and what\nthe first one would read. Nothing is sent, and Slack isn't asked.",
+        "operationId": "action_items_preview_api_v1_slack_action_items_preview_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/slack/link/start": {
       "post": {
         "tags": [
@@ -24153,6 +24201,17 @@
               }
             ],
             "title": "Access Request"
+          },
+          "action_items": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Items"
           }
         },
         "type": "object",
@@ -24566,6 +24625,17 @@
               }
             ],
             "title": "Post Meetings"
+          },
+          "action_item_dms": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Item Dms"
           }
         },
         "type": "object",

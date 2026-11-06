@@ -30,7 +30,8 @@ can't answer Slack until it has the signing secret (step 3). You verify it in st
 
 The manifest asks for these bot scopes: `commands`, `chat:write`, `chat:write.public`, `links:read`,
 `links:write`, `im:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `users:read`,
-`users:read.email` (to find a person who turned Slack notifications on by their own Markdrop email),
+`users:read.email` (to find a person who turned Slack notifications on by their own Markdrop email,
+and each meeting attendee with action items by the address Google gave),
 and the user scope `openid` (Sign in with Slack, used once to link a person's account; Markdrop
 keeps no user token).
 
@@ -89,12 +90,14 @@ Back on api.slack.com, in the app:
 4. Paste a link to a document that anyone with the link can open into a channel. It unfurls with a
    preview. A private document's link shows "Markdrop link — sign in to view" instead.
 5. Import a meeting in Markdrop (Meetings › Import). When its summary is ready, it's posted in the
-   meetings channel; click **Done** on an action item and it's ticked on the Markdrop page.
+   meetings channel; click **Done** on an action item and it's ticked on the Markdrop page. About a
+   minute later each attendee with an action item gets a direct message with only their own items
+   (Workspace settings › Integrations › Slack › "Send each person their action items after meetings").
 
 ## Updating the app's permissions (when the manifest's scopes change)
 
-Slack notifications find people by email (2026-11): that needs the bot scopes `users:read` and
-`users:read.email`. An app created from an older manifest lacks them, and every Slack workspace that
+Slack notifications and each person's action items after meetings find people by email (2026-11):
+that needs the bot scopes `users:read` and `users:read.email`. An app created from an older manifest lacks them, and every Slack workspace that
 installed it keeps the old permissions until it's reinstalled.
 
 1. https://api.slack.com/apps › **Markdrop** › **App Manifest** (left menu) › **YAML**. Replace
@@ -106,7 +109,8 @@ installed it keeps the old permissions until it's reinstalled.
    Slack**. A card that says **Update Markdrop for Slack** needs one click on **Update permissions**
    (Slack's consent screen, then back to Markdrop). Until then, people there can still link with
    Sign in with Slack; finding them by email waits for the update. Updating also finds everyone who
-   had already turned Slack notifications on.
+   had already turned Slack notifications on. Action items after meetings reach only people who
+   linked their Slack account until then (the card counts the others as "not found in Slack").
 
 ## Rotating a secret
 
