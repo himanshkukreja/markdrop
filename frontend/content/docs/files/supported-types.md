@@ -1,9 +1,9 @@
 ---
 title: Supported file types
-description: Every file type Markdrop renders, from HTML pages and PDFs to spreadsheets, Word documents, images, video, audio and zipped sites.
-updated: 2026-11-05
+description: Every file type Markdrop renders, from HTML pages and PDFs to spreadsheets, Word documents, PowerPoint decks, images, video, audio and zipped sites.
+updated: 2026-11-06
 prerequisites: [/get-started/first-file]
-keywords: [file types, formats, pdf, xlsx, csv, docx, html, svg, mp4, mov, zip, artifacts]
+keywords: [file types, formats, pdf, xlsx, csv, docx, pptx, powerpoint, slides, html, svg, mp4, mov, zip, artifacts]
 ---
 
 Each file you upload opens in a viewer made for its type, so readers see the content rather than a download prompt. This page lists what Markdrop accepts and what readers get for each.
@@ -18,6 +18,7 @@ Each file you upload opens in a viewer made for its type, so readers see the con
 | PDF | `.pdf` | Pages with zoom and page count | 25 MB |
 | Spreadsheet | `.xlsx`, `.xls`, `.csv` | A grid with row numbers, column letters and a tab per sheet | 25 MB |
 | Word document | `.docx` | The document's text, headings, lists and tables | 25 MB |
+| PowerPoint deck | `.pptx` | The slides one at a time, with thumbnails and speaker notes | 25 MB |
 | Image | `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg` | The full-size image | 25 MB |
 | Text | `.txt`, `.json` | Text with line numbers and a **Wrap lines** toggle | 25 MB |
 | Website | `.zip` | A multi-page site, opening at its `index.html` | 25 MB zipped |
@@ -52,6 +53,16 @@ A `.docx` is converted to clean web text: headings, paragraphs, lists, tables, l
 
 ![A Word document opened on Markdrop as clean web text: its headings, paragraphs and bullet points, without Word's page layout.](/docs-assets/files/supported-types/viewer-docx.webp)
 
+### PowerPoint decks
+
+A `.pptx` opens as slides, one at a time: each slide's title, text boxes and bullets, tables, and its pictures, in reading order. Shapes that sit side by side stay side by side. Move with the arrow buttons, the **←** and **→** keys, or a swipe on a phone; on a wide screen a strip of slide thumbnails runs down the left. **Notes** shows the slide's speaker notes, and hidden slides are marked as hidden. **Original** downloads the `.pptx` itself.
+
+The layout is approximated, not pixel-perfect: Markdrop reads the deck's content rather than PowerPoint's exact positions, fonts, colours, animations and backgrounds. A chart shows as a labelled box with its title, SmartArt as its text, and a picture in a format browsers can't draw (such as EMF) is named instead. If the exact look matters, export a PDF from PowerPoint and upload that instead.
+
+A deck with macros (`.pptm`, or one renamed to `.pptx`) and a password-protected deck are refused when you upload them. Save the deck as a plain `.pptx` without a password first.
+
+A link can open a deck at a given slide: Ask Markdrop and search link to the slide they found ("slide 5"), and the deck opens there.
+
 ### Images
 
 Images open fitted to the screen, whole, on any screen and in either orientation; tap or click the image to see it at full size, and again to fit it. An SVG can contain scripts, so it gets the same sandbox on a separate domain as an HTML page.
@@ -72,7 +83,7 @@ A `.zip` of a built site is unpacked and served as a site, so links between its 
 
 ## Not supported
 
-PowerPoint (`.pptx`) and other formats not in the table aren't accepted. Files can't be end-to-end encrypted; only documents can.
+Older PowerPoint (`.ppt`), macro-enabled decks (`.pptm`), Keynote and other formats not in the table aren't accepted. Files can't be end-to-end encrypted; only documents can.
 
 Markdown isn't uploaded as a file. Paste it into [a document](/get-started/first-document) instead, where it renders with headings, diagrams and math. In a workspace, a `.md` file you drop onto a folder becomes a document there.
 

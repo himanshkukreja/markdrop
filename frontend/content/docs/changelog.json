@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "powerpoint-decks-and-full-page-path",
+      "date": "2026-11-06",
+      "title": "PowerPoint decks open as slides, and the page path folds below 1280 px",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Upload a .pptx and its link opens the deck as slides: titles, text and bullets, tables and pictures in reading order, a thumbnail strip, speaker notes, the arrow keys and Original to download the file. Ask Markdrop and search link to the slide they found. In the page bar the pages above fold into \"…\" under 1280 px; from 1280 px the whole path shows.",
+      "body": "- **Slides.** Each slide shows its title, text boxes and bullets, tables and pictures; shapes side by side stay side by side. Move with the arrow buttons, **←** / **→** or a swipe, or pick a thumbnail on a wide screen. **Notes** shows the speaker notes; hidden slides are marked. The layout is approximated, not pixel-perfect: charts show as a labelled box with their title and SmartArt as its text. See [Supported file types](/files/supported-types#powerpoint-decks).\n- **Safe to open.** A deck with macros (`.pptm`, or renamed to `.pptx`), a password-protected deck and a damaged one are refused at upload, in the app, when replacing a file and through MCP `create_upload`.\n- **Ask and search.** A deck's slides and speaker notes are read for search and Ask; an answer's \"slide 5\" opens the deck at slide 5.\n- **Page path.** Under 1280 px the pages above the one you're on fold into one \"…\" (a menu with the full path). From 1280 px the whole path shows, and a crumb ends in \"…\" only when the bar runs out of room."
+    },
+    {
       "id": "meeting-names-and-tablet-bar",
       "date": "2026-11-06",
       "title": "Clean attendee names, and a page bar that fits tablets and phones",
