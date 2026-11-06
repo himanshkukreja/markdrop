@@ -123,13 +123,13 @@ export default function SendPanel({
         id="email-send"
         label={isDraft ? "4 · Send for real" : "Send · progress"}
         title={campaign.name}
-        actions={transport === "console" ? <Badge tone="warning" icon="alert">Console · nothing is emailed</Badge> : transport === "resend" ? <Badge tone="success">Live · Resend</Badge> : undefined}
+        actions={transport === "console" ? <Badge tone="warning" icon="alert">Console · nothing is emailed</Badge> : transport === "resend" ? <Badge tone="success">Live</Badge> : undefined}
         bodyClassName="flex flex-col gap-4"
       >
         <Facts items={[
           { label: "From", value: sender ? `${sender.from_name ? `${sender.from_name} ` : ""}<${sender.from_email}>` : "—" },
           { label: "Reply-to", value: sender?.reply_to || info?.setup.test_to || "—" },
-          { label: "Pace", value: info ? `${info.setup.batch.size} per Resend batch, one batch every ${(info.setup.batch.gap_ms / 1000).toFixed(1)} s, sent by the server` : "—" },
+          { label: "Pace", value: info ? `up to ${info.setup.batch.size} per batch (within today's limit), one batch every ${(info.setup.batch.gap_ms / 1000).toFixed(1)} s, sent by the server` : "—" },
           { label: "Audience", value: `${audienceLabel(campaign.audience)} · ${audience.loading && !audience.data ? "counting…" : `${num(n)} ${isDraft ? "eligible" : "new"}`}` },
           ...(campaign.scheduled_at && status === "scheduled" ? [{ label: "Sends at", value: exact(campaign.scheduled_at) }] : []),
         ]} />
@@ -160,7 +160,12 @@ export default function SendPanel({
             {campaign.last_error} Fix the sender or the provider, then resume. Rows that weren&apos;t sent stay queued.
           </Alert>
         )}
-        {status === "sending" && campaign.last_error && (
+        {status === "sending" && campaign.deferred_until && (
+          <Alert tone="info" title={`Waiting for tomorrow · ${exact(campaign.deferred_until)}`}>
+            {campaign.last_error || "Today's email limit is reached."} The rest stays queued. See Email › Usage.
+          </Alert>
+        )}
+        {status === "sending" && campaign.last_error && !campaign.deferred_until && (
           <Alert tone="warning" title="Retrying">{campaign.last_error} The server backs off and retries; five failures in a row pause the campaign.</Alert>
         )}
         {status === "sending" && lease && !lease.worker && !lease.held && (

@@ -7,6 +7,7 @@ import { LoadingBlock, PageHead, plural } from "../shared";
 import type { CampaignStatus, CampaignSummary, Info, TemplatesResponse } from "./api";
 import { CampaignBadge, Section, TimeAgo, num, pct } from "./bits";
 import type { Navigate } from "./EmailSection";
+import { LimitBanner, SentLog, UsagePanel, useUsage } from "./Sent";
 import Senders from "./Senders";
 
 type SortKey = "name" | "status" | "sent" | "opened" | "clicked" | "updated";
@@ -16,7 +17,7 @@ export function ConsoleBanner({ info }: { info: Info | null }) {
   if (!info || info.setup.transport !== "console") return null;
   return (
     <Alert tone="warning" title="Console transport · nothing is emailed" className="mb-4">
-      This server has no Resend API key (or <code className="font-mono">MARKDROP_EMAIL_TRANSPORT=console</code>), so every test and
+      This server has no email provider key (Resend or Brevo; or <code className="font-mono">MARKDROP_EMAIL_TRANSPORT=console</code>), so every test and
       campaign is rendered and stored in <code className="font-mono">email_outbox</code> instead of being sent. Tracking, reports and
       unsubscribes work as usual.
     </Alert>
@@ -180,10 +181,15 @@ function TemplatePicker({ meta, metaError, reloadMeta, navigate }: {
   );
 }
 
+export type HomeTab = "campaigns" | "usage" | "sent" | "senders";
+
 export default function Home({ token, tab, info, infoError, meta, metaError, reload, reloadMeta, navigate }: {
-  token: string; tab: "campaigns" | "senders"; info: Info | null; infoError: string | null;
+  token: string; tab: HomeTab; info: Info | null; infoError: string | null;
   meta: TemplatesResponse | null; metaError: string | null; reload: () => void; reloadMeta: () => void; navigate: Navigate;
 }) {
+  const { usage, error: usageError, reload: reloadUsage } = useUsage(token);
+  const [logKind, setLogKind] = useState("");
+  const go = (et: HomeTab) => navigate({ et: et === "campaigns" ? null : et }, { replace: true });
   const campaigns = info?.campaigns ?? [];
   const real = campaigns.filter((c) => !c.legacy);
   const totals = real.reduce((a, c) => ({ sent: a.sent + c.counts.sent, opened: a.opened + c.counts.opened, clicked: a.clicked + c.counts.clicked }), { sent: 0, opened: 0, clicked: 0 });
@@ -194,20 +200,25 @@ export default function Home({ token, tab, info, infoError, meta, metaError, rel
   return (
     <>
       <PageHead
-        title="Email campaigns"
-        caption="Compose with merge tags, preview as a real account, test, then send in throttled batches and watch deliveries, opens and clicks come in."
+        title={tab === "usage" || tab === "sent" ? "Email" : "Email campaigns"}
+        caption={tab === "usage" || tab === "sent"
+          ? "Every email Markdrop sends, from sign-in codes to campaigns: which provider took it under today's limits, and what happened."
+          : "Compose with merge tags, preview as a real account, test, then send in throttled batches and watch deliveries, opens and clicks come in."}
         actions={tab === "campaigns" ? (
           <Button iconLeft="plus" onClick={() => document.getElementById("email-new")?.scrollIntoView({ behavior: "smooth", block: "start" })}>New campaign</Button>
         ) : undefined}
       />
       <ConsoleBanner info={info} />
+      <LimitBanner usage={usage} onOpen={tab === "usage" ? undefined : () => go("usage")} />
       <Tabs
         className="mb-5"
         aria-label="Email"
         value={tab}
-        onChange={(v) => navigate({ et: v === "senders" ? "senders" : null }, { replace: true })}
+        onChange={(v) => go(v as HomeTab)}
         items={[
           { value: "campaigns", label: "Campaigns", count: info ? campaigns.length : undefined },
+          { value: "usage", label: "Usage" },
+          { value: "sent", label: "Sent" },
           { value: "senders", label: "Senders", count: info ? info.senders.length : undefined },
         ]}
       />
@@ -216,7 +227,11 @@ export default function Home({ token, tab, info, infoError, meta, metaError, rel
           {infoError}
         </Alert>
       )}
-      {tab === "senders" ? (
+      {tab === "usage" ? (
+        <UsagePanel usage={usage} error={usageError} reload={reloadUsage} onKind={(k) => { setLogKind(k); go("sent"); }} />
+      ) : tab === "sent" ? (
+        <SentLog token={token} usage={usage} kind={logKind} setKind={setLogKind} />
+      ) : tab === "senders" ? (
         <Senders token={token} info={info} onChanged={reload} />
       ) : (
         <div className="flex flex-col gap-6">

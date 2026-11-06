@@ -12,6 +12,8 @@ import Home from "./Home";
  * URL state (read after mount, never useSearchParams):
  *   ?tab=email                         home, campaigns
  *   ?tab=email&et=senders              home, senders and suppressions
+ *   ?tab=email&et=usage                home, every email: provider usage vs daily limits, 14 days, kinds
+ *   ?tab=email&et=sent                 home, every email: the send log (one row per recipient)
  *   ?tab=email&campaign=new&template=… a new draft from a template
  *   ?tab=email&campaign=<id>&ct=…      a campaign; ct = compose|audience|preview|send|report|content
  */
@@ -92,7 +94,7 @@ export default function EmailSection({ token }: { token: string }) {
   return (
     <Home
       token={token}
-      tab={view.et === "senders" ? "senders" : "campaigns"}
+      tab={view.et === "senders" || view.et === "usage" || view.et === "sent" ? view.et : "campaigns"}
       info={info}
       infoError={infoError}
       meta={meta}
