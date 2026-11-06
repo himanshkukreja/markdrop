@@ -65,6 +65,10 @@ async def reindex(db: AsyncIOMotorDatabase, raw: dict | None) -> None:
         found = [] if not plain else targets(raw.get("content"))
         found = [(s, k) for s, k in found if s != raw.get("slug")]
         existing = await db[COLL].find({"from_doc": doc_id}, {"to_slug": 1, "kind": 1}).to_list(length=MAX_PER_PAGE * 2)
+        # Videos it embeds (or did): their "around" text follows this page (search_index.refresh_around).
+        embeds = {s for s, k in found if k == "embed"} | {r["to_slug"] for r in existing if r.get("kind") == "embed"}
+        if embeds:
+            await search_index.requeue_around(db, sorted(embeds), raw["_id"])
         if {(r["to_slug"], r["kind"]) for r in existing} == set(found):
             return
         await db[COLL].delete_many({"from_doc": doc_id})

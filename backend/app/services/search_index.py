@@ -24,7 +24,23 @@ What lives where (2026-11-04, .work/search/SPEC.md):
   write returns at once and the row follows a moment later. The ``search_index`` background loop
   (services/background.py, every 10 s) re-indexes anything whose ``updated_at`` moved past the
   row's ``v`` (a write path without a hook), runs the one-time backfill, extracts file contents
-  (HTML and PDF text, capped, never on the upload's request) and drops rows whose source is gone.
+  (never on the upload's request) and drops rows whose source is gone.
+* **Whole length** (2026-11-06, .work/briefs/ask-coverage.md). A row holds the first DOC_TEXT
+  characters; the rest of a long text lives in windows (services/search_chunks.py), which search
+  and Ask match and quote with where they are:
+
+  - a meeting **transcript** page: every few minutes, with the time, the speakers and the line's
+    anchor (:func:`index_doc`, from the page's Markdown; ``ch`` = its hash, so an unchanged
+    transcript is never re-chunked);
+  - a **file's** contents (services/file_text.py: Word sections, PowerPoint slides and notes, Excel
+    sheets, CSV rows, PDF pages, HTML, text): :func:`extract_file`, in the background;
+  - a **video's** captions (``captions_key``, .vtt) by minute, and the text around it on each page
+    that embeds it (gated by that page: services/search_chunks.py ``g``), refreshed when such a page
+    is saved (``ax`` pending, :func:`refresh_around`).
+
+  ``cv`` stamps the row with :data:`COVERAGE_VERSION`; :func:`coverage_tick` brings older rows up
+  (transcripts re-chunked, files re-queued for extraction): background, resumable, a slice per tick,
+  files at FILES_PER_TICK per tick (fetched from R2).
 """
 
 from __future__ import annotations
@@ -39,7 +55,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import UpdateOne
 
-from app.services import heading_ids
+from app.services import file_text, heading_ids, search_chunks
 from app.services import search_text as st
 
 log = logging.getLogger("markdrop.search_index")
@@ -53,8 +69,13 @@ MAX_HEADINGS = 60
 MAX_HEADING_WORDS = 300
 FILE_FETCH_MAX = 25 * 1024 * 1024
 TEXT_MIMES = ("text/plain", "text/markdown", "text/csv", "application/json")
-EXTRACT_MIMES = ("text/html", "application/pdf", *TEXT_MIMES)
+EXTRACT_MIMES = file_text.EXTRACTABLE
 EXTRACT_TIMEOUT_S = 20.0
+COVERAGE_VERSION = 1          # bump to re-chunk transcripts and re-extract files (coverage_tick)
+COVERAGE_BATCH = 100
+CAPTIONS_FETCH_MAX = 4 * 1024 * 1024
+AROUND_PAGES = 5              # pages around a video read for its "around" text
+AROUND_CHARS = 1500           # characters before and after the embed
 DEBOUNCE_S = 0.25
 BACKFILL_BUDGET_S = 8.0       # per background tick, then it yields
 BACKFILL_BATCH = 200
@@ -79,6 +100,8 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("hw", 1), ("_id", 1)], name="hw_id")
     await db[COLL].create_index("site", sparse=True)
     await db[COLL].create_index("fx", sparse=True)
+    await db[COLL].create_index("ax", sparse=True)
+    await search_chunks.ensure_indexes(db)
     # The reconciler's "what changed since" scans.
     await db["documents"].create_index("updated_at")
     await db["docs_pages"].create_index("draft.updated_at")
@@ -135,6 +158,17 @@ def plain_fields(text: str | None, *, limit: int = FILE_TEXT) -> dict:
 EMPTY = {"hd": [], "hw": [], "w": [], "x": ""}
 
 
+def is_video(raw: dict) -> bool:
+    return (raw.get("mime") or "").lower().startswith("video/")
+
+
+def file_key(raw: dict) -> str | None:
+    """What a file's extracted text depends on: its blob, and a video's captions file."""
+    if not raw.get("blob_key"):
+        return None
+    return raw["blob_key"] + (f"|{raw['captions_key']}" if raw.get("captions_key") else "")
+
+
 def doc_row(raw: dict) -> dict:
     """The row for a document (without ``_id``). Files get their contents later (``fx``)."""
     base = {"src": "doc", "v": _aware(raw.get("updated_at")), "at": now()}
@@ -142,8 +176,12 @@ def doc_row(raw: dict) -> dict:
         return {**base, **EMPTY}
     if raw.get("kind") == "artifact":
         mime = (raw.get("mime") or "").split(";")[0].strip().lower()
-        fx = "pending" if (mime in EXTRACT_MIMES and raw.get("blob_key") and not raw.get("bundle_prefix")) else "none"
-        return {**base, **EMPTY, "fx": fx, "fk": raw.get("blob_key")}
+        readable = (mime in EXTRACT_MIMES or (is_video(raw) and raw.get("captions_key")))
+        fx = "pending" if (readable and raw.get("blob_key") and not raw.get("bundle_prefix")) else "none"
+        row = {**base, **EMPTY, "fx": fx, "fk": file_key(raw)}
+        if is_video(raw):
+            row["ax"] = "pending"
+        return row
     return {**base, **text_fields(raw.get("content"))}
 
 
@@ -159,7 +197,25 @@ def guide_row(page: dict) -> dict:
 # ── Writing rows ──────────────────────────────────────────────────────────────
 
 _DOC_FIELDS = {"content": 1, "updated_at": 1, "encrypted": 1, "read_password_hash": 1, "kind": 1, "mime": 1,
-               "blob_key": 1, "bundle_prefix": 1, "editor": 1, "template": 1}
+               "blob_key": 1, "bundle_prefix": 1, "editor": 1, "template": 1, "meeting_role": 1,
+               "captions_key": 1, "slug": 1}
+
+
+def _hash(text: str) -> str:
+    import hashlib
+
+    return hashlib.sha1((text or "").encode("utf-8", "replace")).hexdigest()[:16]
+
+
+async def _chunk_transcript(db: AsyncIOMotorDatabase, raw: dict, old: dict | None) -> dict:
+    """A transcript page's windows, rewritten only when its Markdown changed. Returns row fields."""
+    content = raw.get("content") or ""
+    h = _hash(content)
+    if old and old.get("ch") == h and old.get("cv") == COVERAGE_VERSION:
+        return {"ch": h, "cv": COVERAGE_VERSION, "nc": old.get("nc", 0)}
+    rows = search_chunks.transcript_chunks(content)
+    n = await search_chunks.replace(db, raw["_id"], "transcript", rows)
+    return {"ch": h, "cv": COVERAGE_VERSION, "nc": n}
 
 
 async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
@@ -169,12 +225,30 @@ async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
     raw = await db["documents"].find_one({"_id": oid}, _DOC_FIELDS)
     if raw is None or raw.get("template"):
         await db[COLL].delete_one({"_id": oid})
+        await search_chunks.drop(db, oid)
         return False
     row = doc_row(raw)
-    if raw.get("kind") == "artifact" and row.get("fx") == "pending":
-        old = await db[COLL].find_one({"_id": oid}, {"fk": 1, "fx": 1, "w": 1, "x": 1})
-        if old and old.get("fk") == row.get("fk") and old.get("fx") in ("done", "failed"):
-            row.update(fx=old["fx"], w=old.get("w") or [], x=old.get("x") or "")
+    if title_only(raw):
+        await search_chunks.drop(db, oid)       # encrypted / password: never a word of its text
+        row.update(nc=0, ch=None, cv=COVERAGE_VERSION)
+    elif raw.get("kind") == "artifact" and row.get("fx") == "pending":
+        old = await db[COLL].find_one({"_id": oid}, {"fk": 1, "fx": 1, "w": 1, "x": 1, "cv": 1, "nc": 1})
+        if (old and old.get("fk") == row.get("fk") and old.get("fx") in ("done", "failed", "refused")
+                and old.get("cv") == COVERAGE_VERSION):
+            row.update(fx=old["fx"], w=old.get("w") or [], x=old.get("x") or "", nc=old.get("nc", 0))
+    elif raw.get("kind") == "artifact":
+        old = await db[COLL].find_one({"_id": oid}, {"nc": 1})
+        if old and old.get("nc"):
+            await search_chunks.drop(db, oid, "file")
+            await search_chunks.drop(db, oid, "captions")
+        row.update(nc=0, cv=COVERAGE_VERSION)
+    elif raw.get("meeting_role") == "transcript":
+        old = await db[COLL].find_one({"_id": oid}, {"ch": 1, "cv": 1, "nc": 1})
+        row.update(await _chunk_transcript(db, raw, old))
+    if row.get("ax") == "pending":
+        old = await db[COLL].find_one({"_id": oid}, {"ax": 1})
+        if old and old.get("ax") == "done":
+            row.pop("ax")          # the around text follows the embedding pages' saves, not the file's
     await db[COLL].update_one({"_id": oid}, {"$set": row}, upsert=True)
     return True
 
@@ -194,6 +268,8 @@ async def drop(db: AsyncIOMotorDatabase, doc_id: Any) -> None:
     try:
         oid = doc_id if isinstance(doc_id, ObjectId) else ObjectId(str(doc_id))
         await db[COLL].delete_one({"_id": oid})
+        await search_chunks.drop(db, oid)
+        await search_chunks.drop_gate(db, oid)
     except Exception:
         pass
 
@@ -259,50 +335,69 @@ async def drain() -> None:
 
 
 def extract_text(data: bytes, mime: str) -> str:
-    """Searchable text of a file's bytes: HTML's visible text, a PDF's text (pypdf, the extractor
-    Guides embeds use), plain text as is. Capped at FILE_TEXT characters."""
-    mime = (mime or "").split(";")[0].strip().lower()
-    if mime == "text/html":
-        return st.html_text(data, FILE_TEXT)
-    if mime == "application/pdf":
-        from app.services import docs_embeds
+    """Searchable text of a file's bytes (services/file_text.py), capped at FILE_TEXT characters.
+    Empty for what is refused (encrypted, a ZIP bomb, malformed)."""
+    try:
+        return file_text.extract(data, mime).text[:FILE_TEXT]
+    except file_text.Refused:
+        return ""
 
-        return (docs_embeds.extract_pdf(data).get("text") or "")[:FILE_TEXT]
-    if mime in TEXT_MIMES:
-        return data[: FILE_TEXT * 4].decode("utf-8", "replace")[:FILE_TEXT]
-    return ""
+
+def _extract_parts(data: bytes, mime: str, filename: str | None) -> list:
+    return file_text.extract(data, mime, filename).parts
 
 
 async def extract_file(db: AsyncIOMotorDatabase, doc_id: ObjectId) -> str:
-    """Fetch one file's bytes from R2 and store its text. Returns the new ``fx`` state."""
+    """Fetch one file's bytes from R2 and store its text (the row's first part, the rest in windows
+    with their pages / slides / sheets; a video's captions by minute). Returns the new ``fx`` state:
+    done | none | failed | refused (never read: encrypted, a ZIP bomb, malformed) | gone."""
     from starlette.concurrency import run_in_threadpool
 
     from app.services import r2
 
     raw = await db["documents"].find_one({"_id": doc_id}, {"blob_key": 1, "mime": 1, "size_bytes": 1,
-                                                          "encrypted": 1, "read_password_hash": 1})
+                                                          "encrypted": 1, "read_password_hash": 1,
+                                                          "captions_key": 1, "original_filename": 1})
     if raw is None:
         await db[COLL].delete_one({"_id": doc_id})
+        await search_chunks.drop(db, doc_id)
         return "gone"
-    state, fields = "failed", {}
+    video = is_video(raw)
+    key = raw.get("captions_key") if video else raw.get("blob_key")
+    limit = CAPTIONS_FETCH_MAX if video else FILE_FETCH_MAX
+    state, fields, parts, src = "failed", {}, [], "captions" if video else "file"
     if title_only(raw):
         state = "none"
-    elif int(raw.get("size_bytes") or 0) > FILE_FETCH_MAX:
+    elif not key:
+        state = "none"
+    elif not video and int(raw.get("size_bytes") or 0) > FILE_FETCH_MAX:
         state = "none"
     elif not r2.is_configured():
         state = "failed"
     else:
         try:
-            data = await run_in_threadpool(r2.get_bytes, raw["blob_key"], FILE_FETCH_MAX)
+            data = await run_in_threadpool(r2.get_bytes, key, limit)
             if data:
-                text = await asyncio.wait_for(run_in_threadpool(extract_text, data, raw.get("mime") or ""),
-                                              timeout=EXTRACT_TIMEOUT_S)
+                mime = file_text.VTT if video else (raw.get("mime") or "")
+                parts = await asyncio.wait_for(run_in_threadpool(_extract_parts, data, mime, raw.get("original_filename")),
+                                               timeout=EXTRACT_TIMEOUT_S)
+                text = "\n\n".join(p.text for p in parts)
                 fields, state = plain_fields(text), "done"
+        except file_text.Refused as exc:
+            state = "refused"
+            log.info("search index: file text for %s refused (%s)", doc_id, exc)
         except Exception as exc:
             log.info("search index: file text for %s skipped (%s)", doc_id, type(exc).__name__)
-    # Only if the row still points at the blob we read (a swap meanwhile re-queues it).
-    await db[COLL].update_one({"_id": doc_id, "fk": raw.get("blob_key")},
-                              {"$set": {**fields, "fx": state, "fx_at": now()}})
+    fk = file_key(raw)
+    # Only if the row still points at the bytes we read (a swap meanwhile re-queues it).
+    cur = await db[COLL].find_one({"_id": doc_id}, {"fk": 1})
+    if cur is None or cur.get("fk") != fk:
+        return state
+    n = await search_chunks.replace(db, doc_id, src, search_chunks.parts_chunks(parts, src=src)) if state == "done" else 0
+    if state != "done":
+        await search_chunks.drop(db, doc_id, src)
+    await db[COLL].update_one({"_id": doc_id, "fk": fk},
+                              {"$set": {**fields, "fx": state, "fx_at": now(), "nc": n, "cv": COVERAGE_VERSION}})
     return state
 
 
@@ -310,6 +405,82 @@ async def extract_pending(db: AsyncIOMotorDatabase, limit: int = FILES_PER_TICK)
     rows = await db[COLL].find({"fx": "pending"}, {"_id": 1}).limit(limit).to_list(length=limit)
     for r in rows:
         await extract_file(db, r["_id"])
+    return len(rows)
+
+
+# ── A video's "around" text: the pages that embed it ──────────────────────────
+
+
+def around_text(markdown: str, slug: str, chars: int = AROUND_CHARS) -> str:
+    """The plain text around ``slug``'s embed in a page's Markdown (before and after it)."""
+    import re as _re
+
+    md = st._FRONTMATTER.sub("", (markdown or "").replace("\r\n", "\n"), count=1)
+    m = _re.search(r"src=[\"']?(?:https?://[^\s\"'}]*/)?" + _re.escape(slug) + r"(?![\w-])", md)
+    if not m:
+        return ""
+    start, end = max(0, m.start() - chars), min(len(md), m.end() + chars)
+    if start > 0:
+        nl = md.find("\n", start)
+        start = nl + 1 if 0 <= nl < m.start() else start
+    return st.markdown_text(md[start:end]).strip()
+
+
+async def refresh_around(db: AsyncIOMotorDatabase, video_id: ObjectId) -> int:
+    """Rewrite a video's "around" windows from the pages that embed it now (each gated by its page)."""
+    from app.services import page_links
+
+    raw = await db["documents"].find_one({"_id": video_id}, {"slug": 1, "mime": 1, "encrypted": 1,
+                                                            "read_password_hash": 1, "kind": 1})
+    await search_chunks.drop(db, video_id, "around")
+    n = 0
+    if raw is not None and is_video(raw) and not title_only(raw) and raw.get("slug"):
+        links = await db[page_links.COLL].find({"to_slug": raw["slug"], "kind": "embed"}, {"from_doc": 1}).limit(
+            AROUND_PAGES * 4).to_list(length=AROUND_PAGES * 4)
+        seen = 0
+        for link in links:
+            if seen >= AROUND_PAGES:
+                break
+            try:
+                pid = ObjectId(str(link.get("from_doc")))
+            except Exception:
+                continue
+            page = await db["documents"].find_one({"_id": pid, "deleted_at": None},
+                                                  {"content": 1, "title": 1, "encrypted": 1, "read_password_hash": 1,
+                                                   "kind": 1, "template": 1})
+            if page is None or title_only(page) or page.get("kind") == "artifact" or page.get("template"):
+                continue
+            text = around_text(page.get("content") or "", raw["slug"])
+            if not text:
+                continue
+            seen += 1
+            n += await search_chunks.replace(db, video_id, "around", [
+                {"x": text, "l": (page.get("title") or "Untitled")[:120]}], gate=pid)
+    await db[COLL].update_one({"_id": video_id}, {"$set": {"ax": "done"}})
+    return n
+
+
+async def requeue_around(db: AsyncIOMotorDatabase, slugs: list[str], page_id: Any = None) -> int:
+    """A page that embeds these slugs was saved: the videos among them refresh their "around" text
+    (in the background). ``page_id``'s windows on videos it no longer embeds go now."""
+    ids = []
+    if slugs:
+        ids = [r["_id"] for r in await db["documents"].find(
+            {"slug": {"$in": list(slugs)[:200]}, "kind": "artifact", "mime": {"$regex": "^video/"}}, {"_id": 1}
+        ).to_list(length=200)]
+    if page_id is not None:
+        gid = page_id if isinstance(page_id, ObjectId) else ObjectId(str(page_id))
+        stale = await db[search_chunks.COLL].distinct("p", {"g": gid})
+        ids += [p for p in stale if p not in ids]
+    if ids:
+        await db[COLL].update_many({"_id": {"$in": ids}}, {"$set": {"ax": "pending"}})
+    return len(ids)
+
+
+async def around_pending(db: AsyncIOMotorDatabase, limit: int = 20) -> int:
+    rows = await db[COLL].find({"ax": "pending"}, {"_id": 1}).limit(limit).to_list(length=limit)
+    for r in rows:
+        await refresh_around(db, r["_id"])
     return len(rows)
 
 
@@ -410,8 +581,49 @@ async def sweep_orphans(db: AsyncIOMotorDatabase, *, batch: int = 500) -> int:
     gone = [i for i in ids if i not in live and i not in trashed]
     if gone:
         await db[COLL].delete_many({"_id": {"$in": gone}})
+        await db[search_chunks.COLL].delete_many({"$or": [{"p": {"$in": gone}}, {"g": {"$in": gone}}]})
     await db[META].update_one({"_id": "orphans"}, {"$set": {"cursor": ids[-1], "at": now()}}, upsert=True)
     return len(gone)
+
+
+COVERAGE_QUEUE_MAX = 40       # files waiting for extraction before the coverage pass queues more
+
+
+async def coverage_tick(db: AsyncIOMotorDatabase, *, batch: int = COVERAGE_BATCH) -> dict:
+    """One slice of bringing transcripts and files up to COVERAGE_VERSION (whole transcripts in
+    windows; Office / PDF / caption text with locations). Resumable (cursor by ``_id``), skips rows
+    already at the version (a file whose blob is unchanged is never fetched twice), and waits while
+    more than COVERAGE_QUEUE_MAX files are queued for extraction (R2 fetches stay at FILES_PER_TICK
+    per tick). A no-op once done for the version."""
+    state = await _meta(db, "coverage")
+    if state.get("version") == COVERAGE_VERSION and state.get("done"):
+        return {"done": True, "indexed": 0}
+    bf = await _meta(db, "backfill")
+    if not (bf.get("version") == INDEX_VERSION and bf.get("done")):
+        return {"done": False, "indexed": 0, "waiting": "backfill"}
+    if state.get("version") != COVERAGE_VERSION:
+        state = {"version": COVERAGE_VERSION, "cursor": None, "count": 0, "queued": 0, "started_at": now()}
+    if await db[COLL].count_documents({"fx": "pending"}, limit=COVERAGE_QUEUE_MAX + 1) > COVERAGE_QUEUE_MAX:
+        return {"done": False, "indexed": 0, "waiting": "files"}
+    q: dict = {"$or": [{"meeting_role": "transcript"}, {"kind": "artifact"}]}
+    if state.get("cursor") is not None:
+        q["_id"] = {"$gt": state["cursor"]}
+    rows = await db["documents"].find(q, {"_id": 1}).sort("_id", 1).limit(batch).to_list(length=batch)
+    n = 0
+    if rows:
+        have = {r["_id"]: r for r in await db[COLL].find({"_id": {"$in": [r["_id"] for r in rows]}},
+                                                        {"cv": 1}).to_list(length=len(rows))}
+        for r in rows:
+            if (have.get(r["_id"]) or {}).get("cv") != COVERAGE_VERSION:
+                await index_doc(db, r["_id"])
+                n += 1
+        state["cursor"] = rows[-1]["_id"]
+        state["count"] = int(state.get("count") or 0) + len(rows)
+        state["queued"] = int(state.get("queued") or 0) + n
+    else:
+        state.update(done=True, finished_at=now())
+    await db[META].update_one({"_id": "coverage"}, {"$set": state}, upsert=True)
+    return {"done": bool(state.get("done")), "indexed": n, "total": state.get("count")}
 
 
 _last_orphans: dict[str, float] = {}
@@ -421,7 +633,9 @@ async def background(db: AsyncIOMotorDatabase) -> None:
     """The ``search_index`` loop body (services/background.py)."""
     await backfill_tick(db)
     await reconcile(db)
+    await coverage_tick(db)
     await extract_pending(db)
+    await around_pending(db)
     t = time.monotonic()
     if t - _last_orphans.get("t", 0.0) > 600:
         _last_orphans["t"] = t
@@ -435,4 +649,7 @@ async def status(db: AsyncIOMotorDatabase) -> dict:
         "backfill": {k: bf.get(k) for k in ("version", "phase", "done", "count", "started_at", "finished_at")},
         "rows": await db[COLL].estimated_document_count(),
         "files_pending": await db[COLL].count_documents({"fx": "pending"}),
+        "coverage": {k: (await _meta(db, "coverage")).get(k) for k in ("version", "done", "count", "queued",
+                                                                        "started_at", "finished_at")},
+        "chunks": await db[search_chunks.COLL].estimated_document_count(),
     }
