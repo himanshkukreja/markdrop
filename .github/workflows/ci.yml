@@ -416,6 +416,15 @@ jobs:
           PB_FAKE_PAGES_AI=1 zsh up.sh restart-api
           node meeting-memory.mjs
 
+      # Team memory (the Team board, a person's page, corrections, groups, the weekly summary, phones and
+      # tablets), ~80 s, on the bughunt job: the API restarts with the fake Team AI (PB_FAKE_TEAM_AI).
+      - name: team.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_FAKE_TEAM_AI=1 zsh up.sh restart-api
+          node team.mjs
+
       # The one-tap "turn on notifications" prompts (Home card, bell nudge), ~40 s, on the bughunt job:
       # the API restarts with throwaway push keys and the fake push service (PB_PUSH).
       - name: push-prompts.mjs on ${{ matrix.browser }}

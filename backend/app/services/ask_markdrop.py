@@ -1017,10 +1017,38 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     first = _personal_cands(mine, actor.user_id, keep)
     seen_ = {c.key for c in first}
     first += [c for c in await named_meetings(db, actor, ctx, w, standalone, scope, keep) if c.key not in seen_]
+    # ── Team memory hook (feat/workspace-memory: services/workspace_memory.py) ─────────────────────
+    # "What is Abhishek working on?", "status of the checkout project": the meetings / pages Team memory
+    # read that about (each readable by the asker), with those facts as their excerpt — after the
+    # asker's own items and the meetings the question names, before the word search's.
+    mem = await _team_memory(db, actor, ctx, standalone, scope, keep)
+    seen_ = {c.key for c in first}
+    first += [c for c, _t in mem if c.key not in seen_]
+    # ── end Team memory hook ──────────────────────────────────────────────────────────────────────
     seen = {c.key for c in first}
     cands = [*first, *(c for c in cands if c.key not in seen)][:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)
-    return await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine, expanded=terms), len(cands), withheld
+    sources = await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine, expanded=terms)
+    _team_memory_text(sources, mem)
+    return sources, len(cands), withheld
+
+
+async def _team_memory(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str,
+                       scope: str | None, keep=None) -> list[tuple[search.Cand, str]]:
+    """Team memory hook: [(source doc candidate, "Team memory …" excerpt)] (services/workspace_memory.py)."""
+    from app.services import workspace_memory
+
+    got = await workspace_memory.assistant_sources(db, actor, ctx, question, scope)
+    return [(c, t) for c, t in got if keep is None or keep(c)]
+
+
+def _team_memory_text(sources: list[Source], mem: list[tuple[search.Cand, str]]) -> None:
+    """Team memory hook: the facts become the start of their source's excerpt."""
+    texts = {c.key: t for c, t in mem}
+    for src in sources:
+        t = texts.get(src.key)
+        if t:
+            src.text = t + ("\n\n" + src.text if src.text else "")
 
 
 async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, raw: dict, standalone: str,

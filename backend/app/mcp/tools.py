@@ -3495,6 +3495,10 @@ TOOLS += BACKFILL_TOOLS
 from app.mcp.slack_tools import SLACK_TOOLS  # noqa: E402
 
 TOOLS += SLACK_TOOLS
+# Team memory (list_team, get_person_profile, get_project_status): app/mcp/team_tools.py.
+from app.mcp.team_tools import TEAM_TOOLS  # noqa: E402
+
+TOOLS += TEAM_TOOLS
 
 # Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
 # answers with the first call's result instead of writing twice.

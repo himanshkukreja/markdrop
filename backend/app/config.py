@@ -610,6 +610,12 @@ class Settings(BaseSettings):
     ask_suggestions_enabled: bool = True
     ask_suggestions_daily_usd: float = 0.5
     ask_suggestions_monthly_usd: float = 5.0
+    # Team memory (services/workspace_memory.py, ledger feature "workspace_memory"): the background
+    # reading of meetings and pages into who-is-doing-what facts, in workspaces that turned it on
+    # (owner decision 2026-11-06: $3 a day, $30 a month; the admin AI tab overrides them).
+    workspace_memory_enabled: bool = True
+    workspace_memory_daily_usd: float = 3.0
+    workspace_memory_monthly_usd: float = 30.0
 
     # ── Markdrop for Slack (services/slack*.py, routers/slack.py) ────────────
     # The one Slack app Markdrop owns (docs-platform/slack/manifest.yaml + SETUP.md). All three come

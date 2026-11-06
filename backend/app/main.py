@@ -66,6 +66,7 @@ from app.routers.search import router as search_router
 from app.routers.meetings import router as meetings_router
 from app.routers.meetings_backfill import router as meetings_backfill_router
 from app.routers.meeting_memory import router as meeting_memory_router
+from app.routers.team import router as team_router
 from app.routers.slack import router as slack_router
 from app.routers.ask import router as ask_router
 from app.routers.home import router as home_router
@@ -300,6 +301,8 @@ app.include_router(meetings_backfill_router)
 app.include_router(meetings_router)
 # Meeting memory (routers/meeting_memory.py): meetings' decisions next to the page being written.
 app.include_router(meeting_memory_router)
+# Team (routers/team.py): who is doing what in a workspace, from its meetings and pages.
+app.include_router(team_router)
 app.include_router(slack_router)
 # Ask Markdrop (routers/ask.py): the home's question box, threads, suggestions.
 app.include_router(ask_router)

@@ -33,6 +33,9 @@ export const wsSettingsKey = (id: string) => `ws:${id}:settings`;
 export const wsDocsKey = (id: string) => `ws:${id}:docs`;
 /** The workspace's Meetings hub (/meetings/<id>). */
 export const wsMeetingsKey = (id: string) => `ws:${id}:meetings`;
+/** The workspace's Team board (/team/<id>). */
+export const wsTeamKey = (id: string) => `ws:${id}:team`;
+const teamHref = (id: string) => `/team/${encodeURIComponent(id)}`;
 /** lib/meetings' meetingsHref, without loading the meetings client into the shell. */
 const meetingsHref = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 
@@ -59,6 +62,8 @@ export function railKeyFor(pathname: string, search: string): string | null {
   }
   const mt = pathname.match(/^\/meetings\/([^/]+)\/?$/);
   if (mt) return wsMeetingsKey(decodeURIComponent(mt[1]!));
+  const tm = pathname.match(/^\/team\/([^/]+)(?:\/.*)?$/);
+  if (tm) return wsTeamKey(decodeURIComponent(tm[1]!));
   if (pathname === "/search") return "search";
   if (pathname === "/ask") return "ask";
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
@@ -363,6 +368,17 @@ function workspaceNode(
       href: meetingsHref(ws.id),
       leaf: true,
     }] : [];
+    // Team (who is doing what): every member (any role) once Team memory is on; admins also while it is off (to turn it on).
+    if (ws.settings?.team_memory === true || admin) {
+      meetingsRow.push({
+        key: wsTeamKey(ws.id),
+        sig: sig("tm", ws.id, ws.settings?.team_memory === true),
+        label: "Team",
+        icon: <Icon name="users" size={16} />,
+        href: teamHref(ws.id),
+        leaf: true,
+      });
+    }
     children = [...meetingsRow, ...(kids.get(null) ?? []).filter((f) => !(hub && f.meetings)).map((f) => build(f, open)), ...(outline ? placeNodes(c, outline, null, wsHref, open) : [])];
     if (children.length === meetingsRow.length) {
       children = [...meetingsRow, { key: `ws:${ws.id}:empty`, sig: sig("e", member), label: member ? "No pages yet. Use + to add one." : "Nothing here yet", note: true }];

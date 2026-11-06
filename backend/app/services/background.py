@@ -30,6 +30,10 @@ one API worker runs it (§5.1, §5.5, A6):
     meeting_memory  every 15 s  meetings' decisions, action items… as facts for the editor's "From
                              meetings" panel: re-derive a batch of meetings changed since (or never
                              derived: the backfill), drop facts of deleted meetings (services/meeting_memory.py)
+    workspace_memory every 30 s  Team memory (services/workspace_memory.py): read the meetings and pages
+                             that changed (pages 10 min after their last save) in workspaces that turned
+                             it on, under the ``workspace_memory`` AI cap; consolidate once a day; delete
+                             what a workspace gathered when it turns Team memory off
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -220,6 +224,10 @@ async def _ask_suggestions(db: AsyncIOMotorDatabase) -> None:
     from app.services import ask_suggestions
 
     await ask_suggestions.background(db)
+async def _workspace_memory(db: AsyncIOMotorDatabase) -> None:
+    from app.services import workspace_memory
+
+    await workspace_memory.background(db)
 
 
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
@@ -236,6 +244,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("meetings_backfill", 10.0, _meetings_backfill),
                               ("meeting_memory", 15.0, _meeting_memory),
                               ("ask_suggestions", 300.0, _ask_suggestions),
+                              ("workspace_memory", 30.0, _workspace_memory),
                               ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

@@ -47,6 +47,23 @@ class SettingsPayload(BaseModel):
     ai_enabled: bool = True
     # New pages get a cover picked for them (services/page_covers.py). Default on.
     auto_covers: bool = True
+    # Team memory (services/workspace_memory.py): default off; admins turn it on.
+    team_memory: bool = False
+    # IANA timezone for Team's weekly summary (Monday 9 am); none: UTC.
+    timezone: str | None = Field(None, max_length=64)
+
+    @field_validator("timezone")
+    @classmethod
+    def _iana(cls, v: str | None) -> str | None:
+        if v in (None, ""):
+            return None
+        from zoneinfo import ZoneInfo
+
+        try:
+            ZoneInfo(v)
+        except Exception:
+            raise ValueError("Unknown timezone")
+        return v
 
 
 class DomainSummary(BaseModel):

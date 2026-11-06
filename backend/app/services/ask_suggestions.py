@@ -234,7 +234,15 @@ async def team_sources(db: AsyncIOMotorDatabase, ws_id: str, *, now: datetime | 
         changed = max(changed, ts) if changed and ts else (ts or changed)
         if len(out_p) >= MAX_PAGES:
             break
-    return {"meetings": out_m, "pages": out_p, "changed_at": changed}
+    # Team memory's active projects (services/team_extras.py), team-visible lines only; nothing when it's off.
+    projects: list[dict] = []
+    try:
+        from app.services import team_extras
+
+        projects = await team_extras.active_projects(db, ws_id, since)
+    except Exception:
+        log.warning("ask suggestions: team projects of %s not read", ws_id, exc_info=True)
+    return {"meetings": out_m, "pages": out_p, "projects": projects, "changed_at": changed}
 
 
 def source_text(src: dict) -> str:
@@ -249,6 +257,9 @@ def source_text(src: dict) -> str:
                 lines.append(f"  {name}: " + "; ".join(m[key]))
     for p in src.get("pages") or []:
         lines.append(f"Page: {p['title']}" + (f" — headings: {'; '.join(p['headings'])}" if p.get("headings") else ""))
+    for p in src.get("projects") or []:
+        lines.append(f"Project: {p['name']}" + (f" — status: {p['status']}" if p.get("status") else "")
+                     + f" · {p['people']} people")
     return "\n".join(lines)
 
 

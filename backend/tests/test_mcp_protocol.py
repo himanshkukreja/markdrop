@@ -148,7 +148,9 @@ class Transport(McpTestCase):
             # Meeting memory for writing (decisions, action items… related to a topic or a page).
             "meeting_context",
             # Markdrop for Slack: the connection, and posting a meeting to its channel.
-            "slack_status", "post_meeting_to_slack"})
+            "slack_status", "post_meeting_to_slack",
+            # Team memory: who is doing what (the board, a person, a project).
+            "list_team", "get_person_profile", "get_project_status"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
@@ -200,7 +202,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 85)
+        self.assertEqual(len(r.json()["result"]["tools"]), 88)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

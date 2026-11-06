@@ -21,6 +21,7 @@ export const DOCS_PAGES = {
   pagesOverview: "/pages/overview",
   pagesAi: "/pages/ai",
   autoCovers: "/pages/overview#automatic-covers",
+  teamMemory: "/workspaces/team",
   // Files
   supportedTypes: "/files/supported-types",
   fileLimits: "/files/limits",

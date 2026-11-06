@@ -595,6 +595,96 @@ if os.environ.get("PB_PUSH"):
         await db[_push.PUSH_LOG].delete_many({})  # each step's page is new; no two-minute gap here
         return await _push.flush(db, _dt.now(_tz.utc) + _td(minutes=5))
 
+# Team memory (services/workspace_memory.py) against a fake model: PB_FAKE_TEAM_AI=1 (team.mjs). It reads a
+# meeting's transcript lines "[sN] t Speaker: …" sentence by sentence — "Done: X" (update), "Working on: X"
+# (working_on), "Target: X by <when>" (target, the date resolved by the service), "Blocked: X (waiting on
+# Name)" (blocker), "Decision: X" (decision), "Status: X" (status) — and a document's "@Name is X" sentences
+# (working_on); a product word (Sourcing, Billing, Onboarding, Mobile) names the project. Streams like the real
+# API; nothing leaves. Background loops are off here: POST /__sandbox/team-memory/run reads everything
+# changed now (pages without the 10-minute wait), and POST /__sandbox/team-memory/member adds a member.
+if os.environ.get("PB_FAKE_TEAM_AI"):
+    import json as _tjson
+    import re as _tre
+    from datetime import datetime as _tdt, timedelta as _ttd, timezone as _ttz
+    from types import SimpleNamespace as _TNS
+
+    from app import database as _tdatabase
+    from app.services import workspace_memory as _wm
+
+    _wm.DEBOUNCE = _ttd(0)
+    _PROJ = ("Sourcing", "Billing", "Onboarding", "Mobile")
+
+    def _proj(t):
+        return next((p for p in _PROJ if p.lower() in t.lower()), None)
+
+    def _team_facts(user):
+        facts = []
+        for seg, who, text in _tre.findall(r"\[s(\d+)\] \S+ ([^:\n]+): ([^\n]+)", user):
+            for kind, body in _tre.findall(r"(Done|Working on|Target|Blocked|Decision|Status|Role): ([^.]+)", text):
+                f = {"person": who.strip(), "cite": f"s{seg}", "project": _proj(body), "confidence": 0.9}
+                if kind == "Target":
+                    m = _tre.search(r"^(.*?) by (.+)$", body)
+                    f.update(kind="target", text=(m.group(1) if m else body).strip().capitalize(), due_text=(m.group(2) if m else None))
+                elif kind == "Blocked":
+                    m = _tre.search(r"^(.*?)\s*\(waiting on ([^)]+)\)", body)
+                    f.update(kind="blocker", text=(m.group(1) if m else body).strip().capitalize(), waiting_on=(m.group(2) if m else None))
+                else:
+                    f.update(kind={"Done": "update", "Working on": "working_on", "Decision": "decision", "Status": "status",
+                                   "Role": "role"}[kind], text=body.strip().capitalize())
+                facts.append(f)
+        for name, what in _tre.findall(r"@([A-Z][a-z]+ [A-Z][a-z]+) is ([^.\n]+)", user):
+            facts.append({"person": name, "kind": "working_on", "text": what.strip().capitalize(), "project": _proj(what), "cite": None})
+        return {"facts": facts}
+
+    class _TStream:
+        def __init__(self, text):
+            self.text = text
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            return self._gen()
+
+        async def _gen(self):
+            yield _TNS(type="text", text=self.text)
+
+        async def get_final_message(self):
+            return _TNS(content=[_TNS(type="text", text=self.text)], stop_reason="end_turn",
+                        usage=_TNS(input_tokens=4000, output_tokens=len(self.text) // 4 + 5, cache_read_input_tokens=0,
+                                   cache_creation_input_tokens=0, cache_creation=None))
+
+    class _TMessages:
+        def stream(self, **params):
+            user = "\n".join(b["text"] for b in params["messages"][-1]["content"])
+            return _TStream(_tjson.dumps(_team_facts(user)))
+
+    _tclient = _TNS(messages=_TMessages())
+    _wm.docs_agent = _TNS(get_client=lambda: _tclient, configured=lambda: True)
+
+    @mod.app.post("/__sandbox/team-memory/run", include_in_schema=False)
+    async def _team_run():
+        db = _tdatabase.get_database()
+        out = []
+        for _ in range(20):
+            rep = await _wm.background(db, now=_tdt.now(_ttz.utc))
+            out.append(rep)
+            if not rep.get("done"):
+                break
+        return {"passes": out}
+
+    @mod.app.post("/__sandbox/team-memory/member", include_in_schema=False)
+    async def _team_member(body: dict):
+        db = _tdatabase.get_database()
+        u = await db["users"].find_one({"_id": __import__("bson").ObjectId(body["user_id"])})
+        await db["memberships"].update_one({"workspace_id": body["workspace_id"], "user_id": body["user_id"]},
+                                           {"$set": {"role": body.get("role", "member"), "created_at": _tdt.now(_ttz.utc),
+                                                     "email": u["email"], "name": u.get("name")}}, upsert=True)
+        return {"ok": True}
+
 import uvicorn  # noqa: E402
 
 # Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
