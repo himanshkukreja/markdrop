@@ -1398,7 +1398,10 @@ function pptxViewer(src, theme, at = 0, fn = null) {
 <div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
 <script>
 ${NA_SCRIPT}
-/*pptx-lib*/var PPTX = (${pptxLib})();/*end-pptx-lib*/
+// wrangler's bundler (esbuild, keepNames) adds __name(fn, "name") calls inside these functions;
+// the page has no such helper, so it gets a no-op one (checked against a wrangler dry-run bundle).
+/*pptx-lib*/var __name = function (f) { return f; };
+var PPTX = (${pptxLib})();/*end-pptx-lib*/
 (${pptxUi})(PPTX, ${cfg});
 </script>`;
   return page({ title: "Slides", theme, css, body });
