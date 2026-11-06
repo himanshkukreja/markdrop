@@ -153,6 +153,8 @@ Markdrop looks you up in each Slack workspace connected to one of your Markdrop 
 | "Markdrop for Slack in *Slack workspace* needs an update…" | Ask a workspace admin to select **Update permissions** on the workspace's **Integrations** tab, or link your Slack account. |
 | "Your Slack account in *Slack workspace* is linked to another Markdrop account." | Link it here with **Link my Slack account**, or type `/markdrop unlink` in Slack first. |
 
+![The Slack notifications card in Settings › Account: Get notifications in Slack is on, Acme Slack shows Found as Ben in Slack (by your email), and Message me when lists Mentions, Sign-off requests, Shared with you and Access requests, all on.](/docs-assets/integrations/slack/notifications-card.webp)
+
 **Look again** searches once more, for example after you change your email in Slack. The bell also offers them: when a mention or a sign-off request is in the list, a **Get these in Slack** row with **Turn on** may show at the top (not while the [push notification](/pages/mentions-and-notifications#push-notifications) row is showing). **Not now** hides it on that device.
 
 If you linked your Slack account before Slack notifications were opt-in (November 2026), yours stay on until you turn them off.

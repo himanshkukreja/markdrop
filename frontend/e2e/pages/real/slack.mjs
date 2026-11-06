@@ -162,6 +162,7 @@ if (FAKE) await step("optin", async () => {
   if (!(await status("owner")).install) await (await connect()).c.close();
   // Ben: off by default; turning it on finds him by his email (the fake Slack knows ben@acme.test).
   await api("PUT", "/api/v1/slack/me/notifications", T.member, { on: false });
+  await api("DELETE", `/api/v1/slack/link?workspace_id=${WS}`, T.member);   // linked by `member` (Sign in with Slack)
   const { c, p } = await ctx(browser, { token: T.member });
   await fakeSlack(c);
   await p.goto(`${ACCOUNT}#slack`);
