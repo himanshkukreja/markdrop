@@ -5,6 +5,8 @@ Google account; .work/meetings/AUTO.md).
     POST   /api/v1/meetings/connection               {workspace, restricted} → the token (once), the script
     DELETE /api/v1/meetings/connection               Disconnect: the token is revoked, the script stops
     POST   /api/v1/meetings/inbox                    the script's deliveries (Bearer: that token only)
+    PUT    /api/v1/meetings/connection/check-now     {url} the script's web app (Check now), or null: off
+    POST   /api/v1/meetings/check-now                {workspace} → runs the scripts now (check_now below)
 
 **The connection is a scoped API token** (services/api_token.py): ``scope: "meetings:import"``,
 pinned to one workspace (where the meetings land: its Meetings folder), with its counters on the
@@ -23,15 +25,19 @@ Meetings AI limits, their mentions, their page.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
+import httpx
 from bson import ObjectId
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -122,6 +128,12 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restrict
     await meetings.require_member(db, workspace_id, user.id)
     await ws_service.assert_open(db, workspace_id)
     ws = await ws_service.get_workspace(db, workspace_id)
+    # "Get the new script" is pasted into the same Apps Script project: its web app (Check now) and the
+    # key Markdrop calls it with carry over (setup hands the key to the new code on its first run).
+    old = await mine(db, user.id)
+    carry = {k: old[k] for k in ("check_key", "check_now") if old and old.get(k)}
+    if carry.get("check_now"):
+        carry["check_now"] = {"url": carry["check_now"].get("url")} if carry["check_now"].get("url") else None
     await db["api_tokens"].delete_many({"user_id": user.id, "scope": SCOPE})
     raw, rec = await api_token.create_token(
         db, user.id, f"Google Meet → {getattr(ws, 'name', None) or 'Meetings'}"[:80], scope=SCOPE,
@@ -129,7 +141,9 @@ async def connect(db: AsyncIOMotorDatabase, user, workspace_id: str, *, restrict
                "include_shared": bool(include_shared), "script_given": script_version(),
                "stats": {"received": 0, "imported": 0, "attached": 0, "duplicates": 0, "ignored": 0,
                          "last_received_at": None, "last_imported_at": None, "last_meeting_id": None,
-                         "last_title": None, "last_error": None}})
+                         "last_title": None, "last_error": None},
+               "check_key": carry.get("check_key") or secrets.token_urlsafe(24),
+               **({"check_now": carry["check_now"]} if carry.get("check_now") else {})})
     return raw, rec
 
 
@@ -168,7 +182,14 @@ async def view(db: AsyncIOMotorDatabase, rec: dict | None, *, viewer_id: str | N
         "script_version": _installed(rec),
         "latest_script_version": script_version(),
         "needs_update": _installed(rec) < script_version(),
+        # "Check for new meetings" (the script's web app; never its address): on, and the last check.
+        "check_now": _check_view(rec),
     }
+
+
+def _check_view(rec: dict) -> dict:
+    cn = rec.get("check_now") or {}
+    return {"ready": bool(cn.get("url")), "last_at": _iso(cn.get("last_at")), "last": cn.get("last")}
 
 
 def _installed(rec: dict) -> int:
@@ -223,6 +244,11 @@ async def run_status(db: AsyncIOMotorDatabase, rec: dict, body: dict) -> dict:
     link that this script should fetch first (Markdrop couldn't open them), and the latest version."""
     now = now_utc()
     phase = body.get("phase")
+    # The key "Check for new meetings" calls the script's web app with (connections made before v4 get one now).
+    key = rec.get("check_key")
+    if not key:
+        key = secrets.token_urlsafe(24)
+        await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$set": {"check_key": key}})
     sc: dict[str, Any] = {"version": _count(body.get("version")) or 1,
                           "mode": str(body.get("mode") or "run")[:12],
                           "include_shared": bool(body.get("include_shared"))}
@@ -232,7 +258,7 @@ async def run_status(db: AsyncIOMotorDatabase, rec: dict, body: dict) -> dict:
         await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$set": sets})
         from app.services import meeting_links
         queue = await meeting_links.queued_for(db, rec)
-        return {"ok": True, "latest_version": script_version(), "queue": queue}
+        return {"ok": True, "latest_version": script_version(), "queue": queue, "check_key": key}
     errors = []
     for e in (body.get("errors") or [])[:5]:
         if isinstance(e, dict):
@@ -251,7 +277,181 @@ async def run_status(db: AsyncIOMotorDatabase, rec: dict, body: dict) -> dict:
     from app.services import meeting_links
     await meeting_links.script_reported(db, rec, done=[str(x) for x in (body.get("queue_done") or [])[:50]],
                                         failed=[f for f in (body.get("queue_failed") or [])[:50] if isinstance(f, dict)])
-    return {"ok": True, "latest_version": script_version()}
+    return {"ok": True, "latest_version": script_version(), "check_key": key}
+
+
+# ── Check now: the script's web app ───────────────────────────────────────────
+#
+# The server can't search the person's Drive (Markdrop's Google connection is drive.file: only files
+# picked in the Picker), so "Check for new meetings" asks their script to run now. The script is
+# deployed once as a web app (execute as the person, access: anyone) and its URL pasted in Markdrop;
+# Markdrop POSTs {key} to it (the per-connection key the script received with its status calls: anyone
+# else calling the URL gets "bad_key" and nothing runs), the script runs a quick sync (the usual
+# deliveries to /inbox) and answers with its counts. Google answers a web app POST with a 302 to
+# script.googleusercontent.com, which is fetched with GET.
+
+WEB_APP = re.compile(r"^https://script\.google\.com/(?:a/macros/[A-Za-z0-9.-]{1,253}/|macros/)s/[A-Za-z0-9_-]{20,200}/exec$")
+CHECK_COLL = "meeting_check_now"
+CHECK_GAP = timedelta(seconds=60)
+CHECK_TIMEOUT = httpx.Timeout(100.0, connect=10.0)
+CHECK_TRANSPORT: httpx.AsyncBaseTransport | None = None   # tests: a fake script (httpx.MockTransport)
+_ECHO_HOST = "script.googleusercontent.com"
+
+CHECK_ERRORS = {
+    "bad_key": "The script's web app doesn't run the new script yet. In Apps Script: Run setup once, then Deploy › "
+               "Manage deployments › Edit (pencil) › Version: New version › Deploy.",
+    "no_key": "The script hasn't run since it was updated. In Apps Script, Run setup once.",
+    "too_soon": "It was checked less than a minute ago. Try again in a minute.",
+    "busy": "The script is already checking (its regular run). New meetings arrive in a minute or two.",
+    "disconnected": "The script's token was replaced. In Apps Script, paste the newest script and Run setup.",
+    "failed": "The script stopped with an error. In Apps Script, open Executions to see it.",
+    "sign_in": "Google asks for a sign-in before the web app runs. In Apps Script: Deploy › Manage deployments › Edit, "
+               "set Who has access to Anyone and Deploy.",
+    "not_script": "That address didn't answer like the Markdrop script. Check the Web app URL (Deploy › Manage "
+                  "deployments) and that the deployment runs the newest script (Version: New version).",
+    "unreachable": "Couldn't reach the script's web app. Check the Web app URL in Deploy › Manage deployments.",
+    "timeout": "The script is still working: new meetings appear here as it sends them.",
+}
+
+
+def web_app_url(value: str | None) -> str | None:
+    """A pasted Apps Script web app URL, when it is one (…/macros/s/<id>/exec, also a Workspace domain's
+    …/a/macros/<domain>/s/<id>/exec); anything else → None (never fetched)."""
+    v = (value or "").strip()
+    return v if len(v) <= 400 and WEB_APP.match(v) else None
+
+
+async def set_web_app(db: AsyncIOMotorDatabase, user_id: str, url: str | None) -> dict:
+    """Turn Check now on (the web app's URL) or off (None) for the caller's connection."""
+    rec = await mine(db, user_id)
+    if rec is None:
+        raise HTTPException(status_code=404, detail="Connect Google Meet first.")
+    if url is None:
+        await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$unset": {"check_now": 1}})
+    else:
+        good = web_app_url(url)
+        if not good:
+            raise HTTPException(status_code=422, detail="Paste the Web app URL from Apps Script: it starts with "
+                                                        "https://script.google.com/ and ends with /exec.")
+        await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$set": {"check_now.url": good}})
+    return await view(db, await mine(db, user_id), viewer_id=user_id)
+
+
+async def _call_script(client: httpx.AsyncClient, rec: dict) -> dict:
+    """POST {key} to one connection's web app → the script's answer, or {ok: False, error}."""
+    url = web_app_url((rec.get("check_now") or {}).get("url"))
+    if not url or not rec.get("check_key"):
+        return {"ok": False, "error": "not_set_up"}
+    try:
+        r = await client.post(url, json={"key": rec["check_key"]})
+        for _ in range(2):
+            if r.status_code not in (301, 302, 303, 307, 308):
+                break
+            host = urlparse(r.headers.get("location") or "").hostname or ""
+            if host == _ECHO_HOST:
+                r = await client.get(r.headers["location"])
+            else:
+                return {"ok": False, "error": "sign_in" if host.endswith("google.com") else "not_script"}
+    except httpx.TimeoutException:
+        return {"ok": False, "error": "timeout"}
+    except httpx.HTTPError:
+        return {"ok": False, "error": "unreachable"}
+    if r.status_code in (401, 403):
+        return {"ok": False, "error": "sign_in"}
+    if r.status_code != 200:
+        return {"ok": False, "error": "unreachable", "status": r.status_code}
+    try:
+        data = r.json()
+    except ValueError:
+        return {"ok": False, "error": "not_script"}
+    if not isinstance(data, dict) or "ok" not in data:
+        return {"ok": False, "error": "not_script"}
+    if not data.get("ok"):
+        err = str(data.get("error") or "failed")
+        return {"ok": False, "error": err if err in CHECK_ERRORS else "failed",
+                "retry_in": _count(data.get("retry_in")) or None}
+    res = data.get("results") if isinstance(data.get("results"), dict) else {}
+    sk = data.get("skipped") if isinstance(data.get("skipped"), dict) else {}
+    return {"ok": True, "found": _count(data.get("found")), "sent": _count(data.get("sent")),
+            "imported": _count(res.get("imported")), "attached": _count(res.get("attached")),
+            "writing": _count(sk.get("writing")), "remaining": _count(data.get("remaining")),
+            "errors": _count(data.get("errors"))}
+
+
+def _plural(n: int, one: str) -> str:
+    return f"{n} {one}" if n == 1 else f"{n} {one}s"
+
+
+def check_message(out: dict) -> str:
+    """'Found 2 new meetings.' / 'No new meetings.' (+ what's still being written, what failed)."""
+    if not out["ok"]:
+        first = next((c for c in out["connections"] if not c["ok"]), None)
+        return first["message"] if first else "Couldn't check right now. Try again in a minute."
+    new = out["imported"] + out["attached"]
+    parts = [f"Found {_plural(out['imported'], 'new meeting')}." if out["imported"]
+             else f"Added {_plural(out['attached'], 'Doc')} to meetings already here." if new
+             else "No new meetings."]
+    if out["writing"]:
+        parts.append(f"{_plural(out['writing'], 'Doc')} Google is still writing: check again in a couple of minutes.")
+    if out["remaining"]:
+        parts.append(f"{out['remaining']} more arrive with the next run.")
+    if out["failed"]:
+        parts.append(f"{out['failed']} of {out['checked']} scripts couldn't check.")
+    return " ".join(parts)
+
+
+async def check_now(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
+    """"Check for new meetings": run every connected script of the workspace that has Check now on, now
+    (in parallel), wait for their answers (a minute or so) → {ok, checked, imported, attached, writing,
+    remaining, failed, message, connections: [{connected_by, mine, ok, error?, message?, …}]}. Members
+    only; once a minute per workspace (429 with retry_after)."""
+    await meetings.require_member(db, workspace_id, user.id)
+    conns = await db["api_tokens"].find({"scope": SCOPE, "workspace_id": workspace_id}).sort("created_at", 1).to_list(length=50)
+    if not conns:
+        raise HTTPException(status_code=409, detail={"error": "not_connected", "message":
+                            "Google Meet isn't connected here. Connect it first: Meetings › Connect Google Meet."})
+    ready = [c for c in conns if web_app_url((c.get("check_now") or {}).get("url"))]
+    if not ready:
+        raise HTTPException(status_code=409, detail={"error": "not_set_up", "message":
+                            "Check now isn't turned on yet: whoever connected Google Meet turns it on once "
+                            "(Meetings › Turn on Check now)."})
+    now = now_utc()
+    try:
+        await db[CHECK_COLL].update_one({"_id": workspace_id, "at": {"$lt": now - CHECK_GAP}},
+                                        {"$set": {"at": now, "by": user.id}}, upsert=True)
+    except DuplicateKeyError:
+        last = await db[CHECK_COLL].find_one({"_id": workspace_id}) or {}
+        at = last.get("at") or now
+        if at.tzinfo is None:
+            at = at.replace(tzinfo=timezone.utc)
+        wait = max(1, int((CHECK_GAP - (now - at)).total_seconds()))
+        raise HTTPException(status_code=429, detail={"error": "too_soon", "retry_after": wait,
+                                                     "message": f"Checked less than a minute ago. Try again in {wait} s."})
+    async with httpx.AsyncClient(timeout=CHECK_TIMEOUT, transport=CHECK_TRANSPORT, follow_redirects=False) as client:
+        answers = await asyncio.gather(*(_call_script(client, c) for c in ready))
+    people = await _names(db, [c["user_id"] for c in ready])
+    rows = []
+    for rec, a in zip(ready, answers):
+        if not a["ok"]:
+            a["message"] = CHECK_ERRORS.get(a["error"], CHECK_ERRORS["failed"])
+        rows.append({"connected_by": {"id": rec["user_id"], "name": people.get(rec["user_id"])},
+                     "mine": rec["user_id"] == user.id, **a})
+        await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$set": {
+            "check_now.last_at": now_utc(),
+            "check_now.last": {k: a.get(k) for k in ("ok", "error", "imported", "attached", "writing") if k in a}}})
+    ok = [r for r in rows if r["ok"]]
+    out = {"ok": bool(ok), "checked": len(rows), "failed": len(rows) - len(ok),
+           "imported": sum(r["imported"] for r in ok), "attached": sum(r["attached"] for r in ok),
+           "writing": sum(r["writing"] for r in ok), "remaining": sum(r["remaining"] for r in ok),
+           "not_set_up": len(conns) - len(ready), "connections": rows}
+    out["message"] = check_message(out)
+    return out
+
+
+async def _names(db: AsyncIOMotorDatabase, ids: list[str]) -> dict[str, str | None]:
+    oids = [ObjectId(i) for i in ids if ObjectId.is_valid(i)]
+    users = await db["users"].find({"_id": {"$in": oids}}, {"name": 1, "email": 1}).to_list(length=len(oids) or 1)
+    return {str(u["_id"]): u.get("name") or (u.get("email") or "").split("@")[0] or None for u in users}
 
 
 # ── The inbox ─────────────────────────────────────────────────────────────────

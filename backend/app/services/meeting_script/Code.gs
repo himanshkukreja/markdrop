@@ -32,11 +32,17 @@
  * files shared with you (meetings someone else organized are still imported). To search shared
  * drives too, open the link the log gives you and click Enable.
  *
+ * Check now (optional): Markdrop's "Check for new meetings" button runs this script right away instead
+ * of waiting for the next 15-minute run. Turn it on once: Deploy → New deployment → Web app (Execute as:
+ * Me, Who has access: Anyone) → Deploy, then paste the Web app URL in Markdrop (Meetings › Turn on Check
+ * now). The web app does nothing for a caller without the key Markdrop gives this script (doPost), at
+ * most once a minute, and only looks at the last LOOKBACK_HOURS.
+ *
  * Set up: Run → setup (once), and allow. That's all. Updating from an older version: replace all
  * of this file with the new one, save, and Run → setup again.
  */
 
-var SCRIPT_VERSION = 3;
+var SCRIPT_VERSION = 4;
 var MARKDROP_ENDPOINT = '{{ENDPOINT}}';
 var MARKDROP_TOKEN = '{{TOKEN}}';
 
@@ -69,6 +75,61 @@ var DOC_MIME = 'application/vnd.google-apps.document';
 var TIME_BUDGET_MS = 4.5 * 60 * 1000;
 var HARD_CAP = 200;
 var DRIVE_API_PAGE = 'https://console.developers.google.com/apis/api/drive.googleapis.com/overview';
+// Check now (doPost): a quick run (about a minute at most), at most once a minute, that sends a Doc
+// Google finished writing a couple of minutes ago (a scheduled run waits QUIET_MINUTES).
+var NOW_BUDGET_MS = 70 * 1000;
+var NOW_QUIET_MINUTES = 2;
+var NOW_GAP_MS = 60 * 1000;
+// The token this execution calls Markdrop with. A scheduled run uses the one in this file (and keeps a
+// copy in the project's properties); the web app reads that copy, so a deployment made with an older
+// copy of this file still works after "Get the new script" + setup.
+var ACTIVE_TOKEN_ = MARKDROP_TOKEN;
+
+function auth_() {
+  return 'Bearer ' + ACTIVE_TOKEN_;
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Check now: Markdrop calls this (the web app) when someone presses "Check for new meetings". It runs
+ * only for Markdrop's key (handed to this script by Markdrop with each run), at most once a minute,
+ * and answers how it went: {ok, found, sent, results, skipped, remaining} or {ok: false, error}.
+ */
+function doPost(e) {
+  var props = PropertiesService.getScriptProperties();
+  var body = {};
+  try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}') || {}; } catch (err) { body = {}; }
+  var key = props.getProperty('check_key');
+  if (!key || typeof body.key !== 'string' || body.key !== key) {
+    return json_({ ok: false, error: key ? 'bad_key' : 'no_key', version: SCRIPT_VERSION });
+  }
+  var last = Number(props.getProperty('now_at') || 0);
+  if (Date.now() - last < NOW_GAP_MS) {
+    return json_({ ok: false, error: 'too_soon', retry_in: Math.ceil((NOW_GAP_MS - (Date.now() - last)) / 1000), version: SCRIPT_VERSION });
+  }
+  props.setProperty('now_at', String(Date.now()));
+  var st;
+  try {
+    st = run_('now');
+  } catch (err) {
+    return json_({ ok: false, error: 'failed', message: String(err).slice(0, 300), version: SCRIPT_VERSION });
+  }
+  if (!st) return json_({ ok: false, error: 'busy', version: SCRIPT_VERSION });
+  if (st.disconnected) return json_({ ok: false, error: 'disconnected', version: SCRIPT_VERSION });
+  return json_({
+    ok: true, version: SCRIPT_VERSION, found: st.found, sent: st.sent, results: st.results, skipped: st.skipped,
+    remaining: st.remaining, errors: st.errors.length, error: st.errors.length ? st.errors[0].error : null
+  });
+}
+
+/** The web app opened in a browser: says what it is (it runs nothing). */
+function doGet() {
+  return ContentService.createTextOutput('This is your Markdrop meetings script (version ' + SCRIPT_VERSION + '). To turn on ' +
+    '"Check for new meetings", paste this page\'s address in Markdrop: Meetings › Turn on Check now.');
+}
 
 /** Run this once: it schedules syncMeetings every 15 minutes, then runs it now (and, when
  *  BACKFILL_DAYS is set, starts bringing in the past meetings too). */
@@ -123,20 +184,29 @@ function syncMeetings() {
   run_('run');
 }
 
+/** One run → its stats (null: another run is going). 'now' (Check now): quick, no backfill. */
 function run_(mode) {
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(1000)) return;  // a run is still going
+  if (!lock.tryLock(mode === 'now' ? 5000 : 1000)) return null;  // a run is still going
   var st = newStats_(mode);
+  var now = mode === 'now';
   try {
     var props = PropertiesService.getScriptProperties();
+    if (now) {
+      ACTIVE_TOKEN_ = props.getProperty('markdrop_token') || MARKDROP_TOKEN;
+    } else {
+      ACTIVE_TOKEN_ = MARKDROP_TOKEN;
+      if (props.getProperty('markdrop_token') !== MARKDROP_TOKEN) props.setProperty('markdrop_token', MARKDROP_TOKEN);
+    }
     // As many as fit in the time budget (and under the cap); the rest wait for the next run.
-    var budget = { left: MAX_PER_RUN > 0 ? Math.min(MAX_PER_RUN, HARD_CAP) : HARD_CAP, until: st.startedAt + TIME_BUDGET_MS };
+    var budget = { left: MAX_PER_RUN > 0 ? Math.min(MAX_PER_RUN, HARD_CAP) : HARD_CAP,
+      until: st.startedAt + (now ? NOW_BUDGET_MS : TIME_BUDGET_MS) };
     var hello = status_('start', st);
-    if (hello === 'stop') return;
+    if (hello === 'stop') return st;
     // Docs someone asked for by link in Markdrop come first.
-    if (hello && hello.queue && hello.queue.length && sendQueued_(props, hello.queue, st, budget) === 'stop') return;
+    if (hello && hello.queue && hello.queue.length && sendQueued_(props, hello.queue, st, budget) === 'stop') return st;
     var recent = sendSince_(props, new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000), false, budget, st);
-    if (recent !== 'stop') {
+    if (recent !== 'stop' && !now) {
       var from = props.getProperty('backfill_since');
       if (from) {
         // Out of time already: still looked at, to count what waits for the next run.
@@ -150,6 +220,7 @@ function run_(mode) {
     }
     console.log(runSummary_(st));
     if (!st.stopped) status_('done', st);
+    return st;
   } catch (e) {
     st.errors.push({ title: '', error: String(e).slice(0, 300) });
     status_('done', st);
@@ -161,7 +232,7 @@ function run_(mode) {
 
 function newStats_(mode) {
   return {
-    mode: mode, found: 0, sent: 0, stopped: false, startedAt: Date.now(), seen: {}, waiting: {}, remaining: 0,
+    mode: mode, found: 0, sent: 0, stopped: false, disconnected: false, startedAt: Date.now(), seen: {}, waiting: {}, remaining: 0,
     sharedDrives: null, driveProject: null, driveOffSaid: false,
     results: { imported: 0, attached: 0, duplicate: 0, ignored: 0 },
     skipped: { already_sent: 0, too_old: 0, not_yours: 0, title: 0, writing: 0 },
@@ -204,7 +275,7 @@ function status_(phase, st) {
     var res = UrlFetchApp.fetch(MARKDROP_ENDPOINT + '/status', {
       method: 'post',
       contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + MARKDROP_TOKEN },
+      headers: { Authorization: auth_() },
       muteHttpExceptions: true,
       payload: JSON.stringify({
         phase: phase, version: SCRIPT_VERSION, mode: st.mode, include_shared: INCLUDE_SHARED === true,
@@ -215,9 +286,14 @@ function status_(phase, st) {
       })
     });
     var code = res.getResponseCode();
-    if (code === 401) { unschedule_(); return 'stop'; }
+    if (code === 401) { disconnected_(st); return 'stop'; }
     if (code >= 200 && code < 300) {
       var body = JSON.parse(res.getContentText() || '{}');
+      // The key Markdrop's "Check for new meetings" calls the web app with (doPost).
+      if (body.check_key && typeof body.check_key === 'string') {
+        var props = PropertiesService.getScriptProperties();
+        if (props.getProperty('check_key') !== body.check_key) props.setProperty('check_key', body.check_key);
+      }
       if (phase === 'start' && body.latest_version && body.latest_version > SCRIPT_VERSION) {
         console.warn('A newer version of this script is available: in Markdrop, Meetings › Connect Google Meet › Get the new script.');
       }
@@ -227,6 +303,13 @@ function status_(phase, st) {
     console.warn('Could not tell Markdrop how the run went: ' + e);
   }
   return null;
+}
+
+/** Markdrop answered 401: this token was revoked. A scheduled run stops the schedule; the web app (which
+ *  may be an older deployment, reading an older copy of the token) only says so. */
+function disconnected_(st) {
+  st.disconnected = true;
+  if (st.mode !== 'now') unschedule_();
 }
 
 function unschedule_() {
@@ -377,7 +460,7 @@ function kindOf_(c) {
 
 /** Sorts the candidates changed after `since` into what to send now and why the rest wait. */
 function scan_(props, since, st, verbose) {
-  var settled = new Date(Date.now() - QUIET_MINUTES * 60 * 1000);
+  var settled = new Date(Date.now() - (st.mode === 'now' ? NOW_QUIET_MINUTES : QUIET_MINUTES) * 60 * 1000);
   var todo = [];
   var skipped = [];
   var more = false;
@@ -484,7 +567,7 @@ function send_(c, backfill, requested, st) {
     res = UrlFetchApp.fetch(MARKDROP_ENDPOINT, {
       method: 'post',
       contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + MARKDROP_TOKEN },
+      headers: { Authorization: auth_() },
       muteHttpExceptions: true,
       payload: JSON.stringify({
         source: 'google-meet-script',
@@ -518,7 +601,7 @@ function send_(c, backfill, requested, st) {
   }
   if (code === 401) {
     // Disconnected in Markdrop (the token was revoked): stop running.
-    unschedule_();
+    disconnected_(st);
     st.stopped = true;
     return 'stop';
   }
