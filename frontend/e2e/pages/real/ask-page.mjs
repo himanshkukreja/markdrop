@@ -72,6 +72,22 @@ async function answered(root, n = 1, timeout = 30000) {
   await root.locator('ol[aria-label="Conversation"] > li[data-state="done"] .ch-md:not([data-streaming])').nth(n - 1).waitFor({ timeout });
 }
 const titleOf = (p) => p.getByTestId("ask-title").innerText();
+async function waitTitle(p, re, timeout = 10000) {
+  const t0 = Date.now();
+  for (;;) {
+    const t = (await titleOf(p)).trim();
+    if (re.test(t)) return t;
+    if (Date.now() - t0 > timeout) fail(`title: ${t}`);
+    await sleep(100);
+  }
+}
+/** The scope the open conversation's last answer used (from the URL's ?c=). */
+async function lastScope(p, token) {
+  const c = new URL(p.url()).searchParams.get("c");
+  if (!c) fail("no conversation in the URL");
+  const t = ok(await api("GET", `/api/v1/ask/threads/${c}`, token), "thread");
+  return t.turns[t.turns.length - 1].scope;
+}
 async function noSideways(p, what) {
   const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (wide > 1) fail(`${what}: sideways scroll ${wide}px`);
@@ -98,8 +114,7 @@ await step("page", async () => {
   await p.goto(`${APP}/ask?workspace=${WS}`, { waitUntil: "networkidle" });
   await page(p).waitFor({ timeout: 20000 });
   await p.getByTestId("ask-scope-workspace-" + WS).waitFor({ timeout: 15000 });
-  const title = await titleOf(p);
-  if (!/^Ask Acme/.test(title)) fail(`title: ${title}`);
+  await waitTitle(p, /^Ask Acme$/);
   if ((await p.getByTestId("ask-scope-workspace-" + WS).getAttribute("aria-checked")) !== "true") fail("the workspace chip isn't on");
   const starters = chatOf(p).getByTestId("chat-starters");
   await starters.waitFor({ timeout: 20000 });
@@ -113,6 +128,8 @@ await step("page", async () => {
   await first.click();
   await answered(chatOf(p));
   await p.waitForURL(/[?&]c=[0-9a-f]{24}/, { timeout: 10000 });
+  const sc = await lastScope(p, T.member);
+  if (sc?.kind !== "workspace") fail(`asked on ${JSON.stringify(sc)}, not the workspace`);
   await p.getByTestId("ask-history").getByTestId("ask-thread").first().waitFor({ timeout: 10000 });
   await shot(p, "ap02-page-answer");
   // A reload keeps the conversation (?c=).
@@ -138,7 +155,7 @@ await step("rail", async () => {
   await rail.click();
   await p.waitForURL(new RegExp(`/ask\\?workspace=${WS}`), { timeout: 10000 });
   await page(p).waitFor({ timeout: 15000 });
-  if (!/^Ask Acme/.test(await titleOf(p))) fail("the rail didn't open on the workspace");
+  await waitTitle(p, /^Ask Acme$/);
   // ⌘J on the page goes to its question box, not the panel.
   await p.locator("body").click({ position: { x: 5, y: 400 } }).catch(() => {});
   await p.keyboard.press("ControlOrMeta+j");
@@ -184,6 +201,9 @@ await step("home", async () => {
   await live.first().click();
   await p.waitForURL(/\/ask\?/, { timeout: 10000 });
   await answered(chatOf(p));
+  await p.waitForURL(/[?&]c=[0-9a-f]{24}/, { timeout: 10000 });
+  const sc = await lastScope(p, T.member);
+  if (sc?.kind !== "workspace") fail(`a live chip asked on ${JSON.stringify(sc)}, not the workspace`);
 });
 
 async function phoneOrTablet(width, height, theme, name, { drawer }) {

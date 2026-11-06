@@ -277,6 +277,8 @@
 
 /* phones and touch: 16px field (no iOS zoom), 44px targets */
 .ch[data-layout="sheet"] .ch-field__input { font-size: 16px; }
+/* Touch screens (phones and tablets): 16px so iOS doesn't zoom into the field. */
+@media (pointer: coarse) { .ch-field__input { font-size: 16px; } }
 @media (max-width: 639px) { .ch-field__input { font-size: 16px; } .ch[data-layout="page"] .ch-starters { grid-template-columns: minmax(0, 1fr); } }
 @media (pointer: coarse), (max-width: 639px) {
   .ch-send { width: 40px; height: 40px; }

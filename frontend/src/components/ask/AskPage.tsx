@@ -69,6 +69,7 @@ export default function AskPage() {
   const [chatKey, setChatKey] = useState(0);
   const [scope, setScopeState] = useState<PageScope | null>(null);
   const [ctx, setCtx] = useState<AssistantContext | null>(null);
+  const [ctxReady, setCtxReady] = useState(false);
   const [threads, setThreads] = useState<AskThreadCard[] | null>(null);
   const [sug, setSug] = useState<AskSuggestions | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -92,7 +93,7 @@ export default function AskPage() {
       setAssistantThread(p.thread);
       setChatKey((k) => k + 1);
     }
-    getAssistantContext({}).then(setCtx).catch(() => setCtx(null));
+    getAssistantContext({}).then(setCtx).catch(() => setCtx(null)).finally(() => setCtxReady(true));
   }, [mounted]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const workspaces = useMemo(() => ctx?.workspaces ?? [], [ctx]);
@@ -172,16 +173,17 @@ export default function AskPage() {
     if (id) refreshThreads();
   }, [setConvParam, refreshThreads]);
 
-  // A question from the URL, once the chat is mounted on its scope.
+  // A question from the URL, once the chat is mounted on its scope (and the scope is known to be yours).
   useEffect(() => {
-    if (!scope || !pendingQ.current) return;
+    if (!scope || !ctxReady || !pendingQ.current) return;
     const q = pendingQ.current;
     pendingQ.current = null;
     window.setTimeout(() => chat.current?.ask(q), 0);
     setConvParam(null);
-  }, [scope, chatKey, setConvParam]);
+  }, [scope, ctxReady, chatKey, setConvParam]);
 
-  const chatScope = useMemo<ChatScope>(() => ({ kind, ...(ws ? { workspace: ws.id } : {}) }), [kind, ws]);
+  const scopeWs = scope?.kind === "workspace" ? scope.workspace ?? null : null;
+  const chatScope = useMemo<ChatScope>(() => ({ kind, ...(scopeWs ? { workspace: scopeWs } : {}) }), [kind, scopeWs]);
   const suggestions = useMemo(() => {
     const live = sug ? suggestionsOf(sug, phone ? 4 : 8) : [];
     return live.length ? live : FALLBACK;
@@ -225,7 +227,8 @@ export default function AskPage() {
             </button>
             <h1 id="ask-title" className={s.title} data-testid="ask-title">
               <span className={s.spark} aria-hidden><Icon name="sparkle" size={16} /></span>
-              <span className={s.titleText}>{title}</span>
+              {/* A workspace's name arrives with your workspaces: no "Ask" → "Ask Acme" flash. */}
+              <span className={s.titleText}>{kind === "workspace" && !ctxReady ? "\u00a0" : title}</span>
             </h1>
             <button type="button" className={s.newBtn} onClick={() => openThread(null)} data-testid="ask-new">
               <Icon name="plus" size={16} /><span className={s.newLabel}>New chat</span>
