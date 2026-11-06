@@ -74,7 +74,9 @@ class ContextBody(BaseModel):
 
 
 class AskBody(BaseModel):
-    question: str = Field("", max_length=ask_markdrop.MAX_QUESTION)
+    # The chat composer allows 600 characters; the engines use the first MAX_QUESTION (a longer paste
+    # is cut, never a 422 the panel can only show as "hit a problem").
+    question: str = Field("", max_length=2000)
     thread_id: Optional[str] = Field(None, max_length=40)
     intent: Optional[Literal["ask", "catch_up", "my_actions", "page"]] = None
     page: Optional[str] = Field(None, max_length=200, description="Ask AI in this page (its slug): the page, then its "

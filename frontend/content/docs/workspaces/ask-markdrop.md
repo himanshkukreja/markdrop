@@ -2,7 +2,7 @@
 title: Ask Markdrop
 description: One assistant everywhere. Ask about the doc you're in, your meetings, a folder, a workspace or everything you can open, with cited sources, follow-ups and ⌘J.
 updated: 2026-11-06
-keywords: [ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
+keywords: [ask markdrop, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---
 
 **Ask Markdrop** is one assistant, everywhere in Markdrop. Ask a question in plain words about the doc you're reading, your meetings, a folder, a workspace or everything you can open. Each answer cites where it came from, so you can check it in one tap, and the conversation follows you from screen to screen.
@@ -47,6 +47,32 @@ On **Meetings**, more chips appear in the question box:
 - A period: **This week**, **Last 7 days**, **This month**, **Last month** or **Last 90 days**.
 
 You can also say it in the question: "What came up in the Daily Standups last month?" asks only that series, in that month, and the answer starts with what it looked at. Answers say when and where something was said ("On 28 Oct, in Daily Standup, Bo said…") and their sources open the transcript at the moment. See [Ask your meetings](/workspaces/meetings-ask).
+
+## Ask about yourself
+
+Ask Markdrop knows who is asking. Ask about yourself the way you'd ask a colleague, with "I", "me" and "my":
+
+- "What did I say in my last sync-up?"
+- "What did I commit to in the last sprint planning?"
+- "Did I speak in today's standup?"
+- "Which meetings did I attend this week?"
+- "What have I been working on lately?"
+- "What did I sign off recently?"
+- "What are my open action items?"
+- "Who am I?", "What's my email?", "Which workspaces am I in?", "What's my role?"
+
+What it knows about you:
+
+- **Your account**: your name and email, the workspaces you belong to and your role in each, and today's date where you are.
+- **How you appear in meetings.** Transcripts name speakers the way the call did, like "Himanshu" or "priya.nair". Markdrop matches those names to your account the same way it does when it imports a meeting: by email, full name, or a first name only one member has. Your own lines are quoted as yours, and nobody else's are.
+- **Your meetings**: the ones you attended, organized or spoke in, newest first. Name a series ("my last sync-up") and those come first.
+- **Your recent work**: documents and pages you created, edited or signed off, and meetings you imported, from the last 30 days.
+
+Answers say where each line came from, for example "In the Nov 5 Daily Syncup you said: …", and each line links to its moment in the transcript. If you were in a meeting but didn't speak, the answer says "You attended but didn't speak". If you weren't in the meeting you asked about, it says so and names the latest one you were in.
+
+Questions about you follow the same rules as any other question. The only profile Ask Markdrop reads is yours. A meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings) is never read for anyone else, and other people's email addresses are never part of an answer.
+
+This works the same way in **Meetings**, **This doc**, **Workspace** and **Everything**, and through the MCP tools `ask_documents` and `ask_meetings` (the account behind the AI app is "you").
 
 ## Read the answer
 
@@ -107,7 +133,7 @@ Ask Markdrop finds items with the same search as [Search](/workspaces/search), s
 - **AI off means off.** Nothing is read from a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off.
 
 :::note[What is sent to AI]
-Ask Markdrop uses Claude Haiku 5.5 from Anthropic. It sends your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, and short excerpts of the matching items you can open. Transcripts are sent only to answer you. Nothing is used to train models. See the [privacy policy](https://markdrop.in/privacy#processors).
+Ask Markdrop uses Claude Haiku 5.5 from Anthropic. It sends your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, your own name, email, workspaces and the names you appear under in meetings, and short excerpts of the matching items you can open. Transcripts are sent only to answer you. Nothing is used to train models. See the [privacy policy](https://markdrop.in/privacy#processors).
 :::
 
 ## AI limits
