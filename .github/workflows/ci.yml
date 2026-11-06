@@ -425,6 +425,16 @@ jobs:
           PB_FAKE_TEAM_AI=1 zsh up.sh restart-api
           node team.mjs
 
+      # Jira (connect the site and an account, create from a meeting with the AI draft, bulk, both-way
+      # status sync through the signed webhook, a viewer's bare keys, Team, pasted links, the editor),
+      # ~50 s, on the bughunt job: the API restarts with the fake Atlassian (PB_FAKE_JIRA) and Meetings AI.
+      - name: jira.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_FAKE_JIRA=1 PB_FAKE_MEETINGS_AI=1 zsh up.sh restart-api
+          node jira.mjs
+
       # The one-tap "turn on notifications" prompts (Home card, bell nudge), ~40 s, on the bughunt job:
       # the API restarts with throwaway push keys and the fake push service (PB_PUSH).
       - name: push-prompts.mjs on ${{ matrix.browser }}
