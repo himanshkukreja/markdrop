@@ -798,11 +798,14 @@ async def _write_facts(db: AsyncIOMotorDatabase, workspace_id: str, src_key: str
                        when: datetime, source: dict, members: list[dict], free_source: dict | None = None) -> int:
     """Replace the source's facts with ``facts`` (corrections re-applied)."""
     member_ids = {m["id"] for m in members}
-    corr = {}
+    corr, done = {}, {}
     subjects = list({f["subject"] for f in facts})
     if subjects:
         for c in await db[CORRECTIONS].find({"workspace_id": workspace_id, "subject": {"$in": subjects}}).to_list(length=2000):
-            corr[(c["subject"], c["norm"])] = c
+            if c["kind"] == "done":
+                done[(c["subject"], c["norm"])] = c
+            else:
+                corr[(c["subject"], c["norm"])] = c
     now = now_utc()
     rows, seen = [], set()
     for f in facts[:MAX_FACTS_PER_SOURCE]:
@@ -828,6 +831,7 @@ async def _write_facts(db: AsyncIOMotorDatabase, workspace_id: str, src_key: str
             "origin": f.get("origin") or "ai", "src_key": src_key, "confidence": f.get("confidence", 0.7),
             "norm": nk, "cluster": str(_id), "status": "active",
             "hidden": bool(c and c["kind"] == "hide"),
+            "done_at": (done.get((f["subject"], nk)) or {}).get("at"),
             "correction": ({"text": c.get("correction") or "", "by": c.get("by"), "at": c.get("at")}
                            if c and c["kind"] == "wrong" else None),
             "reinforced_at": when, "created_at": now, "updated_at": now, "v": VERSION,
@@ -1241,16 +1245,18 @@ async def _project_names(db: AsyncIOMotorDatabase, workspace_id: str) -> dict[st
 
 
 async def _done_ids(db: AsyncIOMotorDatabase, v: Visible, facts: list[dict]) -> set[str]:
-    """Commitments (action items, targets) that are done: checked off on their meeting page now
-    (meeting_memory._status), or reported done later by the same person (a newer "update" that says
-    most of the same words)."""
+    """Commitments (action items, targets) that are done: marked done by their person (``done_at``),
+    checked off (- [x]) on their meeting page or the page they came from now (meeting_memory._status),
+    or reported done later by the same person (a newer "update" that says most of the same words)."""
     from app.services import meeting_memory, meetings
 
     out: set[str] = set()
     todo = [f for f in facts if f["kind"] in ("action_item", "target")]
     if not todo:
         return out
-    need = {s["doc_id"] for f in todo for s in f.get("sources") or [] if s.get("type") == "meeting" and s.get("doc_id") in v.docs}
+    out.update(str(f["_id"]) for f in todo if f.get("done_at"))
+    todo = [f for f in todo if not f.get("done_at")]
+    need = {s["doc_id"] for f in todo for s in f.get("sources") or [] if s.get("doc_id") in v.docs}
     pages_ = {}
     if need:
         pages_ = {d["_id"]: d for d in await db["documents"].find({"_id": {"$in": list(need)}}, {"content": 1}).to_list(length=len(need))}
@@ -1686,6 +1692,25 @@ async def hide(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w
         await db[CORRECTIONS].delete_many({**q, "kind": "hide"})
     await db[FACTS].update_many(q, {"$set": {"hidden": on, "updated_at": now_utc()}})
     return {"id": fact_id, "hidden": on}
+
+
+async def mark_done(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, ws: WsInfo, fact_id: str, role: str,
+                    *, on: bool = True) -> dict:
+    """The person an action item or target is about says it's done (``on``) or not after all: it leaves
+    their open items, the board and "This week", and stays done when its source is read again."""
+    f = await _own_fact(db, actor, ctx, ws, fact_id, role)
+    if f["kind"] not in ("action_item", "target"):
+        raise Refused(422, "Only action items and targets can be marked done.")
+    q = {"workspace_id": ws.id, "subject": f["subject"], "norm": f["norm"]}
+    now = now_utc()
+    if on:
+        await db[CORRECTIONS].update_one({**q, "kind": "done"}, {"$set": {
+            "text": f["text"], "by": actor.user_id, "at": now}}, upsert=True)
+    else:
+        await db[CORRECTIONS].delete_many({**q, "kind": "done"})
+    await db[FACTS].update_many({**q, "kind": {"$in": ["action_item", "target"]}},
+                                {"$set": {"done_at": now if on else None, "updated_at": now}})
+    return {"id": fact_id, "done": on}
 
 
 async def correct(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, ws: WsInfo, fact_id: str, role: str,
