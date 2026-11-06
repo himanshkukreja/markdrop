@@ -57,6 +57,7 @@ STATE = "memory_state"
 VERSION = 1                       # bump to re-extract every source
 
 KINDS = ("working_on", "update", "blocker", "decision", "action_item", "target", "status", "role")
+COMMIT_KINDS = ("action_item", "target")    # commitments: one group when deduping (a dated one wins)
 AI_KINDS = KINDS
 KIND_LABEL = {"working_on": "Working on", "update": "Update", "blocker": "Blocked", "decision": "Decision",
               "action_item": "Action item", "target": "Target", "status": "Status", "role": "Role"}
@@ -398,19 +399,48 @@ def _month_end(d: date) -> date:
     return nxt - timedelta(days=1)
 
 
+# Hinglish deadlines ("kal tak", "Monday tak", "agle hafte") as the English words resolve_due reads.
+_HINGLISH = (
+    (r"\b(?:parso|parson|parsoon)\b", "in 2 days"),
+    (r"\b(?:kal|kl)\b", "tomorrow"),
+    (r"\b(?:aaj|aj)(?: shaam| raat)?\b", "today"),
+    (r"\b(?:shaam|raat)\b", "today"),
+    (r"\b(?:agle|agla|next) (?:hafte|hafta|week)(?: ki shuruaat| ke shuru)\b", "early next week"),
+    (r"\b(?:agle|agla) (?:hafte|hafta|week)(?: ke end| ke aakhir)\b", "end of next week"),
+    (r"\b(?:agle|agla) (?:hafte|hafta|week)\b", "next week"),
+    (r"\b(?:is|iss|isi) (?:hafte|hafta|week)(?: ke end)?\b", "this week"),
+    (r"\b(?:hafte|week) ke end\b", "end of the week"),
+    (r"\b(?:is |iss )?(?:mahine|mahina|month) ke (?:end|aakhir|ant)\b", "end of month"),
+    (r"\bmonth end\b", "end of month"),
+    (r"\b(?:agle|agla) (?:mahine|mahina|month)\b", "next month"),
+    (r"\bsomvar\b", "monday"), (r"\bmangalvar\b", "tuesday"), (r"\bbudhvar\b", "wednesday"),
+    (r"\b(?:guruvar|brihaspativar)\b", "thursday"), (r"\bshukravar\b", "friday"),
+    (r"\bshanivar\b", "saturday"), (r"\bravivar\b", "sunday"),
+)
+
+
+def _hinglish(t: str) -> str:
+    for pat, en in _HINGLISH:
+        t = re.sub(pat, en, t)
+    return t
+
+
 def resolve_due(text: str | None, base: date) -> date | None:
-    """A deadline as said ("by Thursday", "early next week", "end of month", "Nov 12", "in 3 days")
-    resolved against the day it was said. None when it can't be read."""
+    """A deadline as said ("by Thursday", "early next week", "end of month", "Nov 12", "in 3 days",
+    Hinglish "kal tak" / "Monday tak") resolved against the day it was said. None when it can't be read."""
     t = (text or "").lower().strip()
     if not t:
         return None
+    t = _hinglish(re.sub(r"\s*\btak\b", "", t)).strip()
+    # "EOD Friday" is Friday's end of day.
+    t = re.sub(r"\b(?:eod|cob|end of (?:the )?day)\s+(?:on\s+)?(?=(?:mon|tue|wed|thu|fri|sat|sun))", "", t)
     m = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", t)
     if m:
         try:
             return date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
         except ValueError:
             return None
-    if re.search(r"\b(today|tonight|eod|end of (the )?day)\b", t):
+    if re.search(r"\b(today|tonight|eod|cob|end of (the )?day)\b", t):
         return base
     if re.search(r"\btomorrow\b", t):
         return base + timedelta(days=1)
@@ -464,6 +494,56 @@ def due_of(g: dict, base: date | None) -> str | None:
             pass
     d = resolve_due(g.get("due_text"), base)
     return d.isoformat() if d else None
+
+
+_WD = r"(?:mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(?:day)?|monday|tuesday|wednesday|thursday|friday|saturday|sunday"
+_MON = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?"
+_DAYNUM = r"\d{1,2}(?:st|nd|rd|th)?"
+# What can follow "by" / "before" / "until" / "due" and be a deadline (never "by the team").
+_WHEN = (rf"(?:the )?(?:(?:very )?(?:early|late|start of|beginning of|end of|middle of) )?(?:eod |cob )?(?:the |this |next |coming )?"
+         rf"(?:{_WD}|week|month|day|eod|eow|eom|cob|tomorrow|today|tonight|weekend|"
+         rf"{_MON} {_DAYNUM}|{_DAYNUM}(?: of)? {_MON}|\d{{4}}-\d{{2}}-\d{{2}})(?: \d{{1,2}}(?:st|nd|rd|th)?\b)?")
+_DUE_PATTERNS = (
+    # "by Friday", "before Nov 12", "until the end of the month", "due EOD", "no later than tomorrow"
+    re.compile(rf"\b(?:by|before|until|till|due(?: on| by)?|no later than|latest by)\s+({_WHEN})\b", re.I),
+    # "on Friday", "this Thursday", "next Monday", "on Nov 12"
+    re.compile(rf"\b((?:on|this|next|coming) (?:{_WD}|{_MON} {_DAYNUM}|{_DAYNUM}(?: of)? {_MON}))\b", re.I),
+    # "early next week", "end of the month", "tomorrow", "EOD", "in 3 days"
+    re.compile(r"\b((?:early|late|start of|beginning of|end of|by the end of) next week|next week|"
+               r"(?:by )?(?:the )?end of (?:the |this )?(?:week|month|day)|this week|next month|"
+               r"eod|eow|eom|cob|tomorrow|tonight|today(?!['’]s)|in (?:\d{1,2}|a|one|two|three) (?:days?|weeks?))\b", re.I),
+    # Hinglish: "kal tak", "Monday tak", "agle hafte tak", "mahine ke end tak", "parso"
+    re.compile(r"\b((?:[a-z]+ ){0,3}[a-z]+ tak|agle (?:hafte|hafta|week|mahine)|parso|parson)\b", re.I),
+)
+
+
+def due_in_text(text: str | None, base: date) -> tuple[date, str] | None:
+    """The deadline inside a sentence ("Sam Lee will update the pricing page by Friday", "Neha kal tak
+    deck bhej degi") resolved against the day it was said (resolve_due), with the words used. A bare
+    weekday or date with no "by" / "on" in front of it is not read as a deadline."""
+    t = clean(text, 1000)
+    if not t:
+        return None
+    best: tuple[int, date, str] | None = None
+    for pat in _DUE_PATTERNS:
+        for m in pat.finditer(t):
+            phrase, at, said = m.group(1), m.start(), m.group(0)
+            if pat is _DUE_PATTERNS[3] and phrase.lower().endswith(" tak"):
+                # Only the words just before "tak" that name a time ("kal", "Monday", "agle hafte").
+                words = phrase.split()
+                for i in range(len(words) - 2, -1, -1):
+                    if resolve_due(" ".join(words[i:]), base):
+                        cut = " ".join(words[i:])
+                        at, phrase = m.end(1) - len(cut), cut
+                        said = cut
+                        break
+            d = resolve_due(phrase, base)
+            if d is None:
+                continue
+            if best is None or at < best[0]:
+                best = (at, d, said.strip())
+            break
+    return (best[1], best[2]) if best else None
 
 
 # ── Sources: meetings ─────────────────────────────────────────────────────────
@@ -533,10 +613,39 @@ def _recorded_block(row: dict) -> str:
     return "\n\n".join(parts)
 
 
-async def _meeting_free_facts(db: AsyncIOMotorDatabase, row: dict, page: dict) -> list[dict]:
-    """The meeting's own action items owned by a member (services/meeting_memory.py), as facts."""
+async def meeting_day(db: AsyncIOMotorDatabase, workspace_id: str, row: dict) -> date:
+    """The day a meeting's deadlines are counted from: its own date, else the day it was added in the
+    workspace's timezone."""
+    d = _day(row.get("date"))
+    if d is not None:
+        return d.date()
+    from app.services import team_extras
+
+    wsrow = await db["workspaces"].find_one({"_id": _oid(workspace_id)}, {"settings": 1}) or {}
+    tz = team_extras.tz_of((wsrow.get("settings") or {}).get("timezone"))
+    return (_aware(row.get("created_at")) or now_utc()).astimezone(tz).date()
+
+
+def free_due(text: str, said: str | None, base: date) -> tuple[str | None, str | None]:
+    """A free fact's (due, due_text): the deadline its meeting gave it ("due Thursday"), else one said in
+    its own words (a Gemini next step "Sam Lee will update the pricing page by Friday")."""
+    if said:
+        due = due_of({"due_text": said}, base)
+        if due:
+            return due, clean(said, 60)
+    got = due_in_text(text, base)
+    if got:
+        return got[0].isoformat(), clean(got[1], 60)
+    return None, clean(said, 60) or None
+
+
+async def _meeting_free_facts(db: AsyncIOMotorDatabase, row: dict, page: dict, base: date | None = None) -> list[dict]:
+    """The meeting's own action items owned by a member (services/meeting_memory.py), as facts, with
+    the deadline the step gives (resolved against the meeting's day)."""
     from app.services import meeting_memory
 
+    if base is None:
+        base = await meeting_day(db, str(row.get("workspace_id") or ""), row)
     out = []
     for f in await db[meeting_memory.COLL].find({"meeting_id": str(row["_id"]), "kind": "action_item",
                                                  "owner_id": {"$ne": None}}).to_list(length=200):
@@ -544,10 +653,10 @@ async def _meeting_free_facts(db: AsyncIOMotorDatabase, row: dict, page: dict) -
         owner = f.get("owner") or ""
         if f.get("source") == "google" and owner and text.lower().startswith(owner.lower()):
             text = clean(text[len(owner):]).lstrip(":, ")
-        due = due_of({"due_text": f.get("due")}, (_day(row.get("date")) or now_utc()).date()) if f.get("due") else None
+        due, due_text = free_due(text, f.get("due"), base)
         out.append({"subject": f["owner_id"], "kind": "target" if due else "action_item", "text": text, "project": None,
                     "seg": f.get("seg"), "confidence": 1.0, "origin": "meeting_fact", "due": due,
-                    "due_text": clean(f.get("due"), 60) or None})
+                    "due_text": due_text})
     return out
 
 
@@ -559,7 +668,8 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
     if page is None or page.get("deleted_at"):
         return {"outcome": "no_page", "facts": 0}
     src_key = f"m:{row['_id']}"
-    facts = await _meeting_free_facts(db, row, page)
+    base = await meeting_day(db, ws.id, row)
+    facts = await _meeting_free_facts(db, row, page, base)
     transcript, sent_transcript = _transcript_lines(row)
     recorded = _recorded_block(row)
     tdoc = None
@@ -614,14 +724,22 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
             if m is None:
                 continue
             seg = g["seg"] if g["seg"] and 1 <= g["seg"] <= len(segs) else None
-            if g["kind"] in ("action_item", "target") and any(
-                    f["subject"] == m["id"] and f["kind"] in ("action_item", "target") and jaccard(norm(f["text"]), norm(g["text"])) >= 0.5
-                    for f in facts):
-                continue
-            facts.append({"subject": m["id"], "kind": g["kind"], "text": g["text"], "project": g["project"],
-                          "seg": seg, "confidence": g["confidence"], "origin": "ai",
-                          "due": due_of(g, mday.date() if mday else None) if g["kind"] in ("target", "action_item") else None,
-                          "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people)})
+            due = due_of(g, base) if g["kind"] in COMMIT_KINDS else None
+            twin = None
+            if g["kind"] in COMMIT_KINDS:
+                same = [f for f in facts if f["subject"] == m["id"] and f["kind"] in COMMIT_KINDS
+                        and jaccard(norm(f.get("key_text") or f["text"]), norm(g["text"])) >= 0.5]
+                if same:
+                    # Already recorded. When the meeting's own item has no deadline and this one does,
+                    # this one is kept as its dated twin (same correction key, same cluster): the
+                    # board shows the dated line to whoever can read where the date came from.
+                    twin = next((f for f in same if f.get("origin") == "meeting_fact"), None)
+                    if not (due and twin is not None and not any(f.get("due") for f in same)):
+                        continue
+            facts.append({"subject": m["id"], "kind": "target" if due else g["kind"], "text": g["text"],
+                          "project": g["project"], "seg": seg, "confidence": g["confidence"], "origin": "ai",
+                          "due": due, "due_text": g.get("due_text"), "waiting_on": _waiting(g.get("waiting_on"), people),
+                          **({"key_text": twin["text"]} if twin is not None else {})})
     when = _day(row.get("date")) or _aware(row.get("created_at")) or now_utc()
     source = {"type": "meeting", "doc_id": page["_id"], "meeting_id": str(row["_id"])}
     if sent_transcript and tdoc is not None:
@@ -811,7 +929,7 @@ async def _write_facts(db: AsyncIOMotorDatabase, workspace_id: str, src_key: str
     for f in facts[:MAX_FACTS_PER_SOURCE]:
         if f["subject"] not in member_ids:
             continue
-        nk = norm(f["text"])
+        nk = norm(f.get("key_text") or f["text"])
         if not nk or (f["subject"], f["kind"], nk) in seen:
             continue
         seen.add((f["subject"], f["kind"], nk))
@@ -843,23 +961,31 @@ async def _write_facts(db: AsyncIOMotorDatabase, workspace_id: str, src_key: str
     return len(rows)
 
 
+def kind_group(kind: str) -> str:
+    """What dedupes with what: the same kind, and action items with targets (a commitment said with
+    and without its deadline is one commitment)."""
+    return "commit" if kind in COMMIT_KINDS else kind
+
+
 async def _cluster_new(db: AsyncIOMotorDatabase, workspace_id: str, rows: list[dict]) -> None:
-    """Join each new fact to an existing near-duplicate's cluster (same subject and kind) and
-    reinforce that cluster (a "working on" said again doesn't decay)."""
+    """Join each new fact to an existing near-duplicate's cluster (same subject and kind group), or an
+    earlier one of the same batch's, and reinforce that cluster (a "working on" said again doesn't decay)."""
     subjects = list({r["subject"] for r in rows})
     old = await db[FACTS].find({"workspace_id": workspace_id, "subject": {"$in": subjects},
                                 "_id": {"$nin": [r["_id"] for r in rows]}},
                                {"subject": 1, "kind": 1, "norm": 1, "cluster": 1, "when": 1}).sort(
         "when", -1).limit(SCAN_FACTS).to_list(length=SCAN_FACTS)
-    for r in rows:
+    for i, r in enumerate(rows):
         best = None
-        for o in old:
-            if o["subject"] == r["subject"] and o["kind"] == r["kind"] and jaccard(o.get("norm") or "", r["norm"]) >= JACCARD:
+        for o in [*old, *rows[:i]]:
+            if (o["subject"] == r["subject"] and kind_group(o["kind"]) == kind_group(r["kind"])
+                    and jaccard(o.get("norm") or "", r["norm"]) >= JACCARD):
                 best = o
                 break
         if best is None:
             continue
         cl = best.get("cluster") or str(best["_id"])
+        r["cluster"] = cl
         await db[FACTS].update_one({"_id": r["_id"]}, {"$set": {"cluster": cl}})
         await db[FACTS].update_many({"workspace_id": workspace_id, "cluster": cl, "status": "stale"},
                                     {"$set": {"status": "active"}})
@@ -1072,12 +1198,13 @@ async def consolidate(db: AsyncIOMotorDatabase, workspace_id: str, *, now: datet
     for k in gone_src:
         dropped += await drop_source(db, k)
     rows = [f for f in rows if f["src_key"] not in gone_src]
+    dated = await _date_free_facts(db, workspace_id, rows)
     # Clusters: oldest first, each fact joins the first earlier near-duplicate's cluster.
     reps: dict[tuple[str, str], list[tuple[str, str]]] = {}
     changes = 0
     cluster_last: dict[str, datetime] = {}
     for f in rows:
-        k = (f["subject"], f["kind"])
+        k = (f["subject"], kind_group(f["kind"]))
         cl = None
         for rn, rcl in reps.get(k, []):
             if jaccard(rn, f.get("norm") or "") >= JACCARD:
@@ -1130,10 +1257,56 @@ async def consolidate(db: AsyncIOMotorDatabase, workspace_id: str, *, now: datet
     for uid in subjects & members:
         await db[PROFILES].update_one({"_id": f"{workspace_id}:{uid}", "archived_at": {"$ne": None}},
                                       {"$set": {"archived_at": None}})
-    return {"dropped": dropped, "reclustered": changes, "stale": len(stale_ids)}
+    return {"dropped": dropped, "reclustered": changes, "stale": len(stale_ids), "dated": dated}
+
+
+async def _date_free_facts(db: AsyncIOMotorDatabase, workspace_id: str, rows: list[dict]) -> int:
+    """Meeting action items recorded before their own words were read for a deadline (a Gemini next
+    step "… by Friday" kept with no due date): give them the date now, against their meeting's day.
+    No model call; idempotent (only undated ones whose words name a deadline change)."""
+    from app.services import meetings
+
+    todo = [f for f in rows if f.get("origin") == "meeting_fact" and f["kind"] in COMMIT_KINDS and not f.get("due")
+            and f["src_key"].startswith("m:")]
+    if not todo:
+        return 0
+    mids = list({_oid(f["src_key"][2:]) for f in todo} - {None})
+    mrows = {str(r["_id"]): r for r in await db[meetings.COLL].find(
+        {"_id": {"$in": mids}}, {"date": 1, "created_at": 1, "workspace_id": 1}).to_list(length=len(mids) or 1)}
+    bases: dict[str, date] = {}
+    n = 0
+    for f in todo:
+        mid = f["src_key"][2:]
+        if mid not in mrows:
+            continue
+        if mid not in bases:
+            bases[mid] = await meeting_day(db, workspace_id, mrows[mid])
+        got = due_in_text(f["text"], bases[mid])
+        if not got:
+            continue
+        due, due_text = got[0].isoformat(), clean(got[1], 60)
+        await db[FACTS].update_one({"_id": f["_id"], "due": None}, {"$set": {
+            "due": due, "due_text": due_text, "kind": "target", "updated_at": now_utc()}})
+        f.update(due=due, due_text=due_text, kind="target")
+        n += 1
+    return n
 
 
 # ── Reading, per viewer ───────────────────────────────────────────────────────
+
+
+def prefer_dated(shown: dict, other: dict) -> dict:
+    """One line per cluster: the newest (``shown``), unless it is a commitment without a deadline and
+    ``other`` (an older line of the same cluster the viewer can also read) has one — then the dated
+    line, with the undated one's sources added."""
+    if shown.get("due") or not other.get("due") or shown["kind"] not in COMMIT_KINDS or other["kind"] not in COMMIT_KINDS:
+        return shown
+    srcs = list(other.get("sources") or [])
+    for x in shown.get("sources") or []:
+        if not any(x.get("doc_id") == y.get("doc_id") and x.get("meeting_id") == y.get("meeting_id") for y in srcs):
+            srcs.append(x)
+    return {**other, "sources": srcs, "done_at": other.get("done_at") or shown.get("done_at"),
+            "alt_text": shown.get("text")}
 
 
 @dataclass
@@ -1170,7 +1343,7 @@ async def visible(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
                    for s in f.get("sources") or [])
 
     uid = actor.user_id
-    seen_clusters: set[str] = set()
+    seen_clusters: dict[str, int] = {}
     out, hidden_own = [], []
     for f in rows:
         if not ok(f):
@@ -1183,8 +1356,10 @@ async def visible(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
             continue
         cl = f.get("cluster") or str(f["_id"])
         if cl in seen_clusters:
+            i = seen_clusters[cl]
+            out[i] = prefer_dated(out[i], f)
             continue
-        seen_clusters.add(cl)
+        seen_clusters[cl] = len(out)
         out.append(f)
     mids = list({s["meeting_id"] for f in out + hidden_own for s in f.get("sources") or [] if s.get("meeting_id")})
     mrows = {}
@@ -1264,7 +1439,8 @@ async def _done_ids(db: AsyncIOMotorDatabase, v: Visible, facts: list[dict]) -> 
     for f in todo:
         for s in f.get("sources") or []:
             d = pages_.get(s.get("doc_id"))
-            if d is not None and meeting_memory._status(meetings.page_text(d), f["text"]) == "done":
+            if d is not None and any(meeting_memory._status(meetings.page_text(d), t) == "done"
+                                     for t in (f["text"], f.get("alt_text")) if t):
                 out.add(str(f["_id"]))
         w = _aware(f.get("when"))
         if str(f["_id"]) not in out and w is not None:

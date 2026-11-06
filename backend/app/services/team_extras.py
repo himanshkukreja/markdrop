@@ -153,16 +153,21 @@ async def team_visible(db: AsyncIOMotorDatabase, workspace_id: str) -> wm.Visibl
             ok[d["_id"]] = d
     restricted = {str(r["_id"]) for r in await db[meetings.COLL].find(
         {"workspace_id": workspace_id, "restricted": True}, {"_id": 1}).to_list(length=5000)}
-    seen, facts = set(), []
+    seen: dict[str, int] = {}
+    facts = []
     for f in rows:
         if f.get("correction") and not f["correction"].get("text"):
             continue
         good = any(s.get("doc_id") in ok and all(a in ok for a in s.get("also") or [])
                    and s.get("meeting_id") not in restricted for s in f.get("sources") or [])
+        if not good:
+            continue
         cl = f.get("cluster") or str(f["_id"])
-        if good and cl not in seen:
-            seen.add(cl)
-            facts.append(f)
+        if cl in seen:
+            facts[seen[cl]] = wm.prefer_dated(facts[seen[cl]], f)
+            continue
+        seen[cl] = len(facts)
+        facts.append(f)
     mids = list({s["meeting_id"] for f in facts for s in f.get("sources") or [] if s.get("meeting_id")})
     mrows = {str(r["_id"]): r for r in await db[meetings.COLL].find(
         {"_id": {"$in": [wm._oid(m) for m in mids if wm._oid(m)]}}, {"segments": 0, "notes": 0, "generated": 0}).to_list(length=len(mids) or 1)}
