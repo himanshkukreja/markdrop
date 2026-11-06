@@ -404,8 +404,11 @@ async def build(db: AsyncIOMotorDatabase, ws_id: str, *, user_id: str | None = N
                     log.info("ask suggestions for %s: kept the last list (%s)", ws_id, type(exc).__name__)
                     sets.update(state="failed", reason="error")
                 else:
-                    sets.update(questions=qs, fp=fp, built_at=now, state="ok", reason=None,
-                                counts={"meetings": len(src["meetings"]), "pages": len(src["pages"])})
+                    if not qs:   # nothing usable came back: keep the last list
+                        sets.update(state="failed", reason="empty")
+                    else:
+                        sets.update(questions=qs, fp=fp, built_at=now, state="ok", reason=None,
+                                    counts={"meetings": len(src["meetings"]), "pages": len(src["pages"])})
     finally:
         await db[COLL].update_one({"_id": ws_id}, {"$set": sets})
     return await db[COLL].find_one({"_id": ws_id})
