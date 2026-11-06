@@ -33,8 +33,8 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
-      ...init,
       cache: "no-store",
+      ...init,
       headers: { "Content-Type": "application/json", ...authHeaders(), ...(init?.headers || {}) },
     });
   } catch {

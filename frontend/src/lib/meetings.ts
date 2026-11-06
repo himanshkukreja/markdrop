@@ -5,7 +5,7 @@
  *   POST   /api/v1/meetings/preview               what a paste / files would import (no writes)
  *   POST   /api/v1/meetings/import                → {meetings}
  *   POST   /api/v1/meetings/google/token          the Picker's short-lived token (drive.file)
- *   GET    /api/v1/meetings?workspace=            the meetings the caller can open
+ *   GET    /api/v1/meetings?workspace=&cursor=&limit=30&sort=&q=&series=   a page of the meetings the caller can open
  *   GET    /api/v1/meetings/{id}                  one
  *   PATCH  /api/v1/meetings/{id}                  {restricted?, type?}
  *   DELETE /api/v1/meetings/{id}
@@ -187,21 +187,58 @@ export function getMeetingsStatus(workspace: string) {
   return request<MeetingsStatus>(`/api/v1/meetings/status?workspace=${encodeURIComponent(workspace)}`);
 }
 
-export function listMeetings(workspace: string, opts?: { q?: string; series?: string; since?: string; until?: string; limit?: number }) {
+export type MeetingSort = "date_desc" | "date_asc" | "title" | "imported";
+export const MEETING_SORTS: Record<MeetingSort, string> = {
+  date_desc: "Meeting date, newest",
+  date_asc: "Meeting date, oldest",
+  title: "Title",
+  imported: "Recently imported",
+};
+export const MEETINGS_PAGE = 30;
+
+/** One meeting as the list shows it (the server's card: GET /meetings/{id} has the rest). */
+export type MeetingCard = Pick<Meeting, "id" | "workspace_id" | "title" | "page_title" | "slug" | "transcript_slug" | "date" | "time"
+  | "duration_s" | "type" | "attendees" | "restricted" | "action_items" | "segments" | "has_notes" | "has_transcript" | "created_at"
+  | "can_delete" | "source" | "history" | "series" | "summary" | "decisions" | "open_questions" | "cover"> & {
+  /** Everyone who was there (``attendees`` is the first five). */
+  attendee_count: number;
+  ai: Pick<MeetingAi, "state" | "message">;
+};
+
+export interface MeetingsPage {
+  meetings: MeetingCard[];
+  /** Pass back as ``cursor`` (same filters and sort) for the next page; null: that was the last. */
+  next_cursor: string | null;
+  /** How many meetings match (first page only). */
+  total: number | null;
+  /** Workspace admins, first page, no filter: restricted meetings they can't open (no title). */
+  hidden: HiddenMeeting[];
+  folder_id?: string | null;
+}
+
+export interface MeetingsQuery { q?: string; series?: string | null; since?: string; until?: string; sort?: MeetingSort; limit?: number; cursor?: string | null }
+
+/** ``series``: a name, "" for meetings in no series, null/undefined for all. */
+export function listMeetings(workspace: string, opts?: MeetingsQuery, init?: { signal?: AbortSignal }) {
   const qs = new URLSearchParams({ workspace });
-  if (opts?.q) qs.set("q", opts.q);
-  if (opts?.series) qs.set("series", opts.series);
+  if (opts?.q?.trim()) qs.set("q", opts.q.trim());
+  if (opts?.series != null) qs.set("series", opts.series === "" ? "none" : opts.series);
   if (opts?.since) qs.set("since", opts.since);
   if (opts?.until) qs.set("until", opts.until);
-  qs.set("limit", String(opts?.limit ?? 300));
-  return request<{ meetings: Meeting[]; hidden: HiddenMeeting[]; folder_id: string | null }>(`/api/v1/meetings?${qs}`);
+  if (opts?.sort && opts.sort !== "date_desc") qs.set("sort", opts.sort);
+  if (opts?.cursor) qs.set("cursor", opts.cursor);
+  qs.set("limit", String(opts?.limit ?? MEETINGS_PAGE));
+  // no-cache, not no-store: the browser revalidates with the ETag and a 304 costs no body (the refreshes
+  // while a summary is being written).
+  return request<MeetingsPage>(`/api/v1/meetings?${qs}`, { cache: "no-cache", signal: init?.signal });
 }
 
 export interface MeetingSeries { name: string; count: number; last: string | null }
 
-/** The series of the meetings the caller can open (most meetings first). */
+/** The series of the meetings the caller can open (most meetings first), how many they can open, and how
+ * many are in no series — the hub's chips. */
 export function listSeries(workspace: string) {
-  return request<{ series: MeetingSeries[] }>(`/api/v1/meetings/series?workspace=${encodeURIComponent(workspace)}`);
+  return request<{ series: MeetingSeries[]; total?: number; one_offs?: number }>(`/api/v1/meetings/series?workspace=${encodeURIComponent(workspace)}`);
 }
 
 export function getMeeting(id: string) {
