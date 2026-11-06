@@ -14,6 +14,9 @@
  *              hides it for good on the device
  *   linkpage   /integrations/slack/link?team=… (the button /markdrop shows) → Continue with Slack → linked
  *   cancel     Slack says access_denied → "You cancelled in Slack", nothing connected
+ *   actionitems a meeting with action items for Ben (a member) and Zara (not in Markdrop): after the
+ *              minute, Ben's message has Open the notes and Done, Zara's only her items; the admin's
+ *              switch and preview on the Integrations tab; Ben's own switch in Settings › Account
  *   disconnect Disconnect Slack… → confirm → Add to Slack again
  *   shots      light/dark × desktop/phone of the Integrations tab, and of the Slack notifications card
  *
@@ -289,6 +292,91 @@ if (FAKE) await step("disconnect", async () => {
   await p.getByTestId("slack-card").getByRole("button", { name: "Add to Slack" }).waitFor();
   const st = await status("owner");
   if (st.install !== null || st.me.linked) fail(`after disconnect: ${JSON.stringify(st)}`);
+});
+
+if (FAKE) await step("actionitems", async () => {
+  if (!(await status("owner")).install) await (await connect()).c.close();
+  await api("PATCH", "/api/v1/slack/me/prefs", T.member, { action_items: true });
+  const d = new Date();
+  const mon = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const notes = `# Daily Syncup\n${mon} ${d.getUTCDate()}, ${d.getUTCFullYear()}\n`
+    + "Invited Ada Owner <ada@acme.test>, Ben Member <ben@acme.test>, Zara Khan <zara@outside.test>\n\n"
+    + "## Summary\nThe team went through the launch checklist. INTERNAL-ONLY-SUMMARY.\n\n"
+    + "## Details\n- **Launch**: on track (00:00:20).\n\n"
+    + "## Suggested next steps\n- [ ] Zara Khan will send the pricing sheet to finance by Friday.\n"
+    + "- [ ] Ben Member will update the onboarding docs.\n- [ ] Zara Khan will book the demo room.\n";
+  const imp = ok(await api("POST", "/api/v1/meetings/import", T.owner, {
+    workspace: WS, wait: true, date: d.toISOString().slice(0, 10),
+    sources: [{ name: "Daily Syncup - Notes by Gemini", text: notes }] }), "import");
+  const callsFile = path.join(WORK, "stack", "slack-calls.jsonl");
+  const before = fs.existsSync(callsFile) ? fs.readFileSync(callsFile, "utf8").split("\n").length : 0;
+  const sent = ok(await api("POST", "/__sandbox/slack/flush", T.owner, {}), "flush");
+  const calls = fs.readFileSync(callsFile, "utf8").split("\n").slice(before - 1).filter(Boolean).map((l) => JSON.parse(l));
+  const dm = (id) => calls.find((x) => x.method === "chat.postMessage" && x.data.channel === id);
+  const zara = dm("U-ZARA"), ben = dm("U-BEN-EMAIL");
+  if (!zara || !ben) fail(`DMs: sent ${JSON.stringify(sent)}; ${calls.map((x) => `${x.method}:${x.data.channel || ""}`).join(", ")}`);
+  const zt = JSON.stringify(zara.data);
+  if (!zt.includes("Send the pricing sheet to finance by Friday.") || !zt.includes("Book the demo room.")) fail(`Zara's items: ${zt.slice(0, 400)}`);
+  if (zt.includes("onboarding") || zt.includes("INTERNAL-ONLY-SUMMARY") || zt.includes("Open the notes") || zt.includes(imp.meetings[0].slug)) fail("Zara's message holds more than her items");
+  if (!zt.includes("Notes are in Markdrop (ask Ada Owner for access)")) fail(`Zara's ask line: ${zt.slice(0, 400)}`);
+  const bt = JSON.stringify(ben.data);
+  if (!bt.includes("Update the onboarding docs.") || !bt.includes("Open the notes") || !bt.includes("md_ai_done") || bt.includes("pricing")) fail(`Ben's message: ${bt.slice(0, 400)}`);
+
+  // The admin's switch, the last meeting's line and the preview.
+  for (const theme of ["light", "dark"]) {
+    for (const [w, h, tag] of [[1440, 900, "desktop"], [390, 844, "phone"]]) {
+      const { p } = await ctx(browser, { token: T.owner, theme, width: w, height: h });
+      await p.goto(TAB);
+      const box = p.getByTestId("slack-action-items");
+      await box.waitFor({ timeout: 30000 });
+      await box.getByRole("switch", { name: "Send each person their action items after meetings" }).waitFor({ state: "attached" });
+      await p.getByTestId("slack-ai-preview").getByText("Notes are in Markdrop (ask Ada Owner for access)").waitFor({ timeout: 15000 });
+      await p.getByTestId("slack-ai-people").getByText("Zara Khan").waitFor();
+      await p.getByTestId("slack-ai-last").getByText(/2 of 3 people messaged|2 of 2 people messaged/).waitFor();
+      const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (overflow > 1) fail(`action items ${tag} ${theme}: the page scrolls sideways by ${overflow}px`);
+      await p.waitForTimeout(400);
+      const file = path.join(OUT, `${BROWSER}-slack-action-items-${theme}-${tag}.png`);
+      await box.screenshot({ path: file });
+      log("shot", path.basename(file));
+      if (theme === "light" && tag === "desktop") {
+        await box.getByRole("switch", { name: "Send each person their action items after meetings" }).dispatchEvent("click");
+        await p.getByText("Action items aren't sent to people now.").waitFor({ timeout: 10000 });
+        if ((await status("owner")).install.action_item_dms !== false) fail("the switch didn't save");
+        await box.getByRole("switch", { name: "Send each person their action items after meetings" }).dispatchEvent("click");
+        await p.getByText("Each person gets their action items after meetings.").waitFor({ timeout: 10000 });
+      }
+      await p.context().close();
+    }
+  }
+  // A member sees the switch locked, and no preview.
+  {
+    const { p } = await ctx(browser, { token: T.member });
+    await p.goto(TAB);
+    await p.getByTestId("slack-action-items").waitFor({ timeout: 30000 });
+    if (await p.getByTestId("slack-ai-preview").count()) fail("a member sees the preview");
+    const r = await api("GET", `/api/v1/slack/action-items/preview?workspace_id=${WS}`, T.member);
+    if (r.status !== 403) fail(`member preview → ${r.status}`);
+    await p.context().close();
+  }
+  // Ben's own switch: on by default (his Slack notifications may be off), saved when turned off.
+  {
+    const { p } = await ctx(browser, { token: T.member });
+    await p.goto(`${ACCOUNT}#slack`);
+    const sw = p.getByTestId("slack-action-items-pref").getByRole("switch", { name: "Action items after meetings" });
+    await sw.waitFor({ state: "attached", timeout: 30000 });
+    if (!(await sw.isChecked())) fail("Action items after meetings isn't on by default");
+    await sw.dispatchEvent("click");
+    await p.waitForFunction(() => {
+      const el = [...document.querySelectorAll('[role="switch"]')].find((x) => x.getAttribute("aria-labelledby") === "slack-pref-action-items-label");
+      return el && !el.checked;
+    }, null, { timeout: 10000 });
+    if ((await meOf("member")).action_items !== false) fail("Ben's switch didn't save");
+    await p.waitForTimeout(300);
+    await p.getByTestId("slack-action-items-pref").screenshot({ path: path.join(OUT, `${BROWSER}-slack-action-items-pref.png`) });
+    await api("PATCH", "/api/v1/slack/me/prefs", T.member, { action_items: true });
+    await p.context().close();
+  }
 });
 
 if (FAKE) await step("shots", async () => {

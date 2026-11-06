@@ -527,6 +527,11 @@ if os.environ.get("PB_FAKE_SLACK"):
                 return httpx.Response(200, json={"ok": True, "user": {
                     "id": "U-BEN-EMAIL", "name": "ben", "deleted": False, "is_bot": False, "is_email_confirmed": True,
                     "profile": {"email": "ben@acme.test", "real_name": "Ben in Slack"}}})
+            # Action items after meetings (slack.mjs `actionitems`): Zara isn't in Markdrop, but is in Acme Slack.
+            if str(data.get("email") or "").lower() == "zara@outside.test":
+                return httpx.Response(200, json={"ok": True, "user": {
+                    "id": "U-ZARA", "name": "zara", "deleted": False, "is_bot": False, "is_email_confirmed": True,
+                    "profile": {"email": "zara@outside.test", "real_name": "Zara Khan"}}})
             return httpx.Response(200, json={"ok": False, "error": "users_not_found"})
         if method == "conversations.list":
             return httpx.Response(200, json={"ok": True, "channels": [
@@ -541,6 +546,18 @@ if os.environ.get("PB_FAKE_SLACK"):
         return httpx.Response(200, json={"ok": True})
 
     _slack_api.TRANSPORT = httpx.MockTransport(_slack)
+
+    # Background loops are off here: /__sandbox/slack/flush sends what's queued (the action-items
+    # messages wait a minute first, so "now" is two minutes on).
+    @mod.app.post("/__sandbox/slack/flush", include_in_schema=False)
+    async def _slack_flush():
+        from datetime import datetime as _sdt, timedelta as _std, timezone as _stz
+
+        from app import database as _sdatabase
+        from app.services import slack as _slack_svc, slack_notify as _slack_notify
+
+        await _slack_svc.drain()
+        return {"sent": await _slack_notify.flush(_sdatabase.get_database(), now=_sdt.now(_stz.utc) + _std(minutes=2))}
 
 # Push notifications (services/push.py) for push.mjs: PB_PUSH=1. A VAPID pair made for this run only
 # (never a real one), and a fake push service inside this API: /__sandbox/fakepush/<id> keeps what it
