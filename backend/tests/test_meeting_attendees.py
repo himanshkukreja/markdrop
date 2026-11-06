@@ -124,7 +124,9 @@ class Import(MeetingsWorld):
         self.assertEqual(await self.db["notifications"].count_documents({}), 0)   # meeting writes are quiet
         # The list's cards and Home count attendees.
         r = await self.http.get(f"/api/v1/meetings?workspace={self.W}", headers=self.session("owner"))
-        self.assertEqual(len(r.json()["meetings"][0]["attendees"]), 12)
+        card = r.json()["meetings"][0]                     # the light card: the first five + the count
+        self.assertEqual(card["attendee_count"], 12)
+        self.assertLessEqual(len(card["attendees"]), 5)
 
     async def test_b_notes_only_say_invited_never_attendees(self):
         m = await self.imported(sources=[body(NOTES)])
