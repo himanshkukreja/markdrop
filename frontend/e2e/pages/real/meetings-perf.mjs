@@ -143,8 +143,8 @@ if (!MEASURE_ONLY) {
     await target.locator(".mt-card__link").click();
     await p.waitForURL((u) => !u.pathname.startsWith("/meetings/"), { timeout: 30000 });
     await p.waitForTimeout(800);
-    let calls = 0;
-    p.on("request", (r) => { if (isList(r.url())) calls++; });
+    const urls = [];
+    p.on("request", (r) => { if (isList(r.url())) urls.push(r.url()); });
     const t0 = Date.now();
     await p.goBack();
     await p.waitForSelector(`[data-testid="meeting-card"][data-id="${id}"]`, { timeout: 15000 });
@@ -152,10 +152,13 @@ if (!MEASURE_ONLY) {
     await p.waitForTimeout(1500);
     const y2 = await p.evaluate(() => window.scrollY);
     const again = (await cards(p)).length;
-    log(`back: ${again} cards (had ${loaded}), scrollY ${y2} (was ${y}), shown in ${shownIn} ms, ${calls} list request(s)`);
+    log(`back: ${again} cards (had ${loaded}), scrollY ${y2} (was ${y}), shown in ${shownIn} ms, ${urls.length} list request(s)`);
     if (again < loaded) fail(`back shows ${again} cards, had ${loaded}`);
     if (Math.abs(y2 - y) > 150) fail(`back scrolled to ${y2}, was ${y}`);
-    if (calls > 1) fail(`back made ${calls} list requests`);
+    // From memory: one quiet refresh of the loaded head, and at most the next page prefetched while idle —
+    // never the pages again one by one.
+    const head = urls.filter((u) => !u.includes("cursor="));
+    if (head.length > 1 || urls.length - head.length > 1) fail(`back made ${urls.length} list requests: ${urls.join(" ")}`);
   });
 
   await step("search", async () => {
