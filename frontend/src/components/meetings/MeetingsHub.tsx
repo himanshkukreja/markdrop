@@ -8,8 +8,11 @@
  * Only meetings the caller can open are listed (the server decides); a workspace admin also sees that
  * restricted meetings exist (no title) so they can delete them. Phones get one column, full-width
  * buttons and the imports as bottom sheets.
+ *
+ * The list comes a page at a time (useMeetingsList: 30 cards, the next page prefetched while idle and
+ * shown when the reader scrolls near the end); search, the series chips and the order are the server's.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner,
@@ -18,10 +21,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { getWorkspace, type Workspace } from "@/lib/workspaces";
 import {
-  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, getOrganize, getOrganizeRun, listBackfills, listMeetings, listSeries,
-  monthLabel, meetingsHref,
-  type BackfillJob, type OrganizeJob, type HiddenMeeting, type MeetConnection, type Meeting, type MeetingSeries, type MeetingsStatus,
+  deleteMeeting, fmtDuration, getMeetConnection, getMeetingsStatus, getOrganize, getOrganizeRun, listBackfills, listSeries,
+  monthLabel, meetingsHref, MEETING_SORTS,
+  type BackfillJob, type OrganizeJob, type MeetConnection, type MeetingCard, type MeetingSeries, type MeetingSort, type MeetingsStatus,
 } from "@/lib/meetings";
+import { lastQuery, useMeetingsList } from "./useMeetingsList";
 import { ImportMeeting } from "./ImportMeeting";
 import { BulkImport } from "./BulkImport";
 import { BackfillProgress } from "./BackfillProgress";
@@ -42,54 +46,71 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const [status, setStatus] = useState<MeetingsStatus | null>(null);
   // Ask Markdrop here (✦ Ask, ⌘J, the Ask box below): the Meetings scope of this workspace.
   useAssistantHere({ workspace: workspaceId, scope: "meetings" });
-  const [items, setItems] = useState<Meeting[] | null>(null);
-  const [hidden, setHidden] = useState<HiddenMeeting[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [filter, setFilter] = useState("");
+  // The filters (this tab's last ones on this workspace, for back navigation); the order is remembered on
+  // this device (like a folder's listing view).
+  const restoredQuery = useMemo(() => lastQuery(workspaceId), [workspaceId]);
+  const [filter, setFilter] = useState(restoredQuery?.q ?? "");
+  const [q, setQ] = useState(restoredQuery?.q ?? "");
   const [deleting, setDeleting] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [conn, setConn] = useState<{ mine: MeetConnection | null; others: MeetConnection[] }>({ mine: null, others: [] });
   const [bulk, setBulk] = useState(false);
   const [job, setJob] = useState<BackfillJob | null>(null);
   const [series, setSeries] = useState<MeetingSeries[]>([]);
-  const [seriesFilter, setSeriesFilter] = useState<string | null>(null);
+  const [facets, setFacets] = useState<{ total: number; one_offs: number } | null>(null);
+  const [seriesFilter, setSeriesFilter] = useState<string | null>(restoredQuery?.series ?? null);
   const [organizing, setOrganizing] = useState(false);
   // The "Organize meetings" run this page follows (a background job on the server; polled while it runs).
   const [orgJob, setOrgJob] = useState<OrganizeJob | null>(null);
   const phone = useMediaQuery(PHONE_QUERY);
-  // The list's order, remembered on this device (like a folder's listing view).
-  const [sort, setSortState] = useState<MeetingSort>("date_desc");
-  useEffect(() => {
-    try { const v = window.localStorage.getItem(SORT_KEY); if (v && v in SORTS) setSortState(v as MeetingSort); } catch { /* storage off */ }
-  }, []);
+  const [sort, setSortState] = useState<MeetingSort>(() => restoredQuery?.sort ?? storedSort());
   const setSort = (v: MeetingSort) => {
     setSortState(v);
     try { window.localStorage.setItem(SORT_KEY, v); } catch { /* storage off */ }
   };
+  // Search as you type, asked of the server a beat after the last key.
+  useEffect(() => {
+    const t = window.setTimeout(() => setQ(filter.trim()), filter.trim() ? 250 : 0);
+    return () => window.clearTimeout(t);
+  }, [filter]);
+  const query = useMemo(() => ({ q, series: seriesFilter, sort }), [q, seriesFilter, sort]);
+  const signedIn = !!user;
+  const list = useMeetingsList(workspaceId, signedIn, query);
+  const { items, hidden, refreshHead, reload: reloadFirst, drop } = list;
 
   const loadConn = useCallback(() => getMeetConnection(workspaceId)
     .then((c) => setConn({ mine: c.connection, others: c.others })).catch(() => {}), [workspaceId]);
 
-  const load = useCallback(async () => {
+  const loadFacets = useCallback(() => listSeries(workspaceId).then((r) => {
+    setSeries(r.series);
+    if (r.total != null) setFacets({ total: r.total, one_offs: r.one_offs ?? 0 });
+  }).catch(() => {}), [workspaceId]);
+  // The page around the list (the list itself: useMeetingsList).
+  const loadShell = useCallback(async () => {
     try {
-      const [w, s, l] = await Promise.all([getWorkspace(workspaceId), getMeetingsStatus(workspaceId), listMeetings(workspaceId)]);
-      setWs(w); setStatus(s); setItems(l.meetings); setHidden(l.hidden); setError(null);
+      const [w, s] = await Promise.all([getWorkspace(workspaceId), getMeetingsStatus(workspaceId)]);
+      setWs(w); setStatus(s); setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't load the meetings.");
-      setItems([]);
     }
-    listSeries(workspaceId).then((r) => setSeries(r.series)).catch(() => {});
-  }, [workspaceId]);
+    void loadFacets();
+  }, [workspaceId, loadFacets]);
+  // After an import, a delete or Organize finishing: the first page again, and the chips.
+  const load = useCallback(async () => {
+    await Promise.all([loadShell(), reloadFirst()]);
+  }, [loadShell, reloadFirst]);
   const reloadList = useCallback(() => {
-    listMeetings(workspaceId).then((l) => { setItems(l.meetings); setHidden(l.hidden); }).catch(() => {});
-    listSeries(workspaceId).then((r) => setSeries(r.series)).catch(() => {});
-  }, [workspaceId]);
+    void refreshHead();
+    void loadFacets();
+  }, [refreshHead, loadFacets]);
   // An import of past meetings started earlier (on this or another device): its progress.
   const loadJob = useCallback(() => listBackfills(workspaceId)
     .then((r) => setJob(r.jobs.find((j) => j.state !== "draft") ?? null)).catch(() => {}), [workspaceId]);
 
-  useEffect(() => { if (user) { void load(); void loadConn(); void loadJob(); } }, [user, load, loadConn, loadJob]);
+  // Once per sign-in (not on every refresh of the user object: focus storms).
+  useEffect(() => { if (signedIn) { void loadShell(); void loadConn(); void loadJob(); } }, [signedIn, loadShell, loadConn, loadJob]);
   // "Check for new meetings": the connected scripts run now; the list and the connection line refresh.
   const afterCheck = useCallback(() => { void load(); void loadConn(); }, [load, loadConn]);
   const checkNow = useCheckNow({ workspaceId, mine: conn.mine, others: conn.others, onChecked: afterCheck });
@@ -136,13 +157,32 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     // Only on the transition out of "running".
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgState]);
-  // A summary is being written: refresh the list now and then.
+  // A summary is being written: refresh the loaded meetings now and then (a 304 while nothing changed),
+  // not while the tab is in the background.
   const pending = items?.some((m) => m.ai.state === "pending");
   useEffect(() => {
     if (!pending) return;
-    const t = window.setInterval(() => void listMeetings(workspaceId).then((l) => { setItems(l.meetings); setHidden(l.hidden); }).catch(() => {}), 4000);
+    const t = window.setInterval(() => { if (document.visibilityState === "visible") void refreshHead(); }, 4000);
     return () => window.clearInterval(t);
-  }, [pending, workspaceId]);
+  }, [pending, refreshHead]);
+  // Back from a meeting: the same place in the list (it rendered from memory, at full height).
+  const restoredScroll = useRef(false);
+  const restoreY = list.restoredScrollY;
+  useLayoutEffect(() => {
+    if (restoredScroll.current || !items || items.length === 0) return;
+    restoredScroll.current = true;
+    if (restoreY > 0) window.scrollTo(0, restoreY);
+  }, [items, restoreY]);
+  // More when the reader nears the end of what's loaded.
+  const sentinel = useRef<HTMLDivElement | null>(null);
+  const { loadMore, next: nextCursor } = list;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !nextCursor || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) loadMore(); }, { rootMargin: "900px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [nextCursor, loadMore, items?.length]);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
     if (q.get("import") === "past") setBulk(true);
@@ -151,16 +191,10 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     else if (q.get("check") === "1") autoCheck.current = true;
   }, []);
 
-  const shown = useMemo(() => {
-    const f = filter.trim().toLowerCase();
-    return (items ?? []).filter((m) => (!f || (m.title || "").toLowerCase().includes(f) || (m.series || "").toLowerCase().includes(f)
-      || m.attendees.some((a) => a.name.toLowerCase().includes(f)))
-      && (seriesFilter === null || (seriesFilter === "" ? !m.series : m.series === seriesFilter)))
-      .sort(SORTS[sort].cmp);
-  }, [items, filter, seriesFilter, sort]);
-  // By month for the date orders; one flat list for the others.
+  // In the server's order: by month for the date orders; one flat list for the others.
+  const shown = useMemo(() => items ?? [], [items]);
   const months = useMemo(() => {
-    const out: Array<{ key: string; items: Meeting[] }> = [];
+    const out: Array<{ key: string; items: MeetingCard[] }> = [];
     const byMonth = sort === "date_desc" || sort === "date_asc";
     for (const m of shown) {
       const key = byMonth ? (m.date || "").slice(0, 7) || "none" : "all";
@@ -170,14 +204,18 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     }
     return out;
   }, [shown, sort]);
-  const oneOffs = (items ?? []).filter((m) => !m.series).length;
+  const filtered = !!filter || seriesFilter !== null;
+  // Every meeting the caller can open (the chips' answer), and how many match now.
+  const allCount = facets?.total ?? (filtered ? null : list.total);
+  const matchCount = list.total ?? shown.length;
+  const oneOffs = facets?.one_offs ?? 0;
 
   if (authLoading) return <div className="mt-hub"><Skeleton height={32} width={240} /></div>;
   if (!user) return <div className="mt-hub"><Alert tone="info">Sign in to see your team's meetings.</Alert></div>;
 
   const canImport = !!status?.can_import;
   const folderHref = status?.folder_id ? `/w/${encodeURIComponent(workspaceId)}/f/${encodeURIComponent(status.folder_id)}` : null;
-  const any = (items?.length ?? 0) > 0;
+  const any = (items?.length ?? 0) > 0 || (allCount ?? 0) > 0 || filtered;
   const connectedHere = !!conn.mine && conn.mine.workspace_id === workspaceId;
   const connectButton = canImport && !connectedHere && (
     <Button variant="secondary" iconLeft="refresh" onClick={() => setConnecting(true)} data-testid="connect-meet">Connect Google Meet</Button>
@@ -208,7 +246,6 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     ...(canOrganize && any ? [{ label: "Organize meetings", icon: "listTree", onClick: () => setOrganizing(true),
       description: orgRunning ? `Running: ${orgJob?.done ?? 0} of ${orgJob?.total ?? 0}` : "A folder per series, the rest in Other meetings" }] : []),
   ];
-  const filtered = !!filter || seriesFilter !== null;
 
   return (
     <div className="mt-hub">
@@ -234,7 +271,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
       <MeetConnectionStatus mine={conn.mine} others={conn.others} workspaceId={workspaceId}
         onChanged={() => void loadConn()} onReconnect={() => setConnecting(true)} />
 
-      {error && <Alert tone="danger" className="mb-4">{error}</Alert>}
+      {(error || list.error) && <Alert tone="danger" className="mb-4">{error || list.error}</Alert>}
       {job && <BackfillProgress job={job} onChange={setJob} onProgress={reloadList} />}
       {orgJob?.state === "running" && !organizing && (
         <div className="mt-orgbar" data-testid="organize-bar">
@@ -246,7 +283,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         </div>
       )}
 
-      {any && <AskMeetingsDock count={items?.length ?? 0}
+      {any && <AskMeetingsDock count={allCount ?? items?.length ?? 0}
         aiMessage={status?.ai.enabled === false ? status.ai.message : null} />}
 
       {items === null ? (
@@ -281,14 +318,14 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
                 placeholder="Search titles, series, people" aria-label="Filter meetings" />
             </div>
             <span className="mt-tools__right">
-              <span className="mt-count" aria-live="polite">{shown.length} {shown.length === 1 ? "meeting" : "meetings"}{filtered && items ? ` of ${items.length}` : ""}</span>
+              <span className="mt-count" aria-live="polite" data-testid="meetings-count">{matchCount} {matchCount === 1 ? "meeting" : "meetings"}{filtered && allCount != null ? ` of ${allCount}` : ""}</span>
               <Select aria-label="Sort meetings" value={sort} onChange={(e) => setSort(e.target.value as MeetingSort)} data-testid="meetings-sort" className="mt-sort"
-                options={(Object.keys(SORTS) as MeetingSort[]).map((k) => ({ value: k, label: SORTS[k].label }))} />
+                options={(Object.keys(MEETING_SORTS) as MeetingSort[]).map((k) => ({ value: k, label: MEETING_SORTS[k] }))} />
             </span>
           </div>
           {series.length > 0 && (
             <ul className="mt-series" aria-label="Series" data-testid="series-chips">
-              <li><button type="button" className="mt-series__chip" aria-pressed={seriesFilter === null} onClick={() => setSeriesFilter(null)}>All <span className="mt-series__n">{items?.length ?? 0}</span></button></li>
+              <li><button type="button" className="mt-series__chip" aria-pressed={seriesFilter === null} onClick={() => setSeriesFilter(null)}>All <span className="mt-series__n">{allCount ?? "…"}</span></button></li>
               {series.map((x) => (
                 <li key={x.name}>
                   <button type="button" className="mt-series__chip" aria-pressed={seriesFilter === x.name} onClick={() => setSeriesFilter(seriesFilter === x.name ? null : x.name)}>
@@ -299,23 +336,38 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
               {oneOffs > 0 && <li><button type="button" className="mt-series__chip" aria-pressed={seriesFilter === ""} onClick={() => setSeriesFilter(seriesFilter === "" ? null : "")}>One-offs <span className="mt-series__n">{oneOffs}</span></button></li>}
             </ul>
           )}
-          <div className="mt-months" data-testid="meetings-list">
-            {shown.length === 0 && filtered && (
+          <div className="mt-months" data-testid="meetings-list" aria-busy={list.stale || undefined} data-stale={list.stale ? "" : undefined}>
+            {shown.length === 0 && filtered && !list.stale && (
               <div className="mt-nomatch">
                 <Icon name="search" />
                 <p>No meetings match{filter ? <> “{filter}”</> : null}.</p>
                 <Button size="sm" variant="secondary" onClick={() => { setFilter(""); setSeriesFilter(null); }}>Clear the filters</Button>
               </div>
             )}
-            {months.map((g) => (
+            {months.map((g, gi) => (
               <section key={g.key} className="mt-monthgroup" aria-label={g.key === "all" ? undefined : g.key === "none" ? "No date" : monthLabel(g.key)}>
-                {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)} <small>{g.items.length}</small></h3>}
+                {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)}{/* the last month may go on in the next page */}{(gi < months.length - 1 || !list.next) && <small> {g.items.length}</small>}</h3>}
                 <ul className="mt-list">
-                  {g.items.map((m) => <MeetingCard key={m.id} m={m} onDelete={m.can_delete ? () => setDeleting(m.id) : undefined} />)}
+                  {g.items.map((m) => <MeetingCardItem key={m.id} m={m} onDelete={m.can_delete ? () => setDeleting(m.id) : undefined} />)}
                 </ul>
               </section>
             ))}
-            {!filtered && hidden.length > 0 && (
+            {list.next && (
+              <div ref={sentinel} className="mt-more" data-testid="meetings-more-zone">
+                {list.loadingMore ? (
+                  <>
+                    <Skeleton variant="rect" height={104} />
+                    <Skeleton variant="rect" height={104} />
+                  </>
+                ) : (
+                  <Button variant="secondary" onClick={loadMore} data-testid="meetings-load-more">
+                    {list.moreError ? "Couldn't load more. Try again" : "Load more meetings"}
+                    {!list.moreError && list.total != null && list.total > shown.length ? ` (${list.total - shown.length})` : ""}
+                  </Button>
+                )}
+              </div>
+            )}
+            {!filtered && !list.next && hidden.length > 0 && (
               <ul className="mt-list mt-list--hidden">
                 {hidden.map((h) => (
                   <li key={h.id} className="mt-card mt-card--hidden">
@@ -352,23 +404,23 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
           if (!deleting) return;
           await deleteMeeting(deleting);
           toast.success("Meeting deleted.");
+          drop(deleting);
           setDeleting(null);
-          void load();
+          reloadList();
         }} />
     </div>
   );
 }
 
-type MeetingSort = "date_desc" | "date_asc" | "title" | "imported";
 const SORT_KEY = "md:meetings-sort";
-/** "2026-11-04 10:00" for ordering by when the meeting happened (no date: last). */
-const when = (m: Meeting) => (m.date ? `${m.date} ${m.time || ""}` : "");
-const SORTS: Record<MeetingSort, { label: string; cmp: (a: Meeting, b: Meeting) => number }> = {
-  date_desc: { label: "Meeting date, newest", cmp: (a, b) => (!a.date ? 1 : !b.date ? -1 : when(b).localeCompare(when(a))) },
-  date_asc: { label: "Meeting date, oldest", cmp: (a, b) => (!a.date ? 1 : !b.date ? -1 : when(a).localeCompare(when(b))) },
-  title: { label: "Title", cmp: (a, b) => (a.title || "").localeCompare(b.title || "", undefined, { sensitivity: "base" }) || when(b).localeCompare(when(a)) },
-  imported: { label: "Recently imported", cmp: (a, b) => (b.created_at || "").localeCompare(a.created_at || "") },
-};
+/** The order this device last chose (the server sorts). */
+function storedSort(): MeetingSort {
+  try {
+    const v = typeof window === "undefined" ? null : window.localStorage.getItem(SORT_KEY);
+    if (v && v in MEETING_SORTS) return v as MeetingSort;
+  } catch { /* storage off */ }
+  return "date_desc";
+}
 
 /** "Today", "Yesterday", "Wed, Nov 4" (this year) or "Wed, Nov 4, 2025". */
 function fmtDay(date: string | null): string {
@@ -390,11 +442,13 @@ function hue(name: string): number {
 /** A series' colour (its chip's dot, the thumbnail when there's no cover). */
 const seriesTint = (name: string) => `hsl(${hue(name.toLowerCase())} 62% 52%)`;
 
-function Faces({ people }: { people: Meeting["attendees"] }) {
+function Faces({ people, count }: { people: MeetingCard["attendees"]; count: number }) {
   const shown = people.slice(0, 4);
-  const more = people.length - shown.length;
+  const more = Math.max(count, people.length) - shown.length;
+  const others = Math.max(count, people.length) - people.length;
+  const names = people.map((a) => a.name).join(", ") + (others > 0 ? ` and ${others} more` : "");
   return (
-    <span className="mt-faces" title={people.map((a) => a.name).join(", ")} aria-label={`${people.length} ${people.length === 1 ? "person" : "people"}: ${people.map((a) => a.name).join(", ")}`} role="img">
+    <span className="mt-faces" title={names} aria-label={`${Math.max(count, people.length)} ${Math.max(count, people.length) === 1 ? "person" : "people"}: ${names}`} role="img">
       {shown.map((a) => (
         <span key={a.name} className="mt-face" style={{ background: `hsl(${hue(a.name)} 45% 46%)` }} aria-hidden>
           {a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("")}
@@ -405,7 +459,7 @@ function Faces({ people }: { people: Meeting["attendees"] }) {
   );
 }
 
-function MeetingCard({ m, onDelete }: { m: Meeting; onDelete?: () => void }) {
+function MeetingCardItem({ m, onDelete }: { m: MeetingCard; onDelete?: () => void }) {
   const toast = useToast();
   const [y, mo, d] = (m.date || "").split("-").map(Number);
   const dt = y ? new Date(y, (mo || 1) - 1, d || 1) : null;
@@ -425,10 +479,12 @@ function MeetingCard({ m, onDelete }: { m: Meeting; onDelete?: () => void }) {
     ...(onDelete ? [{ label: "Delete meeting", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
   ];
   return (
-    <li className="mt-card" data-testid="meeting-card" data-series={m.series ? "" : undefined}>
+    <li className="mt-card" data-testid="meeting-card" data-id={m.id} data-series={m.series ? "" : undefined}>
       <Link className="mt-card__link" href={`/${m.slug}`} aria-label={`${title}${m.date ? `, ${fmtDay(m.date)}` : ""}`} />
       <span className="mt-card__thumb" aria-hidden
-        style={{ backgroundColor: m.series ? seriesTint(m.series) : "var(--surface-inset)", ...(thumb ? { backgroundImage: `url(${thumb})` } : {}) }}>
+        style={{ backgroundColor: m.series ? seriesTint(m.series) : "var(--surface-inset)" }}>
+        {/* Lazy: only the covers near the screen load (a long list asks for a few, not all). */}
+        {thumb && <img className="mt-card__img" src={thumb} alt="" loading="lazy" decoding="async" width={76} height={76} />}
         <span className="mt-card__day">
           <small>{dt ? dt.toLocaleDateString(undefined, { month: "short" }) : "—"}</small>
           {dt ? dt.getDate() : ""}
@@ -455,7 +511,7 @@ function MeetingCard({ m, onDelete }: { m: Meeting; onDelete?: () => void }) {
             ? <p className="mt-card__summary mt-card__summary--muted" data-testid="card-summary">Google's notes are on the page.</p>
             : null}
         <div className="mt-card__foot">
-          {m.attendees.length > 0 && <Faces people={m.attendees} />}
+          {m.attendees.length > 0 && <Faces people={m.attendees} count={m.attendee_count ?? m.attendees.length} />}
           {counts.map((c) => (
             <span key={c.icon} className="mt-card__count"><Icon name={c.icon} />{c.n} {c.n === 1 ? c.one : c.many}</span>
           ))}
