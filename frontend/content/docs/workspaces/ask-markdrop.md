@@ -74,6 +74,17 @@ Questions about you follow the same rules as any other question. The only profil
 
 This works the same way in **Meetings**, **This doc**, **Workspace** and **Everything**, and through the MCP tools `ask_documents` and `ask_meetings` (the account behind the AI app is "you").
 
+## Ask good questions
+
+Ask Markdrop answers best when the question names what it's about:
+
+- **Name the meeting, series or document**: "What was decided in the last sprint planning?", "What's still open in the Q4 Roadmap?".
+- **Name the person**: "What did Rohan say about the 429 errors?", "What are Priya's action items?".
+- **Say when**: "yesterday's standup", "this week", "last month", "the latest Daily Syncup". "Latest" and "last" mean the newest meeting of that name, and the answer gives its date.
+- **Mix languages if you like.** A question typed in Hindi and English together gets its answer in English.
+
+When nothing you can open answers the question, Ask Markdrop says so and names the closest items instead of guessing.
+
 ## Read the answer
 
 The answer streams in under your question with numbered sources, like **1** and **2**. Select a number, or **3 sources** under the answer, to see each source: its title, date and place, what it says there, and **Open** (or **Jump to moment** for a meeting line).

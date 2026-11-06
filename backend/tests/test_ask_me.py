@@ -194,5 +194,74 @@ class Personal(AskMeWorld):
         self.assertNotIn("Ada private notes", p)
 
 
+class Accuracy(AskMeWorld):
+    """What the eval harness (tests/ask_eval) found, pinned."""
+
+    def test_intent_and_citation_lists(self):
+        from app.services import ai_output, ask_markdrop
+
+        self.assertEqual(ask_markdrop.detect_intent("What happened in the latest Daily Syncup?"), "ask")
+        self.assertEqual(ask_markdrop.detect_intent("What happened this week?"), "catch_up")
+        self.assertEqual(ask_markdrop.detect_intent("Catch me up"), "catch_up")
+        self.assertEqual(ai_output.split_cites("a [2-s1, 2-s2] b [1, 3] c [M2-s4; M3] d [x, y]"),
+                         "a [2-s1][2-s2] b [1][3] c [M2-s4][M3] d [x, y]")
+        self.assertEqual(ask_markdrop.clean_answer("<ranking>1</ranking>\n\nHi [1, 2-s3].", {"1", "2-s3"}), "Hi [1][2-s3].")
+
+    async def test_the_same_member_twice_is_one_attendee_and_a_1on1_is_restricted(self):
+        r = await self.http.post("/api/v1/meetings/import", headers=self.session("owner"), json={
+            "workspace": self.W, "sources": [{"name": "Ada / Priya", "text": "\n".join([
+                "Attendees: Ada Lovelace, Priya Sharma", "Ada: How is the migration?", "Priya: On track for Friday."])}],
+            "title": "Ada / Priya 1:1", "date": "2026-11-02", "wait": True})
+        self.assertEqual(r.status_code, 200, r.text)
+        row = await self.db[meetings.COLL].find_one({"_id": ObjectId(r.json()["meetings"][0]["id"])})
+        ids = [a.get("user_id") for a in row["attendees"]]
+        self.assertEqual(sorted(i for i in ids if i), sorted([self.uid["owner"], self.uid["wa"]]))
+        self.assertEqual(len(ids), 2, row["attendees"])
+        self.assertTrue(row["restricted"])
+
+    async def test_latest_named_meeting_comes_first(self):
+        for day in ("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-06", "2026-10-07"):
+            await self.syncup(day, lines=["Attendees: Ada Lovelace, Bo Chen, Priya Sharma", "Ada Lovelace: Routine round.",
+                                          "Priya Sharma: Nothing new, still on the docs."])
+        await self.seed_syncups()
+        self.fake.calls.clear()
+        await self.ask("wm", "What happened in the latest Daily Syncup?", {"kind": "everything"})
+        p = self.answer_prompt()
+        first = p.split('<untrusted_document n="1"', 1)[1].split(">", 1)[0]
+        self.assertIn('date="2026-11-05"', first)
+
+    async def test_catch_up_counts_a_meeting_by_its_day(self):
+        from app.services import search_index
+
+        await self.syncup("2026-08-01", lines=["Attendees: Ada Lovelace, Bo Chen", "Ada Lovelace: An old backfilled call.",
+                                               "Bo: Old news about the archive."])
+        await self.mkdoc("W", slug="fresh-doc", title="Fresh launch doc", content="Launch moved to Monday.", grants=False)
+        await search_index.drain()
+        self.fake.calls.clear()
+        await self.ask("wm", "Catch me up on this week", {"kind": "everything"})
+        p = self.answer_prompt()
+        self.assertNotIn("2026-08-01", p)
+        self.assertIn("Fresh launch doc", p)
+
+    async def test_a_specific_document_is_not_crowded_out_by_meetings(self):
+        from app.services import search_index
+
+        for i, day in enumerate(("2026-10-01", "2026-10-02", "2026-10-03", "2026-10-06", "2026-10-07", "2026-10-08")):
+            await self.syncup(day, lines=["Attendees: Ada Lovelace, Bo Chen, Priya Sharma",
+                                          f"Ada Lovelace: Open items from round {i}, still open.", "Priya Sharma: Still open on my side."])
+        await self.mkdoc("W", slug="q4-roadmap", title="Q4 Roadmap", content="# Q4 Roadmap\n\n- [ ] Slack app beta\n- [ ] Export limits",
+                         grants=False)
+        await search_index.drain()
+        self.fake.calls.clear()
+        await self.ask("wm", "What's still open in the Q4 Roadmap?", {"kind": "everything"})
+        self.assertIn('title="Q4 Roadmap"', self.answer_prompt())
+
+    async def test_a_question_naming_the_asker_is_about_them(self):
+        await self.seed_syncups()
+        self.fake.calls.clear()
+        await self.ask("wm", "What has Bo Chen said in the syncups?", {"kind": "everything"})
+        self.assertIn("Bo (you): I shipped the CSV export API", self.answer_prompt())
+
+
 if __name__ == "__main__":
     unittest.main()
