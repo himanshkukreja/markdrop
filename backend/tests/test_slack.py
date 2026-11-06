@@ -690,7 +690,7 @@ class DirectMessages(SlackWorld):
                                    extra={"label": "Spec v2"})
         await self.later()
         dm = self.sk.of("chat.postMessage")[-1]
-        btn = dm["blocks"][1]["elements"][0]
+        btn = next(e for b in dm["blocks"] if b["type"] == "actions" for e in b["elements"])
         self.assertEqual(btn["text"]["text"], "Approved")
         await self.click(btn["action_id"], btn["value"], "U0WM")         # not the named person
         await slack.drain()
@@ -935,7 +935,7 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         self.assertIn("Decisions", text)
         self.assertIn("<@U0WV> Email the Senseloaf team", text)   # a linked assignee is @mentioned
         self.assertIn("<@U0WM> Update the onboarding docs", text)
-        self.assertIn("Zed Nobody Book the launch party", text)
+        self.assertIn("*Zed Nobody* Book the launch party", text)   # not a member: their name in bold
         done = [b["accessory"] for b in posts[0]["blocks"] if b.get("accessory", {}).get("action_id") == "md_done"]
         self.assertEqual(len(done), 3)
         value = done[1]["value"]
@@ -962,7 +962,7 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         self.assertRegex(page["content"], rf"- \[x\] .*\{{#{block}\}}")
         self.assertEqual(page["content"].count("- [x]"), 1)
         upd = self.sk.of("chat.update")[-1]
-        self.assertIn("Done by Bo Chen", json.dumps(upd))
+        self.assertIn("done by Bo Chen", json.dumps(upd))
         # Again: already done, the page unchanged.
         await self.click("md_done", value, "U0WM")
         await slack.drain()

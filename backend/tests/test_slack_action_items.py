@@ -367,7 +367,7 @@ class Buttons(ActionItemsWorld):
         self.assertRegex(page["content"], rf"- \[x\] .*\{{#{block}\}}")
         self.assertEqual(page["content"].count("- [x]"), 1)
         mine = [u for u in self.sk.of("chat.update") if u["channel"] == "C2" and u["ts"] == "9.0001"]
-        self.assertTrue(mine and ":white_check_mark:" in json.dumps(mine[-1]))
+        self.assertTrue(mine and "✓" in json.dumps(mine[-1], ensure_ascii=False))
         # The channel post shows it too.
         post = await self.db[slack_notify.POSTS].find_one({"meeting_id": m["id"]})
         self.assertEqual(next(i for i in post["items"] if i["block"] == block)["done_by"], "Bo Chen")

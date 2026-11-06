@@ -236,7 +236,7 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     # Posted on its own once per meeting (writing the summary again doesn't post again); by hand, every time.
     key = f"m:{meeting_id}:{inst['_id']}" + (f":{_now().timestamp()}" if again else "")
     post = {"key": key, "team_id": inst["_id"], "channel": chan, "ts": None, "meeting_id": str(row["_id"]),
-            "doc_id": str(raw["_id"]), "title": md_outline.display_title(raw), "url": urls.markdrop_url(raw["slug"]),
+            "doc_id": str(raw["_id"]), "title": (row.get("title") or "").strip() or md_outline.display_title(raw), "url": urls.markdrop_url(raw["slug"]),
             "when": _when(row), "day": _day(row), "duration": meetings.fmt_duration(row.get("duration_s")),
             "series": row.get("series") or None, "people": names[:3], "people_total": len(names),
             "summary": summary or None, "decisions": [d for d in decisions if d][:12],
@@ -485,17 +485,28 @@ async def _notification_message(db: AsyncIOMotorDatabase, inst: dict, row: dict,
     url = urls.markdrop_url(raw["slug"])
     extra = n.get("extra") or {}
     actor = n.get("actor_name") or "Someone"
+    where = await _workspace_name(db, raw)
     if n["kind"] == "mention":
-        return kit.dm_mention(actor, title, url + (f"#{n['block_id']}" if n.get("block_id") else ""), extra.get("excerpt"))
+        return kit.dm_mention(actor, title, url + (f"#{n['block_id']}" if n.get("block_id") else ""), extra.get("excerpt"),
+                              where=where)
     if n["kind"] == "shared":
-        return kit.dm_shared(actor, title, url, extra.get("role"), extra.get("message"))
+        return kit.dm_shared(actor, title, url, extra.get("role"), extra.get("message"), where=where)
     if n["kind"] == "signoff_requested":
         b = signoffs.find(raw.get("content"), n.get("block_id") or "") if n.get("block_id") else None
         options = b.options if b is not None and b.person == row["user_id"] else []
         return kit.dm_signoff(inst["_id"], actor, title, url + (f"#{n['block_id']}" if n.get("block_id") else ""),
                               extra.get("label") or (b.label if b else None), str(raw["_id"]), n.get("block_id") or "",
-                              options, done=None if options else "Open the page to sign off.")
+                              options, done=None if options else "Open the page to sign off.", where=where)
     return None
+
+
+async def _workspace_name(db: AsyncIOMotorDatabase, raw: dict) -> str | None:
+    """The page's workspace, for a direct message's first line ("Mention · Senseloaf")."""
+    oid = _oid(raw.get("workspace_id"))
+    if oid is None:
+        return None
+    ws = await db["workspaces"].find_one({"_id": oid}, {"name": 1})
+    return (ws or {}).get("name") or None
 
 
 async def _access_request_message(db: AsyncIOMotorDatabase, inst: dict, row: dict) -> dict | None:
