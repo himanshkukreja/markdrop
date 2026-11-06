@@ -3327,6 +3327,18 @@
     "bytes": 31618,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings-auto-import/check-now-setup.dark.webp": {
+    "w": 1280,
+    "h": 1016,
+    "bytes": 81440,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/check-now-setup.webp": {
+    "w": 1280,
+    "h": 1016,
+    "bytes": 85742,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/meetings-auto-import/connect-dialog.dark.webp": {
     "w": 1280,
     "h": 1192,
@@ -3372,15 +3384,27 @@
     "kind": "poster"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.dark.webp": {
-    "w": 1984,
-    "h": 1254,
-    "bytes": 101500,
+    "w": 1952,
+    "h": 514,
+    "bytes": 38536,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.webp": {
-    "w": 1984,
-    "h": 1254,
-    "bytes": 104224,
+    "w": 1952,
+    "h": 514,
+    "bytes": 38338,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/attendees.dark.webp": {
+    "w": 1490,
+    "h": 204,
+    "bytes": 9202,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/attendees.webp": {
+    "w": 1490,
+    "h": 204,
+    "bytes": 9974,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-import/import-link.dark.webp": {
@@ -3431,16 +3455,28 @@
     "bytes": 113098,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings/hub-phone.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 67758,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/hub-phone.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 69256,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/meetings/meeting-details.dark.webp": {
-    "w": 2880,
-    "h": 1800,
-    "bytes": 131476,
+    "w": 840,
+    "h": 1520,
+    "bytes": 53876,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/meeting-details.webp": {
-    "w": 2880,
-    "h": 1800,
-    "bytes": 140130,
+    "w": 840,
+    "h": 1520,
+    "bytes": 61858,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/organize.dark.webp": {

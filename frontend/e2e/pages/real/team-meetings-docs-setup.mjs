@@ -79,6 +79,13 @@ if (!conn.connection) {
   fs.writeFileSync(path.join(STACK, "meet-token.txt"), token);
   const status = (body) => api("POST", "/api/v1/meetings/inbox/status", token, body);
   ok(await status({ phase: "start", version: 4 }), "status start");
+  // One meeting the script brought in (so the line says when it last imported), marked Auto.
+  const d = day(0);
+  ok(await api("POST", "/api/v1/meetings/inbox", token, {
+    source: "google-meet-script", version: 4, file_id: "docs-media-mobile-sync-auto", kind_hint: "transcript", created: `${d}T04:00:00Z`,
+    title: `Mobile sync (${d} 09:30 GMT+05:30) - Transcript`,
+    text: `Mobile sync (${d} 09:30 GMT+05:30) - Transcript\nAttendees\nAda Owner, Raj Patel, Ben Member\nTranscript\n00:00:00\nRaj Patel: Working on: push notifications for the mobile app.\nBen Member: Done: saved searches behind a flag.\nAda Owner: Thanks both.\nTranscription ended after 00:06:00\n`,
+  }), "auto delivery");
   ok(await status({ phase: "done", version: 4, mode: "sync", include_shared: true, lookback_hours: 48, found: 3, sent: 2,
     results: { imported: 1, attached: 0, duplicate: 1, not_ready: 1 }, skipped: { already_sent: 4, title: 2 }, search: "drive",
     remaining: 0, shared_drives: "on" }), "status done");

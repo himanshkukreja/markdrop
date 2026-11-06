@@ -315,7 +315,7 @@ export default [
       await h.settle(600);
       await h.page.mouse.move(5, 5);
     },
-    crop: { selector: ".mt-panel", pad: 0 },
+    crop: { selector: ".mt-panel .pa-ask__panel", pad: 0 },
   },
   {
     id: "meetings-attendees",
