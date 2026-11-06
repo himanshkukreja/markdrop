@@ -40,7 +40,7 @@ Then, in Google:
 
 When other members connected their own scripts to this workspace, the line says so: **Also importing here:** and their names.
 
-![The Meetings page with Google Meet connected: last import just now, the number of meetings, New script and Disconnect, how the script's last run went (79 found, 60 sent, 19 more in the next run), the shared-drives hint and who else imports here; the meeting it imported is marked Auto.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
+![The Meetings page with Google Meet connected: Check for new meetings, last import just now, New script and Disconnect, and how the script's last run went: found 3 meeting Docs, sent 2, 2 skipped as not titled like Meet, and 1 meeting waiting for Gemini's notes or the transcript.](/docs-assets/workspaces/meetings-auto-import/connected.webp)
 
 ::clip{src="/docs-assets/workspaces/meetings-auto-import/connect" alt="The Connect Google Meet dialog: Make my script, then the ready script with the appsscript.json manifest and Code.gs to copy into Google Apps Script."}
 
@@ -77,12 +77,16 @@ When the last run found nothing, the page says what to look at: meetings left ou
 
 The script checks every 5 minutes by itself. Right after a call, you don't have to wait: on the Meetings page, select **Check for new meetings** (on phones it's in the **⋯** menu; on Home, under Meetings). The connected scripts run at once, and Markdrop says what arrived: "Found 1 new meeting.", "No new meetings.", or that Google hasn't filled in the notes yet. Any member can press it, once a minute per workspace. The line under **Google Meet connected** shows when it last checked.
 
+::clip{src="/docs-assets/workspaces/meetings-auto-import/check-now" alt="Check for new meetings on the Meetings page: the script runs, and a new meeting, Design review, arrives at the top marked Auto."}
+
 Markdrop can't look in your Drive itself, so it asks your script to run. Turn this on once, as the person who connected Google Meet (the button says **Turn on Check now** until you do):
 
 1. Open your project at [script.google.com](https://script.google.com/home). It needs script version 4 or later: [update it](#update-the-script) first if the Meetings page says **New script**.
 2. Select **Deploy**, then **New deployment**. Next to **Select type**, select the gear, then **Web app**.
 3. Set **Execute as** to **Me** and **Who has access** to **Anyone**, and select **Deploy**. Allow it if Google asks.
 4. Copy the **Web app URL** (it ends in `/exec`), go back to Markdrop, paste it under **Turn on Check now** and select **Turn on Check now**.
+
+![Turn on Check now: open your script, deploy it as a web app (Execute as Me, Who has access Anyone), and paste the Web app URL.](/docs-assets/workspaces/meetings-auto-import/check-now-setup.webp)
 
 **Anyone** only means Google doesn't ask for a sign-in: the web app does nothing unless the caller sends a key that only Markdrop and your script have, it runs at most once a minute, and it can only send your meeting Docs to your workspace, like the schedule does. The address is never shown to anyone else in Markdrop. To turn it off, delete the deployment (**Deploy** › **Manage deployments** › **Archive**).
 

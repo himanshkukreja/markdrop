@@ -90,9 +90,9 @@ Which meetings are posted:
 
 ### Team's weekly summary
 
-When the workspace has [Team memory](/workspaces/team) on, Team's summary of the week is posted to the same meetings channel every Monday at 9 am in the workspace's timezone: highlights, what's due this week, what's overdue and current blockers, each line with the person's name and a link to its source. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
+When the workspace has [Team memory](/workspaces/team) on, Team's summary of the week is posted to the same meetings channel every Monday at 9 am in the workspace's timezone: highlights (each with a link to its meeting or page), current blockers, what's due this week and what's overdue, each line with the person's name. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
 
-![Illustration of Team's weekly summary in the #meetings channel: This week at Acme with the dates, Highlights with each person's name, Due this week, Overdue with how late each item is, Blockers, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
+![Illustration of Team's weekly summary in the #meetings channel: This week in Acme, Highlights with each person's name and a link to the meeting, Blockers with who they wait on, Due this week, Overdue with how late each item is, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
 
 ### Post a meeting by hand
 

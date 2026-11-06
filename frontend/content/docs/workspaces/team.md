@@ -46,9 +46,17 @@ Above the cards, five numbers: on track, blocked or waiting, due this week, over
 
 Filter by person, status, [group](#groups) or project, and pick **This week** or **2 weeks**. The five numbers follow the filters, so picking a group sums up that group. The **Projects** tab shows each recurring project with the people on it and what each of them last said about it.
 
+::clip{src="/docs-assets/workspaces/team/filters" alt="Filtering the Team board: Blocked or waiting leaves Priya, waiting on Raj for the API keys, with the blockers list below; then back to everyone, and a group."}
+
+On a phone, the numbers sit two by two above the This week card, and the cards stack.
+
+![The Team board on a phone: Set my status, My focus and Groups, the numbers two by two, and the This week card.](/docs-assets/workspaces/team/board-phone.webp)
+
 ## Groups
 
 Admins can make simple groups, like "Sourcing team", with **Groups** on the board: a name and its members. Everyone can then filter the board by group. Markdrop suggests groups from your recurring meetings: the people at half or more of a series' meetings in the last 60 days. Pick **Use** to start from a suggestion.
+
+![The Groups window: a group with its members, a suggested group from a recurring meeting series with Use, and New group.](/docs-assets/workspaces/team/groups.webp)
 
 ## The weekly summary
 
@@ -64,6 +72,8 @@ Done items never show: ones ticked off (- [x]) on their meeting or page, marked 
 - It's emailed to the workspace's admins and owner.
 - It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected.
 - It's the **This week** card at the top of Team, for the current week ("This week · Nov 3–9"): three columns on a computer, two and one on a tablet, stacked on a phone. Someone with three or more lines in a column shows as one row ("Gautam · 4 items") that opens. Tap a line to read it in full.
+
+![The This week card: Highlights with each person's line and where it came from, Due this week with Mei's four items folded into one row, and Overdue with how many days late, plus Send now.](/docs-assets/workspaces/team/this-week.webp)
 
 The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the workspace's **Weekly summary timezone** (Settings › Advanced): at first, the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card; nothing is sent when the week has nothing in it.
 
@@ -99,6 +109,8 @@ On Team, or your own page:
 - **Set my status**: a few words and an emoji, like "On leave till Monday" or "Heads down on sourcing", and when it clears. It replaces the status Team works out, for everyone, until it clears. While your status says you're away, you're never shown as quiet.
 - **My focus**: what you're focused on, in your own words. It tops your card and your page for two weeks.
 
+![Your status: presets (On leave, Out sick, Heads down, Blocked, Travelling), the status text, when it clears, and Clear, Cancel and Save.](/docs-assets/workspaces/team/status.webp)
+
 ## Fix what it says about you
 
 Each line about you has a menu on your own page:
@@ -106,6 +118,10 @@ Each line about you has a menu on your own page:
 - **Mark done** (action items and targets): it leaves your open items, the board and This week, and stays done when the meeting or page is read again. Ticking it off on the page works too.
 - **Hide this line** (**Dismiss** on action items and targets): nobody sees it. It stays hidden even when the meeting or page is read again. Undo it under **Hidden by you**.
 - **This is wrong…**: write what's right, and people see that instead, marked *corrected*. Leave it empty to take the line down. Markdrop is told about it the next time it reads that meeting or page, so it doesn't say it again.
+
+![The menu on one of your targets: Mark done, Dismiss (hide this line) and This is wrong.](/docs-assets/workspaces/team/line-menu.webp)
+
+::clip{src="/docs-assets/workspaces/team/mark-done" alt="On your own Team page, the menu on a target, Mark done: Marked done, and the target leaves your page."}
 
 Only the person a line is about can mark it done, hide it or correct it. A project's own lines (not about a person) can be hidden or corrected by workspace admins.
 

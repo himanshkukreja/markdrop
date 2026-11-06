@@ -91,6 +91,8 @@ The **Ask anything about your meetings** box above the list opens [Ask](/workspa
 
 Workspace admins also see a card for each meeting restricted to attendees they weren't part of, without its title, so they can delete it.
 
+![The Meetings page on a phone: Import meeting and the ⋯ menu (Check for new meetings is in it), Google Meet connected with how the script's last run went, the Ask box, search, sort, series chips, and the newest meeting marked Auto.](/docs-assets/workspaces/meetings/hub-phone.webp)
+
 ![The Meetings page: search, sort and the series to filter by above the meetings, listed by month with their cover and date, summary, people and counts.](/docs-assets/workspaces/meetings-import/organised.webp)
 
 ## What the meeting page holds
@@ -114,7 +116,7 @@ Markdrop never notifies anyone about the @mentions it writes into a meeting: no 
 
 The page is an ordinary page. Edit it like any other: fix a name, add notes, tick off action items. Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken.
 
-![A meeting page with its Meeting details panel open: Ask this meeting, the date, type, series, transcript, action items, organizer and who imported it, who was there, the sources, the Only the people who were there switch, the AI summary, and All meetings, Post to Slack and Delete meeting.](/docs-assets/workspaces/meetings/meeting-details.webp)
+![The Meeting details panel: Ask this meeting, the date, type, series, transcript, action items, organizer, who imported it, Invited (7, on the calendar invite, joined or not), who was there (4), the sources, the Only the people who were there switch and the AI summary.](/docs-assets/workspaces/meetings/meeting-details.webp)
 
 ## Action items in Slack
 
