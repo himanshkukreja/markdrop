@@ -52,3 +52,8 @@ li:hover > .jr-add, li:focus-within > .jr-add, .jr-add:focus-visible { opacity: 
 .jr-counts .jr-late b { color: var(--danger); }
 .jr-card { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); position: relative; z-index: 1; }
 .jr-card ul { list-style: none; margin: 0; padding: 0; }
+.jr-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.jr-table th, .jr-table td { padding: 5px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--border); }
+.jr-table th:first-child, .jr-table td:first-child { text-align: left; padding-inline-start: 0; white-space: normal; overflow-wrap: anywhere; }
+.jr-table thead th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+.jr-table tbody th { font-weight: 500; color: var(--text); }

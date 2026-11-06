@@ -94,7 +94,7 @@ export function JiraGlance({ data, people, ws, canManage }: { data: JiraTeam | n
           </>
         )}
         {!!data.team?.projects.length && (
-          <table className="tm-bars" data-testid="team-jira-projects">
+          <table className="jr-table" data-testid="team-jira-projects">
             <caption className="tm-sr">Open Jira issues per project</caption>
             <thead><tr><th scope="col">Project</th><th scope="col">Open</th><th scope="col">Overdue</th><th scope="col">Done lately</th></tr></thead>
             <tbody>

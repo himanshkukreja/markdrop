@@ -219,11 +219,11 @@
 .mt-pagebar__people, .mt-pagebar__fact { display: inline-flex; align-items: center; gap: 8px; }
 .mt-pagebar__fact svg { width: 14px; height: 14px; color: var(--text-muted); }
 .mt-pagebar .mt-face { border-color: color-mix(in srgb, var(--accent-soft) 35%, var(--surface-raised)); }
-.mt-pagebar__actions { display: flex; gap: 8px; }
+.mt-pagebar__actions { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
 @media (max-width: 639px) {
   .mt-pagebar { padding: 12px; }
   .mt-pagebar__actions { width: 100%; }
-  .mt-pagebar__actions > * { flex: 1; }
+  .mt-pagebar__actions > * { flex: 1 1 auto; }
 }
 
 
