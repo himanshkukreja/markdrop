@@ -57,7 +57,7 @@ class Names(unittest.TestCase):
             "Invited [Ada Lovelace](mailto:ada@acme.test) [Bo Chen](mailto:bo@acme.test) "
             "\\[Priya Sharma\\] [Ravi Kumar](mailto:ravi@acme.test)")
         src = mp.parse_source("Weekly product sync - Notes by Gemini", text)
-        self.assertEqual([(a["name"], a["email"]) for a in src.attendees],
+        self.assertEqual([(a["name"], a["email"]) for a in src.invited],
                          [("Ada Lovelace", "ada@acme.test"), ("Bo Chen", "bo@acme.test"),
                           ("Priya Sharma", None), ("Ravi Kumar", "ravi@acme.test")])
 
@@ -74,7 +74,7 @@ class Repair(MeetingsWorld):
             "Invited Ada Lovelace <ada@acme.test>, Bo Chen <bo@acme.test>, Priya Sharma <priya@acme.test>, Ravi Kumar <ravi@acme.test>",
             f"Invited [Gautam Rao](mailto:{self.email['wm']}), [Ada Lovelace](mailto:{self.email['owner']}), [Zed Q](mailto:zed@x.test)")
         m = await self.imported(sources=[{"name": "Weekly product sync - Notes by Gemini", "text": text}])
-        got = {a["name"]: a["user_id"] for a in m["attendees"]}
+        got = {a["name"]: a["user_id"] for a in m["invited"]}
         self.assertEqual(got.get("Gautam Rao"), self.uid["wm"])     # matched by the address, not the name
         self.assertEqual(got.get("Ada Lovelace"), self.uid["owner"])
         self.assertIsNone(got.get("Zed Q"))

@@ -799,7 +799,7 @@ def organizer_in(text: str) -> dict | None:
 # A label's value is taken only when it reads as a list of names: never the paragraph after it.
 _PEOPLE_LABEL = re.compile(
     r"^(?:#+\s*)?(?:[-*•]\s+)?(?:\*\*|__)?(?P<label>attendees|attendee|participants|present|invited|invitees|guests)"
-    r"(?:\*\*|__)?(?:\s*:\s*|\s+|$)(?P<rest>.*)$", re.I)
+    r"\s*:?(?:\*\*|__)?(?:\s*:\s*|\s+|$)(?P<rest>.*)$", re.I)
 _JOINED = frozenset(("attendees", "attendee", "participants", "present"))
 _STOP = frozenset("""
 the a an to of for with and or but is are was were be been being has have had do does did done this that these
@@ -807,6 +807,7 @@ those it its we our us they their them he she his her him you your i me my on in
 as if then than so not no yes also just all any each every some discussed agreed reviewed decided shared talked
 noted mentioned asked said says meeting meetings team call update updates project plan should would could need needs
 going will following following: today tomorrow yesterday week next last regarding including during after before
+attachments attachment records recording recordings transcript transcripts notes summary details invited attendees
 """.split()) - {"will"}
 _MORE = re.compile(r"^(?:and\s+)?(?:\+\s*)?\d+\s+(?:more|others?|other people|guests?)$", re.I)
 
