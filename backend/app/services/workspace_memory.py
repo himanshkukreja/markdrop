@@ -952,12 +952,12 @@ async def stale_sources(db: AsyncIOMotorDatabase, ws: WsInfo, state: dict, *, li
 
 
 async def run_workspace(db: AsyncIOMotorDatabase, ws: WsInfo, *, budget_chars: int = MAX_CHARS_PER_TICK,
-                        limit: int = MAX_SOURCES_PER_TICK) -> dict:
+                        limit: int = MAX_SOURCES_PER_TICK, now: datetime | None = None) -> dict:
     """One pass over a workspace's changed sources. ``{done, facts, limit?}``."""
     from app.services import meetings
 
     state = await _state(db, ws)
-    todo = await stale_sources(db, ws, state, limit=limit)
+    todo = await stale_sources(db, ws, state, limit=limit, now=now)
     if not todo:
         return {"done": 0, "facts": 0}
     members = await members_of(db, ws.id)
@@ -1029,7 +1029,7 @@ async def background(db: AsyncIOMotorDatabase, *, now: datetime | None = None) -
     for ws in wss:
         if not (ws.on and ws.ai_on):
             continue
-        res = await run_workspace(db, ws, budget_chars=budget)
+        res = await run_workspace(db, ws, budget_chars=budget, now=now)
         report["workspaces"] += 1
         report["done"] += res["done"]
         report["facts"] += res["facts"]
@@ -1760,7 +1760,7 @@ def match_people(question: str, members: list[dict], viewer: str | None) -> list
         parts = n.split()
         if f" {n} " in q or (len(parts) > 1 and all(p in words for p in parts)):
             out.append(m)
-        elif parts[0] in words and len(parts[0]) >= 3 and len(firsts.get(parts[0], [])) == 1:
+        elif parts[0] in words and len(parts[0]) >= 2 and parts[0] not in st.STOPWORDS and len(firsts.get(parts[0], [])) == 1:
             out.append(m)
         elif len(parts) > 1 and len(parts[-1]) >= 4 and parts[-1] in words:
             out.append(m)
