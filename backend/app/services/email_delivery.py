@@ -84,6 +84,7 @@ KINDS: dict[str, str] = {
     "mention": TRANSACTIONAL,
     "signoff": TRANSACTIONAL,
     "campaign_test": TRANSACTIONAL,
+    "template_test": TRANSACTIONAL,   # scripts/send_test_emails.py
     "digest": BULK,
     "campaign": BULK,
 }
