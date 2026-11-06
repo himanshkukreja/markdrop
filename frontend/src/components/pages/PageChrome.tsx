@@ -7,8 +7,8 @@
  *                the 720 px column (or full width) and what goes under the body;
  *   PageTopBar   the page's one bar (no app header above it), 48 px, sticky and translucent: the
  *                rail toggle (⌘\), the logo (Markdrop's, or the workspace's on its domain), the
- *                breadcrumbs (workspace › folders › ancestors › this page, the middle folded into
- *                "…"; "… / Title" on phones), then who's viewing, Saved / Saving…, Share, ⋯, and
+ *                breadcrumbs (workspace › folders › ancestors › this page, the whole path from
+ *                1280 px; "… / Title" narrower), then who's viewing, Saved / Saving…, Share, ⋯, and
  *                search, Create and the avatar menu (or Sign in); a hairline once the page has
  *                scrolled; a calm banner under it when someone else is editing. A classic
  *                document's framed view has the same bar (app/[slug]/doc/DocumentTopBar), and
@@ -119,8 +119,8 @@ export function useTouch(): boolean {
 }
 
 /**
- * Breadcrumbs: the workspace and folders (members), every readable ancestor, then this page. More
- * than three before this page fold the middle into "…" (a menu); on phones it's "… / this page".
+ * Breadcrumbs: the workspace and folders (members), every readable ancestor, then this page. From
+ * 1280 px the whole path; narrower, the pages above fold into "…" (a menu): "… / this page".
  */
 export function PageBreadcrumbs({
   crumbs,
@@ -185,9 +185,9 @@ export function PageBreadcrumbs({
   );
   const items: ReactNode[] = [];
   if (n) {
-    // Wide: the first, "…" for the middle, the last; phones: "…" for all of them.
-    if (n <= 3) for (let i = 0; i < n; i++) items.push(link(i, "pb-crumb--wide"));
-    else items.push(link(0, "pb-crumb--wide"), folded(1, n - 1, "pb-crumb--wide"), link(n - 1, "pb-crumb--wide"));
+    // 1280 px and up: the whole path (pages.css ends a crumb in "…" only when it doesn't fit);
+    // narrower: one "…" (a menu with the full path), then this page.
+    for (let i = 0; i < n; i++) items.push(link(i, "pb-crumb--wide"));
     items.push(folded(0, n, "pb-crumb--narrow"));
   }
   return (

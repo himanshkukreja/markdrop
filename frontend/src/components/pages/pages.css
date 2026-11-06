@@ -523,6 +523,19 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 .pb-format__glyph { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text-secondary); font: 600 13px/1 var(--font-sans); }
 .pb-format__check { margin-left: auto; color: var(--accent-text); }
 
+/* The path in the bar (owner 2026-11-06): under 1280 px the pages above fold into one "…" (a menu
+   with the full path), so the title keeps the room; from 1280 px the whole path shows, each crumb
+   ending in an ellipsis only when the bar runs out of room (never under 32 px). mobile-shell.mjs
+   "baritems" checks the bar at 1024, 1180 and 1280. */
+@media (max-width: 1279px) {
+  .pb-crumb--wide { display: none; }
+  .pb-crumb--narrow { display: flex; }
+}
+@media (min-width: 1280px) {
+  .pb-crumb--wide { min-width: 32px; }
+  .pb-crumb--wide .pb-crumb__link { max-width: none; }
+}
+
 /* Tablets and small laptops (< 1024 px): the bar's buttons are icons (their names stay as aria-label and
    tooltip), the title takes what's left and ends in an ellipsis; nothing in the bar may overlap
    (mobile-shell.mjs "baritems", owner 2026-11-06). Phones also move Share and ✦ Ask into ⋯. */
@@ -531,9 +544,6 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-bar .pb-bar__btn:has(> .pb-bar__label), .pb-bar .pb-bar__ask { width: 30px; min-width: 30px; padding: 0; justify-content: center; gap: 0; }
   .pb-bar .mm-barbtn { position: relative; min-width: 30px; justify-content: center; padding: 0 6px; }
   .pb-bar__crumbs { min-width: 48px; }
-  /* The pages above fold into one "…" (as on phones): the title keeps the room. */
-  .pb-crumb--wide { display: none; }
-  .pb-crumb--narrow { display: flex; }
   .pb-bar__brand { flex: 0 1 auto; max-width: 30%; overflow: hidden; }
   .pb-bar__actions { min-width: 0; }
 }

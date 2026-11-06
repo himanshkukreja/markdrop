@@ -13,7 +13,9 @@
  *   text           text under 12 px
  *   overlap        two fixed or sticky bars cover each other
  *   baritems       a top bar's items (title, Ask, From meetings, Edit, Share, ⋯, faces) cover each other
- *                  or run past the bar (pages, meeting pages, documents, files: the page-bar states)
+ *                  or run past the bar (pages, meeting pages, documents, files: the page-bar states;
+ *                  also on laptops at 1024, 1180 and 1280 px)
+ *   barpath        the page's path isn't folded under 1280 px ("… / this page") or isn't whole from 1280
  *   sticky         the top bar doesn't stay on screen after a long scroll
  *   zoom           the viewport meta disables pinch zoom
  *   hover          a control that only shows on hover (opacity 0 / hidden until :hover) on a touch screen
@@ -49,7 +51,14 @@ export const DEVICES = [
   { name: "ipad-air-land", w: 1180, h: 820, kind: "tablet" },
   { name: "ipad-pro", w: 1024, h: 1366, kind: "tablet" },
   { name: "android-tab", w: 800, h: 1280, kind: "tablet" },
+  // Laptops (a mouse): the page bars only, around the path's fold (owner 2026-11-06: the ancestors
+  // fold into "…" under 1280 px; from 1280 the whole path, a crumb ending in "…" only when it must).
+  { name: "laptop-1024", w: 1024, h: 768, kind: "desktop", only: "bars" },
+  { name: "laptop-1180", w: 1180, h: 820, kind: "desktop", only: "bars" },
+  { name: "laptop-1280", w: 1280, h: 800, kind: "desktop", only: "bars" },
 ];
+/** The page-bar states (baritems): what a laptop-only device runs. */
+const BAR_STATES = new Set(["meeting-page", "meeting-page-menu", "page-long", "page-deep", "doc", "file-html"]);
 const DARK_DEVICES = new Set(["phone-360", "phone-393", "phone-land", "ipad-air"]);
 
 const want = (env, all) => (process.env[env] ? process.env[env].split(",").map((s) => s.trim()).filter(Boolean) : all);
@@ -132,8 +141,12 @@ async function seedExtra(L) {
   ] });
   if (meet.status >= 300) log("meeting import →", meet.status, JSON.stringify(meet.body).slice(0, 200));
   const longPage = ok(await api("POST", "/api/v1/pages", T.owner, { title: "Customer onboarding playbook for enterprise accounts and their admins", workspace: WS, folder: boardId, auto_cover: false }), "long page");
+  // A page three deep (workspace › folder › page › page › this page): the path folds under 1280 px.
+  const mid = ok(await api("POST", "/api/v1/pages", T.owner, { title: "Regional rollout notes for the Asia Pacific enterprise segment", parent: longPage.document?.slug, auto_cover: false }), "mid page");
+  const deep = ok(await api("POST", "/api/v1/pages", T.owner, { title: "Week three status update", parent: mid.document?.slug, auto_cover: false }), "deep page");
   const out = { board: boardId, mine: mine.map((d) => d.slug), request: req.body?.id ?? null,
-    meeting: meet.body?.meetings?.[0]?.slug ?? null, longPage: longPage.document?.slug ?? null };
+    meeting: meet.body?.meetings?.[0]?.slug ?? null, longPage: longPage.document?.slug ?? null,
+    deepPage: deep.document?.slug ?? null };
   fs.writeFileSync(EXTRA, JSON.stringify(out, null, 1));
   return out;
 }
@@ -316,6 +329,18 @@ const STATES = [
     await click(p, p.locator(".pb-bar").getByRole("button", { name: /Page options|More/ }));
   }],
   ["page-long", ["owner", "member"], () => (X.longPage ? `${APP}/${X.longPage}` : null), (p) => p.locator(".pb-bar").first()],
+  // Under 1280 px the path is "… / Week three status update"; from 1280 every crumb shows (barpath).
+  ["page-deep", ["owner", "member"], () => (X.deepPage ? `${APP}/${X.deepPage}` : null), (p) => p.locator(".pb-bar").first(), async (p, dev) => {
+    await p.waitForTimeout(500);
+    const vis = await p.evaluate(() => [...document.querySelectorAll(".pb-bar .pb-crumb")]
+      .filter((el) => getComputedStyle(el).display !== "none")
+      .map((el) => (el.classList.contains("pb-crumb--current") ? "current" : el.querySelector(".pb-crumb__more") ? "fold" : "link")));
+    const folded = vis.includes("fold");
+    const want = dev.w < 1280;
+    if (folded !== want || (!want && vis.filter((v) => v === "link").length < 3)) {
+      return { extra: [{ rule: "barpath", who: ".pb-crumbs", detail: `${dev.w} px shows ${vis.join(" / ")} (want ${want ? "… / this page" : "the whole path"})` }] };
+    }
+  }],
   ["doc", ["owner"], () => (X.mine?.[2] ? `${APP}/${X.mine[2]}` : null), (p) => p.getByRole("button", { name: "Show details" }), async (p) => {
     await click(p, p.getByRole("button", { name: "Show details" }));
     await p.locator(".pb-bar").first().waitFor({ timeout: 15000 });
@@ -342,8 +367,8 @@ async function newContext(dev, theme, role) {
   const c = await browser.newContext({
     viewport: { width: dev.w, height: dev.h },
     deviceScaleFactor: 2,
-    isMobile: true,
-    hasTouch: true,
+    isMobile: dev.kind !== "desktop",
+    hasTouch: dev.kind !== "desktop",
     colorScheme: theme,
   });
   await c.addInitScript(([t, th]) => {
@@ -367,7 +392,7 @@ for (const theme of themes) {
   for (const dev of devices) {
     if (theme === "dark" && !DARK_DEVICES.has(dev.name)) continue;
     for (const role of [...roles, "anon", "admin"]) {
-      const list = STATES.filter(([name, rs]) => rs.includes(role) && (!ONLY || ONLY.has(name)));
+      const list = STATES.filter(([name, rs]) => rs.includes(role) && (!ONLY || ONLY.has(name)) && (!dev.only || BAR_STATES.has(name)));
       if (!list.length) continue;
       const { c, p } = await newContext(dev, theme, role);
       for (const [name, , url, ready, action] of list) {
@@ -378,12 +403,14 @@ for (const theme of themes) {
           await p.goto(u, { waitUntil: "domcontentloaded", timeout: 45000 });
           await ready(p).waitFor({ state: "visible", timeout: 30000 });
           await p.waitForTimeout(700);
+          let extra = [];
           if (action) {
             const r = await action(p, dev);
             if (r === "skip") continue;
+            if (r && r.extra) extra = r.extra;
           }
           await p.waitForTimeout(250);
-          const res = await p.evaluate(measure, { checkTargets: true });
+          const res = [...(await p.evaluate(measure, { checkTargets: dev.kind !== "desktop" })), ...extra];
           if (!action || name === "files" || name === "folder") {
             const s = await stickyCheck(p).catch(() => null);
             if (s) res.push({ rule: "sticky", who: "header", detail: s });
