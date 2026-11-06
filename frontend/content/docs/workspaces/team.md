@@ -81,7 +81,7 @@ Team is put together for each person when they open it. A line shows only while 
 - A meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings) only feeds the Team pages of the people who were there. A 1:1 never shows to anyone else.
 - A line from a private page shows only to people who can open that page. When a page goes to the Trash, its lines disappear for everyone.
 - A line that used a meeting's transcript needs the transcript too.
-- [Ask Markdrop](/workspaces/ask-markdrop) and AI apps follow the same rules.
+- [Ask](/workspaces/ask-markdrop) and AI apps follow the same rules.
 
 ## Your status and focus
 
@@ -101,7 +101,7 @@ Only the person a line is about can hide or correct it.
 
 ## Ask about your team
 
-[Ask Markdrop](/workspaces/ask-markdrop) uses Team memory for questions like "What is Priya working on?", "What's my status?", "Who is working on the billing export?" and "What's the status of the sourcing project?". Answers cite the meetings and pages the lines came from.
+[Ask](/workspaces/ask-markdrop) (**Ask Acme** in a workspace called Acme) uses Team memory for questions like "What is Priya working on?", "What's my status?", "Who is working on the billing export?" and "What's the status of the sourcing project?". Answers cite the meetings and pages the lines came from.
 
 AI apps connected to Markdrop can use three tools: `list_team`, `get_person_profile` and `get_project_status`. See [MCP tools](/ai/tools#team).
 

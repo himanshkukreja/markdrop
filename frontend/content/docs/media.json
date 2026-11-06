@@ -3055,6 +3055,30 @@
     "bytes": 25558,
     "kind": "image"
   },
+  "/docs-assets/workspaces/ask-markdrop/ask-page-phone.dark.webp": {
+    "w": 780,
+    "h": 1560,
+    "bytes": 43638,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/ask-page-phone.webp": {
+    "w": 780,
+    "h": 1560,
+    "bytes": 47900,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/ask-page.dark.webp": {
+    "w": 2064,
+    "h": 1488,
+    "bytes": 69220,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/ask-markdrop/ask-page.webp": {
+    "w": 2064,
+    "h": 1488,
+    "bytes": 75240,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/ask-markdrop/assistant-page.dark.webp": {
     "w": 840,
     "h": 1640,
@@ -3070,13 +3094,13 @@
   "/docs-assets/workspaces/ask-markdrop/assistant-scopes.dark.webp": {
     "w": 840,
     "h": 1640,
-    "bytes": 29370,
+    "bytes": 37876,
     "kind": "image"
   },
   "/docs-assets/workspaces/ask-markdrop/assistant-scopes.webp": {
     "w": 840,
     "h": 1640,
-    "bytes": 34646,
+    "bytes": 44534,
     "kind": "image"
   },
   "/docs-assets/workspaces/ask-markdrop/assistant.mp4": {

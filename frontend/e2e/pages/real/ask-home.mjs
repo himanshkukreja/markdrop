@@ -159,7 +159,13 @@ await step("chips", async () => {
   await p.getByTestId("assistant-close").click();
   const items = await p.getByTestId("home-action").allInnerTexts();
   if (!items.some((t) => /onboarding docs/i.test(t))) fail(`home action items: ${items}`);
-  await p.getByTestId("home-ask").getByRole("button", { name: /Catch me up/ }).click();
+  // Catch me up is a chip until the team's live suggestions replace it; then it's typed.
+  const catchUp = p.getByTestId("home-ask").getByRole("button", { name: /^Catch me up$/ });
+  if (await catchUp.count()) await catchUp.click();
+  else {
+    await p.getByTestId("home-ask-input").fill("Catch me up on this week");
+    await p.getByTestId("home-ask-input").press("Enter");
+  }
   await box(p).waitFor({ timeout: 10000 });
   await p.waitForFunction(() => /week/i.test(document.querySelector('[data-testid="assistant"]')?.innerText || ""), null, { timeout: 25000 });
   await snap(p, "catchup-light-1440");

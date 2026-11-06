@@ -14,6 +14,8 @@ where they were:
                 series and dates (or what the question names)                 → Meetings AI budget
     folder      ask_markdrop, only items filed in that folder or below it      → AI search budget
     workspace   ask_markdrop inside the workspace                               → AI search budget
+    mine        ask_markdrop over the asker's own items outside any workspace ("Ask my files")
+                                                                                → AI search budget
     everything  ask_markdrop as on the home (catch-up / my action items too)    → AI search budget
 
 **One thread** across scopes and screens (``ask_threads``, 90 days): each turn keeps its scope
@@ -40,7 +42,7 @@ from app.services import access, ask_markdrop, meeting_scope, meetings, meetings
 
 log = logging.getLogger("markdrop.assistant")
 
-KINDS = ("doc", "meetings", "folder", "workspace", "everything")
+KINDS = ("doc", "meetings", "folder", "workspace", "mine", "everything")
 VIA = "assistant"
 _ID = re.compile(r"^[0-9a-f]{24}$")
 
@@ -132,7 +134,9 @@ async def label_of(db: AsyncIOMotorDatabase, scope: Scope, *, page_title: str | 
     """"This doc · Q3 PRD", "Meetings · Daily Standup · last month", "This folder · Specs"…
     Names only of things the asker can open (the caller decided access first)."""
     if scope.kind == "doc":
-        return f"This doc · {page_title}" if page_title else "This doc"
+        return f"This page · {page_title}" if page_title else "This page"
+    if scope.kind == "mine":
+        return "My files"
     if scope.kind == "meetings":
         return meetings_label(scope.series, scope.since, scope.until, meeting=meeting_title if scope.meeting else None)
     if scope.kind == "folder":
@@ -207,6 +211,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         kw.update(intent="page", page=scope.page, context=context)
     elif scope.kind in ("folder", "workspace"):
         kw.update(intent=intent, scope=scope.workspace, folder=scope.folder if scope.kind == "folder" else None)
+    elif scope.kind == "mine":
+        kw.update(intent=intent, mine=True)
     else:
         kw.update(intent=intent)
     async for event, data in ask_markdrop.ask(db, actor, ctx, question, **kw):
@@ -298,6 +304,23 @@ def _meeting_item(it: dict) -> dict:
 
 # ── What the panel offers here ────────────────────────────────────────────────
 
+MAX_WORKSPACES = 20
+
+
+async def member_workspaces(db: AsyncIOMotorDatabase, uid: str | None, *, first: str | None = None) -> list[dict]:
+    """[{id, name}] of the person's workspaces (``first`` first, then by name), at most MAX_WORKSPACES."""
+    if not uid:
+        return []
+    from bson import ObjectId
+
+    ids = [m["workspace_id"] for m in await db["memberships"].find({"user_id": uid}, {"workspace_id": 1}).to_list(length=200)
+           if _ID.match(str(m.get("workspace_id") or ""))]
+    rows = await db["workspaces"].find({"_id": {"$in": [ObjectId(i) for i in ids]}}, {"name": 1}).to_list(length=200)
+    out = sorted(({"id": str(r["_id"]), "name": r.get("name") or "Workspace"} for r in rows),
+                 key=lambda w: (w["id"] != first, (w["name"] or "").lower()))
+    return out[:MAX_WORKSPACES]
+
+
 
 async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, *, page: str | None = None,
                       workspace: str | None = None, folder: str | None = None, meeting: str | None = None) -> dict:
@@ -320,7 +343,7 @@ async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
             ws = raw.get("workspace_id") or ws
             if raw.get("meeting_id") and not meeting:
                 meeting = raw.get("meeting_id")
-            out["scopes"].append({"kind": "doc", "label": "This doc", "sub": raw.get("title") or None})
+            out["scopes"].append({"kind": "doc", "label": "This page", "sub": raw.get("title") or None})
             out["default"] = "doc"
     member = False
     if ws:
@@ -349,7 +372,10 @@ async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         out["scopes"].append({"kind": "workspace", "label": "Workspace", "sub": out["workspace"]["name"]})
         if out["default"] == "everything" and workspace:
             out["default"] = "meetings" if meeting else "workspace"
+    out["scopes"].append({"kind": "mine", "label": "My files", "sub": None})
     out["scopes"].append({"kind": "everything", "label": "Everything", "sub": None})
+    # Every workspace the person belongs to (Ask <Workspace>: a chip each, the current one first).
+    out["workspaces"] = await member_workspaces(db, uid, first=out["workspace"]["id"] if out["workspace"] else None)
     out["status"] = {
         "search": await ask_markdrop.status(db, uid),
         "meetings": await meetings_ai.status(db, uid, out["workspace"]["id"] if out["workspace"] else None)

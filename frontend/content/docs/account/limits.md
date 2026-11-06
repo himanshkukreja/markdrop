@@ -62,11 +62,11 @@ AI features share spending limits across everyone on Markdrop, and your own limi
 
 | What | Limit |
 | --- | --- |
-| [Ask Markdrop](/workspaces/ask-markdrop) (except **Meetings**) and [Ask AI in search](/workspaces/search#ask-ai) | **AI search**: $2 a day and $20 a month across Markdrop |
-| Ask Markdrop on **Meetings**, and meeting summaries | **Meetings AI**: $5 a day and $50 a month across Markdrop. See [Meetings privacy and cost](/workspaces/meetings-privacy#ai-and-cost) |
+| [Ask](/workspaces/ask-markdrop) (except **Meetings**) and [Ask AI in search](/workspaces/search#ask-ai) | **AI search**: $2 a day and $20 a month across Markdrop |
+| Ask on **Meetings**, and meeting summaries | **Meetings AI**: $5 a day and $50 a month across Markdrop. See [Meetings privacy and cost](/workspaces/meetings-privacy#ai-and-cost) |
 | [AI in pages](/pages/ai#limits), [AI insights](/analytics/ai-insights#limits) and [Insights and Ask](/analytics/overview#insights-and-ask) in Analytics | Fair-use limits, per person and across Markdrop |
-| One question to Ask Markdrop | 500 characters |
-| Ask Markdrop conversations | Kept 90 days after your last question in each |
+| One question to Ask | 500 characters |
+| Ask conversations | Kept 90 days after your last question in each |
 | AI insights for one link | Need 20 sessions in the period; kept 90 days |
 
 ## Sign-in and tokens

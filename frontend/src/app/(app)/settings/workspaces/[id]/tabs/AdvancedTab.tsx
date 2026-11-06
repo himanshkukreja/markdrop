@@ -19,12 +19,12 @@ import { AccessSyncNote, Locked, lockProps, lockSelectProps, type WsTabProps } f
 export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: WsTabProps) {
   const toast = useToast();
   const router = useRouter();
-  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers" | "team">("");
+  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers" | "team" | "tz">("");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const team = teamName(ws);
   const current: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
 
-  async function save(key: "default" | "share" | "auth" | "ai" | "covers" | "team", patch: Partial<WorkspaceSettings>, done: string) {
+  async function save(key: "default" | "share" | "auth" | "ai" | "covers" | "team" | "tz", patch: Partial<WorkspaceSettings>, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     try {
@@ -128,6 +128,19 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               locked={!isAdmin}
               onChange={(on) => void save("team", { team_memory: on, ...(on && !ws.settings.timezone ? { timezone: browserTz() } : {}) }, on ? "Team memory is on. Team fills in over the next minutes." : "Team memory is off. What it gathered is deleted.")}
             />
+            {ws.settings.team_memory === true && (
+              <Field label="Weekly summary timezone" hint="Team's summary goes out on Mondays at 9 am in this timezone.">
+                <Select
+                  value={ws.settings.timezone || browserTz() || "UTC"}
+                  disabled={saving === "tz"}
+                  {...lockSelectProps(!isAdmin)}
+                  onChange={(e) => { if (isAdmin) void save("tz", { timezone: e.target.value }, `The weekly summary follows ${e.target.value} now.`); }}
+                  options={timezones(ws.settings.timezone).map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
+                  className="mt-2 max-w-[320px]"
+                  data-testid="ws-team-tz"
+                />
+              </Field>
+            )}
           </div>
         </Locked>
       </section>
@@ -200,4 +213,13 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
 /** The admin's timezone, for Team's Monday 9 am summary. */
 function browserTz(): string | null {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch { return null; }
+}
+
+/** Every IANA timezone the browser knows (with the current one first), for the weekly summary. */
+function timezones(current?: string | null): string[] {
+  let all: string[] = [];
+  try { all = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf?.("timeZone") ?? []; } catch { /* old browser */ }
+  if (!all.includes("UTC")) all = ["UTC", ...all];
+  const mine = current || browserTz();
+  return mine && !all.includes(mine) ? [mine, ...all] : all;
 }

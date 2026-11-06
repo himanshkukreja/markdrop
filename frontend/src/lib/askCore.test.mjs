@@ -41,3 +41,34 @@ test("blocks: paragraphs and bullet lists", () => {
     { type: "p", text: "That's all." },
   ]);
 });
+
+test("the Ask page's address round-trips", async () => {
+  const { askHref, readAskParams } = await import("./askCore.mjs");
+  const ws = "a".repeat(24);
+  assert.equal(askHref(), "/ask");
+  assert.equal(askHref({ workspace: ws, q: " Sourcing? " }), `/ask?workspace=${ws}&q=Sourcing%3F`);
+  assert.equal(askHref({ workspace: "nope", mine: true }), "/ask?scope=mine");
+  assert.deepEqual(readAskParams(`?workspace=${ws}&c=${"b".repeat(24)}`), { workspace: ws, mine: false, thread: "b".repeat(24), q: null });
+  assert.deepEqual(readAskParams("?ask=bad&workspace=x"), { workspace: null, mine: false, thread: null, q: null });
+  assert.equal(readAskParams(`?ask=${"c".repeat(24)}`).thread, "c".repeat(24));   // the old home links
+});
+
+test("live suggestions: team first with topics, then yours; Updated … ago", async () => {
+  const { homeChips, suggestionsOf, updatedLine } = await import("./askCore.mjs");
+  const sug = {
+    team: [1, 2, 3, 4, 5, 6, 7, 8].map((i) => ({ topic: `T${i}`, question: `Q${i}?`, label: `T${i}: Q${i}?` })),
+    personal: [{ label: "My open action items", question: "What are my open action items?", intent: "my_actions" },
+      { label: "Catch me up on Standup", question: "Catch me up on Standup?", intent: "ask", icon: "mic" }],
+    updated_at: "2026-11-06T10:00:00Z",
+  };
+  const s = suggestionsOf(sug, 8);
+  assert.equal(s.length, 8);
+  assert.deepEqual(s[0], { q: "Q1?", label: "T1", icon: "sparkle" });
+  assert.equal(s[7].q, "What are my open action items?");
+  assert.equal(suggestionsOf({ team: [], personal: sug.personal }, 8).length, 2);
+  assert.deepEqual(homeChips(sug, 3).map((c) => c.label), ["T1: Q1?", "T2: Q2?", "T3: Q3?"]);
+  assert.deepEqual(homeChips({ team: [], personal: sug.personal }), []);
+  assert.deepEqual(homeChips({ team: sug.team.slice(0, 1), personal: sug.personal }).map((c) => c.label), ["T1: Q1?", "Catch me up on Standup"]);
+  assert.equal(updatedLine(sug, Date.parse("2026-11-06T12:30:00Z")), "Updated 2 h ago.");
+  assert.equal(updatedLine({ ...sug, team: [] }), "");
+});

@@ -16995,6 +16995,61 @@
         }
       }
     },
+    "/api/v1/ask/suggestions": {
+      "get": {
+        "tags": [
+          "ask"
+        ],
+        "summary": "Suggestions",
+        "description": "Suggested questions for Ask. With ``workspace``: its team questions, refreshed from what happened\nthere in the last 7 days (meetings and pages every member can read; one list for all members), and\nyours (your action items, your latest meeting). Without: yours, across your workspaces.",
+        "operationId": "suggestions_api_v1_ask_suggestions_get",
+        "parameters": [
+          {
+            "name": "workspace",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/ask/threads": {
       "get": {
         "tags": [
@@ -24044,6 +24099,7 @@
               "meetings",
               "folder",
               "workspace",
+              "mine",
               "everything"
             ],
             "title": "Kind",

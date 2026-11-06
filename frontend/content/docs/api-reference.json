@@ -1326,42 +1326,48 @@
       "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
     },
     "GET /api/v1/ask/home": {
-      "title": "Get Ask Markdrop's home",
+      "title": "Get the home's Ask box",
       "description": "What the home's Ask box shows: `status` (whether AI can answer now; when it can't, `reason` and `message` say why), `suggestions` (ready-made questions, each with its `intent`: `catch_up`, `my_actions` or `ask`) and `recent` (your latest conversations).",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "POST /api/v1/ask": {
-      "title": "Ask Markdrop",
-      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Pass `scope` to say what to answer from, as the in-app assistant does: `{\"kind\": \"doc\", \"page\": slug}` (that document or page first, then its workspace's meetings and documents), `{\"kind\": \"meetings\", \"workspace\": id}` (the workspace's meetings, optionally one `meeting`, a `series`, `since` and `until`), `{\"kind\": \"folder\", \"workspace\": id, \"folder\": id}`, `{\"kind\": \"workspace\", \"workspace\": id}` or `{\"kind\": \"everything\"}`; with `doc`, `context` (`heading`, `selection`) says where the reader is. One conversation (`thread_id`) can switch scopes. `page` alone (a slug) is the older way to ask a page. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations` (each with `title`, `url`, `subtitle`, `quote` and, for a meeting line, `moment`), `ranked`, `thread_id` and `scope` (`kind`, `label`); or `limit` when an AI limit stops it, or `error`. The `meetings` scope counts towards your Meetings AI limits, the others towards AI search.",
+      "title": "Ask",
+      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Pass `scope` to say what to answer from, as the in-app assistant does: `{\"kind\": \"doc\", \"page\": slug}` (that document or page first, then its workspace's meetings and documents), `{\"kind\": \"meetings\", \"workspace\": id}` (the workspace's meetings, optionally one `meeting`, a `series`, `since` and `until`), `{\"kind\": \"folder\", \"workspace\": id, \"folder\": id}`, `{\"kind\": \"workspace\", \"workspace\": id}` (Ask <Workspace>), `{\"kind\": \"mine\"}` (Ask my files: your own items outside any workspace) or `{\"kind\": \"everything\"}`; with `doc`, `context` (`heading`, `selection`) says where the reader is. One conversation (`thread_id`) can switch scopes. `page` alone (a slug) is the older way to ask a page. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations` (each with `title`, `url`, `subtitle`, `quote` and, for a meeting line, `moment`), `ranked`, `thread_id` and `scope` (`kind`, `label`); or `limit` when an AI limit stops it, or `error`. The `meetings` scope counts towards your Meetings AI limits, the others towards AI search.",
       "returns": "text/event-stream",
       "example": { "question": "When did we decide on Stripe Checkout?", "scope": { "kind": "doc", "page": "checkout-prd" }, "context": { "heading": "Payments" } },
       "mcp": "ask_documents",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "GET /api/v1/ask/context": {
-      "title": "Get what Ask Markdrop offers here",
-      "description": "The scopes the assistant offers for a place (`page`, `workspace`, `folder` and `meeting` query parameters): `scopes` (each `kind`, `label` and `sub`, only for things you can open), the `default` one, the `page`, `workspace`, `folder` and `meeting` they refer to, the workspace's meeting `series`, `can_insert` (you can edit the page, so answers can be inserted into it) and `status` (whether AI can answer now, for AI search and Meetings AI). Something you can't open is left out, never an error.",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "title": "Get what Ask offers here",
+      "description": "The scopes the assistant offers for a place (`page`, `workspace`, `folder` and `meeting` query parameters): `scopes` (each `kind`, `label` and `sub`, only for things you can open), the `default` one, the `page`, `workspace`, `folder` and `meeting` they refer to, the workspace's meeting `series`, `workspaces` (every workspace you're in, for a chip each), `can_insert` (you can edit the page, so answers can be inserted into it) and `status` (whether AI can answer now, for AI search and Meetings AI). Something you can't open is left out, never an error.",
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
+    },
+    "GET /api/v1/ask/suggestions": {
+      "title": "Get suggested questions",
+      "description": "What to ask right now. With `workspace` (an id): `team`, the workspace's live questions (each `topic`, `question` and `label`), written by Claude Haiku 5.5 from the last 7 days of meetings and pages that every member can open (never a restricted meeting or a private page) and the same for every member, with `updated_at`; `refreshing` is true while the first list is being written (ask again in a few seconds). And `personal`, your own (`label`, `question`, `intent`): your action items, your latest meeting. Without `workspace`, only `personal`. `ai_off` is true in a workspace with AI turned off. Reading the list never calls the model and doesn't count towards your limits. `404` when you aren't a member of the workspace.",
+      "mcp": "ask_suggestions",
+      "guide": { "label": "Suggested questions", "href": "/workspaces/ask-markdrop#suggested-questions" }
     },
     "GET /api/v1/ask/threads": {
-      "title": "List your Ask Markdrop conversations",
+      "title": "List your Ask conversations",
       "description": "Your recent conversations, newest first: each one's `id`, `title` (its first question), number of questions and when it was last used. Only you can see your conversations.",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "GET /api/v1/ask/threads/{thread_id}": {
       "title": "Open a conversation",
       "description": "One of your conversations with every question and answer. Each answer's sources are checked against your access again: when you can no longer open one of them, that answer comes back with `withheld: true` and no text.",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "DELETE /api/v1/ask/threads/{thread_id}": {
       "title": "Delete a conversation",
       "description": "Deletes one of your conversations.",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "DELETE /api/v1/ask/threads": {
       "title": "Delete all your conversations",
-      "description": "Deletes every conversation you had with Ask Markdrop. Your documents aren't touched.",
-      "guide": { "label": "Ask Markdrop", "href": "/workspaces/ask-markdrop" }
+      "description": "Deletes every conversation you had with Ask. Your documents aren't touched.",
+      "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "POST /api/v1/search/click": {
       "title": "Record an opened result",

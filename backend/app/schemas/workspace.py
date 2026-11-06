@@ -52,6 +52,19 @@ class SettingsPayload(BaseModel):
     # IANA timezone for Team's weekly summary (Monday 9 am); none: UTC.
     timezone: str | None = Field(None, max_length=64)
 
+    @field_validator("timezone")
+    @classmethod
+    def _iana(cls, v: str | None) -> str | None:
+        if v in (None, ""):
+            return None
+        from zoneinfo import ZoneInfo
+
+        try:
+            ZoneInfo(v)
+        except Exception:
+            raise ValueError("Unknown timezone")
+        return v
+
 
 class DomainSummary(BaseModel):
     host: str

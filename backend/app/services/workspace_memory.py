@@ -1881,7 +1881,7 @@ async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
 
 async def assistant_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str,
                             scope: str | None = None, *, max_docs: int = 6) -> list[tuple[Any, str]]:
-    """For Ask Markdrop: ``[(search.Cand of a source doc, "Team memory …" excerpt)]``, the docs the
+    """For Ask (services/ask_markdrop.py): ``[(search.Cand of a source doc, "Team memory …" excerpt)]``, the docs the
     matching facts came from (each readable by the asker), best first, with those facts as the text
     the model reads — so an answer about a person or project cites the meeting or page it came from."""
     from app.services import search

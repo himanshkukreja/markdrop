@@ -16,8 +16,8 @@ Pages open in [View mode](/pages/overview#view-and-edit).
 | --- | --- |
 | **E** | Edit the page (if you can edit it). Not while you're typing in a field or a dialog is open |
 | **⌘ \\** | Hide or show the sidebar |
-| **⌘ J** | Open or close [Ask Markdrop](/workspaces/ask-markdrop) on this page (signed in) |
-| **Esc** | Close Ask Markdrop |
+| **⌘ J** | Open or close [Ask](/workspaces/ask-markdrop) on this page (signed in) |
+| **Esc** | Close Ask |
 
 **Done** in the top bar goes back to View mode. To turn single-key shortcuts like **E** off, open **Settings › Account** and switch off **Keyboard shortcuts**.
 
@@ -49,7 +49,7 @@ Pages open in [View mode](/pages/overview#view-and-edit).
 
 | Shortcut | What it does |
 | --- | --- |
-| **⌘ J** | In the text: with text selected, **Ask AI** for the selection, otherwise draft with `/ai` at the caret. Outside the text (or in View mode): open [Ask Markdrop](/workspaces/ask-markdrop) |
+| **⌘ J** | In the text: with text selected, **Ask AI** for the selection, otherwise draft with `/ai` at the caret. Outside the text (or in View mode): open [Ask](/workspaces/ask-markdrop) |
 | **Space** on an empty line | Draft with `/ai` |
 | **Esc** | Discard an AI suggestion |
 

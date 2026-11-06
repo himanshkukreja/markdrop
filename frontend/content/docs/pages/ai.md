@@ -65,14 +65,14 @@ While you edit, choose **Summarize page** in the page's **⋯** menu. A short su
 
 ## Ask this page
 
-Anyone signed in who can open a page can ask it questions with [Ask Markdrop](/workspaces/ask-markdrop), the one assistant in Markdrop. Choose **✦ Ask** in the page's top bar, or press **⌘ J** when you're not typing in the page. It opens beside the page (a sheet from the bottom on a phone), on **This doc**.
+Anyone signed in who can open a page can ask it questions with [Ask](/workspaces/ask-markdrop), the one assistant in Markdrop. Choose **✦ Ask** in the page's top bar, or press **⌘ J** when you're not typing in the page. It opens beside the page (a sheet from the bottom on a phone), on **This page**.
 
 - Start with a suggestion, **Summarize this doc**, **What did we decide about this in meetings?** or **What's still open here?**, or type your own question and press **Enter** (**Shift Enter** for a new line).
-- Ask Markdrop knows which section you're in and what you selected: select a paragraph and ask "Is this still true?".
+- Ask knows which section you're in and what you selected: select a paragraph and ask "Is this still true?".
 - Answers stream in with numbered sources: the page itself, and the meetings and documents they also used. Select a number to see what the source says, and open it.
 - Ask follow-ups in the same conversation. **Stop** ends an answer early, and **New chat** starts again. The conversation is kept when you close the panel, and follows you to other pages.
 
-In a workspace page, **This doc** answers from the page first, then what the workspace's meetings decided about it (with the meeting, its date and a link to the moment: "When did we decide this?"), then the workspace's other documents. See [Meeting memory while writing](/pages/meeting-memory#ask-the-page-with-your-meetings). Switch to **Meetings**, **Workspace** or **Everything** to ask more widely.
+In a workspace page, **This page** answers from the page first, then what the workspace's meetings decided about it (with the meeting, its date and a link to the moment: "When did we decide this?"), then the workspace's other documents. See [Meeting memory while writing](/pages/meeting-memory#ask-the-page-with-your-meetings). Switch to **Meetings**, **Workspace** or **Everything** to ask more widely.
 
 If you can edit the page, **Insert** under an answer puts it into the page after the line where your cursor is, with its sources as links. In View mode, **Insert** switches the page to **Edit** with the answer at the end of the section you were reading. Nothing goes into the page unless you choose **Insert**.
 
@@ -106,10 +106,10 @@ A new page gets one of Markdrop's covers, chosen for what it's about: see [Autom
 
 | Shortcut | What it does |
 | --- | --- |
-| **⌘ J** | In the text you're editing: with text selected, **Ask AI** for the selection, otherwise draft with `/ai` at the caret. Anywhere else: open [Ask Markdrop](/workspaces/ask-markdrop) |
+| **⌘ J** | In the text you're editing: with text selected, **Ask AI** for the selection, otherwise draft with `/ai` at the caret. Anywhere else: open [Ask](/workspaces/ask-markdrop) |
 | **Space** on an empty line | Draft with `/ai` |
 | **Enter** | Run the prompt, or ask the question |
-| **Esc** | Discard a suggestion, or close Ask Markdrop |
+| **Esc** | Discard a suggestion, or close Ask |
 
 On Windows and Linux, use **Ctrl** where this page says **⌘**. All of the page editor's shortcuts are in [Keyboard shortcuts](/pages/keyboard-shortcuts).
 

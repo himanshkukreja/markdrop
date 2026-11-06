@@ -418,3 +418,30 @@ async def background(db: AsyncIOMotorDatabase, wss: list[wm.WsInfo], now: dateti
                 log.warning("team weekly summary of %s failed", ws.id, exc_info=True)
     return n
 
+
+
+async def active_projects(db: AsyncIOMotorDatabase, workspace_id: str, since: datetime, limit: int = 6) -> list[dict]:
+    """Recurring projects with team-visible lines since ``since`` (for Ask's live suggestions,
+    services/ask_suggestions.py): [{name, status, people}], newest first. Empty when Team memory is off."""
+    ws = await wm.ws_info(db, workspace_id)
+    if ws is None or not ws.on:
+        return []
+    rows = {p["key"]: p for p in await db[wm.PROJECTS].find({"workspace_id": workspace_id}).to_list(length=2000)}
+    if not rows:
+        return []
+    v = await team_visible(db, workspace_id)
+    by: dict[str, list[dict]] = {}
+    for f in v.facts:
+        p = rows.get(f.get("project") or "")
+        if p is None or (len(p.get("srcs") or []) < 2 and p.get("origin") != "folder"):
+            continue
+        if (wm._aware(f.get("when")) or since) >= since:
+            by.setdefault(p["key"], []).append(f)
+    out = []
+    for key, facts in by.items():
+        status = next((f for f in facts if f["kind"] == "status"), None)
+        out.append({"name": rows[key].get("name") or key, "status": wm._text(status)[:160] if status else None,
+                    "people": len({f["subject"] for f in facts}),
+                    "last": max(wm._aware(f.get("when")) or since for f in facts)})
+    out.sort(key=lambda x: x["last"], reverse=True)
+    return [{k: x[k] for k in ("name", "status", "people")} for x in out[:limit]]

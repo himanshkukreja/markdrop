@@ -500,6 +500,21 @@ class Extras(TeamWorld):
         self.m2 = await self.standup(date="2026-11-04", title="Sourcing standup 2")
         await self.tick()
 
+    async def test_ask_suggestions_get_active_projects(self):
+        from app.services import ask_suggestions
+
+        src = await ask_suggestions.team_sources(self.db, self.W, now=datetime(2026, 11, 5, 12, tzinfo=timezone.utc))
+        self.assertEqual([p["name"] for p in src["projects"]], ["Sourcing"])
+        self.assertIn("Project: Sourcing", ask_suggestions.source_text(src))
+        # Restricted meetings don't count (team-visible only); Team memory off: none.
+        await self.db["meetings"].update_many({}, {"$set": {"restricted": True}})
+        src = await ask_suggestions.team_sources(self.db, self.W, now=datetime(2026, 11, 5, 12, tzinfo=timezone.utc))
+        self.assertEqual(src["projects"], [])
+        await self.db["meetings"].update_many({}, {"$set": {"restricted": False}})
+        await self.turn_on(on=False)
+        src = await ask_suggestions.team_sources(self.db, self.W, now=datetime(2026, 11, 5, 12, tzinfo=timezone.utc))
+        self.assertEqual(src["projects"], [])
+
     async def test_groups_admins_only_and_suggested_from_series(self):
         r = await self.http.post(f"/api/v1/team/{self.W}/groups", headers=self.session("wm"),
                                  json={"name": "Sourcing team", "member_ids": [self.uid["wm"]]})

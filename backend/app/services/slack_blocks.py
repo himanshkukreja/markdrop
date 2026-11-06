@@ -84,7 +84,7 @@ def item_unfurl(url: str, title: str, *, kind: str, excerpt: str | None, where: 
 HELP = (
     "*Markdrop in Slack* (only you see these replies)\n"
     "• `/markdrop search <words>` finds documents, pages, files and folders you can open\n"
-    "• `/markdrop ask <question>` answers from what you can open, with sources\n"
+    "• `/markdrop ask <question>` asks your workspace (Ask <Workspace>): answers from what you can open, with sources\n"
     "• `/markdrop meetings <question>` answers from your workspace's meetings\n"
     "• `/markdrop link` links your Slack account to your Markdrop account (once)\n"
     "• `/markdrop unlink` removes that link\n"
