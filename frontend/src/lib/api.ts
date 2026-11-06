@@ -634,9 +634,16 @@ export interface MeUser {
   created_at: string;
   /** The weekly analytics email (Settings → Account). Missing on older API responses = "weekly". */
   analytics_digest?: "weekly" | "off";
-  /** "Email me when someone mentions me" (and asks for my sign-off). Missing on older APIs = on. */
+  /** Any notification email on (mentions or sign-off requests). Missing on older APIs = on. */
   mention_emails?: boolean;
+  /** How often notification email comes, per kind (Settings → Account → Email). */
+  email_notify?: EmailNotify;
 }
+
+/** Instant, Hourly bundle, Daily digest (08:00 your time) or Off. */
+export type EmailMode = "instant" | "hourly" | "daily" | "off";
+export interface EmailNotify { mention: EmailMode; signoff_requested: EmailMode }
+export const DEFAULT_EMAIL_NOTIFY: EmailNotify = { mention: "hourly", signoff_requested: "instant" };
 
 export function googleLoginUrl(next?: string): string {
   const q = next ? `?next=${encodeURIComponent(next)}` : "";
@@ -726,8 +733,14 @@ export async function updateMyName(name: string): Promise<MeUser> {
 }
 
 export async function updatePreferences(
-  prefs: { analytics_digest?: "weekly" | "off"; mention_emails?: boolean },
-): Promise<{ analytics_digest: "weekly" | "off"; mention_emails?: boolean }> {
+  prefs: {
+    analytics_digest?: "weekly" | "off";
+    mention_emails?: boolean;
+    email_notify?: Partial<EmailNotify>;
+    /** The browser's IANA timezone (the daily digest goes at 08:00 there). */
+    tz?: string;
+  },
+): Promise<{ analytics_digest: "weekly" | "off"; mention_emails?: boolean; email_notify?: EmailNotify }> {
   const res = await fetch(`${API_BASE}/api/v1/me/preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...authHeaders() },

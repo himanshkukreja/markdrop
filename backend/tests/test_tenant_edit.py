@@ -50,7 +50,7 @@ class TenantWorld(AccessWorld):
         self.addCleanup(setattr, limiter, "enabled", True)
         self.mail: list[dict] = []
 
-        async def capture(payload):
+        async def capture(payload, **_kw):
             self.mail.append(payload)
 
         for p in (mock.patch.object(mailer, "is_configured", lambda: True),

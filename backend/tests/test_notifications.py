@@ -35,7 +35,7 @@ class NotifyWorld(PageWorld):
         await page_history.ensure_indexes(self.db)
         self.sent: list[dict] = []
 
-        async def capture(payload):
+        async def capture(payload, **_kw):
             self.sent.append(payload)
 
         for p in (mock.patch.object(mailer, "is_configured", lambda: True),
@@ -68,6 +68,11 @@ class NotifyWorld(PageWorld):
 
     async def flush(self, minutes: float = 2):
         return await notifications.flush_emails(self.db, now() + timedelta(minutes=minutes))
+
+    async def modes(self, who: str, mention: str = "instant", signoff: str = "instant"):
+        """How often ``who`` gets notification email (Settings → Account → Email)."""
+        await self.db["users"].update_one({"_id": ObjectId(self.uid[who])}, {"$set": {
+            "email_notify": {"mention": mention, "signoff_requested": signoff}}})
 
 
 # ── Who is notified ───────────────────────────────────────────────────────────
@@ -273,6 +278,7 @@ class Bell(NotifyWorld):
 
 class Email(NotifyWorld):
     async def test_batched_one_email_per_person_per_page_per_10_minutes(self):
+        await self.modes("wm")  # Instant: one email per page
         p = await self.page()
         await self.save(p["slug"], "owner", f"{person(self.uid['wm'], 'WM')} frontend {{#b-aaa001}}")
         await self.save(p["slug"], "wa", f"{person(self.uid['wm'], 'WM')} frontend {{#b-aaa001}}\n\n"
@@ -300,6 +306,7 @@ class Email(NotifyWorld):
         self.assertEqual(self.sent[1]["subject"], "OWNER mentioned you in “Launch plan”")
 
     async def test_two_pages_two_emails_and_read_in_app_means_no_email(self):
+        await self.modes("wm")
         a, b, c = await self.page(), await self.page(), await self.page()
         for x in (a, b, c):
             await self.save(x["slug"], "owner", person(self.uid["wm"], "WM"))
@@ -309,6 +316,7 @@ class Email(NotifyWorld):
         self.assertEqual(len(self.sent), 2)
 
     async def test_access_lost_before_sending_means_no_email(self):
+        await self.modes("wm")
         p = await self.page()
         await self.save(p["slug"], "owner", person(self.uid["wm"], "WM"))
         await self.remove_member("W1", "wm")
@@ -319,7 +327,8 @@ class Email(NotifyWorld):
         r = await self.http.get("/api/v1/auth/me", headers=self.session("wm"))
         self.assertTrue(r.json()["mention_emails"])
         r = await self.http.patch("/api/v1/me/preferences", json={"mention_emails": False}, headers=self.session("wm"))
-        self.assertEqual(r.json(), {"analytics_digest": "weekly", "mention_emails": False})
+        self.assertEqual(r.json(), {"analytics_digest": "weekly", "mention_emails": False,
+                                    "email_notify": {"mention": "off", "signoff_requested": "off"}})
         self.assertFalse((await self.http.get("/api/v1/auth/me", headers=self.session("wm"))).json()["mention_emails"])
         p = await self.page()
         await self.save(p["slug"], "owner", person(self.uid["wm"], "WM"))
@@ -329,13 +338,14 @@ class Email(NotifyWorld):
         self.assertTrue(r.json()["mention_emails"])
         # The digest preference alone still works as before.
         r = await self.http.patch("/api/v1/me/preferences", json={"analytics_digest": "off"}, headers=self.session("wm"))
-        self.assertEqual(r.json(), {"analytics_digest": "off", "mention_emails": True})
+        self.assertEqual(r.json(), {"analytics_digest": "off", "mention_emails": True,
+                                    "email_notify": {"mention": "hourly", "signoff_requested": "instant"}})
         self.assertEqual((await self.http.patch("/api/v1/me/preferences", json={},
                                                 headers=self.session("wm"))).status_code, 422)
 
         # The email's link: the GET asks, the POST turns emails off; a forged token is refused.
         await self.save(p["slug"], "wa", person(self.uid["wa"], "WA") + " " + person(self.uid["wv"], "WV"))
-        await self.flush()
+        await self.flush(31)  # wv's mentions come in the hourly bundle
         mail = self.sent[-1]
         off = notifications.off_url(self.uid["wv"])
         self.assertIn(off.replace("&", "&amp;"), mail["html"])
@@ -357,7 +367,7 @@ class Email(NotifyWorld):
         p = await self.page()
         await self.save(p["slug"], "owner", person(self.uid["wm"], "WM") + " " + person(self.uid["wa"], "WA"))
         self.assertEqual((await self.notes("wm"))[0]["email"], "off")
-        self.assertEqual(await self.flush(), {"suppressed": 1})
+        self.assertEqual(await self.flush(31), {"suppressed": 1})
         self.assertEqual(self.sent, [])
 
 
@@ -367,6 +377,11 @@ class Email(NotifyWorld):
 class Withdraw(NotifyWorld):
     """A mention taken out again (owner, 2026-11-06): its unread notification goes, and nothing
     pending about it is sent."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        for who in ("wm", "wa"):
+            await self.modes(who)  # Instant email: one per page (tests/test_email_calm.py covers the others)
 
     async def test_added_and_removed_within_the_minute_sends_nothing(self):
         p = await self.page()

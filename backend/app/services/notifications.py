@@ -27,16 +27,30 @@ Privacy, the rules every path follows:
   mention while editing doesn't ring twice). At most 50 people per save.
 
 Email (mentions and sign-off requests; "shared" has its own immediate email in
-routers/access.py): a row is born ``email: "pending"`` when the person wants
-these emails (``users.mention_emails`` not False, no ``unsubscribed_at``).
-:func:`flush_emails` (background loop, every 30 s) sends one email per person
-per page, batching every pending row for that page, once the newest has waited
-``GATHER`` and no email went to that person about that page in the last 10
-minutes (``notification_email_log``, one row per person+page, claimed
-atomically). At send time it checks again: access, the preference, the
-suppression list, whether the row was read in the app meanwhile (then no
-email: ``email: "seen"``) and whether the mention is still on the page (else
-``email: "withdrawn"``).
+routers/access.py), "email calm" (owner, 2026-11-06). A row is born ``email:
+"pending"`` when the person wants that kind's email (:func:`email_modes`:
+Instant, Hourly bundle — mentions' default —, Daily digest or Off; sign-off
+requests default to Instant). :func:`flush_emails` (background loop, every
+30 s) looks at each person whose rows are due (``email_at``):
+
+* App and push first: no email about a row read in the app, shown to them by
+  the bell after it arrived (``users.app_seen_at``) ("seen"), or delivered by a
+  push to one of their devices ("pushed") or a Slack DM ("slack"). A push or DM
+  still on its way holds the email for up to the kind's ``WINDOW`` (mentions 30
+  min, sign-off requests 10).
+* Instant: one email per person per page, batching that page's rows, once the
+  newest waited ``GATHER`` and none went about that page in the last 10 minutes
+  (``notification_email_log``); someone in the app lately gets the window to see
+  it there first. Hourly: one bundle an hour at most, once its oldest row waited
+  30 minutes. Daily: one digest at 08:00 their time (``users.email_tz``, from
+  the bell, else UTC).
+* At most ``DAILY_CAP`` (3) of these emails a day (their day); past it the rows
+  wait for one catch-up email the next morning (``catchup``). An email with a
+  sign-off request may be a fourth, once a day.
+* At send time it checks again: access (per page), the preference, the
+  suppression list and whether the mention is still on the page (else
+  ``email: "withdrawn"``). Every email has "Email me less" (:func:`email_less`)
+  and the turn-off link.
 
 Mistaken mentions (owner, 2026-11-06): a save that takes a mention out
 (:func:`removed_mentions`) withdraws that person's *unread* notifications for
@@ -61,7 +75,9 @@ import html
 import logging
 import re
 from datetime import datetime, timedelta, timezone
+from datetime import time as dtime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from bson import ObjectId
 from fastapi import HTTPException
@@ -106,8 +122,10 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("user_id", 1), ("read_at", 1)])
     await db[COLL].create_index([("user_id", 1), ("kind", 1), ("doc_id", 1), ("block_id", 1), ("created_at", -1)])
     await db[COLL].create_index([("email", 1), ("created_at", 1)])
+    await db[COLL].create_index([("email", 1), ("email_at", 1)])
     await db[COLL].create_index("created_at", expireAfterSeconds=KEEP_DAYS * 24 * 3600)
     await db[EMAIL_LOG].create_index("sent_at", expireAfterSeconds=24 * 3600)
+    await db[DAYS].create_index("at", expireAfterSeconds=3 * 24 * 3600)
     await db[WITHDRAWN].create_index([("user_id", 1), ("kind", 1), ("doc_id", 1), ("block_id", 1)])
     await db[WITHDRAWN].create_index("created_at", expireAfterSeconds=int(DEDUPE.total_seconds()))
 
@@ -159,11 +177,6 @@ async def can_open(db: AsyncIOMotorDatabase, user_row: dict | None, doc: dict | 
         return False
     d = await access.can(access.Actor.of(_as_user(user_row)), doc, "read", access.Ctx(db))
     return bool(d.allowed)
-
-
-def wants_email(user_row: dict | None) -> bool:
-    return bool(user_row and user_row.get("email") and not user_row.get("unsubscribed_at")
-                and user_row.get("mention_emails") is not False)
 
 
 async def _load_doc(db: AsyncIOMotorDatabase, doc: Any) -> dict | None:
@@ -231,8 +244,8 @@ async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, bl
         "user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": block,
         "actor_id": actor_id, "actor_name": (actor_name or "Someone")[:80], "via": _via(actor),
         "extra": _clean_extra(extra), "created_at": now, "read_at": None,
-        "email": "pending" if kind in EMAIL_KINDS and wants_email(recipient) else "off",
-        "emailed_at": None,
+        "email": "pending" if kind in EMAIL_KINDS and wants_email(recipient, kind) else "off",
+        "email_at": now + GATHER, "emailed_at": None,
     }
     res = await db[COLL].insert_one(row)
     row["_id"] = res.inserted_id
@@ -623,6 +636,125 @@ async def open_one(db: AsyncIOMotorDatabase, user_id: str, notification_id: str)
 
 
 # ── Email ─────────────────────────────────────────────────────────────────────
+#
+# Email calm (owner, 2026-11-06): the app and push come first, then email, and never a flood.
+# Each person picks, for mentions and for sign-off requests separately (users.email_notify):
+# Instant, Hourly bundle (mentions' default), Daily digest (08:00 their time) or Off (sign-off
+# requests default to Instant). At most DAILY_CAP of these emails a day; past it, what's left waits
+# for one catch-up email the next morning. Every email carries "Email me less" (one step down)
+# and the turn-off link.
+
+MODES = ("instant", "hourly", "daily", "off")
+DEFAULT_MODES = {"mention": "hourly", "signoff_requested": "instant"}
+MODE_LABELS = {"instant": "Instant", "hourly": "Hourly bundle", "daily": "Daily digest", "off": "Off"}
+KIND_LABELS = {"mention": "Mentions", "signoff_requested": "Sign-off requests"}
+_SHORT = {"mention": "m", "signoff_requested": "s"}
+# How long an email waits for the app or a push to reach the person first ("App/push first").
+WINDOW = {"mention": timedelta(minutes=30), "signoff_requested": timedelta(minutes=10)}
+BUNDLE_GAP = timedelta(hours=1)      # at most one hourly bundle an hour
+BUNDLE_WAIT = timedelta(minutes=30)  # a bundle goes once its oldest item has waited this long
+DIGEST_HOUR = 8                      # the daily digest and the catch-up, local time
+DAILY_CAP = 3                        # notification emails per person per (local) day
+STALE = timedelta(days=3)            # a row still waiting after this is dropped ("stale")
+SEEN_EVERY = timedelta(seconds=30)   # how often the bell's poll may write users.app_seen_at
+RECHECK = timedelta(minutes=1)
+DAYS = "notification_email_days"     # {_id: "<user>:<local date>", n, over, at}: the daily cap
+LESS_PATH = "/api/v1/me/emails/less"
+MAX_PAGES = 20
+MAX_PER_PAGE = 5
+FLUSH_PEOPLE = 200
+_TZ = re.compile(r"^[A-Za-z][A-Za-z0-9_+\-]*(?:/[A-Za-z0-9_+\-]+){0,2}$")
+
+
+def email_modes(user_row: dict | None) -> dict[str, str]:
+    """``{mention, signoff_requested}`` → instant | hourly | daily | off. Someone who turned the old
+    "Email me when someone mentions me" off (``mention_emails: False``) and never chose since has
+    both off."""
+    saved = (user_row or {}).get("email_notify") or {}
+    legacy_off = (user_row or {}).get("mention_emails") is False and not saved
+    return {k: saved.get(k) if saved.get(k) in MODES else ("off" if legacy_off else DEFAULT_MODES[k])
+            for k in EMAIL_KINDS}
+
+
+def step_down(mode: str) -> str:
+    """Instant → Hourly bundle → Daily digest → Off."""
+    return MODES[min(MODES.index(mode) + 1, len(MODES) - 1)] if mode in MODES else "off"
+
+
+def valid_tz(tz: Any) -> str | None:
+    if not isinstance(tz, str) or not 0 < len(tz) <= 64 or not _TZ.match(tz):
+        return None
+    try:
+        ZoneInfo(tz)
+    except Exception:
+        return None
+    return tz
+
+
+def _zone(user_row: dict | None) -> ZoneInfo:
+    tz = valid_tz((user_row or {}).get("email_tz"))
+    return ZoneInfo(tz) if tz else ZoneInfo("UTC")
+
+
+def wants_email(user_row: dict | None, kind: str | None = None) -> bool:
+    """The person can get notification email at all (an address, not unsubscribed from Markdrop
+    email) and, with ``kind``, hasn't turned that kind's email off (any kind, without)."""
+    if not (user_row and user_row.get("email") and not user_row.get("unsubscribed_at")):
+        return False
+    modes = email_modes(user_row)
+    return modes.get(kind, "off") != "off" if kind else any(m != "off" for m in modes.values())
+
+
+async def set_modes(db: AsyncIOMotorDatabase, user_id: str, changes: dict[str, str]) -> dict[str, str] | None:
+    """Change how often email comes, per kind. Returns the new modes (None: no such person). A kind
+    turned off drops what was waiting; every other waiting row is looked at again at once."""
+    if not ObjectId.is_valid(user_id or ""):
+        return None
+    row = await db["users"].find_one({"_id": ObjectId(user_id)}, {"email_notify": 1, "mention_emails": 1})
+    if row is None:
+        return None
+    modes = email_modes(row) | {k: v for k, v in (changes or {}).items() if k in EMAIL_KINDS and v in MODES}
+    now = _now()
+    await db["users"].update_one({"_id": ObjectId(user_id)}, {"$set": {
+        "email_notify": modes, "mention_emails": any(m != "off" for m in modes.values()),
+        "mention_emails_at": now}})
+    off = [k for k, m in modes.items() if m == "off"]
+    if off:
+        await db[COLL].update_many({"user_id": str(user_id), "email": "pending", "kind": {"$in": off}},
+                                   {"$set": {"email": "off"}})
+    await db[COLL].update_many({"user_id": str(user_id), "email": "pending"}, {"$set": {"email_at": now}})
+    return modes
+
+
+async def set_preference(db: AsyncIOMotorDatabase, user_id: str, on: bool) -> bool:
+    """The old on/off switch (and the turn-off link): off turns both kinds off; on turns each kind
+    that's off back to its default."""
+    row = await db["users"].find_one({"_id": ObjectId(user_id)}, {"email_notify": 1, "mention_emails": 1}) \
+        if ObjectId.is_valid(user_id or "") else None
+    if row is None:
+        return False
+    modes = email_modes(row)
+    changes = {k: ("off" if not on else (m if m != "off" else DEFAULT_MODES[k])) for k, m in modes.items()}
+    return await set_modes(db, user_id, changes) is not None
+
+
+async def saw_app(db: AsyncIOMotorDatabase, user_id: str, tz: str | None = None) -> None:
+    """The app showed this person the bell (its unread count is polled only while a tab is
+    visible): what came before it doesn't need an email ("seen"). Also keeps their timezone for the
+    daily digest. At most one write every ``SEEN_EVERY`` (unless the timezone changed). Never raises."""
+    try:
+        if not ObjectId.is_valid(user_id or ""):
+            return
+        now = _now()
+        sets: dict = {"app_seen_at": now}
+        when: list[dict] = [{"app_seen_at": {"$lt": now - SEEN_EVERY}}, {"app_seen_at": None}]
+        zone = valid_tz(tz)
+        if zone:
+            sets["email_tz"] = zone
+            when.append({"email_tz": {"$ne": zone}})
+        await db["users"].update_one({"_id": ObjectId(user_id), "$or": when}, {"$set": sets})
+    except Exception:
+        log.warning("notifications: saw_app failed", exc_info=True)
 
 
 def off_token(user_id: str) -> str:
@@ -645,23 +777,113 @@ def off_url(user_id: str) -> str:
     return f"{settings.api_base_url.rstrip('/')}{OFF_PATH}?t={off_token(user_id)}"
 
 
-async def set_preference(db: AsyncIOMotorDatabase, user_id: str, on: bool) -> bool:
-    if not ObjectId.is_valid(user_id or ""):
-        return False
-    res = await db["users"].update_one({"_id": ObjectId(user_id)},
-                                       {"$set": {"mention_emails": bool(on), "mention_emails_at": _now()}})
-    if not on:
-        await db[COLL].update_many({"user_id": str(user_id), "email": "pending"}, {"$set": {"email": "off"}})
-    return res.matched_count == 1
+# "Email me less": one signed link per email, no sign-in. It names each kind in the email and the
+# setting it had when the email went ("m1-s0": mentions were Hourly, sign-offs Instant), so a second
+# click (or an old email) never lowers anything twice.
+
+
+def _less_sig(payload: str) -> str:
+    return hmac.new(settings.auth_secret.encode(), f"email-less:{payload}".encode(), hashlib.sha256).hexdigest()[:32]
+
+
+def less_token(user_id: str, steps: dict[str, str]) -> str:
+    spec = "-".join(f"{_SHORT[k]}{MODES.index(m)}" for k, m in sorted(steps.items()) if k in _SHORT and m in MODES)
+    payload = f"{user_id}.{spec}"
+    return f"{payload}.{_less_sig(payload)}"
+
+
+def verify_less_token(token: str | None) -> tuple[str, dict[str, str]] | None:
+    try:
+        user_id, spec, sig = (token or "").split(".")
+    except ValueError:
+        return None
+    if not ObjectId.is_valid(user_id) or not spec or \
+            not hmac.compare_digest(sig.encode(), _less_sig(f"{user_id}.{spec}").encode()):
+        return None
+    kinds = {v: k for k, v in _SHORT.items()}
+    steps: dict[str, str] = {}
+    for part in spec.split("-"):
+        if len(part) != 2 or part[0] not in kinds or not part[1].isdigit() or int(part[1]) >= len(MODES):
+            return None
+        steps[kinds[part[0]]] = MODES[int(part[1])]
+    return user_id, steps
+
+
+def less_url(user_id: str, steps: dict[str, str]) -> str | None:
+    steps = {k: m for k, m in steps.items() if m != "off"}
+    if not steps:
+        return None
+    return f"{settings.api_base_url.rstrip('/')}{LESS_PATH}?t={less_token(user_id, steps)}"
+
+
+async def email_less(db: AsyncIOMotorDatabase, user_id: str, steps: dict[str, str]) -> tuple[dict[str, str], dict[str, str]]:
+    """Apply an "Email me less" link: each kind still at the setting the email was sent with goes one
+    step down. Returns (what changed, every kind's setting now)."""
+    row = await db["users"].find_one({"_id": ObjectId(user_id)}, {"email_notify": 1, "mention_emails": 1})
+    modes = email_modes(row)
+    changes = {k: step_down(m) for k, m in steps.items() if k in modes and modes[k] == m and m != "off"}
+    if changes:
+        modes = await set_modes(db, user_id, changes) or modes
+    return changes, modes
 
 
 def _e(s: Any) -> str:
     return html.escape(str(s), quote=True)
 
 
-def compose_email(*, user_id: str, title: str, page_url: str, items: list[dict], more: int = 0) -> dict:
+def _item_html(i: dict, page_url: str) -> str:
+    from app.services import mailer
+
+    S, INK, BODY, LINE = mailer._SANS, mailer._INK, mailer._BODY, mailer._LINE
+    if i["kind"] == "signoff_requested":
+        what = f"asked you to sign off on {mailer._strong(_e(i.get('label') or 'a sign-off'))}"
+    else:
+        what = "mentioned you"
+    quote = (f'<div style="font-family:{S};font-size:14px;line-height:1.55;color:{BODY};margin-top:4px">'
+             f"{_e(i['excerpt'])}</div>") if i.get("excerpt") else ""
+    link = f"{page_url}#{i['block']}" if i.get("block") else page_url
+    return ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
+            f'style="margin:0 0 10px"><tr><td style="border:1px solid {LINE};border-radius:8px;padding:12px 14px">'
+            f'<div style="font-family:{S};font-size:14px;line-height:20px;color:{INK}">'
+            f"{mailer._strong(_e(i['actor']))} {what}</div>{quote}"
+            f'<div style="font-family:{S};font-size:12px;line-height:18px;margin-top:6px">'
+            f'<a href="{_e(link)}" style="color:{mailer._ACCENT};text-decoration:none;font-weight:600">'
+            "Go to the block</a></div></td></tr></table>")
+
+
+def _item_text(i: dict) -> str:
+    verb = (f"asked you to sign off on {i.get('label') or 'a sign-off'}" if i["kind"] == "signoff_requested"
+            else "mentioned you")
+    return f"- {i['actor']} {verb}" + (f": {i['excerpt']}" if i.get("excerpt") else "")
+
+
+WHY = {
+    "instant": "You get this when someone mentions you or asks for your sign-off on Markdrop, at most once "
+               "every 10 minutes per page, unless you saw it in the app first",
+    "hourly": "You get at most one email an hour with what's new for you on Markdrop, unless you saw it in "
+              "the app first",
+    "daily": "You get one email a day, in the morning, with what's new for you on Markdrop",
+    "catchup": f"Markdrop sends at most {DAILY_CAP} of these emails a day, so these waited for this morning",
+}
+
+
+def _footer(user_id: str, why: str, less: str | None) -> tuple[str, list[str]]:
+    from app.services import mailer
+
+    off = off_url(user_id)
+    links = []
+    if less:
+        links.append(mailer._footer_link(_e(less), "Email me less"))
+    links += [mailer._footer_link(_e(off), "Turn off these emails"),
+              mailer._footer_link(_e(mailer._base() + "/settings/account#email"), "Email settings")]
+    text = ([f"Email me less: {less}"] if less else []) + [f"Turn off these emails: {off}"]
+    return f"{_e(why)}. " + " &middot; ".join(links), text
+
+
+def compose_email(*, user_id: str, title: str, page_url: str, items: list[dict], more: int = 0,
+                  why: str | None = None, less: str | None = None) -> dict:
     """``{subject, html, text}`` for one person about one page. ``items``:
-    ``[{kind, actor, block, excerpt, label}]`` (oldest first)."""
+    ``[{kind, actor, block, excerpt, label}]`` (oldest first). ``less``: the "Email me less" link."""
     from app.services import mailer
 
     n = len(items) + more
@@ -680,47 +902,83 @@ def compose_email(*, user_id: str, title: str, page_url: str, items: list[dict],
         head = f"{n} updates for you in “{title}”"
         eyebrow = "Mentions"
     subject = mailer._one_line(head, 150)
-    S, M, INK, BODY, LINE = mailer._SANS, mailer._MUTED, mailer._INK, mailer._BODY, mailer._LINE
-
-    def line(i: dict) -> str:
-        if i["kind"] == "signoff_requested":
-            what = f"asked you to sign off on {mailer._strong(_e(i.get('label') or 'a sign-off'))}"
-        else:
-            what = "mentioned you"
-        quote = (f'<div style="font-family:{S};font-size:14px;line-height:1.55;color:{BODY};margin-top:4px">'
-                 f"{_e(i['excerpt'])}</div>") if i.get("excerpt") else ""
-        link = f"{page_url}#{i['block']}" if i.get("block") else page_url
-        return ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-                f'style="margin:0 0 10px"><tr><td style="border:1px solid {LINE};border-radius:8px;padding:12px 14px">'
-                f'<div style="font-family:{S};font-size:14px;line-height:20px;color:{INK}">'
-                f"{mailer._strong(_e(i['actor']))} {what}</div>{quote}"
-                f'<div style="font-family:{S};font-size:12px;line-height:18px;margin-top:6px">'
-                f'<a href="{_e(link)}" style="color:{mailer._ACCENT};text-decoration:none;font-weight:600">'
-                "Go to the block</a></div></td></tr></table>")
-
     target = f"{page_url}#{first['block']}" if (n == 1 and first.get("block")) else page_url
-    more_html = mailer._p(f"And {more} more on this page.", size=13, color=M) if more else ""
+    more_html = mailer._p(f"And {more} more on this page.", size=13, color=mailer._MUTED) if more else ""
     content = (mailer._eyebrow(eyebrow) + mailer._heading(_e(head))
-               + "".join(line(i) for i in items) + more_html
+               + "".join(_item_html(i, page_url) for i in items) + more_html
                + mailer._button(_e(target), "Open the page", margin="14px 0 20px"))
-    off = off_url(user_id)
-    footer = ("You get this when someone mentions you or asks for your sign-off on Markdrop, at most once "
-              "every 10 minutes per page. "
-              f"{mailer._footer_link(_e(off), 'Turn off mention emails')} &middot; "
-              f"{mailer._footer_link(_e(mailer._base() + '/settings/account'), 'Email settings')}")
+    footer, foot_text = _footer(user_id, why or WHY["instant"], less)
     html_out = mailer._shell(title=_e(head), preheader=_e(head + "."), content=content, footer=footer)
-    text = [head, ""]
-    for i in items:
-        verb = (f"asked you to sign off on {i.get('label') or 'a sign-off'}" if i["kind"] == "signoff_requested"
-                else "mentioned you")
-        text.append(f"- {i['actor']} {verb}" + (f": {i['excerpt']}" if i.get("excerpt") else ""))
+    text = [head, ""] + [_item_text(i) for i in items]
     if more:
         text.append(f"And {more} more on this page.")
-    text += ["", f"Open the page: {target}", "", f"Turn off mention emails: {off}"]
+    text += ["", f"Open the page: {target}", ""] + foot_text
     return {"subject": subject, "html": html_out, "text": "\n".join(text)}
 
 
-async def _send(user_row: dict, mail: dict) -> None:
+def _plural(n: int, one: str, many: str | None = None) -> str:
+    return f"{n} {one if n == 1 else (many or one + 's')}"
+
+
+def digest_head(pages: list[dict]) -> str:
+    """"You were mentioned in 4 pages", "2 sign-off requests are waiting for you", or both."""
+    mentioned = sum(1 for p in pages if any(i["kind"] == "mention" for i in p["items"]))
+    signoffs = sum(sum(1 for i in p["items"] if i["kind"] == "signoff_requested") + p.get("more_signoffs", 0)
+                   for p in pages)
+    if mentioned and signoffs:
+        return (f"You were mentioned in {_plural(mentioned, 'page')} and asked for "
+                f"{_plural(signoffs, 'sign-off')}")
+    if signoffs:
+        return (f"{_plural(signoffs, 'sign-off request')} "
+                f"{'is' if signoffs == 1 else 'are'} waiting for you")
+    return f"You were mentioned in {_plural(mentioned, 'page')}"
+
+
+def compose_digest(*, user_id: str, pages: list[dict], mode: str, more_pages: int = 0,
+                   catchup: bool = False, less: str | None = None) -> dict:
+    """``{subject, html, text}``: the hourly bundle, the daily digest or the morning catch-up for one
+    person. ``pages``: ``[{title, url, items, more}]`` (oldest first; ``items`` as
+    :func:`compose_email`'s); ``mode``: hourly | daily | catchup."""
+    from app.services import mailer
+
+    head = digest_head(pages)
+    if more_pages:
+        head += f" (and {_plural(more_pages, 'more page')})"
+    lead = {"hourly": "", "daily": "Daily digest: ", "catchup": "Catching up: "}[mode]
+    subject = mailer._one_line(lead + (head[0].lower() + head[1:] if lead and head.startswith("You ") else head), 150)
+    eyebrow = {"hourly": "This past hour", "daily": "Daily digest", "catchup": "Catching up"}[mode]
+    S, INK, LINE = mailer._SANS, mailer._INK, mailer._LINE
+    intro = ""
+    if mode == "catchup" or catchup:
+        intro = mailer._p(f"You'd had {DAILY_CAP} notification emails that day, so these waited for this morning.",
+                          size=14)
+    parts = []
+    text = [head, ""]
+    for p in pages:
+        title_html = (f'<a href="{_e(p["url"])}" style="color:{INK};text-decoration:none">{_e(p["title"])}</a>')
+        parts.append(f'<div style="font-family:{S};font-size:16px;line-height:24px;font-weight:700;color:{INK};'
+                     f'margin:18px 0 8px;padding-top:14px;border-top:1px solid {LINE}">{title_html}</div>')
+        parts += [_item_html(i, p["url"]) for i in p["items"]]
+        if p.get("more"):
+            parts.append(mailer._p(f"And {p['more']} more on this page.", size=13, color=mailer._MUTED,
+                                   margin="0 0 8px"))
+        text.append(f"{p['title']} — {p['url']}")
+        text += [_item_text(i) for i in p["items"]]
+        if p.get("more"):
+            text.append(f"And {p['more']} more on this page.")
+        text.append("")
+    if more_pages:
+        parts.append(mailer._p(f"And {_plural(more_pages, 'more page')}: see them under the bell in Markdrop.",
+                               size=13, color=mailer._MUTED))
+        text += [f"And {_plural(more_pages, 'more page')}: see them under the bell in Markdrop.", ""]
+    content = (mailer._eyebrow(eyebrow) + mailer._heading(_e(head)) + intro + "".join(parts)
+               + mailer._button(_e(mailer._base() + "/dashboard"), "Open Markdrop", margin="18px 0 20px"))
+    footer, foot_text = _footer(user_id, WHY[mode], less)
+    html_out = mailer._shell(title=_e(head), preheader=_e(head + "."), content=content, footer=footer)
+    return {"subject": subject, "html": html_out, "text": "\n".join(text + foot_text)}
+
+
+async def _send(user_row: dict, mail: dict, *, kind: str = "mention", ref: str | None = None) -> None:
     from app.services import mailer
 
     off = off_url(str(user_row["_id"]))
@@ -732,20 +990,48 @@ async def _send(user_row: dict, mail: dict) -> None:
         "html": mail["html"],
         "text": mail["text"],
         "headers": {"List-Unsubscribe": f"<{off}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"},
-    })
+    }, kind=kind, ref=ref)
 
 
 async def _claim(db: AsyncIOMotorDatabase, user_id: str, doc_id: str, now: datetime) -> bool:
     """The 10-minute rule: True (and the slot is taken) when no email about
     this page went to this person in the last 10 minutes."""
+    return await _claim_key(db, f"{user_id}:{doc_id}", now, EMAIL_GAP, {"user_id": user_id, "doc_id": doc_id})
+
+
+async def _claim_key(db: AsyncIOMotorDatabase, key: str, now: datetime, gap: timedelta | None,
+                     extra: dict | None = None) -> bool:
+    """Take ``key`` in the email log when it was last taken ``gap`` ago or more (``None``: never)."""
+    when: list[dict] = [{"sent_at": {"$exists": False}}]
+    if gap is not None:
+        when.append({"sent_at": {"$lte": now - gap}})
     try:
-        await db[EMAIL_LOG].find_one_and_update(
-            {"_id": f"{user_id}:{doc_id}", "$or": [{"sent_at": {"$lte": now - EMAIL_GAP}},
-                                                   {"sent_at": {"$exists": False}}]},
-            {"$set": {"sent_at": now, "user_id": user_id, "doc_id": doc_id}}, upsert=True)
+        await db[EMAIL_LOG].find_one_and_update({"_id": key, "$or": when},
+                                                {"$set": {"sent_at": now, **(extra or {})}}, upsert=True)
         return True
     except DuplicateKeyError:
         return False
+
+
+async def _take_slot(db: AsyncIOMotorDatabase, user_id: str, day: str, now: datetime, *, over: bool) -> bool:
+    """One of today's ``DAILY_CAP`` emails (atomic). ``over``: a sign-off request may be one more,
+    once a day — it may be the only way the request reaches them."""
+    key = f"{user_id}:{day}"
+    try:
+        await db[DAYS].find_one_and_update({"_id": key, "n": {"$lt": DAILY_CAP}},
+                                           {"$inc": {"n": 1}, "$set": {"at": now}}, upsert=True)
+        return True
+    except DuplicateKeyError:
+        pass
+    if over:
+        got = await db[DAYS].find_one_and_update({"_id": key, "over": {"$ne": True}},
+                                                 {"$inc": {"n": 1}, "$set": {"over": True, "at": now}})
+        return got is not None
+    return False
+
+
+async def _give_back(db: AsyncIOMotorDatabase, user_id: str, day: str) -> None:
+    await db[DAYS].update_one({"_id": f"{user_id}:{day}", "n": {"$gt": 0}}, {"$inc": {"n": -1}})
 
 
 async def _mark(db: AsyncIOMotorDatabase, ids: list, state: str, now: datetime | None = None) -> None:
@@ -756,87 +1042,294 @@ async def _mark(db: AsyncIOMotorDatabase, ids: list, state: str, now: datetime |
         await db[COLL].update_many({"_id": {"$in": ids}, "email": "pending"}, {"$set": sets})
 
 
-async def flush_emails(db: AsyncIOMotorDatabase, now: datetime | None = None) -> dict[str, int]:
-    """One pass of the batched email: every (person, page) with pending rows
-    whose newest is at least ``GATHER`` old. Returns counts by outcome."""
-    from app.services import mailer, md_outline, urls
+def _slots(now: datetime, zone: ZoneInfo) -> tuple[datetime, datetime, str]:
+    """(the last digest time at or before ``now``, the next one, the last one's local date)."""
+    local = now.astimezone(zone)
+    today = datetime.combine(local.date(), dtime(DIGEST_HOUR), tzinfo=zone)
+    if local >= today:
+        last, nxt = today, datetime.combine(local.date() + timedelta(days=1), dtime(DIGEST_HOUR), tzinfo=zone)
+    else:
+        last, nxt = datetime.combine(local.date() - timedelta(days=1), dtime(DIGEST_HOUR), tzinfo=zone), today
+    return last.astimezone(timezone.utc), nxt.astimezone(timezone.utc), last.date().isoformat()
 
+
+def _items(rows: list[dict]) -> list[dict]:
+    return [{"kind": r["kind"], "actor": r.get("actor_name") or "Someone", "block": r.get("block_id"),
+             "excerpt": (r.get("extra") or {}).get("excerpt"), "label": (r.get("extra") or {}).get("label")}
+            for r in rows]
+
+
+class _Person:
+    """One person's pass of :func:`flush_emails`."""
+
+    def __init__(self, db: AsyncIOMotorDatabase, user_row: dict, now: datetime, bump):
+        self.db, self.user, self.now, self.bump = db, user_row, now, bump
+        self.uid = str(user_row["_id"])
+        self.modes = email_modes(user_row)
+        self.zone = _zone(user_row)
+        self.day = now.astimezone(self.zone).date().isoformat()
+        self.slot, self.next_slot, self.slot_day = _slots(now, self.zone)
+        self.wake: dict = {}       # row id → when to look again
+        self.done: set = set()     # row ids given an outcome (or sent)
+
+    async def mark(self, rows: list[dict], state: str) -> None:
+        ids = [r["_id"] for r in rows]
+        await _mark(self.db, ids, state, self.now)
+        self.done.update(ids)
+        if state != "sent":
+            self.bump(state, len(ids))
+
+    def later(self, rows: list[dict], when: datetime) -> None:
+        for r in rows:
+            self.wake[r["_id"]] = min(self.wake.get(r["_id"], when), when)
+
+    async def defer(self, rows: list[dict]) -> None:
+        """Over today's cap: to the catch-up at 08:00 tomorrow (their time), when the cap is new."""
+        ids = [r["_id"] for r in rows]
+        local = self.now.astimezone(self.zone).date() + timedelta(days=1)
+        at = datetime.combine(local, dtime(DIGEST_HOUR), tzinfo=self.zone).astimezone(timezone.utc)
+        await self.db[COLL].update_many({"_id": {"$in": ids}, "email": "pending"},
+                                        {"$set": {"catchup": True, "catchup_at": at, "email_at": at}})
+        self.done.update(ids)
+        self.bump("capped", len(ids))
+
+    async def pages(self, rows: list[dict], docs: dict) -> list[tuple[dict, list[dict]]]:
+        """Rows by page (in order), the pages this person may open now; the rest are "no_access"."""
+        by: dict[str, list[dict]] = {}
+        for r in rows:
+            by.setdefault(r["doc_id"], []).append(r)
+        out = []
+        for doc_id, prs in by.items():
+            doc = docs.get(doc_id)
+            if doc is None or not await can_open(self.db, self.user, doc):
+                await self.mark(prs, "no_access")
+            else:
+                out.append((doc, prs))
+        return out
+
+    def less(self, rows: list[dict]) -> str | None:
+        return less_url(self.uid, {r["kind"]: self.modes[r["kind"]] for r in rows if r["kind"] in self.modes})
+
+    async def deliver(self, rows: list[dict], mail: dict, *, over: bool) -> bool:
+        """Send within today's cap; over it, the rows wait for the catch-up."""
+        if not await _take_slot(self.db, self.uid, self.day, self.now, over=over):
+            await self.defer(rows)
+            return False
+        try:
+            # The admin email log's ref: the page, when the email is about one page (a bundle spans several).
+            pages_in = {str(r.get("doc_id")) for r in rows}
+            await _send(self.user, mail, ref=pages_in.pop() if len(pages_in) == 1 else None,
+                        kind="signoff" if all(r["kind"] == "signoff_requested" for r in rows) else "mention")
+        except Exception:
+            log.warning("notifications: email to %s failed", self.uid, exc_info=True)
+            await _give_back(self.db, self.uid, self.day)
+            await self.mark(rows, "failed")
+            return False
+        await self.mark(rows, "sent")
+        self.bump("sent")
+        return True
+
+    async def instant(self, rows: list[dict], docs: dict) -> None:
+        """One email per page, as before; while the person was around in the app lately, it waits
+        (up to the window) for them to see it there."""
+        from app.services import md_outline, urls
+
+        app_seen = _aware(self.user.get("app_seen_at"))
+        by: dict[str, list[dict]] = {}
+        for r in rows:
+            by.setdefault(r["doc_id"], []).append(r)
+        for doc_id, prs in by.items():
+            hold = [_aware(r["created_at"]) + WINDOW[r["kind"]] for r in prs
+                    if app_seen is not None and app_seen >= self.now - WINDOW[r["kind"]]
+                    and self.now < _aware(r["created_at"]) + WINDOW[r["kind"]]]
+            if len(hold) == len(prs):
+                self.later(prs, min(hold))
+                continue
+            for doc, ok in await self.pages(prs, docs):
+                if not await _claim(self.db, self.uid, doc_id, self.now):
+                    self.bump("waiting", len(ok))
+                    continue  # an email about this page went less than 10 minutes ago: these wait
+                items = _items(ok)
+                mail = compose_email(user_id=self.uid, title=md_outline.display_title(doc),
+                                     page_url=urls.markdrop_url(doc["slug"]), items=items[:MAX_PER_EMAIL],
+                                     more=max(0, len(items) - MAX_PER_EMAIL), why=WHY["instant"], less=self.less(ok))
+                await self.deliver(ok, mail, over=any(r["kind"] == "signoff_requested" for r in ok))
+
+    async def bundle(self, rows: list[dict], docs: dict, mode: str) -> None:
+        """The hourly bundle, or the daily digest / morning catch-up: every page in one email."""
+        from app.services import md_outline, urls
+
+        pages = await self.pages(rows, docs)
+        if not pages:
+            return
+        key = f"{self.uid}:hourly" if mode == "hourly" else f"{self.uid}:daily:{self.slot_day}"
+        if not await _claim_key(self.db, key, self.now, BUNDLE_GAP if mode == "hourly" else None,
+                                {"user_id": self.uid}):
+            waiting = [r for _, prs in pages for r in prs]
+            self.later(waiting, self.now + RECHECK if mode == "hourly" else self.next_slot)
+            self.bump("waiting", len(waiting))
+            return
+        sent_rows = [r for _, prs in pages for r in prs]
+        over = any(r["kind"] == "signoff_requested" for r in sent_rows)
+        if mode == "hourly" and len(pages) == 1:
+            doc, prs = pages[0]
+            items = _items(prs)
+            mail = compose_email(user_id=self.uid, title=md_outline.display_title(doc),
+                                 page_url=urls.markdrop_url(doc["slug"]), items=items[:MAX_PER_EMAIL],
+                                 more=max(0, len(items) - MAX_PER_EMAIL), why=WHY["hourly"], less=self.less(prs))
+            await self.deliver(prs, mail, over=over)
+            return
+        shown = []
+        for doc, prs in pages[:MAX_PAGES]:
+            items = _items(prs)
+            shown.append({"title": md_outline.display_title(doc), "url": urls.markdrop_url(doc["slug"]),
+                          "items": items[:MAX_PER_PAGE], "more": max(0, len(items) - MAX_PER_PAGE),
+                          "more_signoffs": sum(1 for i in items[MAX_PER_PAGE:] if i["kind"] == "signoff_requested")})
+        catchup = any(r.get("catchup") for r in sent_rows)
+        if mode != "hourly":
+            mode = "catchup" if all(r.get("catchup") for r in sent_rows) else "daily"
+        mail = compose_digest(user_id=self.uid, pages=shown, mode=mode, more_pages=max(0, len(pages) - MAX_PAGES),
+                              catchup=catchup, less=self.less(sent_rows))
+        await self.deliver(sent_rows, mail, over=over)
+
+    async def run(self, rows: list[dict]) -> None:
+        from app.services import mailer, push, slack_notify
+
+        now, db = self.now, self.db
+        app_seen = _aware(self.user.get("app_seen_at"))
+        out: dict[str, list[dict]] = {}
+        left: list[dict] = []
+        for r in rows:
+            created = _aware(r["created_at"]) or now
+            if now - created > STALE:
+                out.setdefault("stale", []).append(r)
+            elif self.modes.get(r["kind"], "off") == "off":
+                out.setdefault("off", []).append(r)
+            elif r.get("read_at") is not None or (app_seen is not None and app_seen > created):
+                out.setdefault("seen", []).append(r)  # read, or the bell showed it to them
+            else:
+                left.append(r)
+        oids = list({ObjectId(r["doc_id"]) for r in left if ObjectId.is_valid(r.get("doc_id") or "")})
+        docs = {str(d["_id"]): d async for d in db["documents"].find({"_id": {"$in": oids}})} if oids else {}
+        named: dict[str, set] = {}
+        refs = [str(r["_id"]) for r in left]
+        states: dict[str, set] = {}
+        if refs:
+            for coll in (push.OUTBOX, slack_notify.OUTBOX):
+                async for o in db[coll].find({"ref": {"$in": refs}, "user_id": self.uid}, {"ref": 1, "state": 1}):
+                    states.setdefault(o["ref"], set()).add(("push" if coll == push.OUTBOX else "slack", o.get("state")))
+        live: list[dict] = []
+        for r in left:
+            doc = docs.get(r["doc_id"])
+            if doc is not None:
+                if r["doc_id"] not in named:
+                    named[r["doc_id"]] = named_on(doc.get("content"))
+                if not still_there(r, named[r["doc_id"]]):
+                    out.setdefault("withdrawn", []).append(r)  # taken out of the page since
+                    continue
+            got = states.get(str(r["_id"]), set())
+            if ("push", "sent") in got:
+                out.setdefault("pushed", []).append(r)  # a device of theirs showed it
+            elif ("slack", "sent") in got:
+                out.setdefault("slack", []).append(r)   # so did Slack
+            else:
+                live.append(r)
+        for state, rs in out.items():
+            await self.mark(rs, state)
+        if not live:
+            return
+        if await db["email_suppressions"].find_one({"_id": self.user["email"].strip().lower()}, {"_id": 1}):
+            await self.mark(live, "suppressed")
+            return
+        if not mailer.is_configured():
+            await self.mark(live, "unconfigured")
+            return
+        instant: list[dict] = []
+        hourly: list[dict] = []
+        daily: list[dict] = []
+        for r in live:
+            created = _aware(r["created_at"]) or now
+            window = WINDOW[r["kind"]]
+            if now - created < GATHER:
+                self.later([r], created + GATHER)  # still gathering: someone may be mentioning more people
+                continue
+            got = states.get(str(r["_id"]), set())
+            if any(s in ("pending", "sending") for _, s in got) and now - created < window:
+                self.later([r], min(created + window, now + RECHECK))  # a push or Slack DM is on its way
+                continue
+            mode = self.modes[r["kind"]]
+            if r.get("catchup"):
+                at = _aware(r.get("catchup_at")) or self.slot
+                if now < at:
+                    self.later([r], at)  # over the cap yesterday: tomorrow morning's catch-up
+                    continue
+                mode = "daily"
+            (instant if mode == "instant" else hourly if mode == "hourly" else daily).append(r)
+        if instant:
+            await self.instant(instant, docs)
+        if hourly:
+            last = await db[EMAIL_LOG].find_one({"_id": f"{self.uid}:hourly"}, {"sent_at": 1})
+            last_at = _aware((last or {}).get("sent_at"))
+            oldest = min(_aware(r["created_at"]) for r in hourly)
+            due = max(oldest + BUNDLE_WAIT, (last_at + BUNDLE_GAP) if last_at else oldest)
+            if now < due:
+                self.later(hourly, due)
+            else:
+                await self.bundle(hourly, docs, "hourly")
+        if daily:
+            if any(r.get("catchup") or _aware(r["created_at"]) < self.slot for r in daily) and \
+                    await db[EMAIL_LOG].find_one({"_id": f"{self.uid}:daily:{self.slot_day}"}, {"_id": 1}) is None:
+                await self.bundle(daily, docs, "daily")
+            else:
+                self.later(daily, self.next_slot)
+
+    async def save_wakes(self, rows: list[dict]) -> None:
+        by: dict[datetime, list] = {}
+        for r in rows:
+            if r["_id"] in self.done:
+                continue
+            by.setdefault(self.wake.get(r["_id"], self.now + RECHECK), []).append(r["_id"])
+        for when, ids in by.items():
+            await self.db[COLL].update_many({"_id": {"$in": ids}, "email": "pending"}, {"$set": {"email_at": when}})
+
+
+async def flush_emails(db: AsyncIOMotorDatabase, now: datetime | None = None) -> dict[str, int]:
+    """One pass of the notification email (background loop, every 30 s): every person with a waiting
+    row that's due (``email_at``). Returns counts by outcome: ``sent`` (emails), and per row
+    ``seen`` / ``pushed`` / ``slack`` / ``withdrawn`` / ``off`` / ``suppressed`` / ``no_access`` /
+    ``capped`` (to the morning catch-up) / ``waiting`` / ``failed`` / ``stale`` / ``unconfigured``."""
     now = _aware(now) or _now()
     counts: dict[str, int] = {}
 
     def bump(k: str, n: int = 1) -> None:
-        counts[k] = counts.get(k, 0) + n
+        if n:
+            counts[k] = counts.get(k, 0) + n
 
-    groups = await db[COLL].aggregate([
-        {"$match": {"email": "pending"}},
-        {"$group": {"_id": {"u": "$user_id", "d": "$doc_id"}, "newest": {"$max": "$created_at"}}},
-        {"$sort": {"newest": 1}},
-        {"$limit": FLUSH_GROUPS * 5},
-    ]).to_list(length=FLUSH_GROUPS * 5)
-    done = 0
-    for g in groups:
-        if done >= FLUSH_GROUPS:
-            break
-        if (_aware(g["newest"]) or now) > now - GATHER:
-            continue  # still gathering: someone may be mentioning more people
-        uid, doc_id = g["_id"]["u"], g["_id"]["d"]
-        rows = await db[COLL].find({"user_id": uid, "doc_id": doc_id, "email": "pending"}).sort(
-            [("created_at", 1)]).to_list(length=200)
-        if not rows:
-            continue
-        done += 1
-        seen = [r["_id"] for r in rows if r.get("read_at") is not None]
-        unread = [r for r in rows if r.get("read_at") is None]
-        if seen:
-            await _mark(db, seen, "seen")
-            bump("seen", len(seen))
-        if not unread:
-            continue
-        doc = await db["documents"].find_one({"_id": ObjectId(doc_id)}) if ObjectId.is_valid(doc_id) else None
-        if doc is not None:
-            # Taken out of the page since (a mistaken mention): nothing is sent about it.
-            named = named_on(doc.get("content"))
-            gone = [r["_id"] for r in unread if not still_there(r, named)]
-            if gone:
-                await _mark(db, gone, "withdrawn")
-                bump("withdrawn", len(gone))
-                unread = [r for r in unread if r["_id"] not in gone]
-                if not unread:
-                    continue
-        uids = [r["_id"] for r in unread]
-        user_row = await _user_row(db, uid)
-        if not wants_email(user_row):
-            await _mark(db, uids, "off")
-            bump("off", len(uids))
-            continue
-        if await db["email_suppressions"].find_one({"_id": user_row["email"].strip().lower()}, {"_id": 1}):
-            await _mark(db, uids, "suppressed")
-            bump("suppressed", len(uids))
-            continue
-        if doc is None or not await can_open(db, user_row, doc):
-            await _mark(db, uids, "no_access")
-            bump("no_access", len(uids))
-            continue
-        if not mailer.is_configured():
-            await _mark(db, uids, "unconfigured")
-            bump("unconfigured", len(uids))
-            continue
-        if not await _claim(db, uid, doc_id, now):
-            bump("waiting", len(uids))
-            continue  # an email about this page went less than 10 minutes ago: these wait
-        items = [{"kind": r["kind"], "actor": r.get("actor_name") or "Someone", "block": r.get("block_id"),
-                  "excerpt": (r.get("extra") or {}).get("excerpt"), "label": (r.get("extra") or {}).get("label")}
-                 for r in unread]
-        mail = compose_email(user_id=uid, title=md_outline.display_title(doc), page_url=urls.markdrop_url(doc["slug"]),
-                             items=items[:MAX_PER_EMAIL], more=max(0, len(items) - MAX_PER_EMAIL))
+    people = await db[COLL].aggregate([
+        {"$match": {"email": "pending", "$or": [{"email_at": {"$lte": now}}, {"email_at": None}]}},
+        {"$group": {"_id": "$user_id", "oldest": {"$min": "$created_at"}}},
+        {"$sort": {"oldest": 1}},
+        {"$limit": FLUSH_PEOPLE},
+    ]).to_list(length=FLUSH_PEOPLE)
+    for p in people:
+        uid = p["_id"]
         try:
-            await _send(user_row, mail)
-            await _mark(db, uids, "sent", now)
-            bump("sent")
+            rows = await db[COLL].find({"user_id": uid, "email": "pending"}).sort(
+                [("created_at", 1)]).to_list(length=500)
+            if not rows:
+                continue
+            user_row = await _user_row(db, uid)
+            if not wants_email(user_row):
+                await _mark(db, [r["_id"] for r in rows], "off")
+                bump("off", len(rows))
+                continue
+            person = _Person(db, user_row, now, bump)
+            try:
+                await person.run(rows)
+            finally:
+                await person.save_wakes(rows)
         except Exception:
-            log.warning("notifications: email to %s failed", uid, exc_info=True)
-            await _mark(db, uids, "failed")
-            bump("failed")
+            log.warning("notifications: email pass for %s failed", uid, exc_info=True)
     return counts
 
 

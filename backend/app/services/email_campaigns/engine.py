@@ -57,6 +57,13 @@ LEASE_S = 60.0
 BUDGET_S = 25.0
 MAX_TRANSIENT = 5
 IDEM_TTL = timedelta(hours=23)
+DEFERRED_NOTE = ("Today's email limit is reached (bulk mail stops at 80% of the providers' daily room). "
+                 "Sending continues after 00:00 UTC.")
+
+
+def _next_utc_day() -> datetime:
+    t = datetime.now(timezone.utc)
+    return datetime(t.year, t.month, t.day, tzinfo=timezone.utc) + timedelta(days=1)
 
 
 class EngineError(Exception):
@@ -106,6 +113,7 @@ def summary(c: dict[str, Any], counts: dict[str, int] | None = None) -> dict[str
         "started_at": iso(c.get("started_at")),
         "finished_at": iso(c.get("finished_at")),
         "lock_until": iso(c.get("lock_until")),
+        "deferred_until": iso(c.get("deferred_until")),
         "counts": counts if counts is not None else (c.get("counts") or store.empty_counts()),
     }
 
@@ -345,12 +353,16 @@ def _payload(c: dict[str, Any], sender: dict[str, Any], rows: list[dict[str, Any
     return out
 
 
-async def _post(t: Any, payload: list[dict[str, Any]], key: str, budget_end: float) -> list[transport.Outcome]:
-    """One provider call, retrying rate limits with the same key."""
+async def _post(t: Any, payload: list[dict[str, Any]], key: str, budget_end: float, *,
+                repost: bool = False) -> list[transport.Outcome]:
+    """One provider call, retrying rate limits with the same key. ``repost``:
+    finishing a batch a dead process was posting, through the transport's
+    ``repost`` when it has one (only an idempotent provider may be asked again)."""
+    fn = (getattr(t, "repost", None) if repost else None) or t.send_batch
     attempt = 0
     while True:
         try:
-            return await t.send_batch(payload, key)
+            return await fn(payload, key)
         except transport.SendError as e:
             attempt += 1
             if e.fatal or e.retry_after is None or attempt >= 5 or time.monotonic() + e.retry_after > budget_end + 30:
@@ -399,7 +411,7 @@ async def recover(db: AsyncIOMotorDatabase, c: dict[str, Any], t: Any) -> None:
             continue
         sender = c.get("sender") or senders.snapshot(await senders.resolve(db, c.get("sender_id")))
         try:
-            outcomes = await _post(t, _payload(c, sender, rows), b["idem_key"], time.monotonic() + 30)
+            outcomes = await _post(t, _payload(c, sender, rows), b["idem_key"], time.monotonic() + 30, repost=True)
             note = None
         except transport.SendError as e:
             if e.code == "invalid_idempotent_request":
@@ -424,6 +436,7 @@ def _result(c: dict[str, Any] | None, counts: dict[str, int] | None = None, **kw
         "done": kw.get("done", False),
         "transport": transport.mode(),
         "error": kw.get("error"),
+        "deferred_until": store.iso(kw.get("deferred_until")),
     }
 
 
@@ -434,6 +447,11 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
         raise EngineError(404, "Campaign not found.")
     if c.get("status") != "sending":
         return _result(c, done=True)
+    until = c.get("deferred_until")
+    if until is not None:
+        if until.replace(tzinfo=timezone.utc) > store.now():
+            return _result(c, deferred_until=until)  # today's email limit is spent: tomorrow (UTC)
+        c = await store.update_campaign(db, c["_id"], {"deferred_until": None, "last_error": None}) or c
     if not await store.acquire_lease(db, c["_id"], owner, LEASE_S):
         return _result(c, busy=True)
 
@@ -444,6 +462,7 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
     failed_now: list[dict[str, str]] = []
     fatal: str | None = None
     transient: str | None = None
+    deferred: str | None = None
     try:
         await recover(db, c, t)
         if not c.get("started_at"):
@@ -460,7 +479,15 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
             cur = await store.get_campaign(db, c["_id"])
             if not cur or cur.get("status") != "sending":
                 break
-            nxt = await store.peek_queued(db, c["_id"], n)
+            want = n
+            room = getattr(t, "room", None)
+            if room is not None:
+                want = min(n, await room())
+                if want <= 0:
+                    if await store.peek_queued(db, c["_id"], 1):
+                        deferred = DEFERRED_NOTE
+                    break
+            nxt = await store.peek_queued(db, c["_id"], want)
             if not nxt:
                 break
             blocked = await audience.blocked(db, [m["email"] for m in nxt])
@@ -494,7 +521,9 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
             except transport.SendError as e:
                 await store.release_claim(db, claim_id)
                 await db["email_batches"].update_one({"_id": claim_id}, {"$set": {"state": "released", "error": str(e), "updated_at": store.now()}})
-                if e.fatal:
+                if getattr(e, "deferred", False):
+                    deferred = DEFERRED_NOTE
+                elif e.fatal:
                     fatal = str(e)
                 else:
                     transient = str(e)
@@ -506,7 +535,9 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
             if cur.get("transient_errors"):
                 await store.update_campaign(db, c["_id"], {"transient_errors": 0})
     except transport.SendError as e:  # from recovery
-        if e.fatal:
+        if getattr(e, "deferred", False):
+            deferred = DEFERRED_NOTE
+        elif e.fatal:
             fatal = str(e)
         else:
             transient = str(e)
@@ -522,6 +553,9 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
         if not deleted:
             if fatal:
                 c = await store.update_campaign(db, c["_id"], {"status": "paused", "last_error": fatal}, only_if=("sending",)) or c
+            elif deferred and c.get("status") == "sending":
+                c = await store.update_campaign(db, c["_id"], {
+                    "deferred_until": _next_utc_day(), "last_error": deferred}, only_if=("sending",)) or c
             elif transient and c.get("status") == "sending":
                 n_err = int(c.get("transient_errors") or 0) + 1
                 patch: dict[str, Any] = {"transient_errors": n_err, "last_error": transient}
@@ -529,7 +563,7 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
                     patch.update(status="paused", last_error=f"Paused after {n_err} failed attempts in a row: {transient}")
                 c = await store.update_campaign(db, c["_id"], patch, only_if=("sending",)) or c
             counts = await store.refresh_counts(db, c["_id"])
-            if not fatal and not transient and c.get("status") == "sending":
+            if not fatal and not transient and not deferred and c.get("status") == "sending":
                 if counts["queued"] == 0 and counts["sending"] - counts["stuck"] <= 0:
                     c = await store.update_campaign(
                         db, c["_id"], {"status": "sent", "finished_at": store.now(), "last_error": None}, only_if=("sending",)
@@ -539,7 +573,7 @@ async def tick(db: AsyncIOMotorDatabase, cid: str | ObjectId, budget_s: float = 
         return _result(None, done=True, sent_now=sent_now, failed_now=failed_now, skipped_now=skipped_now)
     done = c.get("status") != "sending"
     return _result(c, counts, sent_now=sent_now, failed_now=failed_now, skipped_now=skipped_now,
-                   done=done, error=fatal or transient)
+                   done=done, error=fatal or transient, deferred_until=c.get("deferred_until"))
 
 
 # ── Test send ──────────────────────────────────────────────────────────────────

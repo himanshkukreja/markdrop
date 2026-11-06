@@ -131,6 +131,18 @@ class Settings(BaseSettings):
     # The background sender started with the app. Off, campaigns only move when
     # the admin page drives them with the tick endpoint.
     email_worker_enabled: bool = True
+    # ── Email providers and daily limits (services/email_delivery.py) ──────
+    # Every email goes through one send path that routes to the first provider
+    # in MARKDROP_EMAIL_PROVIDER_ORDER with room left today (UTC), falls back
+    # to the next on a provider error, and logs each send (admin → Emails).
+    # Brevo is off while its key is unset. Limits are the providers' free-plan
+    # daily caps (Brevo: Markdrop's share); bulk mail stops at 80% of the combined room, transactional
+    # at 95%, sign-in codes may use all of it.
+    brevo_api_key: str = ""
+    resend_daily_limit: int = 100
+    # Markdrop's share of Brevo's 300/day free plan (the portfolio site sends from the same account).
+    brevo_daily_limit: int = 250
+    email_provider_order: str = "resend,brevo"
 
     login_challenge_ttl_minutes: int = 15
     otp_length: int = 6

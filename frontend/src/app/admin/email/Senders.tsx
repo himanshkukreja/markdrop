@@ -215,14 +215,21 @@ export default function Senders({ token, info, onChanged }: { token: string; inf
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 lg:grid-cols-2">
-        <Section id="email-transport" label="Transport" title="Resend"
+        <Section id="email-transport" label="Transport" title="Email providers"
           actions={setup ? (setup.transport === "resend"
             ? <Badge tone="success" icon="check">Configured</Badge>
             : <Badge tone="warning" icon="alert">Console · not sending</Badge>) : undefined}>
           {!setup ? <LoadingBlock label="Checking the email setup" minHeight={120} /> : (
             <div className="flex flex-col gap-3">
               <Facts items={[
-                { label: "API", value: setup.transport === "resend" ? "api.resend.com · batch API" : "MARKDROP_RESEND_API_KEY isn't set" },
+                { label: "Providers", value: setup.providers?.length ? (
+                  <span className="flex flex-wrap gap-1.5">{setup.providers.map((p) => (
+                    <Badge key={p.name} size="sm" tone={p.configured ? "success" : "neutral"} variant={p.configured ? "soft" : "outline"}>
+                      {p.name === "resend" ? "Resend" : p.name === "brevo" ? "Brevo" : p.name} · {p.configured ? `${p.limit.toLocaleString("en")}/day` : "off"}
+                    </Badge>
+                  ))}</span>
+                ) : setup.transport === "resend" ? "Resend" : "No provider key is set" },
+                { label: "Order", value: setup.provider_order?.length ? `${setup.provider_order.join(" → ")} (the next takes over when one is full or failing; see Usage)` : "—" },
                 { label: "Pace", value: `${setup.batch.size} per batch, one batch every ${(setup.batch.gap_ms / 1000).toFixed(1)} s` },
                 { label: "Domains", value: domains?.state === "ok"
                   ? (verified.length ? (
