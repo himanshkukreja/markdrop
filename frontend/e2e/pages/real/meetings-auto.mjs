@@ -106,7 +106,7 @@ await step("connect", async () => {
   if (!token) fail("no token in the script");
   if (!/var MARKDROP_ENDPOINT = "https?:\/\/[^"]+\/api\/v1\/meetings\/inbox";/.test(script)) fail("no endpoint in the script");
   if (!script.includes("var BACKFILL_DAYS = 7;")) fail("the past-meetings choice isn't in the script");
-  if (!script.includes("var INCLUDE_SHARED = true;") || !script.includes("var SCRIPT_VERSION = 3;")) fail("v3 script: shared meetings not on");
+  if (!script.includes("var INCLUDE_SHARED = true;") || !script.includes("var SCRIPT_VERSION = 4;")) fail("v4 script: shared meetings not on");
   await dlg.getByText("It imports your last 7 days of meetings now").waitFor();
   try { new vm.Script(script, { filename: "Code.gs" }); } catch (e) { fail(`the script isn't valid JavaScript: ${e.message}`); }
   const man = JSON.parse(manifest);
