@@ -401,11 +401,21 @@ async def extract_file(db: AsyncIOMotorDatabase, doc_id: ObjectId) -> str:
     return state
 
 
-async def extract_pending(db: AsyncIOMotorDatabase, limit: int = FILES_PER_TICK) -> int:
-    rows = await db[COLL].find({"fx": "pending"}, {"_id": 1}).limit(limit).to_list(length=limit)
+EXTRACT_BUDGET_S = 20.0      # per background tick (the loop's lease is 30 s)
+
+
+async def extract_pending(db: AsyncIOMotorDatabase, limit: int = FILES_PER_TICK,
+                          budget_s: float = EXTRACT_BUDGET_S) -> int:
+    """Up to ``limit`` queued files, newest uploads first, within ``budget_s`` seconds."""
+    rows = await db[COLL].find({"fx": "pending"}, {"_id": 1}).sort("_id", -1).limit(limit).to_list(length=limit)
+    t0 = time.monotonic()
+    n = 0
     for r in rows:
+        if n and time.monotonic() - t0 > budget_s:
+            break
         await extract_file(db, r["_id"])
-    return len(rows)
+        n += 1
+    return n
 
 
 # ── A video's "around" text: the pages that embed it ──────────────────────────
