@@ -130,7 +130,7 @@ export interface MarkdropFileInfo extends Omit<MarkdropLibraryItem, "embeddable"
   poster_url?: string | null;
 }
 
-export type MarkdropLibraryType = "all" | "html" | "bundle" | "pdf" | "sheet" | "docx" | "video" | "image" | "doc";
+export type MarkdropLibraryType = "all" | "html" | "bundle" | "pdf" | "sheet" | "docx" | "pptx" | "video" | "image" | "doc";
 
 /**
  * Enables the "Markdrop file" block's picker (your files, the guide's workspace, a pasted link,

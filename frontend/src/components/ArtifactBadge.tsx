@@ -15,6 +15,7 @@ const LABELS: Record<ArtifactRenderer, string> = {
   pdf: "PDF",
   sheet: "Sheet",
   docx: "Word",
+  pptx: "PowerPoint",
   bundle: "Site",
   image: "Image",
   text: "Text",

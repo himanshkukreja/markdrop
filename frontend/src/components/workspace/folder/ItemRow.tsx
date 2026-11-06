@@ -17,7 +17,7 @@ import type { ItemAccess } from "@/lib/workspaces";
 import { kindLabel } from "@/lib/itemKind";
 import { ACCESS_ICON, accessLabel } from "./items";
 
-const RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "text", "video", "audio", "html", "image", "zip"]);
+const RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "pptx", "text", "video", "audio", "html", "image", "zip"]);
 
 export interface RowFile {
   slug: string;

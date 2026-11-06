@@ -11,7 +11,7 @@ import type { TrashItem } from "@/lib/trash";
 
 const LABEL_RENDERER: Array<[RegExp, FileRenderer]> = [
   [/pdf/i, "pdf"], [/html/i, "html"], [/image|svg/i, "image"], [/video/i, "video"], [/audio/i, "audio"],
-  [/csv|spreadsheet|excel/i, "sheet"], [/word/i, "docx"], [/bundle|zip/i, "zip"], [/json|text/i, "text"],
+  [/csv|spreadsheet|excel/i, "sheet"], [/word/i, "docx"], [/powerpoint|presentation/i, "pptx"], [/bundle|zip/i, "zip"], [/json|text/i, "text"],
 ];
 
 /** The kind's icon in its category colour (a folder, a page, a document, a file by its type). */

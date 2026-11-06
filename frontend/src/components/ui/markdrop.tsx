@@ -199,8 +199,8 @@ export function CopyButton({ text, label = "Copy link", copiedLabel = "Copied", 
 const IMG = /\.(png|jpe?g|gif|webp|svg|avif|heic)$/i;
 export function isImage(name: string, mime: string) { return mime.startsWith("image/") || IMG.test(name); }
 /** The artifact renderers the backend reports; a renderer wins over mime and extension. */
-export type FileRenderer = "pdf" | "sheet" | "docx" | "text" | "video" | "audio" | "html" | "image" | "zip";
-export type FileKind = "image" | "video" | "audio" | "pdf" | "sheet" | "archive" | "html" | "document" | "code" | "other";
+export type FileRenderer = "pdf" | "sheet" | "docx" | "pptx" | "text" | "video" | "audio" | "html" | "image" | "zip";
+export type FileKind = "image" | "video" | "audio" | "pdf" | "sheet" | "slides" | "archive" | "html" | "document" | "code" | "other";
 /** Icon and category token per kind (never a state colour; REVAMP_PLAN 8.1). */
 export const FILE_KINDS: Record<FileKind, { icon: string; tint: string }> = {
   image: { icon: "image", tint: "var(--cat-image)" },
@@ -208,13 +208,14 @@ export const FILE_KINDS: Record<FileKind, { icon: string; tint: string }> = {
   audio: { icon: "music", tint: "var(--cat-audio)" },
   pdf: { icon: "doc", tint: "var(--cat-pdf)" },
   sheet: { icon: "table", tint: "var(--cat-sheet)" },
+  slides: { icon: "slides", tint: "var(--cat-artifact)" },
   archive: { icon: "archive", tint: "var(--cat-artifact)" },
   html: { icon: "globe", tint: "var(--cat-artifact)" },
   document: { icon: "lines", tint: "var(--cat-document)" },
   code: { icon: "code", tint: "var(--cat-sync)" },
   other: { icon: "doc", tint: "var(--text-muted)" },
 };
-const RENDERER_KIND: Record<FileRenderer, FileKind> = { pdf: "pdf", sheet: "sheet", docx: "document", text: "document", video: "video", audio: "audio", html: "html", image: "image", zip: "archive" };
+const RENDERER_KIND: Record<FileRenderer, FileKind> = { pdf: "pdf", sheet: "sheet", docx: "document", pptx: "slides", text: "document", video: "video", audio: "audio", html: "html", image: "image", zip: "archive" };
 export function fileKind(name = "", mime = "", renderer?: FileRenderer | null): FileKind {
   if (renderer && RENDERER_KIND[renderer]) return RENDERER_KIND[renderer];
   const ext = (name.split(".").pop() || "").toLowerCase();
@@ -224,6 +225,7 @@ export function fileKind(name = "", mime = "", renderer?: FileRenderer | null): 
   if (ext === "pdf" || mime === "application/pdf") return "pdf";
   if (/^(zip|gz|tgz|tar|rar|7z|bz2)$/.test(ext) || mime.includes("zip")) return "archive";
   if (/^(csv|tsv|xlsx?|ods|numbers)$/.test(ext) || mime === "text/csv" || mime.includes("spreadsheet")) return "sheet";
+  if (/^(pptx?|key|odp)$/.test(ext) || mime.includes("presentation")) return "slides";
   if (/^(md|markdown|txt|docx?|rtf|odt|pages)$/.test(ext)) return "document";
   if (/^(js|mjs|ts|tsx|jsx|py|go|rs|rb|java|c|cpp|h|json|ya?ml|toml|xml|sql|html?|css|sh)$/.test(ext)) return "code";
   return "other";

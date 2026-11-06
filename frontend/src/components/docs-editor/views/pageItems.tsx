@@ -95,10 +95,10 @@ const RENDERER_ICON: Record<string, FileRenderer> = { bundle: "zip" };
 function ItemIcon({ item }: { item: PagePickItem }) {
   if (item.kind === "markdown") return <Icon name="lines" size={18} />;
   const r = item.renderer ?? "";
-  return <FileIcon renderer={(RENDERER_ICON[r] ?? (["pdf", "sheet", "docx", "text", "video", "audio", "html", "image"].includes(r) ? r : null)) as FileRenderer | null} mime={item.mime ?? ""} size={18} />;
+  return <FileIcon renderer={(RENDERER_ICON[r] ?? (["pdf", "sheet", "docx", "pptx", "text", "video", "audio", "html", "image"].includes(r) ? r : null)) as FileRenderer | null} mime={item.mime ?? ""} size={18} />;
 }
 
-const KIND_LABEL: Record<string, string> = { html: "Interactive page", bundle: "Website", pdf: "PDF", sheet: "Spreadsheet", docx: "Word document", text: "Text file", image: "Image", video: "Video", audio: "Audio" };
+const KIND_LABEL: Record<string, string> = { html: "Interactive page", bundle: "Website", pdf: "PDF", sheet: "Spreadsheet", docx: "Word document", pptx: "PowerPoint deck", text: "Text file", image: "Image", video: "Video", audio: "Audio" };
 
 export function PageItemPicker({ open, onClose, onPick, host, purpose }: {
   open: boolean;

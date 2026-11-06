@@ -160,7 +160,7 @@ export function People({ people, count, size = "md" }: { people: ItemOwner[]; co
 
 /* ── Icons ─────────────────────────────────────────────────────────────── */
 
-const RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "text", "video", "audio", "html", "image", "zip"]);
+const RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "pptx", "text", "video", "audio", "html", "image", "zip"]);
 
 /** The colour of an item's kind (its file category). */
 export function tintOf(it: WorkspaceItem): string {

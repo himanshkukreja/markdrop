@@ -58,7 +58,7 @@ type Tab = "paste" | "upload";
 const PASTE_TAB = false;
 
 const ACCEPT =
-  ".html,.htm,.pdf,.docx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm,.ogv,.mp3,.m4a,.wav,.ogg";
+  ".html,.htm,.pdf,.docx,.pptx,.csv,.xlsx,.xls,.json,.txt,.zip,.png,.jpg,.jpeg,.gif,.webp,.svg,.mp4,.mov,.webm,.ogv,.mp3,.m4a,.wav,.ogg";
 const SLUG_PATTERN = /^[a-zA-Z0-9_-]*$/;
 const VIDEO_EXT = ["mp4", "mov", "webm", "ogv"];
 const AUDIO_EXT = ["mp3", "m4a", "wav", "ogg"];
@@ -72,6 +72,7 @@ const KINDS = [
   { label: "PDF", note: "Readable pages", name: "a.pdf", mime: "application/pdf" },
   { label: "Excel, CSV", note: "Sheet with tabs", name: "a.xlsx", mime: "" },
   { label: "Word", note: "Formatted document", name: "a.docx", mime: "" },
+  { label: "PowerPoint", note: "Slides with notes", name: "a.pptx", mime: "" },
   { label: "Images", note: "Full-size view", name: "a.png", mime: "image/png" },
   { label: "Video", note: "Plays in place", name: "a.mp4", mime: "video/mp4" },
   { label: "Zipped site", note: "Multi-page site", name: "a.zip", mime: "application/zip" },
@@ -84,6 +85,7 @@ function describeFile(f: File): string {
   if (ext === "pdf") return "a readable PDF";
   if (["xlsx", "xls", "csv"].includes(ext)) return "a spreadsheet";
   if (ext === "docx") return "a document";
+  if (ext === "pptx") return "slides";
   if (ext === "zip") return "a multi-page site";
   if (["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)) return "an image";
   if (VIDEO_EXT.includes(ext)) return "a playable video";

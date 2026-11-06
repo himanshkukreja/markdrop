@@ -29,7 +29,7 @@ export type PreviewBlock =
 
 export interface CardPreview {
   state: "ok" | "locked" | "encrypted" | "pending";
-  /** page · markdown · html · bundle · pdf · image · video · sheet · text · docx · audio · none… */
+  /** page · markdown · html · bundle · pdf · image · video · sheet · text · docx · pptx · audio · none… */
   type?: string;
   blocks?: PreviewBlock[];
   icon?: string;

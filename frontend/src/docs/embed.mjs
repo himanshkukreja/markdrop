@@ -67,11 +67,11 @@ export const SUMMARY_MAX = 2000;
 export const MIN_HEIGHT = 160;
 export const MAX_HEIGHT = 2000;
 /** A frame's height when the page names none, per renderer. */
-export const DEFAULT_HEIGHT = { html: 560, bundle: 560, pdf: 720, sheet: 520, docx: 720, text: 480, image: 0, video: 0, audio: 0, doc: 0 };
+export const DEFAULT_HEIGHT = { html: 560, bundle: 560, pdf: 720, sheet: 520, docx: 720, pptx: 600, text: 480, image: 0, video: 0, audio: 0, doc: 0 };
 /** The attributes the renderer carries over; anything else is dropped (and `docs:check` warns). */
 export const EMBED_ATTRS = ["src", "title", "summary", "height", "aspect", "mode", "version", "captions", "chapters"];
 
-const RENDERERS = new Set(["html", "bundle", "pdf", "sheet", "docx", "text", "image", "video", "audio", "doc"]);
+const RENDERERS = new Set(["html", "bundle", "pdf", "sheet", "docx", "pptx", "text", "image", "video", "audio", "doc"]);
 
 /** What a reader sees for each renderer, for labels and the cover's icon. */
 export const KIND = {
@@ -80,6 +80,7 @@ export const KIND = {
   pdf: { label: "PDF", icon: "doc" },
   sheet: { label: "Spreadsheet", icon: "table" },
   docx: { label: "Word document", icon: "doc" },
+  pptx: { label: "PowerPoint deck", icon: "slides" },
   text: { label: "Text file", icon: "lines" },
   image: { label: "Image", icon: "image" },
   video: { label: "Video", icon: "film" },

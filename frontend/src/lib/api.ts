@@ -175,7 +175,7 @@ export interface MediaInfo {
 
 export type DocKind = "markdown" | "artifact";
 export type ArtifactRenderer =
-  | "html" | "pdf" | "sheet" | "docx" | "bundle" | "image" | "video" | "audio" | "text" | "download";
+  | "html" | "pdf" | "sheet" | "docx" | "pptx" | "bundle" | "image" | "video" | "audio" | "text" | "download";
 
 export interface ArtifactStatus {
   configured: boolean;
