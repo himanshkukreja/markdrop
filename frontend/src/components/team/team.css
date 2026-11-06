@@ -246,7 +246,14 @@
   .tm-bars th { width: 38%; }
   .tm-strip__cell { width: 8px; }
 }
+@media (max-width: 639px) {
+  .tm-tile:last-child:nth-child(odd) { grid-column: span 2; }
+}
 @media (pointer: coarse), (max-width: 639px) {
+  .tm-head__actions .md-btn, .tm-phead__actions .md-btn, .tm-empty .md-btn { min-height: 44px; }
+  .tm-filters .md-seg, .tm-filters [role="radiogroup"] { min-height: 44px; }
+  .tm-filters .md-seg__opt { min-height: 44px; }
+  .tm-links a { min-height: 44px; }
   .tm-preset, .tm-people a, .tm-links li { min-height: 44px; }
   .tm-line__more, .tm-src__moment { min-width: 44px; min-height: 44px; }
   .tm-lane__who { min-height: 44px; }
