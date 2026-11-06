@@ -49,6 +49,8 @@ class SettingsPayload(BaseModel):
     auto_covers: bool = True
     # Team memory (services/workspace_memory.py): default off; admins turn it on.
     team_memory: bool = False
+    # IANA timezone for Team's weekly summary (Monday 9 am); none: UTC.
+    timezone: str | None = Field(None, max_length=64)
 
 
 class DomainSummary(BaseModel):

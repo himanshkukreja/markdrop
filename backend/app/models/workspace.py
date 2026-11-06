@@ -73,6 +73,8 @@ class WorkspaceSettings:
     # Team memory (services/workspace_memory.py): who is doing what, from meetings and pages. Default
     # OFF (owner 2026-11-06): an admin turns it on; turning it off deletes what it gathered.
     team_memory: bool = False
+    # IANA timezone (Team's Monday 9 am weekly summary); set from an admin's browser. None: UTC.
+    timezone: str | None = None
 
     @classmethod
     def from_dict(cls, raw: dict | None) -> "WorkspaceSettings":
@@ -88,6 +90,7 @@ class WorkspaceSettings:
             ai_enabled=raw.get("ai_enabled") is not False,
             auto_covers=raw.get("auto_covers") is not False,
             team_memory=raw.get("team_memory") is True,
+            timezone=raw.get("timezone") if isinstance(raw.get("timezone"), str) else None,
         )
 
 

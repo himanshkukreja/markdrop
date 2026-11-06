@@ -486,5 +486,92 @@ class Reading(TeamWorld):
         self.assertIn("Sourcing standup", first)
 
 
+class Extras(TeamWorld):
+    """Groups and the weekly summary (services/team_extras.py)."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        from app.services import team_extras
+
+        await team_extras.ensure_indexes(self.db)
+        _pin_today(self, date(2026, 11, 4))
+        await self.turn_on()
+        self.m = await self.standup()
+        self.m2 = await self.standup(date="2026-11-04", title="Sourcing standup 2")
+        await self.tick()
+
+    async def test_groups_admins_only_and_suggested_from_series(self):
+        r = await self.http.post(f"/api/v1/team/{self.W}/groups", headers=self.session("wm"),
+                                 json={"name": "Sourcing team", "member_ids": [self.uid["wm"]]})
+        self.assertEqual(r.status_code, 403)
+        await self.db["meetings"].update_many({}, {"$set": {"series": "Sourcing standup"}})
+        r = await self.http.get(f"/api/v1/team/{self.W}/groups", headers=self.session("wa"))
+        sug = r.json()["suggestions"]
+        self.assertEqual(sug[0]["name"], "Sourcing standup")
+        self.assertEqual(set(sug[0]["member_ids"]), {self.uid["wm"], self.uid["wa"], self.uid["owner"]})
+        self.assertEqual(r.json()["groups"], [])
+        r = await self.http.post(f"/api/v1/team/{self.W}/groups", headers=self.session("wa"),
+                                 json={"name": "Sourcing team", "member_ids": [self.uid["wm"], self.uid["stranger"]]})
+        self.assertEqual(r.status_code, 200, r.text)
+        g = r.json()
+        self.assertEqual(g["member_ids"], [self.uid["wm"]])          # not a member: dropped
+        r = await self.http.post(f"/api/v1/team/{self.W}/groups", headers=self.session("wa"), json={"name": "sourcing TEAM"})
+        self.assertEqual(r.status_code, 409)
+        b = (await self.board("wv")).json()
+        self.assertEqual([x["name"] for x in b["groups"]], ["Sourcing team"])
+        cards = {c["id"]: c for c in b["people"]}
+        self.assertEqual(cards[self.uid["wm"]]["groups"], [g["id"]])
+        self.assertFalse(b["can_manage"])
+        r = await self.http.delete(f"/api/v1/team/{self.W}/groups/{g['id']}", headers=self.session("wa"))
+        self.assertEqual(r.status_code, 200)
+
+    async def test_weekly_summary_team_visible_only(self):
+        from unittest import mock
+
+        from app.services import mailer, slack, slack_api, team_extras
+
+        # A restricted 1:1 with a blocker nobody else may see.
+        r = await self.http.patch(f"/api/v1/meetings/{self.m['id']}", headers=self.session("owner"), json={"restricted": True})
+        self.assertEqual(r.status_code, 200)
+        await self.db["workspaces"].update_one({"_id": ObjectId(self.W)}, {"$set": {"settings.timezone": "Asia/Kolkata"}})
+        ws = await wm.ws_info(self.db, self.W)
+        monday_early = datetime(2026, 11, 9, 3, 0, tzinfo=timezone.utc)      # 08:30 in Kolkata
+        monday = datetime(2026, 11, 9, 4, 0, tzinfo=timezone.utc)            # 09:30 in Kolkata
+        self.assertFalse(await team_extras.weekly_due(self.db, ws, monday_early))
+        self.assertTrue(await team_extras.weekly_due(self.db, ws, monday))
+        sent, posted = [], []
+
+        async def fake_post(payload, *, kind, ref=None):
+            sent.append((payload, kind))
+            return "sent"
+
+        async def fake_call(method, token, **kw):
+            posted.append((method, kw))
+            return {"ok": True, "ts": "1"}
+
+        with mock.patch.object(mailer, "_post", fake_post), mock.patch.object(mailer, "is_configured", lambda: True), \
+                mock.patch.object(slack, "install_for_workspace", mock.AsyncMock(return_value={"_id": "T1", "meetings_channel": {"id": "C1"}})), \
+                mock.patch.object(slack, "bot_token", lambda inst: "xoxb-test"), mock.patch.object(slack_api, "call", fake_call):
+            self.extract_reply = None
+            n = await team_extras.background(self.db, [ws], monday)
+            self.assertEqual(n, 1)
+            self.assertEqual(await team_extras.background(self.db, [ws], monday), 0)     # once a week
+        row = await self.db[team_extras.WEEKLY].find_one({})
+        self.assertEqual(row["week"], "2026-W46")
+        everything = json.dumps({k: row[k] for k in ("highlights", "blockers", "due", "overdue")}, default=str)
+        self.assertIn("sourcing filters", everything.lower())                 # from standup 2 (team-visible)
+        # Nothing sourced from the restricted standup (its lines also said in standup 2 cite standup 2).
+        self.assertNotIn(self.m["transcript_slug"], everything)
+        self.assertIn(self.m2["transcript_slug"], everything)
+        self.assertEqual(posted[0][0], "chat.postMessage")
+        self.assertEqual(posted[0][1]["channel"], "C1")
+        to = sorted(p["to"][0] for p, _k in sent)
+        self.assertEqual(to, sorted([self.email["wa"], self.email["wo"]]))
+        self.assertTrue(all(k == "digest" for _p, k in sent))
+        b = (await self.board("wv")).json()
+        self.assertEqual(b["this_week"]["week"], "2026-W46")
+        self.assertFalse(b["this_week"]["live"])
+
+
 if __name__ == "__main__":
     unittest.main()

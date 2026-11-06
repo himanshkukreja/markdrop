@@ -85,6 +85,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
             ai_enabled=s.ai_enabled,
             auto_covers=s.auto_covers,
             team_memory=s.team_memory,
+            timezone=s.timezone,
         ),
         role=role,  # type: ignore[arg-type]
         default_access=s.default_access,

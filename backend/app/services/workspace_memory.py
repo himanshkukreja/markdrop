@@ -1022,6 +1022,13 @@ async def background(db: AsyncIOMotorDatabase, *, now: datetime | None = None) -
                 await consolidate(db, ws.id, now=now)
                 await db[STATE].update_one({"_id": ws.id}, {"$set": {"consolidated_day": day}})
                 report["consolidated"] += 1
+    try:
+        # Team's weekly summary (services/team_extras.py): Monday 9 am in each workspace's timezone.
+        from app.services import team_extras
+
+        report["weekly"] = await team_extras.background(db, wss, now)
+    except Exception:
+        log.warning("workspace memory: weekly summaries failed", exc_info=True)
     if await paused(db):
         report["paused"] = True
         return report

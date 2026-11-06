@@ -7,6 +7,9 @@
     PUT    /api/v1/team/{ws}/me/status                {text, emoji?, until?}  your own status (wins over AI)
     POST   /api/v1/team/{ws}/facts/{id}/hide          hide a line about you (for everyone); DELETE: undo
     POST   /api/v1/team/{ws}/facts/{id}/correct       {text?} "This is wrong" (+ the right version); DELETE: undo
+    GET    /api/v1/team/{ws}/groups                   the groups (+ suggestions from meeting series, admins)
+    POST   /api/v1/team/{ws}/groups                   {name, member_ids}  admins; PUT/DELETE …/groups/{id}
+    POST   /api/v1/team/{ws}/weekly/send              admins: send this week's summary now (services/team_extras.py)
 
 Members of the workspace (any role) only: anyone else gets a 404, guests with a link included. Every
 line is decided per viewer (a fact shows only while its source is readable by them). With Team memory
@@ -27,6 +30,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.services import access
+from app.services import team_extras
 from app.services import workspace_memory as wm
 from app.utils.net import get_client_ip
 
@@ -68,6 +72,11 @@ class StatusBody(BaseModel):
     until: Optional[datetime] = Field(None, description="When it stops applying (ISO time); none: until cleared.")
 
 
+class GroupBody(BaseModel):
+    name: str = Field(..., min_length=1, max_length=team_extras.NAME_MAX + 20)
+    member_ids: list[str] = Field(default_factory=list, max_length=500)
+
+
 class CorrectBody(BaseModel):
     text: Optional[str] = Field(None, max_length=wm.CORRECTION_MAX + 200,
                                 description="The right version (optional): shown instead of the line.")
@@ -78,15 +87,23 @@ class CorrectBody(BaseModel):
 async def board(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                 user: User = Depends(require_user)):
     """The Team board for you: each member's status, focus, targets, open items and recent activity;
-    blockers; projects × people. ``{enabled: false, can_enable}`` when Team memory is off."""
+    blockers; projects × people; groups; the "This week" summary. ``{enabled: false, can_enable}`` when
+    Team memory is off."""
+    ws, role = await _member(db, workspace_id, user, need_on=False)
     from app.models.workspace import role_allows
 
-    ws, role = await _member(db, workspace_id, user, need_on=False)
     if not ws.on:
         return {"enabled": False, "can_enable": role_allows(role, "admin"), "role": role,
                 "workspace": {"id": ws.id, "name": ws.name}}
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await wm.team(db, actor, ctx, ws, role))
+    got = await wm.team(db, actor, ctx, ws, role)
+    groups = await team_extras.list_groups(db, ws.id)
+    for c in got["people"]:
+        c["groups"] = [g["id"] for g in groups if c["id"] in g["member_ids"]]
+    got["groups"] = groups
+    got["can_manage"] = role_allows(role, "admin")
+    got["this_week"] = await team_extras.this_week(db, ws)
+    return jsonable_encoder(got)
 
 
 @router.get("/{workspace_id}/people/{user_id}")
@@ -178,3 +195,71 @@ async def uncorrect(request: Request, workspace_id: str, fact_id: str, db: Async
         return jsonable_encoder(await wm.correct(db, actor, ctx, ws, fact_id, role, None))
     except wm.Refused as exc:
         raise _refused(exc)
+
+
+async def _admin(db, workspace_id: str, user: User) -> wm.WsInfo:
+    from app.models.workspace import role_allows
+
+    ws, role = await _member(db, workspace_id, user)
+    if not role_allows(role, "admin"):
+        raise HTTPException(status_code=403, detail="Only workspace admins can do this.")
+    return ws
+
+
+@router.get("/{workspace_id}/groups")
+@limiter.limit("60/minute")
+async def groups(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                 user: User = Depends(require_user)):
+    """The workspace's Team groups; for admins also ``suggestions``: a group per meeting series, of the
+    members at half or more of its meetings in the last 60 days."""
+    from app.models.workspace import role_allows
+
+    ws, role = await _member(db, workspace_id, user)
+    out = {"groups": await team_extras.list_groups(db, ws.id), "suggestions": []}
+    if role_allows(role, "admin"):
+        actor, ctx = _ac(request, db, user)
+        out["suggestions"] = await team_extras.suggest_groups(db, actor, ctx, ws.id)
+    return out
+
+
+@router.post("/{workspace_id}/groups")
+@limiter.limit("30/minute")
+async def create_group(request: Request, workspace_id: str, body: GroupBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    ws = await _admin(db, workspace_id, user)
+    try:
+        return await team_extras.save_group(db, ws.id, user.id, body.name, body.member_ids)
+    except wm.Refused as exc:
+        raise _refused(exc)
+
+
+@router.put("/{workspace_id}/groups/{group_id}")
+@limiter.limit("30/minute")
+async def update_group(request: Request, workspace_id: str, group_id: str, body: GroupBody,
+                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    ws = await _admin(db, workspace_id, user)
+    try:
+        return await team_extras.save_group(db, ws.id, user.id, body.name, body.member_ids, group_id)
+    except wm.Refused as exc:
+        raise _refused(exc)
+
+
+@router.delete("/{workspace_id}/groups/{group_id}")
+@limiter.limit("30/minute")
+async def remove_group(request: Request, workspace_id: str, group_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                       user: User = Depends(require_user)):
+    ws = await _admin(db, workspace_id, user)
+    if not await team_extras.delete_group(db, ws.id, group_id):
+        raise HTTPException(status_code=404, detail="Group not found.")
+    return {"deleted": True}
+
+
+@router.post("/{workspace_id}/weekly/send")
+@limiter.limit("6/hour")
+async def send_weekly(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                      user: User = Depends(require_user)):
+    """This week's summary now (it goes out on its own on Mondays at 9 am, workspace time): posted to the
+    Slack meetings channel when Slack is connected, emailed to the admins, kept as Team's "This week"."""
+    ws = await _admin(db, workspace_id, user)
+    got = await team_extras.send_weekly(db, ws, force=True)
+    return jsonable_encoder({"week": got["week"], "delivery": got["delivery"], "highlights": len(got["highlights"])})
