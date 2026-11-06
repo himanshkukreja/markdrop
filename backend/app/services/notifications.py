@@ -1084,10 +1084,12 @@ class _Person:
             self.wake[r["_id"]] = min(self.wake.get(r["_id"], when), when)
 
     async def defer(self, rows: list[dict]) -> None:
-        """Over today's cap: to the next morning's catch-up."""
+        """Over today's cap: to the catch-up at 08:00 tomorrow (their time), when the cap is new."""
         ids = [r["_id"] for r in rows]
+        local = self.now.astimezone(self.zone).date() + timedelta(days=1)
+        at = datetime.combine(local, dtime(DIGEST_HOUR), tzinfo=self.zone).astimezone(timezone.utc)
         await self.db[COLL].update_many({"_id": {"$in": ids}, "email": "pending"},
-                                        {"$set": {"catchup": True, "email_at": self.next_slot}})
+                                        {"$set": {"catchup": True, "catchup_at": at, "email_at": at}})
         self.done.update(ids)
         self.bump("capped", len(ids))
 
@@ -1252,7 +1254,13 @@ class _Person:
             if any(s in ("pending", "sending") for _, s in got) and now - created < window:
                 self.later([r], min(created + window, now + RECHECK))  # a push or Slack DM is on its way
                 continue
-            mode = "daily" if r.get("catchup") else self.modes[r["kind"]]
+            mode = self.modes[r["kind"]]
+            if r.get("catchup"):
+                at = _aware(r.get("catchup_at")) or self.slot
+                if now < at:
+                    self.later([r], at)  # over the cap yesterday: tomorrow morning's catch-up
+                    continue
+                mode = "daily"
             (instant if mode == "instant" else hourly if mode == "hourly" else daily).append(r)
         if instant:
             await self.instant(instant, docs)
@@ -1266,7 +1274,7 @@ class _Person:
             else:
                 await self.bundle(hourly, docs, "hourly")
         if daily:
-            if any(_aware(r["created_at"]) < self.slot for r in daily) and \
+            if any(r.get("catchup") or _aware(r["created_at"]) < self.slot for r in daily) and \
                     await db[EMAIL_LOG].find_one({"_id": f"{self.uid}:daily:{self.slot_day}"}, {"_id": 1}) is None:
                 await self.bundle(daily, docs, "daily")
             else:
