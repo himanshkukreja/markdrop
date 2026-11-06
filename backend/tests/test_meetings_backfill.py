@@ -401,11 +401,10 @@ class Queue(BackfillWorld):
         await self.call("POST", f"/{job['id']}/start")
         v = await self.run_to_end(job["id"])
         self.assertEqual(v["counts"]["imported"], 2)
-        notes = await self.db["notifications"].find({}).to_list(50)
-        pages = {n["doc_id"] for n in notes}
         rows = {r["title"]: r async for r in self.db[meetings.COLL].find({"workspace_id": self.W})}
-        self.assertTrue(notes)                                         # the recent one notified…
-        self.assertEqual(pages, {str(rows["Release sync"]["doc_id"])})  # …the 40-day-old one didn't
+        # Meetings notify nobody, whatever the switch (owner, 2026-11-06); it decides Slack posting:
+        # the recent one may be posted, the 40-day-old one is history.
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
         self.assertFalse(rows["Release sync"].get("history"))
         self.assertTrue(rows["Old sync"]["history"])
 

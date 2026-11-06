@@ -70,7 +70,7 @@ export interface Meeting {
   source?: "manual" | "auto" | "mcp";
   /** On import: a new meeting, the missing half added to one already here, or nothing new. */
   status?: "imported" | "attached" | "duplicate";
-  /** A past meeting brought in by a backfill: imported quietly (nobody was notified). */
+  /** A meeting held more than a day before it was imported: not posted to Slack on its own. */
   history?: boolean;
   /** Who ran the call (the Google Doc's owner, or named in the text); null: unknown. */
   organizer?: { name: string | null; user_id: string | null; from: "drive" | "content" | null } | null;
@@ -372,7 +372,7 @@ export interface BackfillRow {
   est_usd: number;
   cost_usd?: number | null;
   order?: number | null;
-  /** Older than a day: imported without notifying anyone, whatever the switch says. */
+  /** Older than a day: never posted to Slack, whatever the switch says. */
   past: boolean;
   /** Where it's filed: the series' folder, or "Other meetings" (both inside Meetings). */
   folder: string;
