@@ -472,6 +472,7 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     mids = [meetings.oid(v["meeting_id"]) for v in mdocs.values() if v.get("meeting_id")]
     mrows = {str(r["_id"]): r for r in await db[meetings.COLL].find(
         {"_id": {"$in": [m for m in mids if m is not None]}}, {"title": 1, "date": 1, "series": 1}).to_list(length=len(mids) or 1)}
+    signoffs_of = await _signoff_notes(db, actor, ctx, cands)
     out: list[Source] = []
     lined: set[str] = set()
     # A meeting's page and its transcript both found: one source (the page, which brings the lines).
@@ -499,6 +500,8 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                 attrs["series"] = mrow_["series"]
         if c.key in my_work:
             attrs["yours"] = my_work[c.key]
+        if c.key in signoffs_of:
+            attrs["signoffs"] = signoffs_of[c.key]
         src = Source(n, c, item={**item, "n": n}, text=_excerpt(c, rows.get(c.content_id), terms, chars=chars,
                                                                  sections=not md), attrs=attrs)
         mm = my_meetings.get(str(md.get("meeting_id"))) if md else None
@@ -551,6 +554,36 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
             # No labelled lines for this meeting: its text can only be cited as a whole.
             src.text = "(Cite this item as [" + str(n) + "]; it has no numbered transcript lines.)\n" + src.text
         out.append(src)
+    return out
+
+
+async def _signoff_notes(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
+                         cands: list[search.Cand]) -> dict[str, str]:
+    """Candidate key → its sign-offs as the asker may see them ("Release approval: Approved for production
+    by Ada Lovelace on Nov 5, 2026"). The decision lives outside the page's text (services/signoffs.py),
+    so without this "who signed off v2.3?" has no answer. Names only inside the page's circle, as on the page."""
+    from app.services import signoffs
+
+    ids = [c.raw["_id"] for c in cands if c.kind == "page" and c.raw and c.raw.get("_id") is not None]
+    if not ids:
+        return {}
+    out: dict[str, str] = {}
+    async for raw in db["documents"].find({"_id": {"$in": ids}, "content": {"$regex": ":::signoff"}}):
+        try:
+            views = await signoffs.listing(db, raw, actor, ctx)
+        except Exception:
+            continue
+        bits = []
+        for v in views[:6]:
+            asked = (v.get("person") or {}).get("name") or "someone"
+            if v.get("option"):
+                by = (v.get("signed_by") or {}).get("name") or "someone"
+                when = meetings.fmt_date(str(v.get("signed_at"))[:10]) if v.get("signed_at") else ""
+                bits.append(f"{v.get('label') or 'Sign-off'}: {v['option']} by {by}" + (f" on {when}" if when else ""))
+            else:
+                bits.append(f"{v.get('label') or 'Sign-off'}: not signed yet (asked of {asked})")
+        if bits:
+            out[f"d:{raw['_id']}"] = "; ".join(bits)
     return out
 
 

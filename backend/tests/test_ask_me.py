@@ -262,6 +262,24 @@ class Accuracy(AskMeWorld):
         await self.ask("wm", "What has Bo Chen said in the syncups?", {"kind": "everything"})
         self.assertIn("Bo (you): I shipped the CSV export API", self.answer_prompt())
 
+    async def test_sign_offs_reach_the_model(self):
+        from datetime import datetime, timezone
+
+        from app.services import search_index
+
+        d = await self.mkdoc("W", slug="rel-23", title="Release checklist v2.3", editor="blocks", grants=False, content=(
+            "# Release checklist v2.3\n\n- [ ] Release notes\n\n"
+            f':::signoff{{#b-rel23 person="{self.uid["owner"]}" label="Release approval" options="Approved|Not approved"}}\n'
+            "v2.3 to production.\n:::\n"))
+        await self.db["signoffs"].insert_one({"doc_id": str(d["_id"]), "block_id": "b-rel23", "person_id": self.uid["owner"],
+                                              "option": "Approved", "label": "Release approval", "signer_id": self.uid["owner"],
+                                              "signer_name": "Ada Lovelace", "signed_at": datetime(2026, 11, 5, tzinfo=timezone.utc),
+                                              "via": "web", "removed": None, "history": []})
+        await search_index.drain()
+        self.fake.calls.clear()
+        await self.ask("wm", "Who signed off the release checklist v2.3?", {"kind": "everything"})
+        self.assertIn('signoffs="Release approval: Approved by Ada Lovelace on Nov 5, 2026"', self.answer_prompt())
+
 
 if __name__ == "__main__":
     unittest.main()
