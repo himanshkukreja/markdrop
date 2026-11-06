@@ -15,7 +15,7 @@
  *              scroll, 44 px buttons, inside the viewport; light + dark screenshots
  *
  * Playwright's WebKit can't grant notifications: its permission prompt is answered "Allow" by a stub
- * (as in push.mjs). Without a PushManager there the card must stay hidden (checked instead).
+ * (as in push.mjs, but kept across reloads). Without a PushManager there the card must stay hidden (checked instead).
  *
  *   PB_PUSH=1 zsh up.sh restart-api, then  [BROWSER=webkit] [ONLY=…] node push-prompts.mjs   (existing seed)
  */
@@ -52,10 +52,11 @@ async function pushCtx(who, dev, opts = {}) {
     else {
       await c.addInitScript(() => {
         if (!("Notification" in window)) return;
-        let state = "default";
+        // Kept across reloads, as Safari keeps a site's permission.
+        const K = "md_e2e_notif_perm";
         try {
-          Object.defineProperty(Notification, "permission", { get: () => state, configurable: true });
-          Notification.requestPermission = async () => (state = "granted");
+          Object.defineProperty(Notification, "permission", { get: () => localStorage.getItem(K) || "default", configurable: true });
+          Notification.requestPermission = async () => { localStorage.setItem(K, "granted"); return "granted"; };
         } catch {}
       });
     }

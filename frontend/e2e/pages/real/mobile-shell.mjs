@@ -169,6 +169,7 @@ async function stickyCheck(p) {
 
 /* ── Screens and states ───────────────────────────────────────────────── */
 
+const PUSH = (await api("GET", "/__sandbox/fakepush")).status === 200;
 const wsUrl = `${APP}/w/${WS}`;
 const busyUrl = `${APP}/w/${WS}/f/${busyFolder}`;
 const boardUrl = `${APP}/w/${WS}/f/${X.board}`;
@@ -207,6 +208,14 @@ const firstRowMenu = (p) => p.locator("main").getByRole("button", { name: /^(Mor
 /** [name, roles, url(role), ready locator(p), action?(p, dev)] — an action returning "skip" skips the state. */
 const STATES = [
   ["home", ["owner", "member"], () => `${APP}/dashboard`, (p) => p.getByTestId("home-workspaces")],
+  // Home's "turn on notifications" card (components/push): needs an API with push keys (PB_PUSH=1) and a
+  // browser with Web Push (Playwright's WebKit may have none: skipped there).
+  ["home-push", ["owner", "member"], () => (PUSH ? `${APP}/dashboard` : null), (p) => p.getByTestId("home-workspaces"), async (p) => {
+    if (!(await p.evaluate(() => "PushManager" in window && "Notification" in window))) return "skip";
+    const card = p.getByTestId("push-prompt-home");
+    await card.waitFor({ timeout: 10000 });
+    await card.scrollIntoViewIfNeeded();
+  }],
   ["files", ["owner", "member"], () => `${APP}/dashboard/files`, (p) => p.locator("main h1, main [role=tablist]").first()],
   ["files-rowmenu", ["owner"], () => `${APP}/dashboard/files`, (p) => p.locator("main h1").first(), async (p) => click(p, firstRowMenu(p))],
   ["files-share", ["owner"], () => `${APP}/dashboard/files`, (p) => p.locator("main h1").first(), async (p) => {
@@ -312,6 +321,8 @@ async function newContext(dev, theme, role) {
       localStorage.setItem("md_consent", "denied");
       localStorage.setItem("md_install_dismissed", "1");
     } catch {}
+    // A device that hasn't been asked about notifications yet (the headless shell reports "denied").
+    try { if ("Notification" in window) Object.defineProperty(Notification, "permission", { get: () => "default", configurable: true }); } catch {}
   }, [token, theme, at]);
   const p = await c.newPage();
   p.on("pageerror", (e) => log("  [pageerror]", dev.name, e.message.slice(0, 200)));
