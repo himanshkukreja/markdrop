@@ -200,18 +200,6 @@ def item_unfurl(url: str, title: str, *, kind: str, excerpt: str | None, where: 
 
 # ── /markdrop replies (ephemeral) ─────────────────────────────────────────────
 
-HELP = (
-    "*Markdrop in Slack* (only you see these replies)\n"
-    "• `/markdrop search <words>` finds documents, pages, files and folders you can open\n"
-    "• `/markdrop ask <question>` asks your workspace (Ask <Workspace>): answers from what you can open, with sources\n"
-    "• `/markdrop meetings <question>` answers from your workspace's meetings\n"
-    "• `/markdrop link` links your Slack account to your Markdrop account (once)\n"
-    "• `/markdrop unlink` removes that link\n"
-    "Direct messages for mentions, sign-off requests, shares and access requests are off until you turn "
-    "them on in Markdrop: Settings › Account › Slack notifications."
-)
-
-
 def help_message(linked_as: str | None) -> dict:
     who = f"You're linked as *{esc(linked_as)}*." if linked_as else \
         "Your Slack account isn't linked to Markdrop yet: `/markdrop link`."
@@ -223,8 +211,8 @@ def help_message(linked_as: str | None) -> dict:
                 "`/markdrop ask <question>`\nAsk your workspace: answers from what you can open, with sources\n"
                 "`/markdrop meetings <question>`\nAnswers from your workspace's meetings"),
         section("*Your account*\n"
-                "`/markdrop link`  Link your Slack account to your Markdrop account (once)\n"
-                "`/markdrop unlink`  Remove that link"),
+                "`/markdrop link`\nLink your Slack account to your Markdrop account (once)\n"
+                "`/markdrop unlink`\nRemove that link"),
         section("*Direct messages*\nMentions, sign-off requests, shares and access requests are off until you "
                 "turn them on in Markdrop: Settings › Account › Slack notifications. Your action items after "
                 "a meeting come on their own; each message has *Stop these*."),
