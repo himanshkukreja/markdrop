@@ -25,6 +25,8 @@ Turning Team memory off hides Team for everyone and **deletes everything it gath
 
 Everyone in the workspace can open Team, whatever their role. People who only have a link to a document, or a page shared with them, never see it.
 
+![The Team board: buttons to set your status and focus and manage groups, five numbers (on track, blocked or waiting, due this week, overdue, open items), the This week card with highlights, what's due and blockers, the filters, and the first member cards with their status, focus or now line, a target chip and a strip of their updates.](/docs-assets/workspaces/team/board.webp)
+
 The board has a card for each member:
 
 - **Status.** **On track** when something came up in the last week, **Blocked** or **Waiting on someone** when their latest word is a blocker (with what, and who they're waiting on), and **Quiet lately** when nothing came up for a week. Quiet lately is neutral: no colors, no day count. A status someone [sets themselves](#your-status-and-focus) wins over all of these.
@@ -37,6 +39,8 @@ Above the cards, five numbers: on track, blocked or waiting, due this week, over
 - **Open items per person**, split into overdue, due this week, and later or no date.
 - **Updates per day** for each person over the period you picked. Darker means more updates that day.
 - **Blockers**: who is blocked, on what, waiting on whom, and since when.
+
+![Team at a glance: open items per person as bars split into overdue, due this week and later; updates per day for each person as a row of cells, darker for more; and the blockers list naming who is waiting on whom.](/docs-assets/workspaces/team/glance.webp)
 
 Filter by person, status, [group](#groups) or project, and pick **This week** or **2 weeks**. The five numbers follow the filters, so picking a group sums up that group. The **Projects** tab shows each recurring project with the people on it and what each of them last said about it.
 
@@ -57,6 +61,8 @@ The summary only uses lines from meetings and pages **everyone in the workspace 
 ## A person's page
 
 Select a card to open someone's page: their status and focus, **Working on now**, **Targets**, a **Timeline** of updates by day, **Open action items**, **Decisions they own**, and their recent meetings and documents. Each line has its source: the meeting (and, with the play button, the moment in the transcript) or the page.
+
+![A person's page: their status and what they're on, a strip of the last 30 days, Working on now and Targets with due dates, each line with the meeting or page it came from, a Timeline by day, Open action items and Recent meetings.](/docs-assets/workspaces/team/person.webp)
 
 A project's page shows its latest status, who is on it, what's being worked on, decisions, open items and blockers.
 

@@ -3510,5 +3510,41 @@
     "h": 124,
     "bytes": 4582,
     "kind": "image"
+  },
+  "/docs-assets/workspaces/team/board.dark.webp": {
+    "w": 1728,
+    "h": 1800,
+    "bytes": 107960,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/board.webp": {
+    "w": 1728,
+    "h": 1800,
+    "bytes": 111194,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/glance.dark.webp": {
+    "w": 1664,
+    "h": 834,
+    "bytes": 41184,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/glance.webp": {
+    "w": 1664,
+    "h": 834,
+    "bytes": 42634,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/person.dark.webp": {
+    "w": 1728,
+    "h": 1720,
+    "bytes": 86128,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/person.webp": {
+    "w": 1728,
+    "h": 1720,
+    "bytes": 86348,
+    "kind": "image"
   }
 }

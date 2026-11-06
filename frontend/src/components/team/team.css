@@ -270,7 +270,7 @@
 .tm-week__grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
 .tm-week__list { margin: 4px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; line-height: 20px; color: var(--text); }
 .tm-week__list .tm-due { margin-left: 4px; vertical-align: middle; }
-.tm-week__src { color: var(--text-muted); font-size: 12.5px; }
+.tm-week__src { color: var(--text-muted); font-size: 12.5px; white-space: nowrap; }
 .tm-groups { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
 .tm-groups__list { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; }
 .tm-groups__list li { display: flex; align-items: center; gap: 6px; padding: 8px 0; border-top: 1px solid var(--border); }
