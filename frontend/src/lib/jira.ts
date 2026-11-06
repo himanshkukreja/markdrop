@@ -152,7 +152,7 @@ export interface JiraTeam {
   /** off: no site; no_projects: no project chosen for Team; counts: you aren't connected; details: you are. */
   mode: "off" | "no_projects" | "counts" | "details";
   site: { name: string; url: string; projects: string[] } | null;
-  people: Record<string, { matched: boolean; counts: JiraTeamCounts; top: JiraIssue[] }>;
+  people: Record<string, { matched: boolean; counts: JiraTeamCounts; top: JiraIssue[]; keys: string[] }>;
   team: (JiraTeamCounts & {
     projects: Array<{ key: string; name: string; open: number; overdue: number; done_recent: number }>;
     connected_people: number;

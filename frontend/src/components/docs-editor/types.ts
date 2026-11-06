@@ -232,6 +232,9 @@ export interface PagesEditorHost {
   uploadFile?(file: File, onProgress?: (pct: number) => void): Promise<{ slug: string; title?: string | null }>;
   /** Creates a sub-page of this page (the "/page" block); resolves with its slug and title. */
   createSubPage?(title: string): Promise<{ slug: string; title: string }>;
+  /** "Create Jira issue" (the block menu and the selection toolbar), when the page's workspace has Jira
+   *  (components/jira). `block`: the block's anchor (added if it had none); `selection`: selected text. */
+  jira?: ((ref: { block: string | null; selection: string | null; text: string }) => void) | null;
   /** This page's ancestors and title, for the breadcrumb block. */
   crumbs?: Array<{ slug: string; title: string | null }>;
   pageTitle?: string | null;

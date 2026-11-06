@@ -6,8 +6,10 @@
  * own status, focus note and corrections. Status and due states always carry a label and an icon, never
  * color alone. Everything shown was decided for the viewer by the server.
  */
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+import { JiraTeamContext } from "@/components/jira/JiraTeam";
 import { Avatar, Button, Dialog, Dropdown, Field, Icon, IconButton, Input, Select, Textarea, useToast, type MenuEntry } from "@/components/ui";
 import {
   correctLine, dueLabel, fmtDay, hideLine, markDone, setFocus, setStatus,
@@ -57,11 +59,15 @@ export function SourceLinks({ sources }: { sources: SourceLink[] }) {
 }
 
 /** One line of a profile: the statement, its project / due date, where it came from, and (yours) a menu. */
+const CreateIssueDialog = dynamic(() => import("@/components/jira/CreateIssueDialog").then((m) => m.CreateIssueDialog), { ssr: false, loading: () => null });
+
 export function LineRow({ line, ws, onChanged, showPerson, hiddenList }: {
   line: Line; ws: string; onChanged: () => void; showPerson?: boolean; hiddenList?: boolean;
 }) {
   const toast = useToast();
   const [correcting, setCorrecting] = useState(false);
+  const [jira, setJira] = useState(false);
+  const jiraCtx = useContext(JiraTeamContext);
   const items: MenuEntry[] = [];
   if (line.can_correct && !hiddenList && (line.kind === "action_item" || line.kind === "target")) {
     items.push({ label: "Mark done", icon: "check", description: "It leaves your open items, the board and This week.",
@@ -79,6 +85,10 @@ export function LineRow({ line, ws, onChanged, showPerson, hiddenList }: {
       items.push({ label: "Remove the correction", icon: "undo",
         onClick: async () => { await correctLine(ws, line.id, null); onChanged(); } });
     }
+  }
+  if (jiraCtx.on && !hiddenList && (line.kind === "blocker" || line.kind === "target" || line.kind === "action_item" || line.kind === "working_on")) {
+    items.push({ label: "Create Jira issue…", icon: "checkSquare", description: "Markdrop AI drafts it; you review, then it's created as you.",
+      onClick: () => setJira(true) });
   }
   return (
     <li className={`tm-line tm-line--${line.kind}`} data-testid="team-line" data-kind={line.kind}>
@@ -110,6 +120,7 @@ export function LineRow({ line, ws, onChanged, showPerson, hiddenList }: {
           trigger={<IconButton icon="more" label="Line actions" className="tm-line__more" data-testid="team-line-menu" />} />
       )}
       {correcting && <CorrectDialog ws={ws} line={line} onClose={() => setCorrecting(false)} onDone={onChanged} />}
+      {jira && <CreateIssueDialog open={jira} item={{ fact_id: line.id }} workspaceId={ws} onClose={() => setJira(false)} onCreated={onChanged} />}
     </li>
   );
 }

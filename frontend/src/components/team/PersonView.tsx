@@ -12,12 +12,14 @@ import { Alert, Avatar, Button, Icon, Skeleton } from "@/components/ui";
 import { fmtDay, getPerson, teamHref, type Person } from "@/lib/team";
 import { useAssistantHere } from "@/components/assistant/store";
 import { ActivityStrip, FocusDialog, LineRow, StatusChip, StatusDialog } from "./parts";
+import { JiraPersonSection, JiraTeamContext } from "@/components/jira/JiraTeam";
 import "./team.css";
 
 export default function PersonView({ workspaceId, userId }: { workspaceId: string; userId: string }) {
   const [p, setP] = useState<Person | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<"status" | "focus" | null>(null);
+  const [jiraOn, setJiraOn] = useState(false);
   useAssistantHere({ workspace: workspaceId });
   const load = useCallback(async () => {
     try { setP(await getPerson(workspaceId, userId)); setError(null); }
@@ -72,6 +74,7 @@ export default function PersonView({ workspaceId, userId }: { workspaceId: strin
         <div className="tm-empty"><p>Nothing recorded about {you ? "you" : p.person.name.split(" ")[0]} yet in meetings or pages {you ? "" : "you can open"}.</p></div>
       )}
 
+      <JiraTeamContext.Provider value={{ on: jiraOn, ws: workspaceId }}>
       <div className="tm-pgrid">
         <div className="tm-pcol">
           <Section title="Working on now" lines={p.working_on} ws={workspaceId} onChanged={load} testId="team-working" />
@@ -91,6 +94,7 @@ export default function PersonView({ workspaceId, userId }: { workspaceId: strin
           )}
         </div>
         <div className="tm-pcol">
+          <JiraPersonSection ws={workspaceId} userId={userId} onMode={(m) => setJiraOn(m !== "off")} />
           <Section title="Open action items" lines={p.action_items} ws={workspaceId} onChanged={load} testId="team-actions" />
           <Section title="Decisions they own" lines={p.decisions} ws={workspaceId} onChanged={load} />
           {p.meetings.length > 0 && (
@@ -116,6 +120,7 @@ export default function PersonView({ workspaceId, userId }: { workspaceId: strin
           )}
         </div>
       </div>
+      </JiraTeamContext.Provider>
       {you && (
         <>
           <StatusDialog ws={workspaceId} open={editing === "status"} current={p.own_status} onClose={() => setEditing(null)} onDone={load} />

@@ -156,7 +156,8 @@ async def board(db: AsyncIOMotorDatabase, actor: access.Actor, workspace_id: str
         items = per.get(uid, [])
         open_ = sorted((i for i in items if i["status"]["category"] != "done"), key=lambda i: _rank(i, today))
         out["people"][uid] = {"matched": True, "counts": _counts(items, today),
-                              "top": [_card_issue(i, today) for i in open_[:TOP]] if details else []}
+                              "top": [_card_issue(i, today) for i in open_[:TOP]] if details else [],
+                              "keys": [i["key"] for i in items] if details else []}
     allv = got["issues"]
     projects: dict[str, dict] = {}
     for i in allv:

@@ -61,6 +61,7 @@ import "./page-blocks.css";
 
 // Meeting memory (components/pages/memory): "✦ From meetings" beside the editor, loaded on demand.
 const MeetingMemory = dynamic(() => import("./memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
+const CreateIssueDialog = dynamic(() => import("@/components/jira/CreateIssueDialog").then((m) => m.CreateIssueDialog), { ssr: false, loading: () => null });
 
 /** What the document view puts around the page (the same for readers). */
 export interface PageChromeSlots {
@@ -462,8 +463,27 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
     };
   }, [slug, secret]);
 
+  // Jira (components/jira): "Create Jira issue" in the block menu and the selection toolbar, when the
+  // page's workspace has a Jira site. What's pending is saved first, so the item's new anchor is there.
+  const [jiraOn, setJiraOn] = useState(false);
+  const [jiraItem, setJiraItem] = useState<import("@/lib/jira").JiraItemRef | null>(null);
+  useEffect(() => {
+    if (!workspaceId || !userId || addressing.tenant) return;
+    let gone = false;
+    import("@/lib/jira").then((m) => m.jiraPage(slug)).then((p) => { if (!gone) setJiraOn(!!p.site && p.can_create); }).catch(() => {});
+    return () => { gone = true; };
+  }, [slug, workspaceId, userId, addressing.tenant]);
+  const flush = session.flush;
+  const openJira = useCallback((ref: { block: string | null; selection: string | null }) => {
+    window.setTimeout(async () => {
+      try { await flush(); } catch { /* the dialog says what's wrong */ }
+      setJiraItem({ slug, block: ref.block, selection: ref.selection });
+    }, 350);
+  }, [slug, flush]);
+
   const pages = useMemo<PagesEditorHost>(
     () => ({
+      jira: jiraOn ? openJira : null,
       workspaceName: workspaceId ? workspaceName ?? "Workspace" : null,
       async search(scope, q, cursor) {
         if (scope === "workspace" && workspaceId) return searchWorkspace(workspaceId, q, cursor);
@@ -504,7 +524,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       href: (s, ancestors) => pagePath(s, { tenant: addressing.tenant, folderPath: addressing.folderPath, ancestors }),
       assetSize,
     }),
-    [slug, mentionable, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs, assetSize],
+    [slug, mentionable, workspaceId, workspaceName, crumbs, title, addressing.tenant, addressing.folderPath, signoffs, assetSize, jiraOn, openJira],
   );
 
   const setBody = useCallback(
@@ -915,6 +935,7 @@ export function PageEditor({ slug, userId = null, title: initialTitle, content: 
       </div>
       {(phone || touch) && <PagePhoneBar editor={editor} readOnly={readOnly} ai={aiUsable} />}
       {workspaceId && userId && <MeetingMemory slug={slug} workspaceId={workspaceId} title={title} editor={mode === "visual" ? editor : null} readOnly={readOnly} ai={aiUsable} />}
+      {jiraItem && <CreateIssueDialog open={!!jiraItem} item={jiraItem} workspaceId={workspaceId ?? null} onClose={() => setJiraItem(null)} />}
     </PageFrame>
   );
 }
