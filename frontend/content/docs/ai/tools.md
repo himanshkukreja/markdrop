@@ -141,6 +141,7 @@ For files up to 2 GB that live on the machine where the assistant can run shell 
 | `get_file_info` | read | A file's type, size, SHA-256, current version and, for video or audio, duration, dimensions, poster and download links. | `document` |
 | `list_file_versions` | read | The kept versions of one of your files, newest first, marking the current one. Up to five are kept. | `document` |
 | `restore_file_version` | write | Makes an earlier version current again, as a new version. Nothing is deleted. | `document`, `version` |
+| `set_captions` | write | Adds or replaces a video's captions from a `.vtt` or `.srt` file's text (the player shows them; search and `ask_documents` read the video by minute), or removes them. | `document`, `file_name`, `content`, `remove` |
 
 Zipped websites can't be uploaded with `create_upload`; use [markdrop.in/upload](https://markdrop.in/upload). An image that goes inside a page isn't a file of its own: add it with `create_page_image_upload` (see [Pages](#pages)).
 

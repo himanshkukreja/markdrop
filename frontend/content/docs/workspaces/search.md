@@ -1,8 +1,8 @@
 ---
 title: Search
 description: Find anything you can open with ⌘K. Search reads titles, headings, text and file contents, forgives typos, and answers questions with AI.
-updated: 2026-11-05
-keywords: [search, find, command k, cmd k, ctrl k, fuzzy, typo, global search, ask ai, ai search, question, trash, filters, workspace search, search this workspace, only this workspace, recent searches, recently opened, meetings, transcript, pdf text, html text, slack, /markdrop search, search log]
+updated: 2026-11-06
+keywords: [search, find, command k, cmd k, ctrl k, fuzzy, typo, global search, ask ai, ai search, question, trash, filters, workspace search, search this workspace, only this workspace, recent searches, recently opened, meetings, transcript, whole transcript, pdf text, html text, word, docx, excel, xlsx, csv, captions, video captions, page number, slack, /markdrop search, search log]
 ---
 
 Press :kbd[⌘K] (:kbd[Ctrl+K] on Windows and Linux), or select the search field at the top of the app, and start typing. Search looks through everything you can open, wherever it lives, and shows results as you type.
@@ -24,7 +24,8 @@ Search never shows anything you can't open. Every result is checked against your
 - **Typos and half-remembered names.** `onbording plyabook` finds **Onboarding Playbook**.
 - **Partial words.** Results update as you type, so `onboa` already finds it.
 - **Any word order.** `playbook onboarding` works too.
-- **Inside the text.** Search reads headings and the first 20,000 characters of a page's text. In files, it reads the text of HTML pages, PDFs and text files (the first 50,000 characters, read in the background shortly after upload). Other files match by name.
+- **Inside the text.** Search reads headings and the text of pages and documents. Meeting transcripts are read in full, every minute of them (up to about three and a half hours per meeting), and a match shows the moment it was said. In files, it reads Word documents (`.docx`), Excel workbooks (`.xlsx`, each sheet's first 200 rows), CSV files, PDFs page by page, HTML pages and text, Markdown and JSON files, up to 200,000 characters each, read in the background shortly after upload. A video is read through its [captions](/files/video-and-audio#captions) and the text around it on pages that embed it. Other files match by name.
+- **Where in the file.** A match deep in a file shows where it is (**Page 3 ·**, **Sheet Budget ·**, **12:34 ·**) and opens there: a PDF at that page, a video playing from that moment.
 - **Section links.** When the words match a heading, the result opens at that section.
 - **Where you are first.** The workspace you're in ranks a little higher. Recent changes and your own items do too.
 

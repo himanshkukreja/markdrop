@@ -750,6 +750,20 @@
       "responses": { "507": "The owner's storage is full." },
       "guide": { "label": "Replace and versions", "href": "/files/replace-and-versions" }
     },
+    "PUT /api/v1/artifacts/{slug}/captions": {
+      "title": "Add captions to a video",
+      "description": "Adds or replaces a video's captions from a WebVTT (.vtt) or SubRip (.srt) file's text, at most 2 MB. The player shows them as subtitles, and search and Ask read the video by minute. Needs edit rights on the file.",
+      "mcp": "set_captions",
+      "example": { "file_name": "demo.vtt", "content": "WEBVTT\n\n00:00:01.000 --> 00:00:04.000\nWelcome to the demo." },
+      "responses": { "422": "Not a video, or no captions found in the text (use a .vtt or .srt file)." },
+      "guide": { "label": "Captions", "href": "/files/video-and-audio#captions" }
+    },
+    "DELETE /api/v1/artifacts/{slug}/captions": {
+      "title": "Remove a video's captions",
+      "description": "Removes a video's captions: the player stops showing them and search and Ask stop reading them.",
+      "mcp": "set_captions",
+      "guide": { "label": "Captions", "href": "/files/video-and-audio#captions" }
+    },
 
     "GET /api/v1/trash": {
       "title": "List the trash",

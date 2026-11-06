@@ -1,8 +1,8 @@
 ---
 title: Video and audio
-description: Share screen recordings and audio up to 2 GB at a link that streams in any browser, with speed control, keyboard shortcuts and a poster frame.
-updated: 2026-10-30
-keywords: [video, audio, mp4, mov, webm, mp3, player, screen recording, codec, playback speed]
+description: Share screen recordings and audio up to 2 GB at a link that streams in any browser, with speed control, a poster frame, and captions search and Ask can read.
+updated: 2026-11-06
+keywords: [video, audio, mp4, mov, webm, mp3, player, screen recording, codec, playback speed, captions, subtitles, vtt, srt, webvtt, subrip, cc, search a video, ask a video, play from]
 ---
 
 Send a link instead of a 900 MB attachment. Upload a screen recording or a voice memo and readers press play in their browser: it streams, seeks instantly, and never asks them to download the whole file.
@@ -40,6 +40,7 @@ Click the video first, then:
 | :kbd[F] | Full screen |
 | :kbd[,] / :kbd[.] | Back or forward one frame, while paused |
 | :kbd[0] to :kbd[9] | Jump to 0% to 90% of the way through |
+| :kbd[C] | Captions on or off, when the video has them |
 
 ## Poster frames and details
 
@@ -57,6 +58,19 @@ https://markdrop.in/demo-clip
 ```
 
 (Trimmed: it also prints the SHA-256, dates and the poster's address.)
+
+## Captions
+
+Add captions to a video and the player shows them as subtitles, and [Search](/workspaces/search) and [Ask](/workspaces/ask-markdrop#what-ask-can-read) read what's said, minute by minute. A question like "where's the export button, according to the walkthrough?" is answered from the captions, and its source plays the video from that moment.
+
+1. Open the video and choose **⋯** › **Add captions (.vtt/.srt)**.
+2. Pick a WebVTT (`.vtt`) or SubRip (`.srt`) file, up to 2 MB. Most recording and editing tools export one, as do YouTube, Zoom and Descript.
+
+The player gets a **CC** button (or press :kbd[C]) to turn them off and on. **Replace captions** and **Remove captions** are in the same menu. Anyone who can edit the file can add captions; they're as private as the video, and replacing the video keeps them.
+
+From an AI app, the MCP tool `set_captions` does the same: give it the video's link and the captions file's text. With the API, it's `PUT /api/v1/artifacts/{slug}/captions` with `{"file_name": "demo.vtt", "content": "WEBVTT…"}`.
+
+A link that ends in `#t=754` plays from 12:34. That's the link an answer gives when it cites a moment.
 
 ## Audio
 

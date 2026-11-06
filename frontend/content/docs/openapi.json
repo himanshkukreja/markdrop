@@ -4794,6 +4794,112 @@
         }
       }
     },
+    "/api/v1/artifacts/{slug}/captions": {
+      "put": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Set Video Captions",
+        "description": "Add or replace a video's captions (a .vtt or .srt file's text): the player shows them as\nsubtitles, and search and Ask read them by minute. can(edit_content) on the file.",
+        "operationId": "set_video_captions_api_v1_artifacts__slug__captions_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CaptionsRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "artifacts"
+        ],
+        "summary": "Remove Video Captions",
+        "description": "Remove a video's captions.",
+        "operationId": "remove_video_captions_api_v1_artifacts__slug__captions_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtifactResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/artifacts/{slug}/file": {
       "put": {
         "tags": [
@@ -18267,6 +18373,28 @@
             ],
             "title": "Poster Url"
           },
+          "captions_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Url"
+          },
+          "captions_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Name"
+          },
           "media": {
             "anyOf": [
               {
@@ -18546,6 +18674,28 @@
               }
             ],
             "title": "Poster Url"
+          },
+          "captions_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Url"
+          },
+          "captions_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Name"
           },
           "media": {
             "anyOf": [
@@ -19124,6 +19274,34 @@
         "type": "object",
         "title": "BrandingPayload",
         "description": "Every field optional — an unset workspace looks exactly like Markdrop."
+      },
+      "CaptionsRequest": {
+        "properties": {
+          "file_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Name"
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 2200000,
+            "minLength": 1,
+            "title": "Content"
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "CaptionsRequest",
+        "description": "A video's captions: the text of a .vtt or .srt file (services/captions.py)."
       },
       "CheckBody": {
         "properties": {
@@ -19893,6 +20071,28 @@
             ],
             "title": "Poster Url"
           },
+          "captions_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Url"
+          },
+          "captions_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Name"
+          },
           "media": {
             "anyOf": [
               {
@@ -20404,6 +20604,28 @@
               }
             ],
             "title": "Poster Url"
+          },
+          "captions_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Url"
+          },
+          "captions_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Captions Name"
           },
           "media": {
             "anyOf": [

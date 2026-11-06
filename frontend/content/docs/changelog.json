@@ -24,6 +24,26 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-reads-everything",
+      "date": "2026-11-06",
+      "title": "Ask and search read whole transcripts, Office files and video captions",
+      "kind": "improved",
+      "area": "AI",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Ask and search now read every minute of a meeting's transcript, the text of Word, Excel, CSV and PDF files, and a video's captions, and answers say where each thing is: \"at 1:10:00\", \"page 3\", \"sheet Budget\", with links that open right there.",
+      "body": "- **Whole transcripts.** A long meeting was searchable only for its first 20 minutes or so. Now every minute is, up to about three and a half hours per meeting. A search result shows the moment the words were said, and Ask quotes that line with a link to it.\n- **Office files and PDFs.** Word documents (`.docx`) by section, Excel workbooks (`.xlsx`) and CSV files by sheet, and PDFs page by page are read in the background after upload. Results and answers say where: **Page 3 ·**, **Sheet Budget ·**, and a PDF opens at that page. Password-protected Office files and encrypted PDFs are never read.\n- **Video captions.** Add a `.vtt` or `.srt` file from a video's **⋯** menu (**Add captions**). The player shows them as subtitles (**CC**, or press C), and search and Ask read the video minute by minute: an answer's source plays the video from that moment. A video is also found by the text around it on pages that embed it, for people who can open those pages.\n- **MCP and API.** `set_captions` adds, replaces or removes a video's captions; `PUT /api/v1/artifacts/{slug}/captions` does the same.\n- **Existing items** are brought up to date in the background, a few files at a time.",
+      "docs": [
+        "/workspaces/ask-markdrop#what-ask-can-read",
+        "/workspaces/search#how-matching-works",
+        "/files/video-and-audio#captions",
+        "/ai/tools#files-and-uploads"
+      ]
+    },
+    {
       "id": "ask-knows-you",
       "date": "2026-11-06",
       "title": "Ask knows who is asking",

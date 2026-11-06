@@ -2,7 +2,7 @@
 title: Ask
 description: "One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources."
 updated: 2026-11-06
-keywords: [ask, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
+keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---
 
 **Ask** is one assistant, everywhere in Markdrop. Ask a question in plain words and it answers from what you can open, citing where each part came from, so you can check it in one tap. The conversation follows you from screen to screen.
@@ -172,6 +172,23 @@ You can also type these. "What did I miss?" catches you up and "What's on my pla
 The [Ask page](#the-ask-page) lists your conversations on the left, and **Recent questions** beside the home's Ask bar lists the latest ones. Select one to open it and continue asking, there or anywhere with **⌘ J**. Select **×** to forget one, or **Clear all** to forget them all.
 
 Only you can see your conversations. Markdrop keeps them for 90 days after your last question in each, then deletes them. See [Privacy](/security/privacy#what-ask-keeps).
+
+## What Ask can read
+
+Ask reads the whole of what you can open, not just the start, and its answers say where each thing is:
+
+| Item | What Ask reads | Where an answer points |
+| --- | --- | --- |
+| **Meetings** | The notes, and the **whole transcript**: every minute, up to about three and a half hours per meeting | The moment: "at 1:10:00", opening the transcript at that line |
+| **Pages and documents** | Their text, headings and sign-offs | The page |
+| **Word** (`.docx`) | Every section, headings included | The section: "section Refunds" |
+| **Excel** (`.xlsx`) and **CSV** | Sheet names and each sheet's first 200 rows | The sheet: "sheet Budget" |
+| **PDF** | Every page's text (up to 400 pages) | The page: "page 3", opening the PDF there |
+| **HTML pages, text, Markdown, JSON** | Their text | The file |
+| **Video** | Its title, its [captions](/files/video-and-audio#captions) by minute, and the text around it on pages that embed it that you can open | The minute: "at 12:34", playing the video from there |
+| **Audio, images, zipped sites** | Their title and file name | The file |
+
+A file's text is read once, in the background, shortly after it's uploaded or replaced, up to 200,000 characters per file. Old Excel files (`.xls`), password-protected Office files and encrypted PDFs aren't read: they're found by name. A video without captions is found by its title and the pages it's on. To make a video's words searchable, [add its captions](/files/video-and-audio#captions).
 
 ## What Ask reads
 
