@@ -28,7 +28,7 @@ class AssistantWorld(MemoryWorld):
     def script(self, params: dict) -> str:
         system = system_of(params)
         user = "\n".join(b["text"] for b in params["messages"][-1]["content"] if b.get("type") == "text")
-        if system.startswith("You are Ask Markdrop"):
+        if system.startswith("You are Ask, the assistant"):
             ns = re.findall(r'<untrusted_document n="(\d+)"', user)
             top = ns[:3]
             return f"<ranking>{','.join(top)}</ranking>\n\nHere it is: " + " ".join(f"see [{n}]." for n in top)
@@ -84,7 +84,7 @@ class Routing(AssistantWorld):
                                         {"kind": "doc", "page": prd["slug"]},
                                         context={"heading": "Payments", "selection": "moves to a hosted page"}))
         self.assertEqual(done["intent"], "page")
-        self.assertEqual(done["scope"], {"kind": "doc", "label": "This doc · Checkout redesign PRD"})
+        self.assertEqual(done["scope"], {"kind": "doc", "label": "This page · Checkout redesign PRD"})
         self.assertEqual(done["engine"], "search_ai")
         titles = [c["title"] for c in done["citations"]]
         self.assertTrue(any(t.startswith("Checkout redesign sync") for t in titles), titles)
@@ -108,7 +108,7 @@ class Routing(AssistantWorld):
         self.assertEqual(done["engine"], "meetings_ai")
         self.assertEqual(done["scope"]["kind"], "meetings")
         self.assertTrue(self.calls("You answer questions about a team's meetings"))
-        self.assertFalse(self.calls("You are Ask Markdrop"))
+        self.assertFalse(self.calls("You are Ask, the assistant"))
         self.assertTrue(done["citations"])
         for c in done["citations"]:
             self.assertTrue(c["key"].startswith("d:"), c)
@@ -178,7 +178,7 @@ class Folder(AssistantWorld):
         self.fake.calls.clear()
         done = self.done(await self.ask("wm", "What is the launch plan?", {"kind": "folder", "workspace": self.W, "folder": f.id}))
         self.assertEqual(done["scope"], {"kind": "folder", "label": "This folder · Specs"})
-        p = "\n".join(prompt_of(c) for c in self.calls("You are Ask Markdrop"))
+        p = "\n".join(prompt_of(c) for c in self.calls("You are Ask, the assistant"))
         self.assertIn("Launch spec inside", p)
         self.assertIn("Launch spec deep", p)
         self.assertNotIn("Launch spec outside", p)
@@ -273,7 +273,7 @@ class Context(AssistantWorld):
     async def test_in_a_page(self):
         prd = await self.prd()
         c = await self.ctx("wm", page=prd["slug"])
-        self.assertEqual([s["kind"] for s in c["scopes"]], ["doc", "meetings", "workspace", "everything"])
+        self.assertEqual([s["kind"] for s in c["scopes"]], ["doc", "meetings", "workspace", "mine", "everything"])
         self.assertEqual(c["default"], "doc")
         self.assertEqual(c["page"]["title"], "Checkout redesign PRD")
         self.assertEqual(c["workspace"]["id"], self.W)
@@ -309,14 +309,14 @@ class Context(AssistantWorld):
     async def test_folder_and_workspace(self):
         f = await folder_service.create_folder(self.db, self.W, "Specs", None)
         c = await self.ctx("wm", workspace=self.W, folder=f.id)
-        self.assertEqual([s["kind"] for s in c["scopes"]], ["meetings", "folder", "workspace", "everything"])
+        self.assertEqual([s["kind"] for s in c["scopes"]], ["meetings", "folder", "workspace", "mine", "everything"])
         self.assertEqual(c["default"], "folder")
         self.assertEqual(c["folder"]["name"], "Specs")
         c = await self.ctx("wm", workspace=self.W)
         self.assertEqual(c["default"], "workspace")
         # Not a member: only Everything.
         c = await self.ctx("stranger", workspace=self.W, folder=f.id)
-        self.assertEqual([s["kind"] for s in c["scopes"]], ["everything"])
+        self.assertEqual([s["kind"] for s in c["scopes"]], ["mine", "everything"])
         self.assertIsNone(c["workspace"])
 
 
@@ -338,7 +338,7 @@ class Mcp(AssistantWorld):
         code, res = await self.mcp_call(tok, "ask_documents", {"question": "What is the launch plan?",
                                                                "scope": f"workspace:{self.W}", "folder": f.id})
         self.assertFalse(res.get("isError"), res)
-        p = "\n".join(prompt_of(c) for c in self.calls("You are Ask Markdrop"))
+        p = "\n".join(prompt_of(c) for c in self.calls("You are Ask, the assistant"))
         self.assertIn("Launch spec inside", p)
         self.assertNotIn("Launch spec outside", p)
         code, res = await self.mcp_call(tok, "ask_documents", {"question": "What?", "folder": f.id})

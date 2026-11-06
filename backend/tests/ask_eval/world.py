@@ -398,6 +398,12 @@ L5 band: 38 to 46 LPA. L6 band: 52 to 64 LPA.
 
 Ask Markdrop answers from everything you can open. Press Cmd J to open it.
 """, created_ago=2, updated_ago=0)
+    # Their own files outside any workspace ("Ask my files").
+    d = await w.mkdoc("UP", owner="hk", slug="hk-personal-todo", title="Personal todo", grants=False,
+                      content="# Personal todo\n\n- [ ] Renew my passport by December 1\n- [ ] Call the bank about the home loan",
+                      created_at=now - timedelta(days=3), updated_at=now - timedelta(days=1))
+    await search_index.index_doc(w.db, d["_id"])
+    ids["docs"]["hk-personal-todo"] = d
     # Version history: hk edited the roadmap yesterday and the rate limits doc two days ago.
     for key, ago in (("q4-roadmap", 1), ("rate-limits", 2)):
         d = ids["docs"][key]

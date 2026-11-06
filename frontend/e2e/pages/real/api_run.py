@@ -377,7 +377,8 @@ if os.environ.get("PB_FAKE_MEETINGS_AI"):
     _mclient = _NS(messages=_MMessages())
     meetings_ai.docs_agent = _NS(get_client=lambda: _mclient, configured=lambda: True)
 
-# Ask Markdrop (services/ask_markdrop.py) against a fake model: PB_FAKE_ASK_AI=1 (ask-home.mjs). The expansion keeps
+# Ask (services/ask_markdrop.py, and its live suggestions services/ask_suggestions.py) against a fake model:
+# PB_FAKE_ASK_AI=1 (ask-home.mjs, ask-page.mjs). The expansion keeps
 # the question (a follow-up: the question with the conversation's first one) and its words; an answer ranks the first
 # three candidates and cites them, plus the first transcript moment it was sent; catch-up and action items cite
 # everything. Streams like the real API; nothing leaves the machine.
@@ -416,6 +417,15 @@ if os.environ.get("PB_FAKE_ASK_AI"):
         def stream(self, **params):
             system = params["system"][0]["text"]
             user = "\n".join(b["text"] for b in params["messages"][-1]["content"])
+            if system.startswith('You write suggested questions for "Ask"'):
+                # Ask's live suggestions (services/ask_suggestions.py): a question per meeting and page it was
+                # sent (so a source that should never be sent shows up in the list if it is).
+                qs = []
+                for title in _are.findall(r"^Meeting: (.+?)(?: \(\d{4}-\d{2}-\d{2}\))?(?: · series .+)?$", user, _are.M)[:4]:
+                    qs.append({"topic": title.split()[0], "question": f"What did we decide in {title}?"})
+                for title in _are.findall(r"^Page: (.+?)(?: — headings: .*)?$", user, _are.M)[:4]:
+                    qs.append({"topic": title.split()[0], "question": f"What's still open on {title}?"})
+                return _AStream(_ajson.dumps({"questions": qs}))
             if "Return only JSON" in system:
                 q = user.rsplit("Search: ", 1)[-1].strip()
                 first = _are.search(r"Q: ([^\n]+)", user)
@@ -440,6 +450,9 @@ if os.environ.get("PB_FAKE_ASK_AI"):
 
     _aclient = _ANS(messages=_AMessages())
     ask_markdrop.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
+    from app.services import ask_suggestions as _ask_sugg
+
+    _ask_sugg.docs_agent = _ANS(get_client=lambda: _aclient, configured=lambda: True)
     # PB_FAKE_PAGES_AI=1 too (meeting-memory.mjs): Page AI counts as set up, so pages show Ask and the editor's
     # AI features (answers come from the same fake).
     if os.environ.get("PB_FAKE_PAGES_AI"):

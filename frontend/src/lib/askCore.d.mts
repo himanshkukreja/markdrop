@@ -12,3 +12,11 @@ export function chipOf(sources: AskSource[], label: string): string;
 export function blocksOf(text: string | null | undefined): AskBlock[];
 export const SUGGESTION_ICONS: Record<string, string>;
 export const STAGES: Record<string, string>;
+
+import type { AskSuggestions } from "./ask";
+import type { ChatSuggestion } from "@/components/chat/types";
+export function askHref(o?: { workspace?: string | null; mine?: boolean; thread?: string | null; q?: string | null }): string;
+export function readAskParams(search: string | null | undefined): { workspace: string | null; mine: boolean; thread: string | null; q: string | null };
+export function suggestionsOf(sug: AskSuggestions | null | undefined, max?: number): ChatSuggestion[];
+export function homeChips(sug: AskSuggestions | null | undefined, max?: number): { label: string; question: string; team: boolean }[];
+export function updatedLine(sug: AskSuggestions | null | undefined, now?: number): string;

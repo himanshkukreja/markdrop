@@ -36,7 +36,7 @@ export interface DocumentTopBarProps {
   presence?: ReactNode;
   /** There are sidebars (Contents, Details) for the bar's toggle to hide (≥ 1280 px, ⌘\). */
   rail?: boolean;
-  /** ✦ Ask: Ask Markdrop about this document (components/assistant). */
+  /** ✦ Ask: "Ask this page" about this document (components/assistant). */
   ask?: boolean;
 }
 

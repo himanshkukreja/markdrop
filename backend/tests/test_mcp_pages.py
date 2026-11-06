@@ -55,7 +55,7 @@ class McpPages(AccessWorld):
 
     def test_catalogue(self):
         names = {t.name for t in mcp_tools.TOOLS}
-        self.assertEqual(len(mcp_tools.TOOLS), 84)  # + access requests (3), ask_documents (1), analytics AI (3), analyze_document_engagement (1), meetings (7), folders (3), meeting_context (1), slack (2)
+        self.assertEqual(len(mcp_tools.TOOLS), 85)  # + access requests (3), ask_documents (1), ask_suggestions (1), analytics AI (3), analyze_document_engagement (1), meetings (7), folders (3), meeting_context (1), slack (2)
         self.assertTrue(PAGE_TOOLS <= names)
         for t in mcp_tools.TOOLS:
             if t.name in PAGE_TOOLS:

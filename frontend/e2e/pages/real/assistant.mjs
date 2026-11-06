@@ -1,10 +1,10 @@
 /**
- * Ask Markdrop everywhere (.work/assistant/SPEC.md) on the REAL stack, with the fake models in api_run.py
+ * Ask everywhere (.work/assistant/SPEC.md; named after its scope since .work/briefs/ask-page.md) on the REAL stack, with the fake models in api_run.py
  * (PB_FAKE_ASK_AI answers Ask Markdrop, PB_FAKE_MEETINGS_AI writes meetings and answers the Meetings scope):
  *
  *   home      the home's box: starters, an answer with numbered sources, ?ask=<id>
  *   continue  the home's conversation continues on a page with ⌘J (This doc), one thread, scopes kept
- *   scopes    chips at the top (This doc · Meetings · Workspace · Everything); Meetings cites a transcript moment
+ *   scopes    chips at the top (This page · Meetings · <workspace> · My files · Everything); Meetings cites a transcript moment
  *   insert    Insert into a Page: blocks after the caret, saved, citations as links
  *   insert-view  Insert from a page in View mode: Edit opens with it at the end of the section in view; Done
  *   classic   Insert into a classic doc a reader-editor is reading: the editor opens with it; Save keeps it
@@ -137,7 +137,7 @@ await step("scopes", async () => {
   await editorOf(p).waitFor({ timeout: 30000 });
   await openPanel(p, "button");
   const chips = await panel(p).locator('[role="radio"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid")));
-  const want = ["assistant-scope-doc", "assistant-scope-meetings", "assistant-scope-workspace", "assistant-scope-everything"];
+  const want = ["assistant-scope-doc", "assistant-scope-meetings", "assistant-scope-workspace", "assistant-scope-mine", "assistant-scope-everything"];
   if (JSON.stringify(chips) !== JSON.stringify(want)) fail(`chips: ${chips}`);
   await panel(p).getByTestId("assistant-scope-meetings").click();
   await panel(p).getByTestId("chat-scope-period").waitFor({ timeout: 5000 });
@@ -296,7 +296,7 @@ await step("phone", async () => {
     if (!box || box.width > 391) fail(`sheet width ${box?.width}`);
     const font = await fieldIn(panel(p)).evaluate((el) => getComputedStyle(el).fontSize);
     if (font !== "16px") fail(`field font ${font}`);
-    await ask(panel(p), "Summarize this doc");
+    await ask(panel(p), "Summarize this page");
     await answered(panel(p));
     const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (wide > 1) fail(`sideways scroll: ${wide}px`);

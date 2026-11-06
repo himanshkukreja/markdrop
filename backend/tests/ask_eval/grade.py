@@ -99,6 +99,8 @@ def grade(item: dict, result: dict) -> dict:
         titles = [norm(c.get("title")) + " " + norm(c.get("subtitle")) for c in result.get("citations") or []]
         if not any(norm(t) in x for t in item["cite"] for x in titles):
             fails.append("no citation of: " + " | ".join(item["cite"]))
+    if item.get("label") and not result.get("error") and item["label"] not in (result.get("scope_label") or ""):
+        fails.append(f"scope label {result.get('scope_label')!r}, expected {item['label']!r}")
     halluc = 0
     lists = 0
     for prompt, raw in result.get("raws") or []:

@@ -223,10 +223,10 @@ await step("ask", async () => {
   await snap(p, "ask-panel");
   await p.getByTestId("assistant-close").click();
   await panel.waitFor({ state: "hidden", timeout: 5000 });
-  // A chip asks too.
-  await p.getByTestId("home-ask").getByRole("button", { name: /Catch me up/ }).click();
+  // A chip asks too (My action items is there with or without the team's live chips).
+  await p.getByTestId("home-ask").getByRole("button", { name: /My action items/ }).click();
   await panel.waitFor({ timeout: 10000 });
-  await p.waitForFunction(() => /Catch me up/i.test(document.querySelector('[data-testid="assistant"]')?.innerText || ""), null, { timeout: 15000 });
+  await p.waitForFunction(() => /open action items/i.test(document.querySelector('[data-testid="assistant"]')?.innerText || ""), null, { timeout: 15000 });
 });
 
 await step("continue", async () => {

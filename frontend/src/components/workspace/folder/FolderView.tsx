@@ -472,7 +472,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   const toolbar = (
     <div className="flex flex-wrap items-center gap-2">
-      {!!role && <AssistantButton label={folder ? "Ask this folder" : "Ask"} />}
+      {!!role && <AssistantButton label={folder ? "Ask this folder" : "Ask"} title={folder ? "Ask this folder" : `Ask ${wsName}`} />}
       {isMember && !rootEmpty && (
         <Button variant="ghost" iconLeft="eye" onClick={openPreview}>Preview as</Button>
       )}

@@ -44,6 +44,8 @@
 .ch-starter:active { transform: scale(0.99); }
 .ch-starter:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
 .ch-starter__icon { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--accent-text); }
+.ch-starter__text { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.ch-starter__label { font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.01em; color: var(--text-muted); }
 
 /* ── thread ────────────────────────────────────────────────────────────── */
 .ch-thread { display: flex; flex-direction: column; gap: 26px; margin: 0; padding: 0; list-style: none; }
@@ -275,6 +277,8 @@
 
 /* phones and touch: 16px field (no iOS zoom), 44px targets */
 .ch[data-layout="sheet"] .ch-field__input { font-size: 16px; }
+/* Touch screens (phones and tablets): 16px so iOS doesn't zoom into the field. */
+@media (pointer: coarse) { .ch-field__input { font-size: 16px; } }
 @media (max-width: 639px) { .ch-field__input { font-size: 16px; } .ch[data-layout="page"] .ch-starters { grid-template-columns: minmax(0, 1fr); } }
 @media (pointer: coarse), (max-width: 639px) {
   .ch-send { width: 40px; height: 40px; }

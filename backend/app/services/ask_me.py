@@ -375,7 +375,7 @@ def _my_lines(segs: list[dict], ws: str, you: You, terms: list[str]) -> tuple[in
 
 
 async def personal_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, you: You, question: str, *,
-                            workspaces: list[str] | None = None, since: str | None = None, until: str | None = None,
+                            workspaces: list[str | None] | None = None, since: str | None = None, until: str | None = None,
                             series: str | None = None, limit: int = PERSONAL_MEETINGS) -> list[MyMeeting]:
     """The meetings a personal question is about, newest first among equals: the ones the question names
     (title / series) that they were in, else the ones they were in whose own lines match its words,
@@ -483,7 +483,7 @@ async def _load(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
 
 
 async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, you: You, *,
-                      workspaces: list[str] | None = None, folders: set[str] | None = None,
+                      workspaces: list[str | None] | None = None, folders: set[str] | None = None,
                       limit: int = WORK_ITEMS) -> list[tuple[dict, str]]:
     """What they did lately, newest first, from data Markdrop already keeps: documents and pages they
     created (owner), edited (version history) or signed off — not meeting pages (an import of many
@@ -552,7 +552,7 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
 
 
 async def personal(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, you: You | None, question: str, *,
-                   workspaces: list[str] | None = None, folders: set[str] | None = None) -> Personal:
+                   workspaces: list[str | None] | None = None, folders: set[str] | None = None) -> Personal:
     """What a personal question needs about the asker (empty for any other question)."""
     out = Personal()
     if you is None or not (is_personal(question) or you.named_in(question)):

@@ -256,7 +256,7 @@ function EmptyState({ empty, suggestions, onPick, layout }: {
           {suggestions.map((s, i) => (
             <button key={s.q} type="button" className="ch-starter" style={{ animationDelay: `${40 + i * 40}ms` }} onClick={() => onPick(s.q)}>
               <Icon name={s.icon ?? "message"} className="ch-starter__icon" />
-              <span>{s.q}</span>
+              {s.label ? <span className="ch-starter__text"><span className="ch-starter__label">{s.label}</span><span>{s.q}</span></span> : <span>{s.q}</span>}
             </button>
           ))}
         </div>

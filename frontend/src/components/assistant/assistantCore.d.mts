@@ -6,7 +6,12 @@ export const SCOPE_ICON: Record<AssistantScopeKind, string>;
 export const SCOPE_LABEL: Record<AssistantScopeKind, string>;
 export const PERIODS: { value: string; label: string }[];
 export function periodRange(period: string | undefined, today?: Date): { since?: string; until?: string };
-export function scopeChips(ctx: AssistantContext | null): { kind: AssistantScopeKind; label: string; sub: string | null; icon: string }[];
+export interface ScopeChip { key: string; kind: AssistantScopeKind; workspace?: string; label: string; sub: string | null; icon: string }
+export function scopeChips(ctx: AssistantContext | null): ScopeChip[];
+export function chipKey(scope: { kind?: string; workspace?: string } | null, ctx: AssistantContext | null): string;
+export function scopeWorkspace(scope: { kind?: string; workspace?: string } | null, ctx: AssistantContext | null): { id: string; name: string | null } | null;
+export function askTitle(kind: AssistantScopeKind, wsName?: string | null): string;
+export function askPlaceholder(kind: AssistantScopeKind, wsName?: string | null): string;
 export function initialScope(ctx: AssistantContext | null, wanted?: AssistantScopeKind | null): AssistantScopeKind;
 export function meetingOptions(ctx: AssistantContext | null): ChatScopeOption[];
 export function scopeBody(kind: AssistantScopeKind, ctx: AssistantContext | null, sub?: Record<string, string>, today?: Date): AssistantScope;

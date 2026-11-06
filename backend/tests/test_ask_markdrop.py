@@ -36,7 +36,7 @@ TRANSCRIPT = {"name": "Weekly product sync (2026-11-04 10:00 GMT+05:30) - Transc
 
 
 def is_ask(params: dict) -> bool:
-    return params["system"][0]["text"].startswith("You are Ask Markdrop")
+    return params["system"][0]["text"].startswith("You are Ask, the assistant")
 
 
 class AskWorld(AccessWorld, AIEnv):

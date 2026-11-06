@@ -116,7 +116,7 @@ YOU_RULE = ("Who is asking: <untrusted_you> is the person's own account (name, e
             "block alone. When they ask what they said, quote their own \"(you)\" lines with each line's citation, e.g. "
             "\"In the Nov 5 Daily Syncup you said: …\". When a meeting's \"you\" note says they attended but didn't "
             "speak, say \"You attended but didn't speak\"; when it says they were not in it, say so and name the latest "
-            "such meeting they were in. Never give them someone else's lines. Say these things plainly, as facts; never "
+            "such meeting they were in. Never present another person's lines as theirs. Say these things plainly, as facts; never "
             "mention the notes, the \"(you)\" markers or how lines are labelled.")
 
 ASK_SYSTEM = f"""You answer questions about one meeting in Markdrop. You get the meeting's page (the team's notes, lines labelled [nN]) and its transcript (lines labelled [sN] time Speaker: words).

@@ -44,6 +44,7 @@ html[data-md-immersive]:has(.as-panel) { --z-dropdown: calc(var(--z-immersive) +
 
 .as-head { display: flex; align-items: center; gap: 8px; flex: none; padding: 10px 10px 6px 16px; }
 .as-head__title { display: inline-flex; align-items: center; gap: 8px; flex: 1; min-width: 0; font: 650 14.5px/20px var(--font-sans); letter-spacing: -0.005em; }
+.as-head__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .as-head__glyph {
   display: grid; place-items: center; width: 24px; height: 24px; border-radius: 8px; flex: none;
   background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 55%, #8b5cf6)); color: var(--on-accent, #fff);

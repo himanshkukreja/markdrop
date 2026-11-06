@@ -224,4 +224,18 @@ Q: list[dict] = [
      "expect": [["SSO"], ["30 days", "30-day", "pilot"]]},
     {"id": "om-04", "cat": "one-meeting", "who": "rohan", "scope": "meeting:oneone", "q": "What was discussed?", "leak": True,
      "forbid": LEAKS, "error_ok": "not_found", "expect": [["not found"]]},
+    # ── Scopes by name: Ask my files (mine), Ask <Workspace>, Ask this page ──
+    {"id": "sc-01", "cat": "scopes", "scope": "mine", "label": "My files", "q": "What do I need to renew?",
+     "expect": [["passport"]]},
+    {"id": "sc-02", "cat": "scopes", "scope": "mine", "label": "My files", "q": "What did we decide about the annual discount?",
+     "notfound": True, "forbid": ["20 percent", "20%"]},
+    {"id": "sc-03", "cat": "scopes", "scope": "mine", "label": "My files", "q": "What did I say in my last sync-up?",
+     "notfound": True, "forbid": ["300 requests"]},
+    {"id": "sc-04", "cat": "scopes", "q": "When do I need to renew my passport?", "expect": [["December 1", "Dec 1", "1 December"]]},
+    {"id": "sc-05", "cat": "scopes", "who": "priya", "scope": "mine", "label": "My files", "q": "What's on my personal todo list?",
+     "leak": True, "forbid": ["passport", "home loan"], "notfound": True},
+    {"id": "sc-06", "cat": "scopes", "scope": "workspace", "label": "Acme Labs", "q": "Who owns the onboarding rollout?",
+     "expect": [["Priya"]]},
+    {"id": "sc-07", "cat": "scopes", "scope": "doc:release-v23", "label": "Release checklist v2.3", "q": "Who still owes something here?",
+     "expect": [["Rohan"], ["release notes", "you"]]},
 ]

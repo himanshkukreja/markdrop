@@ -35,7 +35,7 @@ Select **Insert** on an item to add it to the page as its own line, after the li
 
 > **Decided on Oct 28, 2026** (Daily Standup): Use Stripe's hosted checkout (12:34)
 
-In View mode, **Insert** switches the page to Edit and adds the line at the end of the section you were reading, the same way [Ask Markdrop's Insert](/workspaces/ask-markdrop) does. It saves like any other change. **Insert** only appears for people who can edit the page; everyone else can still read the items, jump to the moment and ask about them.
+In View mode, **Insert** switches the page to Edit and adds the line at the end of the section you were reading, the same way [Ask's Insert](/workspaces/ask-markdrop) does. It saves like any other change. **Insert** only appears for people who can edit the page; everyone else can still read the items, jump to the moment and ask about them.
 
 Action items start with **Action item from**, open questions with **Open question from** and topics with **Discussed on**. The meeting is a [mention](/pages/embed-and-mention): readers who can open it follow it to the meeting page, and the time opens the transcript at that moment. For readers who can't open the meeting, the mention shows **Restricted item**.
 
@@ -60,14 +60,14 @@ Both are on by default and are yours alone: they follow you to every page and ev
 
 ## Ask the page with your meetings
 
-[Ask Markdrop](/workspaces/ask-markdrop) answers from your meetings too. In a workspace page, choose **✦ Ask** in the top bar (or press **⌘ J** outside the text): on **This doc**, answers use the page itself first, then the decisions, action items and transcripts of the workspace's meetings, then its other documents.
+[Ask](/workspaces/ask-markdrop) answers from your meetings too. In a workspace page, choose **✦ Ask** in the top bar (or press **⌘ J** outside the text): on **This page**, answers use the page itself first, then the decisions, action items and transcripts of the workspace's meetings, then its other documents.
 
 - Ask "When did we decide to drop the free plan?", "Why are we using Stripe?" or "What was the team working on for checkout last week?". For when, why and who questions, the answer comes from the meetings and names the meeting and its date.
 - Numbered sources open the item, and a meeting line opens the transcript at the moment.
-- **Ask about this** on an item in **From meetings** asks Ask Markdrop about that decision, action item or question: why it was decided and whether it changed, its status, whether it was answered.
+- **Ask about this** on an item in **From meetings** asks Ask about that decision, action item or question: why it was decided and whether it changed, its status, whether it was answered.
 - Switch to **Meetings** to ask only the meetings, with a series or a period.
 
-Asking on **This doc** counts towards your **AI search** limit; on **Meetings**, towards **Meetings AI**. See [AI limits](/workspaces/ask-markdrop#ai-limits).
+Asking on **This page** counts towards your **AI search** limit; on **Meetings**, towards **Meetings AI**. See [AI limits](/workspaces/ask-markdrop#ai-limits).
 
 ## Privacy
 

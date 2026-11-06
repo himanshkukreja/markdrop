@@ -123,7 +123,7 @@ def fake_answer(params: dict) -> str:
         q = user.rsplit("Search: ", 1)[-1]
         words = [w for w in re.findall(r"[A-Za-z0-9]{3,}", q)][:6]
         return json.dumps({"standalone": q, "terms": words, "titles": []})
-    if system.startswith(("You are Ask Markdrop", "You are Ask AI inside a page")):
+    if system.startswith(("You are Ask, the assistant", "You are Ask AI inside a page")):
         ns = re.findall(r'<untrusted_(?:document|task) n="(\d+)"', user)[:3]
         lines = re.findall(r"\[(\d+-s\d+)\][^\n]*", user)[:2]
         cites = " ".join(f"[{x}]" for x in [*ns, *lines])
@@ -139,6 +139,8 @@ def scope_of(spec: str | None, ws: str, meeting_ids: dict | None = None) -> dict
         return {"kind": "meetings", "workspace": ws}
     if spec == "workspace":
         return {"kind": "workspace", "workspace": ws}
+    if spec == "mine":
+        return {"kind": "mine"}
     if spec.startswith("doc:"):
         return {"kind": "doc", "page": spec[4:]}
     return {"kind": "everything"}

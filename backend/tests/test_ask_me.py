@@ -49,7 +49,7 @@ class AskMeWorld(AssistantWorld):
     async def seed_syncups(self) -> dict[str, dict]:
         return {d: await self.syncup(d) for d in SYNCUPS}
 
-    def answer_prompt(self, prefix: str = "You are Ask Markdrop") -> str:
+    def answer_prompt(self, prefix: str = "You are Ask, the assistant") -> str:
         calls = self.calls(prefix)
         self.assertTrue(calls, f"no {prefix!r} call")
         return prompt_of(calls[-1])

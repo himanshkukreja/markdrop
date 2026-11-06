@@ -189,5 +189,5 @@ With the [hosted MCP server](/ai/hosted-mcp), an AI app can check a workspace's 
 ## Related
 
 - [Meetings](/workspaces/meetings)
-- [Ask Markdrop](/workspaces/ask-markdrop)
+- [Ask](/workspaces/ask-markdrop)
 - [Members and roles](/workspaces/members-and-roles)

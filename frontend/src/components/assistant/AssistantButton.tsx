@@ -1,13 +1,13 @@
 "use client";
 
-/** "✦ Ask" in a screen's one top bar: opens (or closes) Ask Markdrop; ⌘J does the same. */
+/** "✦ Ask" in a screen's one top bar: opens (or closes) the assistant ("Ask this page" on an item); ⌘J does the same. */
 import { Icon, cx } from "@/components/ui";
 import { useAuth } from "@/contexts/AuthContext";
 import { loadAssistantPanel } from "./AssistantRoot";
 import { toggleAssistant, useAssistant } from "./store";
 import "./assistant.css";
 
-export function AssistantButton({ label = "Ask", className }: { label?: string; className?: string }) {
+export function AssistantButton({ label = "Ask", title = "Ask", className }: { label?: string; title?: string; className?: string }) {
   const { user } = useAuth();
   const { open } = useAssistant();
   if (!user) return null;
@@ -18,8 +18,9 @@ export function AssistantButton({ label = "Ask", className }: { label?: string; 
       className={cx("as-btn no-print", className)}
       aria-expanded={open}
       aria-haspopup="dialog"
+      aria-label={title !== label ? title : undefined}
       aria-keyshortcuts="Meta+J Control+J"
-      title={`Ask Markdrop (${mac ? "⌘J" : "Ctrl J"})`}
+      title={`${title} (${mac ? "⌘J" : "Ctrl J"})`}
       onPointerEnter={() => void loadAssistantPanel().catch(() => {})}
       onFocus={() => void loadAssistantPanel().catch(() => {})}
       onClick={() => toggleAssistant()}

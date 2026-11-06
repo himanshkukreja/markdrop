@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * Mounted once in the root layout: ⌘J / Ctrl+J opens (or closes) Ask Markdrop from anywhere in the app
+ * Mounted once in the root layout: ⌘J / Ctrl+J opens (or closes) Ask from anywhere in the app
  * for a signed-in person, and the panel (its own code) loads on first use. An editor's own ⌘J (Ask AI on
  * the selection) handles the key first and wins (isAssistantKey skips a handled event). Guides sites,
  * sign-in screens and marketing pages without a screen that registered itself are left alone.
@@ -17,7 +17,7 @@ export const loadAssistantPanel = () => (panelModule ??= import("./AssistantPane
   throw e;
 }));
 
-const APP = /^\/(dashboard|meetings|w|pages|recent|search|shared|requests|settings|trash)(\/|$)/;
+const APP = /^\/(dashboard|ask|meetings|w|pages|recent|search|shared|requests|settings|trash)(\/|$)/;
 
 /** Can ⌘J open the assistant on this screen? (a screen registered itself, or an app route) */
 export function assistantHere(): boolean {

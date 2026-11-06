@@ -74,7 +74,8 @@ export interface ChatTurn {
   sources: ChatSource[];
 }
 
-export interface ChatSuggestion { q: string; icon?: string }
+/** A suggested question; `label` (optional): a small topic line above it ("Sourcing"). */
+export interface ChatSuggestion { q: string; icon?: string; label?: string | null }
 
 /** A scope chip in the composer: one menu of choices ("All meetings" ▾). Its value is `scope[id]`. */
 export interface ChatScopeOption {
