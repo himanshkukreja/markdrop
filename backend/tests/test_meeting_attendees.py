@@ -228,3 +228,15 @@ class Repair(MeetingsWorld):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GeminiTitleLines(unittest.TestCase):
+    """Gemini's notes open with "📝 Notes" and a date line above the meeting's name: neither is its title."""
+
+    def test_section_labels_and_dates_are_not_titles(self):
+        from app.services import meeting_parse as mp
+        self.assertEqual(mp._first_title(["📝 Notes", "Nov 6, 2026", "Daily Syncup", "Invited Ada Bo"]), "Daily Syncup")
+        self.assertEqual(mp._first_title(["# 📖 Transcript", "2026/11/06", "Daily Syncup - Transcript"]),
+                         "Daily Syncup - Transcript")
+        self.assertEqual(mp._first_title(["Thursday, Nov 6, 2026", "Weekly product sync"]), "Weekly product sync")
+        self.assertEqual(mp._first_title(["Weekly product sync", "Ada: hi"]), "Weekly product sync")

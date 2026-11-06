@@ -990,6 +990,24 @@ def _split_tabs(text: str) -> list[tuple[str | None, list[str]]]:
     return [t for t in tabs if any(x.strip() for x in t[1])] or [(None, [])]
 
 
+# A Doc's section label, not its title: Gemini's notes open with "📝 Notes", transcripts with "📖 Transcript".
+_SECTION_TITLE = re.compile(
+    r"^(?:notes|meeting notes|notes by gemini|transcript|summary|details|suggested next steps|next steps|"
+    r"attachments|meeting records|invited|attendees)$", re.I)
+
+
+# A line that is only a date ("Nov 6, 2026", "6 Nov 2026", "2026/11/06"): Gemini puts one above the title.
+_DATE_ONLY = re.compile(
+    r"^(?:(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*,?\s+)?(?:[a-z]{3,9}\.?\s+\d{1,2},?\s+\d{4}|\d{1,2}\s+[a-z]{3,9}\.?,?\s+\d{4}|"
+    r"\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})$", re.I)
+
+
+def _section_label(text: str) -> bool:
+    if _DATE_ONLY.match(text.strip()):
+        return True
+    return bool(_SECTION_TITLE.match(re.sub(r"[^\w\s]", "", text, flags=re.UNICODE).strip()))
+
+
 def _first_title(lines: list[str]) -> str | None:
     for raw in lines[:12]:
         line = _clean_line(raw).strip()
@@ -997,7 +1015,11 @@ def _first_title(lines: list[str]) -> str | None:
             continue
         m = _HEADING.match(line)
         if m:
+            if _section_label(m.group(1)):
+                continue
             return m.group(1).strip()
+        if _section_label(line):
+            continue
         sm = _SPEAKER.match(line)
         if sm and _meta_label(sm.group("name")):
             continue    # "Organizer: …", "Date: …" above the title
