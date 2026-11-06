@@ -894,16 +894,25 @@ def task_owner(label: str | None, text: str | None = None, known: list[str] | tu
             continue
         if keys[:len(kw)] == [_wkey(w) for w in kw] and (best is None or len(kw) > len(best)):
             best = kw
-    if best and _task_words(words[len(best):]):
+    def rest_ok(rest: list[str]) -> bool:
+        # A task title: it starts with a verb ("Create navbar iteration"), or is Title Case words when
+        # the whole label can't be a name ("Shreesha Joshi Security Testing", never "Saurabh Kr. Singh").
+        return bool(rest) and rest[0][:1].isupper() and \
+            (_wkey(rest[0]) in _TASK_VERBS or (_task_words(rest) and not _person_shape(words)))
+
+    if best and rest_ok(words[len(best):]):
         return " ".join(words[:len(best)])
     if text and len(words) >= 3:
         tkeys = [_wkey(w) for w in str(text).split()[:4]]
         for n in range(min(3, len(words) - 1), 0, -1):
-            if keys[:n] == tkeys[:n] and _task_words(words[n:]):
-                # "Himanshu Kukreja Update Prompts: Himanshu will …": a first name said again, a full
-                # name in the label (a task is rarely one word when the label is 4+).
-                if n == 1 and len(words) >= 4 and name_like(" ".join(words[:2])) and _task_words(words[2:]):
-                    n = 2
+            if keys[:n] != tkeys[:n]:
+                continue
+            # "Himanshu Kukreja Update Prompts: Himanshu will …": a first name said again, a full name in
+            # the label (a task is rarely one word when the label is 4+).
+            if n == 1 and len(words) >= 4 and name_like(" ".join(words[:2])) and \
+                    _wkey(words[1]) not in _TASK_VERBS and rest_ok(words[2:]):
+                return " ".join(words[:2])
+            if rest_ok(words[n:]):
                 return " ".join(words[:n])
     return None
 

@@ -380,3 +380,153 @@ class Repair(MeetingsWorld):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ── Prod shapes (Senseloaf dry run, 2026-11-06: .work/attendee-task-names/prod-dryrun-1.txt) ──────────
+# Sync-ups whose every "turn" was a line of Gemini's notes, never marked as notes (format speaker_lines),
+# naming people who aren't on any invite (Shreesha, Rehan, Shreya, Venkat, Mayuri: names Gemini's labels
+# keep starting with), lower-case task words, first-name labels and topic headings.
+INVITE_DOC = """# Sourcing kickoff
+Nov 1, 2026
+Invited Arunprakaash G <arun@senseloaf.test>, Gautam Khurana <gautam@senseloaf.test>, Palak Jain <palak@senseloaf.test>, S Guruprasad <guru@senseloaf.test>, Jason Chad <jason@client.test>, Himanshu Kukreja <himanshu@senseloaf.test>, Prakhar Agrawal <prakhar@client.test>
+
+## Summary
+Kickoff for the sourcing model.
+
+## Details
+- Scope: the team agreed the scope.
+
+## Suggested next steps
+- [ ] Gautam Khurana Share Plan: Gautam Khurana will share the plan.
+"""
+
+
+def task(label: str, who: str, what: str) -> tuple[str, str]:
+    return label, f"{who} will {what}."
+
+
+PROD = {
+    "2026-11-03": ("Daily Syncup", [
+        task("Rehan Islam Complete Navbar", "Rehan Islam", "complete the navbar"),
+        task("Shreya Sharma Integration Blog", "Shreya", "write the integration blog"),
+        task("Gautam Khurana Review Content", "Gautam Khurana", "review the content"),
+        task("Venkat Phanindra Greenhouse Logic", "Venkat", "finish the Greenhouse logic"),
+        task("Shreesha Joshi Escalate Security", "Shreesha Joshi", "escalate the security issue"),
+        task("S Guruprasad Test Workflow", "S Guruprasad", "test the workflow"),
+        task("Bo Chen Review Designs", "Bo Chen", "review the designs")],
+        ["Rehan Islam", "Shreya Sharma", "Gautam Khurana", "Venkat Phanindra", "Shreesha Joshi", "S Guruprasad", "Bo Chen"]),
+    "2026-11-04": ("Daily Syncup", [
+        task("Rehan Islam Create navbar iteration", "Rehan", "create the next navbar iteration"),
+        task("Rehan Islam Complete integration design", "Rehan", "complete the integration design"),
+        task("Shreya Sharma Finalize page content", "Shreya", "finalize the page content"),
+        task("Venkat Phanindra Share interview recording", "Venkat", "share the interview recording"),
+        task("Shreesha Joshi Document vulnerability checks", "Shreesha", "document the vulnerability checks"),
+        task("S Guruprasad Test workflow creation", "S Guruprasad", "test workflow creation")],
+        ["Rehan Islam", "Shreya Sharma", "Venkat Phanindra", "Shreesha Joshi", "S Guruprasad"]),
+    "2026-10-30": ("Daily Syncup", [
+        task("Shreya Research Visitor Emails", "Shreya", "research the visitor emails"),
+        task("Gautam Gather Landing Page Content", "Gautam", "gather the landing page content"),
+        task("Rehan Establish Structure", "Rehan", "establish the structure"),
+        task("Arun Fix Tool Security", "Arun", "fix the tool security"),
+        task("Venkat Integrate DocuSign", "Venkat", "integrate DocuSign"),
+        task("Palak Complete Design", "Palak", "complete the design"),
+        task("Mayuri Confirm Pepco Data", "Mayuri", "confirm the Pepco data")],
+        ["Shreya Sharma", "Gautam Khurana", "Rehan Islam", "Arunprakaash G", "Venkat Phanindra", "Palak Jain", "Mayuri Pillay"]),
+    "2026-10-27": ("Sourcing Model Discussion", [
+        task("Jason Chad Test API Keys", "Jason Chad", "test the API keys"),
+        task("Himanshu Kukreja Remove Cost Display", "Himanshu", "remove the cost display"),
+        task("Gautam Khurana Adjust Reverse Contact", "Gautam Khurana", "adjust the reverse contact flow"),
+        ("Positioning Senso versus Competitors", "The group compared Senso with two competitors on price."),
+        ("Workflow Automation", "Prakhar Agrawal asked which steps of the workflow can be automated."),
+        ("Prakhar Agrawal", "Prakhar Agrawal explained how the sourcing model ranks candidates.")],
+        ["Jason Chad", "Himanshu Kukreja", "Gautam Khurana", "Prakhar Agrawal"]),
+    "2026-10-21": ("Daily Syncup", [
+        task("Venkat Phanindra Fix Trigger", "Venkat", "fix the trigger"),
+        task("S Guruprasad Test Automation", "S Guruprasad", "test the automation"),
+        task("Arunprakaash G Verify Pre-screening", "Arunprakaash G", "verify pre-screening"),
+        task("Shreesha Joshi Capture Endpoint", "Shreesha Joshi", "capture the endpoint"),
+        task("Mayuri Pillay Review Document", "Mayuri Pillay", "review the document"),
+        task("Gautam Khurana Check Issues", "Gautam Khurana", "check the issues"),
+        ("AI Assessment Endpoint Security Vulnerability", "The AI assessment endpoint had a security vulnerability."),
+        ("Standardizing Demo Flows", "The team will standardize the demo flows.")],
+        ["Venkat Phanindra", "S Guruprasad", "Arunprakaash G", "Shreesha Joshi", "Mayuri Pillay", "Gautam Khurana"]),
+    "2026-10-27b": ("Daily Syncup", [
+        task("Venkat Phanindra Add images", "Venkat", "add images"),
+        task("Mayuri Pillay Update document", "Mayuri", "update the document"),
+        task("Shreya Sharma Contact Jason", "Shreya", "contact Jason"),
+        task("Rehan Islam Explore hosting", "Rehan", "explore hosting"),
+        task("Gautam Khurana Plan release", "Gautam", "plan the release")],
+        ["Venkat Phanindra", "Mayuri Pillay", "Shreya Sharma", "Rehan Islam", "Gautam Khurana"]),
+}
+
+
+class ProdShapes(MeetingsWorld):
+    async def prod_meeting(self, day: str, title: str, turns: list[tuple[str, str]]) -> ObjectId:
+        """A meeting as prod has it: imported as a transcript, its "turns" Gemini's notes, its attendees the
+        labels (after the v2 repair), its Transcript page as Markdrop wrote it."""
+        from app.services import page_props
+
+        d = day[:10]
+        m = await self.imported(sources=[{"name": f"{title} ({d} 10:00 GMT+05:30) - Transcript",
+                                          "text": "Ada Lovelace: Hi.\nBo Chen: Hello.\n"}])
+        oid = ObjectId(m["id"])
+        row = await self.db["meetings"].find_one({"_id": oid})
+        segs = [{"speaker": lab, "t": None, "text": text} for lab, text in turns]
+        people = await meetings.people_of(self.db, row["workspace_id"])
+        att = [{"name": lab, "user_id": (people.match(lab) or {}).get("id"), "email": None} for lab, _t in turns]
+        await self.db["meetings"].update_one({"_id": oid}, {"$set": {
+            "segments": segs, "notes": None, "attendees": att, "invited": [], "attendees_from": "speakers",
+            "attendees_v": 2, "date": d, "sources": [{**row["sources"][0], "kind": "transcript", "format": "speaker_lines"}]}})
+        t = await self.doc(row["transcript_slug"])
+        await self.db["documents"].update_one({"_id": t["_id"]}, {"$set": {"content": page_props.apply(
+            meetings.transcript_markdown(segs, approx=False), {"icon": meetings.TRANSCRIPT_ICON})}})
+        return oid
+
+    async def test_prod_sync_ups_list_real_people_only(self):
+        await self.imported(sources=[{"name": "Sourcing kickoff - Notes by Gemini", "text": INVITE_DOC}])
+        ids = {day: await self.prod_meeting(day, title, turns) for day, (title, turns, _want) in PROD.items()}
+        dry = await meetings.attendees_dry_run(self.db)
+        self.assertEqual(dry["bad_after"], [])
+        self.assertEqual(dry["empty_after"], [])
+        self.assertEqual(dry["segments"].get("dropped"), len(PROD))
+        meetings._ATTENDEES["done"] = False
+        while await meetings.attendees_tick(self.db):
+            pass
+        for day, (_title, turns, want) in PROD.items():
+            row = await self.db["meetings"].find_one({"_id": ids[day]})
+            names = [a["name"] for a in row["attendees"]]
+            self.assertEqual(sorted(names), sorted(want), day)
+            self.assertEqual((row["segments"], row["attendees_from"], row.get("transcript_doc_id")), ([], "notes", None), day)
+            self.assertEqual(row["sources"][0]["kind"], "notes")
+            self.assertTrue(row["notes"]["next_steps"], day)          # the lines are the meeting's notes now
+            for n in names:
+                self.assertFalse(mp.topicish(n), n)
+        row = await self.db["meetings"].find_one({"_id": ids["2026-11-03"]})
+        self.assertEqual({a["name"]: a["user_id"] for a in row["attendees"]}["Bo Chen"], self.uid["wm"])
+        page = await self.doc(row["slug"])
+        self.assertIn(f':person[Bo Chen]{{id="{self.uid["wm"]}"}}', page["content"].split("## Attendees", 1)[1])
+        row = await self.db["meetings"].find_one({"_id": ids["2026-10-30"]})
+        self.assertEqual({a["name"]: a["email"] for a in row["attendees"]}["Arunprakaash G"], "arun@senseloaf.test")
+        # Done: nothing left, nothing changes again.
+        self.assertEqual((await meetings.attendees_dry_run(self.db))["pending"], 0)
+
+    async def test_new_import_of_unmarked_notes_is_notes(self):
+        text = "\n".join(f"{lab}: {t}" for lab, t in PROD["2026-11-04"][1])
+        s = mp.parse_source("Daily Syncup (2026-11-04 10:00 GMT+05:30) - Transcript", text)
+        self.assertEqual((s.kind, s.segments), ("notes", []))
+        self.assertEqual(len(s.notes["next_steps"]), 6)
+        m = await self.imported(sources=[{"name": "Daily Syncup (2026-11-04 10:00 GMT+05:30) - Transcript", "text": text}])
+        self.assertEqual(m["attendees_from"], "notes")
+        # A workspace that knows nobody yet: only the name its labels keep starting with (Rehan Islam); a
+        # name no one knows is never guessed (the next sync-up's import mines the others).
+        self.assertEqual([a["name"] for a in m["attendees"]], ["Rehan Islam"])
+        self.assertFalse(m.get("transcript_slug"))
+
+    async def test_new_import_in_a_workspace_that_knows_them(self):
+        await self.imported(sources=[{"name": "Sourcing kickoff - Notes by Gemini", "text": INVITE_DOC}])
+        for day in ("2026-11-03", "2026-10-21", "2026-10-27b"):
+            await self.prod_meeting(day, PROD[day][0], PROD[day][1])
+        text = "\n".join(f"{lab}: {t}" for lab, t in PROD["2026-11-04"][1])
+        m = await self.imported(sources=[{"name": "Daily Syncup (2026-11-04 10:00 GMT+05:30) - Transcript", "text": text}])
+        self.assertEqual(m["attendees_from"], "notes")
+        self.assertEqual(sorted(a["name"] for a in m["attendees"]), sorted(PROD["2026-11-04"][2]))

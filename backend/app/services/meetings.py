@@ -1172,7 +1172,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     invited = person_rows(m.invited, people, limit=200)
     attendees_from = m.attendees_from
     # Against everyone the workspace knows: no task words, no headings, and who the notes name.
-    known = row_universe({"invited": invited, "attendees": attendees, "segments": m.segments}, people,
+    known = row_universe({"invited": invited, "attendees": attendees, "segments": m.segments, "notes": m.notes}, people,
                          await people_universe(db, workspace_id, people))
     attendees = tidy_people(attendees, known, people)
     if attendees_from in ("invited", "none", "notes"):
@@ -1702,7 +1702,8 @@ def row_universe(row: dict, people: People, base: mp.Universe | None = None) -> 
     for a in [*(row.get("invited") or []), *(row.get("attendees") or [])]:
         if a.get("email") and not mp.topicish(a.get("name")):
             u.add(a)
-    for n in mp.mine_names([s.get("speaker") or "" for s in row.get("segments") or []]):
+    heads = [str(x).partition(":")[0] for x in (row.get("notes") or {}).get("next_steps") or [] if ":" in str(x)]
+    for n in mp.mine_names([*(s.get("speaker") or "" for s in row.get("segments") or []), *heads]):
         if u.owner(n)[0] is None:
             u.add({"name": n})
     return u
