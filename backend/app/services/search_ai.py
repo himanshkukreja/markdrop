@@ -56,6 +56,8 @@ EXPAND_MAX_TOKENS = 400
 ANSWER_MAX_TOKENS = 3000
 MAX_RANKED = 12
 RRF_K = 60.0
+SPECIFIC_HITS = 8          # a term ranking at most this many items counts fully; one ranking 80, about a third
+HEADS = 8                  # the best hits of that many specific terms are always kept
 
 LIMIT_MESSAGES = {**pages_ai.LIMIT_MESSAGES, "workspace_off": "AI is off for this workspace."}
 
@@ -219,6 +221,24 @@ def parse_terms(raw: str, question: str) -> list[str]:
     return out[:MAX_TERMS]
 
 
+# Words a question is phrased with that no document is about (the ranking wants every word to match).
+QUESTION_WORDS = frozenset("""still latest last current currently now recent recently please tell show give list say said
+says talk talked mention mentioned know anything everything something happen happened thing things exactly
+summarize summary explain""".split())
+
+
+def content_words(text: str | None, limit: int = 8) -> list[str]:
+    """The question's own words worth searching ("open", "q4", "roadmap"), without "what", "the", "still"."""
+    out: list[str] = []
+    for w in st.words(text or ""):
+        if (len(w) >= 3 or any(ch.isdigit() for ch in w)) and w not in st.STOPWORDS and w not in QUESTION_WORDS \
+                and w not in out:
+            out.append(w)
+            if len(out) >= limit:
+                break
+    return out
+
+
 # ── Retrieval ─────────────────────────────────────────────────────────────────
 
 
@@ -232,15 +252,32 @@ async def retrieve(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
         cands = [c for c in cands if keep(c)]
     fused: dict[str, float] = {}
     by_key: dict[str, search.Cand] = {}
+    # A whole question rarely clears the fuzzy ranking's bar ("what's still open in the Q4 Roadmap?"
+    # ranks nothing): its content words ("still open q4 roadmap") go too, right after it.
+    texts = list(texts)
+    if texts:
+        words = content_words(texts[0])
+        if words and " ".join(words) != texts[0].strip().casefold():
+            texts.insert(1, " ".join(words))
+    heads: list[str] = []
     for i, text in enumerate(texts):
         ranked = await search.rank_text(db, cands, text, q, ctx.now)
-        weight = 1.5 if i == 0 else 1.0
+        if not ranked:
+            continue
+        # Specific terms count most: a term every meeting page matches ("open", "action items": their
+        # template headings) ranks dozens of items, and fused over several such terms they would push
+        # out the one document a specific term ("Q4 roadmap") finds.
+        spec = min(1.0, SPECIFIC_HITS / len(ranked)) ** 0.5
+        weight = (1.5 if i == 0 else 1.0) * spec
         for r, c in enumerate(ranked[:80]):
             fused[c.key] = fused.get(c.key, 0.0) + weight / (RRF_K + r + 1)
             prev = by_key.get(c.key)
             if prev is None or c.score > prev.score:
                 by_key[c.key] = c
+        if spec >= 0.5 and ranked[0].key not in heads:
+            heads.append(ranked[0].key)        # each specific term's best hit is always a candidate
     order = sorted(fused, key=lambda k: -fused[k])
+    order = [*heads[:HEADS], *(k for k in order if k not in heads[:HEADS])]
     out: list[search.Cand] = []
     for k in order:
         c = by_key[k]

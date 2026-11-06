@@ -222,7 +222,9 @@ class EvalWorld(AccessWorld, AIEnv):
         answer_calls = [c for c in calls if not ("Return only JSON" in c["params"]["system"][0]["text"])]
         out["raws"] = [(prompt_of(c["params"]), c.get("raw") or "") for c in answer_calls]
         out["calls"] = [{"system": c["params"]["system"][0]["text"][:40], "usage": c.get("usage"), "ms": c.get("ms"),
-                         "stop": c.get("stop")} for c in calls]
+                         "stop": c.get("stop"),
+                         **({"raw": (c.get("raw") or "")[:600]} if "Return only JSON" in c["params"]["system"][0]["text"] else {})}
+                        for c in calls]
         return out
 
     async def run_all(self, items: list[dict], concurrency: int) -> list[dict]:

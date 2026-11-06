@@ -200,8 +200,10 @@ async def status(db: AsyncIOMotorDatabase, user_id: str | None) -> dict:
 # ── Intents ───────────────────────────────────────────────────────────────────
 
 _CATCH = re.compile(
-    r"\b(catch me up|catch up on|what did i miss|what have i missed|recap of (this|the) week|weekly recap"
-    r"|what('?s| has| have)? (happened|changed)( this week| lately| recently| since)?)\b", re.I)
+    r"\b(catch me up|catch up on|what did i miss|what have i missed|recap of (this|the) week|weekly recap)\b"
+    # "what happened / changed" alone or with a period ("… this week?"), not about something named
+    # ("what happened in the latest Daily Syncup" is a question about that meeting).
+    r"|^\s*what('?s| has| have)? (happened|changed)( this week| lately| recently| today| since [\w ]{1,20})?\s*[?.!]*\s*$", re.I)
 _ACTIONS = re.compile(
     r"\b(my (open |pending |outstanding )?(action items?|tasks?|to-?dos?)|what (do|should) i (need to |have to )?do"
     r"|on my plate|assigned to me)\b", re.I)
@@ -776,7 +778,21 @@ async def _catchup_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: a
               and not (c.kind in search.DOC_KINDS and c.raw.get("encrypted"))]
     mdocs = await _meeting_docs(db, recent)
     recent = [c for c in recent if (mdocs.get(c.key) or {}).get("role") != "transcript"]
-    recent.sort(key=lambda c: (0 if c.key in mdocs else 1, -(c.updated.timestamp() if c.updated else 0)))
+    # A meeting counts by the day it was held, not when its page was written (a backfill imports
+    # last month's meetings today): only those held in the period, newest first.
+    mids = [meetings.oid(v["meeting_id"]) for v in mdocs.values() if v.get("meeting_id")]
+    held = {str(r["_id"]): r.get("date") or "" for r in await db[meetings.COLL].find(
+        {"_id": {"$in": [m for m in mids if m is not None]}}, {"date": 1}).to_list(length=len(mids) or 1)}
+    first_day = since.date().isoformat()
+
+    def day_of(c: search.Cand) -> str:
+        md = mdocs.get(c.key)
+        return held.get(str(md.get("meeting_id")), "") if md else ""
+
+    recent = [c for c in recent if c.key not in mdocs or day_of(c) >= first_day]
+    met = sorted((c for c in recent if c.key in mdocs), key=day_of, reverse=True)
+    rest = sorted((c for c in recent if c.key not in mdocs), key=lambda c: -(c.updated.timestamp() if c.updated else 0))
+    recent = [*met, *rest]
     kept: list[search.Cand] = []
     for c in recent:
         if await search.allowed(db, w, c):
@@ -906,12 +922,50 @@ def _personal_cands(mine: "ask_me.Personal | None", uid: str, keep=None) -> list
     return res
 
 
+NAMED_MEETINGS = 3
+
+
+async def named_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w: search.World,
+                         question: str, scope: str | None, keep=None) -> list[search.Cand]:
+    """The newest meetings the question names by title or series ("the latest Daily Syncup", "yesterday's
+    standup", "the pricing review"), readable now. The word ranking can't tell forty "Daily Syncup"s
+    apart, and "latest" isn't a word any of them contains."""
+    from app.services import ask_me, meeting_scope
+
+    wss = [scope] if scope else list(w.member_ws)
+    terms = ask_me.topic_terms(question)
+    if not wss or not terms:
+        return []
+    q: dict[str, Any] = {"workspace_id": {"$in": wss}}
+    since, until = meeting_scope.dates_from(question, ctx.now.date())
+    if since:
+        q.setdefault("date", {})["$gte"] = since
+    if until:
+        q.setdefault("date", {})["$lte"] = until
+    rows = await db[meetings.COLL].find(q, {"title": 1, "series": 1, "date": 1, "doc_id": 1, "workspace_id": 1}).sort(
+        [("date", -1), ("created_at", -1)]).limit(150).to_list(length=150)
+    hits = [r for r in rows if ask_me._topical(r, terms, question)]
+    out: list[search.Cand] = []
+    for r in hits:
+        page = await meetings.readable(db, r, actor, ctx)
+        if page is None:
+            continue
+        c = search._doc_cand(page, actor.user_id)
+        if keep is None or keep(c):
+            out.append(c)
+        if len(out) >= NAMED_MEETINGS:
+            break
+    return out
+
+
 async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, standalone: str,
                        terms: list[str], scope: str | None, keep=None, *, you=None,
                        mine=None) -> tuple[list[Source], int, int]:
     q = search.Query(q=standalone, scope=scope, snippets=True)
     cands, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms], keep=keep)
     first = _personal_cands(mine, actor.user_id, keep)
+    seen_ = {c.key for c in first}
+    first += [c for c in await named_meetings(db, actor, ctx, w, standalone, scope, keep) if c.key not in seen_]
     seen = {c.key for c in first}
     cands = [*first, *(c for c in cands if c.key not in seen)][:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)

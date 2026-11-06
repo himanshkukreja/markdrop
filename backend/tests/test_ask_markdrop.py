@@ -304,7 +304,8 @@ class Cost(AskWorld):
         first = self.done(await self.ask("wm", "When do we ship the release after staging?"))
         self.done(await self.ask("wm", "and who runs the dry run?", thread_id=first["thread_id"]))
         rows = sorted(await self.ledger(), key=lambda r: r["follow_up"])
-        self.assertEqual(rows[0]["candidates"], ask_markdrop.MAX_CANDIDATES)
+        # 30 candidates; the meeting's page and its transcript, when both are found, are one source.
+        self.assertGreaterEqual(rows[0]["candidates"], ask_markdrop.MAX_CANDIDATES - 1)
         report = [{"calls": r["calls"], "input": r["usage"]["input"], "output": r["usage"]["output"],
                    "cost_usd": r["cost_usd"], "follow_up": r["follow_up"]} for r in rows]
         print("\nASK COST (30 candidates + transcript lines)", json.dumps(report))

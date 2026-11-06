@@ -50,7 +50,8 @@ export function toChat(e: AskEvent, kind: AssistantScopeKind): ChatEvent | null 
       type: "done",
       answer: e.answer,
       citations: (e.citations || []).map((c) => toCitation(c, link)),
-      sources: (e.ranked || []).slice(0, 8).map((it) => toSource(it as never, link)),
+      // No ranking in done (an answer from the account alone, a fixed reply): keep the streamed sources.
+      sources: e.ranked && e.ranked.length ? e.ranked.slice(0, 8).map((it) => toSource(it as never, link)) : undefined,
       note: e.scope?.label ?? null,
       threadId: e.thread_id ?? undefined,
     };
