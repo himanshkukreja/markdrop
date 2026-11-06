@@ -40,6 +40,8 @@
       "POST /api/v1/me/digest/off",
       "GET /api/v1/me/mentions/off",
       "POST /api/v1/me/mentions/off",
+      "GET /api/v1/me/emails/less",
+      "POST /api/v1/me/emails/less",
       "POST /api/v1/documents/{slug}/lock/release",
       "GET /api/v1/documents/{slug}/export/download",
       "POST /api/v1/docs-sites/{site_id}/pages/{page_id}/ai/transform",
@@ -859,7 +861,8 @@
     },
     "GET /api/v1/notifications/unread-count": {
       "title": "Count unread notifications",
-      "description": "How many of your notifications are unread."
+      "description": "How many of your notifications are unread. The bell calls this while Markdrop is open in a visible tab, so it also counts as having seen what came before (no email about it).",
+      "paramNotes": { "tz": "Your IANA time zone, such as `Europe/Berlin`. The daily email digest goes at 8:00 there." }
     },
     "POST /api/v1/notifications/read": {
       "title": "Mark notifications read",
@@ -1246,8 +1249,8 @@
       "title": "Set email preferences",
       "slug": "set-the-weekly-email",
       "group": "analytics",
-      "description": "Turns the weekly analytics email (`analytics_digest`) and the emails about mentions and sign-off requests (`mention_emails`) on or off. Send either or both.",
-      "example": { "analytics_digest": "off" },
+      "description": "Sets the weekly analytics email (`analytics_digest`) and how often you're emailed about mentions and sign-off requests (`email_notify`: `mention` and `signoff_requested`, each `instant`, `hourly`, `daily` or `off`). `tz` is your IANA time zone for the daily digest. `mention_emails: false` still turns both kinds off, and `true` brings back the defaults. Send any of them; the response has all of them.",
+      "example": { "email_notify": { "mention": "daily" }, "tz": "Europe/Berlin" },
       "guide": { "label": "Weekly email", "href": "/analytics/weekly-email" }
     },
 

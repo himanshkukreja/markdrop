@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-05"
+    "x-markdrop-exported": "2026-11-06"
   },
   "paths": {
     "/api/v1/trash": {
@@ -7234,7 +7234,7 @@
           "creator-analytics"
         ],
         "summary": "Update Preferences",
-        "description": "Account preferences: ``analytics_digest`` \"weekly\" | \"off\", and\n``mention_emails`` (bool; services/notifications.py). Either or both.",
+        "description": "Account preferences: ``analytics_digest`` \"weekly\" | \"off\"; how often notification email\ncomes, per kind (``email_notify``: ``{mention, signoff_requested}`` → instant | hourly | daily |\noff; services/notifications.py); the old switch ``mention_emails`` (bool: off turns both off,\non brings back the defaults); ``tz`` (the browser's timezone, for the daily digest). Any of them.",
         "operationId": "update_preferences_api_v1_me_preferences_patch",
         "requestBody": {
           "content": {
@@ -7836,13 +7836,43 @@
           "notifications"
         ],
         "summary": "Unread Count",
+        "description": "The bell polls this only while a tab is visible: the person has seen what came before\n(no email about it), and ``tz`` (their IANA zone) times the daily digest.",
         "operationId": "unread_count_api_v1_notifications_unread_count_get",
+        "parameters": [
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 64
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Tz"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
               }
             }
           }
@@ -7998,6 +8028,103 @@
         ],
         "summary": "Mentions Off",
         "operationId": "mentions_off_api_v1_me_mentions_off_post",
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "T"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "none",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/emails/less": {
+      "get": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Email Less Page",
+        "description": "Asks first, like the turn-off link: a mail scanner opening it changes nothing.",
+        "operationId": "email_less_page_api_v1_me_emails_less_get",
+        "parameters": [
+          {
+            "name": "t",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "",
+              "title": "T"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "none",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "post": {
+        "tags": [
+          "notifications"
+        ],
+        "summary": "Email Less",
+        "operationId": "email_less_api_v1_me_emails_less_post",
         "parameters": [
           {
             "name": "t",
@@ -20254,6 +20381,46 @@
         ],
         "title": "EditorSwitchRequest"
       },
+      "EmailNotifyUpdate": {
+        "properties": {
+          "mention": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "instant",
+                  "hourly",
+                  "daily",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mention"
+          },
+          "signoff_requested": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "instant",
+                  "hourly",
+                  "daily",
+                  "off"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signoff Requested"
+          }
+        },
+        "type": "object",
+        "title": "EmailNotifyUpdate"
+      },
       "EmailRequest": {
         "properties": {
           "email": {
@@ -22548,11 +22715,33 @@
               }
             ],
             "title": "Mention Emails"
+          },
+          "email_notify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EmailNotifyUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tz": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tz"
           }
         },
         "type": "object",
         "title": "PreferencesUpdate",
-        "description": "Either or both; what's left out is unchanged."
+        "description": "Any of these; what's left out is unchanged. ``tz``: the browser's IANA timezone (the daily\ndigest goes at 08:00 there)."
       },
       "Prefs": {
         "properties": {
@@ -24458,6 +24647,19 @@
             "type": "boolean",
             "title": "Mention Emails",
             "default": true
+          },
+          "email_notify": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "instant",
+                "hourly",
+                "daily",
+                "off"
+              ]
+            },
+            "type": "object",
+            "title": "Email Notify"
           }
         },
         "type": "object",
