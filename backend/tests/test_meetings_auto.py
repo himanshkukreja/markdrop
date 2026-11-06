@@ -157,7 +157,7 @@ class ScriptStatus(AutoWorld):
         self.assertEqual((sc["version"], sc["found"], sc["sent"], sc["mode"]), (4, 0, 0, "run"))
         # Nothing waits, and it didn't say whether it searches shared drives.
         self.assertEqual((sc["remaining"], sc["shared_drives"], sc["drive_api_url"]), (0, None, None))
-        self.assertEqual(sc["skipped"], {"already_sent": 0, "too_old": 0, "not_yours": 14, "title": 3, "writing": 0})
+        self.assertEqual(sc["skipped"], {"already_sent": 0, "too_old": 0, "not_yours": 14, "title": 3, "writing": 0, "not_ready": 0})
         self.assertEqual(sc["errors"], [{"title": "X - Transcript", "error": "Could not read it"}])
         self.assertTrue(sc["ran_at"] and sc["started_at"])
         # A teammate sees the same line on the owner's connection.

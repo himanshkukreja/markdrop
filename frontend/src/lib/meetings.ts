@@ -15,6 +15,8 @@
  *   GET    /api/v1/meetings/connection?workspace=  Connect Google Meet: mine, and others sending here
  *   POST   /api/v1/meetings/connection    {workspace, restricted} → the script (with its token), once
  *   DELETE /api/v1/meetings/connection    Disconnect (the script's token stops working)
+ *   PUT    /api/v1/meetings/connection/check-now  {url | null}: the script's web app (Check now on / off)
+ *   POST   /api/v1/meetings/check-now     {workspace} → the connected scripts run now → {message, …}
  *   (POST  /api/v1/meetings/inbox is the script's; services/meetings_inbox.py)
  *
  * Signed-in members only; every meeting is decided on its page by the server. Kept out of lib/api.ts
@@ -103,6 +105,9 @@ export interface MeetConnection {
   attached: number;
   duplicates: number;
   ignored: number;
+  /** v4: meetings that took newer content from a Doc sent again; Docs Google hadn't filled in yet. */
+  updated?: number;
+  not_ready?: number;
   last_error: string | null;
   prefix: string | null;
   /** The script also sends meetings shared with this person (organized by someone else). */
@@ -113,9 +118,11 @@ export interface MeetConnection {
   latest_script_version?: number;
   /** The installed script is older than the one Markdrop hands out now: get the new one. */
   needs_update?: boolean;
+  /** "Check for new meetings": the script's web app is set (never its address), and the last check. */
+  check_now?: { ready: boolean; last_at: string | null; last: Partial<CheckNowConn> | null };
 }
 
-export type MeetSkipReason = "already_sent" | "too_old" | "not_yours" | "title" | "writing";
+export type MeetSkipReason = "already_sent" | "too_old" | "not_yours" | "title" | "writing" | "not_ready";
 
 export interface MeetScriptRun {
   version: number | null;
@@ -125,7 +132,7 @@ export interface MeetScriptRun {
   include_shared: boolean | null;
   found: number;
   sent: number;
-  results: Partial<Record<"imported" | "attached" | "duplicate" | "ignored", number>>;
+  results: Partial<Record<"imported" | "attached" | "duplicate" | "ignored" | "updated" | "not_ready", number>>;
   skipped: Partial<Record<MeetSkipReason, number>>;
   errors: { title: string; error: string }[];
   search: string | null;
@@ -152,6 +159,50 @@ export function connectGoogleMeet(body: { workspace: string; restricted?: boolea
 
 export function disconnectGoogleMeet() {
   return request<{ disconnected: boolean }>(`/api/v1/meetings/connection`, { method: "DELETE" });
+}
+
+/** One connected script's answer to "Check for new meetings". */
+export interface CheckNowConn {
+  connected_by: { id: string; name: string | null };
+  mine: boolean;
+  ok: boolean;
+  error?: string;
+  message?: string;
+  found?: number;
+  sent?: number;
+  imported: number;
+  attached: number;
+  updated: number;
+  not_ready: number;
+  writing: number;
+  remaining: number;
+}
+
+export interface CheckNowResult {
+  ok: boolean;
+  message: string;
+  checked: number;
+  failed: number;
+  not_set_up: number;
+  imported: number;
+  attached: number;
+  updated: number;
+  not_ready: number;
+  writing: number;
+  remaining: number;
+  connections: CheckNowConn[];
+}
+
+/** Turn "Check for new meetings" on (the script's Web app URL) or off (null), for your connection. */
+export function setCheckNow(url: string | null) {
+  return request<{ connection: MeetConnection }>(`/api/v1/meetings/connection/check-now`,
+    { method: "PUT", body: JSON.stringify({ url }) });
+}
+
+/** "Check for new meetings": the workspace's scripts run now (waits up to about a minute and a half).
+ *  409 not_connected / not_set_up and 429 too_soon carry {error, message}. */
+export function checkMeetingsNow(workspace: string) {
+  return request<CheckNowResult>(`/api/v1/meetings/check-now`, { method: "POST", body: JSON.stringify({ workspace }) });
 }
 
 export interface HiddenMeeting { id: string; date: string | null; restricted: true; redacted: true; can_delete: true }
