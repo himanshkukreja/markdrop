@@ -1,5 +1,5 @@
 /**
- * Markdrop · Google Meet auto-import (script version 3)
+ * Markdrop · Google Meet auto-import (script version 4)
  *
  * Sends the Google Meet transcripts and Gemini meeting notes you can open in Google Drive to
  * Markdrop, which turns each call into a page in the Meetings folder of "{{WORKSPACE_NAME}}".
