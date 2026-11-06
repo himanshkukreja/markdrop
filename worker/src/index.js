@@ -1322,7 +1322,7 @@ function pptxViewer(src, theme, at = 0, fn = null) {
   .th{display:flex;align-items:flex-start;gap:6px;width:100%;padding:4px;border:0;border-radius:var(--r-lg);
     background:none;cursor:pointer;color:var(--text-muted);font:600 11px/16px var(--sans);text-align:right}
   .th-n{flex:none;width:18px;padding-top:2px;font-variant-numeric:tabular-nums}
-  .th-frame{flex:1;min-width:0;display:block;border-radius:3px;overflow:hidden;outline:1px solid var(--border);
+  .th-frame{flex:1;min-width:0;display:block;border-radius:3px;overflow:hidden;outline:1px solid var(--border);text-align:left;
     background:#fff;aspect-ratio:var(--ratio, 16 / 9)}
   .th:hover .th-frame{outline-color:var(--border-strong)}
   .th[aria-current=true]{color:var(--accent-text)}
@@ -1342,9 +1342,9 @@ function pptxViewer(src, theme, at = 0, fn = null) {
   .sl-error{max-width:480px;margin:48px auto;padding:0 16px;text-align:center;color:var(--text-secondary);font-size:15px;line-height:24px}
   .sl-error .btn{display:inline-flex;margin-top:8px;color:var(--accent-text)}
   /* A slide: paper in both themes, sized in slide-width units so it reads the same at any size. */
-  .sl-paper{position:relative;margin:0 auto;padding:4.5cqw 5cqw;aspect-ratio:var(--ratio, 16 / 9);background:#fff;color:#1f2937;
+  .sl-paper{display:flex;flex-direction:column;margin:0 auto;aspect-ratio:var(--ratio, 16 / 9);background:#fff;color:#1f2937;
     border-radius:4px;box-shadow:var(--shadow-page);container:slide / inline-size;overflow-wrap:anywhere;color-scheme:light}
-  .stage .sl-paper{container-type:inline-size}
+  .sl-in{position:relative;flex:1;display:flex;flex-direction:column;padding:4.5cqw 5cqw}
   .sl-row{display:flex;flex-direction:column;align-items:stretch;gap:3cqw;margin:0 0 2.6cqw}
   .sl-row:last-child{margin-bottom:0}
   .sl-cols{flex-direction:row;align-items:flex-start}
@@ -1358,14 +1358,14 @@ function pptxViewer(src, theme, at = 0, fn = null) {
   .sl-bu{flex:none;min-width:.6em;color:#64748b}
   .sl-tx{min-width:0}
   .sl-p a{color:#1d4ed8;text-decoration:underline;text-underline-offset:2px}
-  .sl-image{display:flex;justify-content:center}
+  .sl-k-image{display:flex;justify-content:center}
   .sl-img{display:block;width:min(100%, calc(var(--w, 100) * 1cqw));height:auto;max-height:80cqw;object-fit:contain;background:#f1f5f9}
   .sl-img[src]{background:none}
   .sl-table{border-collapse:collapse;width:100%}
   .sl-table th,.sl-table td{border:1px solid #cbd5e1;padding:.8cqw 1.2cqw;text-align:left;vertical-align:top}
   .sl-table th{background:#f1f5f9}
   .sl-table th .sl-p{font-weight:600}
-  .sl-table .sl-p{--fs:1.9;margin-bottom:.2em}
+  .sl-table .sl-p{margin-bottom:.2em}
   .sl-missing{display:flex;align-items:center;justify-content:center;min-height:9cqw;padding:2cqw;border:1px dashed #94a3b8;
     border-radius:6px;color:#475569;font-size:max(var(--min, 0px), 1.7cqw);text-align:center}
   .stage .sl-missing{--min:13px}
@@ -1374,7 +1374,10 @@ function pptxViewer(src, theme, at = 0, fn = null) {
   .stage .sl-empty{--min:14px}
   .sl-flag{position:absolute;top:1.6cqw;right:1.6cqw;padding:.3cqw 1cqw;border-radius:999px;background:#f1f5f9;
     color:#475569;font:600 max(11px, 1.3cqw)/1.4 var(--sans)}
-  @container slide (max-width:520px){.sl-cols{flex-direction:column;align-items:stretch}}
+  .sl-center{justify-content:center;text-align:center}
+  .sl-center .sl-li{justify-content:center}
+  /* A phone's slide: columns one under the other (a thumbnail keeps the slide's own layout). */
+  @container slide (max-width:520px){.stage .sl-cols{flex-direction:column;align-items:stretch}.stage .sl-cols .sl-img{width:100%}}
   @media (max-width:899px){.thumbs{display:none}}
   @media (max-width:520px){.stage{padding:12px}.notes{padding:12px 16px}}`;
   const cfg = JSON.stringify({ src, at: Number(at) || 0, download }).replace(/</g, "\\u003c");

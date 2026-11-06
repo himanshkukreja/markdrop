@@ -721,6 +721,7 @@ export function pptxUi(lib, cfg) {
   function fsFor(item, para) {
     var widthPt = deck.width * PT_PER_EMU;
     if (para.sz) return Math.max(1.1, Math.min(9, (para.sz / widthPt) * 100));
+    if (item.role === "cell") return 1.8;
     if (item.role === "title") return item.centered ? 5.2 : 3.9;
     if (item.role === "subtitle") return 2.6;
     return para.lvl > 0 ? 2.1 : 2.4;
@@ -762,7 +763,7 @@ export function pptxUi(lib, cfg) {
   }
 
   function itemEl(item, thumb) {
-    var box = h("div", "sl-item sl-" + item.kind + (item.role ? " sl-" + item.role : ""));
+    var box = h("div", "sl-item sl-k-" + item.kind + (item.role ? " sl-" + item.role : ""));
     if (item.box && deck.width) box.style.setProperty("--w", Math.max(8, Math.min(100, (item.box.cx / deck.width) * 100)).toFixed(2));
     if (item.kind === "text") {
       var heading = item.role === "title";
@@ -799,20 +800,26 @@ export function pptxUi(lib, cfg) {
   }
 
   function slideEl(s, thumb) {
+    // The paper is the size container; its content box (.sl-in) is measured against it, so padding
+    // and type scale with the slide, in the big view and in a thumbnail alike.
     var el = h("div", "sl-paper");
     el.style.setProperty("--ratio", deck.width + " / " + deck.height);
     el.style.setProperty("--r", (deck.width / deck.height).toFixed(4));
-    if (s.hidden && !thumb) el.appendChild(h("span", "sl-flag", "Hidden slide"));
+    var inner = h("div", "sl-in");
+    // A title slide (a centred title): its title and subtitle centred on the slide, as presented.
+    if (s.rows.some(function (r) { return r.some(function (it) { return it.centered; }); })) inner.classList.add("sl-center");
+    el.appendChild(inner);
+    if (s.hidden && !thumb) inner.appendChild(h("span", "sl-flag", "Hidden slide"));
     if (s.missing) {
-      el.appendChild(h("p", "sl-empty", "This slide is missing from the file."));
+      inner.appendChild(h("p", "sl-empty", "This slide is missing from the file."));
       return el;
     }
     s.rows.forEach(function (row) {
       var r = h("div", "sl-row" + (row.length > 1 ? " sl-cols" : ""));
       row.forEach(function (item) { r.appendChild(itemEl(item, thumb)); });
-      el.appendChild(r);
+      inner.appendChild(r);
     });
-    if (!s.rows.length) el.appendChild(h("p", "sl-empty", "This slide has no text or pictures this viewer can show."));
+    if (!s.rows.length) inner.appendChild(h("p", "sl-empty", "This slide has no text or pictures this viewer can show."));
     return el;
   }
 
