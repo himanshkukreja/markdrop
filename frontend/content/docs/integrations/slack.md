@@ -1,8 +1,8 @@
 ---
 title: Slack
-description: Post meeting notes with Done buttons to a channel, search and ask Markdrop from Slack, preview links, and get mentions and requests as direct messages.
+description: Post meeting notes with Done buttons to a channel, search and ask Markdrop from Slack, preview links, and turn on Slack notifications for mentions and requests.
 updated: 2026-11-06
-keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack]
+keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, slack notifications, get notifications in slack, turn on, turn off, off by default, opt in, found by email, users:read.email, update permissions, update markdrop for slack, look again, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack]
 ---
 
 Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It does four things:
@@ -10,7 +10,7 @@ Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It do
 - **Meeting notes in a channel.** When a meeting's summary is ready, its decisions and action items are posted to the channel you choose. Each action item has a **Done** button that ticks it on the Markdrop page.
 - **`/markdrop search` and `/markdrop ask`.** Find documents, pages and files, or get an answer with sources. Only you see the reply, and it uses only what you can open in Markdrop.
 - **Link previews.** Markdrop links show a preview when everyone in the channel may open them.
-- **Direct messages** for mentions, sign-off requests, shares and access requests. You can approve or decline an access request, or sign off, right in Slack.
+- **Slack notifications**: direct messages for mentions, sign-off requests, shares and access requests, for people who turn them on. You can approve or decline an access request, or sign off, right in Slack.
 
 ## Connect a Slack workspace
 
@@ -46,6 +46,8 @@ The **Meetings channel** list has the Slack workspace's public channels, marked 
 
 If the card says **Slack's connection broke** (someone removed the app's access in Slack, for example), select **Disconnect Slack…**, then **Add to Slack** again.
 
+If the card says **Update Markdrop for Slack**, the workspace was connected before Markdrop could find people in Slack by their email, which needs two more Slack permissions. An admin selects **Update permissions**, and Slack asks to allow them. Nothing else changes: the channel, the links and the settings stay. Until then, people [link their Slack account](#link-your-slack-account) to get [Slack notifications](#slack-notifications). Updating also finds everyone who had already turned them on.
+
 ![The Slack card when connected: the Slack workspace, who connected it and when, how many people linked their account, the Meetings channel picker set to #meetings, Post new meetings automatically, and Disconnect Slack.](/docs-assets/integrations/slack/card-connected.webp)
 
 ## Link your Slack account
@@ -58,6 +60,8 @@ Markdrop answers you in Slack as your Markdrop account, so it needs to know who 
 Slack then asks you to confirm who you are (Sign in with Slack). Markdrop keeps no Slack password or token for you. Once linked, the card says **Linked as** your Slack name. To undo it, select **Unlink** in the same place, or type `/markdrop unlink`.
 
 Until you link, `/markdrop` answers with a **Link my Markdrop account** button instead of results, and so do **Done**, **Approve** and sign-off buttons.
+
+You don't need to link for [Slack notifications](#slack-notifications): turning them on finds you by your email. Being linked doesn't turn them on either.
 
 ## Meeting notes and Done
 
@@ -123,9 +127,9 @@ For anything else, the preview just says **Markdrop link — sign in to view**, 
 
 ![Illustration of link previews under a message: a markdrop.in page shows its title, a line of text, its kind, workspace and last update; a link the channel may not open shows only Markdrop link — sign in to view.](/docs-assets/integrations/slack/illustration-unfurl.webp)
 
-## Direct messages
+## Slack notifications
 
-Once your account is linked, Markdrop sends you a direct message when:
+Markdrop can send you a direct message in Slack, from the Markdrop app, when:
 
 - someone **mentions** you on a page (**Mentions**), with the line you were mentioned in and **Open in Markdrop**. Mentions in [meeting notes](/workspaces/meetings#what-the-meeting-page-holds) don't send one;
 - someone asks for your **sign-off** (**Sign-off requests**). Choose an option from the message;
@@ -134,7 +138,32 @@ Once your account is linked, Markdrop sends you a direct message when:
 
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
 
-Turn each kind on or off in **Workspace settings** › **Integrations** › **Your Slack account** › **Direct messages from Markdrop**. All four are on when you link. The bell and email notifications don't change. Mentions and sign-off requests wait a minute before they go, so a mention [removed within a minute](/pages/mentions-and-notifications#take-a-mention-back) never reaches you. If you lose access to something, or the mention is taken out, before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
+### Turn them on
+
+Slack notifications are **off** until you turn them on, even if your Slack account is linked. Only you can turn on your own.
+
+1. Open **Settings** › **Account**. The **Slack notifications** card appears once a workspace you're in is connected to Slack.
+2. Turn on **Get notifications in Slack**.
+
+Markdrop looks you up in each Slack workspace connected to one of your Markdrop workspaces, by your Markdrop sign-in email. It looks up only your own email. Each Slack workspace then shows **Found**, with your Slack name, or **Not found**:
+
+| It says | What to do |
+| --- | --- |
+| "No one in *Slack workspace* uses *your email*." | Your Slack account uses another email. Select **Link my Slack account** to sign in with Slack instead. |
+| "Markdrop for Slack in *Slack workspace* needs an update…" | Ask a workspace admin to select **Update permissions** on the workspace's **Integrations** tab, or link your Slack account. |
+| "Your Slack account in *Slack workspace* is linked to another Markdrop account." | Link it here with **Link my Slack account**, or type `/markdrop unlink` in Slack first. |
+
+![The Slack notifications card in Settings › Account: Get notifications in Slack is on, Acme Slack shows Found as Ben in Slack (by your email), and Message me when lists Mentions, Sign-off requests, Shared with you and Access requests, all on.](/docs-assets/integrations/slack/notifications-card.webp)
+
+**Look again** searches once more, for example after you change your email in Slack. The bell also offers them: when a mention or a sign-off request is in the list, a **Get these in Slack** row with **Turn on** may show at the top (not while the [push notification](/pages/mentions-and-notifications#push-notifications) row is showing). **Not now** hides it on that device.
+
+If you linked your Slack account before Slack notifications were opt-in (November 2026), yours stay on until you turn them off.
+
+### Choose which ones, or turn them off
+
+Once they're on, turn each kind on or off under **Message me when** on the same card. All four start on. To stop them all, turn off **Get notifications in Slack**, or select **Turn off** at the bottom of any message (it opens that card). Your Slack account stays linked for `/markdrop`.
+
+The bell doesn't change. A Slack message counts like a push notification for [email](/pages/mentions-and-notifications#the-app-comes-first): what reached you in Slack isn't emailed. Mentions and sign-off requests wait a minute before they go, so a mention [removed within a minute](/pages/mentions-and-notifications#take-a-mention-back) never reaches you. If you lose access to something, or the mention is taken out, before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
 
 ![Illustration of a direct message: Alex Chen mentioned you in Release notes 2.4, with the line and Open in Markdrop.](/docs-assets/integrations/slack/illustration-dm-mention.webp)
 
@@ -147,15 +176,15 @@ An admin selects **Disconnect Slack…** on the **Integrations** tab. You can al
 ## What Markdrop keeps
 
 - The Slack workspace's name and its app token. The token is encrypted.
-- Who linked which Slack account.
+- Who linked which Slack account, and how (found by email, or Sign in with Slack).
 - The meetings channel.
-- Each person's direct-message choices.
+- Each person's Slack notification choices: on or off, and which kinds.
 
 It doesn't read your channels. It only sees messages that contain a markdrop.in link, and only the link itself.
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can check a workspace's Slack connection with `slack_status` (connected or not, the meetings channel, whether new meetings are posted, and whether your own account is linked) and post a meeting with `post_meeting_to_slack`, with the same rules as **Post to Slack**. Connecting Slack, choosing the channel and linking your account stay on the website, because they go through Slack's own screens. See [MCP tools](/ai/tools).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can check a workspace's Slack connection with `slack_status` (connected or not, the meetings channel, whether new meetings are posted, whether your own account is linked, and whether your Slack notifications are on) and post a meeting with `post_meeting_to_slack`, with the same rules as **Post to Slack**. Connecting Slack, choosing the channel, linking your account and turning on Slack notifications stay on the website, because they go through Slack's own screens. See [MCP tools](/ai/tools).
 
 ## Related
 

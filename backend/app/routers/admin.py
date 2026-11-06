@@ -1,25 +1,33 @@
-"""Admin API — JWT-protected endpoints for managing all documents.
+"""Admin API — the endpoints behind markdrop.in/admin.
 
-Authentication flow
--------------------
-1. POST /api/v1/admin/login  { username, password }
-   → returns { token, expires_at }  (token is a signed JWT, valid 24 h)
+Who may call them
+-----------------
+The owner's own Markdrop account, signed in on markdrop.in. There is no admin username or password
+(retired 2026-11-06). `require_admin` takes the app's ordinary session (the same bearer token every
+signed-in route takes) and opens the console when:
 
-2. All other admin endpoints require:
-   Authorization: Bearer <token>
+- it is a full session signed in on markdrop.in: not an API token (mdk_…), not a custom domain's
+  tenant token, not the copy handed to Markdrop Guides' studio host (`via: "studio"`);
+- the account's email is in MARKDROP_ADMIN_EMAILS (comma-separated, case-insensitive, exact;
+  default kukreja.him@gmail.com) and the account isn't disabled. Accounts exist only through a
+  verified sign-in (Google with a verified address, or an emailed code/link), so the address is
+  the verified one;
+- it was signed in within MARKDROP_ADMIN_SESSION_MAX_AGE_DAYS (default 7, of the session's 30).
+  An older one gets 401 and the console sends the owner through sign-in again.
 
-Security notes
---------------
-- Username and password are compared with secrets.compare_digest to prevent
-  timing attacks.
-- The JWT is signed with MARKDROP_ADMIN_SECRET (HS256). Set this to a long
-  random value in production.
-- Admin update bypasses the per-document edit_secret — only the JWT is checked.
-- Rate limit on login: 5 requests / minute per IP (brute-force mitigation).
+Anyone else signed in gets 404 Not Found, the same as a route that doesn't exist; no session (or an
+expired one) gets the app's usual 401. The decision is made here, on the server, on every request.
+Bearer tokens in a header (never a cookie, never a query parameter) are the app's CSRF defence, and
+the console uses the same. Every admin access, and every refused attempt by a signed-in account, is
+counted in `admin_access_log` beside the moderation actions (one `action: "access"` row per account,
+ip hash, outcome and UTC day); moderation rows name the admin and their ip hash too.
+
+Break-glass (no web route, by the owner's decision): on the API server,
+`python -m scripts.admin_access session <allowlisted email>` mints a short-lived session (logged as
+`break_glass`); `status` and `log` show who may get in and who did. See backend/scripts/admin_access.py.
 """
 
 import math
-import secrets
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -31,6 +39,8 @@ from pydantic import BaseModel, Field
 from app.config import get_settings
 from app.database import get_database
 from app.limiter import limiter  # shared slowapi limiter
+from app.utils.auth import decode_access_token, session_issued_at
+from app.utils.net import get_client_ip
 from app.schemas.auth import (
     AudiencePreviewRequest,
     AudiencePreviewResponse,
@@ -43,7 +53,7 @@ from app.schemas.auth import (
     RenderedSample,
 )
 from app.schemas.document import MAX_CONTENT
-from app.services import artifact, campaign, mailer
+from app.services import ai_usage, api_token, artifact, campaign, mailer, oauth_server
 from app.services import feedback as feedback_service
 
 settings = get_settings()
@@ -55,14 +65,10 @@ BASE_URL = "https://markdrop.in"
 # ── Pydantic schemas ─────────────────────────────────────────────────────────
 
 
-class AdminLoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-class AdminLoginResponse(BaseModel):
-    token: str
-    expires_at: datetime
+class AdminSessionResponse(BaseModel):
+    email: str
+    name: str | None = None
+    picture: str | None = None
 
 
 class AdminDocListItem(BaseModel):
@@ -222,30 +228,79 @@ def get_db() -> AsyncIOMotorDatabase:
     return get_database()
 
 
-def _make_token() -> tuple[str, datetime]:
-    """Return (signed JWT, expiry datetime)."""
-    exp = datetime.now(timezone.utc) + timedelta(hours=24)
-    payload = {"sub": settings.admin_username, "exp": exp}
-    token = jwt.encode(payload, settings.admin_secret, algorithm="HS256")
-    return token, exp
+# ── The admin guard ───────────────────────────────────────────────────────────
+
+ACCESS_LOG = "admin_access_log"
+_NOT_FOUND = HTTPException(status_code=404, detail="Not Found")
 
 
-def _verify_token(token: str) -> dict:
-    """Decode and validate the JWT. Raises HTTP 401 on any failure."""
+def _is_disabled(raw: dict) -> bool:
+    """A disabled account. Markdrop has no switch for this yet; a `disabled` flag or `disabled_at` /
+    `deleted_at` stamp set on the user row by hand closes the console to it at once."""
+    return bool(raw.get("disabled") or raw.get("disabled_at") or raw.get("deleted_at"))
+
+
+async def _log_access(db: AsyncIOMotorDatabase, email: str, user_id: str, ip_hash: str | None,
+                      outcome: str, path: str) -> None:
+    """Console access, in the moderation audit log (`admin_access_log`): one `action: "access"` row
+    per (account, ip hash, outcome, UTC day) with first and last time and a count."""
+    now = datetime.now(timezone.utc)
+    key = {"action": "access", "email": email, "user_id": user_id, "ip_hash": ip_hash,
+           "outcome": outcome, "day": now.strftime("%Y-%m-%d")}
     try:
-        return jwt.decode(token, settings.admin_secret, algorithms=["HS256"])
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Admin token expired — please log in again")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid admin token")
+        await db[ACCESS_LOG].update_one(
+            key,
+            {"$setOnInsert": {"first_at": now}, "$set": {"last_at": now, "last_path": path}, "$inc": {"count": 1}},
+            upsert=True,
+        )
+    except Exception:  # the log never decides access
+        pass
 
 
-async def require_admin(request: Request) -> dict:
-    """FastAPI dependency — validates Bearer token and returns the payload."""
+def _audit_row(admin: dict, slug: str, action: str) -> dict:
+    """A moderation action (read, update, delete of one document): what, when, who, from where."""
+    return {"slug": slug, "action": action, "ts": datetime.now(timezone.utc),
+            "admin": admin.get("email"), "ip_hash": admin.get("ip_hash")}
+
+
+async def require_admin(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)) -> dict:
+    """FastAPI dependency: the signed-in admin, as {sub, email, user_id, name}. See the module doc."""
     auth = request.headers.get("Authorization", "")
-    if not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing admin token")
-    return _verify_token(auth.removeprefix("Bearer ").strip())
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    if token.startswith((api_token.TOKEN_PREFIX, oauth_server.ACCESS_PREFIX)):
+        # API tokens (CLI, VS Code) and MCP connector tokens never open the console, valid or not.
+        raise _NOT_FOUND
+    try:
+        payload = decode_access_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired — please log in again")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid session token")
+    if payload.get("typ") != "access" or payload.get("via"):
+        # A custom domain's tenant token, the studio host's session, or any other token signed with
+        # the auth secret (OAuth state, tickets): only a session signed in on markdrop.in counts.
+        raise _NOT_FOUND
+    uid = str(payload.get("sub") or "")
+    raw = await db["users"].find_one({"_id": ObjectId(uid)}) if ObjectId.is_valid(uid) else None
+    if raw is None:
+        raise HTTPException(status_code=401, detail="User no longer exists")
+    email = str(raw.get("email") or "").strip().lower()
+    ip_hash = ai_usage.hash_ip(get_client_ip(request))
+    path = request.url.path
+    if not email or email not in settings.admin_email_set or _is_disabled(raw):
+        await _log_access(db, email, uid, ip_hash, "denied", path)
+        raise _NOT_FOUND
+    max_age = settings.admin_session_max_age_days
+    issued = session_issued_at(payload)
+    if max_age > 0 and (issued is None or datetime.now(timezone.utc) - issued > timedelta(days=max_age)):
+        await _log_access(db, email, uid, ip_hash, "reauth", path)
+        raise HTTPException(status_code=401, detail="Sign in again to open the admin console.",
+                            headers={"X-Admin-Reauth": "1"})
+    await _log_access(db, email, uid, ip_hash, "ok", path)
+    return {"sub": email, "email": email, "user_id": uid, "ip_hash": ip_hash,
+            "name": raw.get("name"), "picture": raw.get("picture")}
 
 
 def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem:
@@ -316,16 +371,12 @@ def _to_doc_response(raw: dict) -> dict:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
-@router.post("/login", response_model=AdminLoginResponse)
-@limiter.limit("5/minute")
-async def admin_login(request: Request, data: AdminLoginRequest):
-    """Verify admin credentials and return a signed JWT (valid 24 h)."""
-    username_ok = secrets.compare_digest(data.username, settings.admin_username)
-    password_ok = secrets.compare_digest(data.password, settings.admin_password)
-    if not (username_ok and password_ok):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token, exp = _make_token()
-    return AdminLoginResponse(token=token, expires_at=exp)
+@router.get("/session", response_model=AdminSessionResponse)
+@limiter.limit("60/minute")
+async def admin_session(request: Request, admin: dict = Depends(require_admin)):
+    """Who the console is open for. /admin calls this first: 200 opens it, 404 shows a plain
+    not-found page, 401 sends the person to sign in (again)."""
+    return AdminSessionResponse(email=admin["email"], name=admin.get("name"), picture=admin.get("picture"))
 
 
 # How the admin document list can be ordered. Each maps to (sort key, direction); the computed
@@ -827,15 +878,14 @@ async def delete_feedback(
 async def admin_get_document(
     slug: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
     """Fetch a single document (bypasses password gate)."""
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
     # Moderation reads bypass every gate, so each one is recorded (§6.20 #254).
-    await db["admin_access_log"].insert_one(
-        {"slug": slug, "action": "read", "ts": datetime.now(timezone.utc)})
+    await db[ACCESS_LOG].insert_one(_audit_row(admin, slug, "read"))
     return _to_doc_response(raw)
 
 
@@ -844,7 +894,7 @@ async def admin_update_document(
     slug: str,
     data: AdminDocumentUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
     """Update title and content without requiring the per-document edit_secret."""
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
@@ -877,7 +927,7 @@ async def admin_update_document(
         from app.services import search_index
 
         search_index.touch(db, full["_id"])
-    await db["admin_access_log"].insert_one({"slug": slug, "action": "update", "ts": now})
+    await db[ACCESS_LOG].insert_one(_audit_row(admin, slug, "update"))
     raw.update(updates)
     return _to_doc_response(raw)
 
@@ -886,7 +936,7 @@ async def admin_update_document(
 async def admin_delete_document(
     slug: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
     """Permanently delete a document without requiring the edit_secret. The
     same cleanup as an owner's delete (A8): bytes, versions, posters, grants,
@@ -896,8 +946,7 @@ async def admin_delete_document(
     raw = await db["documents"].find_one({"slug": slug})
     if raw is None or not await lifecycle.destroy(db, raw, reason="admin delete"):
         raise HTTPException(status_code=404, detail="Document not found")
-    await db["admin_access_log"].insert_one(
-        {"slug": slug, "action": "delete", "ts": datetime.now(timezone.utc)})
+    await db[ACCESS_LOG].insert_one(_audit_row(admin, slug, "delete"))
 
 
 # ── Email campaigns ────────────────────────────────────────────────────────────

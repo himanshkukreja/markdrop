@@ -15892,12 +15892,84 @@
         }
       }
     },
+    "/api/v1/slack/me": {
+      "get": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "My Slack notifications",
+        "description": "Off by default. ``teams``: the Slack workspaces connected to Markdrop workspaces you belong to,\nand whether Markdrop found you there.",
+        "operationId": "me_api_v1_slack_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/slack/me/notifications": {
+      "put": {
+        "tags": [
+          "slack"
+        ],
+        "summary": "Turn my Slack notifications on or off",
+        "description": "On: Markdrop looks you up by your own sign-in email in each connected Slack workspace\n(``results`` says what it found per team; nothing about any other address). Only you can turn\nyours on.",
+        "operationId": "me_notifications_api_v1_slack_me_notifications_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/slack/me/prefs": {
       "patch": {
         "tags": [
           "slack"
         ],
-        "summary": "My Slack notifications",
+        "summary": "My Slack notifications per kind",
         "operationId": "prefs_api_v1_slack_me_prefs_patch",
         "requestBody": {
           "content": {
@@ -22473,6 +22545,19 @@
           "notes"
         ],
         "title": "NotesBody"
+      },
+      "NotificationsIn": {
+        "properties": {
+          "on": {
+            "type": "boolean",
+            "title": "On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "on"
+        ],
+        "title": "NotificationsIn"
       },
       "OrganizeBody": {
         "properties": {

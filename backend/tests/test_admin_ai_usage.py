@@ -19,7 +19,7 @@ from app import database
 from app.config import get_settings
 from app.limiter import limiter
 from app.main import app
-from app.routers.admin import _make_token
+from tests._admin_session import admin_email, admin_headers
 from app.services import ai_usage
 from app.utils.auth import create_access_token
 
@@ -71,8 +71,7 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
         ai_usage._recent.clear()
         limiter.reset()
         self.http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=API)
-        token, _ = _make_token()
-        self.h = {"Authorization": f"Bearer {token}"}
+        self.h = await admin_headers(self.db)
         self.uid = {}
         for who, name in (("ana", "Ana Admin"), ("bo", "=HYPERLINK(\"x\")"), ("cy", "Cy Quiet")):
             res = await self.db["users"].insert_one({"email": f"{who}@example.com", "name": name,
@@ -127,9 +126,10 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
                  ("GET", "/usage/export.csv"), ("GET", "/budgets"), ("PUT", "/budgets"),
                  ("PUT", f"/users/{self.uid['ana']}"), ("GET", "/budgets/audit")]
         for method, path in calls:
-            for h in ({}, {"Authorization": f"Bearer {user_token}"}):
+            # Signed out: 401. Signed in, not an admin: 404, as if the route didn't exist.
+            for h, status in (({}, 401), ({"Authorization": f"Bearer {user_token}"}, 404)):
                 r = await self.http.request(method, BASE + path, headers=h, json={} if method == "PUT" else None)
-                self.assertEqual(r.status_code, 401, (method, path))
+                self.assertEqual(r.status_code, status, (method, path))
         self.assertIsNone(await self.db[ai_usage.SETTINGS].find_one({}))
 
     # ── overview ──
@@ -282,7 +282,7 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(caps["*"]["effective_daily_usd"], 10.0)
         self.assertFalse(caps["docs_editor"]["effective_enabled"])
         self.assertEqual((b["burst"]["effective_per_minute"], b["effective_user_daily_usd"]), (5, 1.25))
-        self.assertEqual(b["updated_by"], settings.admin_username)
+        self.assertEqual(b["updated_by"], admin_email())
         # The contract functions see it immediately.
         self.assertEqual(await ai_usage.caps(self.db, "pages_ai"), (0.5, 50.0))
         self.assertEqual(await ai_usage.caps(self.db, "*"), (10.0, 100.0))
@@ -293,7 +293,7 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(st.reason, "daily")
         audit = (await self.get("/budgets/audit"))["items"]
         self.assertEqual(len(audit), 1)
-        self.assertEqual((audit[0]["admin"], audit[0]["kind"], audit[0]["before"]), (settings.admin_username, "budgets", None))
+        self.assertEqual((audit[0]["admin"], audit[0]["kind"], audit[0]["before"]), (admin_email(), "budgets", None))
         self.assertEqual(audit[0]["after"]["caps"]["pages_ai"], {"daily_usd": 0.5})
         # Saving the same again isn't a change; clearing goes back to the defaults.
         await self.put("/budgets", {

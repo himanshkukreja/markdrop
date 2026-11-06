@@ -807,11 +807,10 @@ class OtherSurfaces(AccessWorld):
         self.assertEqual(r.status_code, 404)
 
     async def test_c254_admin_read_logged(self):
-        from app.routers.admin import _make_token
+        from tests._admin_session import admin_headers
 
         d = await self.mkdoc("P", ws=None)
-        r = await self.http.get(f"/api/v1/admin/documents/{d['slug']}",
-                                headers={"Authorization": f"Bearer {_make_token()[0]}"})
+        r = await self.http.get(f"/api/v1/admin/documents/{d['slug']}", headers=await admin_headers(self.db))
         self.assertEqual(r.status_code, 200)
         self.assertEqual(await self.db["admin_access_log"].count_documents({"slug": d["slug"]}), 1)
 

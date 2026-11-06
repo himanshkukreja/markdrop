@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Badge, Button, Drawer, Icon, IconButton, MarkdropLogo, SkipLink, cx } from "@/components/ui";
+import { Avatar, Badge, Drawer, Icon, IconButton, MarkdropLogo, SkipLink, cx } from "@/components/ui";
+import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import type { AdminSession } from "@/lib/api";
 import type { Section } from "./shared";
 
 /**
- * AdminShell (REVAMP_PLAN 7.18): a 232px sticky rail on `surface` with a right hairline, the logo
- * and an "Admin" badge, and four groups. No theme control: the admin is a permanent dark island
- * (D3). Below 1024px the rail becomes a left Drawer opened from a top bar.
+ * AdminShell (REVAMP_PLAN 7.18): a 232px sticky rail on `surface` with a right hairline, the logo,
+ * an "Admin" badge and the theme toggle, and four groups. The site's theme (light by default, the
+ * toggle switches it here as anywhere on Markdrop). The footer names the signed-in admin (their
+ * Markdrop account: signing out is Markdrop's own). Below 1024px the rail becomes a left Drawer
+ * opened from a top bar, which carries the toggle.
  *
  * Items are real links (`/admin?tab=…`, so they open in a new tab) that switch in place on a plain
  * click.
@@ -85,9 +89,9 @@ function Brand() {
   );
 }
 
-export function AdminShell({ section, counts, onSelect, onSignOut, children }: {
+export function AdminShell({ section, counts, onSelect, admin, children }: {
   section: Section; counts: { reports?: number; feedback?: number };
-  onSelect: (s: Section) => void; onSignOut: () => void; children: React.ReactNode;
+  onSelect: (s: Section) => void; admin: AdminSession | null; children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => setOpen(false), [section]);
@@ -99,7 +103,15 @@ export function AdminShell({ section, counts, onSelect, onSignOut, children }: {
         <span className="min-w-0 flex-1 truncate">Open markdrop.in</span>
         <span className="md-visually-hidden">(opens in a new tab)</span>
       </a>
-      <Button variant="ghost" iconLeft="logOut" onClick={onSignOut} className="justify-start max-lg:min-h-11">Sign out</Button>
+      {admin && (
+        <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-1.5" title={admin.email}>
+          <Avatar name={admin.name || admin.email} src={admin.picture ?? undefined} size="sm" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-caption text-text-muted">Signed in as</span>
+            <span className="ph-sensitive block truncate text-caption text-text">{admin.email}</span>
+          </span>
+        </div>
+      )}
     </div>
   );
 
@@ -108,7 +120,7 @@ export function AdminShell({ section, counts, onSelect, onSignOut, children }: {
       <SkipLink />
       <div className="hidden w-58 shrink-0 border-r border-border bg-surface lg:block">
         <aside aria-label="Admin console" className="sticky top-0 flex h-dvh flex-col gap-6 overflow-y-auto px-3 py-5">
-          <div className="px-1.5"><Brand /></div>
+          <div className="flex items-center justify-between gap-2 px-1.5"><Brand /><ThemeToggle size="sm" /></div>
           <div className="flex-1"><RailNav section={section} counts={counts} onSelect={onSelect} idPrefix="rail" /></div>
           {footer}
         </aside>
@@ -118,7 +130,8 @@ export function AdminShell({ section, counts, onSelect, onSignOut, children }: {
         <div className="sticky top-0 z-(--z-sticky) flex min-h-[calc(3.5rem+var(--safe-top))] pt-(--safe-top) items-center gap-2 border-b border-border bg-surface px-2 sm:px-4 lg:hidden">
           <IconButton icon="menu" label="Open admin navigation" className="size-11" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)} />
           <Brand />
-          <span className="ml-auto min-w-0 truncate pr-2 text-body-strong text-text-secondary" aria-hidden>{SECTION_LABEL[section]}</span>
+          <span className="ml-auto min-w-0 truncate pr-1 text-body-strong text-text-secondary" aria-hidden>{SECTION_LABEL[section]}</span>
+          <ThemeToggle className="shrink-0" />
         </div>
         <main id="main" tabIndex={-1} className="w-full min-w-0 flex-1 px-4 py-6 outline-none sm:px-6 lg:px-8 lg:py-8">
           <div className="mx-auto w-full min-w-0 max-w-admin">{children}</div>

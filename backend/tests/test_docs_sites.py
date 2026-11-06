@@ -21,7 +21,7 @@ from unittest import mock
 import httpx
 
 from app.main import app
-from app.routers.admin import _make_token
+from tests._admin_session import admin_headers
 from app.services import ai_usage, docs_agent, docs_index, docs_sites
 from tests.test_docs_ai import (API, DOCS, FIXTURES, DocsAIBase, FakeClient, Turn, collect, parse_sse, settings,
                                 usage)
@@ -557,7 +557,7 @@ class AdminPerSiteTests(SitesBase):
         await docs_agent.page_feedback(self.db, path="/start/launch", helpful=False, comment=None, user_id=None,
                                        ip=None, site="acme")
         await docs_agent.page_feedback(self.db, path="/start/launch", helpful=True, comment=None, user_id=None, ip=None)
-        h = {"Authorization": f"Bearer {_make_token()[0]}"}
+        h = await admin_headers(self.db)
         async with self.http() as c:
             ov = (await c.get("/api/v1/admin/ai/overview", headers=h)).json()
             ov_acme = (await c.get("/api/v1/admin/ai/overview?site=acme", headers=h)).json()

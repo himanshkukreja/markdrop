@@ -497,9 +497,12 @@ class AdminApi(TransportCase):
         self.saved = (settings.posthog_project_id, settings.posthog_personal_api_key)
         settings.posthog_project_id, settings.posthog_personal_api_key = "1", "phx_test"
         app.dependency_overrides[admin_journeys.get_db] = lambda: None
-        tok = jwt.encode({"sub": "admin", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}, settings.admin_secret, algorithm="HS256")
+        from app.routers.admin import require_admin
+        from tests._admin_session import admin_override
+
+        app.dependency_overrides[require_admin] = admin_override
         self.http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://api.markdrop.in",
-                                      headers={"Authorization": f"Bearer {tok}"})
+                                      headers={"Authorization": "Bearer admin"})
         cols = ["id", "did", "email", "name", "created", "first_event", "last_seen", "sessions", "pageviews", "n", "country", "city",
                 "device", "browser", "os", "referrer", "top_pages"]
         self.people = rows_answer(cols, [["p-1", "d-1", "a@b.c", None, None, "2026-10-01T00:00:00Z", "2026-10-16T00:00:00Z", 1, 1, 1,

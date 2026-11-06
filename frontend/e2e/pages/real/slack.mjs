@@ -6,11 +6,16 @@
  *   connect    Workspace settings › Integrations › Add to Slack (the owner) → back connected, the
  *              installer linked; pick the meetings channel (saved), a Slack Connect channel is marked
  *   member     a member sees the card read-only (no Add / Disconnect, the channel picker locked) and
- *              links their own Slack account (Sign in with Slack) → their DM switches; one turned off
+ *              links their own Slack account (Sign in with Slack) → still "Slack notifications: Off"
+ *   optin      Settings › Account › Slack notifications: off by default; Ben turns it on → found by his
+ *              email (Found, as "Ben in Slack"), per-kind switches; Wes isn't in Slack → Not found + the
+ *              link fallback; a stranger (no workspace with Slack) never sees the card
+ *   bell       Vic's bell (a mention, no push on this server): "Get these in Slack" → Turn on; Not now
+ *              hides it for good on the device
  *   linkpage   /integrations/slack/link?team=… (the button /markdrop shows) → Continue with Slack → linked
  *   cancel     Slack says access_denied → "You cancelled in Slack", nothing connected
  *   disconnect Disconnect Slack… → confirm → Add to Slack again
- *   shots      light/dark × desktop/phone of the Integrations tab
+ *   shots      light/dark × desktop/phone of the Integrations tab, and of the Slack notifications card
  *
  *   PB_FAKE_SLACK=1 PB_STACK_ID=38 PB_WORK=… BROWSER=chromium|webkit [ONLY=connect,member] node slack.mjs
  *
@@ -116,6 +121,14 @@ if (FAKE) await step("connect", async () => {
   if (st2.install.meetings_channel?.name !== "meetings") fail(`channel: ${JSON.stringify(st2.install.meetings_channel)}`);
   await p.getByRole("switch", { name: "Post new meetings automatically" }).waitFor({ state: "attached" });
   await p.getByTestId("slack-me").getByRole("button", { name: "Unlink" }).waitFor();
+  // The fake install grants only some scopes: an admin is asked to update the app (one click).
+  if (!st.install.can_find_by_email) {
+    await p.getByTestId("slack-needs-update").waitFor({ timeout: 10000 });
+    await p.getByRole("button", { name: "Update permissions" }).waitFor();
+  }
+  // Linked as the installer, but Slack notifications stay off until turned on.
+  if (st.me.on !== false) fail(`the installer's Slack notifications are on by default: ${JSON.stringify(st.me)}`);
+  await p.getByTestId("slack-me-notify").getByText("Off").waitFor();
 });
 
 if (FAKE) await step("member", async () => {
@@ -130,19 +143,116 @@ if (FAKE) await step("member", async () => {
   const me = p.getByTestId("slack-me");
   await me.getByRole("button", { name: "Link my Slack account" }).click();
   await p.waitForURL(/slack=linked/, { timeout: 30000 });
-  await me.getByText("Direct messages from Markdrop").waitFor({ timeout: 20000 });
-  const sw = p.getByRole("switch", { name: "Mentions" });
-  if (!(await sw.isChecked())) fail("Mentions starts off");
-  await sw.dispatchEvent("click");  // a visually hidden checkbox (SwitchRow's label is a <p>)
-  await p.waitForFunction(() => {
-    const el = [...document.querySelectorAll('[role="switch"]')].find((s) => s.getAttribute("aria-labelledby") === "slack-pref-mention-label");
-    return el && !el.checked;
-  }, null, { timeout: 10000 });
+  await me.getByRole("button", { name: "Unlink" }).waitFor({ timeout: 20000 });
+  // Linking doesn't turn Slack notifications on: the tab says Off and points at Settings › Account.
+  await p.getByTestId("slack-me-notify").getByText("Off").waitFor();
+  await p.getByTestId("slack-me-notify").getByRole("link", { name: /Turn on in Settings/ }).waitFor();
+  if (await me.getByRole("switch").count()) fail("per-kind DM switches still show on the Integrations tab");
   const st = await status("member");
-  if (!st.me.linked || st.me.prefs.mention !== false || st.me.prefs.shared !== true) fail(`me: ${JSON.stringify(st.me)}`);
+  if (!st.me.linked || st.me.on !== false) fail(`me: ${JSON.stringify(st.me)}`);
   // The non-admin can't change the channel through the API either.
   const r = await api("PATCH", "/api/v1/slack/settings", T.member, { workspace_id: WS, meetings_channel_id: "C1" });
   if (r.status !== 403) fail(`member PATCH settings → ${r.status}`);
+});
+
+const ACCOUNT = `${APP}/settings/account`;
+const meOf = async (who) => ok(await api("GET", "/api/v1/slack/me", T[who]), "slack me");
+
+if (FAKE) await step("optin", async () => {
+  if (!(await status("owner")).install) await (await connect()).c.close();
+  // Ben: off by default; turning it on finds him by his email (the fake Slack knows ben@acme.test).
+  await api("PUT", "/api/v1/slack/me/notifications", T.member, { on: false });
+  await api("DELETE", `/api/v1/slack/link?workspace_id=${WS}`, T.member);   // linked by `member` (Sign in with Slack)
+  const { c, p } = await ctx(browser, { token: T.member });
+  await fakeSlack(c);
+  await p.goto(`${ACCOUNT}#slack`);
+  const card = p.getByTestId("slack-notify-card");
+  await card.waitFor({ timeout: 30000 });
+  await card.getByText("ben@acme.test").waitFor();
+  if (await card.getByRole("switch", { name: "Mentions" }).count()) fail("per-kind switches show while off");
+  await card.getByRole("switch", { name: "Get notifications in Slack" }).dispatchEvent("click");
+  const teams = p.getByTestId("slack-teams");
+  await teams.getByText("Found").waitFor({ timeout: 15000 });
+  await teams.getByText("Ben in Slack").waitFor();
+  await teams.getByText("(by your email)").waitFor();
+  await card.getByRole("switch", { name: "Mentions" }).waitFor({ state: "attached" });
+  const me = await meOf("member");
+  if (!me.on || me.teams[0]?.match !== "email" || !me.teams[0]?.linked) fail(`Ben after turning on: ${JSON.stringify(me)}`);
+  // A kind off, saved.
+  await card.getByRole("switch", { name: "Shared with you" }).dispatchEvent("click");
+  await p.waitForFunction(() => {
+    const el = [...document.querySelectorAll('[role="switch"]')].find((x) => x.getAttribute("aria-labelledby") === "slack-pref-shared-label");
+    return el && !el.checked;
+  }, null, { timeout: 10000 });
+  if ((await meOf("member")).prefs.shared !== false) fail("Shared with you didn't save");
+  await api("PATCH", "/api/v1/slack/me/prefs", T.member, { shared: true });
+  // The Integrations tab now says On.
+  await p.goto(TAB);
+  await p.getByTestId("slack-me-notify").getByText("On", { exact: true }).waitFor({ timeout: 20000 });
+  await c.close();
+
+  // Wes isn't in Acme Slack under his email: Not found, the sentence, and Link my Slack account.
+  await api("PUT", "/api/v1/slack/me/notifications", T.admin, { on: false });
+  const w = await ctx(browser, { token: T.admin });
+  await w.p.goto(ACCOUNT);
+  const wcard = w.p.getByTestId("slack-notify-card");
+  await wcard.waitFor({ timeout: 30000 });
+  await wcard.getByRole("switch", { name: "Get notifications in Slack" }).dispatchEvent("click");
+  await w.p.getByTestId("slack-team-note").getByText("No one in Acme Slack uses wes@acme.test. Link your Slack account instead.").waitFor({ timeout: 15000 });
+  await w.p.getByTestId("slack-teams").getByText("Not found").waitFor();
+  await w.p.getByTestId("slack-teams").getByRole("button", { name: "Link my Slack account" }).waitFor();
+  await wcard.getByRole("button", { name: "Look again" }).waitFor();
+  await w.c.close();
+
+  // Someone in no workspace with Slack: no card, and turning it on through the API is refused.
+  const s = await ctx(browser, { token: T.stranger });
+  await s.p.goto(ACCOUNT);
+  await s.p.getByRole("heading", { name: "Profile" }).waitFor({ timeout: 30000 });
+  await s.p.waitForLoadState("networkidle");
+  if (await s.p.getByTestId("slack-notify-card").count()) fail("the stranger sees the Slack notifications card");
+  const r = await api("PUT", "/api/v1/slack/me/notifications", T.stranger, { on: true });
+  if (r.status !== 409) fail(`stranger turn on → ${r.status}`);
+  await s.c.close();
+});
+
+if (FAKE) await step("bell", async () => {
+  if (!(await status("owner")).install) await (await connect()).c.close();
+  await api("PUT", "/api/v1/slack/me/notifications", T.reader, { on: false });
+  // A mention for Vic, so the bell offers notifications (no push keys on this server: Slack's turn).
+  const title = `Slack nudge ${Date.now()}`;
+  const made = ok(await api("POST", "/api/v1/pages", T.owner, { title, workspace: WS, folder: S.folder, content: "# Plan\n" }), "page");
+  ok(await api("PUT", `/api/v1/documents/${made.document.slug}`, T.owner, {
+    title, content: `# Plan\n\nPing :person[${S.users.reader.name}]{id="${S.users.reader.id}"} about it.\n`,
+  }), "save");
+  const NUDGE = '[data-testid="slack-prompt-bell"]';
+  const open = async (p) => {
+    await p.locator('header button[aria-label^="Notifications"]').first().click();
+    await p.locator('[aria-busy="true"][aria-label="Loading notifications"]').waitFor({ state: "detached", timeout: 15000 }).catch(() => {});
+  };
+  const { c, p } = await ctx(browser, { token: T.reader, width: 1280, height: 860 });
+  await p.goto(`${APP}/dashboard`);
+  await open(p);
+  await p.locator(NUDGE).waitFor({ timeout: 15000 });
+  if (await p.locator('[data-testid="push-prompt-bell"]').count()) fail("both nudges show");
+  await snap(p, "bell-nudge");
+  await p.locator(NUDGE).getByRole("button", { name: "Not now" }).click();
+  if (await p.locator(NUDGE).count()) fail("Not now didn't hide it");
+  await p.reload();
+  await open(p);
+  await p.waitForTimeout(1500);
+  if (await p.locator(NUDGE).count()) fail("Not now didn't stick on this device");
+  await c.close();
+  // Another device: Turn on. Vic isn't in Acme Slack under his email, so the toast says so (with Settings).
+  const d = await ctx(browser, { token: T.reader, width: 1280, height: 860 });
+  await d.p.goto(`${APP}/dashboard`);
+  await open(d.p);
+  await d.p.locator(NUDGE).getByRole("button", { name: "Turn on" }).click();
+  await d.p.getByText("No one in Acme Slack uses vic@acme.test").waitFor({ timeout: 15000 });
+  if (!(await meOf("reader")).on) fail("the bell's Turn on didn't turn it on");
+  await d.p.waitForTimeout(500);
+  if (await d.p.locator(NUDGE).count()) fail("the nudge stays after turning on");
+  await d.c.close();
+  await api("PUT", "/api/v1/slack/me/notifications", T.reader, { on: false });
 });
 
 if (FAKE) await step("linkpage", async () => {
@@ -195,6 +305,24 @@ if (FAKE) await step("shots", async () => {
       const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       if (overflow > 1) fail(`${tag} ${theme}: the page scrolls sideways by ${overflow}px`);
       await snap(p, `${theme}-${tag}`, true);
+      await p.context().close();
+    }
+  }
+  // The Slack notifications card, on (Ben, found by email), for the docs.
+  await api("PUT", "/api/v1/slack/me/notifications", T.member, { on: true });
+  for (const theme of ["light", "dark"]) {
+    for (const [w, h, tag] of [[1440, 900, "desktop"], [390, 844, "phone"]]) {
+      const { p } = await ctx(browser, { token: T.member, theme, width: w, height: h });
+      await p.goto(`${ACCOUNT}#slack`);
+      const card = p.getByTestId("slack-notify-card");
+      await card.waitFor({ timeout: 30000 });
+      await p.getByTestId("slack-teams").getByText("Found").waitFor({ timeout: 15000 });
+      const overflow = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+      if (overflow > 1) fail(`account ${tag} ${theme}: the page scrolls sideways by ${overflow}px`);
+      await p.waitForTimeout(500);
+      const file = path.join(OUT, `${BROWSER}-slack-notify-${theme}-${tag}.png`);
+      await p.locator("#slack").screenshot({ path: file });
+      log("shot", path.basename(file));
       await p.context().close();
     }
   }

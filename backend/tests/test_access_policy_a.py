@@ -585,15 +585,15 @@ class Writes(AccessWorld):
                                   headers=self.session("ge"))
         self.assertEqual(r.status_code, 403)
 
-    def _admin(self):
-        from app.routers.admin import _make_token
+    async def _admin(self):
+        from tests._admin_session import admin_headers
 
-        return {"Authorization": f"Bearer {_make_token()[0]}"}
+        return await admin_headers(self.db)
 
     async def test_c067_admin_cannot_edit_encrypted(self):
         d = await self.mkdoc("L", ws=None, encrypted=True)
         r = await self.http.put(f"/api/v1/admin/documents/{d['slug']}", json={"title": "x", "content": "y"},
-                                headers=self._admin())
+                                headers=await self._admin())
         self.assertEqual(r.status_code, 422)
 
     async def test_c068_admin_edit_side_effects(self):
@@ -601,7 +601,7 @@ class Writes(AccessWorld):
         q = live.subscribe(d["slug"])
         try:
             r = await self.http.put(f"/api/v1/admin/documents/{d['slug']}", json={"title": "x", "content": "y"},
-                                    headers=self._admin())
+                                    headers=await self._admin())
             self.assertEqual(r.status_code, 200, r.text)
             self.assertEqual((await self.doc(d["slug"]))["rev"], 2)
             self.assertEqual(q.get_nowait()["type"], "changed")
@@ -611,7 +611,7 @@ class Writes(AccessWorld):
 
     async def test_c069_admin_delete_artifact_cleans_up(self):
         d = await self.mkdoc("L", ws=None, kind="artifact")
-        r = await self.http.delete(f"/api/v1/admin/documents/{d['slug']}", headers=self._admin())
+        r = await self.http.delete(f"/api/v1/admin/documents/{d['slug']}", headers=await self._admin())
         self.assertEqual(r.status_code, 204)
         self.assertNotIn(d["blob_key"], self.r2.objects)
         self.assertEqual(await self.db["document_grants"].count_documents({"document_id": str(d["_id"])}), 0)

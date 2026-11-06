@@ -11,6 +11,8 @@
  * A push notification arriving on this device (lib/push.ts) refreshes the badge at once. While this
  * device doesn't get them and the list has a mention or a sign-off request, a one-line row on top
  * offers to turn them on here (PushNudge: the same flow as Settings; "Not now" remembered per device).
+ * When that one isn't showing and a workspace of yours has Slack connected while your Slack
+ * notifications are off, the same row offers those instead (SlackNudge; one nudge at a time).
  *
  * Desktop: a popover under the bell. Phones (< 640px): a bottom sheet. Not on workspace domains
  * (their header is TenantHeader) and only when signed in.
@@ -26,6 +28,8 @@ import {
 import { openInApp } from "@/lib/push";
 import { wantsBellNudge } from "@/lib/pushPrompt";
 import { usePushPrompt } from "@/components/push/usePushPrompt";
+import { useSlackPrompt } from "@/components/integrations/useSlackPrompt";
+import { SlackMark } from "@/components/integrations/SlackMark";
 import s from "./NotificationBell.module.css";
 
 const POLL_MS = 60_000;
@@ -147,14 +151,23 @@ function Row({ n, busy, onOpen, index }: { n: AppNotification; busy: boolean; on
   );
 }
 
-/** "Get these on this device → Turn on" (components/push/usePushPrompt). */
-function PushNudge({ active }: { active: boolean }) {
-  const { show, busy, turnOn, dismiss } = usePushPrompt("bell", active);
-  if (!show) return null;
+/** "Get these on this device → Turn on" (components/push/usePushPrompt), else "Get these in Slack →
+ *  Turn on" (components/integrations/useSlackPrompt): one nudge at a time, push first. */
+function Nudges({ active }: { active: boolean }) {
+  const push = usePushPrompt("bell", active);
+  const slack = useSlackPrompt(active, push);
+  if (push.show) return <Nudge testid="push-prompt-bell" icon="bell" text="Get these on this device" {...push} />;
+  if (slack.show) return <Nudge testid="slack-prompt-bell" icon="slack" text="Get these in Slack" {...slack} />;
+  return null;
+}
+
+function Nudge({ testid, icon, text, busy, turnOn, dismiss }: {
+  testid: string; icon: "bell" | "slack"; text: string; busy: boolean; turnOn: () => Promise<void>; dismiss: () => void;
+}) {
   return (
-    <div className={s.nudge} data-testid="push-prompt-bell">
-      <Icon name="bell" size={14} className={s.nudgeIcon} aria-hidden />
-      <span className={s.nudgeText}>Get these on this device</span>
+    <div className={s.nudge} data-testid={testid}>
+      {icon === "slack" ? <SlackMark size={14} className={s.nudgeIcon} /> : <Icon name="bell" size={14} className={s.nudgeIcon} aria-hidden />}
+      <span className={s.nudgeText}>{text}</span>
       <button type="button" className={s.nudgeOn} onClick={() => void turnOn()} disabled={busy} aria-busy={busy || undefined}>
         {busy ? "Turning on…" : "Turn on"}
       </button>
@@ -254,7 +267,7 @@ function Panel({ phone, unread, onUnread, onDone }: {
   return (
     <div className={cx(phone && s.sheet)}>
       <div className={phone ? s.sheetHead : s.head}>{head}</div>
-      <PushNudge active={personal} />
+      <Nudges active={personal} />
       {items === null ? (
         <ul className={s.list} aria-busy="true" aria-label="Loading notifications">
           {[0, 1, 2].map((i) => (

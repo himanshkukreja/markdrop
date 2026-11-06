@@ -24,7 +24,7 @@ from bson import ObjectId
 
 from app import database
 from app.main import app
-from app.routers.admin import _make_token
+from tests._admin_session import admin_headers
 from app.services import ai_usage, docs_agent, docs_index, docs_sites
 from tests.test_docs_ai import API, DOCS, DocsAIBase, FakeClient, Turn, collect, parse_sse, settings, text_of
 from tests.test_docs_sites import legacy_system, write_site
@@ -512,7 +512,7 @@ class AdminTests(StudioBase):
         await self.ask(sid, [Turn(text="ok")])
         await self.ask(None, [Turn(text="ok")])
         async with self.http() as c:
-            h = {"Authorization": f"Bearer {_make_token()[0]}"}
+            h = await admin_headers(self.db)
             ov = (await c.get("/api/v1/admin/ai/overview", headers=h)).json()
             one = (await c.get(f"/api/v1/admin/ai/overview?site={sid}", headers=h)).json()
         by = {s["site"]: s for s in ov["by_site"]}

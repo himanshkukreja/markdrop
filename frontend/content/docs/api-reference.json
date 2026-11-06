@@ -1657,13 +1657,23 @@
     },
     "DELETE /api/v1/slack/link": {
       "title": "Unlink my Slack account",
-      "description": "Forgets the link between your Slack account and your Markdrop account in the Slack workspace connected here. /markdrop then asks you to link again, and Markdrop stops sending you direct messages there.",
+      "description": "Forgets the link between your Slack account and your Markdrop account in the Slack workspace connected here. /markdrop then asks you to link again, and Markdrop stops sending you direct messages there until it finds you again (turn Slack notifications on again, or link).",
       "paramNotes": {"workspace_id": "The workspace's id."},
       "guide": {"label": "Slack", "href": "/integrations/slack"}
     },
-    "PATCH /api/v1/slack/me/prefs": {
+    "GET /api/v1/slack/me": {
       "title": "My Slack notifications",
-      "description": "Which direct messages Markdrop sends you in Slack: `mention`, `signoff_requested`, `shared` and `access_request` (each on unless turned off). Send only the ones you change. Bell and email notifications aren't affected.",
+      "description": "Whether your Slack notifications are on (`on`, off by default), which kinds (`prefs`), and each Slack workspace connected to a Markdrop workspace you're in (`teams`: whether Markdrop found you there, as whom, and how: `email`, `oauth`, `install` or `legacy`). `configured` is false when this server has no Slack app.",
+      "guide": {"label": "Slack notifications", "href": "/integrations/slack#slack-notifications"}
+    },
+    "PUT /api/v1/slack/me/notifications": {
+      "title": "Turn my Slack notifications on or off",
+      "description": "`{\"on\": true}` turns on your own Slack notifications and looks you up by your Markdrop sign-in email in each connected Slack workspace; `results` says per workspace: `matched`, `linked` (already), `not_found`, `taken` (that Slack account is linked to another Markdrop account), `needs_update` (an admin must update the app's permissions), `token` or `error`, with a sentence to show. Nothing about any other email. 409 when none of your workspaces has Slack connected. `{\"on\": false}` turns them off; your Slack link stays.",
+      "guide": {"label": "Slack notifications", "href": "/integrations/slack#slack-notifications"}
+    },
+    "PATCH /api/v1/slack/me/prefs": {
+      "title": "My Slack notifications per kind",
+      "description": "Which direct messages Markdrop sends you in Slack once your Slack notifications are on: `mention`, `signoff_requested`, `shared` and `access_request` (each on unless turned off). Send only the ones you change. Bell and email notifications aren't affected.",
       "guide": {"label": "Slack", "href": "/integrations/slack"}
     },
     "POST /api/v1/slack/meetings/{meeting_id}/post": {

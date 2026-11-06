@@ -87,7 +87,9 @@ HELP = (
     "• `/markdrop ask <question>` asks your workspace (Ask <Workspace>): answers from what you can open, with sources\n"
     "• `/markdrop meetings <question>` answers from your workspace's meetings\n"
     "• `/markdrop link` links your Slack account to your Markdrop account (once)\n"
-    "• `/markdrop unlink` removes that link"
+    "• `/markdrop unlink` removes that link\n"
+    "Direct messages for mentions, sign-off requests, shares and access requests are off until you turn "
+    "them on in Markdrop: Settings › Account › Slack notifications."
 )
 
 
@@ -166,12 +168,20 @@ def meeting_post(team_id: str, post_id: str, *, title: str, url: str, when: str 
 
 # ── Direct messages ───────────────────────────────────────────────────────────
 
+SETTINGS_PATH = "/settings/account#slack"
+
+
+def dm_footer() -> dict:
+    """Every direct message says why it came and how to stop them (they're opt-in)."""
+    return context(f"You turned these on in Markdrop · {link(slack.frontend_link(SETTINGS_PATH), 'Turn off')}")
+
 
 def dm_mention(actor: str, title: str, url: str, excerpt: str | None) -> dict:
     text = f"*{esc(actor)}* mentioned you in *{link(url, cut(title, 120))}*"
     if excerpt:
         text += f"\n>{esc(cut(excerpt, 200))}"
-    return {"blocks": [section(text), actions(open_button(url))], "text": f"{actor} mentioned you in {cut(title, 80)}"}
+    return {"blocks": [section(text), actions(open_button(url)), dm_footer()],
+            "text": f"{actor} mentioned you in {cut(title, 80)}"}
 
 
 def dm_shared(actor: str, title: str, url: str, role: str | None, message: str | None) -> dict:
@@ -179,7 +189,8 @@ def dm_shared(actor: str, title: str, url: str, role: str | None, message: str |
     text = f"*{esc(actor)}* shared *{link(url, cut(title, 120))}* with you (you can {can} it)"
     if message:
         text += f"\n>{esc(cut(message, 300))}"
-    return {"blocks": [section(text), actions(open_button(url))], "text": f"{actor} shared {cut(title, 80)} with you"}
+    return {"blocks": [section(text), actions(open_button(url)), dm_footer()],
+            "text": f"{actor} shared {cut(title, 80)} with you"}
 
 
 def dm_signoff(team_id: str, actor: str | None, title: str, url: str, label: str | None, doc_id: str, block: str,
@@ -197,6 +208,7 @@ def dm_signoff(team_id: str, actor: str | None, title: str, url: str, label: str
         btns = [button(o, action_id=f"md_so_{i}", value=slack.sign_value(team_id, "so", doc_id, block, str(i)),
                        style="primary" if i == 0 else None) for i, o in enumerate(options[:4])]
         blocks.append(actions(*btns, open_button(url)))
+    blocks.append(dm_footer())
     return {"blocks": blocks, "text": f"{actor or 'Someone'} asked for your sign-off in {cut(title, 80)}"}
 
 
@@ -219,4 +231,5 @@ def dm_access_request(team_id: str, requester: str, email: str | None, title: st
             button("Approve", action_id="md_ar_ok", value=slack.sign_value(team_id, "ar", request_id, approve), style="primary"),
             button("Decline", action_id="md_ar_no", value=slack.sign_value(team_id, "ar", request_id, "decline"), style="danger"),
             open_button(url, "Review in Markdrop")))
+    blocks.append(dm_footer())
     return {"blocks": blocks, "text": f"{requester} asked to {verb} {cut(title, 80)}"}

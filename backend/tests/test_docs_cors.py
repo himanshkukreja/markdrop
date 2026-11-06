@@ -43,7 +43,7 @@ PUBLIC = [
 ]
 CLOSED = [
     ("GET", "/api/v1/admin/documents"),
-    ("POST", "/api/v1/admin/login"),
+    ("GET", "/api/v1/admin/session"),
     ("POST", "/api/v1/auth/email/request"),
     ("POST", "/api/v1/auth/logout"),
     ("GET", "/api/v1/auth/google/login"),

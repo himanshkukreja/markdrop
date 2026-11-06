@@ -11,7 +11,9 @@ Settings (signed in, markdrop.in only):
     GET    /link/info?team_id=                which Slack team a link page is for
     POST   /link/finish {code, state}         the end of Sign in with Slack
     DELETE /link?workspace_id=                unlink my Slack account
-    PATCH  /me/prefs {mention?, signoff_requested?, shared?, access_request?}   my Slack DMs
+    GET    /me                                Slack notifications (Settings › Account): on?, kinds, my Slack teams
+    PUT    /me/notifications {on}             turn them on (finds me by my own email in each team) or off
+    PATCH  /me/prefs {mention?, signoff_requested?, shared?, access_request?}   my Slack DMs, per kind
     POST   /meetings/{meeting_id}/post        post (again) to the meetings channel (who can edit it)
 
 From Slack (signed with the app's signing secret; no user session; out of the public schema):
@@ -72,6 +74,10 @@ class SettingsIn(BaseModel):
 class LinkStartIn(BaseModel):
     workspace_id: str | None = Field(None, pattern=_WS)
     team_id: str | None = Field(None, pattern=r"^[A-Z0-9]{3,20}$")
+
+
+class NotificationsIn(BaseModel):
+    on: bool
 
 
 class PrefsIn(BaseModel):
@@ -174,7 +180,27 @@ async def unlink(request: Request, workspace_id: str = Query(..., pattern=_WS),
     return await slack.unlink(db, user, workspace_id)
 
 
-@router.patch("/me/prefs", summary="My Slack notifications")
+@router.get("/me", summary="My Slack notifications")
+@limiter.limit("120/minute")
+async def me(request: Request, db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Off by default. ``teams``: the Slack workspaces connected to Markdrop workspaces you belong to,
+    and whether Markdrop found you there."""
+    _app_only(request)
+    return await slack.me_status(db, user)
+
+
+@router.put("/me/notifications", summary="Turn my Slack notifications on or off")
+@limiter.limit("10/minute")
+async def me_notifications(request: Request, body: NotificationsIn, db: AsyncIOMotorDatabase = Depends(get_db),
+                           user: User = Depends(require_user)):
+    """On: Markdrop looks you up by your own sign-in email in each connected Slack workspace
+    (``results`` says what it found per team; nothing about any other address). Only you can turn
+    yours on."""
+    _app_only(request)
+    return await slack.set_on(db, user, body.on)
+
+
+@router.patch("/me/prefs", summary="My Slack notifications per kind")
 @limiter.limit("60/minute")
 async def prefs(request: Request, body: PrefsIn, db: AsyncIOMotorDatabase = Depends(get_db),
                 user: User = Depends(require_user)):

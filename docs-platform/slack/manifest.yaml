@@ -16,8 +16,9 @@ display_information:
     action item has a Done button that ticks it on the Markdrop page. Type /markdrop search or
     /markdrop ask to find things or get an answer with sources, shown only to you and built only
     from what you can open in Markdrop. Markdrop links unfurl with a preview when the whole channel
-    may see them. Mentions, sign-off requests, shares and access requests arrive as direct messages,
-    and access requests can be approved or declined right there.
+    may see them. Mentions, sign-off requests, shares and access requests arrive as direct messages
+    for people who turn Slack notifications on in Markdrop, and access requests can be approved or
+    declined right there.
 features:
   app_home:
     home_tab_enabled: false
@@ -59,6 +60,8 @@ oauth_config:
       - groups:read       # private channels the app was invited to, for the same picker
       - im:read           # is a direct message shared with another organization? (unfurls there)
       - mpim:read         # the same for group direct messages
+      - users:read        # with users:read.email: find a person who turned Slack notifications on
+      - users:read.email  #   by their own Markdrop email (users.lookupByEmail), so they needn't link first
 settings:
   event_subscriptions:
     request_url: https://api.markdrop.in/api/v1/slack/events
