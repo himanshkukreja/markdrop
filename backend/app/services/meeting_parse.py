@@ -161,7 +161,8 @@ def _plausible_name(name: str) -> bool:
     if not n or len(n) > 60 or "http" in n.lower() or "@" in n and " " in n:
         return False
     words = n.split()
-    if len(words) > 6:
+    # Longer than a name (bullets and "[ ]" aside): a sentence or a "<Owner> <Task Title>" next step.
+    if len(words) > 6 or len((clean_speaker(n) or n).split()) > 5:
         return False
     if n.casefold() in _NOT_NAMES or words[0].casefold() in _NOT_NAMES:
         return False
@@ -411,6 +412,28 @@ def _strip_bullet(line: str) -> str:
     return (m.group(1) if m else line).strip()
 
 
+def notes_span(lines: list[str]) -> set[int]:
+    """The indices of the lines that belong to a notes section (Summary / Details / Suggested next
+    steps / Action items, their headings included), the way :func:`parse_notes` reads them: never a
+    transcript's turns (a Gemini next step "Gautam Khurana Review Video: Gautam Khurana will …" reads
+    like a speaker's line, owner 2026-11-06)."""
+    out: set[int] = set()
+    sect: str | None = None
+    for i, raw in enumerate(lines):
+        line = _clean_line(raw)
+        if _head_kind(line):
+            sect = "on"
+            out.add(i)
+            continue
+        if sect is None:
+            continue
+        if _HEADING.match(line) or _is_transcript_heading(line):
+            sect = None
+            continue
+        out.add(i)
+    return out
+
+
 def parse_notes(lines: list[str]) -> dict | None:
     """{summary, details, next_steps} from the lines of a notes document (None: not notes)."""
     sect: str | None = None
@@ -425,7 +448,7 @@ def parse_notes(lines: list[str]) -> dict | None:
             continue
         if sect is None:
             continue
-        if _HEADING.match(line) and not k:
+        if (_HEADING.match(line) and not k) or _is_transcript_heading(line):
             sect = None   # some other section (e.g. the transcript tab's heading)
             continue
         if _GEMINI_BOILER.match(line.strip()):
@@ -830,6 +853,135 @@ def name_like(name: str | None) -> bool:
     return not any(w in _STOP for w in low if w)
 
 
+# ── "<Owner Name> <Task Title>" (Gemini's next steps, owner 2026-11-06) ──────────
+# Gemini writes a next step as "Gautam Khurana Review Video: Gautam Khurana will review the video …".
+# Read as a speaker's turn it made "Gautam Khurana Review Video" an attendee (51 of 166 meetings). The
+# label is a known person's name followed by a Title Case task, or the words after the colon start with
+# the label's first words (the owner, said again).
+_TASK_SMALL = frozenset("a an and as at by for from in into of on or per the to via vs with & + - / –".split())
+TASK_MAX_WORDS = 4      # a speaker label longer than this is not a name in a notes Doc
+
+
+def _wkey(w: str) -> str:
+    return re.sub(r"[^\w]+", "", w).casefold()
+
+
+def _task_words(words: list[str]) -> bool:
+    """A task title: Title Case words ("Review Video", "Fix Email Bug", "Share PRD with Team")."""
+    if not words or not (words[0][:1].isupper() or words[0][:1].isdigit()):
+        return False
+    return all(w[:1].isupper() or w[:1].isdigit() or w.casefold() in _TASK_SMALL for w in words)
+
+
+def task_owner(label: str | None, text: str | None = None, known: list[str] | tuple = ()) -> str | None:
+    """The owner when ``label`` is "<Owner Name> <Task Title>" rather than a name, else None:
+
+    * the longest known person's name (2+ words; ``known``: the invite, the attendees, the members)
+      that starts it, followed by a Title Case task;
+    * else the longest start of it (1-3 words) that the words after the colon (``text``) start with,
+      followed by a Title Case task ("Palak Jain Fix Email Bug" / "Palak Jain will fix …"); the label
+      is 3+ words then, so "Bo Chen" saying "Bo, can you …" is never a task.
+
+    Never fuzzy: "Mohd Arif Khan" is a task of "Mohd Arif" only when "Khan" reads as a task title."""
+    words = clean_name(label).split()
+    if len(words) < 2:
+        return None
+    keys = [_wkey(w) for w in words]
+    best: list[str] | None = None
+    for k in known or ():
+        kw = clean_name(k).split()
+        if len(kw) < 2 or len(kw) >= len(words):
+            continue
+        if keys[:len(kw)] == [_wkey(w) for w in kw] and (best is None or len(kw) > len(best)):
+            best = kw
+    if best and _task_words(words[len(best):]):
+        return " ".join(words[:len(best)])
+    if text and len(words) >= 3:
+        tkeys = [_wkey(w) for w in str(text).split()[:4]]
+        for n in range(min(3, len(words) - 1), 0, -1):
+            if keys[:n] == tkeys[:n] and _task_words(words[n:]):
+                # "Himanshu Kukreja Update Prompts: Himanshu will …": a first name said again, a full
+                # name in the label (a task is rarely one word when the label is 4+).
+                if n == 1 and len(words) >= 4 and name_like(" ".join(words[:2])) and _task_words(words[2:]):
+                    n = 2
+                return " ".join(words[:n])
+    return None
+
+
+def owner_of_step(step: str | None, known: list[str] | tuple = ()) -> str | None:
+    """A next step's owner: "Gautam Khurana Review Video: Gautam Khurana will …" → "Gautam Khurana" (a
+    known person's name at its start, the label's owner, or the first 2-3 capitalised words followed by
+    a Title Case task); None when it doesn't name one."""
+    s = clean_name(step) if step and "](" in step else (step or "").strip()
+    head, sep, rest = s.partition(":")
+    if sep and len(head.split()) <= 8:
+        owner = task_owner(head, rest, known)
+        if owner:
+            return owner
+    words = s.split()
+    for k in sorted((clean_name(x) for x in known or ()), key=lambda x: -len(x.split())):
+        kw = k.split()
+        if kw and [_wkey(w) for w in words[:len(kw)]] == [_wkey(w) for w in kw]:
+            return k
+    if sep:
+        hw = head.split()
+        for n in (2, 3):
+            if len(hw) > n and all(w[:1].isupper() for w in hw[:n]) and _task_words(hw[n:]) and name_like(" ".join(hw[:n])):
+                return " ".join(hw[:n])
+    return None
+
+
+def _says_owner(text: str | None, owner: str) -> bool:
+    """The words after the colon start with the owner's name (Gemini: "<Owner> will …")."""
+    ow = [_wkey(w) for w in owner.split()]
+    return bool(ow) and [_wkey(w) for w in str(text or "").split()[:len(ow)]] == ow
+
+
+def clean_task_speakers(segments: list[dict], known: list[str] | tuple = (), *,
+                        notes_doc: bool = False) -> tuple[list[dict], list[str]]:
+    """(segments, next steps) with no "<Owner Name> <Task Title>" speaker (:func:`task_owner`). In a
+    notes Doc such a line is a next step, never a turn: it goes to the next steps (and so does a label
+    longer than a name, :data:`TASK_MAX_WORDS`); elsewhere the owner is the speaker (the task words
+    are not part of the name). ``known``: the invite and attendee names."""
+    base = [k for k in known or () if k]
+    speakers: list[tuple[str, str]] = []
+    for s in segments:
+        sp = s.get("speaker")
+        if sp and all(sp != x for x, _t in speakers):
+            speakers.append((sp, s.get("text") or ""))
+    names = list(base)
+    for sp, text in speakers:
+        n = len(clean_name(sp).split())
+        if 2 <= n <= 3 and name_like(clean_name(sp)) and task_owner(sp, text, base) is None:
+            names.append(clean_name(sp))
+    out: list[dict] = []
+    steps: list[str] = []
+    for s in segments:
+        sp = s.get("speaker")
+        if not sp:
+            out.append(s)
+            continue
+        owner = task_owner(sp, s.get("text"), names)
+        long = len(clean_name(sp).split()) > TASK_MAX_WORDS
+        if notes_doc and ((owner and _says_owner(s.get("text"), owner)) or long):
+            steps.append(f"{clean_name(sp)}: {(s.get('text') or '').strip()}")
+            continue
+        out.append({**s, "speaker": owner} if owner else s)
+    return out, steps
+
+
+def resolve_speaker(name: str | None, known: list[str] | tuple = (), text: str | None = None) -> str | None:
+    """A speaker's name as a person: "Gautam Khurana Review Video" → "Gautam Khurana" (a known person
+    followed by a task), the name itself when it reads as one, None when it doesn't (not a person)."""
+    n = clean_name(name)
+    if not n:
+        return None
+    owner = task_owner(n, text, known)
+    if owner:
+        return owner
+    return n if name_like(n) else None
+
+
 def _covers(a: str, b: str) -> bool:
     """One name is the other, or the start of it ("Gautam" / "Gautam Kumar")."""
     x, y = clean_name(a).casefold().split(), clean_name(b).casefold().split()
@@ -967,8 +1119,11 @@ def _with_speakers(listed: list[dict], speakers: list[str], invited: list[dict])
     """``listed`` and each speaker it doesn't name already; a speaker the invite names fuller
     ("Gautam" → "Gautam Kumar <gautam@…>") takes that name and address (members match by address)."""
     out = [dict(p) for p in listed]
+    known = [p["name"] for p in [*listed, *invited] if p.get("name")] + \
+        [clean_name(s) for s in speakers if 2 <= len(clean_name(s).split()) <= 3]
     for sp in speakers:
-        sp = clean_name(sp)
+        # "Gautam Khurana Review Video" (a next step read as a turn) is Gautam Khurana; not a name: nobody.
+        sp = resolve_speaker(sp, known) or ""
         if not sp or any(_covers(sp, p["name"]) for p in out):
             continue
         inv = [p for p in invited if _covers(sp, p["name"])]
@@ -1084,12 +1239,18 @@ def parse_source(name: str, text: str) -> Source:
                 transcript_lines = ls
                 break
         if transcript_lines is None:
+            # A "Transcript" heading in the notes tab: what follows it, never the notes' own sections
+            # (a "Transcript" line above them, Gemini's meeting records, took the next steps for turns).
+            span = notes_span(first)
             for i, line in enumerate(first):
                 if _is_transcript_heading(line) and i > 0:
-                    after = first[i + 1:]
+                    after = [x for j, x in enumerate(first) if j > i and j not in span]
                     if sum(1 for x in after[:80] if _SPEAKER.match(x.strip())) >= 2:
                         transcript_lines = after
                         break
+        elif parse_notes(transcript_lines) is not None:
+            span = notes_span(transcript_lines)
+            transcript_lines = [x for j, x in enumerate(transcript_lines) if j not in span]
         src.notes = notes
         src.kind = "both" if transcript_lines else "notes"
         src.format = "gemini_notes"
@@ -1123,6 +1284,18 @@ def parse_source(name: str, text: str) -> Source:
         listed = listed or j
         invited = invited or inv
     src.listed, src.invited = listed, invited
+    if src.segments:
+        # "<Owner Name> <Task Title>: …" is a next step, never a speaker (owner 2026-11-06).
+        src.segments, steps = clean_task_speakers(src.segments, [p["name"] for p in [*listed, *invited]],
+                                                  notes_doc=notes is not None)
+        if notes is not None:
+            have = {_wkey(x) for x in notes.get("next_steps") or []}
+            notes["next_steps"] = [*(notes.get("next_steps") or []),
+                                   *[x for x in steps if _wkey(x) not in have]][:80]
+            if not src.segments:
+                src.kind = "notes"
+                src.duration_s = None
+        speakers = [clean_name(sp) for sp in src.speakers]
     src.attendees = _with_speakers(listed, speakers, invited)[:100]
     src.attendees_from = "attendees" if listed else "speakers" if src.attendees else "none"
     return src
