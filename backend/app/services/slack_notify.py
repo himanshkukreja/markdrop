@@ -11,7 +11,8 @@ Meeting posts
 
 Direct messages (``slack_outbox``)
     notifications.notify() (mentions, sign-off requests, shares) and access_requests.create()
-    queue one row per linked recipient whose preference allows the kind; :func:`flush` (a
+    queue one row per linked recipient who turned Slack notifications on (off by default:
+    slack.dm_on) and whose preference allows the kind; :func:`flush` (a
     background loop) sends them, checking again at send time that the person may open the page
     and, for a mention or sign-off request, that it's still on the page. Those two wait
     :data:`SLOW_WAIT` first (owner, 2026-11-06): a mention taken out again within a minute
@@ -311,7 +312,8 @@ async def _queue(db: AsyncIOMotorDatabase, user_id: str, kind: str, ref: str) ->
     if not links:
         return 0
     urow = await db["users"].find_one({"_id": _oid(user_id)}, {"slack_notify": 1}) if _oid(user_id) else None
-    if not slack.prefs_of(urow).get(kind):
+    # Never anyone who hasn't turned Slack notifications on (off by default), nor a kind they turned off.
+    if not await slack.dm_on(db, urow) or not slack.prefs_of(urow).get(kind):
         return 0
     now = _now()
     at = now + SLOW_WAIT if kind in SLOW_KINDS else now
@@ -388,7 +390,7 @@ async def _deliver(db: AsyncIOMotorDatabase, row: dict) -> tuple[str, dict]:
     if not token:
         return "skipped", {"error": "token"}
     urow = await db["users"].find_one({"_id": _oid(row["user_id"])})
-    if urow is None or not slack.prefs_of(urow).get(row["kind"]):
+    if urow is None or not await slack.dm_on(db, urow) or not slack.prefs_of(urow).get(row["kind"]):
         return "skipped", {"error": "off"}
     if row["kind"] == "access_request":
         msg = await _access_request_message(db, inst, row)
