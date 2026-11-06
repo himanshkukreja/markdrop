@@ -41,6 +41,7 @@ Volume
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import time
@@ -276,7 +277,13 @@ async def _by_email(db: AsyncIOMotorDatabase, lk: Lookup, email: str) -> dict | 
     if email in lk.by_email:
         return lk.by_email[email]
     try:
-        r = await slack_api.call("users.lookupByEmail", lk.token, email=email)
+        try:
+            r = await slack_api.call("users.lookupByEmail", lk.token, email=email)
+        except slack_api.SlackError as exc:
+            if exc.error != "ratelimited" or (exc.retry_after or 30) > 20:
+                raise
+            await asyncio.sleep(exc.retry_after or 1)     # Slack's own wait, once
+            r = await slack_api.call("users.lookupByEmail", lk.token, email=email)
     except slack_api.SlackError as exc:
         if exc.error in ("missing_scope", "no_permission"):
             lk.needs_update = True
