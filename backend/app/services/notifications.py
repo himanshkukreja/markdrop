@@ -1157,14 +1157,15 @@ class _Person:
         """The hourly bundle, or the daily digest / morning catch-up: every page in one email."""
         from app.services import md_outline, urls
 
+        pages = await self.pages(rows, docs)
+        if not pages:
+            return
         key = f"{self.uid}:hourly" if mode == "hourly" else f"{self.uid}:daily:{self.slot_day}"
         if not await _claim_key(self.db, key, self.now, BUNDLE_GAP if mode == "hourly" else None,
                                 {"user_id": self.uid}):
-            self.later(rows, self.now + RECHECK if mode == "hourly" else self.next_slot)
-            self.bump("waiting", len(rows))
-            return
-        pages = await self.pages(rows, docs)
-        if not pages:
+            waiting = [r for _, prs in pages for r in prs]
+            self.later(waiting, self.now + RECHECK if mode == "hourly" else self.next_slot)
+            self.bump("waiting", len(waiting))
             return
         sent_rows = [r for _, prs in pages for r in prs]
         over = any(r["kind"] == "signoff_requested" for r in sent_rows)
