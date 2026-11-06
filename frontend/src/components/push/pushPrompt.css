@@ -1,6 +1,7 @@
 /* Home's "turn on notifications" card (PushPromptCard.tsx). Tokens only: light and dark follow the
-   theme. Phones: icon + text, then the two buttons sharing a row; ≥ 640 px the buttons sit beside the
-   text. 44 px targets on touch screens. */
+   theme. Phones: icon + text, then the two buttons sharing the row under them; tablets in portrait
+   (640–959): the buttons at their own width under the text, so the title keeps one line; ≥ 960 px
+   beside the text. 44 px targets on touch screens. */
 
 .md-pushcard {
   display: grid;
@@ -29,10 +30,14 @@
 .md-pushcard__actions > .md-btn { flex: 1 1 0; }
 
 @media (min-width: 640px) {
-  .md-pushcard { grid-template-columns: auto minmax(0, 1fr) auto; }
-  .md-pushcard__actions { grid-column: auto; }
+  .md-pushcard__actions { grid-column: 2; }
   .md-pushcard__actions > .md-btn { flex: none; }
 }
+@media (min-width: 960px) {
+  .md-pushcard { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .md-pushcard__actions { grid-column: auto; }
+}
+.md-pushcard__nowrap { white-space: nowrap; }
 
 @media (pointer: coarse) {
   .md-pushcard__actions > .md-btn { min-height: 44px; }
