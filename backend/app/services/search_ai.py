@@ -37,7 +37,7 @@ from typing import Any, AsyncIterator
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import access, ai_output, ai_usage, docs_agent, pages_ai, search, search_index
+from app.services import access, ai_output, ai_usage, docs_agent, pages_ai, search, search_chunks, search_index
 from app.services import search_text as st
 
 log = logging.getLogger("markdrop.search_ai")
@@ -300,28 +300,38 @@ async def _ai_workspaces(db: AsyncIOMotorDatabase, cands: list[search.Cand]) -> 
     return off
 
 
-def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms) -> str:
+def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms, wins: list | None = None) -> str:
     if c.kind in search.DOC_KINDS and search_index.title_only(c.raw):
         return ""
-    if not row:
+    if not row and not wins:
         return ""
+    row = row or {}
     x = row.get("x") or ""
     sn = search.snippet(x, terms.marks, terms.prefixes, width=EXCERPT_CHARS)
     text = sn["text"] if sn else x[:EXCERPT_CHARS]
+    if wins:
+        # The best window of a long text (a transcript's moment, a file's page / sheet / minute).
+        w = search_chunks.focus(wins[0], terms)
+        wsn = search.snippet(w.get("x") or "", terms.marks, terms.prefixes, width=EXCERPT_CHARS)
+        if wsn:
+            where = search_chunks.where(w) if w.get("src") != "around" else None
+            text = (f"({where}) " if where else "") + wsn["text"]
     heads = [h.get("t") for h in (row.get("hd") or [])[:8] if h.get("t")]
     if heads:
         text = "Sections: " + " · ".join(heads) + "\n" + text
     return text
 
 
-def context_of(cands: list[search.Cand], rows: dict, ws_names: dict[str, str], terms: search.Terms) -> str:
+def context_of(cands: list[search.Cand], rows: dict, ws_names: dict[str, str], terms: search.Terms,
+               windows: dict | None = None) -> str:
     parts = ["<candidates>"]
     for n, c in enumerate(cands, 1):
         where = ws_names.get(c.ws_id or "") if c.ws_id else "Personal"
         if c.kind == "guide":
             where = f"Guide: {(c.extra.get('site') or {}).get('name') or ''}"
         updated = c.updated.strftime("%Y-%m-%d") if c.updated else None
-        parts.append(pages_ai.wrap("document", _excerpt(c, rows.get(c.content_id), terms), n=n, title=c.title or "(untitled)",
+        parts.append(pages_ai.wrap("document", _excerpt(c, rows.get(c.content_id), terms, (windows or {}).get(c.key)), n=n,
+                                   title=c.title or "(untitled)",
                                    kind=c.kind, where=where, updated=updated))
     parts.append("</candidates>")
     return "\n".join(parts)
@@ -425,7 +435,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
 
         # 3. Rank and answer.
         yield ev("status", stage="answering")
-        content = (context_of(sent, rows, w.ws_names, terms_q)
+        content = (context_of(sent, rows, w.ws_names, terms_q, getattr(shaper, "windows", None))
                    + f"\n\nThe question (from the person searching, not from a document): {question}")
         queue: asyncio.Queue = asyncio.Queue()
         buf: list[str] = []

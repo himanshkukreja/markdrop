@@ -240,10 +240,11 @@ async def best(db: AsyncIOMotorDatabase, parents: list, terms, *, per: int = 2,
     pids = [p for p in (_oid(x) for x in parents) if p is not None]
     if not pids or not terms.tokens:
         return {}
-    want = [w for w in terms.expand if len(w) >= 2] + [t for t in terms.tokens if t not in terms.expand]
+    # The query's own words first, then their typo variants (a long query has hundreds of those).
+    want = list(dict.fromkeys([t for t in terms.tokens if len(t) >= 2] + [w for w in terms.expand if len(w) >= 2]))
     q: dict = {"p": {"$in": pids}}
     if want:
-        q["w"] = {"$in": want[:400]}
+        q["w"] = {"$in": want[:600]}
     rows = await db[COLL].find(q, {"x": 0}).limit(5000).to_list(length=5000)
     if not rows and terms.prefixes:
         rows = await db[COLL].find({"p": {"$in": pids}, "w": {"$regex": "^" + re.escape(terms.prefixes[0])}},

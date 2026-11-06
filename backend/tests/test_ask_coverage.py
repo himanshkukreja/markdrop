@@ -377,3 +377,15 @@ class Coverage(AskWorld):
         code, res = await self.mcp_call(tok, "set_captions", {"document": "clip", "remove": True})
         self.assertFalse(res.get("isError"), res)
         self.assertIsNone(res["structuredContent"]["captions"])
+
+    async def test_ai_search_reads_the_matching_page_of_a_file(self):
+        slides = [("Intro", "x")] + [(f"Slide {i}", "filler") for i in range(2, 6)] + [("Rollout", "the narwhal migration starts in May")]
+        await self.file("owner", "deck2", "Migration deck", make_pptx(slides), file_text.PPTX, filename="m.pptx")
+        await self.settle()
+        self.fake.calls.clear()
+        r = await self.http.post("/api/v1/search/ask", json={"question": "when does the narwhal migration start?"},
+                                 headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        sent = "\n".join(prompt_of(c) for c in self.fake.calls if "untrusted_document" in prompt_of(c))
+        self.assertIn("(slide 6) ", sent)
+        self.assertIn("narwhal migration starts in May", sent)
