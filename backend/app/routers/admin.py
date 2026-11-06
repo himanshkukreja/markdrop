@@ -945,7 +945,7 @@ async def send_campaign_test(
         data.to_email, data.subject, data.html, _sender(data.sender)
     )
     if not ok:
-        raise HTTPException(status_code=502, detail="Resend rejected the test email.")
+        raise HTTPException(status_code=502, detail="The test email wasn't sent.")
     return {"status": "sent"}
 
 

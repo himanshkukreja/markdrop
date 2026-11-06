@@ -17,6 +17,9 @@
     GET    /api/v1/admin/email/campaigns/{id}/progress
     GET    /api/v1/admin/email/campaigns/{id}/report
     GET    /api/v1/admin/email/campaigns/{id}/recipients?filter=&q=&offset=&limit=&format=csv
+    GET    /api/v1/admin/email/usage?days=14            every email: provider usage vs daily limits, days, kinds
+    GET    /api/v1/admin/email/log?kind=&status=&provider=&q=&ref=&since=&until=&offset=&limit=
+                                                        the send log (email_log), newest first
 
 The old ``/api/v1/admin/campaigns*`` endpoints in ``admin.py`` stay until the
 frontend that uses them is gone (backend deploys first).
@@ -40,6 +43,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.config import get_settings
 from app.database import get_database
 from app.routers.admin import require_admin
+from app.services import email_delivery as delivery
 from app.services.email_campaigns import (
     audience, engine, links, render, senders, store, tags, templates, transport,
 )
@@ -510,3 +514,136 @@ async def campaign_recipients(
     total = await db["email_messages"].count_documents(query)
     rows = await db["email_messages"].find(query, {"vars": 0}).sort("_id", 1).skip(offset).limit(limit).to_list(length=limit)
     return ok({"rows": [store.message_row(m) for m in rows], "total": total, "offset": offset, "limit": limit})
+
+
+# ── Sent mail: provider usage and the send log (services/email_delivery) ──────
+#
+# Every email Markdrop sends (sign-in, mentions, shares, digests, campaigns…) is
+# a row per recipient in ``email_log``; today's usage per provider comes from the
+# same counters the router claims before each send.
+
+def _log_row(r: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(r["_id"]), "at": store.iso(r.get("at")), "kind": r.get("kind"), "priority": r.get("priority"),
+        "to": r.get("to"), "subject": r.get("subject") or "", "provider": r.get("provider"),
+        "status": r.get("status"), "provider_message_id": r.get("provider_message_id"), "error": r.get("error"),
+        "ref": r.get("ref"), "attempts": int(r.get("attempts") or 1), "updated_at": store.iso(r.get("updated_at")),
+    }
+
+
+def _day_start(day: str) -> datetime | None:
+    try:
+        return datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+@router.get("/usage")
+async def email_usage(
+    days: int = Query(14, ge=1, le=90),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Today's usage per provider against its daily limit (UTC day), the tier
+    caps, the last ``days`` days (sent per provider, failures), and a breakdown
+    by kind."""
+    today = delivery.day_key()
+    used = await delivery.usage(db, today)
+    full = {r["_id"].split(":", 1)[0] for r in await db[delivery.QUOTA].find({"day": today, "full": True}, {"_id": 1}).to_list(length=20)}
+    order = [p.name for p in delivery.providers()]
+    names = order + [n for n in delivery.PROVIDERS if n not in order]
+    providers = [{
+        "name": n, "configured": delivery.PROVIDERS[n].configured(), "limit": delivery.PROVIDERS[n].limit(),
+        "used": used.get(n, 0), "full": n in full,
+    } for n in names]
+    total = delivery.total_limit()
+    start = _day_start(today) - timedelta(days=days - 1)
+    rows = await db[delivery.LOG].aggregate([
+        {"$match": {"at": {"$gte": start}}},
+        {"$group": {"_id": {"d": {"$dateToString": {"format": "%Y-%m-%d", "date": "$at"}},
+                            "p": "$provider", "s": "$status"}, "n": {"$sum": 1}}},
+    ]).to_list(length=None)
+    series: dict[str, dict[str, Any]] = {}
+    for i in range(days):
+        d = (start + timedelta(days=i)).strftime("%Y-%m-%d")
+        series[d] = {"day": d, "sent": {}, "failed": 0, "deferred": 0, "over_limit": 0, "skipped": 0}
+    for r in rows:
+        k = r["_id"]
+        day = series.get(k.get("d"))
+        if day is None:
+            continue
+        if k.get("s") == "sent":
+            p = k.get("p") or "unknown"
+            day["sent"][p] = day["sent"].get(p, 0) + r["n"]
+        elif k.get("s") in day:
+            day[k["s"]] += r["n"]
+    kinds = await db[delivery.LOG].aggregate([
+        {"$match": {"at": {"$gte": start}}},
+        {"$group": {"_id": {"k": "$kind", "s": "$status"}, "n": {"$sum": 1}}},
+    ]).to_list(length=None)
+    by_kind: dict[str, dict[str, Any]] = {}
+    for r in kinds:
+        k = r["_id"].get("k") or "unknown"
+        row = by_kind.setdefault(k, {"kind": k, "priority": delivery.tier_of(k), "total": 0,
+                                     **{s: 0 for s in delivery.STATUSES}})
+        s = r["_id"].get("s")
+        if s in delivery.STATUSES:
+            row[s] += r["n"]
+        row["total"] += r["n"]
+    waiting = await db[delivery.RETRY].count_documents({"state": {"$in": ["waiting", "sending"]}})
+    pct = (used.get("all", 0) / total) if total else 0.0
+    return ok({
+        "day": today,
+        "resets_at": store.iso(delivery.next_day()),
+        "providers": providers,
+        "order": order,
+        "total": {"used": used.get("all", 0), "limit": total, "pct": round(pct, 4)},
+        "caps": {t: {"share": delivery.TIER_SHARE[t], "limit": delivery.tier_cap(t)} for t in delivery.TIERS},
+        "warn": bool(total) and pct >= 0.8,
+        "days": list(series.values()),
+        "by_kind": sorted(by_kind.values(), key=lambda x: -x["total"]),
+        "retry_waiting": waiting,
+        "kinds": sorted(delivery.KINDS),
+        "statuses": list(delivery.STATUSES),
+    })
+
+
+@router.get("/log")
+async def email_log(
+    kind: str = Query("", max_length=40),
+    status: str = Query("", max_length=20),
+    provider: str = Query("", max_length=20),
+    q: str = Query("", max_length=200),
+    ref: str = Query("", max_length=200),
+    since: str = Query("", max_length=10),
+    until: str = Query("", max_length=10),
+    offset: int = Query(0, ge=0, le=100_000),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    _: dict = Depends(require_admin),
+):
+    """Every email sent (one row per recipient), newest first. Filters: kind,
+    status, provider (``none`` for rows no provider took), recipient (``q``,
+    part of the address), ref, and a UTC date range (``since``/``until``,
+    YYYY-MM-DD, inclusive)."""
+    query: dict[str, Any] = {}
+    if kind:
+        query["kind"] = kind
+    if status:
+        query["status"] = status
+    if provider:
+        query["provider"] = None if provider == "none" else provider
+    if q.strip():
+        query["to"] = {"$regex": re.escape(q.strip().lower())}
+    if ref.strip():
+        query["ref"] = ref.strip()
+    at: dict[str, Any] = {}
+    if since and (s := _day_start(since)):
+        at["$gte"] = s
+    if until and (u := _day_start(until)):
+        at["$lt"] = u + timedelta(days=1)
+    if at:
+        query["at"] = at
+    total = await db[delivery.LOG].count_documents(query)
+    rows = await db[delivery.LOG].find(query).sort([("at", -1), ("_id", -1)]).skip(offset).limit(limit).to_list(length=limit)
+    return ok({"rows": [_log_row(r) for r in rows], "total": total, "offset": offset, "limit": limit})
