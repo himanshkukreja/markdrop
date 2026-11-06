@@ -331,7 +331,9 @@ const STATES = [
   ["page-long", ["owner", "member"], () => (X.longPage ? `${APP}/${X.longPage}` : null), (p) => p.locator(".pb-bar").first()],
   // Under 1280 px the path is "… / Week three status update"; from 1280 every crumb shows (barpath).
   ["page-deep", ["owner", "member"], () => (X.deepPage ? `${APP}/${X.deepPage}` : null), (p) => p.locator(".pb-bar").first(), async (p, dev) => {
-    await p.waitForTimeout(500);
+    // The ancestors arrive after the page: wait until the bar shows more than this page.
+    await p.waitForFunction(() => document.querySelectorAll(".pb-bar .pb-crumb:not(.pb-crumb--current)").length > 0, null, { timeout: 15000 }).catch(() => {});
+    await p.waitForTimeout(300);
     const vis = await p.evaluate(() => [...document.querySelectorAll(".pb-bar .pb-crumb")]
       .filter((el) => getComputedStyle(el).display !== "none")
       .map((el) => (el.classList.contains("pb-crumb--current") ? "current" : el.querySelector(".pb-crumb__more") ? "fold" : "link")));
@@ -410,7 +412,10 @@ for (const theme of themes) {
             if (r && r.extra) extra = r.extra;
           }
           await p.waitForTimeout(250);
-          const res = [...(await p.evaluate(measure, { checkTargets: dev.kind !== "desktop" })), ...extra];
+          // A laptop (a mouse) is audited for its bars only: hover-revealed controls and small
+          // eyebrow text are phone rules.
+          const res = [...(await p.evaluate(measure, { checkTargets: dev.kind !== "desktop" })), ...extra]
+            .filter((f) => dev.kind !== "desktop" || !["hover", "text", "target", "input"].includes(f.rule));
           if (!action || name === "files" || name === "folder") {
             const s = await stickyCheck(p).catch(() => null);
             if (s) res.push({ rule: "sticky", who: "header", detail: s });

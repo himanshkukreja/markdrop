@@ -534,6 +534,8 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 @media (min-width: 1280px) {
   .pb-crumb--wide { min-width: 32px; }
   .pb-crumb--wide .pb-crumb__link { max-width: none; }
+  /* This page's title gives way last: up to half the path's room, the pages above share the rest. */
+  .pb-bar .pb-crumb--current { flex: 0 0 auto; max-width: 50%; }
 }
 
 /* Tablets and small laptops (< 1024 px): the bar's buttons are icons (their names stay as aria-label and
