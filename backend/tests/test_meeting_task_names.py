@@ -54,7 +54,7 @@ def single_tab() -> str:
 def old_parser():
     """The parser as it was before attendees_v 3 (the bug, for building old meetings)."""
     return [mock.patch.object(mp, "notes_span", lambda lines: set()),
-            mock.patch.object(mp, "clean_task_speakers", lambda segs, known=(), notes_doc=False: (segs, [])),
+            mock.patch.object(mp, "clean_task_speakers", lambda segs, known=(), notes_doc=False: (segs, [], [])),
             mock.patch.object(mp, "resolve_speaker", lambda name, known=(), text=None: mp.clean_name(name) or None)]
 
 

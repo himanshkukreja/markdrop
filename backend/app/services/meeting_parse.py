@@ -937,40 +937,64 @@ def _says_owner(text: str | None, owner: str) -> bool:
     return bool(ow) and [_wkey(w) for w in str(text or "").split()[:len(ow)]] == ow
 
 
-def clean_task_speakers(segments: list[dict], known: list[str] | tuple = (), *,
-                        notes_doc: bool = False) -> tuple[list[dict], list[str]]:
-    """(segments, next steps) with no "<Owner Name> <Task Title>" speaker (:func:`task_owner`). In a
-    notes Doc such a line is a next step, never a turn: it goes to the next steps (and so does a label
-    longer than a name, :data:`TASK_MAX_WORDS`); elsewhere the owner is the speaker (the task words
-    are not part of the name). ``known``: the invite and attendee names."""
-    base = [k for k in known or () if k]
-    speakers: list[tuple[str, str]] = []
+def read_turns(segments: list[dict], universe: Universe, known: list[str] | tuple = (), *,
+               notes_doc: bool = False) -> dict:
+    """What a transcript's speaker labels are (:func:`task_shaped`), and the segments without the ones
+    that aren't anyone's turn: {segments, steps, details, labels, whole}.
+
+    * Half or more of the labels (2+) are "<Person> <task words>": the whole "transcript" is Gemini's
+      notes read as turns (prod: 43 sync-ups): no segments; the task lines are next steps, the rest
+      details (``whole``).
+    * Else, in a notes Doc, a task line whose words name the owner again and a label that's no one
+      (a heading, longer than a name) are next steps; elsewhere the owner is the speaker.
+
+    ``labels``: {label: the owner, or None (nobody)} for every label that isn't a person's name."""
+    first: dict[str, str] = {}
     for s in segments:
         sp = s.get("speaker")
-        if sp and all(sp != x for x, _t in speakers):
-            speakers.append((sp, s.get("text") or ""))
-    names = list(base)
-    for sp, text in speakers:
-        n = len(clean_name(sp).split())
-        if 2 <= n <= 3 and name_like(clean_name(sp)) and task_owner(sp, text, base) is None:
-            names.append(clean_name(sp))
+        if sp and sp not in first:
+            first[sp] = s.get("text") or ""
+    shape = {sp: task_shaped(sp, text, universe, known) for sp, text in first.items()}
+    task = [sp for sp, sh in shape.items() if isinstance(sh, str)]
+    labels = {sp: (sh if isinstance(sh, str) else None) for sp, sh in shape.items() if sh is not False}
+    whole = len(task) >= 2 and len(task) * 2 >= len(shape)
     out: list[dict] = []
     steps: list[str] = []
-    by_known: dict[str, str | None] = {}
+    details: list[str] = []
     for s in segments:
         sp = s.get("speaker")
-        if not sp:
+        text = (s.get("text") or "").strip()
+        line = f"{clean_name(sp)}: {text}" if sp else text
+        if whole:
+            (steps if sp in task else details).append(line)
+            continue
+        if not sp or sp not in labels:
             out.append(s)
             continue
-        if sp not in by_known:      # once per speaker (a long transcript has thousands of lines)
-            by_known[sp] = task_owner(sp, None, names)
-        owner = by_known[sp] or task_owner(sp, s.get("text"))
+        owner = labels[sp]
         long = len(clean_name(sp).split()) > TASK_MAX_WORDS
-        if notes_doc and ((owner and _says_owner(s.get("text"), owner)) or long):
-            steps.append(f"{clean_name(sp)}: {(s.get('text') or '').strip()}")
+        if notes_doc and ((owner and _says_owner(text, owner)) or (owner is None and (long or topicish(sp)))):
+            steps.append(line) if owner else details.append(line)
             continue
         out.append({**s, "speaker": owner} if owner else s)
-    return out, steps
+    return {"segments": out, "steps": steps, "details": details, "labels": labels, "whole": whole}
+
+
+def doc_universe(people: list[dict], segments: list[dict]) -> Universe:
+    """One Doc's people: its invite and Attendees line, and the names its labels keep starting with."""
+    u = Universe(people)
+    for n in mine_names([s.get("speaker") or "" for s in segments]):
+        u.add({"name": n})
+    return u
+
+
+def clean_task_speakers(segments: list[dict], known: list[str] | tuple = (), *,
+                        notes_doc: bool = False) -> tuple[list[dict], list[str], list[str]]:
+    """(segments, next steps, details) with no "<Owner Name> <Task Title>" speaker: :func:`read_turns`
+    against the Doc's own people (``known``: the invite and attendee names)."""
+    got = read_turns(segments, doc_universe([{"name": k} for k in known or () if k], segments), known,
+                     notes_doc=notes_doc)
+    return got["segments"], got["steps"], got["details"]
 
 
 def resolve_speaker(name: str | None, known: list[str] | tuple = (), text: str | None = None) -> str | None:
@@ -983,6 +1007,157 @@ def resolve_speaker(name: str | None, known: list[str] | tuple = (), text: str |
     if owner:
         return owner
     return n if name_like(n) else None
+
+
+# ── The people a workspace knows (prod dry run, 2026-11-06) ────────────────────
+# Gemini's next-step labels name people the meeting's invite often doesn't ("Shreesha Joshi Audit
+# Alerts", "Rehan Establish Structure", "Venkat Phanindra Add images"). A label is read against every
+# person the workspace knows (members, every invitee and attendee with an address, names that recur
+# as a whole speaker label, and the two-word names Gemini's labels keep starting with); a label that
+# starts with no one is not a person.
+_TOPIC_WORDS = frozenset("""
+daily weekly monthly sprint standup stand-up syncup sync-up sync product release client clients demo demos team project
+customer customers sales design marketing security data model models sourcing review plan planning discussion update
+workflow workflows automation assessment endpoint vulnerability positioning competitors pricing roadmap launch onboarding
+integration integrations testing deployment infra infrastructure api apis ai ml ui ux qa gtm crm prd mvp bug bugs issue
+issues feature features page pages website landing content strategy process flow flows dashboard report reports analytics
+email emails interview interviews candidate candidates hiring meeting meetings call calls agenda summary details notes
+action items next steps open questions decisions decision topic topics overview status
+""".split())
+# The verbs Gemini's next-step titles start with ("Rehan Establish Structure"): never a surname.
+_TASK_VERBS = frozenset("""
+add adjust analyze analyse audit automate book build capture check clean coordinate complete confirm connect contact create
+debug define deploy design discuss document draft enable escalate establish evaluate explore finalize finalise finish fix
+follow gather implement improve integrate investigate launch list map merge migrate monitor move organize organise pair
+plan prepare present prioritize prioritise publish push record reach refine release remove report research resolve
+restructure retrain review run schedule send set setup share ship start submit sync test track train trim update upload
+validate verify write
+""".split())
+_TOPIC_SUFFIX = re.compile(r"(?:ing|tion|tions|ment|ments|ness|ity|ance|ence|ology|ics|ship)$", re.I)
+
+
+def topicish(name: str | None) -> bool:
+    """A heading, not a person: "Workflow Automation", "Standardizing Demo Flows", "AI Assessment
+    Endpoint Security Vulnerability", "Positioning Senso versus Competitors"."""
+    words = clean_name(name).split()
+    if not words:
+        return True
+    low = [_wkey(w) for w in words]
+    if any(len(w) > 1 and (w in _TOPIC_WORDS or w in _STOP or w in _NOT_NAMES) for w in low):
+        return True
+    return len(low[0]) >= 6 and _TOPIC_SUFFIX.search(low[0]) is not None    # "Standardizing", "Positioning"
+
+
+def _person_shape(words: list[str]) -> bool:
+    """Words that can be a person's name: 1-3 words, each capitalised (or a particle), not a heading."""
+    if not 1 <= len(words) <= 3 or any(_wkey(w) in _TASK_VERBS for w in words[1:]):
+        return False
+    if not all(w[:1].isupper() or w.casefold() in ("bhai", "ji", "de", "da", "van", "von", "bin", "al") for w in words):
+        return False
+    return name_like(" ".join(words)) and not topicish(" ".join(words))
+
+
+class Universe:
+    """Everyone a workspace (or one Doc) knows: {name, email, user_id} once each, by full name.
+
+    :meth:`owner` reads a label: the longest known full name it starts with (any case), else a first
+    name only one known person has (or 4+ letters that start only one person's first name: "Arun" for
+    "Arunprakaash G"), with how many words follow it."""
+
+    def __init__(self, people: list[dict] | None = None):
+        self.people: list[dict] = []
+        self._by_key: dict[tuple, dict] = {}
+        for p in people or []:
+            self.add(p)
+
+    def add(self, p: dict) -> None:
+        name = clean_name(p.get("name"))
+        if not name:
+            return
+        key = tuple(_wkey(w) for w in name.split())
+        hit = self._by_key.get(key)
+        if hit is None:
+            e = {"name": name, "email": (p.get("email") or None), "user_id": p.get("user_id") or None}
+            self._by_key[key] = e
+            self.people.append(e)
+        else:
+            hit["email"] = hit.get("email") or p.get("email") or None
+            hit["user_id"] = hit.get("user_id") or p.get("user_id") or None
+
+    def names(self) -> list[str]:
+        return [p["name"] for p in self.people]
+
+    def get(self, name: str | None) -> dict | None:
+        return self._by_key.get(tuple(_wkey(w) for w in clean_name(name).split()))
+
+    def _first(self, word: str) -> dict | None:
+        w = _wkey(word)
+        if len(w) < 2:
+            return None
+        exact = [p for p in self.people if _wkey(p["name"].split()[0]) == w]
+        if len(exact) == 1:
+            return exact[0]
+        if exact:
+            return None
+        if len(w) >= 4:
+            pre = [p for p in self.people if _wkey(p["name"].split()[0]).startswith(w)]
+            if len(pre) == 1:
+                return pre[0]
+        return None
+
+    def owner(self, label: str | None) -> tuple[dict | None, int]:
+        words = clean_name(label).split()
+        keys = [_wkey(w) for w in words]
+        for n in range(min(4, len(words)), 1, -1):
+            hit = self._by_key.get(tuple(keys[:n]))
+            if hit is not None:
+                return hit, len(words) - n
+        rest_task = len(words) == 1 or words[1][:1].islower() or keys[1] in _TASK_VERBS or \
+            (len(words) >= 3 and not _person_shape(words[:2]))
+        if words and words[0][:1].isupper() and rest_task:
+            hit = self._by_key.get((keys[0],)) or self._first(words[0])
+            if hit is not None:
+                # "Shreya Research Visitor Emails" is Shreya; "Shreya Sharma" (a surname, not a task) is not
+                # whoever else is called Shreya.
+                return hit, len(words) - 1
+        return None, 0
+
+
+def mine_names(labels: list[str]) -> list[str]:
+    """Two-word names Gemini's labels keep starting with: "Shreesha Joshi" from "Shreesha Joshi Audit
+    Alerts" and "Shreesha Joshi Escalate Security" (two different continuations), never a heading's
+    start ("Standardizing Demo")."""
+    conts: dict[tuple, set[str]] = {}
+    shown: dict[tuple, str] = {}
+    for lab in labels:
+        words = clean_name(lab).split()
+        if len(words) < 3:
+            continue
+        head = words[:2]
+        if not _person_shape(head):
+            continue
+        k = tuple(_wkey(w) for w in head)
+        conts.setdefault(k, set()).add(_wkey(words[2]))
+        shown.setdefault(k, " ".join(head))
+    return [shown[k] for k, c in conts.items() if len(c) >= 2]
+
+
+def task_shaped(label: str | None, text: str | None, universe: Universe, known: list[str] | tuple = ()) -> str | None | bool:
+    """What a speaker label is: the owner's name ("<Person> <task words>"), False for a person's name
+    as it is, None for neither (a heading, a sentence, nobody known)."""
+    n = clean_name(label)
+    if not n:
+        return None
+    hit, extra = universe.owner(n)
+    if hit is not None:
+        return hit["name"] if extra else False
+    owner = task_owner(n, text, known)
+    if owner:
+        return owner
+    words = n.split()
+    if len(words) > TASK_MAX_WORDS or topicish(n):
+        return None
+    return False if _person_shape(words) else None
 
 
 def notes_text(notes: dict | None) -> str:
@@ -1330,8 +1505,13 @@ def parse_source(name: str, text: str) -> Source:
     src.listed, src.invited = listed, invited
     if src.segments:
         # "<Owner Name> <Task Title>: …" is a next step, never a speaker (owner 2026-11-06).
-        src.segments, steps = clean_task_speakers(src.segments, [p["name"] for p in [*listed, *invited]],
-                                                  notes_doc=notes is not None)
+        had = bool(src.segments)
+        src.segments, steps, details = clean_task_speakers(src.segments, [p["name"] for p in [*listed, *invited]],
+                                                           notes_doc=notes is not None)
+        if notes is None and had and not src.segments and steps:
+            # Gemini's notes that weren't recognised as notes (no Summary heading): its lines are notes.
+            notes = src.notes = {"summary": "", "details": details[:80], "next_steps": []}
+            src.format = "gemini_notes"
         if notes is not None:
             have = {_wkey(x) for x in notes.get("next_steps") or []}
             notes["next_steps"] = [*(notes.get("next_steps") or []),

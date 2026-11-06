@@ -53,6 +53,12 @@ async def main(apply: bool, workspace: str | None) -> int:
               f"transcript {ex['transcript']}, page {ex['page']})")
         print(f"       before: {_names(ex['before'])}")
         print(f"       after:  {_names(ex['after'])}")
+    print(f"Attendee names still with task words or headings after: {len(out['bad_after'])}")
+    for x in out["bad_after"][:30]:
+        print(f"  ! {x}")
+    print(f"Meetings with attendees before and none after: {len(out['empty_after'])}")
+    for x in out["empty_after"][:30]:
+        print(f"  ! {x}")
     facts = await meetings.stray_fact_subjects(db, apply=False)
     print(f"Team memory facts: {facts['facts']}; subject not a member of its workspace {facts['not_member']} "
           f"(not anyone's account: {facts['not_a_user']})")

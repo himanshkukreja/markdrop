@@ -936,32 +936,106 @@ def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[
     return out
 
 
-def notes_attendees(notes: dict | None, invited: list[dict], people: People) -> list[dict]:
+def notes_attendees(notes: dict | None, invited: list[dict], people: People,
+                    universe: mp.Universe | None = None) -> list[dict]:
     """Who Gemini's notes show joined a call that has nothing better (no transcript, no Attendees line):
     the invited people the notes name (a next step's owner, a full name, a first name only one of them
-    has: meeting_parse.named_in_notes), then members the notes name by their full name though not on
-    the invite. As meeting rows, each once."""
+    has: meeting_parse.named_in_notes); then anyone the workspace knows (``universe``: members, every
+    invitee, the names Gemini's labels start with) who owns a next step ("Shreesha Joshi Audit Alerts:
+    …", "Rehan Establish Structure: …") or whom the notes name by full name. As meeting rows, once each."""
+    u = universe or mp.Universe([{"name": m.get("name"), "email": m.get("email"), "user_id": m["id"]}
+                                 for m in people.members])
     found = list(mp.named_in_notes(notes, invited))
+    for step in (notes or {}).get("next_steps") or []:
+        head = str(step).partition(":")[0]
+        hit, _extra = u.owner(head)
+        if hit is None:
+            owner = mp.owner_of_step(step, u.names())
+            hit = u.get(owner) if owner else None
+        if hit is not None:
+            found.append(dict(hit))
     text = re.sub(r"\s+", " ", mp.notes_text(notes)).casefold()
     if text:
-        have = {a.get("user_id") for a in [*found, *invited] if a.get("user_id")}
-        for m in people.members:
-            n = mp.clean_name(m.get("name"))
-            if len(n.split()) >= 2 and m["id"] not in have and \
-                    re.search(r"(?<![\w])" + re.escape(n.casefold()) + r"(?![\w])", text):
-                found.append({"name": m.get("name"), "user_id": m["id"], "email": m.get("email")})
-    return person_rows(found, people)
+        for p in u.people:
+            n = p["name"]
+            if len(n.split()) >= 2 and re.search(r"(?<![\w])" + re.escape(n.casefold()) + r"(?![\w])", text):
+                found.append(dict(p))
+    return tidy_people(person_rows(found, people), u, people)
 
 
 def with_notes_people(att: list[dict], inv: list[dict], how: str, notes: dict | None,
-                      people: People) -> tuple[list[dict], str]:
+                      people: People, universe: mp.Universe | None = None) -> tuple[list[dict], str]:
     """(attendees, attendees_from): nobody known to have joined ("invited" / "none") and Gemini's notes
     there: the people they name ("notes")."""
     if how in ("invited", "none", "notes") and not (how != "notes" and att) and notes:
-        got = notes_attendees(notes, inv, people)
+        got = notes_attendees(notes, inv, people, universe)
         if got:
             return got, "notes"
     return att, how
+
+
+def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
+                labels: dict[str, str | None] | None = None) -> list[dict]:
+    """Meeting people with no task words and no headings: "<Person> <task words>" is that person (with
+    their address and account when known), a heading or a label that is no one goes, each once.
+    Someone with an address is who the address says."""
+    labels = labels or {}
+    out: list[dict] = []
+    for a in entries:
+        name = a.get("name") or ""
+        if a.get("email") and name not in labels and not mp.topicish(name):
+            out.append(a)
+            continue
+        if len(name.split()) >= 4 and not a.get("email"):
+            # People chips run together ("Himanshu Kukreja Arunprakaash G Jason Chad"): each of them.
+            glued = mp._split_glued(name, universe.names())
+            if glued and len(glued) >= 2 and all(universe.get(g["name"]) for g in glued):
+                out.extend(dict(universe.get(g["name"])) for g in glued)
+                continue
+        shape = labels[name] if name in labels else mp.task_shaped(name, None, universe)
+        if isinstance(shape, str):
+            hit = universe.get(shape) or {"name": shape}
+            out.append({"name": hit["name"], "user_id": hit.get("user_id") or a.get("user_id"),
+                        "email": hit.get("email")})
+        elif shape is False:
+            hit = universe.get(name) or {}
+            out.append({**a, "email": a.get("email") or hit.get("email"), "user_id": a.get("user_id") or hit.get("user_id")})
+        elif name in labels or mp.topicish(name):
+            continue
+        elif a.get("user_id") or (len(name.split()) <= mp.TASK_MAX_WORDS and mp.name_like(name)):
+            out.append(a)       # "anand.k", "Speaker 1": a transcript's own way of naming someone
+    return person_rows(out, people)
+
+
+async def people_universe(db: AsyncIOMotorDatabase, workspace_id: str, people: People) -> mp.Universe:
+    """Everyone the workspace knows (prod dry run, 2026-11-06): its members; every invitee and attendee
+    of its meetings with an address; the two-word names Gemini's labels keep starting with ("Shreesha
+    Joshi" from "Shreesha Joshi Audit Alerts" and "Shreesha Joshi Escalate Security"); and a clean 2-3
+    word name that is a whole speaker label in two or more meetings."""
+    u = mp.Universe([{"name": m.get("name"), "email": m.get("email"), "user_id": m["id"]} for m in people.members])
+    labels: list[str] = []
+    whole: dict[str, set] = {}
+    pipeline = [{"$match": {"workspace_id": workspace_id}},
+                {"$project": {"invited": 1, "attendees": 1, "sp": "$segments.speaker", "steps": "$notes.next_steps"}}]
+    async for r in db[COLL].aggregate(pipeline):
+        for a in [*(r.get("invited") or []), *(r.get("attendees") or [])]:
+            if a.get("email") and not mp.topicish(a.get("name")) and len(mp.clean_name(a.get("name")).split()) <= 4:
+                u.add(a)
+        mine = {mp.clean_name(x) for x in (r.get("sp") or []) if x}
+        mine |= {mp.clean_name(str(x).partition(":")[0]) for x in (r.get("steps") or []) if ":" in str(x)}
+        for lab in mine:
+            if lab:
+                labels.append(lab)
+                whole.setdefault(lab.casefold(), set()).add(str(r["_id"]))
+    for n in mp.mine_names(labels):
+        hit, extra = u.owner(n)
+        if hit is None or extra:
+            u.add({"name": n})
+    for lab in sorted({x for x in labels if len(whole.get(x.casefold(), ())) >= 2}):
+        words = lab.split()
+        if 2 <= len(words) <= 3 and mp._person_shape(words) and u.owner(lab)[0] is None:
+            u.add({"name": lab})
+    return u
 
 
 def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
@@ -1097,8 +1171,12 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     attendees = person_rows(m.attendees, people)
     invited = person_rows(m.invited, people, limit=200)
     attendees_from = m.attendees_from
+    # Against everyone the workspace knows: no task words, no headings, and who the notes name.
+    known = row_universe({"invited": invited, "attendees": attendees, "segments": m.segments}, people,
+                         await people_universe(db, workspace_id, people))
+    attendees = tidy_people(attendees, known, people)
     if attendees_from in ("invited", "none", "notes"):
-        attendees, attendees_from = with_notes_people(attendees, invited, attendees_from, m.notes, people)
+        attendees, attendees_from = with_notes_people(attendees, invited, attendees_from, m.notes, people, known)
     sources = []
     for s in group:
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
@@ -1616,50 +1694,45 @@ def _norm_text(text: str | None) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[*_`#\\]+", " ", str(text or ""))).strip().casefold()
 
 
-def task_known(row: dict, people: People) -> list[str]:
-    """Who a "<Owner> <Task Title>" label can start with: the invite, the members, the attendees whose
-    names read as names (2-3 words, not themselves a task)."""
-    base = [a.get("name") or "" for a in row.get("invited") or []] + [m.get("name") or "" for m in people.members]
-    base = [b for b in base if b]
-    out = list(base)
-    for a in row.get("attendees") or []:
-        n = mp.clean_name(a.get("name"))
-        if 2 <= len(n.split()) <= 3 and mp.name_like(n) and not mp.task_owner(n, None, base):
-            out.append(n)
-    return out
+def row_universe(row: dict, people: People, base: mp.Universe | None = None) -> mp.Universe:
+    """The workspace's people (:func:`people_universe`, or the members) and this meeting's own: its
+    invitees and attendees with an address, and the names its own labels keep starting with."""
+    u = mp.Universe(base.people if base is not None else
+                    [{"name": m.get("name"), "email": m.get("email"), "user_id": m["id"]} for m in people.members])
+    for a in [*(row.get("invited") or []), *(row.get("attendees") or [])]:
+        if a.get("email") and not mp.topicish(a.get("name")):
+            u.add(a)
+    for n in mp.mine_names([s.get("speaker") or "" for s in row.get("segments") or []]):
+        if u.owner(n)[0] is None:
+            u.add({"name": n})
+    return u
 
 
-def fix_task_segments(row: dict, known: list[str]) -> dict | None:
-    """The meeting's segments without "<Owner> <Task Title>" speakers, or None when it has none:
-    {segments, labels: {fake label: owner or None}, dropped: n, notes_only: bool}.
+def fix_task_segments(row: dict, universe: mp.Universe) -> dict | None:
+    """The meeting's segments without speakers that are no one, or None when every label is a person:
+    {segments, labels: {label: owner or None}, dropped, notes_only, notes (built when the row has none)}.
 
-    With Gemini notes among its sources the fake turns (and every other line of the notes read as
-    turns: their text is in the notes kept) came from the notes Doc: dropped. Nothing real left (no
-    speaker): no transcript at all. Elsewhere the owner is the speaker."""
+    * Half or more of the labels (2+) are "<Person> <task words>" (meeting_parse.read_turns): every
+      "turn" was Gemini's notes (prod: 43 sync-ups, some never marked as notes): none is kept.
+    * Gemini notes among its sources: the fake turns and every other line of the notes read as turns
+      (their text is in the notes kept) are dropped; nothing real left (no speaker): none is kept.
+    * Elsewhere the owner is the speaker; a label longer than a name speaks for nobody.
+    A meeting left with no transcript and no notes gets notes from those lines (next steps, details)."""
     segs = list(row.get("segments") or [])
-    labels: dict[str, str | None] = {}
-    seen: dict[str, str | None] = {}
-    for s in segs:
-        sp = s.get("speaker")
-        if not sp or sp in labels:
-            continue
-        if sp not in seen:
-            seen[sp] = mp.task_owner(sp, None, known)
-        owner = seen[sp] or mp.task_owner(sp, s.get("text"))
-        if owner or len(mp.clean_name(sp).split()) > mp.TASK_MAX_WORDS:
-            labels[sp] = owner
+    got = mp.read_turns(segs, universe, universe.names())
+    labels = got["labels"]
     if not labels:
         return None
     gemini = any(s.get("format") == "gemini_notes" for s in row.get("sources") or [])
-    out: list[dict] = segs
-    if gemini:
+    if got["whole"]:
+        out: list[dict] = []
+    elif gemini:
         notes = row.get("notes") or {}
         corpus = _norm_text(" ".join([notes.get("summary") or "", *(notes.get("details") or []),
                                       *(notes.get("next_steps") or [])]))
 
         def from_notes(s: dict) -> bool:
-            sp = s.get("speaker")
-            if sp in labels:
+            if s.get("speaker") in labels:
                 return True
             t = _norm_text(s.get("text"))
             return len(t) >= 15 and t[:60] in corpus
@@ -1667,71 +1740,51 @@ def fix_task_segments(row: dict, known: list[str]) -> dict | None:
         out = [s for s in segs if not from_notes(s)]
         if not any(s.get("speaker") for s in out):
             out = []
-    # Elsewhere: the owner speaks (a label longer than a name with no owner: nobody's words).
+    else:
+        out = segs
     out = [{**s, "speaker": labels[s["speaker"]]} if s.get("speaker") in labels and labels[s["speaker"]] else
-           {**s, "speaker": None} if s.get("speaker") in labels else s for s in out]
-    return {"segments": out, "labels": labels, "dropped": len(segs) - len(out), "notes_only": gemini and not out}
+           {**s, "speaker": None} if s.get("speaker") in labels and len(mp.clean_name(s["speaker"]).split()) > mp.TASK_MAX_WORDS
+           else s for s in out]
+    notes_only = not out and bool(segs)
+    built = None
+    if notes_only and not (row.get("notes") or {}).get("next_steps") and not (row.get("notes") or {}).get("summary"):
+        steps = [f"{mp.clean_name(s['speaker'])}: {(s.get('text') or '').strip()}" for s in segs
+                 if s.get("speaker") in labels and labels[s["speaker"]]]
+        details = [f"{mp.clean_name(s['speaker'])}: {(s.get('text') or '').strip()}" if s.get("speaker")
+                   else (s.get("text") or "").strip() for s in segs
+                   if not (s.get("speaker") in labels and labels[s["speaker"]])]
+        built = {"summary": "", "details": [d for d in details if d][:80], "next_steps": steps[:80]}
+    return {"segments": out, "labels": labels, "dropped": len(segs) - len(out), "notes_only": notes_only,
+            "notes": built, "whole": got["whole"]}
 
 
 def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, people: People,
-                    fixed: dict | None) -> tuple[list[dict], list[dict], str]:
-    """(attendees, invited, attendees_from) with no "<Owner> <Task Title>" name: each is the known person it
-    starts with (the invite, the members, the other attendees), once; a name that isn't one goes. Taken
-    from the speakers ("speakers"), they are the fixed transcript's speakers again (a next step's owner
-    is not someone who joined, the same as a new import)."""
-    known = task_known({"invited": inv, "attendees": att}, people)
+                    fixed: dict | None, universe: mp.Universe | None = None) -> tuple[list[dict], list[dict], str]:
+    """(attendees, invited, attendees_from) with no task words and no headings (:func:`tidy_people`
+    against the workspace's people). Taken from the speakers ("speakers"), they are the fixed
+    transcript's speakers again. Nobody known to have joined and Gemini's notes there (or the lines
+    that were read as turns): the people they name ("notes", :func:`notes_attendees`)."""
+    u = universe or row_universe({**view, "invited": inv, "attendees": att}, people)
     labels = dict((fixed or {}).get("labels") or {})
-    pool = [*att, *inv]
-    # Speakers whose every line went (the notes' own lines read as turns: "Email Bug"): nobody.
-    gone = {mp.clean_name(sp).casefold() for sp in _speakers_of({"segments": [*(view.get("_old_segments") or [])]})} \
-        - {sp.casefold() for sp in _speakers_of(view)} if fixed is not None else set()
-
-    def fake(name: str) -> bool:
-        return name in labels or bool(mp.task_owner(name, None, known))
-
-    def entry(name: str) -> dict:
-        key = name.casefold()
-        same = [a for a in pool if (a.get("name") or "").casefold() == key]
-        hit = max(same, key=lambda a: (bool(a.get("user_id")), bool(a.get("email")))) if same else None
-        if hit is None:
-            hits = [a for a in pool if a.get("name") and not fake(a["name"]) and mp._covers(name, a["name"])]
-            hit = hits[0] if len(hits) == 1 else None
-        if hit is not None:
-            return {k: hit.get(k) for k in ("name", "user_id", "email") if hit.get(k) is not None}
-        mem = people.match(name)
-        return {"name": name, "user_id": mem["id"] if mem else None, "email": (mem or {}).get("email")}
-
-    def mapped(entries: list[dict]) -> list[dict]:
-        found = []
-        for a in entries:
-            name = a.get("name") or ""
-            if a.get("email") and name not in labels:
-                found.append(a)     # someone with an address (the invite) is who the address says
-                continue
-            owner = labels.get(name) if name in labels else mp.task_owner(name, None, known)
-            if owner:
-                found.append(entry(owner))
-            elif name in labels or (not a.get("user_id") and not a.get("email")
-                                    and (len(name.split()) > mp.TASK_MAX_WORDS or not mp.name_like(name)
-                                         or name.casefold() in gone)):
-                continue
-            else:
-                found.append(a)
-        return found
-
     if how == "speakers" and fixed is not None:
-        found = [entry(sp) for sp in _speakers_of(view)]
+        found = []
+        for sp in _speakers_of(view):
+            hit = u.get(sp) or next((a for a in [*att, *inv] if (a.get("name") or "").casefold() == sp.casefold()
+                                     and (a.get("email") or a.get("user_id"))), None)
+            found.append({"name": sp, "user_id": (hit or {}).get("user_id"), "email": (hit or {}).get("email")})
     else:
-        found = mapped(att)
-    out = person_rows(found, people)
-    invited = person_rows(mapped(inv), people, limit=200)
+        found = att
+    out = tidy_people(person_rows(found, people), u, people, labels)
+    invited = tidy_people(person_rows(inv, people, limit=200), u, people, labels)
     if how == "speakers" and not out:
         how = "invited" if invited else "none"
-    out, how = with_notes_people(out, invited, how, view.get("notes"), people)
+    notes = view.get("notes") or (fixed or {}).get("notes")
+    out, how = with_notes_people(out, invited, how, notes, people, u)
     return out, invited, how
 
 
-async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, *, apply: bool = True) -> dict:
+async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, *, apply: bool = True,
+                           universe: mp.Universe | None = None) -> dict:
     """One meeting repaired (``attendees_v`` 3): its "<Owner> <Task Title>" speakers fixed
     (:func:`fix_task_segments`), its attendees recomputed (:func:`recompute_people` when from before
     v2, then :func:`fix_task_people`). The page follows only where Markdrop's own words are still
@@ -1742,13 +1795,18 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
     before, after, invited, page, segments, transcript, before_names, after_names}."""
     from app.services import page_db, page_props, trash, user as user_service
 
-    fixed = fix_task_segments(row, task_known(row, people))
-    view = {**row, "segments": fixed["segments"], "_old_segments": row.get("segments") or []} if fixed else row
+    u = row_universe(row, people, universe)
+    fixed = fix_task_segments(row, u)
+    view = {**row, "segments": fixed["segments"]} if fixed else row
+    if fixed and fixed.get("notes"):
+        view["notes"] = fixed["notes"]
     if int(row.get("attendees_v") or 0) < ATTENDEES_V2:
         att, inv, how = recompute_people(view, people)
     else:
         att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
-    att, inv, how = fix_task_people(view, att, inv, how, people, fixed)
+    if fixed and fixed["notes_only"] and how == "speakers":
+        att, how = [], "invited"    # every "speaker" was a line of the notes: who joined comes from the notes
+    att, inv, how = fix_task_people(view, att, inv, how, people, fixed, u)
     before = row.get("attendees") or []
     seg_changed = fixed is not None and fixed["segments"] != (row.get("segments") or [])
     changed = [(a.get("name"), a.get("user_id")) for a in before] != [(a["name"], a["user_id"]) for a in att] \
@@ -1799,8 +1857,11 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
         sets["segments"] = fixed["segments"]
         sets["attendees_repair"]["segments"] = out["segments"]
         if fixed["notes_only"]:
-            sets["sources"] = [{**s, "kind": "notes"} if s.get("kind") == "both" and s.get("format") == "gemini_notes" else s
+            sets["sources"] = [{**s, "kind": "notes", "format": "gemini_notes"} if s.get("kind") in ("both", "transcript") else s
                                for s in row.get("sources") or []]
+            if fixed.get("notes"):
+                sets["notes"] = fixed["notes"]
+                sets["action_items"] = int(row.get("action_items") or 0) + len(fixed["notes"]["next_steps"])
             if out["transcript"] == "trashed":
                 sets.update(transcript_doc_id=None, transcript_slug=None)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
@@ -1855,13 +1916,15 @@ async def attendees_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
         return 0
     n = 0
     cache: dict[str, People] = {}
+    known: dict[str, mp.Universe] = {}
     q = {"attendees_v": {"$not": {"$gte": ATTENDEES_V}}}
     async for row in db[COLL].find(q).limit(batch):     # the notes too: fix_task_segments reads them
         ws = row["workspace_id"]
         try:
             cache[ws] = cache.get(ws) or await people_of(db, ws)
+            known[ws] = known.get(ws) or await people_universe(db, ws, cache[ws])
             with _quiet():
-                await repair_attendees(db, row, cache[ws])
+                await repair_attendees(db, row, cache[ws], universe=known[ws])
         except Exception:
             log.warning("meetings: attendees not repaired on %s", row.get("_id"), exc_info=True)
             await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"attendees_v": ATTENDEES_V}})
@@ -1886,13 +1949,23 @@ async def attendees_dry_run(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
         q["workspace_id"] = workspace_id
     out: dict[str, Any] = {"pending": 0, "would_change": 0, "from": {}, "page": {}, "people_before": 0,
                            "people_after": 0, "invited": 0, "segments": {}, "transcript": {}, "task_names": 0,
-                           "examples": []}
+                           "examples": [], "bad_after": [], "empty_after": []}
     cache: dict[str, People] = {}
+    known: dict[str, mp.Universe] = {}
     async for row in db[COLL].find(q):
         out["pending"] += 1
         ws = row["workspace_id"]
         cache[ws] = cache.get(ws) or await people_of(db, ws)
-        r = await repair_attendees(db, row, cache[ws], apply=False)
+        known[ws] = known.get(ws) or await people_universe(db, ws, cache[ws])
+        r = await repair_attendees(db, row, cache[ws], apply=False, universe=known[ws])
+        u = row_universe(row, cache[ws], known[ws])
+        task = [n for n in r["before_names"] if n and (isinstance(mp.task_shaped(n, None, u), str) or mp.topicish(n))]
+        # The target: no task words and no headings left in any attendee name; nobody's sync-up empty.
+        for n in r["after_names"]:
+            if isinstance(mp.task_shaped(n, None, u), str) or mp.topicish(n) or len(n.split()) > mp.TASK_MAX_WORDS:
+                out["bad_after"].append(f"{row.get('date')} {row.get('title')}: {n}")
+        if not r["after_names"] and r["before_names"]:
+            out["empty_after"].append(f"{row.get('date')} {row.get('title')} ({r['from']})")
         if not r["changed"]:
             continue
         out["would_change"] += 1
@@ -1901,8 +1974,6 @@ async def attendees_dry_run(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
         out["people_before"] += r["before"]
         out["people_after"] += r["after"]
         out["invited"] += r["invited"]
-        known = task_known(row, cache[ws])
-        task = [n for n in r["before_names"] if n and mp.task_owner(n, None, known)]
         out["task_names"] += 1 if task or r["segments"] != "same" else 0
         if len(out["examples"]) < examples and (task or r["segments"] != "same" or len(out["examples"]) < examples // 3):
             out["examples"].append({"workspace_id": ws, "title": row.get("title"), "date": row.get("date"),
