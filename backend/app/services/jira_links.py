@@ -543,6 +543,7 @@ async def create(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     link = None
     if src.get("fact_id") or (bid and src.get("doc_id") and src["kind"] != "selection"):
         link = await _save_link(db, src, site, key, str((made or {}).get("id") or ""), actor.user_id, bid)
+        await jira.cover_project(db, src["workspace_id"], project)
     log.info("jira: %s created %s from %s", actor.user_id, key, src["kind"])
     return {"key": key, "url": jira.browse_url(site.get("url"), key), "issue": jira.public_issue(issue) if issue else None,
             "link": link_view(link, issue, True) if link else None}
@@ -607,6 +608,7 @@ async def link_existing(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     if bid and src.get("doc_id"):
         await db[LINKS].delete_many({"doc_id": src["doc_id"], "block": bid})
     link = await _save_link(db, src, site, key, issue.get("id") or "", actor.user_id, bid)
+    await jira.cover_project(db, src["workspace_id"], key.split("-")[0])
     return {"key": key, "url": issue.get("url"), "issue": jira.public_issue(issue), "link": link_view(link, issue, True)}
 
 

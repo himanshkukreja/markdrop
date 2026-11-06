@@ -43,8 +43,7 @@ MAX_ISSUES = 300
 def _jql(accounts: list[str], projects: list[str]) -> str:
     acc = ", ".join(f'"{a}"' for a in accounts)
     q = f"assignee in ({acc}) AND updated >= -30d"
-    if projects:
-        q += " AND project in (" + ", ".join(f'"{p}"' for p in projects) + ")"
+    q += " AND project in (" + ", ".join(f'"{p}"' for p in projects) + ")"
     return q + " ORDER BY updated DESC"
 
 
@@ -96,6 +95,9 @@ async def issues_for(db: AsyncIOMotorDatabase, workspace_id: str, viewer_id: str
     if site is None:
         return {"mode": "off", "site": None, "accounts": {}, "issues": []}
     connected = await jira.can_use(db, viewer_id, site["cloud_id"])
+    if not site.get("projects"):
+        # No project chosen for the Team board (owner decision 2026-11-06): nothing from Jira, a prompt.
+        return {"mode": "no_projects", "site": site, "accounts": {}, "issues": [], "connected": connected}
     lookup = viewer_id if connected else await jira.connector(db, site)
     accounts = await jira.member_accounts(db, workspace_id, site["cloud_id"], lookup_as=lookup)
     if not accounts:

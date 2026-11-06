@@ -516,17 +516,12 @@ async def set_site(db: AsyncIOMotorDatabase, user, workspace_id: str, cloud_id: 
     if site is None:
         raise HTTPException(status_code=422, detail="Pick a Jira site your Atlassian account reaches.")
     known = {p["key"]: p for p in await projects(db, user.id, cloud_id)}
+    # Owner decision 2026-11-06: the default project (+ issue type) is for new issues; ``projects`` are the
+    # ones that feed the Team board (none: the board shows nothing from Jira and asks an admin to pick).
     keys = [k for k in dict.fromkeys(x.strip().upper() for x in chosen or []) if k in known][:MAX_PROJECTS]
-    if default_project:
-        default_project = default_project.strip().upper()
-        if default_project not in known:
-            raise HTTPException(status_code=422, detail="Pick a default project from the list.")
-        if default_project not in keys:
-            keys.insert(0, default_project)
-    elif keys:
-        default_project = keys[0]
-    if not keys:
-        raise HTTPException(status_code=422, detail="Pick at least one Jira project for this workspace.")
+    default_project = (default_project or "").strip().upper() or (keys[0] if keys else "")
+    if default_project not in known:
+        raise HTTPException(status_code=422, detail="Pick a default project for new issues.")
     other = await db[SITES].find_one({"_id": workspace_id})
     now = now_utc()
     await db[SITES].update_one({"_id": workspace_id}, {"$set": {
@@ -536,6 +531,7 @@ async def set_site(db: AsyncIOMotorDatabase, user, workspace_id: str, cloud_id: 
         "$setOnInsert": {"created_at": now}}, upsert=True)
     if other is not None and other.get("cloud_id") != cloud_id:
         await _forget_site_data(db, workspace_id)
+        await db[SITES].update_one({"_id": workspace_id}, {"$set": {"hook_projects": []}})
     spawn(register_webhooks(db, workspace_id))
     log.info("jira: workspace %s connected to %s (%s) by %s", workspace_id, site["name"], cloud_id, user.id)
     return await status(db, user, workspace_id)
@@ -591,8 +587,9 @@ async def register_webhooks(db: AsyncIOMotorDatabase, workspace_id: str) -> dict
             await call_as(db, uid, site["cloud_id"], "DELETE", "webhook", body={"webhookIds": old})
         except (jira_api.JiraError, NotConnected):
             pass
+    covered = watched_projects(site)
     body = {"url": webhook_url(workspace_id),
-            "webhooks": [{"events": list(WEBHOOK_EVENTS), "jqlFilter": _jql_projects(site.get("projects") or [])}]}
+            "webhooks": [{"events": list(WEBHOOK_EVENTS), "jqlFilter": _jql_projects(covered)}]}
     try:
         out = await call_as(db, uid, site["cloud_id"], "POST", "webhook", body=body)
     except (jira_api.JiraError, NotConnected) as exc:
@@ -605,8 +602,24 @@ async def register_webhooks(db: AsyncIOMotorDatabase, workspace_id: str) -> dict
     errs = [e for r in (out or {}).get("webhookRegistrationResult") or [] for e in r.get("errors") or []]
     await db[SITES].update_one({"_id": workspace_id}, {"$set": {"webhook": {
         "ids": ids, "expires_at": now_utc() + timedelta(days=30), "error": "; ".join(map(str, errs))[:200] or None,
-        "at": now_utc(), "by": uid}}})
+        "at": now_utc(), "by": uid, "projects": covered}}})
     return {"ok": bool(ids), "ids": ids}
+
+
+def watched_projects(site: dict) -> list[str]:
+    """The projects the webhook covers: the Team board's, the default one, and any project an issue
+    linked from this workspace lives in (``hook_projects``), so both-way sync works wherever it was made."""
+    keys = [*(site.get("projects") or []), site.get("default_project"), *(site.get("hook_projects") or [])]
+    return [k for k in dict.fromkeys(k for k in keys if k)][:50]
+
+
+async def cover_project(db: AsyncIOMotorDatabase, workspace_id: str, project: str) -> None:
+    """An issue was linked in ``project``: make sure the webhook reports its changes."""
+    site = await site_for(db, workspace_id)
+    if site is None or not project or project in ((site.get("webhook") or {}).get("projects") or []):
+        return
+    await db[SITES].update_one({"_id": workspace_id}, {"$addToSet": {"hook_projects": project}})
+    spawn(register_webhooks(db, workspace_id))
 
 
 async def unregister_webhooks(db: AsyncIOMotorDatabase, site: dict) -> None:
