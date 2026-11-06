@@ -8,7 +8,8 @@ keywords: [slack, slack app, integration, integrations tab, add to slack, not se
 Markdrop for Slack connects one Slack workspace to one Markdrop workspace. It does five things:
 
 - **Meeting notes in a channel.** When a meeting's summary is ready, its decisions and action items are posted to the channel you choose. Each action item has a **Done** button that ticks it on the Markdrop page.
-- **Your action items, to you.** After each meeting, everyone who was there and has an action item gets a direct message with only their own, whether or not they're in Markdrop.
+- **Your action items, to you.** After each meeting, everyone in it with an action item (attendees, people on the invite and the organizer) gets a direct message with only their own, whether or not they're in Markdrop.
+- **Team's weekly summary.** When your workspace uses [Team](/workspaces/team), its summary of the week is posted to the meetings channel every Monday at 9 am.
 - **`/markdrop search` and `/markdrop ask`.** Find documents, pages and files, or get an answer with sources. Only you see the reply, and it uses only what you can open in Markdrop.
 - **Link previews.** Markdrop links show a preview when everyone in the channel may open them.
 - **Slack notifications**: direct messages for mentions, sign-off requests, shares and access requests, for people who turn them on. You can approve or decline an access request, or sign off, right in Slack.
@@ -87,6 +88,12 @@ Which meetings are posted:
 
 ![Illustration of a meeting post in the #meetings channel: the meeting's title and date, its summary and decisions, the action items with the people mentioned and a Done button each, one already done by Sam Lee, and Open the meeting.](/docs-assets/integrations/slack/illustration-meeting-post.webp)
 
+### Team's weekly summary
+
+When the workspace has [Team memory](/workspaces/team) on, Team's summary of the week is posted to the same meetings channel every Monday at 9 am in the workspace's timezone: highlights, what's due this week, what's overdue and current blockers, each line with the person's name and a link to its source. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
+
+![Illustration of Team's weekly summary in the #meetings channel: This week at Acme with the dates, Highlights with each person's name, Due this week, Overdue with how late each item is, Blockers, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
+
 ### Post a meeting by hand
 
 To post a meeting again, a past one, or any meeting when **Post new meetings automatically** is off: open the meeting's page, select **Meeting** at the bottom right, then **Post to Slack**. Markdrop says "Posted to #channel in Slack." The button shows for people who can edit the meeting's page, once the workspace has a meetings channel, and not on a restricted meeting.
@@ -95,7 +102,7 @@ If it can't post, it says why: for example, "Invite @Markdrop to the meetings ch
 
 ## Your action items after each meeting
 
-When a meeting's summary is ready, every attendee with an open action item gets one direct message from the Markdrop app: "Your action items from **Daily Syncup** · Nov 6", then their items as a checklist, each with its due date when the meeting gave one ("by Friday" is shown as the date it means). It goes to people who aren't members of your Markdrop workspace too, so a team where only a few people use Markdrop still gets everyone's to-dos to them. It's on for everyone who was in the meeting; nobody has to turn it on.
+When a meeting's summary is ready, everyone in the meeting with an open action item (its attendees, the people on the invite and the organizer) gets one direct message from the Markdrop app: "Your action items from **Daily Syncup** · Nov 6", then their items as a checklist, each with its due date when the meeting gave one ("by Friday" is shown as the date it means). It goes to people who aren't members of your Markdrop workspace too, so a team where only a few people use Markdrop still gets everyone's to-dos to them. It's on for everyone who was in the meeting; nobody has to turn it on.
 
 What each person sees depends on whether Markdrop knows their Markdrop account and what it can open:
 

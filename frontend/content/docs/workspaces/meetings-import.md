@@ -124,6 +124,7 @@ Each meeting gets its AI summary as it's imported, from the workspace's **Meetin
 
 ## Related
 
+- [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
 - [Meetings](/workspaces/meetings)
 - [Import meetings automatically](/workspaces/meetings-auto-import)
 - [Ask your meetings](/workspaces/meetings-ask)

@@ -74,6 +74,8 @@ While you write a page, [Meeting memory](/pages/meeting-memory) shows what was d
 
 ## Related
 
+- [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
+- [Team](/workspaces/team): ask what someone is working on
 - [Meeting memory while writing](/pages/meeting-memory)
 - [Ask](/workspaces/ask-markdrop)
 - [Meetings](/workspaces/meetings)

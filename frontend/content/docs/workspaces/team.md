@@ -3,16 +3,18 @@ title: "Team: your workspace memory"
 nav: Team
 description: Who is doing what in your workspace, from its meetings and pages. Status, focus, targets, blockers and projects, each line linked to its source.
 updated: 2026-11-06
-keywords: [team, team memory, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
+keywords: [team, team memory, set_my_status, set_focus_note, hide_team_line, correct_team_line, mark_team_item_done, list_team_groups, save_team_group, delete_team_group, send_weekly_summary_now, timezone, weekly summary timezone, send now, mark done, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
 ---
 
 **Team** answers "what is Abhishek working on?" and "where are we on the sourcing beta?" without anyone writing a status report. Markdrop reads your workspace's meetings and pages in the background and keeps short, dated lines about each person: what they're working on, what they finished, what they committed to and by when, and what's blocking them. Every line links to the meeting or page it came from.
 
-Team is off until a workspace admin turns it on.
+Team is off until a workspace admin turns it on. To see how it fits with meetings, Ask and Slack, read [Meetings and Team: how it fits together](/workspaces/meetings-and-team).
 
 ## Turn it on
 
-Open **Team** in the workspace's sidebar (under **Meetings**) and choose **Turn on Team memory**, or switch on **Team memory** in the workspace's **Settings › Advanced**. Only admins and owners can.
+Open **Team** in the workspace's sidebar (under **Meetings**) and choose **Turn on Team memory**, or switch on **Team memory** in the workspace's **Settings › Advanced**. Only admins and owners can. Members and viewers see that an admin can turn it on.
+
+Turning it on also sets the workspace's **Weekly summary timezone** to the timezone of the admin's browser, when none was set. Admins can change it under the switch in **Settings › Advanced**.
 
 When you turn it on, Markdrop reads the last 30 days of meetings and pages first, oldest first. Cards fill in over the next minutes; you can leave the page. After that it keeps up by itself:
 
@@ -63,7 +65,7 @@ Done items never show: ones ticked off (- [x]) on their meeting or page, marked 
 - It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected.
 - It's the **This week** card at the top of Team, for the current week ("This week · Nov 3–9"): three columns on a computer, two and one on a tablet, stacked on a phone. Someone with three or more lines in a column shows as one row ("Gautam · 4 items") that opens. Tap a line to read it in full.
 
-The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card.
+The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the workspace's **Weekly summary timezone** (Settings › Advanced): at first, the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card; nothing is sent when the week has nothing in it.
 
 ## A person's page
 
@@ -105,14 +107,22 @@ Each line about you has a menu on your own page:
 - **Hide this line** (**Dismiss** on action items and targets): nobody sees it. It stays hidden even when the meeting or page is read again. Undo it under **Hidden by you**.
 - **This is wrong…**: write what's right, and people see that instead, marked *corrected*. Leave it empty to take the line down. Markdrop is told about it the next time it reads that meeting or page, so it doesn't say it again.
 
-Only the person a line is about can mark it done, hide it or correct it.
+Only the person a line is about can mark it done, hide it or correct it. A project's own lines (not about a person) can be hidden or corrected by workspace admins.
 
 ## Ask about your team
 
 [Ask](/workspaces/ask-markdrop) (**Ask Acme** in a workspace called Acme) uses Team memory for questions like "What is Priya working on?", "What's my status?", "Who is working on the billing export?" and "What's the status of the sourcing project?". Answers cite the meetings and pages the lines came from.
 
-AI apps connected to Markdrop can use three tools: `list_team`, `get_person_profile` and `get_project_status`. See [MCP tools](/ai/tools#team).
+AI apps connected to Markdrop can read Team with `list_team`, `get_person_profile`, `get_project_status` and `list_team_groups`. With write access they can also set your status (`set_my_status`) and focus (`set_focus_note`), and mark done, hide or correct lines about you (`mark_team_item_done`, `hide_team_line`, `correct_team_line`), with the same rule as on the website: only your own lines. Admins' apps can make groups (`save_team_group`, `delete_team_group`) and send the weekly summary now (`send_weekly_summary_now`). See [MCP tools](/ai/tools#team).
 
 ## AI and cost
 
 Team memory uses Claude Haiku 5.5, in the background, once per changed meeting or page. A meeting costs about a fifth of a cent and a page less. The weekly summary's highlights are one more call per workspace a week. It has its own budget, **Team memory**, of $3 a day and $30 a month across Markdrop, which the Markdrop admin can change. When it runs out, updates pause until the next day and admins see a note on Team; nothing is lost. What's sent is never used to train models.
+
+## Related
+
+- [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
+- [Meetings](/workspaces/meetings)
+- [Ask Markdrop](/workspaces/ask-markdrop)
+- [Slack](/integrations/slack#teams-weekly-summary)
+- [MCP tools](/ai/tools#team)

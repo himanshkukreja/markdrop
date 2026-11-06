@@ -241,6 +241,8 @@ On a phone, the panel opens as a sheet that stays above the keyboard. The chips 
 
 ## Related
 
+- [Team](/workspaces/team): what Ask knows about who is doing what
+- [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
 - [Ask your meetings](/workspaces/meetings-ask)
 - [Meeting memory while writing](/pages/meeting-memory)
 - [AI in pages](/pages/ai)

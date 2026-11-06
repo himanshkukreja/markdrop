@@ -14,6 +14,8 @@ Meetings turns a call into a page in your workspace. Bring in Google Meet's tran
 
 It keeps the transcript, and it answers questions about one meeting or all of them. Every answer links to the moment something was said.
 
+To see how meetings feed Team, Ask and Slack, read [Meetings and Team: how it fits together](/workspaces/meetings-and-team).
+
 ## Find your meetings
 
 - **Your [home](/get-started/tour#your-home)** shows the latest meetings across your workspaces, and today's in **Today**. Your action items from them are in **Your action items**.
@@ -116,11 +118,11 @@ The page is an ordinary page. Edit it like any other: fix a name, add notes, tic
 
 ## Action items in Slack
 
-When your workspace has [Slack connected](/integrations/slack), each attendee with an action item gets a direct message from Markdrop about a minute after the summary is ready: "Your action items from *the meeting*", with only their own items and their due dates. That includes people who aren't in your Markdrop workspace: they get the item text and who to ask for the notes, nothing else. Members get **Open the notes**, and a **Done** button on each item when they can edit the page. Anyone can select **Stop these**; an admin can turn it off for the workspace. See [Your action items after each meeting](/integrations/slack#your-action-items-after-each-meeting).
+When your workspace has [Slack connected](/integrations/slack), everyone in the meeting with an action item (attendees, people on the invite and the organizer) gets a direct message from Markdrop about a minute after the summary is ready: "Your action items from *the meeting*", with only their own items and their due dates. That includes people who aren't in your Markdrop workspace: they get the item text and who to ask for the notes, nothing else. Members get **Open the notes**, and a **Done** button on each item when they can edit the page. Anyone can select **Stop these**; an admin can turn it off for the workspace. See [Your action items after each meeting](/integrations/slack#your-action-items-after-each-meeting).
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on (`meetings_connection`), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on and what's waiting for Gemini's notes (`meetings_connection`), check for new meetings now (`check_meetings_now`), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).
 
 ## While you write
 
