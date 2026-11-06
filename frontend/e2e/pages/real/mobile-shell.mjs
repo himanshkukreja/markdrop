@@ -12,6 +12,8 @@
  *   input          a text field's font size is under 16 px (iOS zooms the page on focus)
  *   text           text under 12 px
  *   overlap        two fixed or sticky bars cover each other
+ *   baritems       a top bar's items (title, Ask, From meetings, Edit, Share, ⋯, faces) cover each other
+ *                  or run past the bar (pages, meeting pages, documents, files: the page-bar states)
  *   sticky         the top bar doesn't stay on screen after a long scroll
  *   zoom           the viewport meta disables pinch zoom
  *   hover          a control that only shows on hover (opacity 0 / hidden until :hover) on a touch screen
@@ -36,10 +38,13 @@ import { measure } from "./mobile-shell-measure.mjs";
 export const DEVICES = [
   { name: "phone-360", w: 360, h: 780, kind: "phone" }, // small Android
   { name: "phone-375", w: 375, h: 667, kind: "phone" }, // iPhone SE
+  { name: "phone-390", w: 390, h: 844, kind: "phone" }, // iPhone 13/14
   { name: "phone-393", w: 393, h: 852, kind: "phone" }, // iPhone 15 / Pixel
   { name: "phone-412", w: 412, h: 915, kind: "phone" }, // big Android
   { name: "phone-land", w: 852, h: 393, kind: "phone" }, // iPhone landscape
   { name: "ipad-mini", w: 744, h: 1133, kind: "tablet" },
+  { name: "tab-768", w: 768, h: 1024, kind: "tablet" }, // iPad portrait (classic)
+  { name: "ipad-834", w: 834, h: 1194, kind: "tablet" }, // iPad Pro 11 / Air portrait
   { name: "ipad-air", w: 820, h: 1180, kind: "tablet" },
   { name: "ipad-air-land", w: 1180, h: 820, kind: "tablet" },
   { name: "ipad-pro", w: 1024, h: 1366, kind: "tablet" },
@@ -115,7 +120,20 @@ async function seedExtra(L) {
   // Cy asks Ada for access to her private letter.
   const req = await api("POST", `/api/v1/documents/${mine[0].slug}/access-requests`, T.stranger, { message: "Could I read this before Thursday's call?", role: "viewer" });
   if (req.status >= 300) log("access request →", req.status, JSON.stringify(req.body).slice(0, 200));
-  const out = { board: boardId, mine: mine.map((d) => d.slug), request: req.body?.id ?? null };
+  // The page bars (owner 2026-11-06): a meeting page with many people (the busiest bar: faces, Ask,
+  // From meetings, Edit, Share, ⋯), a long-titled page in a folder, and an HTML file.
+  const people = ["Ishaan Gupta", "Gautam Rao", "Chetan Sharma", "Shreya Iyer", "Priya Nair", "Rohit Verma", "Neha Singh"];
+  const lines = [];
+  for (let i = 0; i < 28; i++) lines.push(`${people[i % people.length]}: Point ${i + 1} about the quarterly roadmap review and the launch plan for the mobile app.`);
+  const invited = people.map((n) => `[${n}](mailto:${n.split(" ")[0].toLowerCase()}@acme.test)`).join(", ");
+  const meet = await api("POST", "/api/v1/meetings/import", T.owner, { workspace: WS, wait: true, restricted: false, sources: [
+    { name: "Quarterly roadmap review with the whole product and design team - Notes by Gemini", text: `# Quarterly roadmap review with the whole product and design team\nNov 4, 2026\nInvited ${invited}\n\n## Summary\nThe team went through the roadmap.\n\n## Details\n- **Roadmap**: Ishaan Gupta walked through it.\n` },
+    { name: "Quarterly roadmap review with the whole product and design team (2026-11-04 10:00 GMT+05:30) - Transcript", text: lines.join("\n") },
+  ] });
+  if (meet.status >= 300) log("meeting import →", meet.status, JSON.stringify(meet.body).slice(0, 200));
+  const longPage = ok(await api("POST", "/api/v1/pages", T.owner, { title: "Customer onboarding playbook for enterprise accounts and their admins", workspace: WS, folder: boardId, auto_cover: false }), "long page");
+  const out = { board: boardId, mine: mine.map((d) => d.slug), request: req.body?.id ?? null,
+    meeting: meet.body?.meetings?.[0]?.slug ?? null, longPage: longPage.document?.slug ?? null };
   fs.writeFileSync(EXTRA, JSON.stringify(out, null, 1));
   return out;
 }
@@ -288,6 +306,25 @@ const STATES = [
   }],
   ["p2p-send", ["owner", "anon"], () => `${APP}/share`, (p) => p.locator("h1").first()],
   ["p2p-receive", ["anon"], () => `${APP}/share/abcd-efgh-ijkl`, (p) => p.locator("h1, h2").first()],
+  // The page bars at every size (owner 2026-11-06): nothing in them may overlap (baritems).
+  ["meeting-page", ["owner", "member"], () => (X.meeting ? `${APP}/${X.meeting}` : null), (p) => p.locator(".pb-bar").first(), async (p) => {
+    await p.getByTestId("meeting-header").waitFor({ timeout: 15000 }).catch(() => {});
+    await p.waitForTimeout(800);
+  }],
+  ["meeting-page-menu", ["owner"], () => (X.meeting ? `${APP}/${X.meeting}` : null), (p) => p.locator(".pb-bar").first(), async (p) => {
+    await p.waitForTimeout(800);
+    await click(p, p.locator(".pb-bar").getByRole("button", { name: /Page options|More/ }));
+  }],
+  ["page-long", ["owner", "member"], () => (X.longPage ? `${APP}/${X.longPage}` : null), (p) => p.locator(".pb-bar").first()],
+  ["doc", ["owner"], () => (X.mine?.[2] ? `${APP}/${X.mine[2]}` : null), (p) => p.getByRole("button", { name: "Show details" }), async (p) => {
+    await click(p, p.getByRole("button", { name: "Show details" }));
+    await p.locator(".pb-bar").first().waitFor({ timeout: 15000 });
+  }],
+  // seed.py's HTML file, framed ("Show details": the file's one top bar).
+  ["file-html", ["owner"], () => `${APP}/pricing-calc`, (p) => p.getByRole("button", { name: "Show details" }), async (p) => {
+    await click(p, p.getByRole("button", { name: "Show details" }));
+    await p.locator(".pb-bar").first().waitFor({ timeout: 15000 });
+  }],
   ["admin-signed-out", ["anon"], () => `${APP}/admin`, (p) => p.locator("input").first()],
   ["admin", ["admin"], () => `${APP}/admin`, (p) => p.locator("h1").first()],
   ["admin-users", ["admin"], () => `${APP}/admin?tab=users`, (p) => p.locator("h1").first()],
@@ -378,7 +415,8 @@ for (const theme of themes) {
 
 // Orientation change: a phone turned sideways and back, and an iPad turned, keep a fitting layout.
 if (!ONLY || ONLY.has("rotate")) {
-  for (const [a, b] of [[DEVICES[2], DEVICES[4]], [DEVICES[6], DEVICES[7]]]) {
+  const dev = (n) => DEVICES.find((d) => d.name === n);
+  for (const [a, b] of [[dev("phone-393"), dev("phone-land")], [dev("ipad-air"), dev("ipad-air-land")]]) {
     const { c, p } = await newContext(a, "light", "owner");
     for (const u of [`${APP}/dashboard`, busyUrl, `${boardUrl}?view=board`]) {
       await p.goto(u, { waitUntil: "domcontentloaded" });
