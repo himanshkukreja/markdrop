@@ -187,8 +187,10 @@ await step("upload", async () => {
   await dlg.getByRole("button", { name: "Import meeting" }).click();
   await p.waitForURL((u) => !u.pathname.startsWith("/meetings/"), { timeout: 30000 });
   const list = ok(await api("GET", `/api/v1/meetings?workspace=${WS}`, T.member), "list");
-  const m = list.meetings.find((x) => x.title === "Daily standup");
-  if (!m || m.type !== "Standup" || m.sources[0].origin !== "upload") fail(`upload: ${JSON.stringify(m)?.slice(0, 300)}`);
+  const row = list.meetings.find((x) => x.title === "Daily standup");
+  // The list is slim (no sources); the meeting itself says where it came from.
+  const m = row && ok(await api("GET", `/api/v1/meetings/${row.id}`, T.member), "meeting");
+  if (!m || m.type !== "Standup" || m.sources?.[0]?.origin !== "upload") fail(`upload: ${JSON.stringify(m)?.slice(0, 300)}`);
 });
 
 await step("across", async () => {
