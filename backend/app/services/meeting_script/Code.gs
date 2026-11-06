@@ -4,12 +4,14 @@
  * Sends the Google Meet transcripts and Gemini meeting notes you can open in Google Drive to
  * Markdrop, which turns each call into a page in the Meetings folder of "{{WORKSPACE_NAME}}".
  *
- * What it does, every 15 minutes:
+ * What it does, every 5 minutes:
  *   1. Looks for Google Docs created in the last LOOKBACK_HOURS that look like a Meet transcript
  *      ("… - Transcript") or Gemini's notes ("… - Notes by Gemini"), in your Drive, in the ones
  *      shared with you (a meeting someone else organized lives in THEIR Drive) and in shared drives.
- *   2. Skips the ones it already sent (it remembers their ids in this project's properties), and
- *      waits for a Doc that changed in the last QUIET_MINUTES (Google may still be writing it).
+ *   2. Skips the ones it already sent (it remembers their ids in this project's properties) unless
+ *      Google changed them since (Gemini fills its notes Doc in when the call ends; then Markdrop updates
+ *      the meeting), and waits for a Doc that changed in the last QUIET_MINUTES (Google may still be
+ *      writing it). A Doc with nothing in it yet waits until Google changes it.
  *   3. Reads each one's text (every tab) and sends it to Markdrop, for up to about 4½ minutes (Google
  *      gives a run 6): a big backlog takes a run or two, or Run → syncMeetings to send the next batch
  *      now. A failure is tried again next run.
@@ -49,7 +51,8 @@ var MARKDROP_TOKEN = '{{TOKEN}}';
 var LOOKBACK_HOURS = 48;      // how far back to look (raise it once to import older meetings)
 var INCLUDE_SHARED = '{{INCLUDE_SHARED}}';  // true: also meetings shared with you (organized by someone else)
 var MAX_PER_RUN = 0;          // 0 = no fixed cap, the time budget decides (else: at most this many a run)
-var QUIET_MINUTES = 10;       // a Doc changed this recently may still be being written: next run
+var QUIET_MINUTES = 5;        // a Doc changed this recently may still be being written: next run
+var MAX_RESENDS = 5;          // a Doc Google keeps changing is sent again at most this many times
 var BACKFILL_DAYS = '{{BACKFILL_DAYS}}';  // setup also brings in this many days of past meetings (0: none)
 
 // What Google calls them, in the languages Meet writes them in. A title ends with one of these,
@@ -131,13 +134,13 @@ function doGet() {
     '"Check for new meetings", paste this page\'s address in Markdrop: Meetings › Turn on Check now.');
 }
 
-/** Run this once: it schedules syncMeetings every 15 minutes, then runs it now (and, when
- *  BACKFILL_DAYS is set, starts bringing in the past meetings too). */
+/** Run this once: it schedules syncMeetings every 5 minutes, then runs it now (and, when
+ *  BACKFILL_DAYS is set, starts bringing in the past meetings too). A run that finds nothing new is quick. */
 function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'syncMeetings') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('syncMeetings').timeBased().everyMinutes(15).create();
+  ScriptApp.newTrigger('syncMeetings').timeBased().everyMinutes(5).create();
   if (BACKFILL_DAYS > 0) startBackfill_(BACKFILL_DAYS);
   run_('setup');
 }
@@ -234,18 +237,18 @@ function newStats_(mode) {
   return {
     mode: mode, found: 0, sent: 0, stopped: false, disconnected: false, startedAt: Date.now(), seen: {}, waiting: {}, remaining: 0,
     sharedDrives: null, driveProject: null, driveOffSaid: false,
-    results: { imported: 0, attached: 0, duplicate: 0, ignored: 0 },
-    skipped: { already_sent: 0, too_old: 0, not_yours: 0, title: 0, writing: 0 },
+    results: { imported: 0, attached: 0, duplicate: 0, ignored: 0, updated: 0, not_ready: 0 },
+    skipped: { already_sent: 0, too_old: 0, not_yours: 0, title: 0, writing: 0, not_ready: 0 },
     errors: [], queue_done: [], queue_failed: [], search: ''
   };
 }
 
-/** "Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now. Skipped: …" */
+/** "Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 5 min) — or run syncMeetings now. Skipped: …" */
 function runSummary_(st) {
   var head = 'Found ' + st.found + ' meeting Docs, sent ' + st.sent + '.';
   if (st.remaining > 0) {
     head = 'Found ' + st.found + ' meeting Docs. Sent ' + st.sent + ' of ' + Math.max(st.found, st.sent + st.remaining) +
-      ' · ' + st.remaining + ' more in the next run (every 15 min) — or run syncMeetings now.';
+      ' · ' + st.remaining + ' more in the next run (every 5 min) — or run syncMeetings now.';
   }
   return head + ' Skipped: ' + summary_(st.skipped) + '.';
 }
@@ -470,10 +473,14 @@ function scan_(props, since, st, verbose) {
     seen[c.id] = true;
     var kind = kindOf_(c);
     var reason = null;
+    var mark = sentMark_(props, c.id);
+    var waiting = Number(props.getProperty('wait:' + c.id) || 0);
+    c.prev = mark;
     if (!kind) reason = 'title';
     else if (c.created < since) reason = 'too_old';
     else if (!c.mine && INCLUDE_SHARED !== true) reason = 'not_yours';
-    else if (props.getProperty('sent:' + c.id)) reason = 'already_sent';
+    else if (mark && !changedSince_(mark, c)) reason = 'already_sent';
+    else if (waiting && modifiedMs_(c) <= waiting) reason = 'not_ready';
     else if (c.modified > settled) { reason = 'writing'; more = true; }
     if (reason) {
       st.skipped[reason]++;
@@ -485,6 +492,33 @@ function scan_(props, since, st, verbose) {
   });
   todo.sort(function (a, b) { return a.created.getTime() - b.created.getTime(); });
   return { todo: todo, skipped: skipped, more: more };
+}
+
+// ── What was sent (props "sent:<id>" = "<sent at>|<the Doc's modified time then>|<times sent>") ────────
+
+function modifiedMs_(c) {
+  return c.modified && c.modified.getTime ? c.modified.getTime() : 0;
+}
+
+/** {at, modified (null: sent by v3, which didn't keep it), count} or null (never sent). */
+function sentMark_(props, id) {
+  var v = props.getProperty('sent:' + id);
+  if (!v) return null;
+  var p = String(v).split('|');
+  return { at: Number(p[0]) || 0, modified: p.length > 1 ? Number(p[1]) || 0 : null, count: Number(p[2]) || 1 };
+}
+
+/** Google changed the Doc after it was sent (and it wasn't sent too often already). A Doc a v3 script sent
+ *  is sent once more: v3 sent Gemini's notes Doc while the call was on, before Google filled it in. */
+function changedSince_(mark, c) {
+  if (mark.count > MAX_RESENDS) return false;
+  if (mark.modified === null) return true;
+  return modifiedMs_(c) > mark.modified;
+}
+
+function markSent_(props, c) {
+  props.setProperty('sent:' + c.id, Date.now() + '|' + modifiedMs_(c) + '|' + ((c.prev ? c.prev.count : 0) + 1));
+  props.deleteProperty('wait:' + c.id);
 }
 
 /**
@@ -505,7 +539,11 @@ function sendSince_(props, since, backfill, budget, st) {
     var result = send_(found.todo[i], backfill, false, st);
     if (result === 'stop') return 'stop';
     if (result === 'done') {
-      props.setProperty('sent:' + found.todo[i].id, String(Date.now()));
+      markSent_(props, found.todo[i]);
+      budget.left--;
+    } else if (result === 'not_ready') {
+      // Nothing in it yet (Gemini's notes Doc while the call is on): sent again once Google changes it.
+      props.setProperty('wait:' + found.todo[i].id, String(modifiedMs_(found.todo[i])));
       budget.left--;
     } else {
       more = true;
@@ -539,10 +577,11 @@ function sendQueued_(props, queue, st, budget) {
       st.queue_failed.push({ file_id: id, error: 'not_a_doc' });
       continue;
     }
+    c.prev = sentMark_(props, id);
     var result = send_(c, false, true, st);
     if (result === 'stop') return 'stop';
     if (result === 'done') {
-      props.setProperty('sent:' + id, String(Date.now()));
+      markSent_(props, c);
       st.queue_done.push(id);
       budget.left--;
     } else {
@@ -552,7 +591,8 @@ function sendQueued_(props, queue, st, budget) {
   return 'ok';
 }
 
-/** 'done' (sent, or Markdrop will never take it), 'retry' (next run) or 'stop'. */
+/** 'done' (sent, or Markdrop will never take it), 'not_ready' (nothing in it yet: when Google changes it),
+ *  'retry' (next run) or 'stop'. */
 function send_(c, backfill, requested, st) {
   var text;
   try {
@@ -591,12 +631,15 @@ function send_(c, backfill, requested, st) {
   }
   var code = res.getResponseCode();
   if (code >= 200 && code < 300) {
+    var r = null;
+    try { r = JSON.parse(res.getContentText()).status; } catch (e) { r = null; /* counted as sent */ }
+    if (r && r in st.results) st.results[r]++;
+    if (r === 'not_ready') {
+      console.log('"' + c.name + '" has no notes or transcript in it yet: sent again when Google fills it in.');
+      return 'not_ready';
+    }
     console.log('Sent "' + c.name + '": ' + res.getContentText().slice(0, 200));
     st.sent++;
-    try {
-      var r = JSON.parse(res.getContentText()).status;
-      if (r in st.results) st.results[r]++;
-    } catch (e) { /* counted as sent */ }
     return 'done';
   }
   if (code === 401) {
@@ -693,6 +736,7 @@ function forgetOld_(props) {
   var backfilling = !!all.backfill_since;
   Object.keys(all).forEach(function (k) {
     // While a backfill is going, keep everything (it looks further back than the lookback).
-    if (!backfilling && k.indexOf('sent:') === 0 && Number(all[k]) < cutoff) props.deleteProperty(k);
+    if (backfilling || (k.indexOf('sent:') !== 0 && k.indexOf('wait:') !== 0)) return;
+    if (Number(String(all[k]).split('|')[0]) < cutoff) props.deleteProperty(k);
   });
 }

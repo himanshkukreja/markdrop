@@ -1,5 +1,14 @@
-"""Meetings "Check for new meetings" (services/meetings_inbox.py ``check_now``): the Google Meet script's
-web app, called by Markdrop with the connection's key, instead of waiting for the next 15-minute run.
+"""Meetings auto-import v4 (services/meetings_inbox.py): Gemini's notes Doc arriving when Google fills it in,
+Docs sent again updating their meeting, and "Check for new meetings" (``check_now``).
+
+**Lifecycle**: Gemini makes its notes Doc when note-taking starts and fills it in when the call ends. An
+empty or placeholder Doc is "not_ready" (a 409 to a v3 script, which would mark a 2xx as sent for good)
+for 12 hours, then ignored; the filled Doc is imported; sent again unchanged it's a duplicate, edited it
+updates the meeting ("updated"; a longer transcript rewrites the Transcript page), and a meeting someone
+deleted isn't made again. A Doc v3 sent while empty (inbox row "ignored") is imported when v4 sends it.
+
+**Check now**: the Google Meet script's web app, called by Markdrop with the connection's key, instead
+of waiting for the next scheduled run.
 
 Turning it on (the Web app URL: validated, never shown to anyone), who may check (members; viewers and
 strangers can't), once a minute per workspace, the fake script (httpx.MockTransport: Google's 302 to
@@ -11,16 +20,116 @@ way the call can go wrong explained, and the key/URL surviving "Get the new scri
 from __future__ import annotations
 
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from tests.test_meetings_auto import AutoWorld
+from tests.test_meetings import fixture
+from tests.test_meetings_auto import FID_N, FID_T, NOTES, TRANSCRIPT, AutoWorld
 
 from app.services import meetings_inbox
 
 EXEC = "https://script.google.com/macros/s/AKfycbx" + "Q" * 60 + "/exec"
 ECHO = "https://script.googleusercontent.com/macros/echo?user_content_key=abc&lib=x"
+
+
+def ago(minutes: float) -> str:
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat().replace("+00:00", "Z")
+
+
+# What Gemini's notes Doc holds while the call is on (shapes seen, and the empty sections).
+PLACEHOLDERS = [
+    "📝 Notes\nNov 6, 2026\nDaily Syncup\nInvited Ada Lovelace Bo Chen\nAttachments Daily Syncup\n",
+    "# Daily Syncup\nNov 6, 2026\n\n## Summary\n\n## Details\n\n## Suggested next steps\n",
+    "# Daily Syncup\n## Summary\nGemini is taking notes. Notes will be shared after the meeting ends.\n## Details\n",
+    "# Daily Syncup\n## Summary\nNotes are being generated and will be available when the meeting is over.\n"
+    "## Suggested next steps\n",
+    "",
+]
+
+
+class Lifecycle(AutoWorld):
+    async def send(self, tok, text, *, version=4, created=None, file_id=FID_N, title=NOTES, kind="notes"):
+        return await self.deliver(tok, file_id=file_id, title=title, text=text, kind=kind, version=version,
+                                  created=created or ago(40))
+
+    async def test_gemini_notes_doc_from_empty_to_filled_to_edited(self):
+        tok = (await self.connect())["token"]
+        for text in PLACEHOLDERS:
+            r = await self.send(tok, text)
+            self.assertEqual((r.status_code, r.json()["status"]), (200, "not_ready"), text)
+        self.assertEqual(await self.rows(), [])
+        notes = fixture("gemini_notes.txt")
+        r = await self.send(tok, notes)
+        self.assertEqual(r.json()["status"], "imported", r.text)
+        mid = r.json()["meeting_id"]
+        r = await self.send(tok, notes)
+        self.assertEqual((r.json()["status"], r.json()["meeting_id"]), ("duplicate", mid))
+        edited = notes.replace("agreed to ship the release on Friday", "agreed to ship the release on Monday")
+        r = await self.send(tok, edited)
+        self.assertEqual((r.json()["status"], r.json()["meeting_id"]), ("updated", mid), r.text)
+        rows = await self.rows()
+        self.assertEqual(len(rows), 1)
+        self.assertIn("on Monday", rows[0]["notes"]["summary"])
+        self.assertEqual(len([s for s in rows[0]["sources"] if s.get("file_id") == FID_N]), 1)
+        self.assertEqual(rows[0]["action_items"], 3)
+        page = await self.db["documents"].find_one({"_id": rows[0]["doc_id"]})
+        self.assertIn("on Monday", page["content"])
+        # Emptied again (or anything without a meeting in it): the meeting stays as it is.
+        r = await self.send(tok, PLACEHOLDERS[0])
+        self.assertEqual(r.json()["status"], "duplicate")
+        self.assertIn("on Monday", (await self.rows())[0]["notes"]["summary"])
+        c = (await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))).json()["connection"]
+        self.assertEqual((c["imported"], c["updated"], c["not_ready"]), (1, 1, len(PLACEHOLDERS)))
+
+    async def test_old_scripts_and_old_docs(self):
+        tok = (await self.connect())["token"]
+        # v3 marks any 2xx as sent for good: a Doc that isn't ready is an error it tries again.
+        for version in (3, None):
+            r = await self.send(tok, PLACEHOLDERS[1], version=version)
+            self.assertEqual(r.status_code, 409, r.text)
+            self.assertIn("next run", r.json()["detail"])
+        # More than 12 hours after Google made it: not a meeting, for good.
+        r = await self.send(tok, PLACEHOLDERS[1], created=ago(13 * 60), file_id="1OldEmptyNotesAbcdefgh")
+        self.assertEqual(r.json()["status"], "ignored")
+        r = await self.send(tok, PLACEHOLDERS[1], created=ago(13 * 60), file_id="1OldEmptyNotesAbcdefgh")
+        self.assertEqual(r.json()["status"], "duplicate")
+        # The v3 script then sends it filled in: imported.
+        r = await self.send(tok, fixture("gemini_notes.txt"), version=3)
+        self.assertEqual(r.json()["status"], "imported")
+
+    async def test_upgrade_imports_the_doc_v3_had_ignored(self):
+        """Today's sync-up: v3 sent Gemini's Doc while the call was on and Markdrop answered "ignored"; v4
+        sends it again (filled in) and it's imported."""
+        tok = (await self.connect())["token"]
+        await self.db["meeting_inbox"].insert_one({
+            "workspace_id": self.W, "file_id": FID_N, "user_id": self.uid["owner"], "state": "ignored",
+            "reason": "no_meeting", "at": datetime.now(timezone.utc) - timedelta(minutes=50), "attempts": 1, "version": 3})
+        r = await self.send(tok, fixture("gemini_notes.txt"))
+        self.assertEqual(r.json()["status"], "imported", r.text)
+        self.assertEqual(len(await self.rows()), 1)
+
+    async def test_transcript_grows_and_deleted_meetings_stay_deleted(self):
+        tok = (await self.connect())["token"]
+        full = fixture("google_meet_transcript.txt")
+        lines = full.splitlines()
+        part = "\n".join(lines[: len(lines) // 2]) + "\n"
+        r = await self.send(tok, part, file_id=FID_T, title=TRANSCRIPT, kind="transcript")
+        self.assertEqual(r.json()["status"], "imported", r.text)
+        before = len((await self.rows())[0]["segments"])
+        r = await self.send(tok, full, file_id=FID_T, title=TRANSCRIPT, kind="transcript")
+        self.assertEqual(r.json()["status"], "updated", r.text)
+        row = (await self.rows())[0]
+        self.assertGreater(len(row["segments"]), before)
+        tpage = await self.db["documents"].find_one({"_id": row["transcript_doc_id"]})
+        last = [s for s in row["segments"] if s.get("text")][-1]["text"][:30]
+        self.assertIn(last, tpage["content"])
+        # Someone deletes the meeting; Google changes the Doc again: it isn't made again.
+        r = await self.http.delete(f"/api/v1/meetings/{row['_id']}", headers=self.session("owner"))
+        self.assertEqual(r.status_code, 200, r.text)
+        r = await self.send(tok, full + "Ada Lovelace: one more thing\n", file_id=FID_T, title=TRANSCRIPT, kind="transcript")
+        self.assertEqual(r.json()["status"], "duplicate")
+        self.assertEqual(await self.rows(), [])
 
 
 class CheckNow(AutoWorld):

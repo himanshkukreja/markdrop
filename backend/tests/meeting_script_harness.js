@@ -1,13 +1,13 @@
 // Runs the generated Google Meet script (Code.gs) against fake Apps Script services, for
 // tests/test_meetings_auto.py. Usage: node meeting_script_harness.js <script.gs> <scenario.json>
 // The scenario: {files: [{id, name, created, modified, owned, owner?, parents?, driveId?, mime?, doc?, text?}],
-// folders?: [{id, name}], responses: [code…] (the inbox's answers), statusResponses?: [{code, body}…],
+// folders?: [{id, name}], responses: [code | {code, body}…] (the inbox's answers), statusResponses?: [{code, body}…],
 // queue?: [file ids] (handed out by the first 'start' status), runs: ["setup" | "syncMeetings" | "check" …],
 // docsFails?: bool, driveFails?: bool (Drive v3 errors: the script falls back to DriveApp),
 // driveOff?: bool (Drive v3 answers Google's 403 "Drive API has not been used in project … or it is disabled").
 // The clock is fake: it starts at `now` (ISO; default the real time), each delivery to the inbox takes
 // `sendMs` (default 0) and `runGapMs` passes between runs (default 0). `locked`: another run holds the
-// script lock. A run like "doPost({...})" (Check now) has its answer in report.returns (JSON parsed).
+// script lock. A run can change the files between runs: "__files[0].modified = '…'". A run like "doPost({...})" (Check now) has its answer in report.returns (JSON parsed).
 // Prints a JSON report.
 const fs = require("fs");
 const vm = require("vm");
@@ -87,7 +87,7 @@ const sandbox = {
     warn: (m) => report.logs.push("WARN " + String(m)),
     info: (m) => report.logs.push("INFO " + String(m)),
   },
-  Date: FakeDate, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
+  __files: sc.files, Date: FakeDate, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
   LockService: { getScriptLock: () => ({ tryLock: () => !sc.locked, releaseLock: () => {} }) },
   ContentService: {
     MimeType: { JSON: "application/json" },
@@ -154,10 +154,12 @@ const sandbox = {
         const f = sc.files.find((x) => x.id === id);
         return { getContentText: () => f.text || "", getResponseCode: () => 200 };
       }
-      const status = responses.length ? responses.shift() : 200;
+      const r = responses.length ? responses.shift() : 200;
+      const status = typeof r === "object" ? r.code : r;
+      const answer = typeof r === "object" && r.body ? r.body : { status: status < 300 ? "imported" : "error" };
       clock += sc.sendMs || 0;
       report.posts.push({ url, auth: opts.headers.Authorization, method: opts.method, body: JSON.parse(opts.payload), status });
-      return { getResponseCode: () => status, getContentText: () => JSON.stringify({ status: status < 300 ? "imported" : "error" }) };
+      return { getResponseCode: () => status, getContentText: () => JSON.stringify(answer) };
     },
   },
 };
