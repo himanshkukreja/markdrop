@@ -918,19 +918,28 @@ export async function exportToGoogleDocs(docId: string): Promise<GoogleExportRes
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
 
-const ADMIN_TOKEN_KEY = "markdrop_admin_token";
+// The admin console takes the owner's own Markdrop session (backend routers/admin.require_admin):
+// every admin call sends the user token (`getToken()`); there is no separate admin sign-in.
 
-export function getAdminToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(ADMIN_TOKEN_KEY);
+export interface AdminSession {
+  email: string;
+  name: string | null;
+  picture: string | null;
 }
 
-export function setAdminToken(token: string): void {
-  localStorage.setItem(ADMIN_TOKEN_KEY, token);
-}
-
-export function clearAdminToken(): void {
-  localStorage.removeItem(ADMIN_TOKEN_KEY);
+/**
+ * Who the admin console is open for. Resolves "ok" with the admin, "not-found" for anyone signed in
+ * who isn't one (the API answers 404, as for a route that doesn't exist) and "sign-in" when there is
+ * no usable session or it was signed in too long ago (401). Throws on network and server errors.
+ */
+export async function adminSession(
+  token: string,
+): Promise<{ state: "ok"; admin: AdminSession } | { state: "not-found" } | { state: "sign-in" }> {
+  const res = await fetch(`${API_BASE}/api/v1/admin/session`, { headers: { Authorization: `Bearer ${token}` } });
+  if (res.status === 401) return { state: "sign-in" };
+  if (res.status === 404 || res.status === 403) return { state: "not-found" };
+  if (!res.ok) throw await apiError(res, "Could not open the admin console");
+  return { state: "ok", admin: (await res.json()) as AdminSession };
 }
 
 export interface AdminDocListItem {
@@ -1092,16 +1101,6 @@ export async function adminListShareEvents(
   });
   if (res.status === 401) throw new Error("UNAUTHORIZED");
   if (!res.ok) throw new Error("Failed to load share events");
-  return res.json();
-}
-
-export async function adminLogin(username: string, password: string): Promise<{ token: string; expires_at: string }> {
-  const res = await fetch(`${API_BASE}/api/v1/admin/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ username, password }),
-  });
-  if (!res.ok) throw new Error("Invalid credentials");
   return res.json();
 }
 

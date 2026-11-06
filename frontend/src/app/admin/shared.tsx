@@ -66,7 +66,7 @@ export function writeQuery(patch: Record<string, string | null | undefined>, pus
 
 // ── Session ───────────────────────────────────────────────────────────────────
 
-/** Called by any admin request that comes back 401: clears the token and shows the sign-in card. */
+/** Called by any admin request that comes back 401 (session ended or too old for the console): to sign-in and back. */
 export const UnauthorizedContext = createContext<() => void>(() => {});
 export const useOnUnauthorized = () => useContext(UnauthorizedContext);
 

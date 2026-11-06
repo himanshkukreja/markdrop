@@ -218,9 +218,7 @@ MARKDROP_CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
 MARKDROP_FRONTEND_URL=http://localhost:3000
 MARKDROP_API_BASE_URL=http://localhost:8080
 MARKDROP_AUTH_SECRET=$(rand)
-MARKDROP_ADMIN_USERNAME=admin
-MARKDROP_ADMIN_PASSWORD=$(rand)
-MARKDROP_ADMIN_SECRET=$(rand)
+MARKDROP_ADMIN_EMAILS=you@example.com
 MARKDROP_IP_HASH_SALT=$(rand)
 MARKDROP_GOOGLE_REDIRECT_URI=http://localhost:8080/api/v1/auth/google/callback
 MARKDROP_GOOGLE_DOCS_REDIRECT_URI=http://localhost:8080/api/v1/google/callback
@@ -235,8 +233,8 @@ import time: **restart the server after any `.env` change**. List values such as
 **What works without any external account:** markdown publish/view/edit/delete, passwords, expiry,
 E2E encryption, live refresh, OG cards, the README builder, P2P share (direct connections, STUN only),
 workspaces and folders (without automatic domain attach), per-document analytics (without geo), and the
-admin panel at `/admin` (log in with your local `MARKDROP_ADMIN_*` values; the password is the
-`MARKDROP_ADMIN_PASSWORD` line in `backend/.env`, e.g. `grep ADMIN_PASSWORD backend/.env`).
+admin panel at `/admin` (no admin password: sign in to your local Markdrop with an address listed in
+`MARKDROP_ADMIN_EMAILS` and open `/admin`; anyone else signed in gets a 404).
 
 **What needs your OWN test accounts** (never ask for or use the owner's). Unconfigured, the app degrades cleanly:
 | Feature | Needs (env vars in `config.py`) | Without it |
