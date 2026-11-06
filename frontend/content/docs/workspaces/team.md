@@ -33,7 +33,7 @@ The board has a card for each member:
 
 - **Status.** **On track** when something came up in the last week, **Blocked** or **Waiting on someone** when their latest word is a blocker (with what, and who they're waiting on), and **Quiet lately** when nothing came up for a week. Quiet lately is neutral: no colors, no day count. A status someone [sets themselves](#your-status-and-focus) wins over all of these.
 - **Now.** Their focus note, or the newest thing they said they're working on.
-- **Targets.** Commitments with a due date, like "ship the filters by Thursday". Dates said in a meeting are worked out from the meeting's day: "by Thursday" said on Tuesday is that Thursday. Each target says **Due today**, **Due Fri** or **Overdue**.
+- **Targets.** Commitments with a due date, like "ship the filters by Thursday". Dates said in a meeting are worked out from the meeting's day: "by Thursday" said on Tuesday is that Thursday. Gemini's suggested next steps count too: "Sam will update the pricing page by Friday", "by EOD", "early next week", "end of the month", or Hinglish like "kal tak" and "Monday tak". When the same item is noted with and without a date, Team keeps the dated one. Each target says **Due today**, **Due Fri** or **Overdue**.
 - **Open items**, a strip of their updates over the last one or two weeks, and when they last came up, with a link to where.
 
 Above the cards, five numbers: on track, blocked or waiting, due this week, overdue, open items. Below them, **Team at a glance**:

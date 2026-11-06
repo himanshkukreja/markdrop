@@ -88,6 +88,9 @@ class Parsing(unittest.TestCase):
         self.assertEqual(sai.due_label(sai.Item(block="b", done=False, text="x", due="Thursday"), "2026-11-04"),
                          "Thursday (Thu, Nov 5)")
         self.assertIsNone(sai.due_label(sai.Item(block="b", done=False, text="Book the room."), "2026-11-04"))
+        self.assertEqual(sai.due_label(sai.Item(block="b", done=False, text="Deck kal tak bhejna"), "2026-11-04"), "Thu, Nov 5")
+        self.assertEqual(sai.due_label(sai.Item(block="b", done=False, text="Update the pricing page early next week"),
+                                       "2026-11-04"), "Mon, Nov 9")
 
     def test_too_old(self):
         now = meetings.now_utc()

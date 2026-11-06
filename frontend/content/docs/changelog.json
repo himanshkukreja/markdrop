@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "team-gemini-next-step-dates",
+      "date": "2026-11-06",
+      "title": "Gemini's next steps keep their deadlines in Team",
+      "kind": "fixed",
+      "area": "Team",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "A suggested next step from Gemini like \"Sam Lee will update the pricing page by Friday\" now reaches Team as a target due that Friday, so it shows under Due this week. Before, these came through with no date.",
+      "body": "- **Deadlines in the step's own words.** \"by Friday\", \"by EOD\", \"by Nov 12\", \"tomorrow\", \"next week\", \"early next week\", \"end of the month\", and Hinglish like \"kal tak\" or \"Monday tak\", worked out from the meeting's day.\n- **The dated one wins.** When the same commitment is noted with and without a date, Team shows one line with the date, linked to both places it came from.\n- **Earlier meetings too.** Next steps Team already recorded get their date in the nightly tidy-up, with no AI involved.\n- Action items posted to Slack read the same phrases."
+    },
+    {
       "id": "team-meetings-docs-mcp",
       "date": "2026-11-06",
       "title": "Team for AI apps, and a guide to how Meetings and Team fit together",
