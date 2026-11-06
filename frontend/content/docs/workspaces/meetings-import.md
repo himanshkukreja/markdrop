@@ -81,6 +81,8 @@ A meeting's **Attendees** are the people who joined the call:
 
 The meeting page lists the attendees under **Attendees**: members as @mentions (nobody is notified), everyone else by name. The **Attendees** property has their names. A line that isn't a list of names, such as a summary paragraph, is never read as attendees. Meetings imported before November 6, 2026 were corrected in the background; the page changed only where Markdrop's own text was still there, and who can open a meeting didn't change.
 
+Gemini's notes are never read as transcript lines. A suggested next step like "Gautam Khurana Review Video: Gautam Khurana will review the video…" stays under **Action items** with the person it names. It never makes "Gautam Khurana Review Video" a speaker or an attendee.
+
 ![The Attendees section of a meeting page: Ada Owner, Ben Member, Priya Shah and Raj Patel as @mentions.](/docs-assets/workspaces/meetings-import/attendees.webp)
 
 Both lists count for [your action items in Slack](/integrations/slack#your-action-items-after-each-meeting): an item assigned to someone on the invite reaches them even if the transcript missed them, and so does one assigned to the organizer.

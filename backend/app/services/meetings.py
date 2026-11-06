@@ -1748,6 +1748,10 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
             if out["transcript"] == "trashed":
                 sets.update(transcript_doc_id=None, transcript_slug=None)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+    if seg_changed:
+        from app.services import meeting_memory
+
+        await meeting_memory.sync_quietly(db, row["_id"])     # its facts' speakers and segments
     if out["page"] not in ("rewritten", "attendees") and out["transcript"] not in ("rewritten", "trashed"):
         return out
     user = await user_service.get_user_by_id(db, row.get("created_by"))
