@@ -14,7 +14,7 @@ export const TAB_IDS: TabId[] = ["people", "look", "integrations", "advanced"];
 /** Old `?tab=` names (before the simpler settings) and where they live now. "folders" isn't a tab
  *  any more: it opens the workspace's folder view. */
 export const OLD_TABS: Record<string, TabId | "folders"> = {
-  general: "look", brand: "look", domains: "look", people: "people", folders: "folders", slack: "integrations",
+  general: "look", brand: "look", domains: "look", people: "people", folders: "folders", slack: "integrations", jira: "integrations",
 };
 
 /** What every tab gets from the page: the workspace, the caller's powers and the lazily loaded collections. */
