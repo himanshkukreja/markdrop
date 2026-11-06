@@ -628,6 +628,22 @@ class Settings(BaseSettings):
     slack_api_base: str = "https://slack.com/api"
     slack_web_base: str = "https://slack.com"
 
+    # ── Jira Cloud (services/jira*.py, routers/jira.py) ──────────────────────
+    # Markdrop's Atlassian OAuth 2.0 (3LO) app (developer.atlassian.com/console/myapps; docs:
+    # integrations/jira.md). Both come from the app's Settings page; until both are set (and
+    # token_encryption_key, which protects people's Atlassian tokens at rest) the Jira cards say
+    # "Not set up yet". Its callback URL is <frontend_url>/integrations/jira/callback.
+    atlassian_client_id: str = ""
+    atlassian_client_secret: str = ""
+    # Atlassian's sign-in and API hosts (tests point them elsewhere).
+    atlassian_auth_base: str = "https://auth.atlassian.com"
+    atlassian_api_base: str = "https://api.atlassian.com"
+    # Jira AI (services/jira_ai.py, ledger feature "jira_ai"): drafting issues from meetings, Team and
+    # pages (owner decision 2026-11-06: $1 a day, $10 a month; the admin AI tab overrides them).
+    jira_ai_enabled: bool = True
+    jira_ai_daily_usd: float = 1.0
+    jira_ai_monthly_usd: float = 10.0
+
     # ── Push notifications (Web Push: services/webpush.py, services/push.py) ──
     # The server's VAPID key pair (RFC 8292). Generate one with
     #   python -m app.services.webpush keys
@@ -646,6 +662,10 @@ class Settings(BaseSettings):
     def slack_configured(self) -> bool:
         return bool(self.slack_client_id and self.slack_client_secret and self.slack_signing_secret
                     and self.token_encryption_key)
+
+    @property
+    def jira_configured(self) -> bool:
+        return bool(self.atlassian_client_id and self.atlassian_client_secret and self.token_encryption_key)
 
     @property
     def docs_r2_configured(self) -> bool:
