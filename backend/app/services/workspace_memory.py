@@ -1411,6 +1411,14 @@ async def team(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w
     pnames = await _project_names(db, ws.id)
     done = await _done_ids(db, v, v.facts)
     week_end = _week_end(today)
+    # The tiles count like "This week" (team_extras): due Mon–Sun in the workspace's timezone; overdue =
+    # due before this week but within the last two weeks (older ones are stale: on the person's page only).
+    from app.services import team_extras
+
+    wsrow = await db["workspaces"].find_one({"_id": _oid(ws.id)}, {"settings": 1}) or {}
+    local = now.astimezone(team_extras.tz_of((wsrow.get("settings") or {}).get("timezone"))).date()
+    wk_start, wk_end = team_extras.week_bounds(local)
+    recent_from = local - timedelta(days=team_extras.OVERDUE_DAYS)
     cards, blockers = [], []
     names = {m["id"]: m["name"] for m in members}
     for m in members:
@@ -1442,6 +1450,8 @@ async def team(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w
             "targets": targets[:6], "open_items": len(commits),
             "due_week": sum(1 for t in targets if t["state"] != "overdue" and date.fromisoformat(t["due"]) <= week_end),
             "overdue": sum(1 for t in targets if t["state"] == "overdue"),
+            "week_due": sum(1 for t in targets if wk_start <= date.fromisoformat(t["due"]) <= wk_end),
+            "week_overdue": sum(1 for t in targets if recent_from <= date.fromisoformat(t["due"]) < wk_start),
             "activity": activity(facts, today), "projects": [{"key": k, "name": pnames.get(k, k)} for k in projs[:6]],
             "updated_at": _iso(last.get("when")) if last else None, "last_source": _src_link(v, last),
             "groups": [],
@@ -1474,7 +1484,8 @@ async def team(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w
         "gathering": pending and not v.facts, "today": today.isoformat(), "week_end": week_end.isoformat(),
         "people": cards, "former": former, "projects": plist, "lanes": lanes, "blockers": blockers,
         "totals": {"open_items": sum(c["open_items"] for c in cards), "due_week": sum(c["due_week"] for c in cards),
-                   "overdue": sum(c["overdue"] for c in cards), "blocked": sum(1 for c in cards if c["status"]["state"] in ("blocked", "waiting")),
+                   "overdue": sum(c["overdue"] for c in cards), "week_due": sum(c["week_due"] for c in cards),
+                   "week_overdue": sum(c["week_overdue"] for c in cards), "blocked": sum(1 for c in cards if c["status"]["state"] in ("blocked", "waiting")),
                    "on_track": sum(1 for c in cards if c["status"]["state"] == "on_track"),
                    "quiet": sum(1 for c in cards if c["status"]["state"] == "quiet")},
         "you": actor.user_id, "role": role, "since": _iso(st0.get("enabled_at")),

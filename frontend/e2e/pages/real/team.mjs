@@ -74,6 +74,12 @@ const page = ok(await api("POST", "/api/v1/pages", T.member, {
   content: `# Mobile launch checklist\n\n@Raj Patel is preparing the mobile app store listing for the beta. ${"Store copy, screenshots and review notes. ".repeat(8)}\n\n- [ ] :person[Raj Patel]{id="${more.raj.id}"} upload the beta build to TestFlight\n`,
 }), "page").document;
 
+// More commitments for "This week": three for Mei (one grouped row), one of Raj's due within the last two
+// weeks (Overdue) and one due long ago (stale: his page only).
+ok(await meeting("Design sync", day(2), ["Mei Lin: Target: onboarding copy review by tomorrow. Target: icon set handoff by tomorrow. Target: usability notes by tomorrow."]), "design sync");
+ok(await meeting("Mobile sync", day(10), ["Raj Patel: Target: crash report triage by tomorrow."]), "mobile sync");
+ok(await meeting("Mobile kickoff", day(24), ["Raj Patel: Target: store screenshots by tomorrow."]), "mobile kickoff");
+
 await step("enable", async () => {
   const off = ok(await api("GET", `/api/v1/team/${WS}`, T.member), "board as member");
   if (off.enabled !== false || off.can_enable !== false) fail(`expected off for a member: ${JSON.stringify(off)}`);
@@ -287,10 +293,57 @@ await step("groups", async () => {
 });
 
 await step("week", async () => {
+  const OUT = process.env.WEEK_SHOTS;           // .work/team-thisweek/shots when set
+  if (OUT) fs.mkdirSync(OUT, { recursive: true });
+  const wshot = async (p, name) => { await shot(p, name); if (OUT) await p.screenshot({ path: `${OUT}/${name}.png`, fullPage: false }); };
+  const live = ok(await api("GET", `/api/v1/team/${WS}`, T.admin), "board as Wes").this_week;
+  if (!live || !live.live) fail(`this week before sending: ${JSON.stringify(live).slice(0, 200)}`);
+  // Mon–Sun; due = this week, overdue = the last two weeks, stale never; no "Name:" prefixes; ≤ 2 a person.
+  const mon = new Date(`${live.from}T00:00:00Z`), sun = new Date(`${live.to}T00:00:00Z`);
+  if (mon.getUTCDay() !== 1 || (sun - mon) / 864e5 !== 6) fail(`week ${live.from}–${live.to}`);
+  for (const x of live.due) if (x.due < live.from || x.due > live.to) fail(`due outside the week: ${x.text} ${x.due}`);
+  for (const x of live.overdue) if (x.due >= live.from || x.days < -14) fail(`overdue out of range: ${x.text} ${x.due}`);
+  const texts = [...live.due, ...live.overdue].map((x) => x.text);
+  if (!live.overdue.some((x) => x.text === "Crash report triage")) fail(`no Crash report triage in overdue: ${JSON.stringify(live.overdue)}`);
+  if (texts.includes("Store screenshots")) fail("a stale item is on the card");
+  const per = {};
+  for (const h of live.highlights) {
+    per[h.person?.id] = (per[h.person?.id] ?? 0) + 1;
+    if (h.person && h.text.startsWith(h.person.name)) fail(`highlight repeats the name: ${h.text}`);
+  }
+  if (Object.values(per).some((n) => n > 2)) fail(`more than 2 highlights a person: ${JSON.stringify(per)}`);
+  // Stale stays on Raj's page; Raj marks the overdue one done and it leaves the card.
+  const raj = ok(await api("GET", `/api/v1/team/${WS}/people/${more.raj.id}`, more.raj.token), "Raj's page");
+  if (!raj.targets.some((t) => t.text === "Store screenshots")) fail("the stale item isn't on Raj's page");
+  const crash = live.overdue.find((x) => x.text === "Crash report triage");
+  ok(await api("POST", `/api/v1/team/${WS}/facts/${crash.id}/done`, more.raj.token), "mark done");
+  const after = ok(await api("GET", `/api/v1/team/${WS}`, T.admin), "board").this_week;
+  if (after.overdue.some((x) => x.id === crash.id)) fail("a done item is still overdue");
+  ok(await api("DELETE", `/api/v1/team/${WS}/facts/${crash.id}/done`, more.raj.token), "undo mark done");
+
   const { p } = await ctx(browser, { token: T.admin });
   await p.goto(teamUrl);
-  await p.getByTestId("team-this-week").waitFor({ timeout: 20000 });
-  await p.getByTestId("team-week-send").click();
+  const card = p.getByTestId("team-this-week");
+  await card.waitFor({ timeout: 20000 });
+  for (const id of ["highlights", "due", "overdue"]) await card.getByTestId(`team-week-${id}`).waitFor();
+  const head = (await card.locator("h2").textContent()).replace(/\s+/g, " ");
+  if (!/This week · \w{3} \d+/.test(head)) fail(`header: ${head}`);
+  // Desktop: three equal-height columns side by side.
+  const boxes = await card.locator(".tm-wk__col").evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [r.top, r.height]; }));
+  if (new Set(boxes.map((b) => Math.round(b[0]))).size !== 1 || new Set(boxes.map((b) => Math.round(b[1]))).size !== 1) fail(`columns: ${JSON.stringify(boxes)}`);
+  // Mei's three items are one row that opens.
+  const group = card.getByTestId("team-week-group").filter({ hasText: "Mei" }).first();
+  await group.waitFor();
+  await group.getByRole("button").first().click();
+  await group.getByText("Icon set handoff").waitFor();
+  await wshot(p, "week-1440-light");
+  // The page uses the width: content starts near the sidebar, not in a narrow centered column.
+  const width = await p.getByTestId("team-board").evaluate((el) => el.getBoundingClientRect().width);
+  if (width < 1080) fail(`Team is ${Math.round(width)} px wide at 1440 (a narrow centered column)`);
+  // The tiles count like the card.
+  const tiles = await p.getByTestId("team-tiles").locator(".tm-tile__n").allInnerTexts();
+  if (Number(tiles[2]) !== live.due.length || Number(tiles[3]) !== live.overdue.length) fail(`tiles ${tiles} vs card ${live.due.length}/${live.overdue.length}`);
+  await card.getByTestId("team-week-send").click();
   await p.getByText(/^Sent /).first().waitFor({ timeout: 20000 });
   const b = ok(await api("GET", `/api/v1/team/${WS}`, T.reader), "board as Vic");
   if (!b.this_week || b.this_week.live) fail(`this week: ${JSON.stringify(b.this_week).slice(0, 200)}`);
@@ -298,6 +351,17 @@ await step("week", async () => {
   const m = ok(await api("GET", `/api/v1/team/${WS}`, T.member), "board as Ben");
   if (JSON.stringify(m.this_week).toLowerCase().includes(SECRET)) fail("the weekly summary carried the 1:1 (even for Ben)");
   await shot(p, "team-week-light");
+  for (const [w, h, theme, name, mobile] of [[2000, 1100, "light", "board-2000-light"], [1440, 900, "dark", "week-1440-dark"],
+    [2000, 1100, "dark", "board-2000-dark"], [820, 1180, "light", "week-tablet-820-light", true], [1180, 820, "dark", "week-tablet-1180-dark", true],
+    [390, 844, "light", "week-phone-390-light", true], [390, 844, "dark", "week-phone-390-dark", true]]) {
+    const { p: q } = await ctx(browser, { token: T.admin, theme, width: w, height: h, mobile });
+    await q.goto(teamUrl);
+    await q.getByTestId("team-this-week").waitFor({ timeout: 20000 });
+    await q.getByTestId("team-this-week").scrollIntoViewIfNeeded();
+    const sw = await q.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    if (sw > 0) fail(`${name}: ${sw}px sideways scroll`);
+    await wshot(q, name);
+  }
 });
 
 await step("dark", async () => {

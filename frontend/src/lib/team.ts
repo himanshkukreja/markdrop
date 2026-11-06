@@ -79,6 +79,9 @@ export interface Card {
   targets: Target[];
   open_items: number;
   due_week: number;
+  /** As on "This week": due Mon–Sun (workspace time) / due before this week within the last two weeks. */
+  week_due: number;
+  week_overdue: number;
   overdue: number;
   activity: number[];
   projects: Array<{ key: string; name: string }>;
@@ -128,7 +131,7 @@ export interface Board {
   projects: ProjectRow[];
   lanes: Lane[];
   blockers: Blocker[];
-  totals: { open_items: number; due_week: number; overdue: number; blocked: number; on_track: number; quiet: number };
+  totals: { open_items: number; due_week: number; overdue: number; week_due: number; week_overdue: number; blocked: number; on_track: number; quiet: number };
   you: string;
   role: string;
   since: string | null;
