@@ -424,14 +424,14 @@ class PageCtx:
 def _item_icon(e: dict) -> str:
     r = e.get("renderer") or ""
     return {"markdown": "📄", "pdf": "📕", "video": "🎬", "audio": "🎧", "image": "🖼️", "sheet": "📊",
-            "html": "🌐", "bundle": "🌐", "docx": "📘", "text": "📃"}.get(r, "📎" if e.get("kind") == "artifact" else "📄")
+            "html": "🌐", "bundle": "🌐", "docx": "📘", "pptx": "📙", "text": "📃"}.get(r, "📎" if e.get("kind") == "artifact" else "📄")
 
 
 def _item_kind(e: dict) -> str:
     r = e.get("renderer") or ""
     return {"markdown": "Document", "pdf": "PDF", "video": "Video", "audio": "Audio", "image": "Image",
             "sheet": "Spreadsheet", "html": "HTML page", "bundle": "Website", "docx": "Word document",
-            "text": "Text file"}.get(r, "File" if e.get("kind") == "artifact" else "Document")
+            "pptx": "PowerPoint deck", "text": "Text file"}.get(r, "File" if e.get("kind") == "artifact" else "Document")
 
 
 LOCKED = "Locked item"

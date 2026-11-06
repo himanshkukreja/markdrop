@@ -457,6 +457,7 @@ _ICON_PATHS = {
     "film": "M19.82 2H4.18A2.18 2.18 0 0 0 2 4.18v15.64C2 21.02 2.98 22 4.18 22h15.64A2.18 2.18 0 0 0 22 19.82V4.18A2.18 2.18 0 0 0 19.82 2zM7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 17h5M17 7h5",
     "archive": "M21 8v13H3V8M1 3h22v5H1zm9 9h4",
     "table": "M3 3h18v18H3zM3 9h18M3 15h18M9 3v18",
+    "slides": "M2 3h20M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3M7 21l5-5 5 5M12 16v5",
     "music": "M9 18V5l12-2v13M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm12-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
     "code": "m16 18 6-6-6-6M8 6l-6 6 6 6",
     "folder": "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z",
@@ -469,6 +470,7 @@ _RENDERER_GLYPH: dict[str, tuple[str, tuple[int, int, int]]] = {
     "pdf": ("doc", (255, 100, 103)),        # cat-pdf    red-400
     "sheet": ("table", (0, 212, 146)),      # cat-sheet  emerald-400
     "docx": ("lines", _DOC_BLUE),           # document
+    "pptx": ("slides", _ARTIFACT_ORANGE),   # slides (orange, like the deck app)
     "text": ("lines", _DOC_BLUE),
     "video": ("film", (166, 132, 255)),     # cat-video  violet-400
     "html": ("globe", _ARTIFACT_ORANGE),    # cat-artifact

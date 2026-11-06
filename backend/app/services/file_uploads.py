@@ -622,7 +622,12 @@ async def _verify_and_commit(db: AsyncIOMotorDatabase, upload_id: str) -> None:
                 422, f"sha256 mismatch: declared {sess['sha256']}, uploaded bytes hash to {digest}. "
                      "The upload was discarded and nothing was changed.")
 
-        # 4. Commit.
+        # 4. A deck must open as one (no macros, not encrypted): artifact.verify_content.
+        bad = await art_service.verify_content(key, sess["mime"])
+        if bad:
+            raise UploadFailed(*bad)
+
+        # 5. Commit.
         result, committed = await _commit(db, sess)
         await db[SESSIONS].update_one(
             {"_id": upload_id},

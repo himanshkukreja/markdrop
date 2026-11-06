@@ -88,7 +88,7 @@ class PinBody(SrcBody):
 @limiter.limit("120/minute")
 async def embed_library(request: Request, site_id: str, scope: str = Query("mine", pattern="^(mine|workspace)$"),
                         q: str | None = Query(None, max_length=200),
-                        type: str | None = Query(None, pattern="^(all|html|bundle|pdf|sheet|docx|video|image|audio|text|doc)$"),
+                        type: str | None = Query(None, pattern="^(all|html|bundle|pdf|sheet|docx|pptx|video|image|audio|text|doc)$"),
                         page: int = Query(1, ge=1, le=500),
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     site, _role = await store.load_site(db, site_id, user, "editor")

@@ -297,6 +297,31 @@ def pptx_parts(data: bytes, clock: _Clock | None = None) -> list[Part]:
     return parts
 
 
+_MACRO_PART = re.compile(r"(^|/)vbaProject\.bin$|^ppt/activeX/", re.I)
+
+
+def check_deck(data: bytes, clock: _Clock | None = None) -> None:
+    """Refuse a .pptx that can't be published (services/artifact.check_upload): encrypted or damaged,
+    a ZIP bomb, macro-enabled (a .pptm, renamed or not), not a deck, or any XML part with a DOCTYPE.
+    Reads every XML part under the same inflation budget as :func:`pptx_parts`; returns None."""
+    clock = clock or _Clock()
+    z = SafeZip(data)
+    if not z.has("ppt/presentation.xml"):
+        raise Refused("it isn't a PowerPoint deck")
+    if any(_MACRO_PART.search(n) for n in z.names):
+        raise Refused("it contains macros (a .pptm deck)")
+    if z.has("[Content_Types].xml"):
+        types = z.xml("[Content_Types].xml")
+        if any("macroenabled" in (el.get("ContentType") or "").lower() for el in types.iter()):
+            raise Refused("it contains macros (a .pptm deck)")
+    for i, name in enumerate(n for n in z.names if n.lower().endswith((".xml", ".rels"))):
+        if i % 50 == 0:
+            clock.check()
+        if _DTD.search(z.read(name)):
+            raise Refused("XML with a DOCTYPE")
+    z.xml("ppt/presentation.xml")
+
+
 # ── Excel ─────────────────────────────────────────────────────────────────────
 
 _S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
