@@ -14710,6 +14710,98 @@
         }
       }
     },
+    "/api/v1/meetings/connection/check-now": {
+      "put": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Set Check Now",
+        "description": "Turn \"Check for new meetings\" on for your connection: the Web app URL of your script (it's never\nshown to anyone else), or null to turn it off.",
+        "operationId": "set_check_now_api_v1_meetings_connection_check_now_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebAppBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/meetings/check-now": {
+      "post": {
+        "tags": [
+          "meetings"
+        ],
+        "summary": "Check Now",
+        "description": "\"Check for new meetings\": the Google Meet scripts connected to the workspace (with Check now on)\nrun now instead of at their next 15-minute run; waits for them (up to about a minute and a half) →\n{ok, message, imported, attached, writing, remaining, checked, failed, connections}. Members; once a\nminute per workspace (429 + retry_after).",
+        "operationId": "check_now_api_v1_meetings_check_now_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckNowBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "6/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/meetings/inbox": {
       "post": {
         "tags": [
@@ -14934,7 +15026,7 @@
         "x-markdrop": {
           "auth": "token",
           "rateLimits": [
-            "600/day",
+            "2000/day",
             "30/minute"
           ]
         }
@@ -19454,6 +19546,20 @@
           "facts"
         ],
         "title": "CheckBody"
+      },
+      "CheckNowBody": {
+        "properties": {
+          "workspace": {
+            "type": "string",
+            "maxLength": 40,
+            "title": "Workspace"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace"
+        ],
+        "title": "CheckNowBody"
       },
       "ClickBody": {
         "properties": {
@@ -25857,6 +25963,24 @@
           "views"
         ],
         "title": "ViewsPut"
+      },
+      "WebAppBody": {
+        "properties": {
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "title": "WebAppBody"
       },
       "WorkspaceCreate": {
         "properties": {
