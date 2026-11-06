@@ -804,23 +804,35 @@ class OptIn(SlackWorld):
 
     async def test_an_install_without_the_new_scopes_needs_an_update(self):
         self.in_slack("wm", "U0WMS")
-        # Installed before users:read.email was added: Slack isn't even asked.
+        # Installed before users:read.email was added: the settings card asks an admin to update it.
         await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$pull": {"scopes": {"$in": list(slack.EMAIL_SCOPES)}}})
         st = (await self.http.get("/api/v1/slack/status", params={"workspace_id": self.W}, headers=self.session("wo"))).json()
         self.assertFalse(st["install"]["can_find_by_email"])
+        # Slack says missing_scope: "needs an update", and the team is NOT forgotten (missing_scope is
+        # one of slack_api.DEAD_TOKEN's errors elsewhere).
+        self.sk.fail["users.lookupByEmail"] = "missing_scope"
         res = (await self.turn("wm")).json()["results"][0]
         self.assertEqual(res["result"], "needs_update")
         self.assertIn("a workspace admin updates it in Workspace settings", res["message"])
-        self.assertEqual(self.sk.of("users.lookupByEmail"), [])
-        # The scope list says yes but Slack says missing_scope: the same, and the team is NOT forgotten.
-        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"scopes": list(slack.BOT_SCOPES)}})
-        self.sk.fail["users.lookupByEmail"] = "missing_scope"
-        self.assertEqual((await self.turn("wm")).json()["results"][0]["result"], "needs_update")
         self.assertIsNotNone(await self.db[slack.INSTALLS].find_one({"_id": TEAM}))
-        # The admin updates the app (Add to Slack again): the same team, new scopes; matching works.
+        self.assertIsNone(await self.db[slack.LINKS].find_one({"user_id": self.uid["wm"]}))
+        # The scope list said yes: Slack's answer corrects it (the settings card then asks for the update).
+        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"scopes": list(slack.BOT_SCOPES)}})
+        await self.turn("wm")
+        self.assertFalse(slack.can_find_by_email(await self.db[slack.INSTALLS].find_one({"_id": TEAM})))
+        # Reinstalled from Slack's own app page (not through Markdrop): Slack now answers, the list is corrected.
+        self.sk.fail.clear()
+        self.in_slack("wa", "U0WAS")
+        self.assertEqual((await self.turn("wa")).json()["results"][0]["result"], "matched")
+        self.assertTrue(slack.can_find_by_email(await self.db[slack.INSTALLS].find_one({"_id": TEAM})))
+        await self.db[slack.LINKS].delete_many({"user_id": self.uid["wa"]})
+        # The admin updates the app through Markdrop (Add to Slack again): the same team, new scopes, and
+        # wm, who had turned it on, is found by email on its own.
+        self.sk.fail["users.lookupByEmail"] = "missing_scope"
+        await self.turn("wm")
         self.sk.fail.clear()
         await self.install()
-        self.assertTrue((await self.db[slack.INSTALLS].find_one({"_id": TEAM}))["scopes"])
+        self.assertTrue(slack.can_find_by_email(await self.db[slack.INSTALLS].find_one({"_id": TEAM})))
         await slack.drain()
         # wm had turned it on: the update found them by email on its own.
         self.assertEqual((await self.db[slack.LINKS].find_one({"user_id": self.uid["wm"]}))["match"], "email")
@@ -1029,8 +1041,14 @@ class McpTools(MeetingsWorld, SlackWorld):
         self.assertEqual(out["meetings_channel"], {"id": "C2", "name": "meetings"})
         self.assertTrue(out["post_meetings"])
         self.assertTrue(out["me"]["linked"])
+        self.assertEqual((out["me"]["notifications_on"], out["me"]["found_by"]), (False, "oauth"))   # off by default
+        self.assertIn("Your Slack notifications are off", res["content"][0]["text"])
         self.assertFalse(out["can_manage"])
         self.assertIn("#meetings", res["content"][0]["text"])
+        await self.opt_in("wm")
+        res = await self.call("wm", "slack_status", {"workspace": self.W})
+        self.assertTrue(self.ok(res)["me"]["notifications_on"])
+        self.assertIn("Your Slack notifications are on", res["content"][0]["text"])
         self.assertNotIn(BOT_TOKEN, json.dumps(res))
         self.assertNotIn("bot_token", json.dumps(res))
         self.assertTrue(self.ok(await self.call("wa", "slack_status", {"workspace": self.W}))["can_manage"])

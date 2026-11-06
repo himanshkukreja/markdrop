@@ -586,7 +586,8 @@ async def keep_legacy_opt_in(db: AsyncIOMotorDatabase, user_id: str) -> None:
 
 def can_find_by_email(install: dict | None) -> bool:
     """False when the install is known to lack the scopes users.lookupByEmail needs (made before they
-    were added: a workspace admin updates the app). An install without a scope list is tried."""
+    were added: a workspace admin updates the app; the settings card says so). Shown, not enforced:
+    :func:`find_by_email` asks Slack anyway and corrects the stored list from the answer."""
     scopes = (install or {}).get("scopes")
     if not scopes:
         return True
@@ -603,22 +604,25 @@ async def find_by_email(db: AsyncIOMotorDatabase, inst: dict, user_id: str, emai
     token = bot_token(inst)
     if not token:
         return "token"
-    if not can_find_by_email(inst):
-        return "needs_update"
     email = (email or "").strip().lower()
     if not email or "@" not in email:
         return "not_found"
+    # Asked even when the stored scope list says no: the app may have been reinstalled from Slack's
+    # own app page since (that doesn't come through Markdrop). Slack's answer corrects the list.
     try:
         r = await slack_api.call("users.lookupByEmail", token, email=email)
     except slack_api.SlackError as exc:
         if exc.error == "users_not_found":
+            await _note_email_scopes(db, inst, True)
             return "not_found"
         if exc.error in ("missing_scope", "no_permission"):
+            await _note_email_scopes(db, inst, False)
             return "needs_update"
         if exc.dead_token:
             return "token"
         log.info("slack: users.lookupByEmail in %s: %s", inst["_id"], exc.error)
         return "error"
+    await _note_email_scopes(db, inst, True)
     u = r.get("user") or {}
     sid = str(u.get("id") or "")
     profile_email = str((u.get("profile") or {}).get("email") or "").strip().lower()
@@ -632,6 +636,14 @@ async def find_by_email(db: AsyncIOMotorDatabase, inst: dict, user_id: str, emai
     name = (u.get("profile") or {}).get("real_name") or u.get("real_name") or u.get("name")
     await save_link(db, inst["_id"], sid, user_id, name, match="email")
     return "matched"
+
+
+async def _note_email_scopes(db: AsyncIOMotorDatabase, inst: dict, have: bool) -> None:
+    if can_find_by_email(inst) == have:
+        return
+    op = {"$addToSet": {"scopes": {"$each": list(EMAIL_SCOPES)}}} if have else \
+        {"$pull": {"scopes": {"$in": list(EMAIL_SCOPES)}}}
+    await db[INSTALLS].update_one({"_id": inst["_id"]}, op)
 
 
 async def my_installs(db: AsyncIOMotorDatabase, user_id: str) -> list[tuple[dict, str, str]]:
@@ -707,14 +719,17 @@ async def match_opted_in(db: AsyncIOMotorDatabase, team_id: str, *, limit: int =
     """A workspace just connected Slack: find its members who already turned Slack notifications on
     (by their own email). Returns how many were found."""
     inst = await get_install(db, team_id)
-    if inst is None or not inst.get("workspace_id") or not can_find_by_email(inst):
+    if inst is None or not inst.get("workspace_id"):
         return 0
     member_ids = [m["user_id"] async for m in db["memberships"].find({"workspace_id": inst["workspace_id"]}, {"user_id": 1})]
     oids = [ObjectId(u) for u in member_ids if ObjectId.is_valid(u or "")][:limit]
     found = 0
     async for u in db["users"].find({"_id": {"$in": oids}, "slack_notify.on": True}, {"email": 1}):
         try:
-            found += await find_by_email(db, inst, str(u["_id"]), u.get("email") or "") == "matched"
+            res = await find_by_email(db, inst, str(u["_id"]), u.get("email") or "")
+            if res in ("needs_update", "token"):
+                break      # the same answer for everyone: stop asking
+            found += res == "matched"
         except Exception:
             log.warning("slack: matching %s in %s failed", u["_id"], team_id, exc_info=True)
     return found
