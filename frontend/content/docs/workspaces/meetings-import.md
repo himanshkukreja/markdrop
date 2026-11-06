@@ -3,7 +3,7 @@ title: Import a meeting manually
 nav: Import manually
 description: Paste a transcript, upload a caption or Word file, paste a Google Drive link, or pick Google Meet's transcript and Gemini notes from your Drive.
 updated: 2026-11-06
-keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, don't post to slack, slack, pause, resume, retry, waiting for the ai budget]
+keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, attendees, invited, who joined, people count, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, don't post to slack, slack, pause, resume, retry, waiting for the ai budget]
 ---
 
 Import a call when it's over. It works for any call: Google Meet, Zoom, Microsoft Teams, or a transcript from anywhere else. To have Google Meet calls show up by themselves, see [Import meetings automatically](/workspaces/meetings-auto-import). You can use both.
@@ -70,6 +70,16 @@ A meeting's **Organizer** is the person who ran the call, not the person who imp
 - For pasted text and uploads, it's who the text names (an "Organizer:" or "Hosted by" line). When the text doesn't say, Organizer stays empty.
 
 When the organizer is a member of the workspace, the page's **Organizer** property shows them, and you can change it there. **Details** shows the organizer and who imported the meeting (**Imported by**).
+
+## Attendees and invited
+
+A meeting's **Attendees** are the people who joined the call:
+
+- A Google Meet transcript Doc starts with an **Attendees** line: those people, plus anyone who spoke and isn't on it.
+- Without that line, the people who spoke in the transcript.
+- Gemini's notes list everyone on the calendar invite (**Invited**), whether they joined or not. Markdrop keeps that list apart: the meeting's **Details** show it as **Invited** with a count, and it isn't counted in the meeting bar. A meeting with only Gemini's notes (no transcript) has no attendees; its bar says how many were **invited**, and its page lists them under **Invited**.
+
+The meeting page lists the attendees under **Attendees**: members as @mentions (nobody is notified), everyone else by name. The **Attendees** property has their names. A line that isn't a list of names, such as a summary paragraph, is never read as attendees. Meetings imported before November 6, 2026 were corrected in the background; the page changed only where Markdrop's own text was still there, and who can open a meeting didn't change.
 
 ## No duplicates
 

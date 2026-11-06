@@ -68,7 +68,6 @@ SCHEMA = [
 MAX_SOURCES = 6
 MAX_SOURCE_BYTES = 4_000_000
 MAX_PASTE_CHARS = 1_500_000
-MAX_LIST = 300
 PENDING_STALE = timedelta(minutes=15)
 PAGE_ICON = "🎙️"
 TRANSCRIPT_ICON = "📜"
@@ -112,6 +111,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("workspace_id", 1), ("date", -1), ("created_at", -1)])
     await db[COLL].create_index("doc_id")
     await db[COLL].create_index("transcript_doc_id", sparse=True)
+    from app.services import meetings_list
+
+    await meetings_list.ensure_indexes(db)
 
 
 def oid(value: Any) -> ObjectId | None:
@@ -360,6 +362,9 @@ def page_markdown(meeting: dict, gen: dict | None, people: People) -> str:
         why = ai.get("message") or "AI didn't write a summary for this meeting."
         parts.append(f':::warning[No AI summary]\n{md_inline(why)} Open the meeting panel (Meeting, at the '
                      'bottom right) to try again.\n:::')
+    who = people_section(meeting, people)
+    if who:
+        parts.append(who)
     sections_ready = gen is not None or state not in ("pending",)
 
     def bullets(items: list, *, key: str = "text") -> list[str]:
@@ -417,7 +422,7 @@ async def props_values(db: AsyncIOMotorDatabase, meeting: dict, folder: dict | N
     from app.services import page_db
 
     schema = {p["key"]: p for p in ((folder or {}).get("properties") or [])}
-    names = ", ".join(a["name"] for a in meeting.get("attendees") or [])[:page_db.TEXT_MAX]
+    names = attendees_text(meeting)
     # Who ran the meeting (never simply the importer): a member, else nobody (the name is on Details).
     oid_ = (meeting.get("organizer") or {}).get("user_id")
     org = oid_ if oid_ and any(m["id"] == oid_ for m in people.members) else None
@@ -712,7 +717,6 @@ async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list
     people = await people_of(db, row["workspace_id"])
     sets: dict[str, Any] = {}
     added_transcript = added_notes = False
-    attendees = list(row.get("attendees") or [])
     sources = list(row.get("sources") or [])
     for s in group:
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
@@ -731,21 +735,13 @@ async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list
             sets["time"] = s.time
         if s.truncated:
             sets["truncated"] = True
-        for a in s.attendees:
-            if any(x["name"].casefold() == a["name"].casefold() for x in attendees):
-                continue
-            mem = people.match(a["name"], a.get("email"))
-            if mem and any(x.get("user_id") == mem["id"] for x in attendees):
-                continue
-            attendees.append({"name": a["name"], "user_id": mem["id"] if mem else None,
-                              **({"email": a["email"]} if a.get("email") else {})})
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
     if not row.get("organizer"):
         org = organizer_of(group, people)
         if org:
             sets["organizer"] = org
-    sets.update(attendees=attendees[:100], sources=sources, updated_at=now_utc())
+    sets.update(people_sets(row, group, people), sources=sources, updated_at=now_utc())
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
     row = await db[COLL].find_one({"_id": row["_id"]})
     busy = (row.get("ai") or {}).get("state") == "pending" and ai_view(row)["state"] == "pending"
@@ -892,12 +888,127 @@ SMALL_CALL = 2   # 1:1s and two-person calls are restricted to their attendees o
 
 
 def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool:
-    """A call with one or two known people (attendees, plus the organizer when not among them)."""
+    """A call with one or two known people (attendees and invitees, plus the organizer when not among them)."""
     names = {(a.get("name") or "").casefold() for a in attendees if a.get("name")}
     if organizer and organizer.get("name") and organizer["name"].casefold() not in names \
             and not any(organizer.get("user_id") and a.get("user_id") == organizer["user_id"] for a in attendees):
         names.add(organizer["name"].casefold())
     return 1 <= len(names) <= SMALL_CALL
+
+
+# ── Who was there (attendees_v 2, owner 2026-11-06) ───────────────────────────
+# attendees: who joined (a transcript's "Attendees" list and its speakers; else the speakers);
+# invited: the calendar invite (Gemini notes' "Invited"), kept apart: not counted, never "attendees".
+ATTENDEES_V = 2
+
+
+def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[dict]:
+    """People as a meeting row keeps them ({name, user_id, email}): names cleaned and read as names
+    (meeting_parse.name_like), a member matched by the address first, each person once (by member,
+    address or name)."""
+    out: list[dict] = []
+    for a in found or []:
+        p = mp.person_of(a.get("name")) or ({"name": "", "email": a.get("email")} if a.get("email") else None)
+        if p is None:
+            continue
+        email = (a.get("email") or p.get("email") or "").lower() or None
+        uid = a.get("user_id")
+        mem = None
+        if not uid:
+            mem = people.match(p["name"], email)
+            uid = mem["id"] if mem else None
+        name = p["name"] or (mem or {}).get("name") or ""
+        if not name or not (mp.name_like(name) or uid or email):
+            continue
+        if any((uid and x.get("user_id") == uid) or (email and x.get("email") == email)
+               or x["name"].casefold() == name.casefold() for x in out):
+            continue    # the same member under another name (the invite's "Priya Nair", the speaker "priya.nair")
+        out.append({"name": name, "user_id": uid, "email": email})
+        if len(out) >= limit:
+            break
+    return out
+
+
+def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
+    """The row's attendees / invited / attendees_from once ``group`` (another half of the call, or a
+    changed Doc sent again) is in, by the same rules as a new import (meeting_parse.people_of_group):
+    everyone either side knows joined (an "Attendees" list, a speaker) is an attendee, every invite
+    list goes to the invitees, and attendees_from is the better of the two."""
+    if int(row.get("attendees_v") or 0) < ATTENDEES_V:
+        att, inv, how = recompute_people(row, people)
+    else:
+        att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
+    n_att, n_inv, n_how = mp.people_of_group(group)
+    rank = {"attendees": 3, "speakers": 2, "invited": 1, "none": 0}
+    att = person_rows([*att, *n_att], people)
+    inv = person_rows([*inv, *n_inv], people, limit=200)
+    how = max((how, n_how), key=lambda h: rank.get(h, 0))
+    if how in ("invited", "none") and att:
+        how = "speakers"
+    return {"attendees": att, "invited": inv, "attendees_from": how, "attendees_v": ATTENDEES_V}
+
+
+def _speakers_of(row: dict) -> list[str]:
+    out: list[str] = []
+    for seg in row.get("segments") or []:
+        sp = mp.clean_name(seg.get("speaker"))
+        if sp and not any(x.casefold() == sp.casefold() for x in out):
+            out.append(sp)
+    return out
+
+
+def recompute_people(row: dict, people: People) -> tuple[list[dict], list[dict], str]:
+    """(attendees, invited, attendees_from) of a meeting imported before attendees_v 2, from what it
+    kept (the raw Docs aren't stored). Its ``attendees`` were the invite list (Gemini notes' "Invited"),
+    an "Attendees" line and the speakers, all in one:
+
+    * Gemini notes among its sources and a transcript: the speakers are who surely joined (each with
+      the matching old entry's member and address); the old list is the invite.
+    * Gemini notes only: nobody known to have joined; the old list is the invite.
+    * no Gemini notes: the old list came from a transcript's "Attendees" line and its speakers: kept.
+
+    Every list cleaned (names read as names: a paragraph taken for names goes)."""
+    old = person_rows(row.get("attendees") or [], people)
+    old_inv = list(row.get("invited") or [])
+    gemini = any((s.get("format") == "gemini_notes") for s in row.get("sources") or [])
+    if not gemini:
+        speakers = {x.casefold() for x in _speakers_of(row)}
+        how = "attendees" if any(a["name"].casefold() not in speakers for a in old) else "speakers" if old else "none"
+        return old, person_rows(old_inv, people, limit=200), how
+    found: list[dict] = []
+    for sp in _speakers_of(row):
+        hits = [a for a in old if mp._covers(sp, a["name"])]
+        found.append(dict(hits[0]) if len(hits) == 1 else {"name": sp, "email": None})
+    att = person_rows(found, people)
+    inv = person_rows([*old_inv, *old], people, limit=200)
+    return att, inv, "speakers" if att else "invited" if inv else "none"
+
+
+def attendees_text(meeting: dict) -> str | None:
+    """The page's Attendees property: the attendees' names, comma separated (never the invitees)."""
+    from app.services import page_db
+
+    names = [a["name"] for a in meeting.get("attendees") or [] if a.get("name")]
+    return ", ".join(names)[:page_db.TEXT_MAX] or None
+
+
+def people_section(meeting: dict, people: People) -> str:
+    """The page's "Attendees" section: members as @mentions (quiet: meeting writes notify nobody),
+    everyone else by name. With nobody known to have joined, the invite list as "Invited"."""
+    att = meeting.get("attendees") or []
+    head = "Attendees"
+    if not att and meeting.get("invited"):
+        att, head = meeting["invited"], "Invited"
+    members = {m["id"]: m for m in people.members}
+    names = []
+    for a in att:
+        mem = members.get(a.get("user_id") or "")
+        names.append(_mention(mem, a["name"]) if mem else md_inline(a.get("name")))
+    names = [n for n in names if n]
+    if not names:
+        return ""
+    note = "\n\n_From the calendar invite: who joined isn't in Google's notes._" if head == "Invited" else ""
+    return f"## {head}\n\n" + ", ".join(names) + note
 
 
 async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
@@ -936,15 +1047,8 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     else:
         sname, skey = await meeting_series.detect(db, workspace_id, name, date_=d)
         series_from = "auto"
-    attendees = []
-    for a in m.attendees:
-        mem = people.match(a["name"], a.get("email"))
-        if mem and any(x["user_id"] == mem["id"] for x in attendees):
-            continue    # the same member under another name (the invite's "Priya Nair", the speaker "priya.nair")
-        # The address stays on the row (never shown: shape() and the API give names only): Markdrop for
-        # Slack finds the person by it to send them their action items (services/slack_action_items.py).
-        attendees.append({"name": mem["name"] if mem and not a["name"] else a["name"],
-                          "user_id": mem["id"] if mem else None, **({"email": a["email"]} if a.get("email") else {})})
+    attendees = person_rows(m.attendees, people)
+    invited = person_rows(m.invited, people, limit=200)
     sources = []
     for s in group:
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
@@ -952,7 +1056,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
                         "url": inc.url, "format": s.format})
     organizer = organizer_of(group, people)
     # Not decided by the caller (None): 1:1s and two-person calls start restricted, 3+ the team's.
-    small = restricted is None and auto_restricts(attendees, organizer)
+    small = restricted is None and auto_restricts(attendees + invited, organizer)
     if restricted is None:
         restricted = small
     now = now_utc()
@@ -961,6 +1065,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
         "created_by": user.id, "imported_by": user.id, "organizer": organizer, "auto_restricted": small,
         "created_at": now, "updated_at": now, "title": name, "date": d, "time": m.time,
         "duration_s": m.duration_s, "type": type_ or guess_type(name), "attendees": attendees,
+        "invited": invited, "attendees_from": m.attendees_from, "attendees_v": ATTENDEES_V,
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
@@ -1159,7 +1264,7 @@ async def _write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | 
             raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
     # Edited meanwhile (or someone is editing): add the sections below what's there.
     body = page_markdown(meeting, gen, people)
-    keep = [p for p in body.split("\n\n## ") if not p.startswith("## Sources") and not p.startswith("Sources")]
+    keep = [p for p in body.split("\n\n## ") if not p.startswith(("## Sources", "Sources", "Attendees\n", "Invited\n"))]
     block = "\n\n## ".join(keep).rstrip() + "\n"
     cur = raw.get("content") or ""
     try:
@@ -1232,6 +1337,9 @@ async def shape(db: AsyncIOMotorDatabase, row: dict, raw: dict, actor: access.Ac
         "page_title": raw.get("title"), "slug": raw["slug"], "transcript_slug": row.get("transcript_slug"),
         "date": row.get("date"), "time": row.get("time"), "duration_s": row.get("duration_s"),
         "type": row.get("type"), "attendees": [{"name": a["name"], "user_id": a.get("user_id")} for a in row.get("attendees") or []],
+        # The calendar invite (Gemini's "Invited"), joined or not: shown as "Invited: N", never as attendees.
+        "invited": [{"name": a["name"], "user_id": a.get("user_id")} for a in row.get("invited") or []],
+        "attendees_from": row.get("attendees_from"),
         "restricted": bool(row.get("restricted")), "action_items": int(row.get("action_items") or 0),
         "segments": len(row.get("segments") or []), "has_notes": bool(row.get("notes")),
         "has_transcript": bool(row.get("segments")),
@@ -1356,8 +1464,7 @@ def clean_people(row: dict, people: People) -> tuple[list[dict], dict | None]:
             continue
         if any(x["name"].casefold() == p["name"].casefold() and (not uid or not x.get("user_id")) for x in out):
             continue
-        email = a.get("email") or p["email"]
-        out.append({**a, "name": p["name"], "user_id": uid, **({"email": email} if email else {})})
+        out.append({**a, "name": p["name"], "user_id": uid})
     org = row.get("organizer")
     if org and org.get("name"):
         p = mp.person_of(org["name"])
@@ -1447,6 +1554,119 @@ async def count_dirty_names(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
     return out
 
 
+# ── Repair: attendees_v 2 (owner, 2026-11-06) ─────────────────────────────────
+
+
+async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, *, apply: bool = True) -> dict:
+    """One meeting's attendees recomputed (:func:`recompute_people`). The page follows only where
+    Markdrop's own words are still there: a page nobody edited since Markdrop wrote it is written again
+    (its Attendees section and property); an edited one gets its Attendees property only when it
+    still reads what Markdrop wrote. Never touches the restriction or its grants. Idempotent
+    (``attendees_v``). Returns what it did: {changed, from, before, after, invited, page}."""
+    from app.services import page_db, user as user_service
+
+    att, inv, how = recompute_people(row, people)
+    before = row.get("attendees") or []
+    changed = [(a.get("name"), a.get("user_id")) for a in before] != [(a["name"], a["user_id"]) for a in att] \
+        or len(inv) != len(row.get("invited") or [])
+    out = {"changed": changed, "from": how, "before": len(before), "after": len(att), "invited": len(inv), "page": "none"}
+    page = await page_of(db, row) if changed else None
+    untouched = page is not None and int(page.get("rev") or 1) == int(row.get("base_rev") or 0)
+    old_text = ", ".join(a.get("name") or "" for a in before)[:page_db.TEXT_MAX]
+    if page is not None:
+        if untouched:
+            out["page"] = "rewritten"
+        elif page_db.read_values(page.get("content")).get("attendees") == old_text:
+            out["page"] = "property"
+        else:
+            out["page"] = "left"
+    if not apply:
+        return out
+    sets: dict[str, Any] = {"attendees_v": ATTENDEES_V, "names_v": NAMES_V, "attendees_from": how}
+    if changed:
+        sets.update(attendees=att, invited=inv,
+                    attendees_repair={"from": how, "before": len(before), "at": now_utc()})
+    await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+    if out["page"] not in ("rewritten", "property"):
+        return out
+    user = await user_service.get_user_by_id(db, row.get("created_by"))
+    if user is None:
+        out["page"] = "left"
+        return out
+    # The whole row (the tick reads it without Google's notes): the page is written from all of it.
+    fresh = {**(await db[COLL].find_one({"_id": row["_id"]}) or row), **sets}
+    actor, ctx = access.Actor.of(user), access.Ctx(db)
+    if out["page"] == "rewritten":
+        content = await full_markdown(db, fresh, fresh.get("generated"), people)
+        after = await _save(db, page, content, actor, ctx, base_rev=int(page.get("rev") or 1))
+    else:
+        after = await _save(db, page, page_db.write_values(page.get("content"), {"attendees": attendees_text(fresh)}),
+                            actor, ctx)
+    if after is not None and untouched:
+        await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
+    return out
+
+
+_ATTENDEES = {"done": False}
+
+
+async def attendees_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
+    """Meetings imported before attendees_v 2, a batch at a time from the background loop. Returns
+    how many it looked at (0: none left)."""
+    if _ATTENDEES["done"]:
+        return 0
+    n = 0
+    cache: dict[str, People] = {}
+    q = {"attendees_v": {"$not": {"$gte": ATTENDEES_V}}}
+    async for row in db[COLL].find(q, {"notes": 0}).limit(batch):
+        ws = row["workspace_id"]
+        try:
+            cache[ws] = cache.get(ws) or await people_of(db, ws)
+            with _quiet():
+                await repair_attendees(db, row, cache[ws])
+        except Exception:
+            log.warning("meetings: attendees not repaired on %s", row.get("_id"), exc_info=True)
+            await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"attendees_v": ATTENDEES_V}})
+        n += 1
+    if n == 0:
+        _ATTENDEES["done"] = True
+    return n
+
+
+def _quiet():
+    from app.services import notifications
+
+    return notifications.quiet()
+
+
+async def attendees_dry_run(db: AsyncIOMotorDatabase, *, workspace_id: str | None = None, examples: int = 15) -> dict:
+    """What :func:`attendees_tick` would do (scripts/fix_meeting_attendees.py --attendees): counts by
+    kind and a few examples (title, date, people before → after, invited)."""
+    q: dict[str, Any] = {"attendees_v": {"$not": {"$gte": ATTENDEES_V}}}
+    if workspace_id:
+        q["workspace_id"] = workspace_id
+    out: dict[str, Any] = {"pending": 0, "would_change": 0, "from": {}, "page": {}, "people_before": 0,
+                           "people_after": 0, "invited": 0, "examples": []}
+    cache: dict[str, People] = {}
+    async for row in db[COLL].find(q, {"notes": 0}):
+        out["pending"] += 1
+        ws = row["workspace_id"]
+        cache[ws] = cache.get(ws) or await people_of(db, ws)
+        r = await repair_attendees(db, row, cache[ws], apply=False)
+        if not r["changed"]:
+            continue
+        out["would_change"] += 1
+        out["from"][r["from"]] = out["from"].get(r["from"], 0) + 1
+        out["page"][r["page"]] = out["page"].get(r["page"], 0) + 1
+        out["people_before"] += r["before"]
+        out["people_after"] += r["after"]
+        out["invited"] += r["invited"]
+        if len(out["examples"]) < examples:
+            out["examples"].append({"title": row.get("title"), "date": row.get("date"), "before": r["before"],
+                                    "after": r["after"], "invited": r["invited"], "from": r["from"], "page": r["page"]})
+    return out
+
+
 async def _person(db: AsyncIOMotorDatabase, user_id: str | None) -> dict | None:
     if not user_id or not ObjectId.is_valid(user_id):
         return None
@@ -1466,53 +1686,23 @@ def source_of(row: dict) -> str:
 
 
 async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,
-                        limit: int = 100, q: str | None = None, source: str | None = None,
-                        since: str | None = None, until: str | None = None, series: str | None = None) -> dict:
-    """The meetings of a workspace the caller can open, newest first. A workspace admin also sees
-    restricted meetings they can't open, without their title (so they can delete them).
+                        limit: int = 30, q: str | None = None, source: str | None = None,
+                        since: str | None = None, until: str | None = None, series: str | None = None,
+                        cursor: str | None = None, sort: str = "date_desc", overview: bool = True,
+                        attendees_max: int | None = 5) -> dict:
+    """The meetings of a workspace the caller can open, a page at a time (services/meetings_list.py):
+    {meetings (cards), next_cursor, total (first page), hidden, folder_id (first page)}. A workspace
+    admin also sees restricted meetings they can't open, without their title (so they can delete them).
 
-    ``source``: only those that came in that way (:data:`SOURCES`); ``since`` / ``until``: only
-    meetings on or after / on or before that date (YYYY-MM-DD); ``series``: only that series (any
-    case; "none": meetings without one)."""
-    await require_member(db, workspace_id, actor.user_id, write=False)
-    admin = await is_ws_admin(db, workspace_id, actor.user_id)
-    limit = max(1, min(limit, MAX_LIST))
-    out, hidden = [], []
-    query: dict[str, Any] = {"workspace_id": workspace_id}
-    if source:
-        if source not in SOURCES:
-            raise HTTPException(status_code=422, detail=f"source is one of {', '.join(SOURCES)}.")
-        query["via"] = _VIA[source]
-    for name, v, op in (("since", since, "$gte"), ("until", until, "$lte")):
-        if not v:
-            continue
-        try:
-            date.fromisoformat(v)
-        except ValueError:
-            raise HTTPException(status_code=422, detail=f"{name} is a date, YYYY-MM-DD.")
-        query.setdefault("date", {})[op] = v
-    if series:
-        if series.strip().casefold() == "none":
-            query["series"] = {"$in": [None, ""]}
-        else:
-            query["series"] = {"$regex": f"^{re.escape(series.strip())}$", "$options": "i"}
-    filtered = bool(q or source or since or until or series)
-    cursor = db[COLL].find(query, {"segments": 0}).sort([("date", -1), ("created_at", -1)])
-    async for row in cursor:
-        raw = await page_of(db, row)
-        if raw is None:
-            continue
-        if (await access.can(actor, raw, "read", ctx)).allowed:
-            if q and q.casefold() not in (row.get("title") or "").casefold():
-                continue
-            out.append(await shape(db, row, raw, actor, ctx))
-        elif admin and not filtered:
-            hidden.append({"id": str(row["_id"]), "date": row.get("date"), "restricted": True, "redacted": True,
-                           "can_delete": True})
-        if len(out) >= limit:
-            break
-    folder = await folder_of(db, workspace_id)
-    return {"meetings": out, "hidden": hidden[:50], "folder_id": str(folder["_id"]) if folder else None}
+    ``q``: titles, series or attendee names containing it; ``source``: only those that came in that way
+    (:data:`SOURCES`); ``since`` / ``until``: only meetings on or after / on or before that date
+    (YYYY-MM-DD); ``series``: only that series (any case; "none": meetings without one)."""
+    from app.services import meetings_list
+
+    return await meetings_list.list_page(
+        db, workspace_id, actor, ctx, limit=limit, cursor=cursor, sort=sort, overview=overview,
+        attendees_max=attendees_max,
+        filters=meetings_list.Filters(q=q, source=source, since=since, until=until, series=series))
 
 
 # ── Changes ───────────────────────────────────────────────────────────────────
@@ -1530,7 +1720,7 @@ async def set_restricted(db: AsyncIOMotorDatabase, row: dict, value: bool, actor
     if value:
         raw = await access.set_level(db, raw, "private", actor, ctx)
         granted: list[str] = list(row.get("granted") or [])
-        ids = {a["user_id"] for a in row.get("attendees") or [] if a.get("user_id")}
+        ids = {a["user_id"] for a in [*(row.get("attendees") or []), *(row.get("invited") or [])] if a.get("user_id")}
         users = {str(u["_id"]): u for u in await db["users"].find(
             {"_id": {"$in": [ObjectId(i) for i in ids if ObjectId.is_valid(i)]}}, {"email": 1}).to_list(length=200)}
         for uid in ids:

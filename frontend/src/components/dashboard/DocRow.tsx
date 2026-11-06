@@ -59,7 +59,7 @@ export function accessOf(d: MyDocListItem, team?: string | null): Access {
   return { label: `Anyone with the link${more}`, icon: "globe", aria: `Anyone with the link${andPeople}` };
 }
 
-const ARTIFACT_RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "text", "video", "html", "image", "zip"]);
+const ARTIFACT_RENDERERS = new Set<FileRenderer>(["pdf", "sheet", "docx", "pptx", "text", "video", "html", "image", "zip"]);
 
 /** A tile in the file's category colour, keyed by renderer (markdown documents are "document"). */
 export function RowTile({ d }: { d: MyDocListItem }) {

@@ -23,7 +23,8 @@ export function themedFrameSrc(
   theme: "dark" | "light",
   posterUrl?: string | null,
   captionsUrl?: string | null,
-  at?: number | null
+  at?: number | null,
+  fileName?: string | null
 ): string {
   try {
     const u = new URL(artifactUrl);
@@ -31,9 +32,12 @@ export function themedFrameSrc(
     u.searchParams.set("theme", theme);
     if (posterUrl && u.pathname.startsWith("/v/video/")) addPoster(u, posterUrl);
     if (captionsUrl && u.pathname.startsWith("/v/video/")) addCaptions(u, captionsUrl);
-    if (at && at > 0 && (u.pathname.startsWith("/v/video/") || u.pathname.startsWith("/v/pdf/"))) {
+    const deck = u.pathname.startsWith("/v/pptx/");
+    if (at && at > 0 && (u.pathname.startsWith("/v/video/") || u.pathname.startsWith("/v/pdf/") || deck)) {
       u.searchParams.set("at", String(Math.floor(at)));
     }
+    // The slide viewer's "Original" download saves the deck under its own name.
+    if (deck && fileName) u.searchParams.set("fn", fileName.slice(0, 200));
     return u.toString();
   } catch {
     return artifactUrl;
@@ -41,13 +45,15 @@ export function themedFrameSrc(
 }
 
 /**
- * Where a link into a file starts: `#t=754` (a video's second) or `#page=3` (a PDF's page), as
- * Ask's answers and search results link ("at 12:34", "page 3"). Null when the hash says neither.
+ * Where a link into a file starts: `#t=754` (a video's second), `#page=3` (a PDF's page) or
+ * `#slide=5` (a deck's slide), as Ask's answers and search results link ("at 12:34", "page 3",
+ * "slide 5"). Null when the hash says none of these for this kind of file.
  */
 export function startFromHash(hash: string | null | undefined, renderer: string): number | null {
-  const m = /^#?(t|page)=(\d{1,7})$/.exec((hash || "").trim());
+  const m = /^#?(t|page|slide)=(\d{1,7})$/.exec((hash || "").trim());
   if (!m) return null;
-  if ((m[1] === "t" && renderer !== "video") || (m[1] === "page" && renderer !== "pdf")) return null;
+  const fits = { t: "video", page: "pdf", slide: "pptx" }[m[1] as "t" | "page" | "slide"];
+  if (renderer !== fits) return null;
   const n = Number(m[2]);
   return n > 0 ? n : null;
 }

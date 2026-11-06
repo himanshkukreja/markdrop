@@ -5,7 +5,7 @@
  *
  *   image                      <img>
  *   video, audio               the player
- *   pdf, sheet, docx, text     Markdrop's viewer, in the sandboxed frame (ArtifactView's sandbox)
+ *   pdf, sheet, docx, pptx, text  Markdrop's viewer, in the sandboxed frame (ArtifactView's sandbox)
  *   html, bundle               the author's page, in the sandboxed frame (opaque origin)
  *   a Markdrop document        a preview card (title, excerpt, link)
  *
@@ -28,6 +28,7 @@ const TYPE_LABEL: Record<string, string> = {
   pdf: "PDF",
   sheet: "Spreadsheet",
   docx: "Word document",
+  pptx: "PowerPoint deck",
   text: "Text file",
   image: "Image",
   video: "Video",
@@ -35,12 +36,12 @@ const TYPE_LABEL: Record<string, string> = {
   markdown: "Document",
 };
 
-const FRAME_HEIGHT: Record<string, number> = { html: 560, bundle: 560, pdf: 720, sheet: 520, docx: 720, text: 480 };
+const FRAME_HEIGHT: Record<string, number> = { html: 560, bundle: 560, pdf: 720, sheet: 520, docx: 720, pptx: 600, text: 480 };
 
 function fileRenderer(r?: string | null): FileRenderer | null {
   if (r === "bundle") return "zip";
   if (r === "markdown") return null;
-  return (["pdf", "sheet", "docx", "text", "video", "audio", "html", "image"].includes(r ?? "") ? r : null) as FileRenderer | null;
+  return (["pdf", "sheet", "docx", "pptx", "text", "video", "audio", "html", "image"].includes(r ?? "") ? r : null) as FileRenderer | null;
 }
 
 /** Only http(s) addresses are framed or loaded; anything else is dropped. */

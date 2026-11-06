@@ -3137,7 +3137,7 @@ TOOLS: list[Tool] = [
         title="Start a file upload",
         description=(
             "Upload a file from the machine you run shell commands on (video up to 2 GB, PDF, image, "
-            "HTML, spreadsheet...) as a Markdrop link, or replace the file behind an existing link "
+            "HTML, spreadsheet, Word .docx, PowerPoint .pptx...) as a Markdrop link, or replace the file behind an existing link "
             "with target_slug: the link, access, title and views stay the same and the previous "
             "version is kept and can be restored. Give the file's name, exact size in bytes and "
             "sha256 (e.g. `shasum -a 256 FILE`). Returns presigned part URLs plus the exact shell "

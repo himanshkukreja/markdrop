@@ -226,6 +226,13 @@ function Body({ p, title }: { p: CardPreview; title: string }) {
       return p.rows?.length ? <span className="wl-pv"><Sheet rows={p.rows} /></span> : null;
     case "text":
       return p.lines?.length ? <span className="wl-pv"><Lines lines={p.lines} /></span> : null;
+    case "pptx":
+      return blocks.length ? (
+        <span className="wl-pv">
+          <span className="wl-pv__paper wl-pv__paper--light"><Blocks blocks={blocks} /></span>
+          {p.pages && p.pages > 1 ? <span className="wl-pv__chip">{p.pages} slides</span> : null}
+        </span>
+      ) : null;
     case "html":
     case "bundle":
     case "docx":

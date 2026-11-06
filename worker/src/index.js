@@ -36,7 +36,9 @@
  * prefers-color-scheme instead. Only the token `t` is ever forwarded to /r/.
  */
 
-const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "video", "audio"]);
+import { pptxLib, pptxUi } from "./pptx.js";
+
+const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "pptx", "video", "audio"]);
 
 // A video's poster frame, as the API stores it: art/<owner>/<random>.poster.jpg.
 // Anything else in ?poster= is ignored, so the parameter can only ever point
@@ -71,6 +73,7 @@ const INLINE_TYPES = new Set([
   "application/vnd.ms-excel",
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   "video/mp4",
   "video/quicktime",
   "video/webm",
@@ -528,8 +531,8 @@ function serveViewer(renderer, blobKey, url, env, request) {
   const poster = posterKey && POSTER_KEY.test(posterKey)
     ? `/r/${posterKey}${posterToken ? `?t=${encodeURIComponent(posterToken)}` : ""}`
     : null;
-  // Captions (?cc=<key>, ?ct=<token>) and where to start (?at=<seconds> for a video, <page> for a PDF):
-  // what an Ask answer links to ("at 12:34", "page 3").
+  // Captions (?cc=<key>, ?ct=<token>) and where to start (?at=<seconds> for a video, <page> for a PDF,
+  // <slide> for a deck): what an Ask answer links to ("at 12:34", "page 3", "slide 5").
   const ccKey = url.searchParams.get("cc");
   const ccToken = url.searchParams.get("ct");
   const captions = ccKey && CAPTIONS_KEY.test(ccKey) && (!ccToken || TOKEN_CHARS.test(ccToken))
@@ -541,6 +544,7 @@ function serveViewer(renderer, blobKey, url, env, request) {
     renderer === "pdf" ? pdfViewer(src, theme, at)
     : renderer === "sheet" ? sheetViewer(src, theme)
     : renderer === "docx" ? docxViewer(src, theme)
+    : renderer === "pptx" ? pptxViewer(src, theme, at, url.searchParams.get("fn"))
     : renderer === "video" ? videoViewer(src, poster, captions, at)
     : renderer === "audio" ? audioViewer(src, theme)
     : textViewer(src, theme);
@@ -647,6 +651,9 @@ const ICONS = {
   fit: '<path d="M3 12h18M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>',
   wrap: '<path d="M4 6h16M4 12h13a3 3 0 0 1 0 6h-4M15 16l-2 2 2 2M4 18h5"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  right: '<path d="m9 18 6-6-6-6"/>',
+  notes: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/>',
   gone: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="m10 12 4 4m0-4-4 4"/>',
 };
 const icon = (name) =>
@@ -1297,6 +1304,110 @@ ${SAFE_HTML_SCRIPT}
 })();
 </script>`;
   return page({ title: "Document", theme, css, body });
+}
+
+function pptxViewer(src, theme, at = 0, fn = null) {
+  // The deck is read in the browser (worker/src/pptx.js: the ZIP, its XML and the slides), drawn
+  // as "paper" slides in reading order, one at a time, with a thumbnail strip on wide screens,
+  // speaker notes on demand, ←/→ and swipe. ?at=<slide> opens there (an Ask answer's "slide 5").
+  // Layout is approximated: text, bullets, tables and pictures in order, not PowerPoint's canvas.
+  const name = typeof fn === "string" ? fn.slice(0, 200) : "";
+  const download = `${src}${src.includes("?") ? "&" : "?"}dl=1${name ? `&fn=${encodeURIComponent(name)}` : ""}`;
+  const css = `
+  .bar .status{flex:none}
+  .deck{flex:1;min-height:0;display:flex;background:var(--surface-inset)}
+  .thumbs{flex:none;width:188px;overflow-y:auto;padding:12px 10px 24px 6px;display:flex;flex-direction:column;gap:10px;
+    border-right:1px solid var(--border);background:var(--surface);scrollbar-width:thin}
+  .thumbs:empty{display:none}
+  .th{display:flex;align-items:flex-start;gap:6px;width:100%;padding:4px;border:0;border-radius:var(--r-lg);
+    background:none;cursor:pointer;color:var(--text-muted);font:600 11px/16px var(--sans);text-align:right}
+  .th-n{flex:none;width:18px;padding-top:2px;font-variant-numeric:tabular-nums}
+  .th-frame{flex:1;min-width:0;display:block;border-radius:3px;overflow:hidden;outline:1px solid var(--border);text-align:left;
+    background:#fff;aspect-ratio:var(--ratio, 16 / 9)}
+  .th:hover .th-frame{outline-color:var(--border-strong)}
+  .th[aria-current=true]{color:var(--accent-text)}
+  .th[aria-current=true] .th-frame{outline:2px solid var(--accent)}
+  .th-frame .sl-paper{height:100%;overflow:hidden;box-shadow:none;border-radius:0}
+  .view{flex:1;min-width:0;display:flex;flex-direction:column}
+  .stage{flex:1;min-height:0;overflow:auto;padding:24px;container-type:size}
+  .stage .sl-paper{width:min(100%, calc((100cqh - 4px) * var(--r, 1.7778)), 1280px)}
+  .stage .sl-p{--min:14px}
+  .stage .sl-title .sl-p{--min:20px}
+  .stage .sl-subtitle .sl-p{--min:16px}
+  .notes{flex:none;max-height:38%;overflow:auto;padding:12px 24px 16px;border-top:1px solid var(--border);
+    background:var(--surface);color:var(--text-secondary)}
+  .notes h2{margin:0 0 4px;font-size:12px;line-height:16px;font-weight:600;letter-spacing:.02em;color:var(--text-muted)}
+  .notes p{margin:0;max-width:760px;font-size:15px;line-height:24px;white-space:pre-wrap;overflow-wrap:anywhere}
+  .notes p.muted{color:var(--text-muted)}
+  .sl-error{max-width:480px;margin:48px auto;padding:0 16px;text-align:center;color:var(--text-secondary);font-size:15px;line-height:24px}
+  .sl-error .btn{display:inline-flex;margin-top:8px;color:var(--accent-text)}
+  /* A slide: paper in both themes, sized in slide-width units so it reads the same at any size. */
+  .sl-paper{display:flex;flex-direction:column;margin:0 auto;aspect-ratio:var(--ratio, 16 / 9);background:#fff;color:#1f2937;
+    border-radius:4px;box-shadow:var(--shadow-page);container:slide / inline-size;overflow-wrap:anywhere;color-scheme:light}
+  .sl-in{position:relative;flex:1;display:flex;flex-direction:column;padding:4.5cqw 5cqw}
+  .sl-row{display:flex;flex-direction:column;align-items:stretch;gap:3cqw;margin:0 0 2.6cqw}
+  .sl-row:last-child{margin-bottom:0}
+  .sl-cols{flex-direction:row;align-items:flex-start}
+  .sl-cols>.sl-item{flex:1 1 calc(var(--w, 50) * 1%);min-width:0}
+  .sl-p{margin:0 0 .45em;padding-left:calc(var(--lvl, 0) * 2.6cqw);font-size:max(var(--min, 0px), calc(var(--fs, 2.4) * 1cqw));
+    line-height:1.3;color:#1f2937}
+  .sl-p:last-child{margin-bottom:0}
+  .sl-title .sl-p{font-weight:700;line-height:1.15;letter-spacing:-.01em;color:#0f172a}
+  .sl-subtitle .sl-p{color:#475569}
+  .sl-li{display:flex;gap:.55em}
+  .sl-bu{flex:none;min-width:.6em;color:#64748b}
+  .sl-tx{min-width:0}
+  .sl-p a{color:#1d4ed8;text-decoration:underline;text-underline-offset:2px}
+  .sl-k-image{display:flex;justify-content:center}
+  .sl-img{display:block;width:min(100%, calc(var(--w, 100) * 1cqw));height:auto;max-height:80cqw;object-fit:contain;background:#f1f5f9}
+  .sl-img[src]{background:none}
+  .sl-table{border-collapse:collapse;width:100%}
+  .sl-table th,.sl-table td{border:1px solid #cbd5e1;padding:.8cqw 1.2cqw;text-align:left;vertical-align:top}
+  .sl-table th{background:#f1f5f9}
+  .sl-table th .sl-p{font-weight:600}
+  .sl-table .sl-p{margin-bottom:.2em}
+  .sl-missing{display:flex;align-items:center;justify-content:center;min-height:9cqw;padding:2cqw;border:1px dashed #94a3b8;
+    border-radius:6px;color:#475569;font-size:max(var(--min, 0px), 1.7cqw);text-align:center}
+  .stage .sl-missing{--min:13px}
+  .sl-chart{min-height:20cqw;background:#f8fafc}
+  .sl-empty{margin:auto 0;color:#64748b;font-size:max(var(--min, 0px), 2cqw)}
+  .stage .sl-empty{--min:14px}
+  .sl-flag{position:absolute;top:1.6cqw;right:1.6cqw;padding:.3cqw 1cqw;border-radius:999px;background:#f1f5f9;
+    color:#475569;font:600 max(11px, 1.3cqw)/1.4 var(--sans)}
+  .sl-center{justify-content:center;text-align:center}
+  .sl-center .sl-li{justify-content:center}
+  /* A phone's slide: columns one under the other (a thumbnail keeps the slide's own layout). */
+  @container slide (max-width:520px){.stage .sl-cols{flex-direction:column;align-items:stretch}.stage .sl-cols .sl-img{width:100%}}
+  @media (max-width:899px){.thumbs{display:none}}
+  @media (max-width:520px){.stage{padding:12px}.notes{padding:12px 16px}}`;
+  const cfg = JSON.stringify({ src, at: Number(at) || 0, download }).replace(/</g, "\\u003c");
+  const body = `<header class="bar" role="toolbar" aria-label="Slide controls">
+<span id="status" class="status">Loading slides…</span>
+<span class="grow"></span>
+<div class="group">
+<button type="button" class="btn icon" id="prev" aria-label="Previous slide" disabled>${icon("left")}</button>
+<button type="button" class="btn icon" id="next" aria-label="Next slide" disabled>${icon("right")}</button>
+</div>
+<button type="button" class="btn has-lbl" id="notesBtn" aria-pressed="false" aria-controls="notes" disabled>${icon("notes")}<span class="lbl">Notes</span></button>
+<a class="btn has-lbl" id="dl" download aria-label="Download the original deck">${icon("download")}<span class="lbl">Original</span></a>
+</header>
+<div class="deck">
+<nav id="thumbs" class="thumbs" aria-label="Slides"></nav>
+<div class="view">
+<main id="stage" class="stage"><p class="msg">Loading slides…</p></main>
+<section id="notes" class="notes" aria-label="Speaker notes" hidden><h2>Speaker notes</h2><p id="notesText"></p></section>
+</div>
+</div>
+<div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
+<script>
+${NA_SCRIPT}
+// wrangler's bundler (esbuild, keepNames) adds __name(fn, "name") calls inside these functions;
+// the page has no such helper, so it gets a no-op one (checked against a wrangler dry-run bundle).
+/*pptx-lib*/var __name = function (f) { return f; };
+var PPTX = (${pptxLib})();/*end-pptx-lib*/
+(${pptxUi})(PPTX, ${cfg});
+</script>`;
+  return page({ title: "Slides", theme, css, body });
 }
 
 function textViewer(src, theme) {

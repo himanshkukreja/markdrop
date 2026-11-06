@@ -1148,7 +1148,7 @@ async def resolve_embed(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
         renderer=renderer,
         title=raw.get("title") or raw.get("original_filename") or raw["slug"],
         artifact_url=byte_urls["artifact_url"],
-        viewer_url=byte_urls["artifact_url"] if renderer in ("pdf", "sheet", "docx", "text") else None,
+        viewer_url=byte_urls["artifact_url"] if renderer in ("pdf", "sheet", "docx", "pptx", "text") else None,
         download_url=byte_urls["download_url"],
         poster_url=byte_urls["poster_url"],
         expires_at=None if public or not byte_urls["artifact_url"]

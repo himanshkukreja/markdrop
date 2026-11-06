@@ -128,7 +128,7 @@ export interface ChildPage {
 }
 
 export type EmbedState = "ok" | "signin" | "denied" | "password" | "encrypted" | "missing";
-export type EmbedRenderer = "html" | "bundle" | "pdf" | "sheet" | "docx" | "text" | "image" | "video" | "audio" | "markdown";
+export type EmbedRenderer = "html" | "bundle" | "pdf" | "sheet" | "docx" | "pptx" | "text" | "image" | "video" | "audio" | "markdown";
 
 /** One embed or mention resolved for the viewer. Anything not "ok" carries no title or address. */
 export interface ResolvedEmbed {

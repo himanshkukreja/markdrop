@@ -62,6 +62,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         "url": urls.markdrop_url(m["slug"]), "slug": m["slug"],
         "transcript_url": urls.markdrop_url(m["transcript_slug"]) if m.get("transcript_slug") else None,
         "attendees": [a["name"] for a in m.get("attendees") or []], "restricted": m.get("restricted"),
+        # The calendar invite (Gemini notes' "Invited"), joined or not; never the attendees.
+        "invited": [a["name"] for a in m.get("invited") or []],
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
         # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
@@ -157,13 +159,18 @@ async def list_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     try:
         got = await meetings.list_meetings(ctx.db, ws_id, actor_of(ctx), _actx(ctx), limit=int(args.get("limit") or 50),
                                            q=args.get("query"), source=args.get("source"), since=args.get("since"),
-                                           until=args.get("until"), series=args.get("series"))
+                                           until=args.get("until"), series=args.get("series"),
+                                           cursor=args.get("cursor") or None, overview=False, attendees_max=None)
     except HTTPException as exc:
         raise ToolError(http_message(exc))
     out = [_meeting_out(m) for m in got["meetings"]]
+    nxt = got.get("next_cursor")
     if not out:
-        return "No meetings the user can open in that workspace yet (import one with import_meeting).", {"meetings": []}
-    return "\n".join([f"{len(out)} meeting(s), newest first:", *(_line(m) for m in out)]), {"meetings": out}
+        return "No meetings the user can open in that workspace yet (import one with import_meeting).", {"meetings": [], "next_cursor": None}
+    lines = [f"{len(out)} meeting(s), newest first:", *(_line(m) for m in out)]
+    if nxt:
+        lines.append(f"More meetings: call list_meetings again with cursor={nxt!r} (and the same filters).")
+    return "\n".join(lines), {"meetings": out, "next_cursor": nxt}
 
 
 async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -349,7 +356,9 @@ async def meeting_context(ctx: Context, args: dict) -> tuple[str, dict]:
 _MEETING_OUT = {"type": "object", "properties": {
     "id": {"type": "string"}, "title": _NULLABLE_STR, "date": _NULLABLE_STR, "type": _NULLABLE_STR,
     "url": {"type": "string"}, "slug": {"type": "string"}, "transcript_url": _NULLABLE_STR,
-    "attendees": {"type": "array", "items": {"type": "string"}}, "restricted": {"type": "boolean"},
+    "attendees": {"type": "array", "items": {"type": "string"}, "description": "Who joined the call."},
+    "invited": {"type": "array", "items": {"type": "string"}, "description": "Everyone on the calendar invite, joined or not."},
+    "restricted": {"type": "boolean"},
     "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "segments": {"type": "integer"},
     "ai": {"type": "object"}, "source": {"type": "string", "enum": list(meetings.SOURCES)},
     "series": _NULLABLE_STR,
@@ -405,19 +414,23 @@ MEETING_TOOLS: list[Tool] = [
         title="List meetings",
         description=("The meetings of a workspace the user can open, newest first (title, date, series, type, attendees, "
                      "action items, link, and source: manual, auto or mcp). Filter by series (a recurring meeting such as "
-                     "'Daily Standup'; 'none' for one-offs), a date range (since / until) and source."),
+                     "'Daily Standup'; 'none' for one-offs), a date range (since / until) and source. A page at a time: "
+                     "when next_cursor is set, pass it as cursor for the next page."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "workspace": _WORKSPACE_ARG,
-            "query": {"type": "string", "maxLength": 100, "description": "Optional: only titles containing this."},
+            "query": {"type": "string", "maxLength": 100, "description": "Optional: only meetings whose title, series or an attendee's name contains this."},
             "source": {"type": "string", "enum": list(meetings.SOURCES),
                        "description": "Optional: only meetings imported by hand on the website (manual), by the Google Meet script (auto) or over MCP (mcp)."},
             "since": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: only meetings on or after this date (YYYY-MM-DD)."},
             "until": {"type": "string", "pattern": r"^\d{4}-\d{2}-\d{2}$", "description": "Optional: only meetings on or before this date (YYYY-MM-DD)."},
             "series": {"type": "string", "maxLength": 60, "description": "Optional: only this series (any case), or 'none'."},
             "limit": {"type": "integer", "minimum": 1, "maximum": 300, "default": 50},
+            "cursor": {"type": "string", "maxLength": 600,
+                       "description": "Optional: the next_cursor of the previous call, for the next page (same filters)."},
         }, "required": ["workspace"]},
-        output_schema=_out({"meetings": {"type": "array", "items": _MEETING_OUT}}),
+        output_schema=_out({"meetings": {"type": "array", "items": _MEETING_OUT},
+                            "next_cursor": {"type": ["string", "null"]}}),
         annotations=_ann(True, False, True),
         handler=list_meetings,
     ),

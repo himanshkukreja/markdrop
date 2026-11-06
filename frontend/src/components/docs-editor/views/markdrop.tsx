@@ -45,7 +45,7 @@ function checkOnce(host: MarkdropFilesHost, src: string, fresh = false): Promise
 const RENDERER_ICON: Record<string, string> = { bundle: "zip", doc: "text" };
 function KindIcon({ renderer, size = 20 }: { renderer: string; size?: number }) {
   const r = RENDERER_ICON[renderer] ?? renderer;
-  return <FileIcon renderer={(["pdf", "sheet", "docx", "text", "video", "audio", "html", "image", "zip"].includes(r) ? r : null) as never} size={size} />;
+  return <FileIcon renderer={(["pdf", "sheet", "docx", "pptx", "text", "video", "audio", "html", "image", "zip"].includes(r) ? r : null) as never} size={size} />;
 }
 
 const LIVE = new Set(["html", "bundle", "pdf", "video"]);

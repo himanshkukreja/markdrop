@@ -14154,6 +14154,7 @@
           "meetings"
         ],
         "summary": "List Series",
+        "description": "{series: [{name, count, last}], total, one_offs}: the Meetings hub's chips, in one pass.",
         "operationId": "list_series_api_v1_meetings_series_get",
         "parameters": [
           {
@@ -15038,6 +15039,7 @@
           "meetings"
         ],
         "summary": "List Meetings",
+        "description": "A page of the meetings the caller can open (cards: no transcript, notes or AI sections). Pass the\nanswer's ``next_cursor`` back as ``cursor`` (same filters and sort) for the next page; ``total`` and\n``hidden`` come with the first page only.",
         "operationId": "list_meetings_api_v1_meetings_get",
         "parameters": [
           {
@@ -15056,10 +15058,43 @@
             "required": false,
             "schema": {
               "type": "integer",
-              "maximum": 300,
+              "maximum": 100,
               "minimum": 1,
-              "default": 100,
+              "default": 30,
               "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 600
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "date_desc",
+                "date_asc",
+                "title",
+                "imported"
+              ],
+              "type": "string",
+              "default": "date_desc",
+              "title": "Sort"
             }
           },
           {
@@ -15175,7 +15210,7 @@
         "x-markdrop": {
           "auth": "token",
           "rateLimits": [
-            "120/minute"
+            "240/minute"
           ]
         }
       }

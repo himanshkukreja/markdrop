@@ -38,6 +38,20 @@
       "body": "- **Who.** An item belongs to the attendee it starts with (an @mention, or a name like \"Ravi Kumar will …\"). Markdrop finds them by their linked Slack account, by email (their Markdrop address or the one Google's notes gave; needs the app's updated permissions), or, last, by an exact name only one person in Slack has (never for a restricted meeting).\n- **What.** \"Your action items from Daily Syncup · Nov 6\", a checklist with due dates (\"by Friday\" shown as its date). Members: Open the notes, and Done (ticks the item on the page as them, like the channel post's Done) when they can edit. Others: their items and \"Notes are in Markdrop (ask the organizer for access)\".\n- **How often.** One message per person per meeting, a minute after the summary; items ticked in that minute are left out; meetings finishing within half an hour share one message. Not for past meetings brought in quietly or meetings more than a day old.\n- **Turning it off.** Stop these in any message (by Slack account, so people outside Markdrop can too; Turn back on undoes it), Settings › Account › Slack notifications › Action items after meetings for members, and Workspace settings › Integrations › Slack for admins, with a preview of the next message.\n- **AI apps.** The MCP tool `slack_status` says whether it's on for the workspace and for you."
     },
     {
+      "id": "powerpoint-decks-and-full-page-path",
+      "date": "2026-11-06",
+      "title": "PowerPoint decks open as slides, and the page path folds below 1280 px",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Upload a .pptx and its link opens the deck as slides: titles, text and bullets, tables and pictures in reading order, a thumbnail strip, speaker notes, the arrow keys and Original to download the file. Ask Markdrop and search link to the slide they found. In the page bar the pages above fold into \"…\" under 1280 px; from 1280 px the whole path shows.",
+      "body": "- **Slides.** Each slide shows its title, text boxes and bullets, tables and pictures; shapes side by side stay side by side. Move with the arrow buttons, **←** / **→** or a swipe, or pick a thumbnail on a wide screen. **Notes** shows the speaker notes; hidden slides are marked. The layout is approximated, not pixel-perfect: charts show as a labelled box with their title and SmartArt as its text. See [Supported file types](/files/supported-types#powerpoint-decks).\n- **Safe to open.** A deck with macros (`.pptm`, or renamed to `.pptx`), a password-protected deck and a damaged one are refused at upload, in the app, when replacing a file and through MCP `create_upload`.\n- **Ask and search.** A deck's slides and speaker notes are read for search and Ask; an answer's \"slide 5\" opens the deck at slide 5.\n- **Page path.** Under 1280 px the pages above the one you're on fold into one \"…\" (a menu with the full path). From 1280 px the whole path shows, and a crumb ends in \"…\" only when the bar runs out of room."
+    },
+    {
       "id": "meetings-auto-import-v4-check-now",
       "date": "2026-11-06",
       "title": "Gemini's notes always arrive, every 5 minutes, and Check for new meetings",
@@ -303,6 +317,34 @@
       "docs": [
         "/pages/mentions-and-notifications"
       ]
+    },
+    {
+      "id": "meeting-attendees-not-invitees",
+      "date": "2026-11-06",
+      "title": "A meeting's attendees are who joined, not everyone invited",
+      "kind": "fixed",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "A meeting imported from Gemini's notes no longer counts everyone on the calendar invite as attendees (\"27 people\" for a call 12 joined), and its Attendees no longer shows a paragraph of text. Attendees are the people who joined, listed on the page with members as @mentions; the invite list is kept apart as Invited.",
+      "body": "- **Who joined.** Attendees come from a Google Meet transcript's Attendees line and the people who spoke; without a transcript, nobody is counted as an attendee and the meeting bar says how many were **invited** instead.\n- **Invited.** Gemini's \"Invited\" list is shown in the meeting's Details as **Invited** with a count, never as attendees. People invited to a restricted meeting who are members still get access, as before.\n- **A list, not a paragraph.** Only a list of names is read as attendees: a summary paragraph after the label, a heading, or names run together that can't be told apart are left out. The page lists the attendees under **Attendees** (members as @mentions, nobody notified), and the **Attendees** property has their names.\n- **Earlier meetings** are corrected in the background from what they kept (the speakers of their transcript). A page is written again only where Markdrop's own text is still there; who can open a meeting doesn't change. A Doc sent again by the Google Meet script follows the same rules."
+    },
+    {
+      "id": "meetings-load-faster",
+      "date": "2026-11-06",
+      "title": "Meetings load faster",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "The Meetings page shows your first 30 meetings at once and loads the rest as you scroll, instead of waiting for every meeting in the workspace. Search, series chips and the sort order now ask Markdrop for matching meetings, so they cover every meeting you can open. Going back from a meeting returns you to the same place in the list.",
+      "body": "- **First page first.** The page asks for 30 meetings, shows them, and fetches the next 30 while the browser is idle. Scrolling near the end shows them; **Load more meetings** does the same without scrolling.\n- **Lighter cards.** The list only carries what a card shows: title, date, series, the first few people, a line of the summary, counts and cover. Everything else stays on the meeting page.\n- **Search on the server.** Typing in the search box finds titles, series and people across every meeting you can open, not only the loaded ones. The counts on the series chips cover them all too.\n- **Same access.** A meeting restricted to its attendees still never appears for anyone else, on any page of the list.\n- **API and MCP.** `GET /api/v1/meetings` returns a page (`limit`, default 30, up to 100) with `next_cursor`; pass it back as `cursor` for the next one, and `sort` picks the order. MCP `list_meetings` takes `cursor` the same way."
     },
     {
       "id": "organize-meetings-background",

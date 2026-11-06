@@ -2,7 +2,7 @@
 title: Ask
 description: "One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources."
 updated: 2026-11-06
-keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
+keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---
 
 **Ask** is one assistant, everywhere in Markdrop. Ask a question in plain words and it answers from what you can open, citing where each part came from, so you can check it in one tap. The conversation follows you from screen to screen.
@@ -182,6 +182,7 @@ Ask reads the whole of what you can open, not just the start, and its answers sa
 | **Meetings** | The notes, and the **whole transcript**: every minute, up to about three and a half hours per meeting | The moment: "at 1:10:00", opening the transcript at that line |
 | **Pages and documents** | Their text, headings and sign-offs | The page |
 | **Word** (`.docx`) | Every section, headings included | The section: "section Refunds" |
+| **PowerPoint** (`.pptx`) | Every slide's text and its speaker notes | The slide: "slide 5", opening the deck there |
 | **Excel** (`.xlsx`) and **CSV** | Sheet names and each sheet's first 200 rows | The sheet: "sheet Budget" |
 | **PDF** | Every page's text (up to 400 pages) | The page: "page 3", opening the PDF there |
 | **HTML pages, text, Markdown, JSON** | Their text | The file |

@@ -157,10 +157,10 @@ export function PersonAvatar({ name, src, size = "sm" }: { name: string; src?: s
   );
 }
 
-type FileRendererName = "pdf" | "sheet" | "docx" | "text" | "video" | "html" | "image" | "zip";
+type FileRendererName = "pdf" | "sheet" | "docx" | "pptx" | "text" | "video" | "html" | "image" | "zip";
 /** Artifact renderer → the DS FileIcon renderer ("bundle" is a zipped site). */
 export function iconRenderer(r: string | null | undefined): FileRendererName | undefined {
   if (!r) return undefined;
   if (r === "bundle") return "zip";
-  return (["pdf", "sheet", "docx", "text", "video", "html", "image"] as const).find((x) => x === r);
+  return (["pdf", "sheet", "docx", "pptx", "text", "video", "html", "image"] as const).find((x) => x === r);
 }

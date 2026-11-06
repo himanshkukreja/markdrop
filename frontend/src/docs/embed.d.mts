@@ -1,6 +1,6 @@
 /** Types for embed.mjs. */
 export type EmbedMode = "live" | "preview" | "card";
-export type EmbedRenderer = "html" | "bundle" | "pdf" | "sheet" | "docx" | "text" | "image" | "video" | "audio" | "doc" | "file";
+export type EmbedRenderer = "html" | "bundle" | "pdf" | "sheet" | "docx" | "pptx" | "text" | "image" | "video" | "audio" | "doc" | "file";
 export type EmbedState = "private" | "password" | "signin" | "encrypted" | "unavailable" | "unsupported" | "error" | "invalid";
 
 export interface EmbedAttrs {

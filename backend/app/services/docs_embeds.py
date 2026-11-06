@@ -71,7 +71,7 @@ UTM_SOURCE = "markdrop-guides"
 UTM_MEDIUM = "embed"
 EXCERPT_CHARS = 240
 #: Library picker filters → MIME types (the artifact renderers), or markdown documents.
-TYPES = ("html", "bundle", "pdf", "sheet", "docx", "video", "image", "audio", "text", "doc")
+TYPES = ("html", "bundle", "pdf", "sheet", "docx", "pptx", "video", "image", "audio", "text", "doc")
 
 
 def now() -> datetime:

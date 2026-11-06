@@ -701,7 +701,7 @@ export default function ArtifactView({
   }, [renderer]);
   const frameSrc =
     hydrated && resolved && artifactUrl
-      ? themedFrameSrc(artifactUrl, resolved, posterUrl, captionsUrl, startAt)
+      ? themedFrameSrc(artifactUrl, resolved, posterUrl, captionsUrl, startAt, originalFilename)
       : null;
   const showCover = frameLoading && !liveReload;
   const showLiveProgress = frameLoading && liveReload;

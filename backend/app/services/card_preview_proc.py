@@ -1,6 +1,6 @@
 """Card previews from untrusted binaries, in a child process (services/card_preview.py runs it).
 
-    python card_preview_proc.py <image|pdf|docx|xlsx>     stdin: the file's bytes
+    python card_preview_proc.py <image|pdf|docx|pptx|xlsx>     stdin: the file's bytes
                                                          stdout: one JSON object
 
 Images, PDFs and Office files are decoded here and never in the API process: a decoder bug, a
@@ -12,8 +12,9 @@ Output (every key optional):
 
     thumb   base64 WebP, at most THUMB_W wide (an image; a PDF's first page, top part)
     w, h    the thumbnail's size
-    pages   a PDF's page count
-    blocks  [{"t": "h1"|"h2"|"h3"|"p"|"li", "x": text}]   (a Word file; a PDF without pdfium)
+    pages   a PDF's page count; a deck's slide count
+    blocks  [{"t": "h1"|"h2"|"h3"|"p"|"li", "x": text}]   (a Word file; a deck's first slide; a PDF
+                                                          without pdfium)
     rows    [[cell, …], …]                                (a spreadsheet's first cells)
 """
 
@@ -191,6 +192,52 @@ def docx(data: bytes) -> dict:
     return {"blocks": blocks}
 
 
+A = "{http://schemas.openxmlformats.org/drawingml/2006/main}"
+P = "{http://schemas.openxmlformats.org/presentationml/2006/main}"
+
+
+def pptx(data: bytes) -> dict:
+    """The first slide as blocks (its title as h1, then its text, bullets as li) and the count."""
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        pres = _member(z, "ppt/presentation.xml")
+        rels = _member(z, "ppt/_rels/presentation.xml.rels")
+        if pres is None or rels is None:
+            return {}
+        targets = {r.get("Id"): r.get("Target") or "" for r in ET.fromstring(rels)}
+        ids = [s.get(f"{REL}id") for s in ET.fromstring(pres).iter(f"{P}sldId")]
+        order = [targets.get(i) for i in ids if targets.get(i)]
+        if not order:
+            return {}
+        first = order[0].lstrip("/")
+        slide = _member(z, first if first.startswith("ppt/") else f"ppt/{first}")
+    if slide is None:
+        return {"pages": len(order)}
+    blocks: list[dict] = []
+    for sp in ET.fromstring(slide).iter(f"{P}sp"):
+        ph = sp.find(f"{P}nvSpPr/{P}nvPr/{P}ph")
+        kind = (ph.get("type") or "") if ph is not None else None
+        if kind in ("dt", "ftr", "sldNum"):
+            continue
+        title = kind in ("title", "ctrTitle")
+        bulleted = ph is not None and kind in ("", "body", "obj")
+        for para in sp.iter(f"{A}p"):
+            text = _clean("".join(t.text or "" for t in para.iter(f"{A}t")))
+            if not text:
+                continue
+            ppr = para.find(f"{A}pPr")
+            no_bullet = ppr is not None and ppr.find(f"{A}buNone") is not None
+            has_bullet = ppr is not None and (ppr.find(f"{A}buChar") is not None or ppr.find(f"{A}buAutoNum") is not None)
+            t = "h1" if title else "li" if (bulleted and not no_bullet) or has_bullet else "p"
+            blocks.append({"t": t, "x": text})
+            if len(blocks) >= MAX_BLOCKS:
+                break
+        if len(blocks) >= MAX_BLOCKS:
+            break
+    # The title first, wherever its shape sits in the slide's list.
+    blocks.sort(key=lambda b: b["t"] != "h1")
+    return {"blocks": blocks, "pages": len(order)}
+
+
 S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}"
 PKG_REL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
@@ -285,7 +332,7 @@ def xlsx(data: bytes) -> dict:
     return {"rows": rows} if rows and width else {}
 
 
-KINDS = {"image": image, "pdf": pdf, "docx": docx, "xlsx": xlsx}
+KINDS = {"image": image, "pdf": pdf, "docx": docx, "pptx": pptx, "xlsx": xlsx}
 
 
 def run(kind: str, data: bytes) -> dict:

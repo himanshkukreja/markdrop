@@ -11,7 +11,9 @@
     PUT    /api/v1/meetings/connection/check-now     {url | null}: the script's web app (Check now on / off)
     POST   /api/v1/meetings/check-now                {workspace} → the connected scripts run now → {message, …}
     POST   /api/v1/meetings/inbox                    the Google Meet script's deliveries (its own token only)
-    GET    /api/v1/meetings?workspace=&limit=&q=&source=&since=&until=&series=   {meetings, hidden, folder_id}
+    GET    /api/v1/meetings?workspace=&limit=30&cursor=&sort=&q=&source=&since=&until=&series=
+                                                     a page of cards: {meetings, next_cursor, total, hidden, folder_id}
+                                                     (services/meetings_list.py; ETag → 304 when unchanged)
     GET    /api/v1/meetings/{id}                     a meeting
     PATCH  /api/v1/meetings/{id}                     {restricted?, type?, series?}
     DELETE /api/v1/meetings/{id}                     the importer, or a workspace admin/owner (any meeting)
@@ -30,9 +32,11 @@ allowlist); the inbox takes only a ``meetings:import`` token (services/meetings_
 """
 
 # No `from __future__ import annotations`: slowapi wraps these routes (see routers/docs_ai.py).
+import hashlib
+import json
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
@@ -42,7 +46,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.pages_ai import sse
-from app.services import access, api_token, gdocs, meeting_google, meetings, meetings_ai, meetings_inbox
+from app.services import access, api_token, gdocs, meeting_google, meetings, meetings_ai, meetings_inbox, meetings_list
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/meetings", tags=["meetings"])
@@ -438,17 +442,36 @@ async def inbox_status(request: Request, body: StatusBody, db: AsyncIOMotorDatab
 
 
 @router.get("")
-@limiter.limit("120/minute")
+@limiter.limit("240/minute")
 async def list_meetings(request: Request, workspace: str = Query(..., max_length=40),
-                        limit: int = Query(100, ge=1, le=meetings.MAX_LIST), q: str | None = Query(None, max_length=100),
+                        limit: int = Query(meetings_list.PAGE_DEFAULT, ge=1, le=meetings_list.PAGE_MAX),
+                        cursor: str | None = Query(None, max_length=600),
+                        sort: Literal["date_desc", "date_asc", "title", "imported"] = Query("date_desc"),
+                        q: str | None = Query(None, max_length=100),
                         source: Literal["manual", "auto", "mcp"] | None = Query(None),
                         since: str | None = Query(None, max_length=10),
                         until: str | None = Query(None, max_length=10),
                         series: str | None = Query(None, max_length=60),
                         db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """A page of the meetings the caller can open (cards: no transcript, notes or AI sections). Pass the
+    answer's ``next_cursor`` back as ``cursor`` (same filters and sort) for the next page; ``total`` and
+    ``hidden`` come with the first page only."""
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await meetings.list_meetings(db, _ws(workspace), actor, ctx, limit=limit, q=q,
-                                                         source=source, since=since, until=until, series=series))
+    got = await meetings.list_meetings(db, _ws(workspace), actor, ctx, limit=limit, cursor=cursor, sort=sort,
+                                       q=q, source=source, since=since, until=until, series=series)
+    return _etagged(request, jsonable_encoder(got))
+
+
+def _etagged(request: Request, payload: Any) -> Response:
+    """JSON with a weak ETag of its bytes; 304 when the browser already has exactly this (the hub's
+    refreshes while a summary is written). Private: it's the caller's view."""
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
+    tag = f'W/"{hashlib.sha1(body).hexdigest()[:20]}"'
+    headers = {"ETag": tag, "Cache-Control": "private, no-cache", "Vary": "Authorization, Cookie"}
+    seen = [t.strip() for t in (request.headers.get("if-none-match") or "").split(",")]
+    if tag in seen:
+        return Response(status_code=304, headers=headers)
+    return Response(content=body, media_type="application/json", headers=headers)
 
 
 @router.post("/ask")

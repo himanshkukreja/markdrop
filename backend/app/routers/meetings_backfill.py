@@ -11,7 +11,7 @@
     POST   /api/v1/meetings/backfill/{id}/pause | resume
     POST   /api/v1/meetings/backfill/{id}/rows/{row}/retry
     DELETE /api/v1/meetings/backfill/{id}                  discard (a draft / a finished one) or stop (a running one)
-    GET    /api/v1/meetings/series?workspace=              {series: [{name, count, last}]} of the meetings the caller can open
+    GET    /api/v1/meetings/series?workspace=              {series: [{name, count, last}], total, one_offs} of the meetings the caller can open
     GET    /api/v1/meetings/organize?workspace=            {preview, job} what "Organize meetings" would do; the current / last run (admins)
     POST   /api/v1/meetings/organize                       {workspace} → 202 {job}: starts the background run (or joins it)
     GET    /api/v1/meetings/organize/{run}                 {job}: progress {done, total, filed, folders, series, covers, errors}
@@ -246,10 +246,13 @@ async def discard_job(request: Request, job_id: str, db: AsyncIOMotorDatabase = 
 @limiter.limit("120/minute")
 async def list_series(request: Request, workspace: str = Query(..., max_length=40),
                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """{series: [{name, count, last}], total, one_offs}: the Meetings hub's chips, in one pass."""
+    from app.services import meetings_list
+
     ws = _ws(workspace)
     await meetings.require_member(db, ws, user.id, write=False)
     actor, ctx = _ac(request, db, user)
-    return {"series": await meeting_series.list_series(db, ws, actor, ctx)}
+    return await meetings_list.facets(db, ws, actor, ctx)
 
 
 class OrganizeBody(BaseModel):

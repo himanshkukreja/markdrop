@@ -1,0 +1,14 @@
+Daily Syncup (2026-11-06 10:00 GMT+05:30) - Transcript
+Attendees
+Ada Lovelace, Bo Chen, Priya Sharma, Rahul bhai, Saurabh Kr. Singh, Mohd. Arif, Neha Verma, Ankit Jha, Divya S, Karan Mehta, Ishaan Gupta, Shreya Iyer
+Transcript
+This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
+Ada Lovelace: Good morning everyone, chaliye shuru karte hain. Quick round of updates.
+Bo Chen: The parser fix is merged, I'm testing the import on staging today.
+Priya Sharma: Haan, migration dry run kal subah kar dungi, then we can ship.
+Rahul bhai: Client demo ka deck ready hai, bas pricing slide pending hai.
+Saurabh Kr. Singh: Infra side sab theek hai, the alerts are quiet since Monday.
+Neha Verma: Hiring: two interviews today, one offer going out.
+Ishaan Gupta: I'll pair with Bo on the staging import after this call.
+Karan Mehta: Nothing blocking from my side.
+Transcription ended after 00:14:05

@@ -34,7 +34,7 @@ function dateOf(d: TenantFolderDocument): string | null {
 /** Always a path on this host, built from segments — never a URL from the payload. */
 const hrefOf = (segments: string[]) => "/" + segments.map(encodeURIComponent).join("/");
 
-const RENDERERS: FileRenderer[] = ["pdf", "sheet", "docx", "text", "video", "html", "image", "zip"];
+const RENDERERS: FileRenderer[] = ["pdf", "sheet", "docx", "pptx", "text", "video", "html", "image", "zip"];
 
 /** Only http(s) image URLs (a poster comes from our artifact origin). */
 function posterOf(doc: TenantFolderDocument): string | null {

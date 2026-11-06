@@ -39,6 +39,8 @@ class ArtifactType:
     ext: str
 
 
+PPTX_MIME = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+
 # The whitelist IS the security boundary: anything not listed is refused at
 # upload, so we never store a type we haven't decided how to serve.
 #
@@ -47,6 +49,7 @@ class ArtifactType:
 #   "pdf"   → PDF.js viewer on the sandbox origin
 #   "sheet" → SheetJS grid viewer
 #   "image" → <img> (SVG included — it can carry script, so it stays sandboxed)
+#   "pptx"  → the Worker's slide viewer (parsed in the browser, no conversion server-side)
 #   "text"  → escaped <pre>
 #   "video" → custom player on the sandbox origin; needs range requests to seek
 #   "audio" → <audio controls> page on the sandbox origin (same range support)
@@ -63,6 +66,10 @@ _TYPES: tuple[ArtifactType, ...] = (
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "docx", "Word document", "docx",
     ),
+    # PowerPoint: the Worker draws the slides from the deck itself (titles, text, tables, images,
+    # notes). Checked at upload (check_upload): a macro deck (.pptm, or one renamed .pptx) and an
+    # encrypted one are refused. Same size ceiling as every document.
+    ArtifactType(PPTX_MIME, "pptx", "PowerPoint deck", "pptx"),
     ArtifactType("application/zip", "bundle", "Web bundle", "zip"),
     ArtifactType("application/json", "text", "JSON", "json"),
     ArtifactType("text/plain", "text", "Text file", "txt"),
@@ -126,6 +133,53 @@ def max_bytes_for(mime: str) -> int:
     if t and t.renderer in _LARGE_RENDERERS:
         return settings.artifact_max_video_bytes
     return settings.artifact_max_bytes
+
+
+# Types whose bytes are read on the server before they are published (check_upload).
+CHECKED_MIMES = frozenset({PPTX_MIME})
+
+
+def check_upload(data: bytes, mime: str) -> str | None:
+    """Why these uploaded bytes can't be published as ``mime``, or None when they can.
+
+    A PowerPoint deck is opened the way search reads it (services/file_text.py: ZIP-bomb limits,
+    no DOCTYPE, never a macro) and refused when it is encrypted, damaged, macro-enabled or not a
+    deck at all. Other types aren't read here.
+    """
+    if mime != PPTX_MIME:
+        return None
+    from app.services import file_text
+
+    try:
+        file_text.check_deck(data)
+    except file_text.Refused as exc:
+        return str(exc)
+    return None
+
+
+def refusal_detail(reason: str) -> str:
+    return (f"This PowerPoint file can't be published: {reason}. Save it as a .pptx without a "
+            "password or macros and upload it again.")
+
+
+async def verify_content(blob_key: str, mime: str) -> tuple[int, str] | None:
+    """(status, detail) when an uploaded object's bytes must be refused, else None.
+
+    Only :data:`CHECKED_MIMES` are read back (capped at the type's ceiling). 422 means the bytes
+    are refused, and the caller deletes them; 502 means storage couldn't hand them back, and the
+    upload is kept so the same call can be retried.
+    """
+    if mime not in CHECKED_MIMES:
+        return None
+    from starlette.concurrency import run_in_threadpool
+
+    from app.services import r2
+
+    data = await run_in_threadpool(r2.get_bytes, blob_key, max_bytes_for(mime))
+    if data is None:
+        return 502, "The uploaded file couldn't be read back from storage. Try again."
+    reason = await run_in_threadpool(check_upload, data, mime)
+    return (422, refusal_detail(reason)) if reason else None
 
 
 def label_for(mime: str) -> str:

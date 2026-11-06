@@ -69,7 +69,7 @@ TEXT_PEEK = 64 * 1024
 HTML_PEEK = 160 * 1024
 CONTENT_PEEK = 8000            # characters of a document's Markdown
 SOURCE_MAX = {"image": 25 * 1024 * 1024, "pdf": 40 * 1024 * 1024, "docx": 20 * 1024 * 1024,
-              "xlsx": 20 * 1024 * 1024}
+              "pptx": 25 * 1024 * 1024, "xlsx": 20 * 1024 * 1024}
 POSTER_MAX = 4 * 1024 * 1024
 COVER_MAX = 12 * 1024 * 1024
 
@@ -613,6 +613,8 @@ def _file_plan(raw: dict):
         proc_kind = "pdf"
     elif renderer == "docx":
         proc_kind = "docx"
+    elif renderer == "pptx":
+        proc_kind = "pptx"
     elif renderer == "sheet" and mime.endswith(".sheet"):
         proc_kind = "xlsx"  # a legacy .xls has no preview
     if proc_kind is None or size > SOURCE_MAX[proc_kind]:

@@ -1,7 +1,7 @@
 ---
 title: Publish your first file
-description: Upload an HTML page, PDF, spreadsheet, Word document, image, video or zipped site and get a link that opens it rendered.
-updated: 2026-10-30
+description: Upload an HTML page, PDF, spreadsheet, Word document, PowerPoint deck, image, video or zipped site and get a link that opens it rendered.
+updated: 2026-11-06
 prerequisites: [/get-started/accounts]
 keywords: [upload, artifact, file, pdf, html, video, quickstart]
 ---
@@ -43,6 +43,7 @@ The page shows upload progress. Keep the tab open until it finishes. When it's d
 | PDF | Readable pages |
 | Excel (`.xlsx`, `.xls`) or CSV | A sheet with tabs |
 | Word (`.docx`) | A formatted document |
+| PowerPoint (`.pptx`) | Slides with thumbnails and speaker notes |
 | Images, including SVG | The full-size image |
 | Video and audio | A player that streams and seeks |
 | JSON and text | Text with line numbers |

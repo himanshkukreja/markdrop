@@ -216,6 +216,8 @@ async def confirm_artifact(
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=507, detail="Storage quota exceeded.")
 
+    await _refuse_bad_content(data.blob_key, mime)
+
     # Default to the uploaded object; only a bundle rewrites these. Assigning
     # blob_key here matters — assigning it solely inside the branch below makes
     # it a local that is unbound on every non-zip upload.
@@ -286,6 +288,17 @@ async def confirm_artifact(
     return ArtifactCreateResponse(
         **art_service.to_response(doc, is_owner=True), edit_secret=secret
     )
+
+
+async def _refuse_bad_content(blob_key: str, mime: str) -> None:
+    """A deck that can't be published (encrypted, macros, damaged) is deleted and refused with 422
+    (art_service.verify_content); other types aren't read."""
+    bad = await art_service.verify_content(blob_key, mime)
+    if bad:
+        status, detail = bad
+        if status == 422:
+            await run_in_threadpool(r2.delete, blob_key)
+        raise HTTPException(status_code=status, detail=detail)
 
 
 async def _explode_bundle(zip_key: str, user_id: str) -> tuple[str, str, str, int]:
@@ -513,6 +526,7 @@ async def replace_artifact_file(
     if not mime:
         await run_in_threadpool(r2.delete, data.blob_key)
         raise HTTPException(status_code=415, detail="Unsupported file type.")
+    await _refuse_bad_content(data.blob_key, mime)
 
     actor, ctx = _actor_ctx(request, db, user)
     current = await db["documents"].find_one({"slug": slug})
