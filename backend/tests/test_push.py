@@ -203,7 +203,7 @@ class PushWorld(NotifyWorld):
         return [self.browsers[str(r.url)].read(r) for r in self.delivered
                 if endpoint is None or str(r.url) == endpoint]
 
-    async def flush(self, seconds: float = 30):  # noqa: D401 - the push flush, after GATHER
+    async def flush(self, seconds: float = 90):  # noqa: D401 - the push flush, after SLOW_GATHER (mentions)
         return await push.flush(self.db, now() + timedelta(seconds=seconds))
 
     async def outbox(self, who: str) -> list[dict]:
@@ -409,8 +409,8 @@ class Delivery(PushWorld):
         # A third within two minutes waits for the gap, then goes.
         await self.save(p["slug"], "owner", base + f"A {person(self.uid['wm'], 'WM')} {{#b-aaaa01}}\n\n"
                         f"B {person(self.uid['wm'], 'WM')} {{#b-aaaa02}}\n\nC {person(self.uid['wm'], 'WM')} {{#b-aaaa03}}\n")
-        self.assertEqual(await self.flush(30), {"waiting": 1})
-        self.assertEqual(await self.flush(150), {"sent": 1})
+        self.assertEqual(await self.flush(100), {"waiting": 1})
+        self.assertEqual(await self.flush(220), {"sent": 1})
         self.assertEqual(len(self.delivered), 2)
         self.assertEqual(self.payloads()[1]["url"], f"/{p['slug']}#b-aaaa03")
 
@@ -442,9 +442,9 @@ class Delivery(PushWorld):
         self.assertEqual(await self.flush(), {"retry": 1})
         row = (await self.outbox("wm"))[0]
         self.assertEqual((row["state"], row["attempts"]), ("pending", 1))
-        self.assertEqual(await self.flush(40), {})  # not due yet
+        self.assertEqual(await self.flush(100), {})  # not due yet
         self.answer.clear()
-        self.assertEqual(await self.flush(70), {"sent": 1})
+        self.assertEqual(await self.flush(130), {"sent": 1})
         self.assertIsNotNone(await self.db[push.SUBS].find_one({"_id": ObjectId(d["id"])}))
 
     async def test_clicking_marks_it_read(self):
@@ -481,6 +481,27 @@ class Delivery(PushWorld):
         msg = self.payloads()[-1]
         self.assertEqual((msg["kind"], msg["url"]), ("signoff_requested", f"/{doc['slug']}#b-so0001"))
         self.assertEqual(msg["title"], "OWNER asked you to sign off on “Q3 budget” in “Launch plan”")
+
+    async def test_a_mention_taken_out_within_the_minute_never_rings(self):
+        await self.device("wm")
+        p = await self.mention()
+        self.assertEqual(await self.flush(30), {})          # mentions gather a minute (shares don't)
+        await self.save(p["slug"], "owner", "# Plan\n\nPing nobody. {#b-qa0001}\n")
+        self.assertEqual((await self.outbox("wm"))[0]["outcome"], "withdrawn")
+        self.assertEqual(await self.flush(), {})
+        self.assertEqual(self.delivered, [])
+        self.assertEqual(await self.notes("wm"), [])
+
+    async def test_send_time_recheck_and_shares_keep_their_ten_seconds(self):
+        await self.device("wm")
+        p = await self.mention()
+        # Gone from the page without the save hook seeing it: checked again when it would go.
+        await self.db["documents"].update_one({"slug": p["slug"]}, {"$set": {"content": "# Plan\n"}})
+        self.assertEqual(await self.flush(), {"withdrawn": 1})
+        self.assertEqual(self.delivered, [])
+        doc = await self.page("W")
+        await notifications.notify(self.db, self.uid["wm"], "shared", doc, None, actor=self.uid["owner"])
+        self.assertEqual(await self.flush(20), {"sent": 1})
 
     async def test_access_requests_reach_the_owner_until_decided(self):
         await self.device("owner")

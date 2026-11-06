@@ -74,7 +74,7 @@ export function BackfillProgress({ job, onChange, onProgress }: BackfillProgress
               ? <>{job.wait.message} It carries on by itself{until ? ` around ${until}` : ""}.</>
               : job.state === "running" && current
                 ? <>Now: <b>{current.title}</b> · {fmtMeetingDate(current.date)}</>
-                : job.quiet ? "Oldest first. Nobody is notified about old action items." : "Oldest first. Meetings older than a day are imported quietly."}
+                : "Oldest first. Nobody is notified about their action items."}
           </p>
         </div>
         <div className="mt-bfp__actions">

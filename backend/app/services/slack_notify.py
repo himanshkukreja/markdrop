@@ -339,8 +339,8 @@ async def queue_access_request(db: AsyncIOMotorDatabase, raw: dict, row: dict) -
         log.warning("slack: couldn't queue access request %s", row.get("_id"), exc_info=True)
 
 
-async def _claim(db: AsyncIOMotorDatabase) -> dict | None:
-    now = _now()
+async def _claim(db: AsyncIOMotorDatabase, now: datetime | None = None) -> dict | None:
+    now = now or _now()
     return await db[OUTBOX].find_one_and_update(
         {"$or": [{"state": "pending", "next_at": {"$lte": now}},
                  {"state": "sending", "claimed_at": {"$lt": now - STUCK}}]},
@@ -348,13 +348,14 @@ async def _claim(db: AsyncIOMotorDatabase) -> dict | None:
         sort=[("next_at", 1)], return_document=ReturnDocument.AFTER)
 
 
-async def flush(db: AsyncIOMotorDatabase, *, limit: int = 50) -> int:
-    """Send what's queued (the background loop, every few seconds). Returns how many were sent."""
+async def flush(db: AsyncIOMotorDatabase, *, limit: int = 50, now: datetime | None = None) -> int:
+    """Send what's queued (the background loop, every few seconds; ``now``: tests). Returns how
+    many were sent."""
     if not slack.configured():
         return 0
     sent = 0
     for _ in range(limit):
-        row = await _claim(db)
+        row = await _claim(db, now)
         if row is None:
             break
         try:

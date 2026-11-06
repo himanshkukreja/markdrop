@@ -519,25 +519,47 @@ class Import(MeetingsWorld):
         self.assertEqual([r["kind"] for r in rows], ["generate"])
         self.assertEqual(rows[0]["user_id"], self.uid["owner"])
 
-    async def test_mentions_notify_members(self):
-        await self.imported(date=meetings.now_utc().date().isoformat())
-        notes = await self.db["notifications"].find({}).to_list(50)
-        to = {n["user_id"] for n in notes}
-        self.assertIn(self.uid["wv"], to)    # Ravi
-        self.assertIn(self.uid["wm"], to)    # Bo
-        self.assertNotIn(self.uid["stranger"], to)
+    async def test_mentions_notify_nobody(self):
+        # Today's meeting: its action items @mention members, as links, and nobody is notified (owner,
+        # 2026-11-06): not at import, not when the AI sections are written, not when they're regenerated.
+        m = await self.imported(date=meetings.now_utc().date().isoformat())
+        page = await self.doc(m["slug"])
+        self.assertIn(f':person[Ravi Kumar]{{id="{self.uid["wv"]}"}}', page["content"])
+        self.assertIn(f':person[Bo Chen]{{id="{self.uid["wm"]}"}}', page["content"])
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
+        row = await self.db["meetings"].find_one({"_id": ObjectId(m["id"])})
+        self.assertFalse(row.get("history"))   # a fresh meeting: Slack may post it
+        r = await self.http.post(f"/api/v1/meetings/{m['id']}/regenerate", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
+        # Regenerated later in a background task (outside any request's quiet): still nobody.
+        from app.models.user import User
 
-    async def test_an_old_meeting_imported_by_hand_notifies_nobody(self):
-        # Held days ago: history, however it comes in (the same rule as the backfill).
+        owner = User(id=self.uid["owner"], email=self.email["owner"], name="Ada Lovelace", created_at=now(), updated_at=now())
+        meetings.spawn(meetings_ai.generate(self.db, m["id"], owner))
+        for t in list(meetings._bg):
+            await asyncio.wait({t}, timeout=10)
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
+        # A person editing the meeting page by hand still notifies whoever they newly mention.
+        page = await self.doc(m["slug"])
+        r = await self.http.put(f"/api/v1/documents/{m['slug']}", headers=self.session("owner"), json={
+            "title": page["title"], "content": page["content"] + f'\n\nAsk :person[Priya Sharma]{{id="{self.uid["wa"]}"}} too\n'})
+        self.assertEqual(r.status_code, 200, r.text)
+        to = {n["user_id"] for n in await self.db["notifications"].find({}).to_list(50)}
+        self.assertEqual(to, {self.uid["wa"]})
+
+    async def test_an_old_meeting_imported_by_hand_is_history(self):
+        # Held days ago: history, however it comes in (the same rule as the backfill): not posted to Slack.
         old = (meetings.now_utc().date() - timedelta(days=3)).isoformat()
         m = await self.imported(date=old)
         self.assertEqual(await self.db["notifications"].count_documents({}), 0)
         row = await self.db["meetings"].find_one({"_id": ObjectId(m["id"])})
         self.assertTrue(row.get("history"))
         self.assertIn(":person[Ravi Kumar]", (await self.doc(m["slug"]))["content"])   # still a link
-        # Yesterday's still notifies.
-        await self.imported(date=(meetings.now_utc().date() - timedelta(days=1)).isoformat(), title="Yesterday's sync")
-        self.assertGreater(await self.db["notifications"].count_documents({}), 0)
+        # Yesterday's isn't history, and notifies nobody either.
+        y = await self.imported(date=(meetings.now_utc().date() - timedelta(days=1)).isoformat(), title="Yesterday's sync")
+        self.assertFalse((await self.db["meetings"].find_one({"_id": ObjectId(y["id"])})).get("history"))
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
 
     async def test_prompt_is_wrapped_and_english(self):
         await self.imported()
