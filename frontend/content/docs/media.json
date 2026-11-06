@@ -2213,38 +2213,38 @@
   },
   "/docs-assets/integrations/jira/team-card.dark.webp": {
     "w": 784,
-    "h": 648,
-    "bytes": 20480,
+    "h": 624,
+    "bytes": 19910,
     "kind": "image"
   },
   "/docs-assets/integrations/jira/team-card.webp": {
     "w": 784,
-    "h": 648,
-    "bytes": 21786,
+    "h": 624,
+    "bytes": 21030,
     "kind": "image"
   },
   "/docs-assets/integrations/jira/team-counts.dark.webp": {
     "w": 2304,
-    "h": 512,
-    "bytes": 20634,
+    "h": 484,
+    "bytes": 20304,
     "kind": "image"
   },
   "/docs-assets/integrations/jira/team-counts.webp": {
     "w": 2304,
-    "h": 512,
-    "bytes": 21924,
+    "h": 484,
+    "bytes": 21620,
     "kind": "image"
   },
   "/docs-assets/integrations/jira/team.dark.webp": {
     "w": 2304,
-    "h": 716,
-    "bytes": 25310,
+    "h": 640,
+    "bytes": 24688,
     "kind": "image"
   },
   "/docs-assets/integrations/jira/team.webp": {
     "w": 2304,
-    "h": 716,
-    "bytes": 27054,
+    "h": 640,
+    "bytes": 26508,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/card-connected.dark.webp": {
