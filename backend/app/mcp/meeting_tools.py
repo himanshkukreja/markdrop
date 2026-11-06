@@ -371,7 +371,7 @@ async def meeting_context(ctx: Context, args: dict) -> tuple[str, dict]:
 _MEETING_OUT = {"type": "object", "properties": {
     "id": {"type": "string"}, "title": _NULLABLE_STR, "date": _NULLABLE_STR, "type": _NULLABLE_STR,
     "url": {"type": "string"}, "slug": {"type": "string"}, "transcript_url": _NULLABLE_STR,
-    "attendees": {"type": "array", "items": {"type": "string"}, "description": "Who joined the call."},
+    "attendees": {"type": "array", "items": {"type": "string"}, "description": "Who joined the call (with only Gemini's notes and no transcript: the invited people the notes name)."},
     "invited": {"type": "array", "items": {"type": "string"}, "description": "Everyone on the calendar invite, joined or not."},
     "restricted": {"type": "boolean"},
     "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "segments": {"type": "integer"},

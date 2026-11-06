@@ -60,7 +60,9 @@ class Parser(unittest.TestCase):
         s = src(NOTES)
         self.assertEqual((s.attendees, s.attendees_from, len(s.invited)), ([], "none", 27))
         m = mp.merge([s])
-        self.assertEqual((m.attendees, m.attendees_from, len(m.invited)), ([], "invited", 27))
+        # Gemini's notes name Bo Chen and Priya Sharma (summary, next steps): they joined (owner, 2026-11-06).
+        self.assertEqual(([a["name"] for a in m.attendees], m.attendees_from, len(m.invited)),
+                         (["Bo Chen", "Priya Sharma"], "notes", 27))
 
     def test_c_chips_glued_without_separators(self):
         with_mail = "Invited Ada Lovelace <ada@x.test>Bo Chen <bo@x.test> Rahul bhai <rahul@x.test>"
@@ -130,12 +132,14 @@ class Import(MeetingsWorld):
 
     async def test_b_notes_only_say_invited_never_attendees(self):
         m = await self.imported(sources=[body(NOTES)])
-        self.assertEqual((m["attendees"], len(m["invited"]), m["attendees_from"]), ([], 27, "invited"))
-        self.assertFalse(m["restricted"])
+        self.assertEqual(([(a["name"], a["user_id"]) for a in m["attendees"]], len(m["invited"]), m["attendees_from"]),
+                         ([("Bo Chen", self.uid["wm"]), ("Priya Sharma", self.uid["wa"])], 27, "notes"))
+        self.assertFalse(m["restricted"])       # 27 invited: not a two-person call
         c = (await self.doc(m["slug"]))["content"]
-        self.assertIn("## Invited\n\n", c)
-        self.assertNotIn("## Attendees", c)
-        self.assertNotIn("attendees", page_db.read_values(c))
+        self.assertIn(f'## Attendees\n\n:person[Bo Chen]{{id="{self.uid["wm"]}"}}, :person[Priya Sharma]', c)
+        self.assertIn("_From Google's notes: the people they name.", c)
+        self.assertNotIn("## Invited", c)
+        self.assertEqual(page_db.read_values(c)["attendees"], "Bo Chen, Priya Sharma")
 
     async def test_attaching_the_transcript_later_uses_the_same_rules(self):
         from app.services import user as user_service
@@ -208,7 +212,8 @@ class Repair(MeetingsWorld):
             "content": page_db.write_values(page["content"], {"attendees": "Typed by hand"}), "rev": int(page.get("rev") or 1) + 1}})
         await meetings.attendees_tick(self.db)
         row = await self.db["meetings"].find_one({"_id": oid})
-        self.assertEqual((row["attendees"], len(row["invited"]), row["attendees_from"]), ([], 27, "invited"))
+        self.assertEqual(([a["name"] for a in row["attendees"]], len(row["invited"]), row["attendees_from"]),
+                         (["Bo Chen", "Priya Sharma"], 27, "notes"))
         page = await self.doc(m["slug"])
         self.assertEqual(page_db.read_values(page["content"])["attendees"], "Typed by hand")
         self.assertNotIn("## Invited\n\n", page["content"])    # edited page: its body is left alone

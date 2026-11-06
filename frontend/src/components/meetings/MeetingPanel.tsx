@@ -275,6 +275,9 @@ function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Me
             </span>
           ))}
         </div>
+        {m.attendees_from === "notes" && m.attendees.length > 0 && (
+          <p className="mt-cost" data-testid="meeting-attendees-from-notes" style={{ margin: "6px 0 0" }}>From Google&apos;s notes: the people they name.</p>
+        )}
       </div>
 
       <div>

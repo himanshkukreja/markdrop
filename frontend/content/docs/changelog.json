@@ -26,7 +26,7 @@
     {
       "id": "meeting-attendees-not-next-steps",
       "date": "2026-11-06",
-      "title": "Gemini's next steps no longer show up as attendees",
+      "title": "Gemini's next steps are no longer attendees, and notes-only meetings list who the notes name",
       "kind": "fixed",
       "area": "Meetings",
       "products": [
@@ -34,8 +34,11 @@
         "api",
         "mcp"
       ],
-      "summary": "Some meetings imported from Gemini's notes listed attendees like \"Gautam Khurana Review Video\" or \"Palak Jain Fix Email Bug\". Those were Gemini's suggested next steps, read as lines of the transcript. A next step is now always a next step: its owner is the person it names, and it's never a speaker or an attendee.",
-      "body": "- **Next steps stay next steps.** Gemini writes a next step as \"Gautam Khurana Review Video: Gautam Khurana will review the video…\". Markdrop read some of these as transcript lines spoken by \"Gautam Khurana Review Video\". The Summary, Details and Suggested next steps sections of Gemini's notes are now never read as a transcript, and they stay in the meeting's **Action items** with the person they name.\n- **Names, not tasks.** A speaker shown as a known person's name plus a task title (\"Himanshu Kukreja Update Prompts\") is that person. A label too long to be a name isn't counted as a speaker.\n- **Earlier meetings are fixed in the background.** Wrong attendees are replaced by the right person or removed. Transcript lines that were really the notes are removed. If a meeting had only Gemini's notes, it no longer shows a transcript and lists the invite as **Invited**, the same as a new import. The page and its Transcript page are rewritten only where Markdrop's own text hasn't been edited. Who can open a meeting doesn't change."
+      "summary": "Some meetings imported from Gemini's notes listed attendees like \"Gautam Khurana Review Video\" or \"Palak Jain Fix Email Bug\". Those were Gemini's suggested next steps, read as lines of the transcript. A next step is now always a next step, and a meeting with only Gemini's notes lists the people the notes name as its attendees, with members as @mentions.",
+      "body": "- **Next steps stay next steps.** Gemini writes a next step as \"Gautam Khurana Review Video: Gautam Khurana will review the video…\". Markdrop read some of these as transcript lines spoken by \"Gautam Khurana Review Video\". The Summary, Details and Suggested next steps sections of Gemini's notes are now never read as a transcript, and they stay in the meeting's **Action items** with the person they name.\n- **Names, not tasks.** A speaker shown as a known person's name plus a task title (\"Himanshu Kukreja Update Prompts\") is that person. A label too long to be a name isn't counted as a speaker.\n- **Who joined a notes-only call.** With no transcript, the attendees are the invited people Gemini's notes name: a next step's owner, a full name, or a first name only one invitee has. A member the notes name by full name counts too. The page lists them under **Attendees** (members as @mentions, nobody notified) and says they come from Google's notes. The full invite stays under **Invited** in the meeting's Details. When a transcript arrives later, the people who spoke take over.\n- **Earlier meetings are fixed in the background.** Wrong attendees are replaced by the right person or removed. Transcript lines that were really the notes are removed. If a meeting had only Gemini's notes, it no longer shows a transcript, and its attendees are the people the notes name, the same as a new import. The page and its Transcript page are rewritten only where Markdrop's own text hasn't been edited. Who can open a meeting doesn't change.",
+      "docs": [
+        "/workspaces/meetings-import#attendees-and-invited"
+      ]
     },
     {
       "id": "meetings-start",

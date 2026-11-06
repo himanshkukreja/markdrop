@@ -77,7 +77,8 @@ A meeting's **Attendees** are the people who joined the call:
 
 - A Google Meet transcript Doc starts with an **Attendees** line: those people, plus anyone who spoke and isn't on it.
 - Without that line, the people who spoke in the transcript.
-- Gemini's notes list everyone on the calendar invite (**Invited**), whether they joined or not. Markdrop keeps that list apart: the meeting's **Details** show it as **Invited** with a count, and it isn't counted in the meeting bar. A meeting with only Gemini's notes (no transcript) has no attendees; its bar says how many were **invited**, and its page lists them under **Invited**.
+- Gemini's notes list everyone on the calendar invite (**Invited**), whether they joined or not. Markdrop keeps that list apart: the meeting's **Details** show it as **Invited** with a count, and it isn't counted in the meeting bar.
+- A meeting with only Gemini's notes (no transcript) lists the invited people the notes name as its attendees: a next step's owner, a full name, or a first name only one invitee has. A member the notes name by full name counts too, even if they weren't on the invite. The page says these come from Google's notes. If the notes name nobody, the page lists the invite under **Invited** and the bar says how many were **invited**.
 
 The meeting page lists the attendees under **Attendees**: members as @mentions (nobody is notified), everyone else by name. The **Attendees** property has their names. A line that isn't a list of names, such as a summary paragraph, is never read as attendees. Meetings imported before November 6, 2026 were corrected in the background; the page changed only where Markdrop's own text was still there, and who can open a meeting didn't change.
 

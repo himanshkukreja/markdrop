@@ -56,7 +56,7 @@ export interface Meeting {
   attendees: Array<{ name: string; user_id: string | null }>;
   /** The calendar invite (Gemini notes' "Invited"), joined or not: shown as "Invited: N", never as attendees. */
   invited?: Array<{ name: string; user_id: string | null }>;
-  /** Where the attendees came from: "attendees" | "speakers" | "invited" (nobody known to have joined) | "none". */
+  /** Where the attendees came from: "attendees" | "speakers" | "notes" (Gemini notes only: the people they name) | "invited" (nobody known to have joined) | "none". */
   attendees_from?: string | null;
   restricted: boolean;
   action_items: number;

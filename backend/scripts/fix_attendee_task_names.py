@@ -1,10 +1,12 @@
-"""One-off: Gemini's next steps taken for speakers and attendees (2026-11-06, ``attendees_v`` 3).
+"""One-off: Gemini's next steps taken for speakers and attendees (2026-11-06, ``attendees_v`` 3), and
+meetings with only Gemini's notes listing the people the notes name as attendees (``attendees_v`` 4).
 
 Gemini writes a next step as "Gautam Khurana Review Video: Gautam Khurana will review the video …". The
 parser read those lines as transcript turns, so "Gautam Khurana Review Video" became a speaker, and an
 attendee (51 of Senseloaf's 166 meetings). meetings.repair_attendees fixes every meeting (all
 workspaces): fake turns that came from the notes Doc dropped (no real transcript left: the meeting has
-none, its unedited Transcript page goes to the Trash), elsewhere the owner is the speaker; attendees
+none, its unedited Transcript page goes to the Trash), elsewhere the owner is the speaker; a meeting
+with nobody known to have joined and Gemini's notes gets the people the notes name ("notes"); attendees
 mapped to the known person each starts with (invite, members, other attendees), once; the page's
 Attendees property / section and the Transcript page written again only where Markdrop's own words are
 still there. Never touches the restriction or its grants. Team memory facts whose subject isn't a
@@ -39,7 +41,8 @@ async def main(apply: bool, workspace: str | None) -> int:
     out = await meetings.attendees_dry_run(db, workspace_id=workspace, examples=15)
     print(f"Meetings not yet checked (attendees_v < {meetings.ATTENDEES_V}): {out['pending']}; "
           f"would change {out['would_change']}; with next-step names or turns: {out['task_names']}")
-    print(f"  attendees taken from: {json.dumps(out['from'])}")
+    print(f"  attendees taken from: {json.dumps(out['from'])}  (notes = Gemini notes only: the people they name; "
+          "invited = notes name nobody)")
     print(f"  transcript segments: {json.dumps(out['segments'])}  (dropped = all came from the notes Doc)")
     print(f"  Transcript page: {json.dumps(out['transcript'])}  (left = edited by someone, left alone)")
     print(f"  meeting page: {json.dumps(out['page'])}  (rewritten = untouched page written again; attendees = only "

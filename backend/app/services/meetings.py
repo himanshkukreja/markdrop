@@ -901,7 +901,9 @@ def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool
 # invited: the calendar invite (Gemini notes' "Invited"), kept apart: not counted, never "attendees".
 # attendees_v 3 (2026-11-06): Gemini's next steps ("Gautam Khurana Review Video: Gautam Khurana will …")
 # are never speakers or attendees (meeting_parse.task_owner); repair_attendees fixes the old ones.
-ATTENDEES_V = 3
+# attendees_v 4 (2026-11-06): a meeting with only Gemini's notes lists the people the notes name as its
+# attendees ("notes", notes_attendees), not nobody.
+ATTENDEES_V = 4
 ATTENDEES_V2 = 2   # attendees told apart from the invite (recompute_people)
 
 
@@ -934,6 +936,34 @@ def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[
     return out
 
 
+def notes_attendees(notes: dict | None, invited: list[dict], people: People) -> list[dict]:
+    """Who Gemini's notes show joined a call that has nothing better (no transcript, no Attendees line):
+    the invited people the notes name (a next step's owner, a full name, a first name only one of them
+    has: meeting_parse.named_in_notes), then members the notes name by their full name though not on
+    the invite. As meeting rows, each once."""
+    found = list(mp.named_in_notes(notes, invited))
+    text = re.sub(r"\s+", " ", mp.notes_text(notes)).casefold()
+    if text:
+        have = {a.get("user_id") for a in [*found, *invited] if a.get("user_id")}
+        for m in people.members:
+            n = mp.clean_name(m.get("name"))
+            if len(n.split()) >= 2 and m["id"] not in have and \
+                    re.search(r"(?<![\w])" + re.escape(n.casefold()) + r"(?![\w])", text):
+                found.append({"name": m.get("name"), "user_id": m["id"], "email": m.get("email")})
+    return person_rows(found, people)
+
+
+def with_notes_people(att: list[dict], inv: list[dict], how: str, notes: dict | None,
+                      people: People) -> tuple[list[dict], str]:
+    """(attendees, attendees_from): nobody known to have joined ("invited" / "none") and Gemini's notes
+    there: the people they name ("notes")."""
+    if how in ("invited", "none", "notes") and not (how != "notes" and att) and notes:
+        got = notes_attendees(notes, inv, people)
+        if got:
+            return got, "notes"
+    return att, how
+
+
 def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
     """The row's attendees / invited / attendees_from once ``group`` (another half of the call, or a
     changed Doc sent again) is in, by the same rules as a new import (meeting_parse.people_of_group):
@@ -944,12 +974,20 @@ def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
     else:
         att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
     n_att, n_inv, n_how = mp.people_of_group(group)
-    rank = {"attendees": 3, "speakers": 2, "invited": 1, "none": 0}
+    rank = {"attendees": 3, "speakers": 2, "notes": 1.5, "invited": 1, "none": 0}
+    # Named in the notes is the weakest evidence: who spoke or the Attendees line replaces it.
+    if how == "notes" and rank.get(n_how, 0) > rank["notes"]:
+        att = []
+    elif n_how == "notes" and rank.get(how, 0) > rank["notes"]:
+        n_att = []
     att = person_rows([*att, *n_att], people)
     inv = person_rows([*inv, *n_inv], people, limit=200)
     how = max((how, n_how), key=lambda h: rank.get(h, 0))
     if how in ("invited", "none") and att:
         how = "speakers"
+    if how in ("invited", "none", "notes"):
+        notes = row.get("notes") or next((s.notes for s in group if s.notes), None)
+        att, how = with_notes_people([] if how != "notes" else att, inv, how, notes, people)
     # A meeting from before v3 keeps its place in the repair queue (repair_attendees fixes its next steps).
     v = ATTENDEES_V if int(row.get("attendees_v") or 0) >= ATTENDEES_V else ATTENDEES_V2
     return {"attendees": att, "invited": inv, "attendees_from": how, "attendees_v": v}
@@ -1014,7 +1052,9 @@ def people_section(meeting: dict, people: People) -> str:
     names = [n for n in names if n]
     if not names:
         return ""
-    note = "\n\n_From the calendar invite: who joined isn't in Google's notes._" if head == "Invited" else ""
+    note = "\n\n_From the calendar invite: who joined isn't in Google's notes._" if head == "Invited" else \
+        "\n\n_From Google's notes: the people they name. Everyone invited is in the meeting's Details._" \
+        if meeting.get("attendees_from") == "notes" else ""
     return f"## {head}\n\n" + ", ".join(names) + note
 
 
@@ -1056,6 +1096,9 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
         series_from = "auto"
     attendees = person_rows(m.attendees, people)
     invited = person_rows(m.invited, people, limit=200)
+    attendees_from = m.attendees_from
+    if attendees_from in ("invited", "none", "notes"):
+        attendees, attendees_from = with_notes_people(attendees, invited, attendees_from, m.notes, people)
     sources = []
     for s in group:
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
@@ -1072,7 +1115,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
         "created_by": user.id, "imported_by": user.id, "organizer": organizer, "auto_restricted": small,
         "created_at": now, "updated_at": now, "title": name, "date": d, "time": m.time,
         "duration_s": m.duration_s, "type": type_ or guess_type(name), "attendees": attendees,
-        "invited": invited, "attendees_from": m.attendees_from, "attendees_v": ATTENDEES_V,
+        "invited": invited, "attendees_from": attendees_from, "attendees_v": ATTENDEES_V,
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
@@ -1684,6 +1727,7 @@ def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, peop
     invited = person_rows(mapped(inv), people, limit=200)
     if how == "speakers" and not out:
         how = "invited" if invited else "none"
+    out, how = with_notes_people(out, invited, how, view.get("notes"), people)
     return out, invited, how
 
 

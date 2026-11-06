@@ -31,6 +31,7 @@ WITH_TAB = "gemini_task_steps_with_transcript.txt"
 FAKE = ["Gautam Khurana Review Video", "Palak Jain Fix Email Bug", "Shreesha Joshi Security Testing",
         "Himanshu Kukreja Update Prompts", "S Guruprasad Test Use Cases", "Bo Chen Trim Intro"]
 OWNERS = ["Gautam Khurana", "Palak Jain", "Shreesha Joshi", "Himanshu Kukreja", "S Guruprasad", "Bo Chen"]
+NAMED = ["Bo Chen", "Gautam Khurana", "Palak Jain", "Shreesha Joshi", "S Guruprasad", "Himanshu Kukreja"]
 REAL = ["Ada Lovelace", "Gautam Khurana", "Bo Chen", "Palak Jain", "Shreesha Joshi", "S Guruprasad"]
 TURNS = """
 📖 Transcript
@@ -68,7 +69,8 @@ class Parser(unittest.TestCase):
         known = [a["name"] for a in s.invited]
         self.assertEqual([mp.owner_of_step(x, known) for x in steps], OWNERS)
         m = mp.merge(mp.pair([s])[0])
-        self.assertEqual((m.attendees, m.attendees_from, len(m.invited)), ([], "invited", 8))
+        # No transcript: the invited people the notes name joined (owner, 2026-11-06); Ada and Priya stay invited.
+        self.assertEqual(([a["name"] for a in m.attendees], m.attendees_from, len(m.invited)), (NAMED, "notes", 8))
 
     def test_a_notes_and_a_transcript_tab_speakers_are_the_real_ones(self):
         s = mp.parse_source(NAME, fixture(WITH_TAB))
@@ -135,6 +137,60 @@ class Parser(unittest.TestCase):
         self.assertEqual(s.speakers, ["Ada Lovelace", "Bo Chen"])
 
 
+SYNCUP_INVITE = fixture("syncup_gemini_notes.txt").split("\n")[2]     # "Invited <27 chips>"
+TWELVE = ["Ada Lovelace", "Bo Chen", "Priya Sharma", "Rahul bhai", "Saurabh Kr. Singh", "Mohd. Arif", "Neha Verma",
+          "Ankit Jha", "Karan Mehta", "Ishaan Gupta", "Shreya Iyer", "Zoya Ali"]
+
+
+def syncup_notes(summary: str, details: list[str], steps: list[str]) -> str:
+    return "\n".join(["Nov 6, 2026", "# Daily Syncup", SYNCUP_INVITE, "", "## Summary", summary, "", "## Details",
+                      *[f"- {d}" for d in details], "", "## Suggested next steps", *[f"- [ ] {x}" for x in steps]])
+
+
+class NotesAttendees(unittest.TestCase):
+    """Owner, 2026-11-06: a sync-up with only Gemini's notes lists (and @mentions) the people the notes
+    name as attendees ("notes"); the rest of the invite stays invited."""
+
+    def test_27_invited_12_named_12_attendees(self):
+        text = syncup_notes(
+            "Ada Lovelace ran the sync. Saurabh Kr. Singh said infra is quiet; Zoya confirmed the hiring plan.",
+            ["Client demo: Rahul bhai has the deck ready, pricing pending (00:01:10).",
+             "Migration: Mohd. Arif and Neha Verma reviewed the dry run with Ankit (00:03:00).",
+             "Staging import: Ishaan will pair with Bo Chen after the call (00:05:00)."],
+            ["Priya Sharma Run Migration: Priya Sharma will run the migration dry run tomorrow.",
+             "Karan Mehta Update Docs: Karan Mehta will update the onboarding docs.",
+             "Shreya Iyer Check Alerts: Shreya will check the alerts by Friday."])
+        s = mp.parse_source("Daily Syncup - Notes by Gemini", text)
+        self.assertEqual(len(s.invited), 27)
+        m = mp.merge(mp.pair([s])[0])
+        self.assertEqual(m.attendees_from, "notes")
+        self.assertEqual(sorted(a["name"] for a in m.attendees), sorted(TWELVE))
+        self.assertEqual(len(m.invited), 27)        # the whole invite is kept
+        self.assertEqual({a["name"]: a["email"] for a in m.attendees}["Zoya Ali"], "zoya.ali@senseloaf.test")
+
+    def test_a_first_name_two_invitees_share_is_nobody(self):
+        notes = {"summary": "Gautam said the demo is ready. Palak will fix the email bug, and Will said nothing.",
+                 "details": [], "next_steps": []}
+        invited = [{"name": "Gautam Khurana", "email": "g1@x.test"}, {"name": "Gautam Rao", "email": "g2@x.test"},
+                   {"name": "Palak Jain", "email": "p@x.test"}, {"name": "Will Smith", "email": "w@x.test"},
+                   {"name": "Ravi Kumar", "email": "r@x.test"}]
+        self.assertEqual([p["name"] for p in mp.named_in_notes(notes, invited)], ["Palak Jain", "Will Smith"])
+        notes["summary"] = "Gautam Rao said the demo is ready. Palak will fix the email bug; it will ship."
+        self.assertEqual([p["name"] for p in mp.named_in_notes(notes, invited)], ["Gautam Rao", "Palak Jain"])
+
+    def test_a_name_not_invited_counts_only_for_a_member(self):
+        notes = {"summary": "Palak Jain and Zed Nobody met Ravi Kumar about the release.", "details": [],
+                 "next_steps": ["Zed Nobody Book Party: Zed Nobody will book the launch party."]}
+        invited = [{"name": "Palak Jain", "email": "p@x.test"}, {"name": "Gautam Khurana", "email": "g@x.test"}]
+        people = meetings.People([{"id": "u1", "name": "Ravi Kumar", "email": "ravi@acme.test"},
+                                  {"id": "u2", "name": "Gautam Khurana", "email": "g@x.test"}])
+        got = meetings.notes_attendees(notes, invited, people)
+        self.assertEqual([(a["name"], a["user_id"]) for a in got], [("Palak Jain", None), ("Ravi Kumar", "u1")])
+        # Nothing named: nobody, the invite stays "invited".
+        self.assertEqual(meetings.with_notes_people([], invited, "invited", {"summary": "We met."}, people),
+                         ([], "invited"))
+
+
 class Repair(MeetingsWorld):
     async def old_meeting(self, text: str, *, v2: bool = True, edited: bool = False,
                           restricted: bool = False) -> tuple[dict, ObjectId, dict]:
@@ -188,18 +244,21 @@ class Repair(MeetingsWorld):
         self.assertEqual((dry["would_change"], dry["segments"], dry["transcript"]), (1, {"dropped": 1}, {"trashed": 1}))
         ex = dry["examples"][0]
         self.assertIn("Gautam Khurana Review Video", ex["before"])
-        self.assertEqual(ex["after"], [])
+        self.assertEqual(ex["after"], NAMED)
         await self.tick()
         row = await self.db["meetings"].find_one({"_id": oid})
-        self.assertEqual((row["segments"], row["attendees"], row["attendees_from"], len(row["invited"])),
-                         ([], [], "invited", 8))
-        self.assertEqual((row["attendees_v"], row.get("transcript_doc_id"), row["sources"][0]["kind"]), (3, None, "notes"))
+        self.assertEqual((row["segments"], [a["name"] for a in row["attendees"]], row["attendees_from"], len(row["invited"])),
+                         ([], NAMED, "notes", 8))
+        self.assertEqual({a["name"]: a["email"] for a in row["attendees"]}["Gautam Khurana"], "gautam@senseloaf.test")
+        self.assertEqual((row["attendees_v"], row.get("transcript_doc_id"), row["sources"][0]["kind"]),
+                         (meetings.ATTENDEES_V, None, "notes"))
         self.assertEqual((row["restricted"], row["granted"]), (True, ["kept@x.test"]))     # never touched
         self.assertIsNone(await self.db["documents"].find_one({"_id": old["transcript_doc_id"]}))   # in the Trash
         page = await self.doc(m["slug"])
         for f in FAKE:
             self.assertNotIn(f"**{f}**", page["content"])
-        self.assertIn("## Invited", page["content"])
+        self.assertIn(f'## Attendees\n\n:person[Bo Chen]{{id="{self.uid["wm"]}"}}, Gautam Khurana, ', page["content"])
+        self.assertIn("_From Google's notes", page["content"])
         self.assertNotIn(old["transcript_slug"], page["content"])
         self.assertEqual(len(row["notes"]["next_steps"]), 6)      # the next steps stay next steps
         # Idempotent.
@@ -214,8 +273,8 @@ class Repair(MeetingsWorld):
         m, oid, _old = await self.old_meeting(fixture(NOTES), v2=False)
         await self.tick()
         row = await self.db["meetings"].find_one({"_id": oid})
-        self.assertEqual((row["segments"], row["attendees"], row["attendees_from"], len(row["invited"])),
-                         ([], [], "invited", 8))
+        self.assertEqual((row["segments"], [a["name"] for a in row["attendees"]], row["attendees_from"], len(row["invited"])),
+                         ([], NAMED, "notes", 8))
         self.assertFalse(any(a["name"] in FAKE for a in row["invited"]))      # the old list went to the invite
 
     async def test_f_notes_and_transcript_in_one_tab_keep_the_real_turns(self):

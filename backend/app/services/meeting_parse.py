@@ -985,6 +985,47 @@ def resolve_speaker(name: str | None, known: list[str] | tuple = (), text: str |
     return n if name_like(n) else None
 
 
+def notes_text(notes: dict | None) -> str:
+    """Everything Gemini's notes say (summary, details, next steps, and decisions when kept) as one text."""
+    n = notes or {}
+    parts = [n.get("summary") or "", *(n.get("details") or []), *(n.get("next_steps") or []),
+             *[d if isinstance(d, str) else (d or {}).get("text") or "" for d in n.get("decisions") or []]]
+    return "\n".join(str(p) for p in parts if p)
+
+
+def named_in_notes(notes: dict | None, people: list[dict], *, first_names: bool = True) -> list[dict]:
+    """Those of ``people`` (the invite) that Gemini's notes name, in order: a next step's owner, the full
+    name anywhere (any case), or, with ``first_names``, a first name only one of them has (written with
+    its capital: "Gautam said …", never "will"). Owner 2026-11-06: a sync-up with only Gemini's notes
+    lists the people they name as its attendees ("notes"); the rest of the invite stays invited."""
+    text = notes_text(notes)
+    if not text or not people:
+        return []
+    low = re.sub(r"\s+", " ", text).casefold()
+    words = set(re.findall(r"[\w'-]+", text))
+    names = [clean_name(p.get("name")) for p in people]
+    firsts: dict[str, int] = {}
+    for n in names:
+        if n:
+            f = n.split()[0].strip(".").casefold()
+            firsts[f] = firsts.get(f, 0) + 1
+    owners = {(owner_of_step(s, names) or "").casefold() for s in (notes or {}).get("next_steps") or []}
+    out: list[dict] = []
+    for p, n in zip(people, names):
+        if not n:
+            continue
+        hit = n.casefold() in owners
+        if not hit and len(n.split()) >= 2:
+            hit = re.search(r"(?<![\w])" + re.escape(n.casefold()) + r"(?![\w])", low) is not None
+        if not hit and first_names:
+            f = n.split()[0].strip(".")
+            hit = len(f) >= 3 and firsts.get(f.casefold()) == 1 and f[:1].isupper() and f in words \
+                and f.casefold() not in _STOP and f.casefold() not in _NOT_NAMES
+        if hit:
+            out.append(p)
+    return out
+
+
 def _covers(a: str, b: str) -> bool:
     """One name is the other, or the start of it ("Gautam" / "Gautam Kumar")."""
     x, y = clean_name(a).casefold().split(), clean_name(b).casefold().split()
@@ -1347,7 +1388,7 @@ class Merged:
     approx_times: bool
     truncated: bool
     invited: list[dict] = field(default_factory=list)
-    attendees_from: str = "none"       # attendees | speakers | invited | none
+    attendees_from: str = "none"       # attendees | speakers | notes | invited | none
 
 
 def merge(group: list[Source]) -> Merged:
@@ -1367,8 +1408,9 @@ def merge(group: list[Source]) -> Merged:
 
 def people_of_group(group: list[Source]) -> tuple[list[dict], list[dict], str]:
     """(attendees, invited, attendees_from) of one meeting's sources: every "Attendees" list and the
-    speakers they don't name ("attendees"); else the speakers ("speakers"); else nobody, with the
-    invite list as the only names ("invited"), or none at all ("none")."""
+    speakers they don't name ("attendees"); else the speakers ("speakers"); else the invited people
+    Gemini's notes name ("notes", :func:`named_in_notes`); else nobody, with the invite list as the only
+    names ("invited"), or none at all ("none")."""
     invited = dedupe_people([a for s in group for a in s.invited])
     listed = dedupe_people([a for s in group for a in s.listed])
     speakers: list[str] = []
@@ -1378,6 +1420,11 @@ def people_of_group(group: list[Source]) -> tuple[list[dict], list[dict], str]:
                 speakers.append(sp)
     att = _with_speakers(listed, speakers, invited)
     how = "attendees" if listed else "speakers" if att else "invited" if invited else "none"
+    if how == "invited":
+        # Gemini's notes only (owner 2026-11-06): the people they name joined; the rest stays invited.
+        notes = next((s.notes for s in group if s.notes), None)
+        att = named_in_notes(notes, invited)
+        how = "notes" if att else how
     return att, invited, how
 
 
