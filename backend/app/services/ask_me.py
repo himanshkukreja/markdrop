@@ -414,9 +414,10 @@ async def personal_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: 
             continue
         score = 3.0 if topical else 0.0
         # Someone the question names was in it ("what did I promise Kabir?").
-        people = {compact(a.get("name")) for a in r.get("attendees") or []} | {
-            compact(s_.get("speaker")) for s_ in r.get("segments") or []}
-        if any(len(t) >= 3 and any(t in p_ for p_ in people if p_) for t in terms):
+        people: set[str] = set()
+        for name in [*(a.get("name") for a in r.get("attendees") or []), *(s_.get("speaker") for s_ in r.get("segments") or [])]:
+            people.update(pnorm(name).split())
+        if any(len(t) >= 3 and t in people for t in terms):
             score += 2.0
         picked.append((score, i, r, topical, mine))
     # Score their meetings: named ones first; then (loaded below) their lines matching the question.
