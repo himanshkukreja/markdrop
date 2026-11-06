@@ -171,7 +171,94 @@ def _plausible_name(name: str) -> bool:
 def clean_speaker(name: str) -> str:
     n = re.sub(r"\s+", " ", name.strip().strip("*_>-").strip())
     n = re.sub(r"\s*\((?:guest|host|external|presenter)\)$", "", n, flags=re.I)
+    if re.search(r"[\[\]\\\"“”‘’`]|^['(<{]|mailto:", n):
+        n = clean_name(n)
     return n[:60]
+
+
+# ── People's names (attendees, organizer) ─────────────────────────────────────
+# Google Docs people chips come through as "Name <email>" (the Google Meet script), as markdown links
+# ("[Ishaan Gupta](mailto:ishaan@…)", a Docs markdown export or a copy-paste), or bracketed /
+# quoted / escaped. Every name a meeting shows is cleaned here, and the address kept for matching
+# members (owner, 2026-11-06: the meeting bar showed "[I [G [S").
+_EMAIL = r"[\w.+'-]+@[\w-]+(?:\.[\w-]+)+"
+_MD_LINK = re.compile(r"\[([^\[\]]*)\]\(\s*(?:mailto:)?([^)\s]*)\s*\)", re.I)
+_ANGLE = re.compile(r"([^,;<>\[\]]*?)\s*[<(]\s*(?:mailto:)?(" + _EMAIL + r")\s*[>)]", re.I)
+_EDGE = " \t*_`~'\"“”‘’«»[](){}<>\\|,;:.!?-–—•·"
+
+
+def clean_name(raw: str | None) -> str:
+    """A person's name without markdown or list noise: "[Ishaan Gupta](mailto:x@y)" → "Ishaan Gupta",
+    "**Bo Chen**," → "Bo Chen", "\\[Priya\\]" → "Priya", "'Ravi Kumar'" → "Ravi Kumar". "" when nothing
+    readable is left (an address alone stays an address: :func:`person_of` names it)."""
+    n = (raw or "").replace("\u00a0", " ").replace("\u200b", "").replace("\ufeff", "")
+    n = _MD_LINK.sub(lambda m: m.group(1) or m.group(2), n)
+    n = re.sub(r"\bmailto:", "", n, flags=re.I)
+    n = re.sub(r"\\(.)", r"\1", n)                  # markdown escapes: \[ \_ \*
+    n = re.sub(r"[*_`~]{2,}|(?<!\w)[*_`~]|[*_`~](?!\w)", "", n)
+    n = re.sub(r"\[|\]|[<>{}]", " ", n)
+    n = re.sub(r"\(\s*\)", " ", n)
+    n = re.sub(r"\s+", " ", n).strip(_EDGE).strip()
+    # A lone bracket left over from a cut link: "(Ishaan Gupta" → "Ishaan Gupta".
+    if n.count("(") != n.count(")"):
+        n = n.replace("(", " ").replace(")", " ")
+        n = re.sub(r"\s+", " ", n).strip(_EDGE).strip()
+    return n[:60] if any(ch.isalnum() for ch in n) else ""
+
+
+def person_of(raw: str | None) -> dict | None:
+    """One person as written ("Name <email>", "[Name](mailto:email)", "email", "Name") →
+    {name, email} with a clean name (the address's local part when no name), or None."""
+    text = (raw or "").strip()
+    email = None
+    m = _MD_LINK.search(text)
+    if m and re.fullmatch(_EMAIL, m.group(2) or ""):
+        email = m.group(2)
+    if email is None:
+        em = re.search(_EMAIL, text)
+        email = em.group(0) if em else None
+    if email:
+        text = text.replace(email, " ")
+        email = email.strip(".'").lower()
+    name = clean_name(text)
+    if not name and email:
+        name = email.split("@")[0]
+    return {"name": name, "email": email} if name else None
+
+
+def people_in(text: str) -> list[dict]:
+    """The people on an "Attendees" / "Invited" line: comma or "and" separated, or people chips one
+    after another with no separator ("[A B](mailto:a@x) [C D](mailto:c@x)", "A B <a@x> C D <c@x>")."""
+    items: list[dict | None] = []
+
+    def hold(raw: str) -> str:
+        items.append(person_of(raw))
+        return f",\x00{len(items) - 1}\x00,"
+
+    rest = _MD_LINK.sub(lambda m: hold(m.group(0)), text or "")
+    rest = _ANGLE.sub(lambda m: hold(m.group(0)), rest)
+    out: list[dict] = []
+    for part in re.split(r"[,;]|\s+and\s+|\s+&\s+", rest):
+        held = re.fullmatch(r"\s*\x00(\d+)\x00\s*", part)
+        p = items[int(held.group(1))] if held else person_of(part) if part.strip() else None
+        if p:
+            out.append(p)
+    return dedupe_people(out)
+
+
+def dedupe_people(people: list[dict]) -> list[dict]:
+    """Once each: the same address, or the same name (case-insensitive); an address joins the
+    entry that had none."""
+    out: list[dict] = []
+    for p in people:
+        name, email = p.get("name") or "", (p.get("email") or "").lower() or None
+        hit = next((x for x in out if (email and x.get("email") == email)
+                    or (name and x["name"].casefold() == name.casefold())), None)
+        if hit is None:
+            out.append({**p, "name": name, "email": email})
+        elif email and not hit.get("email"):
+            hit["email"] = email
+    return out
 
 
 def _cut(text: str) -> list[str]:
@@ -688,10 +775,11 @@ def organizer_in(text: str) -> dict | None:
         m = _ORGANIZER.match(line)
         if not m or (i not in drop and _turn(line)):
             continue
-        part = re.split(r"[,;]|\s+and\s+", m.group(1).strip())[0].strip()
-        em = re.search(r"<?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)>?", part)
-        email = em.group(1).lower() if em else None
-        name = clean_speaker(re.sub(r"<?[\w.+-]+@[\w-]+(?:\.[\w-]+)+>?", "", part)) or None
+        first = (people_in(m.group(1).strip()) or [{}])[0]
+        email = first.get("email")
+        name = first.get("name") or None
+        if name and email and name == email.split("@")[0]:
+            name = None
         if name and not _plausible_name(name):
             name = None
         if name or email:
@@ -710,15 +798,9 @@ def _attendees_from(lines: list[str]) -> list[dict]:
         rest = m.group(2).strip()
         if not rest and i + 1 < len(lines):
             rest = _clean_line(lines[i + 1]).strip()
-        for part in re.split(r"[,;]|\s+and\s+", rest):
-            part = part.strip()
-            if not part:
-                continue
-            em = re.search(r"<?([\w.+-]+@[\w-]+(?:\.[\w-]+)+)>?", part)
-            email = em.group(1).lower() if em else None
-            name = clean_speaker(re.sub(r"<?[\w.+-]+@[\w-]+(?:\.[\w-]+)+>?", "", part)) or (email.split("@")[0] if email else "")
-            if name and _plausible_name(name) and not any(a["name"] == name for a in out):
-                out.append({"name": name, "email": email})
+        for p in people_in(rest):
+            if _plausible_name(p["name"]) and not any(a["name"] == p["name"] for a in out):
+                out.append(p)
         if out:
             break
     return out[:100]
@@ -843,9 +925,10 @@ def parse_source(name: str, text: str) -> Source:
     src.organizer = organizer_in(text)
     att = _attendees_from(all_lines)
     for sp in src.speakers:
-        if not any(a["name"].casefold() == sp.casefold() for a in att):
+        sp = clean_name(sp)
+        if sp and not any(a["name"].casefold() == sp.casefold() for a in att):
             att.append({"name": sp, "email": None})
-    src.attendees = att[:100]
+    src.attendees = dedupe_people(att)[:100]
     return src
 
 
@@ -901,14 +984,7 @@ def merge(group: list[Source]) -> Merged:
     d = next((s.date for s in group if s.date), None)
     tm = next((s.time for s in group if s.time), None)
     dur = next((s.duration_s for s in group if s.duration_s), None)
-    att: list[dict] = []
-    for s in group:
-        for a in s.attendees:
-            hit = next((x for x in att if x["name"].casefold() == a["name"].casefold()), None)
-            if hit is None:
-                att.append(dict(a))
-            elif a.get("email") and not hit.get("email"):
-                hit["email"] = a["email"]
+    att = dedupe_people([a for s in group for a in s.attendees])
     return Merged(title=title, date=d, time=tm, duration_s=dur, attendees=att[:100],
                   segments=tr.segments if tr else [], notes=nt.notes if nt else None,
                   kinds=[s.kind for s in group], approx_times=bool(tr and tr.approx_times),

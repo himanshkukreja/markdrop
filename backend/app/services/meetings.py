@@ -910,7 +910,7 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
         "restricted": False, "granted": [], "sources": sources, "segments": m.segments, "notes": m.notes,
         "approx_times": m.approx_times, "truncated": m.truncated,
         "ai": {"state": "pending"}, "action_items": len((m.notes or {}).get("next_steps") or []), "via": via,
-        "series": sname, "series_from": series_from, "series_key": skey, "v2": True,
+        "series": sname, "series_from": series_from, "series_key": skey, "v2": True, "names_v": NAMES_V,
     }
     if history:
         row["history"] = True
@@ -1277,6 +1277,114 @@ async def repair_organizers(db: AsyncIOMotorDatabase, *, apply: bool = False, wo
         except Exception:
             log.warning("meetings: organizer repair failed for %s", row.get("_id"), exc_info=True)
             out["errors"] += 1
+    return out
+
+
+def clean_people(row: dict, people: People) -> tuple[list[dict], dict | None]:
+    """A meeting's attendees and organizer with clean names (meeting_parse.person_of: markdown links,
+    brackets, quotes, "Name <email>"), garbage dropped, each person once, and a member matched by the
+    address a name carried ("[Ishaan Gupta](mailto:ishaan@…)") when it had none. A user_id already
+    set is kept (who it is was decided at import, and so was the restriction)."""
+    out: list[dict] = []
+    for a in row.get("attendees") or []:
+        p = mp.person_of(a.get("name"))
+        if p is None:
+            continue
+        uid = a.get("user_id")
+        if not uid:
+            mem = people.match(p["name"], p["email"])
+            uid = mem["id"] if mem else None
+        if uid and any(x.get("user_id") == uid for x in out):
+            continue
+        if any(x["name"].casefold() == p["name"].casefold() and (not uid or not x.get("user_id")) for x in out):
+            continue
+        out.append({**a, "name": p["name"], "user_id": uid})
+    org = row.get("organizer")
+    if org and org.get("name"):
+        p = mp.person_of(org["name"])
+        if p is not None and p["name"] != org["name"]:
+            org = {**org, "name": p["name"], "email": org.get("email") or p["email"]}
+            if not org.get("user_id"):
+                mem = people.match(p["name"], org["email"])
+                org["user_id"] = mem["id"] if mem else None
+    return out, org
+
+
+NAMES_V = 1   # rows with names_v >= this have clean attendee names (new rows are made clean)
+
+
+async def repair_names(db: AsyncIOMotorDatabase, row: dict, people: People, *, apply: bool = True) -> bool:
+    """One meeting's names cleaned (:func:`clean_people`); the page's Attendees property too when
+    it still reads what Markdrop wrote (a value someone typed stays). True when anything changed.
+    Idempotent; never touches the restriction or its grants."""
+    from app.services import page_db, user as user_service
+
+    attendees, org = clean_people(row, people)
+    changed = attendees != (row.get("attendees") or []) or org != row.get("organizer")
+    if not apply:
+        return changed
+    sets: dict[str, Any] = {"names_v": NAMES_V}
+    if changed:
+        sets.update(attendees=attendees, organizer=org)
+    await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+    if not changed:
+        return False
+    page = await page_of(db, row)
+    if page is None:
+        return True
+    old = ", ".join(a.get("name") or "" for a in row.get("attendees") or [])[:page_db.TEXT_MAX]
+    new = ", ".join(a["name"] for a in attendees)[:page_db.TEXT_MAX]
+    content = page.get("content") or ""
+    if old != new and page_db.read_values(content).get("attendees") == old:
+        user = await user_service.get_user_by_id(db, row.get("created_by"))
+        if user is not None:
+            unedited = int(page.get("rev") or 1) == int(row.get("base_rev") or 0)
+            after = await _save(db, page, page_db.write_values(content, {"attendees": new or None}),
+                                access.Actor.of(user), access.Ctx(db))
+            if after is not None and unedited:
+                await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
+    return True
+
+
+async def names_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
+    """Meetings imported before names were cleaned (2026-11-06), a batch at a time from the
+    background loop; idempotent (``names_v``). Returns how many it looked at."""
+    if _NAMES["done"]:
+        return 0
+    n = 0
+    cache: dict[str, People] = {}
+    async for row in db[COLL].find({"names_v": {"$not": {"$gte": NAMES_V}}}, {"segments": 0, "notes": 0}).limit(batch):
+        ws = row["workspace_id"]
+        try:
+            cache[ws] = cache.get(ws) or await people_of(db, ws)
+            await repair_names(db, row, cache[ws])
+        except Exception:
+            log.warning("meetings: names not cleaned on %s", row.get("_id"), exc_info=True)
+            await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"names_v": NAMES_V}})
+        n += 1
+    if n == 0:
+        _NAMES["done"] = True
+    return n
+
+
+_NAMES = {"done": False}
+
+
+async def count_dirty_names(db: AsyncIOMotorDatabase, *, workspace_id: str | None = None) -> dict:
+    """Dry run for scripts/fix_meeting_attendees.py: how many meetings :func:`names_tick` would change."""
+    q: dict[str, Any] = {"names_v": {"$not": {"$gte": NAMES_V}}}
+    if workspace_id:
+        q["workspace_id"] = workspace_id
+    out = {"pending": 0, "would_change": 0, "examples": []}
+    cache: dict[str, People] = {}
+    async for row in db[COLL].find(q, {"segments": 0, "notes": 0}):
+        out["pending"] += 1
+        ws = row["workspace_id"]
+        cache[ws] = cache.get(ws) or await people_of(db, ws)
+        if await repair_names(db, row, cache[ws], apply=False):
+            out["would_change"] += 1
+            if len(out["examples"]) < 5:
+                out["examples"].append([a.get("name") for a in (row.get("attendees") or [])[:3]])
     return out
 
 
