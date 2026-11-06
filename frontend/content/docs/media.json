@@ -2355,6 +2355,18 @@
     "bytes": 47044,
     "kind": "image"
   },
+  "/docs-assets/integrations/slack/illustration-team-weekly.dark.webp": {
+    "w": 1280,
+    "h": 944,
+    "bytes": 74302,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-team-weekly.webp": {
+    "w": 1280,
+    "h": 944,
+    "bytes": 76620,
+    "kind": "image"
+  },
   "/docs-assets/integrations/slack/illustration-unfurl.dark.webp": {
     "w": 1280,
     "h": 656,
@@ -3243,6 +3255,26 @@
     "bytes": 66228,
     "kind": "poster"
   },
+  "/docs-assets/workspaces/ask-markdrop/suggestion.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 9.97,
+    "bytes": 148854,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/ask-markdrop/suggestion.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 9.97,
+    "bytes": 169780,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/ask-markdrop/suggestion.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 34176,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/branding/branding-form.dark.webp": {
     "w": 1712,
     "h": 1350,
@@ -3423,6 +3455,38 @@
     "bytes": 31618,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings-auto-import/check-now-setup.dark.webp": {
+    "w": 1280,
+    "h": 1016,
+    "bytes": 81440,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/check-now-setup.webp": {
+    "w": 1280,
+    "h": 1016,
+    "bytes": 85742,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/check-now.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 8.43,
+    "bytes": 165132,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/check-now.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 8.43,
+    "bytes": 156268,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/meetings-auto-import/check-now.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 58358,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/meetings-auto-import/connect-dialog.dark.webp": {
     "w": 1280,
     "h": 1192,
@@ -3468,15 +3532,27 @@
     "kind": "poster"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.dark.webp": {
-    "w": 1984,
-    "h": 1254,
-    "bytes": 101500,
+    "w": 1952,
+    "h": 514,
+    "bytes": 38536,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-auto-import/connected.webp": {
-    "w": 1984,
-    "h": 1254,
-    "bytes": 104224,
+    "w": 1952,
+    "h": 514,
+    "bytes": 38338,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/attendees.dark.webp": {
+    "w": 1490,
+    "h": 204,
+    "bytes": 9202,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings-import/attendees.webp": {
+    "w": 1490,
+    "h": 204,
+    "bytes": 9974,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings-import/import-link.dark.webp": {
@@ -3527,16 +3603,28 @@
     "bytes": 113098,
     "kind": "image"
   },
+  "/docs-assets/workspaces/meetings/hub-phone.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 67758,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/meetings/hub-phone.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 69256,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/meetings/meeting-details.dark.webp": {
-    "w": 2880,
-    "h": 1800,
-    "bytes": 131476,
+    "w": 840,
+    "h": 1520,
+    "bytes": 53876,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/meeting-details.webp": {
-    "w": 2880,
-    "h": 1800,
-    "bytes": 140130,
+    "w": 840,
+    "h": 1520,
+    "bytes": 61858,
     "kind": "image"
   },
   "/docs-assets/workspaces/meetings/organize.dark.webp": {
@@ -3655,40 +3743,140 @@
     "bytes": 4582,
     "kind": "image"
   },
+  "/docs-assets/workspaces/team/board-phone.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 48352,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/board-phone.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 50178,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/team/board.dark.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1800,
-    "bytes": 107960,
+    "bytes": 141692,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/board.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1800,
-    "bytes": 111194,
+    "bytes": 146590,
     "kind": "image"
   },
+  "/docs-assets/workspaces/team/filters.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.77,
+    "bytes": 662536,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/team/filters.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 10.77,
+    "bytes": 372334,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/team/filters.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 57052,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/team/glance.dark.webp": {
-    "w": 1664,
-    "h": 834,
-    "bytes": 41184,
+    "w": 2256,
+    "h": 888,
+    "bytes": 45502,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/glance.webp": {
-    "w": 1664,
-    "h": 834,
-    "bytes": 42634,
+    "w": 2256,
+    "h": 888,
+    "bytes": 47094,
     "kind": "image"
   },
+  "/docs-assets/workspaces/team/groups.dark.webp": {
+    "w": 896,
+    "h": 768,
+    "bytes": 24582,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/groups.webp": {
+    "w": 896,
+    "h": 768,
+    "bytes": 26136,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/line-menu.dark.webp": {
+    "w": 1358,
+    "h": 568,
+    "bytes": 29066,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/line-menu.webp": {
+    "w": 1358,
+    "h": 568,
+    "bytes": 30154,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/mark-done.mp4": {
+    "w": 1440,
+    "h": 900,
+    "duration": 8.17,
+    "bytes": 109952,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/team/mark-done.webm": {
+    "w": 1440,
+    "h": 900,
+    "duration": 8.17,
+    "bytes": 166667,
+    "kind": "clip"
+  },
+  "/docs-assets/workspaces/team/mark-done.webp": {
+    "w": 1440,
+    "h": 900,
+    "bytes": 54478,
+    "kind": "poster"
+  },
   "/docs-assets/workspaces/team/person.dark.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1720,
-    "bytes": 86128,
+    "bytes": 96226,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/person.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1720,
-    "bytes": 86348,
+    "bytes": 97118,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/status.dark.webp": {
+    "w": 720,
+    "h": 906,
+    "bytes": 24970,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/status.webp": {
+    "w": 720,
+    "h": 906,
+    "bytes": 26774,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/this-week.dark.webp": {
+    "w": 2304,
+    "h": 920,
+    "bytes": 70462,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/this-week.webp": {
+    "w": 2304,
+    "h": 920,
+    "bytes": 74364,
     "kind": "image"
   }
 }

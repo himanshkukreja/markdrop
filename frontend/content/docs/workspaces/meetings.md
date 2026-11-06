@@ -14,6 +14,8 @@ Meetings turns a call into a page in your workspace. Bring in Google Meet's tran
 
 It keeps the transcript, and it answers questions about one meeting or all of them. Every answer links to the moment something was said.
 
+To see how meetings feed Team, Ask and Slack, read [Meetings and Team: how it fits together](/workspaces/meetings-and-team).
+
 ## Find your meetings
 
 - **Your [home](/get-started/tour#your-home)** shows the latest meetings across your workspaces, and today's in **Today**. Your action items from them are in **Your action items**.
@@ -89,6 +91,8 @@ The **Ask anything about your meetings** box above the list opens [Ask](/workspa
 
 Workspace admins also see a card for each meeting restricted to attendees they weren't part of, without its title, so they can delete it.
 
+![The Meetings page on a phone: Import meeting and the ⋯ menu (Check for new meetings is in it), Google Meet connected with how the script's last run went, the Ask box, search, sort, series chips, and the newest meeting marked Auto.](/docs-assets/workspaces/meetings/hub-phone.webp)
+
 ![The Meetings page: search, sort and the series to filter by above the meetings, listed by month with their cover and date, summary, people and counts.](/docs-assets/workspaces/meetings-import/organised.webp)
 
 ## What the meeting page holds
@@ -112,11 +116,11 @@ Markdrop never notifies anyone about the @mentions it writes into a meeting: no 
 
 The page is an ordinary page. Edit it like any other: fix a name, add notes, tick off action items. Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken.
 
-![A meeting page with its Meeting details panel open: Ask this meeting, the date, type, series, transcript, action items, organizer and who imported it, who was there, the sources, the Only the people who were there switch, the AI summary, and All meetings, Post to Slack and Delete meeting.](/docs-assets/workspaces/meetings/meeting-details.webp)
+![The Meeting details panel: Ask this meeting, the date, type, series, transcript, action items, organizer, who imported it, Invited (7, on the calendar invite, joined or not), who was there (4), the sources, the Only the people who were there switch and the AI summary.](/docs-assets/workspaces/meetings/meeting-details.webp)
 
 ## Action items in Slack
 
-When your workspace has [Slack connected](/integrations/slack), each attendee with an action item gets a direct message from Markdrop about a minute after the summary is ready: "Your action items from *the meeting*", with only their own items and their due dates. That includes people who aren't in your Markdrop workspace: they get the item text and who to ask for the notes, nothing else. Members get **Open the notes**, and a **Done** button on each item when they can edit the page. Anyone can select **Stop these**; an admin can turn it off for the workspace. See [Your action items after each meeting](/integrations/slack#your-action-items-after-each-meeting).
+When your workspace has [Slack connected](/integrations/slack), everyone in the meeting with an action item (attendees, people on the invite and the organizer) gets a direct message from Markdrop about a minute after the summary is ready: "Your action items from *the meeting*", with only their own items and their due dates. That includes people who aren't in your Markdrop workspace: they get the item text and who to ask for the notes, nothing else. Members get **Open the notes**, and a **Done** button on each item when they can edit the page. Anyone can select **Stop these**; an admin can turn it off for the workspace. See [Your action items after each meeting](/integrations/slack#your-action-items-after-each-meeting).
 
 ## Action items in Jira
 
@@ -124,7 +128,7 @@ When your workspace has [Jira connected](/integrations/jira), a meeting's decisi
 
 ## From an AI app
 
-With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on (`meetings_connection`), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).
+With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on and what's waiting for Gemini's notes (`meetings_connection`), check for new meetings now (`check_meetings_now`), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).
 
 ## While you write
 

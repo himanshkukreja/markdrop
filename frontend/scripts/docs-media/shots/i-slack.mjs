@@ -50,6 +50,7 @@ function blocks(list) {
       const acc = b.accessory?.type === "button" ? `<div class="acc">${button(b.accessory)}</div>` : "";
       return `<div class="sec"><div class="txt">${mrkdwn(b.text.text)}</div>${acc}</div>`;
     }
+    if (b.type === "header") return `<div class="hdr">${html(b.text.text)}</div>`;
     if (b.type === "context") return `<div class="ctx">${b.elements.map((e) => mrkdwn(e.text)).join(" ")}</div>`;
     if (b.type === "actions") return `<div class="acts">${b.elements.map(button).join("")}</div>`;
     if (b.type === "divider") return `<hr class="div">`;
@@ -92,6 +93,7 @@ code { font:12.5px ui-monospace, SFMono-Regular, Menlo, monospace; background:va
 .card { margin-top:10px; border-left:3px solid var(--line); padding:2px 0 2px 12px; }
 .text { margin-top:2px; }
 .after { border-top:1px dashed var(--line); }
+.hdr { font-weight:800; font-size:17px; margin-top:4px; }
 .div { border:0; border-top:1px solid var(--line); margin:12px 0 4px; }
 .after .lbl { padding:8px 18px 0; font-size:12px; color:var(--mute); }
 `;
@@ -214,4 +216,5 @@ export default [
   illustration("dm-mention", "dm_mention"),
   illustration("dm-access-request", "dm_access_request", { afterLabel: "After Approve, the message says who decided:" }),
   illustration("dm-action-items", "dm_action_items"),
+  illustration("team-weekly", "team_weekly"),
 ];

@@ -95,6 +95,27 @@ ai_outside = kit.dm_action_items(TEAM, "6aecc9488c77e564c2be27b2", [{
     "items": [{"block": "b-5e6f7081", "text": esc("Share the partner pricing sheet with finance"), "due": "Fri, Nov 6",
                "done": False}]}], stop_value=kit.slack.sign_value(TEAM, "stop", "U0JORDAN", ""))
 
+# Team's weekly summary in the meetings channel (services/team_extras.py slack_blocks): Monday 9 am.
+from app.services import team_extras  # noqa: E402
+from app.services import workspace_memory as _wm  # noqa: E402
+
+_src = lambda title, slug: [{"title": title, "href": f"{BASE}/{slug}"}]  # noqa: E731
+weekly_blocks, _weekly_text = team_extras.slack_blocks(_wm.WsInfo("6aecc9488c77e564c2be27c0", "Acme", True, True), {
+    "highlights": [
+        {"person": {"name": "Maya Patel"}, "text": "Shipped the onboarding checklist behind a flag",
+         "sources": _src("Weekly product sync", "weekly-product-sync-nov-4")},
+        {"person": {"name": "Alex Chen"}, "text": "Fixed the annual-plan billing bug in 2.4.1",
+         "sources": _src("Daily standup", "daily-standup-nov-5")},
+        {"person": {"name": "Sam Lee"}, "text": "Decided: the partner pricing sheet goes to finance first",
+         "sources": _src("Pricing review", "pricing-review-nov-5")}],
+    "blockers": [{"person": {"name": "Jordan Park"}, "text": "The Postgres connector needs read-only credentials",
+                  "waiting_on": "Alex Chen"}],
+    "due": [{"person": {"name": "Maya Patel"}, "text": "Update the onboarding docs", "due": "2026-11-11"},
+            {"person": {"name": "Sam Lee"}, "text": "Send the release notes to customers", "due": "2026-11-12"}],
+    "overdue": [{"person": {"name": "Alex Chen"}, "text": "Triage the crash reports", "due": "2026-11-06", "days": -3}],
+})
+weekly = {"blocks": weekly_blocks, "text": _weekly_text}
+
 out = {
     # Slack user ids in the messages → the names a reader would see.
     "users": {"U0MAYA": "Maya Patel", "U0ALEX": "Alex Chen", "U0SAM": "Sam Lee"},
@@ -107,6 +128,7 @@ out = {
                "unfurls": [unfurl, unfurl_minimal]},
     "dm_mention": {"where": "Direct message", "from": "Markdrop", "message": mention},
     "dm_access_request": {"where": "Direct message", "from": "Markdrop", "message": access_request, "after": access_done},
+    "team_weekly": {"where": "#meetings", "from": "Markdrop", "message": weekly},
     "help": {"where": "/markdrop help", "from": "Markdrop", "ephemeral": True, "message": help_msg},
     "dm_action_items": {"where": "Direct message", "from": "Markdrop", "message": ai_member, "after": ai_outside,
                         "afterLabel": "Someone who isn't in Markdrop gets only their own items:"},

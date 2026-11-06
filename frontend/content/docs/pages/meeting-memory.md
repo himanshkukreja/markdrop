@@ -85,6 +85,7 @@ The panel needs no extra AI: Markdrop records each meeting's decisions, action i
 
 ## Related
 
+- [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
 - [Meetings](/workspaces/meetings)
 - [Ask your meetings](/workspaces/meetings-ask)
 - [AI in pages](/pages/ai)

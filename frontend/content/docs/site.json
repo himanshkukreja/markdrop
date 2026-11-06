@@ -231,6 +231,7 @@
       "new": true,
       "pages": [
         "/workspaces/meetings",
+        "/workspaces/meetings-and-team",
         "/workspaces/meetings-import",
         "/workspaces/meetings-auto-import",
         "/workspaces/meetings-ask",

@@ -38,6 +38,19 @@
       "body": "- **Connect.** An admin connects the Jira site and picks the default project and issue type for new issues, and which projects show on Team (none: Team shows nothing from Jira). Everyone connects their own Atlassian account (Settings › Account › Jira); everything in Jira happens as them.\n- **Create.** **+ Jira** on a meeting's decisions, action items and open questions, **Jira issues** in the meeting bar for all open action items, **Create Jira issue** in the editor's selection toolbar and block menu, and in a Team line's menu. The AI draft (summary, description, type, priority, assignee, due date, labels) is reviewed before anything is created; the issue links back to the moment in the meeting. Restricted meetings warn that the issue's text is visible to everyone in Jira.\n- **In step.** Tick a linked to-do: the issue moves to Done, as you. Move the issue in Jira: the to-do ticks or unticks (\"via Jira\" in version history). A chip next to the item shows key, status and assignee to people whose own Jira can open the issue.\n- **Team.** Each card's open issues, overdue and blocked issues and issues per project; counts only until you connect your account.\n- **Ask and links.** Ask reads your own Jira for questions about tickets; pasted Jira links show a live chip.\n- **AI apps.** New MCP tools `jira_status`, `create_jira_issue` (with `draft`), `link_jira_issue`, `list_jira_issues` and `transition_jira_issue`.\n- See [Jira](/integrations/jira)."
     },
     {
+      "id": "team-meetings-docs-mcp",
+      "date": "2026-11-06",
+      "title": "Team for AI apps, and a guide to how Meetings and Team fit together",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "mcp"
+      ],
+      "summary": "AI apps can now set your Team status and focus, mark your action items done, hide or correct lines about you, and, for admins, manage groups and send the weekly summary. meetings_connection says what's waiting for Gemini's notes and whether Check now is on. A new docs page shows how a call becomes a meeting, Team memory, Ask answers and Slack messages.",
+      "body": "- **New MCP tools (99 now).** `set_my_status`, `set_focus_note`, `mark_team_item_done`, `hide_team_line` and `correct_team_line` change only your own status, focus and lines, as on the website; `get_person_profile` with `person: me` gives each line's id. `list_team_groups` lists groups (and, for admins, suggestions from meeting series); admins can `save_team_group`, `delete_team_group` and `send_weekly_summary_now`. See [MCP tools](/ai/tools#team).\n- **`meetings_connection`** now returns `waiting` (meetings Google hasn't filled in yet), `check_now` (on or not, and the last check) and the script's version.\n- **Docs.** New page [Meetings and Team: how it fits together](/workspaces/meetings-and-team), with a diagram and a setup checklist. [Team](/workspaces/team) covers the weekly summary's timezone setting, groups, Mark done and the new tools; [Slack](/integrations/slack#teams-weekly-summary) covers Team's Monday post; action items in Slack reach attendees, people on the invite and the organizer.\n- **New screenshots and clips.** Team's board, This week card, status, line menu and groups (light and dark, and on a phone); Check for new meetings and Turn on Check now; the meeting details with Invited; the Attendees section; clips of the board's filters, Mark done, Check for new meetings and a live suggestion on the Ask page.\n- The Google Meet script's header now says *script version 4*, matching the version it reports."
+    },
+    {
       "id": "from-meetings-phone-toolbar",
       "date": "2026-11-06",
       "title": "From meetings while you type on a phone",

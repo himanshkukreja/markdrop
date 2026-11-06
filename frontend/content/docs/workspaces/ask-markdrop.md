@@ -153,6 +153,8 @@ When the conversation is empty, Ask suggests questions for where you are.
 
 On a workspace (**Ask Acme**, on the Ask page, in the panel, and as chips under the home's Ask bar), the suggestions come from what's happening in it now. If your daily sync-ups have been about Sourcing all week, you'll see **Sourcing: What did we decide about Sourcing this week?** and **Sourcing: What's still open?**. Each has its topic above it, and **Updated 2 h ago** says when they were written. Select one and it's asked at once.
 
+::clip{src="/docs-assets/workspaces/ask-markdrop/suggestion" alt="The Ask page on Ask Acme: live suggestions, each with its topic; selecting What did we decide in Weekly product sync? asks it at once, and the answer cites its meetings."}
+
 - **What they're made from.** The last 7 days of the workspace: the topics, decisions and action items of its meetings, and the titles and headings of pages that changed. Only what **every member** of the workspace can open is used: a meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings), a private page, a password-protected or [encrypted](/sharing/end-to-end-encryption) item is never read. That's why everyone in the workspace sees the same list.
 - **When they change.** A few minutes after meetings or pages change (once things are quiet), and at least once a day. Edits that don't touch a title or heading don't change them.
 - **AI off.** In a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off, there are no team suggestions.
@@ -241,6 +243,8 @@ On a phone, the panel opens as a sheet that stays above the keyboard. The chips 
 
 ## Related
 
+- [Team](/workspaces/team): what Ask knows about who is doing what
+- [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
 - [Ask your meetings](/workspaces/meetings-ask)
 - [Meeting memory while writing](/pages/meeting-memory)
 - [AI in pages](/pages/ai)
