@@ -150,7 +150,9 @@ class Transport(McpTestCase):
             # Markdrop for Slack: the connection, and posting a meeting to its channel.
             "slack_status", "post_meeting_to_slack",
             # Team memory: who is doing what (the board, a person, a project).
-            "list_team", "get_person_profile", "get_project_status"})
+            "list_team", "get_person_profile", "get_project_status",
+        # A video's captions (search and Ask read it by minute).
+        "set_captions"})
         for t in tools.values():
             self.assertEqual(t["inputSchema"]["type"], "object")
             self.assertEqual(t["outputSchema"]["type"], "object")
