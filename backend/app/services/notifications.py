@@ -624,7 +624,7 @@ def compose_email(*, user_id: str, title: str, page_url: str, items: list[dict],
     return {"subject": subject, "html": html_out, "text": "\n".join(text)}
 
 
-async def _send(user_row: dict, mail: dict) -> None:
+async def _send(user_row: dict, mail: dict, *, kind: str = "mention", ref: str | None = None) -> None:
     from app.services import mailer
 
     off = off_url(str(user_row["_id"]))
@@ -636,7 +636,7 @@ async def _send(user_row: dict, mail: dict) -> None:
         "html": mail["html"],
         "text": mail["text"],
         "headers": {"List-Unsubscribe": f"<{off}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"},
-    })
+    }, kind=kind, ref=ref)
 
 
 async def _claim(db: AsyncIOMotorDatabase, user_id: str, doc_id: str, now: datetime) -> bool:
@@ -724,7 +724,8 @@ async def flush_emails(db: AsyncIOMotorDatabase, now: datetime | None = None) ->
         mail = compose_email(user_id=uid, title=md_outline.display_title(doc), page_url=urls.markdrop_url(doc["slug"]),
                              items=items[:MAX_PER_EMAIL], more=max(0, len(items) - MAX_PER_EMAIL))
         try:
-            await _send(user_row, mail)
+            await _send(user_row, mail, ref=doc["slug"],
+                        kind="signoff" if all(i["kind"] == "signoff_requested" for i in items) else "mention")
             await _mark(db, uids, "sent", now)
             bump("sent")
         except Exception:

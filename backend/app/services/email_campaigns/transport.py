@@ -1,11 +1,16 @@
 """How campaign mail leaves the building.
 
-``resend``   Resend's batch API: up to 100 messages per request, each rendered
-             for its own recipient. ``Idempotency-Key`` per batch (Resend keeps
-             keys 24 h), so re-posting a batch after a crash never sends twice.
-             ``x-batch-validation: permissive`` so one bad address fails that
-             message, not the batch.
-``console``  the dry run used whenever MARKDROP_RESEND_API_KEY is unset (local
+``resend``   (the live mode, whichever providers are configured) the one send
+             path in ``services/email_delivery.py``: a batch goes to the first
+             provider with room under today's limits (Resend's batch API, up to
+             100 messages per request, ``Idempotency-Key`` per batch so a re-post
+             after a crash never sends twice, ``x-batch-validation: permissive``
+             so one bad address fails that message, not the batch; or Brevo, one
+             request per message), falls back to the next on a provider error,
+             and logs every message in ``email_log``. Over the bulk share of the
+             day's limit the batch raises ``SendError(deferred=True)`` and the
+             campaign waits for the next UTC day.
+``console``  the dry run used whenever no provider key is set (local
              development) or MARKDROP_EMAIL_TRANSPORT=console: renders exactly
              what would be sent, logs a line, stores the message in the
              ``email_outbox`` collection (kept 7 days) and returns a fake id.
@@ -31,13 +36,14 @@ from app.config import get_settings
 settings = get_settings()
 log = logging.getLogger("uvicorn.error").getChild("email")
 
-RESEND_BATCH_URL = "https://api.resend.com/emails/batch"
 RESEND_DOMAINS_URL = "https://api.resend.com/domains"
 MAX_BATCH = 100
 
 
 def mode() -> str:
-    if (settings.email_transport or "").lower() == "console" or not settings.resend_api_key:
+    from app.services import email_delivery
+
+    if (settings.email_transport or "").lower() == "console" or not email_delivery.configured():
         return "console"
     return "resend"
 
@@ -52,9 +58,11 @@ class SendError(Exception):
     """
 
     def __init__(self, message: str, *, fatal: bool = False, retry_after: float | None = None,
-                 status: int | None = None, code: str | None = None):
+                 status: int | None = None, code: str | None = None, deferred: bool = False):
         super().__init__(message)
         self.fatal = fatal
+        # Today's email limit has no room for it: wait for the next UTC day.
+        self.deferred = deferred
         self.retry_after = retry_after
         self.status = status
         self.code = code
@@ -69,73 +77,6 @@ class Outcome:
 def format_from(name: str | None, email: str) -> str:
     n = (name or "").replace('"', "").replace("\r", "").replace("\n", "").strip()
     return f"{n} <{email}>" if n else email
-
-
-def _retry_after(resp: httpx.Response) -> float:
-    for h in ("retry-after", "ratelimit-reset"):
-        try:
-            v = float(resp.headers.get(h, ""))
-            if v > 0:
-                return min(v, 60.0)
-        except ValueError:
-            pass
-    return 2.0
-
-
-def classify(resp: httpx.Response) -> SendError:
-    try:
-        body = resp.json()
-    except ValueError:
-        body = {}
-    code = str(body.get("name") or "")
-    msg = str(body.get("message") or resp.text[:300] or f"HTTP {resp.status_code}")
-    s = resp.status_code
-    if s in (401, 403):
-        return SendError(f"Resend rejected the API key ({code or s}): {msg}", fatal=True, status=s, code=code)
-    if s == 429:
-        if "quota" in code:
-            return SendError(f"Resend quota reached ({code}): {msg}", fatal=True, status=s, code=code)
-        return SendError(f"Rate limited by Resend: {msg}", retry_after=_retry_after(resp), status=s, code=code)
-    if s == 422 or s == 400:
-        # Validation errors here are about the sender or the payload as a whole
-        # (permissive mode reports single bad recipients per message instead):
-        # an unverified domain, a malformed From. Same for every message.
-        return SendError(f"Resend refused the batch ({code or s}): {msg}", fatal=True, status=s, code=code)
-    if s == 409:
-        if code == "concurrent_idempotent_requests":
-            return SendError(msg, retry_after=1.0, status=s, code=code)
-        return SendError(f"Resend idempotency conflict ({code}): {msg}", status=s, code=code)
-    return SendError(f"Resend error {s}: {msg}", status=s, code=code)
-
-
-class ResendTransport:
-    name = "resend"
-
-    async def send_batch(self, messages: list[dict[str, Any]], idem_key: str) -> list[Outcome]:
-        headers = {
-            "Authorization": f"Bearer {settings.resend_api_key}",
-            "Idempotency-Key": idem_key,
-            "x-batch-validation": "permissive",
-        }
-        try:
-            async with httpx.AsyncClient(timeout=30) as client:
-                resp = await client.post(RESEND_BATCH_URL, headers=headers, json=messages)
-        except httpx.HTTPError as e:
-            raise SendError(f"Couldn't reach Resend: {e.__class__.__name__}") from e
-        if resp.status_code >= 400:
-            raise classify(resp)
-        body = resp.json() if resp.content else {}
-        data = list(body.get("data") or [])
-        errors = {int(e.get("index", -1)): str(e.get("message") or "rejected") for e in body.get("errors") or []}
-        out: list[Outcome] = []
-        it = iter(data)
-        for i in range(len(messages)):
-            if i in errors:
-                out.append(Outcome(None, errors[i][:400]))
-            else:
-                item = next(it, None) or {}
-                out.append(Outcome(item.get("id"), None))
-        return out
 
 
 class ConsoleTransport:
@@ -170,8 +111,61 @@ class ConsoleTransport:
         return out
 
 
+def _as_send_error(e: Exception) -> SendError:
+    from app.services import email_delivery as d
+
+    if isinstance(e, d.NoRoom):
+        return SendError(str(e), deferred=True)
+    assert isinstance(e, d.ProviderError)
+    s, code = e.status, e.code
+    if e.quota:
+        return SendError(f"Every email provider is at its quota today ({e}).", deferred=True, status=s, code=code)
+    if s == 429:
+        return SendError(str(e), retry_after=e.retry_after or 2.0, status=s, code=code)
+    if s == 409 and code == "concurrent_idempotent_requests":
+        return SendError(str(e), retry_after=1.0, status=s, code=code)
+    if s in (400, 401, 403, 422):
+        return SendError(str(e), fatal=True, status=s, code=code)
+    return SendError(str(e), status=s, code=code)
+
+
+class RoutedTransport:
+    """Live sending through ``services/email_delivery`` (limits, fallback, log)."""
+
+    name = "resend"
+
+    def __init__(self, db: AsyncIOMotorDatabase):
+        from app.services import email_delivery
+
+        self.inner = email_delivery.RoutedTransport(db)
+
+    async def room(self) -> int:
+        """The largest batch today's limits allow (one provider takes a batch)."""
+        return await self.inner.room()
+
+    async def send_batch(self, messages: list[dict[str, Any]], idem_key: str) -> list[Outcome]:
+        from app.services import email_delivery as d
+
+        try:
+            out = await self.inner.send_batch(messages, idem_key)
+        except (d.NoRoom, d.ProviderError) as e:
+            raise _as_send_error(e) from e
+        return [Outcome(o.provider_id, o.error) for o in out]
+
+    async def repost(self, messages: list[dict[str, Any]], idem_key: str) -> list[Outcome]:
+        from app.services import email_delivery as d
+
+        try:
+            out = await self.inner.repost(messages, idem_key)
+        except (d.NoRoom, d.ProviderError) as e:
+            raise _as_send_error(e) from e
+        return [Outcome(o.provider_id, o.error) for o in out]
+
+
 def make(db: AsyncIOMotorDatabase | None):
-    return ConsoleTransport(db) if mode() == "console" else ResendTransport()
+    if mode() == "console" or db is None:
+        return ConsoleTransport(db)
+    return RoutedTransport(db)
 
 
 async def fetch_domains() -> dict[str, Any]:
@@ -182,6 +176,9 @@ async def fetch_domains() -> dict[str, Any]:
     """
     if mode() == "console":
         return {"state": "console", "domains": {}, "message": "Console transport: identities aren't checked."}
+    if not settings.resend_api_key:
+        return {"state": "restricted", "domains": {},
+                "message": "Resend isn't configured, so domains can't be checked here. Brevo refuses senders it hasn't verified at send time."}
     try:
         async with httpx.AsyncClient(timeout=10) as client:
             resp = await client.get(RESEND_DOMAINS_URL, headers={"Authorization": f"Bearer {settings.resend_api_key}"})

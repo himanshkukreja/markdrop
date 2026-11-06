@@ -30,7 +30,7 @@ class World(AccessWorld):
         await personal.ensure_indexes(self.db)
         self.mail: list[dict] = []
 
-        async def capture(payload):
+        async def capture(payload, **_kw):
             self.mail.append(payload)
 
         for p in (mock.patch.object(mailer, "is_configured", lambda: True),

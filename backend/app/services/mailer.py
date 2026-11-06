@@ -22,14 +22,9 @@ page someone lands on from an email looks like the email they came from.
 
 import html
 
-import httpx
-
 from app.config import get_settings
 
 settings = get_settings()
-
-_RESEND_URL = "https://api.resend.com/emails"
-
 
 # ── Shell palette (email-safe hexes from the light palette, REVAMP §7.20) ──────
 
@@ -230,17 +225,22 @@ def _sender(purpose: str) -> str:
 
 
 def is_configured() -> bool:
-    return bool(settings.resend_api_key)
+    """Some email provider (Resend or Brevo) is configured."""
+    from app.services import email_delivery
+
+    return email_delivery.configured()
 
 
-async def _post(payload: dict) -> None:
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            _RESEND_URL,
-            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json=payload,
-        )
-        resp.raise_for_status()
+async def _post(payload: dict, *, kind: str, ref: str | None = None) -> str:
+    """Send one message through the one send path (services/email_delivery.py):
+    routed to a provider with room today, logged in ``email_log``. ``kind`` sets
+    the priority tier (sign-in codes first, bulk last). Returns ``sent``, or
+    ``deferred`` when today's limit queued it for tomorrow; raises when every
+    provider failed."""
+    from app.services import email_delivery
+
+    r = await email_delivery.send(payload, kind=kind, ref=ref)
+    return r.status
 
 
 # ── Sign-in ────────────────────────────────────────────────────────────────────
@@ -283,7 +283,7 @@ async def send_login_email(to_email: str, otp: str, link_url: str) -> None:
         "subject": f"Your Markdrop sign-in code: {otp}",
         "reply_to": settings.email_reply_to,
         "html": _login_html(otp, link_url),
-    })
+    }, kind="login")
 
 
 # ── Welcome / feature-tour email (sent once, on first signup) ───────────────────
@@ -451,7 +451,7 @@ async def send_welcome_email(to_email: str, name: str | None = None) -> None:
         "subject": "Welcome to Markdrop: everything you can do",
         "reply_to": settings.email_reply_to,
         "html": _welcome_html(name),
-    })
+    }, kind="welcome")
 
 
 # ── Workspace invitations ──────────────────────────────────────────────────────
@@ -524,7 +524,7 @@ async def send_invite_email(
         "subject": f"{inviter_name} invited you to {workspace_name} on Markdrop",
         "reply_to": settings.email_reply_to,
         "html": _invite_html(workspace_name, inviter_name, role, link_url),
-    })
+    }, kind="invite")
 
 
 # ── Document sharing ───────────────────────────────────────────────────────────
@@ -641,7 +641,7 @@ async def send_document_share_email(
             document_title=document_title, url=url, sharer_name=sharer_name,
             role=role, encrypted=encrypted, message=message, noun=noun,
         ),
-    })
+    }, kind="share", ref=slug)
 
 
 # ── Access requests ────────────────────────────────────────────────────────────
@@ -731,7 +731,7 @@ async def send_access_request_email(
             requester_name=requester_name, requester_email=requester_email,
             document_title=document_title, message=message, request_id=request_id,
             workspace_name=workspace_name),
-    })
+    }, kind="access_request", ref=request_id)
 
 
 def _edit_request_html(*, requester_name: str, requester_email: str, document_title: str,
@@ -788,7 +788,7 @@ async def send_edit_request_email(
             requester_name=requester_name, requester_email=requester_email,
             document_title=document_title, message=message, request_id=request_id,
             as_admin=as_admin, workspace_name=workspace_name),
-    })
+    }, kind="edit_request", ref=request_id)
 
 
 def _access_decision_html(*, owner_name: str, document_title: str, url: str,
@@ -856,7 +856,7 @@ async def send_access_decision_email(
         "html": _access_decision_html(owner_name=owner_name, document_title=document_title,
                                       url=url, approved=approved, role=role,
                                       edit_request=edit_request),
-    })
+    }, kind="access_decision", ref=slug)
 
 
 # ── A guide's own domain: live, or given up on ────────────────────────────────
@@ -905,7 +905,7 @@ async def send_guide_domain_email(*, to_email: str, host: str, guide_name: str, 
         "reply_to": settings.email_reply_to,
         "html": _guide_domain_html(host=host, guide_name=guide_name, live=live, settings_url=settings_url,
                                    message=message),
-    })
+    }, kind="guide_domain", ref=host)
 
 
 # ── Web pages in the email shell ───────────────────────────────────────────────

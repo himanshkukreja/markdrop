@@ -34,7 +34,7 @@ class DigestWorld(AccessWorld):
         await digest.ensure_indexes(self.db)
         self.sent: list[dict] = []
 
-        async def fake_post(payload):
+        async def fake_post(payload, **_kw):
             self.sent.append(payload)
 
         for p in (mock.patch.object(mailer, "_post", fake_post),
@@ -119,7 +119,7 @@ class Sending(DigestWorld):
     async def test_failed_send_is_recorded_not_retried(self):
         await self.views(await self.mkdoc("UL", owner="owner"), 1)
 
-        async def boom(payload):
+        async def boom(payload, **_kw):
             raise RuntimeError("resend down")
 
         with mock.patch.object(mailer, "_post", boom):
