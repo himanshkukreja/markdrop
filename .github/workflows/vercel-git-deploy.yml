@@ -1,0 +1,59 @@
+name: Deploy frontend to Vercel (Vercel builds from Git)
+
+# A fallback for when the prebuilt upload (vercel-deploy.yml) can't run, e.g. Vercel's daily
+# upload limit ("api-upload-paid", 40000 files a day). Vercel builds the commit from GitHub on its
+# own servers, so nothing is uploaded from here; it costs Vercel build minutes, so it's for
+# occasional use only.
+#
+# Trigger: push the commit to deploy to the branch deploy/vercel (or run it by hand).
+#   git push <remote> <sha-or-main>:refs/heads/deploy/vercel --force
+# Uses the same secret and variables as vercel-deploy.yml.
+
+on:
+  push:
+    branches: [deploy/vercel]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-git-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Ask Vercel to build and deploy this commit
+        id: create
+        run: |
+          body=$(jq -n --arg p "$VERCEL_PROJECT_ID" --arg sha "$GITHUB_SHA" --arg repo "${GITHUB_REPOSITORY#*/}" --arg org "${GITHUB_REPOSITORY%%/*}" \
+            '{name: "markdrop", project: $p, target: "production",
+              gitSource: {type: "github", org: $org, repo: $repo, ref: "main", sha: $sha},
+              meta: {source: "actions-git", githubCommitSha: $sha}}')
+          res=$(curl -sS -X POST "https://api.vercel.com/v13/deployments?teamId=$VERCEL_ORG_ID&forceNew=1" \
+            -H "Authorization: Bearer $VERCEL_TOKEN" -H "Content-Type: application/json" -d "$body")
+          id=$(echo "$res" | jq -r '.id // empty')
+          if [ -z "$id" ]; then echo "Vercel refused: $(echo "$res" | jq -c '.error // .')"; exit 1; fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "Deployment $id: https://$(echo "$res" | jq -r .url)" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Wait until it's live
+        run: |
+          for i in $(seq 1 140); do
+            st=$(curl -sS "https://api.vercel.com/v13/deployments/${{ steps.create.outputs.id }}?teamId=$VERCEL_ORG_ID" \
+              -H "Authorization: Bearer $VERCEL_TOKEN" | jq -r '.readyState // .status')
+            echo "$(date -u +%T) $st"
+            case "$st" in
+              READY) echo "Live." >> "$GITHUB_STEP_SUMMARY"; exit 0;;
+              ERROR|CANCELED) echo "Build $st"; exit 1;;
+            esac
+            sleep 15
+          done
+          echo "Timed out waiting"; exit 1
