@@ -83,6 +83,9 @@ export interface DomainsInfo { state: "ok" | "restricted" | "console" | "error";
 
 export interface Setup {
   transport: "resend" | "console";
+  /** Every provider and whether it's configured; provider_order: the configured ones, in send order. */
+  providers?: { name: string; configured: boolean; limit: number }[];
+  provider_order?: string[];
   tracking_base: string;
   site: string;
   batch: { size: number; gap_ms: number };

@@ -98,6 +98,8 @@ def _setup(admin: dict[str, Any], info: dict[str, Any]) -> dict[str, Any]:
         "admin": admin.get("sub"),
         "domains": {k: info.get(k) for k in ("state", "message", "checked_at")} | {"names": info.get("domains") or {}},
         "click_hosts": list(settings.email_click_hosts),
+        "providers": [{"name": n, "configured": p.configured(), "limit": p.limit()} for n, p in delivery.PROVIDERS.items()],
+        "provider_order": [p.name for p in delivery.providers()],
     }
 
 
