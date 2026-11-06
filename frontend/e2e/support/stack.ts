@@ -35,7 +35,6 @@ export interface FixtureUser {
 }
 interface Fixtures {
   users?: Record<string, FixtureUser & { token?: string }>;
-  admin?: { username: string; password: string };
 }
 
 function loadFixtures(): Fixtures | null {
@@ -52,12 +51,7 @@ export function fixtureUsers(): { owner: FixtureUser; other: FixtureUser } | nul
   return { owner: { id: u.owner.id, email: u.owner.email }, other: { id: u.other.id, email: u.other.email } };
 }
 
-export function adminCredentials(): { username: string; password: string } | null {
-  if (process.env.E2E_ADMIN_USER && process.env.E2E_ADMIN_PASSWORD) {
-    return { username: process.env.E2E_ADMIN_USER, password: process.env.E2E_ADMIN_PASSWORD };
-  }
-  return fixtures?.admin ?? null;
-}
+
 
 // ── Tokens ────────────────────────────────────────────────────────────────────
 
@@ -67,7 +61,7 @@ const b64url = (v: Buffer | string) => Buffer.from(v).toString("base64url");
 export function mintAccessToken(user: FixtureUser, ttlSeconds = 2 * 3600): string {
   const header = b64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
   const payload = b64url(
-    JSON.stringify({ sub: user.id, email: user.email, typ: "access", exp: Math.floor(Date.now() / 1000) + ttlSeconds })
+    JSON.stringify({ sub: user.id, email: user.email, typ: "access", iat: Math.floor(Date.now() / 1000), exp: Math.floor(Date.now() / 1000) + ttlSeconds })
   );
   const sig = createHmac("sha256", AUTH_SECRET).update(`${header}.${payload}`).digest("base64url");
   return `${header}.${payload}.${sig}`;
@@ -141,15 +135,19 @@ export async function readDoc(slug: string, headers: Record<string, string> = {}
   return { status: res.status, body };
 }
 
+/**
+ * A session for the admin console, which takes the owner's own Markdrop account (backend
+ * MARKDROP_ADMIN_EMAILS): the sandbox API makes (or finds) the account E2E_ADMIN_EMAIL names (default:
+ * the backend's default admin) and signs it in. Null when the API isn't the sandbox.
+ */
 export async function adminToken(): Promise<string | null> {
-  const creds = adminCredentials();
-  if (!creds) return null;
-  const res = await fetch(`${API_URL}/api/v1/admin/login`, {
+  const email = process.env.E2E_ADMIN_EMAIL || "kukreja.him@gmail.com";
+  const res = await fetch(`${API_URL}/__sandbox/user`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(creds),
-  });
-  if (!res.ok) throw new Error(`admin login: ${res.status}`);
+    body: JSON.stringify({ email, name: "Site Admin" }),
+  }).catch(() => null);
+  if (!res?.ok) return null;
   return ((await res.json()) as { token: string }).token;
 }
 

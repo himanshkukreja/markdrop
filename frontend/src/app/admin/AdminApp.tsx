@@ -2,11 +2,11 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
-import { MarkdropLoader, ThemeScope } from "@/components/ui";
-import { adminListDocuments, adminListFeedback, clearAdminToken, getAdminToken } from "@/lib/api";
+import { Button, MarkdropLoader } from "@/components/ui";
+import NotFound from "@/app/not-found";
+import { adminListDocuments, adminListFeedback, adminSession, getToken, type AdminSession } from "@/lib/api";
 import AnalyticsPanel, { type Filters } from "./analytics/AnalyticsPanel";
 import { parseRange, serializeRange, type RangeValue } from "./analytics/controls";
-import { AdminLogin } from "./AdminLogin";
 import { AdminShell } from "./AdminShell";
 import { DEFAULT_DOC_FILTERS, DocumentsPanel, type DocFilters } from "./DocumentsPanel";
 import { DocEditor } from "./DocEditor";
@@ -43,7 +43,13 @@ function sectionOfUrl(): Section {
   return sectionFrom(q.get("tab"));
 }
 
-type Phase = "init" | "login" | "app";
+type Phase = "init" | "app" | "not-found" | "error";
+
+/** To the normal Markdrop sign-in, coming back to this admin address afterwards. */
+function goSignIn() {
+  const back = `${window.location.pathname}${window.location.search}`;
+  window.location.replace(`/login?next=${encodeURIComponent(back)}`);
+}
 
 function parseFilters(raw: string | null): Filters {
   if (!raw) return {};
@@ -57,14 +63,20 @@ function parseFilters(raw: string | null): Filters {
 }
 
 /**
- * The admin console. A permanent dark island (D3): everything, portals included, renders inside a
- * dark ThemeScope whatever the site theme is. URL state (`?tab=&range=&f=`) is read after mount,
- * never with useSearchParams. The admin JWT stays in localStorage `markdrop_admin_token`.
- * /admin* is excluded from analytics (lib/analyticsPath).
+ * The admin console. It opens for the owner's own Markdrop session (backend routers/admin
+ * require_admin, MARKDROP_ADMIN_EMAILS): no admin password. Signed out, or signed in too long ago:
+ * to /login and back here. Signed in as anyone else: the site's ordinary 404 page, so nothing says
+ * an admin console exists. Every admin call sends the user session (`getToken()`).
+ *
+ * Theme: the site's own (lib/theme: light by default, the toggle in the shell). URL state
+ * (`?tab=&range=&f=`) is read after mount, never with useSearchParams. /admin* is excluded from
+ * analytics (lib/analyticsPath).
  */
 export default function AdminApp() {
   const [phase, setPhase] = useState<Phase>("init");
   const [token, setToken] = useState<string | null>(null);
+  const [admin, setAdmin] = useState<AdminSession | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [section, setSection] = useState<Section>("overview");
   const [range, setRange] = useState<RangeValue>(() => parseRange(null));
   const [filters, setFilters] = useState<Filters>({});
@@ -74,16 +86,37 @@ export default function AdminApp() {
   // Bumped when Email is picked in the rail, so it opens on its home rather than a campaign.
   const [emailKey, setEmailKey] = useState(0);
 
-  // Init: token and URL state, after mount.
+  // Init: URL state, after mount.
   useEffect(() => {
     const q = readQuery();
     setSection(sectionOfUrl());
     setRange(parseRange(q.get("range")));
     setFilters(parseFilters(q.get("f")));
-    const stored = getAdminToken();
-    setToken(stored);
-    setPhase(stored ? "app" : "login");
   }, []);
+
+  // Who is signed in: the server decides whether that is an admin.
+  useEffect(() => {
+    const session = getToken();
+    if (!session) {
+      goSignIn();
+      return;
+    }
+    let live = true;
+    adminSession(session)
+      .then((r) => {
+        if (!live) return;
+        if (r.state === "sign-in") goSignIn();
+        else if (r.state === "not-found") setPhase("not-found");
+        else {
+          setToken(session);
+          setAdmin(r.admin);
+          setPhase("app");
+          document.title = "Admin console — Markdrop";
+        }
+      })
+      .catch(() => { if (live) setPhase("error"); });
+    return () => { live = false; };
+  }, [attempt]);
 
   // Back/forward between tabs.
   useEffect(() => {
@@ -98,13 +131,8 @@ export default function AdminApp() {
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const signOut = useCallback(() => {
-    clearAdminToken();
-    setToken(null);
-    setEditing(null);
-    setCounts({});
-    setPhase("login");
-  }, []);
+  // An admin call answered 401 (the session ended, or is too old for the console): sign in again.
+  const onUnauthorized = useCallback(() => goSignIn(), []);
 
   const refreshCounts = useCallback(() => {
     if (!token) return;
@@ -150,8 +178,15 @@ export default function AdminApp() {
         <MarkdropLoader size="sm" label="Opening the admin console" />
       </div>
     );
-  } else if (phase === "login" || !token) {
-    body = <AdminLogin onSignedIn={(t) => { setToken(t); setPhase("app"); }} />;
+  } else if (phase === "not-found") {
+    return <NotFound />;
+  } else if (phase === "error" || !token) {
+    body = (
+      <main id="main" tabIndex={-1} className="flex min-h-dvh flex-1 flex-col items-center justify-center gap-4 px-4 text-center outline-none">
+        <p className="text-body text-text-secondary">Couldn&apos;t reach Markdrop. Check your connection and try again.</p>
+        <Button variant="secondary" onClick={() => { setPhase("init"); setAttempt((n) => n + 1); }}>Try again</Button>
+      </main>
+    );
   } else {
     let page: React.ReactNode;
     if (editing && (section === "documents" || section === "reports")) {
@@ -199,17 +234,15 @@ export default function AdminApp() {
       }
     }
     body = (
-      <AdminShell section={section} counts={counts} onSelect={select} onSignOut={signOut}>
+      <AdminShell section={section} counts={counts} onSelect={select} admin={admin}>
         {page}
       </AdminShell>
     );
   }
 
   return (
-    <UnauthorizedContext.Provider value={signOut}>
-      <ThemeScope theme="dark" className="flex min-h-dvh w-full min-w-0 flex-1 flex-col">
-        {body}
-      </ThemeScope>
+    <UnauthorizedContext.Provider value={onUnauthorized}>
+      <div className="flex min-h-dvh w-full min-w-0 flex-1 flex-col bg-bg text-text">{body}</div>
     </UnauthorizedContext.Provider>
   );
 }

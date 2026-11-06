@@ -9,7 +9,10 @@ Collections
     slack_installs  _id = team_id: team_name, workspace_id (unique), app_id, bot_user_id,
                     bot_token_enc (Fernet, utils/crypto), scopes, installed_by, meetings_channel
                     {id, name} | None, post_meetings, created_at, updated_at
-    slack_links     _id = "<team>:<slack user>": team_id, slack_user_id, user_id, slack_name, linked_at
+    slack_links     _id = "<team>:<slack user>": team_id, slack_user_id, user_id, slack_name, linked_at,
+                    match: how it was made: "oauth" (Sign in with Slack), "email" (found by the
+                    person's Markdrop email when they turned Slack notifications on), "install" (the
+                    admin who added the app). A row without ``match`` predates opt-in (see below).
     slack_seen      _id = key, expires_at (TTL): accepted request signatures (replay), Events API
                     event ids (Slack's retries), used OAuth states (one use each)
 
@@ -17,6 +20,13 @@ Requests from Slack (events, slash commands, button clicks) are verified with th
 secret (:func:`verify_request`: v0 HMAC-SHA256 over ``v0:<ts>:<body>``, a 5-minute window), and
 each accepted signature is remembered for 10 minutes so an exact replay is refused. The work runs
 after the 200 (:func:`spawn`): Slack gives an app 3 seconds.
+
+Direct messages are opt-in (owner, 2026-11-06): ``users.slack_notify.on`` is false until the
+person turns on "Get notifications in Slack" (Settings › Account). Turning it on finds them in each
+Slack team installed for a Markdrop workspace they belong to by their own (verified) Markdrop email
+(``users.lookupByEmail``, bot scope ``users:read.email``), no Sign in with Slack needed; Sign in
+with Slack stays as the fallback. Someone who linked before opt-in existed (a link row without
+``match``) and never chose keeps getting them (:func:`dm_on`).
 
 Services that use this: slack_events.py (commands, clicks, unfurls), slack_notify.py (DMs and
 meeting posts), slack_blocks.py (the messages).
@@ -53,7 +63,9 @@ SEEN = "slack_seen"
 
 # Must match docs-platform/slack/manifest.yaml (tests/test_slack.py checks it).
 BOT_SCOPES = ("commands", "chat:write", "chat:write.public", "links:read", "links:write", "im:write",
-              "channels:read", "groups:read", "im:read", "mpim:read")
+              "channels:read", "groups:read", "im:read", "mpim:read", "users:read", "users:read.email")
+# What finding a person by their email needs (an install made before these were added must be updated).
+EMAIL_SCOPES = ("users:read", "users:read.email")
 USER_SCOPES = ("openid",)
 
 SIGNATURE_WINDOW = 300          # seconds either side of now (Slack's own recommendation)
@@ -351,8 +363,10 @@ async def connect(db: AsyncIOMotorDatabase, user, code: str, state: str) -> dict
         upsert=True)
     authed = (r.get("authed_user") or {}).get("id")
     if authed:
-        await save_link(db, team_id, str(authed), user.id, None)
+        await save_link(db, team_id, str(authed), user.id, None, match="install")
     log.info("slack: team %s connected to workspace %s by %s", team_id, workspace_id, user.id)
+    # People of this workspace who already turned Slack notifications on are found in the new team.
+    spawn(match_opted_in(db, team_id))
     return await status(db, user, workspace_id)
 
 
@@ -436,12 +450,15 @@ def _link_id(team_id: str, slack_user_id: str) -> str:
     return f"{team_id}:{slack_user_id}"
 
 
-async def save_link(db: AsyncIOMotorDatabase, team_id: str, slack_user_id: str, user_id: str, slack_name: str | None) -> None:
+async def save_link(db: AsyncIOMotorDatabase, team_id: str, slack_user_id: str, user_id: str, slack_name: str | None,
+                    *, match: str = "oauth") -> None:
     now = _now()
+    # A link from before opt-in counted as "on": linking again (which replaces it) mustn't turn that off.
+    await keep_legacy_opt_in(db, user_id)
     await db[LINKS].update_one(
         {"_id": _link_id(team_id, slack_user_id)},
         {"$set": {"team_id": team_id, "slack_user_id": slack_user_id, "user_id": user_id,
-                  "slack_name": (slack_name or None) and slack_name[:80], "linked_at": now}},
+                  "slack_name": (slack_name or None) and slack_name[:80], "linked_at": now, "match": match}},
         upsert=True)
     # One Slack account per Markdrop account per team: a new link replaces the old one.
     await db[LINKS].delete_many({"team_id": team_id, "user_id": user_id,
@@ -525,6 +542,7 @@ async def unlink(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     await require_member(db, user, workspace_id)
     inst = await install_for_workspace(db, workspace_id)
     if inst is not None:
+        await keep_legacy_opt_in(db, user.id)
         await db[LINKS].delete_many({"team_id": inst["_id"], "user_id": user.id})
     return await status(db, user, workspace_id)
 
@@ -533,6 +551,7 @@ async def unlink(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
 
 
 def prefs_of(user_row: dict | None) -> dict[str, bool]:
+    """Which kinds of direct message, once Slack notifications are on (each kind on unless turned off)."""
     saved = (user_row or {}).get("slack_notify") or {}
     return {k: saved.get(k) is not False for k in NOTIFY_KINDS}
 
@@ -542,6 +561,178 @@ async def set_prefs(db: AsyncIOMotorDatabase, user_id: str, changes: dict[str, b
     if sets:
         await db["users"].update_one({"_id": ObjectId(user_id)}, {"$set": sets})
     return prefs_of(await db["users"].find_one({"_id": ObjectId(user_id)}, {"slack_notify": 1}))
+
+
+async def dm_on(db: AsyncIOMotorDatabase, user_row: dict | None) -> bool:
+    """Did this person turn Slack notifications on? Off by default. Someone who never chose and
+    linked their Slack account before opt-in existed (a link row without ``match``) keeps them."""
+    if not user_row:
+        return False
+    saved = (user_row.get("slack_notify") or {}).get("on")
+    if saved is not None:
+        return saved is True
+    return await db[LINKS].find_one({"user_id": str(user_row["_id"]), "match": {"$exists": False}}, {"_id": 1}) is not None
+
+
+async def keep_legacy_opt_in(db: AsyncIOMotorDatabase, user_id: str) -> None:
+    """Write down the implied "on" of a pre-opt-in link before that link row is replaced or stamped."""
+    if not ObjectId.is_valid(user_id or ""):
+        return
+    if await db[LINKS].find_one({"user_id": user_id, "match": {"$exists": False}}, {"_id": 1}) is None:
+        return
+    await db["users"].update_one({"_id": ObjectId(user_id), "slack_notify.on": {"$exists": False}},
+                                 {"$set": {"slack_notify.on": True}})
+
+
+def can_find_by_email(install: dict | None) -> bool:
+    """False when the install is known to lack the scopes users.lookupByEmail needs (made before they
+    were added: a workspace admin updates the app; the settings card says so). Shown, not enforced:
+    :func:`find_by_email` asks Slack anyway and corrects the stored list from the answer."""
+    scopes = (install or {}).get("scopes")
+    if not scopes:
+        return True
+    return all(x in scopes for x in EMAIL_SCOPES)
+
+
+async def find_by_email(db: AsyncIOMotorDatabase, inst: dict, user_id: str, email: str) -> str:
+    """Link ``user_id`` to the person in ``inst``'s Slack team who uses ``email`` (their own Markdrop
+    sign-in address; callers never pass another). Returns what happened: linked (already) | matched |
+    not_found | taken (that Slack account is linked to another Markdrop account) | needs_update (the
+    install lacks users:read.email) | token | error."""
+    if await link_for(db, inst["_id"], user_id) is not None:
+        return "linked"
+    token = bot_token(inst)
+    if not token:
+        return "token"
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        return "not_found"
+    # Asked even when the stored scope list says no: the app may have been reinstalled from Slack's
+    # own app page since (that doesn't come through Markdrop). Slack's answer corrects the list.
+    try:
+        r = await slack_api.call("users.lookupByEmail", token, email=email)
+    except slack_api.SlackError as exc:
+        if exc.error == "users_not_found":
+            await _note_email_scopes(db, inst, True)
+            return "not_found"
+        if exc.error in ("missing_scope", "no_permission"):
+            await _note_email_scopes(db, inst, False)
+            return "needs_update"
+        if exc.dead_token:
+            return "token"
+        log.info("slack: users.lookupByEmail in %s: %s", inst["_id"], exc.error)
+        return "error"
+    await _note_email_scopes(db, inst, True)
+    u = r.get("user") or {}
+    sid = str(u.get("id") or "")
+    profile_email = str((u.get("profile") or {}).get("email") or "").strip().lower()
+    # Never someone Slack hasn't confirmed has that address, a bot, or a deactivated account.
+    if (not sid or u.get("deleted") or u.get("is_bot") or u.get("is_email_confirmed") is False
+            or (profile_email and profile_email != email)):
+        return "not_found"
+    other = await db[LINKS].find_one({"_id": _link_id(inst["_id"], sid)}, {"user_id": 1})
+    if other is not None and other.get("user_id") != user_id:
+        return "taken"
+    name = (u.get("profile") or {}).get("real_name") or u.get("real_name") or u.get("name")
+    await save_link(db, inst["_id"], sid, user_id, name, match="email")
+    return "matched"
+
+
+async def _note_email_scopes(db: AsyncIOMotorDatabase, inst: dict, have: bool) -> None:
+    if can_find_by_email(inst) == have:
+        return
+    op = {"$addToSet": {"scopes": {"$each": list(EMAIL_SCOPES)}}} if have else \
+        {"$pull": {"scopes": {"$in": list(EMAIL_SCOPES)}}}
+    await db[INSTALLS].update_one({"_id": inst["_id"]}, op)
+
+
+async def my_installs(db: AsyncIOMotorDatabase, user_id: str) -> list[tuple[dict, str, str]]:
+    """(install, workspace id, workspace name) for every Markdrop workspace this person belongs to
+    that has Slack connected."""
+    from app.services import workspace as ws_service
+
+    pairs = await ws_service.list_for_user(db, user_id)
+    names = {w.id: w.name for w, _role in pairs}
+    if not names:
+        return []
+    rows = await db[INSTALLS].find({"workspace_id": {"$in": list(names)}}).to_list(length=100)
+    order = list(names)
+    rows.sort(key=lambda r: order.index(r["workspace_id"]))
+    return [(r, r["workspace_id"], names[r["workspace_id"]]) for r in rows]
+
+
+def find_message(result: str, team_name: str, email: str, slack_name: str | None = None) -> str | None:
+    team = team_name or "that Slack workspace"
+    return {
+        "matched": f"Found you in {team}" + (f" as {slack_name}." if slack_name else "."),
+        "not_found": f"No one in {team} uses {email}. Link your Slack account instead.",
+        "taken": f"Your Slack account in {team} is linked to another Markdrop account. "
+                 "Link your Slack account here instead, or unlink it there first (/markdrop unlink in Slack).",
+        "needs_update": f"Markdrop for Slack in {team} needs an update before Markdrop can find you by email: "
+                        "a workspace admin updates it in Workspace settings › Integrations › Slack. "
+                        "Or link your Slack account instead.",
+        "token": f"{team}'s connection to Markdrop broke: a workspace admin reconnects it.",
+        "error": "Slack didn't answer. Try again in a minute.",
+    }.get(result)
+
+
+async def me_status(db: AsyncIOMotorDatabase, user) -> dict:
+    """Settings › Account › Slack notifications: on?, which kinds, and each Slack team they're in
+    through a Markdrop workspace (found there? as whom?)."""
+    urow = await db["users"].find_one({"_id": ObjectId(user.id)}, {"slack_notify": 1})
+    teams = []
+    for inst, ws_id, ws_name in await my_installs(db, user.id):
+        link = await link_for(db, inst["_id"], user.id)
+        teams.append({"team_id": inst["_id"], "team_name": inst.get("team_name") or "", "workspace_id": ws_id,
+                      "workspace_name": ws_name, "linked": link is not None,
+                      "slack_name": (link or {}).get("slack_name"), "match": (link or {}).get("match") or
+                      ("legacy" if link is not None else None),
+                      "can_find_by_email": can_find_by_email(inst), "token_ok": bot_token(inst) is not None})
+    return {"configured": configured(), "on": await dm_on(db, {"_id": user.id, **(urow or {})}),
+            "prefs": prefs_of(urow), "kinds": [{"key": k, "label": NOTIFY_LABELS[k]} for k in NOTIFY_KINDS],
+            "teams": teams, "email": user.email}
+
+
+async def set_on(db: AsyncIOMotorDatabase, user, on: bool) -> dict:
+    """Turn Slack notifications on or off for **this** person (the caller; never anyone else).
+    On: find them by their own Markdrop email in every Slack team connected to a workspace of theirs."""
+    if not on:
+        await db["users"].update_one({"_id": ObjectId(user.id)}, {"$set": {"slack_notify.on": False}})
+        return {**await me_status(db, user), "results": []}
+    need_configured()
+    installs = await my_installs(db, user.id)
+    if not installs:
+        raise HTTPException(status_code=409, detail="None of your workspaces has Slack connected yet. A workspace "
+                                                    "admin adds it in Workspace settings › Integrations › Slack.")
+    await db["users"].update_one({"_id": ObjectId(user.id)}, {"$set": {"slack_notify.on": True}})
+    results = []
+    for inst, _ws_id, _ws_name in installs:
+        res = await find_by_email(db, inst, user.id, user.email)
+        link = await link_for(db, inst["_id"], user.id) if res in ("matched", "linked") else None
+        results.append({"team_id": inst["_id"], "team_name": inst.get("team_name") or "", "result": res,
+                        "message": find_message(res, inst.get("team_name") or "", user.email, (link or {}).get("slack_name"))})
+    log.info("slack: %s turned Slack notifications on (%s)", user.id, ", ".join(r["result"] for r in results))
+    return {**await me_status(db, user), "results": results}
+
+
+async def match_opted_in(db: AsyncIOMotorDatabase, team_id: str, *, limit: int = 300) -> int:
+    """A workspace just connected Slack: find its members who already turned Slack notifications on
+    (by their own email). Returns how many were found."""
+    inst = await get_install(db, team_id)
+    if inst is None or not inst.get("workspace_id"):
+        return 0
+    member_ids = [m["user_id"] async for m in db["memberships"].find({"workspace_id": inst["workspace_id"]}, {"user_id": 1})]
+    oids = [ObjectId(u) for u in member_ids if ObjectId.is_valid(u or "")][:limit]
+    found = 0
+    async for u in db["users"].find({"_id": {"$in": oids}, "slack_notify.on": True}, {"email": 1}):
+        try:
+            res = await find_by_email(db, inst, str(u["_id"]), u.get("email") or "")
+            if res in ("needs_update", "token"):
+                break      # the same answer for everyone: stop asking
+            found += res == "matched"
+        except Exception:
+            log.warning("slack: matching %s in %s failed", u["_id"], team_id, exc_info=True)
+    return found
 
 
 # ── Status (the settings card) ────────────────────────────────────────────────
@@ -557,7 +748,8 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         "configured": configured(),
         "can_manage": role_allows(role, "admin"),
         "install": None,
-        "me": {"linked": False, "slack_user_id": None, "slack_name": None, "prefs": prefs_of(me_row)},
+        "me": {"linked": False, "slack_user_id": None, "slack_name": None, "match": None, "prefs": prefs_of(me_row),
+               "on": await dm_on(db, {"_id": user.id, **(me_row or {})})},
         "kinds": [{"key": k, "label": NOTIFY_LABELS[k]} for k in NOTIFY_KINDS],
     }
     if inst is not None:
@@ -571,8 +763,10 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
             "post_meetings": inst.get("post_meetings") is not False,
             "linked_people": await db[LINKS].count_documents({"team_id": inst["_id"]}),
             "token_ok": bot_token(inst) is not None,
+            "can_find_by_email": can_find_by_email(inst),
         }
         link = await link_for(db, inst["_id"], user.id)
         if link is not None:
-            out["me"].update({"linked": True, "slack_user_id": link["slack_user_id"], "slack_name": link.get("slack_name")})
+            out["me"].update({"linked": True, "slack_user_id": link["slack_user_id"], "slack_name": link.get("slack_name"),
+                              "match": link.get("match") or "legacy"})
     return out

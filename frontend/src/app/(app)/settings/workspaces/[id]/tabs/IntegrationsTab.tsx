@@ -1,33 +1,28 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Badge, Button, ConfirmDialog, Field, Select, Skeleton, useToast } from "@/components/ui";
 import {
-  slackChannels, slackDisconnect, slackInstallUrl, slackLinkStart, slackPrefs, slackSettings, slackStatus, slackUnlink,
-  type SlackChannel, type SlackNotifyKind, type SlackStatus,
+  slackChannels, slackDisconnect, slackInstallUrl, slackLinkStart, slackSettings, slackStatus, slackUnlink,
+  type SlackChannel, type SlackStatus,
 } from "@/lib/slack";
 import { SlackMark } from "@/components/integrations/SlackMark";
 import { SwitchRow, shortDate } from "../../../settings-shared";
 import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
 
-const KIND_HINTS: Record<SlackNotifyKind, string> = {
-  mention: "Someone @mentions you on a page.",
-  signoff_requested: "Someone asks for your sign-off. Choose an option right in Slack.",
-  shared: "Someone shares a document, page or file with you.",
-  access_request: "Someone asks to open or edit something you own. Approve or decline in Slack.",
-};
-
 /**
  * Integrations (Workspace settings): Markdrop for Slack. Admins connect a Slack workspace (Add to Slack),
- * pick the channel meeting notes go to, and disconnect. Everyone links their own Slack account (Sign in
- * with Slack) and picks which direct messages they get. Backend: routers/slack.py.
+ * pick the channel meeting notes go to, update the app's permissions when Markdrop needs new ones, and
+ * disconnect. Everyone links their own Slack account (Sign in with Slack); direct messages are opt-in,
+ * in Settings › Account › Slack notifications (SlackCard). Backend: routers/slack.py.
  */
 export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
   const toast = useToast();
   const [st, setSt] = useState<SlackStatus | null>(null);
   const [error, setError] = useState("");
   const [channels, setChannels] = useState<SlackChannel[] | null>(null);
-  const [busy, setBusy] = useState<"" | "install" | "link" | "unlink" | "channel" | "auto" | SlackNotifyKind>("");
+  const [busy, setBusy] = useState<"" | "install" | "link" | "unlink" | "channel" | "auto">("");
   const [confirm, setConfirm] = useState(false);
 
   const load = useCallback(async () => {
@@ -98,7 +93,8 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
             </h2>
             <p className="mt-0.5 text-[13px] leading-5 text-text-secondary">
               Meeting notes with Done buttons in a channel, <code>/markdrop search</code> and <code>/markdrop ask</code> (answers only you see,
-              from what you can open), link previews, and direct messages for mentions, sign-offs, shares and access requests.
+              from what you can open), link previews, and direct messages for mentions, sign-offs, shares and access requests for
+              people who turn them on.
             </p>
           </div>
           {!inst && st.configured && (
@@ -124,6 +120,19 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
             </dl>
             {!inst.token_ok && (
               <Alert tone="warning" title="Slack's connection broke">Disconnect, then add Markdrop to Slack again.</Alert>
+            )}
+            {inst.token_ok && !inst.can_find_by_email && (
+              <Alert
+                tone="warning"
+                title="Update Markdrop for Slack"
+                actions={isAdmin ? <Button size="sm" loading={busy === "install"} onClick={() => void go("install")}>Update permissions</Button> : undefined}
+              >
+                <span data-testid="slack-needs-update">
+                  Slack notifications find people by their email, which needs two more permissions in Slack.
+                  {isAdmin ? " Slack asks you to allow them, then brings you back here." : " A workspace admin updates it here."}
+                  {" "}Until then, people link their Slack account to get them.
+                </span>
+              </Alert>
             )}
 
             <Locked locked={!isAdmin}>
@@ -186,7 +195,7 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
               <p className="mt-0.5 text-[13px] leading-5 text-text-secondary">
                 {st.me.linked
                   ? <>Linked{st.me.slack_name ? <> as <strong className="ph-sensitive ph-mask">{st.me.slack_name}</strong></> : null}. <code>/markdrop</code> answers you from what your Markdrop account can open, and only you see them.</>
-                  : <>Link it once so <code>/markdrop</code> can answer you from what you can open, Done buttons work for you, and you get direct messages.</>}
+                  : <>Link it once so <code>/markdrop</code> can answer you from what you can open and Done buttons work for you. Slack notifications find you by your email, without linking.</>}
               </p>
             </div>
             {st.me.linked
@@ -196,25 +205,15 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
                 }}>Unlink</Button>
               : <Button size="sm" iconLeft="link" loading={busy === "link"} onClick={() => void go("link")}>Link my Slack account</Button>}
           </div>
-          {st.me.linked && (
-            <div className="flex flex-col gap-3 border-t border-border pt-4">
-              <p className="text-[13px] font-medium text-text">Direct messages from Markdrop</p>
-              {st.kinds.map((k) => (
-                <SwitchRow
-                  key={k.key}
-                  id={`slack-pref-${k.key}`}
-                  label={k.label}
-                  hint={KIND_HINTS[k.key]}
-                  checked={st.me.prefs[k.key]}
-                  disabled={busy === k.key}
-                  onChange={async (on) => {
-                    const out = await run(k.key, () => slackPrefs({ [k.key]: on }));
-                    if (out) setSt({ ...st, me: { ...st.me, prefs: out.prefs } });
-                  }}
-                />
-              ))}
-            </div>
-          )}
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-border pt-4" data-testid="slack-me-notify">
+            <p className="min-w-0 text-[13px] text-text-secondary">
+              Slack notifications: <strong className="text-text">{st.me.on ? "On" : "Off"}</strong>
+              {st.me.on ? null : <> (off until you turn them on)</>}
+            </p>
+            <Link href="/settings/account#slack" className="text-[13px] font-medium text-accent-text hover:underline">
+              {st.me.on ? "Change" : "Turn on"} in Settings › Account
+            </Link>
+          </div>
         </section>
       )}
 

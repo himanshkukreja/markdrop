@@ -462,7 +462,8 @@ async def mint_studio_token(request: Request, user: User = Depends(require_user)
             full = False
     if not full:
         raise HTTPException(status_code=403, detail="Sign in on markdrop.in to open Markdrop Guides.")
-    token, exp = create_access_token(user.id, user.email)
+    # Tagged, so the studio host's copy can't open the admin console (routers/admin.require_admin).
+    token, exp = create_access_token(user.id, user.email, via="studio")
     return {"token": token, "expires_at": exp}
 
 

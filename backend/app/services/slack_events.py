@@ -75,6 +75,8 @@ async def command(db: AsyncIOMotorDatabase, form: dict) -> dict:
                 f"You're linked as *{kit.esc(user.name or user.email)}*. To link another account, `/markdrop unlink` first.")}
         return {"response_type": "ephemeral", **kit.link_prompt(_link_page(team_id), "Link your Markdrop account.")}
     if sub == "unlink":
+        if user is not None:
+            await slack.keep_legacy_opt_in(db, user.id)   # their Slack notifications choice outlives the link
         await db[slack.LINKS].delete_one({"_id": f"{team_id}:{slack_user}"})
         return {"response_type": "ephemeral", **kit.notice("Done: your Slack account isn't linked to Markdrop any more.")}
     if user is None:

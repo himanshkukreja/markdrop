@@ -2247,6 +2247,18 @@
     "bytes": 44342,
     "kind": "image"
   },
+  "/docs-assets/integrations/slack/notifications-card.dark.webp": {
+    "w": 832,
+    "h": 552,
+    "bytes": 24860,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/notifications-card.webp": {
+    "w": 832,
+    "h": 552,
+    "bytes": 26000,
+    "kind": "image"
+  },
   "/docs-assets/pages/ai/ai-menu.dark.webp": {
     "w": 1602,
     "h": 970,

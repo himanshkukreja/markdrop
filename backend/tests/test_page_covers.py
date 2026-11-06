@@ -17,7 +17,7 @@ from tests.test_pages_ai import PagesAIWorld, prompt_of, usage  # noqa: F401  (p
 from bson import ObjectId
 
 from app.config import get_settings
-from app.routers.admin import _make_token
+from tests._admin_session import admin_headers
 from app.services import ai_usage, page_covers, page_props
 
 settings = get_settings()
@@ -556,7 +556,7 @@ class Backfill(CoverWorld):
 
     async def test_admin_status_pause_resume(self):
         await self.make_pages()
-        h = {"Authorization": f"Bearer {_make_token()[0]}"}
+        h = await admin_headers(self.db)
         base = "/api/v1/admin/ai/covers/backfill"
         self.assertEqual((await self.http.get(base)).status_code, 401)
         self.assertEqual((await self.http.post(f"{base}/pause")).status_code, 401)
