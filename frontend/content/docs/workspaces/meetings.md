@@ -118,6 +118,10 @@ The page is an ordinary page. Edit it like any other: fix a name, add notes, tic
 
 When your workspace has [Slack connected](/integrations/slack), each attendee with an action item gets a direct message from Markdrop about a minute after the summary is ready: "Your action items from *the meeting*", with only their own items and their due dates. That includes people who aren't in your Markdrop workspace: they get the item text and who to ask for the notes, nothing else. Members get **Open the notes**, and a **Done** button on each item when they can edit the page. Anyone can select **Stop these**; an admin can turn it off for the workspace. See [Your action items after each meeting](/integrations/slack#your-action-items-after-each-meeting).
 
+## Action items in Jira
+
+When your workspace has [Jira connected](/integrations/jira), a meeting's decisions, action items and open questions can become Jira issues: **+ Jira** next to one, or **Jira issues** in the meeting bar for every open action item at once. Markdrop AI drafts each issue, you review it, and it's created as you, with a link back to that moment of the meeting. A ticked to-do moves its issue to Done in Jira, and the other way round. See [Create an issue](/integrations/jira#create-an-issue).
+
 ## From an AI app
 
 With the [hosted MCP server](/ai/hosted-mcp), an AI app can import a meeting (`import_meeting`, from text, a file or a Google Drive link) or many past ones (`import_meetings_bulk`), list meetings (`list_meetings`, filtered by series, dates or how they came in), read one (`get_meeting`), ask them (`ask_meetings`, scoped to a series or dates), get what was decided about a topic while writing a document (`meeting_context`), file every meeting into its series folder (`organize_meetings`, workspace admins), check whether automatic import is on (`meetings_connection`), and post a meeting to the workspace's Slack channel (`post_meeting_to_slack`). See [MCP tools](/ai/tools#meetings).

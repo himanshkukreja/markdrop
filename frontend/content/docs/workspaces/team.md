@@ -3,7 +3,7 @@ title: "Team: your workspace memory"
 nav: Team
 description: Who is doing what in your workspace, from its meetings and pages. Status, focus, targets, blockers and projects, each line linked to its source.
 updated: 2026-11-06
-keywords: [team, team memory, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
+keywords: [team, jira, jira tickets, create jira issue, team memory, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
 ---
 
 **Team** answers "what is Abhishek working on?" and "where are we on the sourcing beta?" without anyone writing a status report. Markdrop reads your workspace's meetings and pages in the background and keeps short, dated lines about each person: what they're working on, what they finished, what they committed to and by when, and what's blocking them. Every line links to the meeting or page it came from.
@@ -80,6 +80,10 @@ A project's page shows its latest status, who is on it, what's being worked on, 
 - A project is any product, feature or initiative that comes up in at least two meetings or pages. Folder names count too.
 
 Lines are short and in English. "Working on" lines fade after two weeks unless they come up again. Markdrop never reads encrypted or password-protected documents, files, or templates.
+
+## Jira tickets on Team
+
+When your workspace has [Jira connected](/integrations/jira) and an admin picked the projects for Team, each card also shows the person's open Jira issues (in progress, to do, overdue), Team at a glance gets a **Jira** section with overdue and blocked issues and issues per project, and a person's page lists their issues. Details come through your own Atlassian account; until you connect it, you see counts only. A blocker, target or action item line can become a Jira issue: open its **⋯** menu and choose **Create Jira issue…**. See [Tickets on Team](/integrations/jira#tickets-on-team).
 
 ## Who sees what
 

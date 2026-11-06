@@ -269,7 +269,8 @@
       "tab": "platform",
       "new": true,
       "pages": [
-        "/integrations/slack"
+        "/integrations/slack",
+        "/integrations/jira"
       ]
     },
     {
