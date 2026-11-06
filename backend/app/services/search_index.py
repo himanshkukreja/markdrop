@@ -231,6 +231,9 @@ async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
     if title_only(raw):
         await search_chunks.drop(db, oid)       # encrypted / password: never a word of its text
         row.update(nc=0, ch=None, cv=COVERAGE_VERSION)
+        if raw.get("kind") == "artifact":
+            # Read again from the bytes if it opens up later (nothing of it is kept meanwhile).
+            row.update(fx="none", fk=None, **({"ax": "stale"} if is_video(raw) else {}))
     elif raw.get("kind") == "artifact" and row.get("fx") == "pending":
         old = await db[COLL].find_one({"_id": oid}, {"fk": 1, "fx": 1, "w": 1, "x": 1, "cv": 1, "nc": 1})
         if (old and old.get("fk") == row.get("fk") and old.get("fx") in ("done", "failed", "refused")

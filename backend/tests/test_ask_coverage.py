@@ -389,3 +389,16 @@ class Coverage(AskWorld):
         sent = "\n".join(prompt_of(c) for c in self.fake.calls if "untrusted_document" in prompt_of(c))
         self.assertIn("(slide 6) ", sent)
         self.assertIn("narwhal migration starts in May", sent)
+
+    async def test_password_on_then_off_reads_the_file_again(self):
+        f = await self.file("owner", "plan2", "Plan", make_docx([(None, "The ibex launch is in June.")]), file_text.DOCX)
+        await self.settle()
+        self.assertEqual([i["slug"] for i in (await self.find("wm", "ibex"))["items"]], ["plan2"])
+        await self.db["documents"].update_one({"_id": f["_id"]}, {"$set": {"read_password_hash": "x"}})
+        await search_index.index_doc(self.db, f["_id"])
+        self.assertEqual(await self.db[search_chunks.COLL].count_documents({"p": f["_id"]}), 0)
+        self.assertEqual((await self.find("owner", "ibex"))["items"], [])
+        await self.db["documents"].update_one({"_id": f["_id"]}, {"$set": {"read_password_hash": None}})
+        await search_index.index_doc(self.db, f["_id"])
+        await self.settle()
+        self.assertEqual([i["slug"] for i in (await self.find("wm", "ibex"))["items"]], ["plan2"])
