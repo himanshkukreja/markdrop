@@ -682,3 +682,10 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
   .pb-phonebar { left: 50%; right: auto; width: min(640px, calc(100vw - 32px)); margin-left: max(-320px, calc(16px - 50vw)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-xl); box-shadow: 0 8px 24px rgb(0 0 0 / 0.16); }
   .pb-sheet { left: 0; right: 0; width: min(560px, 100%); margin-inline: auto; }
 }
+
+/* The Markdrop logo never shrinks under its own box (it ran onto the folded crumbs at 360 px); a
+   workspace brand (a name) can. */
+.pb-bar__brand:has(> .md-logo) { flex: none; }
+@media (pointer: coarse) {
+  .pb-children__add { min-height: 44px; }
+}

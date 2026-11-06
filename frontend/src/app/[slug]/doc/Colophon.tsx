@@ -17,7 +17,7 @@ export function Colophon() {
       <MarkdropMark size={20} />
       <span>Published with Markdrop</span>
       <span aria-hidden>·</span>
-      <Anchor href="/new" className="font-semibold text-accent-text underline-offset-4 hover:underline">
+      <Anchor href="/new" className="inline-flex items-center [@media(pointer:coarse)]:min-h-[44px] font-semibold text-accent-text underline-offset-4 hover:underline">
         Publish your own
       </Anchor>
     </footer>

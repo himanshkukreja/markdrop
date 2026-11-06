@@ -709,7 +709,7 @@ export function SubPages({
           Pages inside
         </h2>
         {onAdd && (
-          <Button size="sm" variant="ghost" iconLeft="plus" onClick={onAdd}>
+          <Button size="sm" variant="ghost" iconLeft="plus" className="pb-children__add" onClick={onAdd}>
             Add a sub-page
           </Button>
         )}
