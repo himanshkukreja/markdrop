@@ -68,6 +68,7 @@ from app.routers.meetings_backfill import router as meetings_backfill_router
 from app.routers.meeting_memory import router as meeting_memory_router
 from app.routers.team import router as team_router
 from app.routers.slack import router as slack_router
+from app.routers.jira import router as jira_router
 from app.routers.ask import router as ask_router
 from app.routers.home import router as home_router
 from app.routers.og import router as og_router
@@ -304,6 +305,8 @@ app.include_router(meeting_memory_router)
 # Team (routers/team.py): who is doing what in a workspace, from its meetings and pages.
 app.include_router(team_router)
 app.include_router(slack_router)
+# Jira Cloud (routers/jira.py): issues from meetings, Team and pages; both-way status sync.
+app.include_router(jira_router)
 # Ask Markdrop (routers/ask.py): the home's question box, threads, suggestions.
 app.include_router(ask_router)
 app.include_router(home_router)

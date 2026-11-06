@@ -297,6 +297,12 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] slack indexes skipped: {exc}")
     try:
+        from app.services import jira as _jira
+
+        await _jira.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] jira indexes skipped: {exc}")
+    try:
         from app.services import ask_markdrop as _ask
 
         await _ask.ensure_indexes(db)
