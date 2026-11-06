@@ -39,6 +39,10 @@ The page's address keeps where you are, so you can bookmark it: `/ask?workspace=
 
 ![The Ask page: conversations on the left, the title Ask Acme with the scope chips Everything, Acme and My files, and suggested questions with their topics.](/docs-assets/workspaces/ask-markdrop/ask-page.webp)
 
+On a phone, **History** (top left) opens your conversations, and **+** starts a new one.
+
+![The Ask page on a phone: History and New chat beside the title Ask Acme, the scope chips, and suggested questions.](/docs-assets/workspaces/ask-markdrop/ask-page-phone.webp)
+
 ::clip{src="/docs-assets/workspaces/ask-markdrop/assistant" alt="Pressing ⌘J on a page opens Ask beside it, a question about what's still open before the release is typed, the answer arrives with numbered sources, and Insert puts it at the end of the page."}
 
 ## What it answers from

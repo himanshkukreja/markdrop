@@ -13,11 +13,15 @@
  *   phone     390 px: History opens the conversations drawer, no sideways scroll, 44 px chips, 16 px field
  *   tablet    768 px portrait: the drawer; 1180 landscape: the conversations column
  *   shots     light/dark desktop stills
+ *   docs-media DOCS_MEDIA=1: the docs' stills (public/docs-assets/workspaces/ask-markdrop): the Ask page
+ *             (desktop and phone) and the panel's scope chips on a page, light and dark, WebP ≤180 KB
  *
  *   source .work/ask-page/env.sh; zsh $R/up.sh start
  *   BROWSER=chromium|webkit [ONLY=page,phone] node ask-page.mjs
  */
 import fs from "node:fs";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { APP, BROWSER, SHOTS, log, fail, reseed, seedNow, api, launch, ctx, stepper, shot } from "./lib.mjs";
 
 fs.mkdirSync(SHOTS, { recursive: true });
@@ -252,6 +256,66 @@ await step("shots", async () => {
     await p.goto(`${APP}/ask?workspace=${WS}`, { waitUntil: "networkidle" });
     await chatOf(p).getByTestId("chat-starters").waitFor({ timeout: 20000 });
     await shot(p, `ap07-desktop-${theme}`);
+    await c.close();
+  }
+});
+
+const DOCS_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../../../public/docs-assets/workspaces/ask-markdrop");
+await step("docs-media", async () => {
+  if (!process.env.DOCS_MEDIA) return log("(DOCS_MEDIA unset: docs screenshots skipped)");
+  fs.mkdirSync(DOCS_DIR, { recursive: true });
+  const raw = path.join(SHOTS, "docs");
+  fs.mkdirSync(raw, { recursive: true });
+  const webp = (png, name) => {
+    let q = 82;
+    for (;;) {
+      execFileSync("cwebp", ["-quiet", "-q", String(q), png, "-o", path.join(DOCS_DIR, `${name}.webp`)]);
+      if (fs.statSync(path.join(DOCS_DIR, `${name}.webp`)).size <= 180 * 1024 || q <= 50) break;
+      q -= 8;
+    }
+    log("docs", `${name}.webp`, fs.statSync(path.join(DOCS_DIR, `${name}.webp`)).size);
+  };
+  const PRD = ok(await api("POST", "/api/v1/pages", T.admin, { title: "Sourcing pilot plan", workspace: WS, folder: S.folder, auto_cover: false,
+    content: "# Sourcing pilot plan\n\n## Vendors\n\nTwo vendors.\n" }), "doc page").document.slug;
+  for (const theme of ["light", "dark"]) {
+    const suffix = theme === "dark" ? ".dark" : "";
+    for (const [name, vp] of [["ask-page", { width: 1280, height: 800 }], ["ask-page-phone", { width: 390, height: 780 }]]) {
+      const phone = vp.width < 500;
+      const c = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, colorScheme: theme, ...(phone ? { hasTouch: true, isMobile: BROWSER !== "webkit" ? true : undefined } : {}) });
+      await c.addInitScript(([t, th]) => {
+        localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th);
+        localStorage.setItem("md_theme_beta", "1"); localStorage.setItem("md_consent", "denied");
+      }, [T.member, theme]);
+      const p = await c.newPage();
+      await p.goto(`${APP}/ask?workspace=${WS}`, { waitUntil: "networkidle" });
+      await page(p).waitFor({ timeout: 20000 });
+      await waitTitle(p, /^Ask Acme$/);
+      if (!phone) await p.getByTestId("ask-history").getByTestId("ask-history-new").click();
+      else await p.getByTestId("ask-new").click();
+      await chatOf(p).getByTestId("chat-starters").waitFor({ timeout: 20000 });
+      await p.waitForTimeout(700);
+      await p.mouse.move(2, 2);
+      await (phone ? p : page(p)).screenshot({ path: path.join(raw, `${name}${suffix}.png`) });
+      webp(path.join(raw, `${name}${suffix}.png`), `${name}${suffix}`);
+      await c.close();
+    }
+    // The panel's scope chips on a page: This page · Meetings · Acme · My files · Everything.
+    const c = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: theme });
+    await c.addInitScript(([t, th]) => {
+      localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th);
+      localStorage.setItem("md_theme_beta", "1"); localStorage.setItem("md_consent", "denied");
+    }, [T.member, theme]);
+    const p = await c.newPage();
+    await p.goto(`${APP}/${PRD}`, { waitUntil: "networkidle" });
+    await p.getByTestId("assistant-button").first().waitFor({ timeout: 30000 });
+    await p.getByTestId("assistant-button").first().click();
+    await panel(p).getByTestId("assistant-scope-doc").waitFor({ timeout: 15000 });
+    await panel(p).getByTestId("chat-new").click({ timeout: 2000 }).catch(() => {});
+    await panel(p).getByTestId("chat-starters").waitFor({ timeout: 15000 });
+    await p.waitForTimeout(600);
+    await p.mouse.move(2, 2);
+    await panel(p).screenshot({ path: path.join(raw, `assistant-scopes${suffix}.png`) });
+    webp(path.join(raw, `assistant-scopes${suffix}.png`), `assistant-scopes${suffix}`);
     await c.close();
   }
 });
