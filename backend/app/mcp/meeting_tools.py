@@ -173,6 +173,14 @@ async def list_meetings(ctx: Context, args: dict) -> tuple[str, dict]:
     return "\n".join(lines), {"meetings": out, "next_cursor": nxt}
 
 
+def _waiting(sc: dict | None) -> int:
+    """Meetings the script's last run found but Google hasn't filled in yet (Gemini writes its notes when
+    the call ends): the "waiting for Gemini's notes" line on the Meetings page."""
+    if not sc:
+        return 0
+    return int((sc.get("results") or {}).get("not_ready") or 0) + int((sc.get("skipped") or {}).get("not_ready") or 0)
+
+
 async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
     ws_id = await _ws(ctx, args["workspace"])
     try:
@@ -182,7 +190,8 @@ async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
     conns = await meetings_inbox.for_workspace(ctx.db, ws_id)
     out = [{k: c[k] for k in ("connected_by", "created_at", "last_received_at", "last_imported_at", "imported",
                               "attached", "duplicates", "restricted", "last_error", "include_shared", "script",
-                              "needs_update")} | {"mine": c["connected_by"]["id"] == ctx.user.id}
+                              "needs_update", "not_ready", "script_version", "latest_script_version", "check_now")}
+           | {"mine": c["connected_by"]["id"] == ctx.user.id, "waiting": _waiting(c.get("script"))}
            for c in conns]
     if not out:
         return ("Automatic import isn't connected for this workspace. Anyone who can import meetings can "
@@ -200,6 +209,12 @@ async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
             skipped = ", ".join(f"{v} {k.replace('_', ' ')}" for k, v in (sc.get("skipped") or {}).items() if v)
             lines.append(f"  script last ran {sc.get('ran_at') or sc.get('started_at')}: found {sc.get('found')} meeting Docs, "
                          f"sent {sc.get('sent')}" + (f"; skipped {skipped}" if skipped else ""))
+        if c["waiting"]:
+            lines.append(f"  {c['waiting']} meeting(s) waiting for Gemini's notes or the transcript: Google hasn't "
+                         "filled the Doc in yet (it does when the call ends); they're sent as soon as it does")
+        cn = c.get("check_now") or {}
+        lines.append("  Check now: " + (("on" + (f", last checked {cn['last_at']}" if cn.get("last_at") else ""))
+                                         if cn.get("ready") else "not turned on (Meetings › Turn on Check now)"))
         if c.get("needs_update"):
             lines.append("  their script is out of date: Meetings › Connect Google Meet › Get the new script "
                          "(the new one also imports meetings shared with them)")
@@ -506,7 +521,9 @@ MEETING_TOOLS: list[Tool] = [
         title="Automatic meeting import",
         description=("Whether meetings are imported automatically into a workspace (Connect Google Meet: a Google "
                      "Apps Script in a member's Google account sends their Meet transcripts and Gemini notes): who "
-                     "connected it, since when, how many meetings it imported and when it last did. Read-only; "
+                     "connected it, since when, how many meetings it imported and when it last did, how the "
+                     "script's last run went, how many meetings wait for Google to fill in Gemini's notes "
+                     "(waiting), whether Check now is on, and whether the script is out of date. Read-only; "
                      "connecting and disconnecting are done on the website (Meetings › Connect Google Meet)."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},

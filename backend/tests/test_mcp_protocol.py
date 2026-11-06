@@ -151,6 +151,9 @@ class Transport(McpTestCase):
             "slack_status", "post_meeting_to_slack",
             # Team memory: who is doing what (the board, a person, a project).
             "list_team", "get_person_profile", "get_project_status",
+            # Team: your own status, focus note and lines; groups and the weekly summary (admins).
+            "set_my_status", "set_focus_note", "hide_team_line", "correct_team_line", "mark_team_item_done",
+            "list_team_groups", "save_team_group", "delete_team_group", "send_weekly_summary_now",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():
