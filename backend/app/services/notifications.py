@@ -972,7 +972,7 @@ def compose_digest(*, user_id: str, pages: list[dict], mode: str, more_pages: in
                                size=13, color=mailer._MUTED))
         text += [f"And {_plural(more_pages, 'more page')}: see them under the bell in Markdrop.", ""]
     content = (mailer._eyebrow(eyebrow) + mailer._heading(_e(head)) + intro + "".join(parts)
-               + mailer._button(_e(mailer._base() + "/home"), "Open Markdrop", margin="18px 0 20px"))
+               + mailer._button(_e(mailer._base() + "/dashboard"), "Open Markdrop", margin="18px 0 20px"))
     footer, foot_text = _footer(user_id, WHY[mode], less)
     html_out = mailer._shell(title=_e(head), preheader=_e(head + "."), content=content, footer=footer)
     return {"subject": subject, "html": html_out, "text": "\n".join(text + foot_text)}
