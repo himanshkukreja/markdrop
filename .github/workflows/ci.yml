@@ -416,6 +416,15 @@ jobs:
           PB_FAKE_PAGES_AI=1 zsh up.sh restart-api
           node meeting-memory.mjs
 
+      # The one-tap "turn on notifications" prompts (Home card, bell nudge), ~40 s, on the bughunt job:
+      # the API restarts with throwaway push keys and the fake push service (PB_PUSH).
+      - name: push-prompts.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_PUSH=1 zsh up.sh restart-api
+          node push-prompts.mjs
+
       - name: Stack logs
         if: failure()
         run: for f in api worker web; do echo "== $f"; tail -n 80 "$PB_WORK/stack/$f.log" 2>/dev/null; done
