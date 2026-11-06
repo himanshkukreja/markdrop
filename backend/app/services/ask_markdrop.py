@@ -50,7 +50,8 @@ from typing import Any, AsyncIterator
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import access, ai_usage, docs_agent, meetings, pages_ai, search, search_ai, search_index, urls
+from app.services import (access, ai_usage, docs_agent, meetings, pages_ai, search, search_ai, search_chunks,
+                          search_index, urls)
 from app.services import search_text as st
 from app.services import ai_output
 
@@ -110,7 +111,7 @@ Return only JSON, no prose and no code fence: {"standalone": "...", "terms": [..
 - "titles": up to 3 titles such a document or meeting could plausibly have.
 Use the language of the question. Never answer the question itself."""
 
-ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their workspaces and files). They asked about their own meetings, documents, pages, files and guides. A search found candidate items they can open; each arrives inside an <untrusted_document n="…"> tag with its title, kind, where it lives and an excerpt. A meeting may also bring transcript lines labelled [n-sK] time Speaker: words.
+ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their workspaces and files). They asked about their own meetings, documents, pages, files and guides. A search found candidate items they can open; each arrives inside an <untrusted_document n="…"> tag with its title, kind, where it lives and an excerpt. A meeting may also bring transcript lines labelled [n-sK] time Speaker: words; a file or video may bring passages labelled [n-sK] with where they are (a page, slide, sheet, section, or a minute of a video).
 
 {DATA_RULE}
 
@@ -118,7 +119,7 @@ ANSWER_SYSTEM = f"""You are Ask, the assistant in a person's Markdrop (their wor
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). Leave out items that are not relevant. If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line as [n-sK] (transcript lines are the best evidence of what was said). Use only labels shown in the items, one per bracket: a line can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
+2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line or a passage as [n-sK] (transcript lines are the best evidence of what was said; a passage tells the reader which page, slide, sheet or minute). Use only labels shown in the items, one per bracket: a line or passage can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -382,9 +383,12 @@ async def _meeting_docs(db: AsyncIOMotorDatabase, cands: list[search.Cand]) -> d
 
 
 async def _transcript_lines(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, meeting_id: str,
-                            is_transcript: bool, question: str) -> tuple[list[tuple[int, dict]], str | None, dict | None]:
+                            is_transcript: bool, question: str, terms: search.Terms | None = None
+                            ) -> tuple[list[tuple[int, dict]], str | None, dict | None]:
     """(the best transcript lines [(K, segment)], the transcript's slug, the meeting row), only when
-    the transcript sub-page is readable by the asker now."""
+    the transcript sub-page is readable by the asker now. The whole transcript counts: the question's
+    words over every line, plus the best lines of the transcript's best windows for the search terms
+    (services/search_chunks.py: the expanded terms find "Postmark" when the question said "email")."""
     row = await meetings.get_row(db, meeting_id)
     if row is None or not row.get("transcript_doc_id"):
         return [], None, row
@@ -397,8 +401,25 @@ async def _transcript_lines(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: 
         return [], row.get("transcript_slug"), row
     from app.services import meetings_ai
 
-    keep = meetings_ai.best_segments(segs, question, LINES_PER_MEETING, neighbours=0, follow=2)
-    return [(k + 1, segs[k]) for k in keep], row.get("transcript_slug"), row
+    keep = set(meetings_ai.best_segments(segs, question, LINES_PER_MEETING, neighbours=0, follow=2))
+    if terms is not None and terms.tokens:
+        try:
+            wins = (await search_chunks.best(db, [row["transcript_doc_id"]], terms, per=2)).get(
+                meetings.oid(row["transcript_doc_id"])) or []
+        except Exception:
+            wins = []
+        words = " ".join(terms.tokens)
+        for wrow in wins:
+            k0 = int(wrow.get("k") or 0)
+            span = len((wrow.get("x") or "").split("\n"))
+            if k0 < 1:
+                continue
+            sub = segs[k0 - 1:k0 - 1 + span]
+            if sub:
+                for j in meetings_ai.best_segments(sub, f"{question} {words}", 2, neighbours=0):
+                    keep.add(k0 - 1 + j)
+    keep_l = sorted(keep)[: LINES_PER_MEETING + 4]
+    return [(k + 1, segs[k]) for k in keep_l], row.get("transcript_slug"), row
 
 
 _FRONT_HEAD = re.compile(r"^\s*(?:icon|cover|props|title|date)\s*:|\bprops:\s*\{", re.I)
@@ -465,7 +486,7 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     rows = {}
     if ids:
         rows = {r["_id"]: r for r in await db[search_index.COLL].find(
-            {"_id": {"$in": ids}}, {"x": 1, "hd": 1}).to_list(length=len(ids))}
+            {"_id": {"$in": ids}}, {"x": 1, "hd": 1, "nc": 1}).to_list(length=len(ids))}
     shaped = await search.Shaper(db, w).shape(cands, terms)
     mdocs = await _meeting_docs(db, cands)
     # Every meeting among them: its title, day and series (a meeting page's updated_at is the import's).
@@ -474,6 +495,7 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
         {"_id": {"$in": [m for m in mids if m is not None]}}, {"title": 1, "date": 1, "series": 1, "attendees.name": 1}
     ).to_list(length=len(mids) or 1)}
     signoffs_of = await _signoff_notes(db, actor, ctx, cands)
+    passages = await _passages(db, actor, ctx, cands, rows, terms, skip=set(mdocs))
     out: list[Source] = []
     lined: set[str] = set()
     # A meeting's page and its transcript both found: one source (the page, which brings the lines).
@@ -523,7 +545,8 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                 segs = mm.row.get("segments") or []
                 lines, tslug, mrow = [(k + 1, segs[k]) for k in mm.lines], mm.row.get("transcript_slug"), mm.row
             else:
-                lines, tslug, mrow = await _transcript_lines(db, actor, ctx, md["meeting_id"], md["role"] == "transcript", question)
+                lines, tslug, mrow = await _transcript_lines(db, actor, ctx, md["meeting_id"], md["role"] == "transcript",
+                                                             question, terms)
             if mrow is not None and mrow.get("date"):
                 attrs["date"] = mrow["date"]
             if you is not None and mrow is not None and "you" not in attrs:
@@ -554,11 +577,65 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                 if md["role"] == "transcript":
                     src.text = ""     # the labelled lines replace the transcript's unlabelled excerpt
                 src.text = (src.text + "\n\n" + head if src.text else head) + "\n".join(txt)
+        if not md and c.key in passages:
+            _add_passages(src, passages[c.key], item, terms)
         if md and md["meeting_id"] not in lined and src.text:
             # No labelled lines for this meeting: its text can only be cited as a whole.
             src.text = "(Cite this item as [" + str(n) + "]; it has no numbered transcript lines.)\n" + src.text
         out.append(src)
     return out
+
+
+PASSAGES_PER_ITEM = 3
+PASSAGE_CHARS = 700
+
+
+async def _passages(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, cands: list[search.Cand],
+                    rows: dict, terms: search.Terms, *, skip: set) -> dict[str, list[dict]]:
+    """Candidate key → its best windows (a file's pages / slides / sheets / sections, a video's caption
+    minutes, the text around a video on a page the asker can read), for items that have them."""
+    want: dict[Any, str] = {}
+    for c in cands:
+        if c.key in skip or c.kind not in search.DOC_KINDS or c.raw is None or search_index.title_only(c.raw):
+            continue
+        if (rows.get(c.content_id) or {}).get("nc") or c.raw.get("kind") == "artifact":
+            want[c.content_id] = c.key
+    if not want or not terms.tokens:
+        return {}
+
+    async def gate_ok(page_id) -> bool:
+        raw = await db["documents"].find_one({"_id": page_id, "deleted_at": None})
+        return raw is not None and (await access.can(actor, raw, "read", ctx)).allowed
+
+    got = await search_chunks.best(db, list(want), terms, per=PASSAGES_PER_ITEM, gate_ok=gate_ok)
+    return {want[p]: wins for p, wins in got.items() if p in want}
+
+
+def _add_passages(src: "Source", wins: list[dict], item: dict, terms: search.Terms | None = None) -> None:
+    """The windows as labelled passages [n-sK] (K = 1, 2, …) that link to their page / slide / minute;
+    text around an embed is context only (cited as the item)."""
+    lines, around = [], []
+    for wrow in wins:
+        x = wrow.get("x") or ""
+        sn = search.snippet(x, terms.marks, terms.prefixes, width=PASSAGE_CHARS) if terms is not None else None
+        text = re.sub(r"\s+", " ", sn["text"] if sn else x[:PASSAGE_CHARS]).strip()
+        if not text:
+            continue
+        if wrow.get("src") == "around":
+            around.append(f"On the page “{wrow.get('l') or 'Untitled'}” that shows it: {text}")
+            continue
+        k = len(src.lines) + 1
+        where = search_chunks.where(wrow) or ""
+        url = search_chunks.fragment_url(item.get("web_url") or item.get("url"), wrow)
+        src.lines[k] = {"moment": where.removeprefix("at ") if where else None, "url": url, "slug": item.get("slug"),
+                        "quote": quote(wrow.get("x")), "speaker": None,
+                        "at": wrow.get("l") if wrow.get("src") == "captions" else None,
+                        "where": where or None, "kind": item.get("kind") or "file"}
+        lines.append(f"[{src.n}-s{k}] {where}: {text}" if where else f"[{src.n}-s{k}] {text}")
+    if lines:
+        src.text = (src.text + "\n\n" if src.text else "") + "Passages:\n" + "\n".join(lines)
+    if around:
+        src.text = (src.text + "\n\n" if src.text else "") + "\n".join(around)
 
 
 async def _signoff_notes(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
@@ -649,8 +726,8 @@ def _citation(src: Source, label: str) -> dict:
         k = int(label.split("-s", 1)[1])
         line = src.lines.get(k) or {}
         out.update(moment=line.get("moment"), url=line.get("url"), web_url=line.get("url"), slug=line.get("slug"),
-                   kind="page", quote=line.get("quote"), speaker=line.get("speaker"), at=line.get("at"),
-                   source_kind="moment")
+                   kind=line.get("kind") or "page", quote=line.get("quote"), speaker=line.get("speaker"),
+                   at=line.get("at"), source_kind="passage" if line.get("where") else "moment")
     return out
 
 

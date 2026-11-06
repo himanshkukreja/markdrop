@@ -49,7 +49,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo.errors import OperationFailure
 from rapidfuzz import fuzz, process
 
-from app.services import access, publicity, search_index, urls
+from app.services import access, publicity, search_chunks, search_index, urls
 from app.services import search_text as st
 
 log = logging.getLogger(__name__)
@@ -477,10 +477,25 @@ async def _content_hits(db: AsyncIOMotorDatabase, terms: Terms, ids: list) -> di
     coll = db[search_index.COLL]
     filt_ids = {"$in": ids}
     out: dict[Any, dict] = {}
+    # Windows of long texts (services/search_chunks.py): looked up by word over the windows, kept only
+    # for these ids (and an "around" window only when its page is among them too).
+    idset = set(ids)
+    chunk_filter: dict = {"p": {"$in": ids}} if len(ids) <= 2000 else {}
+    chunks = db[search_chunks.COLL]
+
+    async def chunk_rows(cond: dict) -> list:
+        try:
+            cur = chunks.find({**chunk_filter, "w": cond}, {"p": 1, "g": 1}).limit(CONTENT_LIMIT * 2)
+            rows = await cur.to_list(length=CONTENT_LIMIT * 2)
+        except OperationFailure:
+            return []
+        return [{"_id": r["p"]} for r in rows if r.get("p") in idset and (r.get("g") is None or r["g"] in idset)]
 
     async def run(jobs: list[tuple[str, int, float, dict]]) -> dict[int, int]:
         """Runs the lookups; returns, per query word, how many items it hit."""
         async def one(f: str, cond: dict) -> list:
+            if f == "cw":
+                return await chunk_rows(cond)
             cur = coll.find({"_id": filt_ids, f: cond}, {"_id": 1}).limit(CONTENT_LIMIT)
             if _hints_ok(db):
                 try:
@@ -498,6 +513,8 @@ async def _content_hits(db: AsyncIOMotorDatabase, terms: Terms, ids: list) -> di
         found: dict[int, int] = {}
         for (f, i, quality, _cond), rows in zip(jobs, results):
             key = "h" if f == "hw" else "b"
+            if f == "cw":
+                rows = list({r["_id"]: r for r in rows}.values())
             found[i] = found.get(i, 0) + len(rows)
             for r in rows:
                 hit = out.get(r["_id"])
@@ -508,17 +525,17 @@ async def _content_hits(db: AsyncIOMotorDatabase, terms: Terms, ids: list) -> di
         return found
 
     # 1. The words as typed (and the last one as a prefix).
-    jobs = [(f, i, 100.0, {"$in": [terms.tokens[i]]}) for i in live for f in ("w", "hw")]
+    jobs = [(f, i, 100.0, {"$in": [terms.tokens[i]]}) for i in live for f in ("w", "hw", "cw")]
     for p in terms.prefixes:
         if (n - 1) in live:
-            jobs += [(f, n - 1, 92.0, {"$regex": "^" + re.escape(p)}) for f in ("w", "hw")]
+            jobs += [(f, n - 1, 92.0, {"$regex": "^" + re.escape(p)}) for f in ("w", "hw", "cw")]
     found = await run(jobs)
     # 2. Typos: one-edit variants, only for words that are rare or missing as typed.
     jobs = []
     for i in live:
         if found.get(i, 0) < TYPO_IF_FEWER and variants.get(i):
             quality = max(q for w in variants[i] for j, q in terms.expand[w] if j == i)
-            jobs += [(f, i, quality, {"$in": variants[i]}) for f in ("w", "hw")]
+            jobs += [(f, i, quality, {"$in": variants[i]}) for f in ("w", "hw", "cw")]
     if jobs:
         await run(jobs)
     return out
@@ -839,6 +856,7 @@ async def _owner_page(db: AsyncIOMotorDatabase, c: Cand, seen: set) -> Cand | No
         return None
     seen.add(pc.key)
     pc.mine, pc.score, pc.body_hits = c.mine and parent.get("owner_id") == c.raw.get("owner_id"), c.score, True
+    pc.extra["via"] = c.raw          # the transcript: its best moment is the result's snippet (if readable)
     return pc
 
 
@@ -927,9 +945,10 @@ class Shaper:
         texts: dict[Any, dict] = {}
         want = [c.content_id for c in cands if c.content_id is not None and snippets]
         if want:
-            rows = await self.db[search_index.COLL].find({"_id": {"$in": want}}, {"x": 1, "hd": 1}).to_list(
+            rows = await self.db[search_index.COLL].find({"_id": {"$in": want}}, {"x": 1, "hd": 1, "nc": 1}).to_list(
                 length=len(want))
             texts = {r["_id"]: r for r in rows}
+        self.windows = await self.best_windows(cands, texts, terms) if snippets else {}
         out: dict[str, dict] = {}
         for c in cands:
             if c.kind in DOC_KINDS:
@@ -953,7 +972,50 @@ class Shaper:
             row["web_url"] = u if u.startswith("http") else urls.markdrop_url(u.lstrip("/"))
         return out
 
+    async def gate_ok(self, page_id) -> bool:
+        raw = await self.db["documents"].find_one({"_id": page_id, "deleted_at": None})
+        return raw is not None and (await access.can(self.w.actor, raw, "read", self.w.ctx)).allowed
+
+    async def best_windows(self, cands: list[Cand], texts: dict, terms: Terms, per: int = 1) -> dict:
+        """Candidate key → its best windows (services/search_chunks.py) for a whole-length match: a
+        file's page, a video's minute, a meeting's transcript moment (only when the transcript is
+        readable by this person)."""
+        want: dict[Any, str] = {}
+        for c in cands:
+            if c.kind not in DOC_KINDS or c.raw is None or search_index.title_only(c.raw):
+                continue
+            via = c.extra.get("via") if c.extra else None
+            if via is not None:
+                if not (await access.can(self.w.actor, via, "read", self.w.ctx)).allowed:
+                    continue
+                want[via["_id"]] = c.key
+            elif (texts.get(c.content_id) or {}).get("nc") or c.raw.get("kind") == "artifact":
+                want[c.content_id] = c.key
+        if not want:
+            return {}
+        got = await search_chunks.best(self.db, list(want), terms, per=per, gate_ok=self.gate_ok)
+        return {want[p]: rows for p, rows in got.items() if p in want}
+
+    def _window_snippet(self, c: Cand, terms: Terms) -> tuple[dict | None, str | None]:
+        rows = (getattr(self, "windows", None) or {}).get(c.key) or []
+        if not rows:
+            return None, None
+        r = rows[0]
+        sn = snippet(r.get("x") or "", terms.marks, terms.prefixes)
+        if not sn:
+            return None, None
+        where = search_chunks.where(r)
+        if where and r.get("src") != "around":
+            lead = f"{where[3:] if where.startswith('at ') else where.capitalize()} · "
+            sn = {"text": lead + sn["text"], "marks": [[a + len(lead), b + len(lead)] for a, b in sn["marks"]],
+                  "where": where}
+        return sn, r.get("f") if r.get("src") != "around" else None
+
     def _snippet(self, c: Cand, texts: dict, terms: Terms) -> tuple[dict | None, str | None]:
+        if c.body_hits:
+            sn, frag = self._window_snippet(c, terms)
+            if sn:
+                return sn, frag
         row = texts.get(c.content_id) if c.content_id is not None else None
         if not row:
             return None, None
@@ -995,7 +1057,12 @@ class Shaper:
                 folder = {"id": fo["id"], "name": fo["name"], "path": fo["path"]}
         url = await urls.workspace_url(self.db, raw, self.hosts) or urls.markdrop_url(raw["slug"])
         sn, anchor = self._snippet(c, texts, terms)
-        if anchor:
+        moment_url = None
+        via = c.extra.get("via") if c.extra else None
+        if anchor and via is not None and sn and sn.get("where"):
+            # A transcript moment: the result stays the meeting page; the moment links into the transcript.
+            moment_url = urls.markdrop_url(f"{via.get('slug')}#{anchor}") if via.get("slug") else None
+        elif anchor:
             url = f"{url}#{anchor}"
         is_file = raw.get("kind") == "artifact"
         title = c.title
@@ -1012,6 +1079,7 @@ class Shaper:
             "workspace": {"id": f.ws_id, "name": ws.name} if ws is not None else None,
             "folder": folder, "owner": owner, "updated_at": raw.get("updated_at"),
             "snippet": sn, "match": c.where, "url": url, "score": c.score,
+            **({"moment_url": moment_url} if moment_url else {}),
         }
 
     def _guide(self, c: Cand, texts: dict, terms: Terms) -> dict:
