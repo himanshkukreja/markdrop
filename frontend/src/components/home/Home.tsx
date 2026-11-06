@@ -269,14 +269,16 @@ function AskBar({ onAsk, onAskMeetings, workspaces, liveWs }: {
   const input = useRef<HTMLInputElement>(null);
   const mounted = useMounted();
   const mac = mounted && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
-  const live = homeChips(sug, 3);
+  const live = homeChips(sug, 2);
   const goAsk = (question: string | null, to: BarScope = scope) => {
     track("home_action", { what: "ask_page", scope: to.kind });
     router.push(askHref({ workspace: to.kind === "workspace" ? to.workspace : null, mine: to.kind === "mine", q: question }));
   };
+  // Live: two of the team's questions (each asks on the Ask page, in that workspace), then your action items.
   const chips: Array<{ label: string; icon: string; run: () => void; testId?: string }> = live.length ? [
     ...live.map((c) => ({ label: c.label, icon: c.team ? "sparkle" : "mic", testId: "home-ask-live",
       run: () => goAsk(c.question, { kind: "workspace", workspace: sugWs ?? undefined }) })),
+    { label: "My action items", icon: "check", run: () => onAsk("What are my open action items?") },
     ...(recent.length ? [{ label: "Recent questions", icon: "history", run: () => setHistoryOpen(true) }] : []),
   ] : [
     { label: "Catch me up", icon: "calendar", run: () => onAsk("Catch me up on this week") },
