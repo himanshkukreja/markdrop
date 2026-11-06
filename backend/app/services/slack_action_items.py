@@ -14,7 +14,8 @@ Whose item
     (edited, ticked or removed before sending counts). An item's person is the one it starts with:
     a ``:person`` mention (a member), ``**Name**`` (the AI's owner who isn't a member), ``[Name]``, or
     a name Google's notes start the line with ("Ravi Kumar will …"). That person must be one of the
-    meeting's attendees (or its organizer); anyone else gets nothing.
+    meeting's attendees, the people invited (``invited``: Gemini's invite list; an item assigned to
+    an invitee means they were there) or its organizer; anyone else gets nothing.
 
 Finding them in Slack (:func:`find`)
     1. a member's linked Slack account (``slack_links``);
@@ -33,10 +34,10 @@ Finding them in Slack (:func:`find`)
 Volume
     At most one message per person per meeting (``slack.remember``: ``aim:<team>:<user>:<meeting>``).
     Queued in ``slack_outbox`` (kind ``action_items``) and sent after :data:`WAIT` (an item ticked
-    in that minute is dropped; meetings ready within it go in one message). A meeting ready within
-    :data:`BUNDLE` of the message already sent to that person is added to that message
-    (``chat.update``) instead of a new one. Never for a meeting brought in as history (Import past
-    meetings) or held more than :data:`MAX_AGE` ago.
+    in that minute is dropped; meetings ready within it go in one message). A meeting ready after
+    that gets a fresh message, never an edit of the one sent (owner, 2026-11-06: people must notice
+    it). Never for a meeting brought in as history (Import past meetings) or held more than
+    :data:`MAX_AGE` ago.
 """
 
 from __future__ import annotations
@@ -62,7 +63,6 @@ log = logging.getLogger("markdrop.slack")
 KIND = "action_items"
 OPTOUTS = "slack_optouts"
 WAIT = sn.SLOW_WAIT                     # an item ticked or a mention fixed in the first minute never goes
-BUNDLE = timedelta(minutes=30)          # meetings ready this close together share one message
 MAX_AGE = timedelta(hours=24)
 SENT_TTL = timedelta(days=30)
 NAMES_TTL = 600                         # seconds a team's member list (name match) is reused
@@ -83,7 +83,6 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     # One waiting message per person (meetings ready within the wait join it).
     await db[sn.OUTBOX].create_index("bundle", unique=True, name="bundle_pending",
                                      partialFilterExpression={"state": "pending", "kind": KIND})
-    await db[sn.OUTBOX].create_index([("bundle", 1), ("done_at", -1)], name="bundle_sent", sparse=True)
     await db[OPTOUTS].create_index("user_id", sparse=True)
 
 
@@ -206,17 +205,25 @@ class Person:
 
 
 def _people(row: dict) -> list[Person]:
-    """The meeting's attendees, and its organizer when not among them."""
+    """Who may get the meeting's items: its attendees (who joined), the people invited (Gemini's
+    "Invited": an item assigned to an invitee means they were there) and its organizer, each once
+    (by member, address or name), with an address from whichever list has one."""
     out: list[Person] = []
-    for i, a in enumerate(row.get("attendees") or []):
-        if a.get("name"):
-            out.append(Person(key=f"a{i}", name=a["name"], user_id=a.get("user_id"),
-                              email=(a.get("email") or "").lower() or None))
     org = row.get("organizer") or {}
-    if org.get("name") and not any((org.get("user_id") and p.user_id == org["user_id"])
-                                   or p.name.casefold() == org["name"].casefold() for p in out):
-        out.append(Person(key="org", name=org["name"], user_id=org.get("user_id"),
-                          email=(org.get("email") or "").lower() or None))
+    lists = [("a", row.get("attendees") or []), ("i", row.get("invited") or []), ("o", [org] if org.get("name") else [])]
+    for tag, people in lists:
+        for i, a in enumerate(people):
+            name = (a.get("name") or "").strip()
+            if not name:
+                continue
+            uid, email = a.get("user_id") or None, (a.get("email") or "").lower() or None
+            same = next((p for p in out if (uid and p.user_id == uid) or (email and p.email == email)
+                         or p.name.casefold() == name.casefold()), None)
+            if same is not None:
+                same.user_id = same.user_id or uid
+                same.email = same.email or email
+                continue
+            out.append(Person(key=f"{tag}{i}", name=name, user_id=uid, email=email))
     return out
 
 
@@ -448,13 +455,6 @@ async def _enqueue(db: AsyncIOMotorDatabase, team: str, found: Found, entry: dic
         row: dict[str, Any] = {"kind": KIND, "bundle": bundle, "team_id": team, "slack_user_id": found.slack_user_id,
                                "user_id": found.user_id, "ref": None, "meetings": [entry], "state": "pending",
                                "attempts": 0, "next_at": now + WAIT, "created_at": now}
-        # Sent to them a moment ago (another meeting that ended close to this one): add to that message.
-        last = await db[sn.OUTBOX].find_one({"bundle": bundle, "kind": KIND, "state": "sent", "ts": {"$ne": None}},
-                                            sort=[("done_at", -1)])
-        first = _aware((last or {}).get("first_at") or (last or {}).get("done_at"))
-        if last is not None and first is not None and now - first <= BUNDLE:
-            row.update(update_of=last["_id"], first_at=first,
-                       meetings=[*[m for m in last.get("meetings") or [] if m["meeting_id"] != entry["meeting_id"]], entry])
         try:
             await db[sn.OUTBOX].insert_one(row)
             return
@@ -571,23 +571,9 @@ async def deliver(db: AsyncIOMotorDatabase, row: dict) -> tuple[str, dict]:
     msg, kept = await render(db, row, first=True)
     if msg is None:
         return "skipped", {"error": "gone"}
-    now = _now()
-    if row.get("update_of"):
-        prev = await db[sn.OUTBOX].find_one({"_id": row["update_of"]})
-        if prev is not None and prev.get("ts") and prev.get("channel"):
-            try:
-                r = await slack_api.call("chat.update", token, channel=prev["channel"], ts=prev["ts"],
-                                         blocks=msg["blocks"], text=msg["text"])
-                await db[sn.OUTBOX].update_one({"_id": prev["_id"]}, {"$set": {"merged_into": row["_id"]}})
-                return "sent", {"channel": r.get("channel") or prev["channel"], "ts": r.get("ts") or prev["ts"],
-                                "meetings": kept, "first_at": row.get("first_at") or now, "updated": True}
-            except slack_api.SlackError as exc:
-                if exc.dead_token or exc.error == "ratelimited" or exc.status in (0, 500, 502, 503):
-                    raise
-                log.info("slack: action items: chat.update %s (sending a new message)", exc.error)
     r = await slack_api.call("chat.postMessage", token, channel=row["slack_user_id"], blocks=msg["blocks"],
                              text=msg["text"], unfurl_links=False, unfurl_media=False)
-    return "sent", {"channel": r.get("channel"), "ts": r.get("ts"), "meetings": kept, "first_at": now}
+    return "sent", {"channel": r.get("channel"), "ts": r.get("ts"), "meetings": kept}
 
 
 # ── Buttons ───────────────────────────────────────────────────────────────────

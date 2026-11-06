@@ -67,6 +67,16 @@ class Parsing(unittest.TestCase):
         self.assertEqual(people, {"Bo Chen": ["Update the docs"], "Zara Khan": ["Book the room"]})
         self.assertEqual(items[2].text, "Send the sheet.")   # the name taken off a ticked one too
 
+    def test_invited_attendees_and_organizer_are_one_list(self):
+        uid = "a" * 24
+        row = {"attendees": [{"name": "Bo Chen", "user_id": uid, "email": None}],
+               "invited": [{"name": "Bo Chen", "user_id": uid, "email": "bo@acme.test"},
+                           {"name": "Zara Khan", "user_id": None, "email": "zara@ext.test"}],
+               "organizer": {"name": "Zara Khan", "email": None}}
+        people = sai._people(row)
+        self.assertEqual([(p.name, p.user_id, p.email) for p in people],
+                         [("Bo Chen", uid, "bo@acme.test"), ("Zara Khan", None, "zara@ext.test")])
+
     def test_a_mentioned_member_who_didnt_attend_gets_nothing(self):
         md = '## Action items\n\n- [ ] :person[Priya]{id="' + "b" * 24 + '"} Ship it {#b-1}\n'
         row = {"attendees": [{"name": "Bo Chen", "user_id": "a" * 24}]}
@@ -181,7 +191,7 @@ class Sending(ActionItemsWorld):
         self.assertEqual(len(self.buttons(b[0], "md_ai_done")), 1)
         # The address Google gave is kept on the row but never shown.
         row = await self.db[meetings.COLL].find_one({})
-        self.assertIn("zara@ext.test", [a.get("email") for a in row["attendees"]])
+        self.assertIn("zara@ext.test", [a.get("email") for a in row["attendees"] + row["invited"]])
         r = await self.http.get(f"/api/v1/meetings/{row['_id']}", headers=self.session("owner"))
         self.assertNotIn("zara@ext.test", r.text)
 
@@ -301,7 +311,7 @@ class Sending(ActionItemsWorld):
 
 
 class Bundling(ActionItemsWorld):
-    async def test_meetings_close_together_share_one_message(self):
+    async def test_meetings_ready_together_share_one_message_later_ones_get_their_own(self):
         self.sk.directory["zara@ext.test"] = ext("U0ZARA", "Zara Khan", "zara@ext.test")
         await self.notes_meeting(title="Daily Syncup")
         await self.notes_meeting(title="Design review", steps=["Zara Khan will share the mockups."])
@@ -312,25 +322,13 @@ class Bundling(ActionItemsWorld):
         self.assertIn("Your action items from 2 meetings", text)
         self.assertIn("pricing sheet", text)
         self.assertIn("mockups", text)
-        # Another one 10 minutes later: added to that message, not a new one.
+        # Another one after that message went: a message of its own (an edit wouldn't be noticed).
         await self.notes_meeting(title="Customer call", steps=["Zara Khan will call Acme back."])
         await self.send()
-        self.assertEqual(len(self.dms("U0ZARA")), 1)
-        upd = [u for u in self.sk.of("chat.update") if u["channel"] == "U0ZARA"]
-        self.assertEqual(len(upd), 1)
-        self.assertEqual(upd[0]["ts"], z[0].get("ts") or upd[0]["ts"])
-        self.assertIn("3 meetings", json.dumps(upd[0]))
-        self.assertIn("Call Acme back.", json.dumps(upd[0]))
-
-    async def test_a_message_older_than_half_an_hour_isnt_reopened(self):
-        self.sk.directory["zara@ext.test"] = ext("U0ZARA", "Zara Khan", "zara@ext.test")
-        await self.notes_meeting(title="Daily Syncup")
-        await self.send()
-        await self.db[slack_notify.OUTBOX].update_many({"state": "sent"}, {"$set": {
-            "first_at": meetings.now_utc() - timedelta(minutes=45)}})
-        await self.notes_meeting(title="Design review", steps=["Zara Khan will share the mockups."])
-        await self.send()
-        self.assertEqual(len(self.dms("U0ZARA")), 2)
+        z = self.dms("U0ZARA")
+        self.assertEqual(len(z), 2)
+        self.assertIn("Call Acme back.", json.dumps(z[1]))
+        self.assertNotIn("pricing sheet", json.dumps(z[1]))
         self.assertEqual([u for u in self.sk.of("chat.update") if u["channel"] == "U0ZARA"], [])
 
 
@@ -391,8 +389,6 @@ class Buttons(ActionItemsWorld):
         await self.click("md_ai_start", start["value"], "U0ZARA")
         await slack.drain()
         self.assertFalse(await sai.stopped(self.db, TEAM, "U0ZARA"))
-        await self.db[slack_notify.OUTBOX].update_many({"state": "sent"}, {"$set": {
-            "first_at": meetings.now_utc() - timedelta(hours=1)}})
         await self.notes_meeting(title="Customer call", steps=["Zara Khan will call Acme back."])
         await self.send()
         self.assertEqual(len(self.dms("U0ZARA")), 2)

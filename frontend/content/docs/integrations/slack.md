@@ -111,7 +111,7 @@ What each person sees depends on whether Markdrop knows their Markdrop account a
 
 ### Who gets one
 
-An action item belongs to the person it starts with: someone @mentioned at its start, or a name the notes start it with, like "Ravi Kumar will email the release notes". That person has to be one of the meeting's attendees, or its organizer. Items with no person, or with someone who wasn't in the meeting, aren't sent to anyone.
+An action item belongs to the person it starts with: someone @mentioned at its start, or a name the notes start it with, like "Ravi Kumar will email the release notes". That person has to have been in the meeting: one of its attendees, someone on the invite in Google's notes (an item assigned to them means they were there), or its organizer. Items with no person, or with someone who wasn't in the meeting, aren't sent to anyone.
 
 Markdrop finds each person in Slack:
 
@@ -119,7 +119,7 @@ Markdrop finds each person in Slack:
 2. by email: their Markdrop sign-in email, or the address Google's meeting notes gave for them. This needs the app's newer permissions; until an admin selects **Update permissions** on the **Integrations** tab, only people who linked their Slack account get one;
 3. as a last resort, by their exact name, when exactly one person in the Slack workspace has it. Someone found only by name always gets the plain version (their items, no link), and never for a meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings).
 
-Each person gets at most one message per meeting, about a minute after the summary is ready. An item ticked off in that minute is left out, and someone with nothing left gets no message. If more meetings finish within half an hour, they're added to the same message ("Your action items from 2 meetings") instead of sending another. Writing a meeting's summary again doesn't send it again. Past meetings brought in quietly and meetings held more than a day ago don't send any.
+Each person gets at most one message per meeting, about a minute after the summary is ready. An item ticked off in that minute is left out, and someone with nothing left gets no message. Meetings whose summaries are ready in that same minute share one message ("Your action items from 2 meetings"); a meeting after that gets a message of its own, so you notice it. Writing a meeting's summary again doesn't send it again. Past meetings brought in quietly and meetings held more than a day ago don't send any.
 
 ### Stop them
 
