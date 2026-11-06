@@ -143,7 +143,7 @@ class Transport(McpTestCase):
             # Access requests (request edit access, the owner's list, approve / decline).
             "request_edit_access", "list_access_requests", "decide_access_request",
             # Meetings (import a call, list / read meetings, ask them, automatic import status).
-            "import_meeting", "list_meetings", "get_meeting", "ask_meetings", "meetings_connection",
+            "import_meeting", "list_meetings", "get_meeting", "ask_meetings", "meetings_connection", "check_meetings_now",
             "import_meetings_bulk", "organize_meetings",
             # Meeting memory for writing (decisions, action items… related to a topic or a page).
             "meeting_context",
