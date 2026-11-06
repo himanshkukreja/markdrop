@@ -74,11 +74,26 @@ Choose a notification to open the page at that block. If Markdrop is already ope
 
 ### Turn them on
 
+Markdrop offers it in two places, so it takes one tap:
+
+- **On Home**: the card **Get notified when someone mentions you or needs your sign-off**. Choose **Turn on**.
+- **Under the bell**: when someone has mentioned you or asked for your sign-off, the top of the list says **Get these on this device**. Choose **Turn on**.
+
+![The Home card: Get notified when someone mentions you or needs your sign-off, with Turn on and Not now.](/docs-assets/pages/mentions-and-notifications/push-prompt.webp)
+
+Then allow notifications when your browser asks. Browsers ask once per device and only after you choose **Turn on**, so Markdrop can't turn them on for you. Choose **Not now** to hide the offer on that device; Home and the bell each remember it separately. Neither offer appears once the device gets notifications, or while notifications are blocked for Markdrop in the browser.
+
+You can also turn them on in settings:
+
 1. Go to **Settings › Account › Notifications on your devices**. **Notification settings** at the bottom of the bell's list goes there too.
 2. Choose **Turn on**, then allow notifications when your browser asks.
 3. Choose **Send a test** to see how they look.
 
 Do this on each device you want notified. They work in Chrome, Edge, Firefox and Safari on computers and Android phones.
+
+:::note[Nothing shows up on a Mac?]
+macOS has its own switch for each browser. Open **System Settings › Notifications**, choose your browser (for example **Google Chrome**) and turn on **Allow notifications**. Then choose **Send a test** again.
+:::
 
 :::note[iPhone and iPad]
 On an iPhone or iPad, notifications work only in the installed app (iOS 16.4 or later). [Install Markdrop](/get-started/install-app), open it from your Home Screen, then turn notifications on in **Settings › Account** inside the app. In a Safari tab, the card shows **Install app** instead.

@@ -209,7 +209,7 @@ const firstRowMenu = (p) => p.locator("main").getByRole("button", { name: /^(Mor
 const STATES = [
   ["home", ["owner", "member"], () => `${APP}/dashboard`, (p) => p.getByTestId("home-workspaces")],
   // Home's "turn on notifications" card (components/push): needs an API with push keys (PB_PUSH=1) and a
-  // browser with Web Push (Playwright's WebKit may have none: skipped there).
+  // browser with Web Push (WebKit with isMobile is an iPhone Safari tab: no PushManager, so skipped there).
   ["home-push", ["owner", "member"], () => (PUSH ? `${APP}/dashboard` : null), (p) => p.getByTestId("home-workspaces"), async (p) => {
     if (!(await p.evaluate(() => "PushManager" in window && "Notification" in window))) return "skip";
     const card = p.getByTestId("push-prompt-home");

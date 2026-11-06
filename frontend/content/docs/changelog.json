@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "push-prompts-one-tap",
+      "date": "2026-11-06",
+      "title": "Turn on notifications in one tap, from Home or the bell",
+      "kind": "improved",
+      "area": "App",
+      "products": [
+        "web"
+      ],
+      "summary": "Home now offers to turn on notifications for the device you're using, and the bell's list does too when someone has mentioned you or asked for your sign-off. One tap on **Turn on** and your browser asks once; **Not now** hides the offer on that device for good.",
+      "body": "- **On Home**: a small card, \"Get notified when someone mentions you or needs your sign-off\", with **Turn on** and **Not now**. It shows in the installed app and in a browser tab, only where notifications can work.\n- **Under the bell**: when the list has a mention or a sign-off request and this device doesn't get notifications yet, a line on top says **Get these on this device** with **Turn on**.\n- **Turn on** is the same as **Settings › Account › Notifications on your devices**: your browser asks for permission once per device. Turning them on in one place hides the other offer too.\n- **Not now** is remembered on that device, separately for Home and the bell. Neither offer shows when notifications are blocked for Markdrop in your browser, when the device already gets them, or on an iPhone or iPad outside the installed app.\n- See [Push notifications](/pages/mentions-and-notifications#push-notifications)."
+    },
+    {
       "id": "home-quiet-strip",
       "date": "2026-11-06",
       "title": "Home: action items newest first, and no gap beside an empty Today",

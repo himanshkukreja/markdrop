@@ -2295,6 +2295,18 @@
     "bytes": 28008,
     "kind": "image"
   },
+  "/docs-assets/pages/mentions-and-notifications/push-prompt.dark.webp": {
+    "w": 1672,
+    "h": 332,
+    "bytes": 16866,
+    "kind": "image"
+  },
+  "/docs-assets/pages/mentions-and-notifications/push-prompt.webp": {
+    "w": 1672,
+    "h": 332,
+    "bytes": 16426,
+    "kind": "image"
+  },
   "/docs-assets/pages/overview/edit-mode.dark.webp": {
     "w": 2880,
     "h": 840,

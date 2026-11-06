@@ -49,7 +49,7 @@ Installing doesn't sign you in again in Chrome, Edge or on Android. On an iPhone
 
 ## Notifications
 
-The app can ring your phone or computer when someone mentions you, asks for your sign-off, shares a page with you or asks for access. Turn them on in **Settings › Account › Notifications on your devices**: choose **Turn on** and allow them when asked.
+The app can ring your phone or computer when someone mentions you, asks for your sign-off, shares a page with you or asks for access. The app's Home offers it: choose **Turn on** on the card **Get notified when someone mentions you or needs your sign-off** and allow them when asked. You can also turn them on in **Settings › Account › Notifications on your devices**.
 
 On an iPhone or iPad this works only in the installed app, so install Markdrop first and turn notifications on from inside it. See [Push notifications](/pages/mentions-and-notifications#push-notifications).
 
