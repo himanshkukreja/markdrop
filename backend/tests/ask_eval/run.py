@@ -131,8 +131,10 @@ def fake_answer(params: dict) -> str:
     return meetings_fake(params)
 
 
-def scope_of(spec: str | None, ws: str) -> dict:
+def scope_of(spec: str | None, ws: str, meeting_ids: dict | None = None) -> dict:
     spec = spec or "everything"
+    if spec.startswith("meeting:"):
+        return {"kind": "meetings", "workspace": ws, "meeting": (meeting_ids or {})[spec[8:]]["id"]}
     if spec == "meetings":
         return {"kind": "meetings", "workspace": ws}
     if spec == "workspace":
@@ -191,7 +193,7 @@ class EvalWorld(AccessWorld, AIEnv):
 
     async def ask_one(self, item: dict, thread_id: str | None = None) -> dict:
         who = item.get("who") or "hk"
-        body = {"question": item["q"], "scope": scope_of(item.get("scope"), self.ids["workspace"])}
+        body = {"question": item["q"], "scope": scope_of(item.get("scope"), self.ids["workspace"], self.ids["meetings"])}
         if thread_id:
             body["thread_id"] = thread_id
         token = CURRENT.set(item["id"])
@@ -211,7 +213,10 @@ class EvalWorld(AccessWorld, AIEnv):
                 out.update(answer=data.get("answer") or "", citations=data.get("citations") or [], usage=data.get("usage"),
                            thread_id=data.get("thread_id"), intent=data.get("intent"), scope_label=(data.get("scope") or {}).get("label"))
             elif ev in ("error", "limit"):
-                out["error"] = f"{ev}: {data.get('detail') or data.get('message')}"
+                if item.get("error_ok") and data.get("code") == item["error_ok"]:
+                    out["answer"] = data.get("detail") or ""
+                else:
+                    out["error"] = f"{ev}: {data.get('detail') or data.get('message')}"
         calls = [c for c in self.rec.calls if c["q"] == item["id"]]
         out["prompts"] = [prompt_of(c["params"]) for c in calls]
         answer_calls = [c for c in calls if not ("Return only JSON" in c["params"]["system"][0]["text"])]

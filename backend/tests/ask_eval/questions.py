@@ -216,4 +216,12 @@ Q: list[dict] = [
     {"id": "nz-02", "cat": "personal-meetings", "q": "What was I working on about a month ago?",
      "expect": [["billing migration", "CLI login", "editor toolbar", "PRs"]]},
     {"id": "nz-03", "cat": "personal-meetings", "q": "What did I say in the sprint 21 planning?", "expect": [["CLI login"]]},
+    # ── One meeting ──
+    {"id": "om-01", "cat": "one-meeting", "scope": "meeting:sync1", "q": "What did I say here?", "expect": [["300"], ["privacy"]]},
+    {"id": "om-02", "cat": "one-meeting", "scope": "meeting:sync0", "q": "Did I say anything in this one?",
+     "expect": [["didn't", "did not", "no,", "no."]]},
+    {"id": "om-03", "cat": "one-meeting", "scope": "meeting:senseloaf", "q": "What did the customer ask for, and what did we agree?",
+     "expect": [["SSO"], ["30 days", "30-day", "pilot"]]},
+    {"id": "om-04", "cat": "one-meeting", "who": "rohan", "scope": "meeting:oneone", "q": "What was discussed?", "leak": True,
+     "forbid": LEAKS, "error_ok": "not_found", "expect": [["not found"]]},
 ]
