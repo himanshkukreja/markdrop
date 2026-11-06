@@ -285,7 +285,7 @@ func addFileTools(s *mcp.Server, m *Manager) {
 	mcp.AddTool(s, &mcp.Tool{
 		Name:  "upload_file",
 		Title: "Publish a file on Markdrop",
-		Description: "Publishes a file from this computer (a video, PDF, HTML page, image, spreadsheet, …) on Markdrop and " +
+		Description: "Publishes a file from this computer (a video, PDF, HTML page, image, spreadsheet, Word or PowerPoint file, …) on Markdrop and " +
 			"returns its link (https://markdrop.in/<slug>). The file is read here and sent straight to storage in " +
 			"parts, then verified by sha256 on the server; large videos (up to 2 GB) are fine. If the call is cut " +
 			"short, calling it again with the same arguments resumes the upload. access defaults to link (anyone " +

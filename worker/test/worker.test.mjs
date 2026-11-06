@@ -236,7 +236,7 @@ test("the PDF viewer page is Markdrop's own and fetches only /r/ on this origin"
 });
 
 test("a viewer page opened on its own runs sandboxed; framed, the frame's sandbox applies", async () => {
-  for (const v of ["pdf", "sheet", "docx", "text", "video", "audio"]) {
+  for (const v of ["pdf", "sheet", "docx", "pptx", "text", "video", "audio"]) {
     const top = await get(`/v/${v}/art/u1/doc.pdf`, { "sec-fetch-dest": "document" });
     const csp = top.headers.get("content-security-policy");
     assert.equal(csp, "sandbox allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox", v);
