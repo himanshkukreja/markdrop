@@ -61,8 +61,15 @@ export function LogStatusBadge({ status }: { status: LogStatus }) {
   return <Badge size="sm" tone={s.tone} variant={s.outline ? "outline" : "soft"} className="whitespace-nowrap">{s.label}</Badge>;
 }
 
-const CHART_COLOR: Record<string, string> = { resend: "var(--chart-1)", brevo: "var(--chart-2)", failed: "var(--danger)" };
+const CHART_COLOR: Record<string, string> = { resend: "var(--chart-1)", brevo: "var(--chart-3)", failed: "var(--danger)" };
 const chartColor = (k: string) => CHART_COLOR[k] ?? "var(--chart-other)";
+
+/** "in 5 h 20 min" until an instant in the future. */
+function untilLabel(iso: string): string {
+  const m = Math.max(0, Math.round((new Date(iso).getTime() - Date.now()) / 60_000));
+  if (m < 60) return `in ${m} min`;
+  return `in ${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
+}
 
 const dayLong = (d: string) =>
   new Date(`${d}T00:00:00Z`).toLocaleDateString("en", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
@@ -130,7 +137,7 @@ export function UsagePanel({ usage, error, reload, onKind }: {
         <StatTile size="md" label="Today" value={`${num(usage.total.used)} / ${num(usage.total.limit)}`} caption={`${pct(usage.total.used, usage.total.limit)} of the daily limit`} />
         <StatTile size="md" label="Sent · 14 days" value={num(sent14)} caption={`${num(failed14)} failed`} />
         <StatTile size="md" label="Waiting for tomorrow" value={num(usage.retry_waiting)} caption="queued over the limit" />
-        <StatTile size="md" label="Resets" value="00:00 UTC" caption={<TimeAgo iso={usage.resets_at} />} />
+        <StatTile size="md" label="Resets" value="00:00 UTC" caption={untilLabel(usage.resets_at)} />
       </div>
 
       <Section id="email-usage-today" label={`Today · ${dayLong(usage.day)} (UTC)`} title="Provider usage"
@@ -294,7 +301,7 @@ export function SentLog({ token, usage, kind, setKind }: {
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden overflow-x-auto rounded-lg border border-border md:block">
+          <div className="hidden overflow-x-auto rounded-lg border border-border lg:block">
             <table className="w-full min-w-[720px] text-caption">
               <caption className="md-visually-hidden">Sent mail</caption>
               <thead className="bg-surface-inset text-text-secondary">
@@ -315,7 +322,7 @@ export function SentLog({ token, usage, kind, setKind }: {
             </table>
           </div>
           {/* Phone list */}
-          <ul className="flex flex-col gap-2 md:hidden" aria-label="Sent mail">
+          <ul className="flex flex-col gap-2 lg:hidden" aria-label="Sent mail">
             {data.rows.map((r) => (
               <li key={r.id} className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-border bg-surface p-3">
                 <div className="flex min-w-0 items-start justify-between gap-2">
