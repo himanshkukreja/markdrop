@@ -293,22 +293,17 @@ class MyMeeting:
         return self.attended or self.organized or self.spoke > 0
 
     def status(self) -> str:
+        """"they organized it and attended but didn't speak", "they attended and spoke 3 times"…"""
         if not self.mine:
             return "the person asking was not in this meeting"
-        bits = []
-        if self.organized:
-            bits.append("they organized it")
-        if self.attended or self.spoke:
-            bits.append("they attended")
-        if self.transcript is None:
-            bits.append("its transcript isn't open to them")
-        elif not self.row.get("segments"):
-            bits.append("it has no transcript")
-        elif self.spoke:
-            bits.append(f"they spoke {self.spoke} time{'s' if self.spoke != 1 else ''}")
-        else:
-            bits.append("they didn't speak")
-        return ", ".join(bits)
+        who = "they organized it and attended" if self.organized else "they attended"
+        if self.transcript is None and self.row.get("transcript_doc_id"):
+            return who + " (the transcript isn't open to them)"
+        if not self.row.get("segments"):
+            return who + " (no transcript)"
+        if self.spoke:
+            return f"{who} and spoke {self.spoke} time{'s' if self.spoke != 1 else ''}"
+        return who + " but didn't speak"
 
 
 @dataclass
