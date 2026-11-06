@@ -12,7 +12,8 @@
  *   ask       Ask Markdrop (This doc) in the page cites the meeting; its source link opens the meeting
  *   leak      a meeting restricted to its attendees never reaches anyone else (panel, search, Ask, API)
  *   prefs     "Show by itself" off hides the button (kept after a reload); /meetings still opens the panel
- *   phone     390 px: the sheet, no sideways scroll
+ *   phone     390 px, writing: the editing toolbar's "From meetings" button (44 px; the pill steps aside
+ *             while the toolbar is up) opens the sheet, no sideways scroll
  *   view      View mode: "From meetings" in the page's bar opens the same panel for the section in view (no
  *             hints, no editor); Insert opens Edit with the line after that section, saved; a workspace
  *             reader gets the panel without Insert, and never the restricted meeting
@@ -286,7 +287,14 @@ await step("prefs", async () => {
 await step("phone", async () => {
   const { p } = await ctx(browser, { token: T.admin, width: 390, height: 844, mobile: true });
   await openAt(p, PRD, "Customers pay on a hosted page");
-  await openPanel(p);
+  // The caret is in the page: the editing toolbar is up, the pill steps aside and the toolbar has the button.
+  const btn = p.getByTestId("mm-phonebar");
+  await btn.waitFor({ timeout: 20000 });
+  const bb = await btn.boundingBox();
+  if (!bb || bb.width < 44 || bb.height < 44) fail(`the toolbar's button is ${bb?.width}x${bb?.height}`);
+  await p.waitForFunction(() => Number(document.querySelector(".pb-phonebar__count")?.textContent || 0) > 0, null, { timeout: 20000 });
+  await btn.click();
+  await panel(p).waitFor({ timeout: 5000 });
   await factOf(p, "ship the checkout redesign").waitFor({ timeout: 10000 });
   const wide = await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   if (wide > 1) fail(`sideways scroll: ${wide}px`);

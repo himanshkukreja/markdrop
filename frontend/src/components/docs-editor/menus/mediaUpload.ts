@@ -24,7 +24,13 @@ export interface EditorServices {
   openPeople?: (e: Editor, r: Range) => void;
   /** "/meetings": the page's "From meetings" panel (components/pages/memory), set while it is mounted. */
   openMeetings?: (e: Editor, r: Range) => void;
+  /** The phone toolbar's "From meetings" button (pages/PagePhoneBar): set while the page's "From
+   *  meetings" pill would show (the pill steps aside while that toolbar is up). Changes are announced
+   *  with MEETINGS_BUTTON_EVENT on window. */
+  meetingsButton?: { count: number; open: () => void };
 }
+
+export const MEETINGS_BUTTON_EVENT = "md:meetings-button";
 
 export function services(editor: Editor): EditorServices {
   return ((editor.storage as unknown as { dxeServices?: EditorServices }).dxeServices ??= {});

@@ -28,7 +28,7 @@ import { createPortal } from "react-dom";
 import type { Editor } from "@tiptap/react";
 import { Icon, IconButton, Spinner, Switch, useToast } from "@/components/ui";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
-import { services } from "@/components/docs-editor/menus/mediaUpload";
+import { MEETINGS_BUTTON_EVENT, services } from "@/components/docs-editor/menus/mediaUpload";
 import { KIND_LABEL, checkSection, fmtDay, relatedFacts, setMemoryPrefs, type FactKind, type MemoryFact, type MemoryHint, type MemoryPrefs, type RelatedResult } from "@/lib/meetingMemory";
 import { headingIndex, markdownBlocks, sectionAround, sectionKey, shouldCheck, textHash, type BlockLine } from "./memoryCore.mjs";
 import { insertAfterCaret } from "../editorInsert";
@@ -335,6 +335,21 @@ export function MeetingMemory({ slug, workspaceId, title, editor, readOnly, ai, 
       if (s.openMeetings) delete s.openMeetings;
     };
   }, [editor, workspaceId, show]);
+
+  // Phones: while the editing toolbar is up the pill steps aside, and the toolbar carries the button.
+  const phoneButton = !!workspaceId && !viewing && panelOn && (data?.meetings ?? 0) > 0;
+  const factCount = facts.length;
+  useEffect(() => {
+    if (!editor) return;
+    const s = services(editor as never);
+    if (phoneButton) s.meetingsButton = { count: factCount, open: () => show() };
+    else delete s.meetingsButton;
+    window.dispatchEvent(new Event(MEETINGS_BUTTON_EVENT));
+    return () => {
+      delete s.meetingsButton;
+      window.dispatchEvent(new Event(MEETINGS_BUTTON_EVENT));
+    };
+  }, [editor, phoneButton, factCount, show]);
 
   const insert = useCallback(async (f: MemoryFact) => {
     const onViewInsert = viewRef.current?.onInsert;
