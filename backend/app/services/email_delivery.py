@@ -11,7 +11,7 @@ and a priority tier:
 
 Providers. Resend and Brevo (``MARKDROP_BREVO_API_KEY``; off while unset), tried
 in ``MARKDROP_EMAIL_PROVIDER_ORDER``. Each has a daily limit (UTC day; the free
-plans: Resend 100, Brevo 300). A send claims its recipients atomically
+plans: Resend 100; Brevo 250, Markdrop's share of its 300). A send claims its recipients atomically
 (``$inc`` on ``email_quota``: one row per provider per day, plus ``all:<day>``
 for the tier caps) *before* it posts, so two processes can't both take the last
 slot. The first provider with room gets the message; a provider error (network,
@@ -256,7 +256,10 @@ class Resend(Provider):
 
 def brevo_payload(msg: dict[str, Any]) -> dict[str, Any]:
     """A Resend-shaped message as Brevo's ``POST /v3/smtp/email`` body."""
-    name, email = parse_address(str(msg.get("from") or settings.email_from))
+    # Every send path sets its own From (mailer._sender(purpose)); never fall back to the sign-in sender.
+    name, email = parse_address(str(msg.get("from") or settings.email_from_share or settings.email_from_welcome or ""))
+    if not email:
+        raise ProviderError("Brevo: the message has no From address.", fallback=False)
     out: dict[str, Any] = {
         "sender": {"email": email, **({"name": name} if name else {})},
         "to": [{"email": a} for a in recipients(msg)],

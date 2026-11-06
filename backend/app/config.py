@@ -128,11 +128,12 @@ class Settings(BaseSettings):
     # in MARKDROP_EMAIL_PROVIDER_ORDER with room left today (UTC), falls back
     # to the next on a provider error, and logs each send (admin → Emails).
     # Brevo is off while its key is unset. Limits are the providers' free-plan
-    # daily caps; bulk mail stops at 80% of the combined room, transactional
+    # daily caps (Brevo: Markdrop's share); bulk mail stops at 80% of the combined room, transactional
     # at 95%, sign-in codes may use all of it.
     brevo_api_key: str = ""
     resend_daily_limit: int = 100
-    brevo_daily_limit: int = 300
+    # Markdrop's share of Brevo's 300/day free plan (the portfolio site sends from the same account).
+    brevo_daily_limit: int = 250
     email_provider_order: str = "resend,brevo"
 
     login_challenge_ttl_minutes: int = 15
