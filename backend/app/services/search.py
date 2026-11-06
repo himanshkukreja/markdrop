@@ -1000,7 +1000,7 @@ class Shaper:
         rows = (getattr(self, "windows", None) or {}).get(c.key) or []
         if not rows:
             return None, None
-        r = rows[0]
+        r = search_chunks.focus(rows[0], terms)
         sn = snippet(r.get("x") or "", terms.marks, terms.prefixes)
         if not sn:
             return None, None

@@ -280,6 +280,30 @@ async def has_chunks(db: AsyncIOMotorDatabase, parents: list) -> set:
     return set(await db[COLL].distinct("p", {"p": {"$in": pids}}))
 
 
+_LINE_CLOCK = re.compile(r"^\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s")
+
+
+def focus(row: dict, terms) -> dict:
+    """The window narrowed to its best line when it is a transcript's: that line's time and anchor
+    (``l``, ``f``), so a quote and its link land on the moment, not the window's start."""
+    if row.get("src") != "transcript" or not row.get("k"):
+        return row
+    lines = (row.get("x") or "").split("\n")
+    best, best_i = 0.0, -1
+    for i, line in enumerate(lines):
+        s, _n = _score(st.words(line), terms)
+        if s > best:
+            best, best_i = s, i
+    if best_i < 0:
+        return row
+    m = _LINE_CLOCK.match(lines[best_i])
+    out = dict(row)
+    out["f"] = f"b-t{int(row['k']) + best_i:04d}"
+    if m:
+        out["l"] = m.group(1)
+    return out
+
+
 def fragment_url(url: str | None, row: dict) -> str | None:
     """``url`` opened at the window: a transcript line's anchor, a PDF page, a video's second."""
     if not url:
