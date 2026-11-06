@@ -733,6 +733,8 @@ async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list
             if any(x["name"].casefold() == a["name"].casefold() for x in attendees):
                 continue
             mem = people.match(a["name"], a.get("email"))
+            if mem and any(x.get("user_id") == mem["id"] for x in attendees):
+                continue
             attendees.append({"name": a["name"], "user_id": mem["id"] if mem else None})
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
@@ -883,6 +885,8 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
     attendees = []
     for a in m.attendees:
         mem = people.match(a["name"], a.get("email"))
+        if mem and any(x["user_id"] == mem["id"] for x in attendees):
+            continue    # the same member under another name (the invite's "Priya Nair", the speaker "priya.nair")
         attendees.append({"name": mem["name"] if mem and not a["name"] else a["name"],
                           "user_id": mem["id"] if mem else None})
     sources = []

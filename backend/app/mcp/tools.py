@@ -2941,6 +2941,10 @@ TOOLS: list[Tool] = [
                      "workspaces with AI turned off are left out. scope: all (default) or workspace:<id>; folder: "
                      "only that folder of the workspace (and its sub-folders); page: ask about that document or page "
                      "first (then its workspace's meetings and documents), as the in-app assistant's This doc. "
+                     "It knows who is asking (the signed-in user: name, email, workspaces and role, how they appear "
+                     "in meetings), so pass questions about the user as they are: 'what did I say in my last "
+                     "sync-up', 'my action items', 'what have I been working on', 'which workspaces am I in'. "
+                     "Prefer ask_meetings for questions only about meetings. "
                      "Counts towards the user's AI search limits."),
         scope=READ,
         input_schema={"type": "object", "properties": {

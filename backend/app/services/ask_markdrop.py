@@ -396,7 +396,11 @@ async def _transcript_lines(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: 
     return [(k + 1, segs[k]) for k in keep], row.get("transcript_slug"), row
 
 
-def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms, *, chars: int = EXCERPT_CHARS) -> str:
+_FRONT_HEAD = re.compile(r"^\s*(?:icon|cover|props|title|date)\s*:|\bprops:\s*\{", re.I)
+
+
+def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms, *, chars: int = EXCERPT_CHARS,
+             sections: bool = True) -> str:
     if c.kind in search.DOC_KINDS and search_index.title_only(c.raw):
         return ""
     if not row:
@@ -404,10 +408,21 @@ def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms, *, chars: in
     x = row.get("x") or ""
     sn = search.snippet(x, terms.marks, terms.prefixes, width=chars) if terms.tokens else None
     text = sn["text"] if sn else x[:chars]
-    heads = [h.get("t") for h in (row.get("hd") or [])[:8] if h.get("t")]
-    if heads:
+    # Section names help a long document; a meeting's are always the same (Decisions, Action items…).
+    # Rows indexed before the front-matter fix may carry "icon: … props: {…}" as a heading: skipped.
+    heads = [h.get("t") for h in (row.get("hd") or [])[:8] if h.get("t") and not _FRONT_HEAD.search(h["t"])]
+    if heads and sections:
         text = "Sections: " + " · ".join(heads) + "\n" + text
-    return text
+    return re.sub(r"\s#\d{1,5}\b", "", text)       # the meeting page's "#12" transcript links
+
+
+def excerpt_terms(question: str, terms: list[str] | None = None) -> search.Terms:
+    """What an excerpt centres on: the question's content words and the search terms (not "what", "did")."""
+    words: list[str] = []
+    for w in st.words(" ".join([question or "", *(terms or [])])):
+        if len(w) >= 3 and w not in st.STOPWORDS and w not in words:
+            words.append(w)
+    return search.terms_of(" ".join(words[:search.MAX_TOKENS]) + " ")
 
 
 def _where(c: search.Cand, ws_names: dict[str, str]) -> str:
@@ -419,7 +434,7 @@ def _where(c: search.Cand, ws_names: dict[str, str]) -> str:
 async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w: search.World,
                         cands: list[search.Cand], question: str, *, meeting_chars: int = MEETING_EXCERPT_CHARS,
                         with_lines: bool = True, you: "ask_me.You | None" = None,
-                        mine: "ask_me.Personal | None" = None) -> list[Source]:
+                        mine: "ask_me.Personal | None" = None, expanded: list[str] | None = None) -> list[Source]:
     """Numbered sources for ``cands`` (already decided readable): their shaped rows, excerpts, and the
     best transcript lines of the first meetings. With ``you``, lines the asker spoke are marked
     "(you)"; ``mine`` (personal retrieval): their meetings bring the asker's own lines and a note of
@@ -430,7 +445,7 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
         return []
     my_meetings = {str(m.row["_id"]): m for m in (mine.meetings if mine else [])}
     my_work = {f"d:{raw['_id']}": what for raw, what in (mine.work if mine else [])}
-    terms = search.terms_of(question)
+    terms = excerpt_terms(question, expanded)
     ids = [c.content_id for c in cands if c.content_id is not None]
     rows = {}
     if ids:
@@ -438,6 +453,10 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
             {"_id": {"$in": ids}}, {"x": 1, "hd": 1}).to_list(length=len(ids))}
     shaped = await search.Shaper(db, w).shape(cands, terms)
     mdocs = await _meeting_docs(db, cands)
+    # Every meeting among them: its title, day and series (a meeting page's updated_at is the import's).
+    mids = [meetings.oid(v["meeting_id"]) for v in mdocs.values() if v.get("meeting_id")]
+    mrows = {str(r["_id"]): r for r in await db[meetings.COLL].find(
+        {"_id": {"$in": [m for m in mids if m is not None]}}, {"title": 1, "date": 1, "series": 1}).to_list(length=len(mids) or 1)}
     out: list[Source] = []
     lined: set[str] = set()
     for c in cands:
@@ -450,9 +469,19 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
         attrs = {"title": c.title or item.get("title") or "(untitled)", "kind": "meeting" if md and md["role"] == "page" else
                  ("meeting transcript" if md else c.kind), "where": _where(c, w.ws_names),
                  "updated": c.updated.strftime("%Y-%m-%d") if c.updated else None}
+        mrow_ = mrows.get(str(md.get("meeting_id"))) if md else None
+        if mrow_ is not None:
+            attrs.pop("updated", None)
+            if md["role"] == "transcript":
+                attrs["title"] = f"{mrow_.get('title') or 'Meeting'} · transcript"
+            if mrow_.get("date"):
+                attrs["date"] = mrow_["date"]
+            if mrow_.get("series"):
+                attrs["series"] = mrow_["series"]
         if c.key in my_work:
             attrs["yours"] = my_work[c.key]
-        src = Source(n, c, item={**item, "n": n}, text=_excerpt(c, rows.get(c.content_id), terms, chars=chars), attrs=attrs)
+        src = Source(n, c, item={**item, "n": n}, text=_excerpt(c, rows.get(c.content_id), terms, chars=chars,
+                                                                 sections=not md), attrs=attrs)
         mm = my_meetings.get(str(md.get("meeting_id"))) if md else None
         if mm is not None:
             attrs["you"] = mm.status()
@@ -876,7 +905,7 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     seen = {c.key for c in first}
     cands = [*first, *(c for c in cands if c.key not in seen)][:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)
-    return await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine), len(cands), withheld
+    return await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine, expanded=terms), len(cands), withheld
 
 
 async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, raw: dict, standalone: str,
@@ -920,7 +949,7 @@ async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     seen |= {c.key for c in mem_cands}
     cands = [page_cand, *personal_cands, *mem_cands, *(c for c in found if c.key not in seen)][:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)
-    sources = await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine)
+    sources = await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine, expanded=terms)
     body = "" if search_index.title_only(raw) else st.markdown_text(meetings.page_text(raw))[:PAGE_TEXT_CHARS]
     for src in sources:
         if src.key == page_cand.key:

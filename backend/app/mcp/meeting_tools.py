@@ -426,8 +426,10 @@ MEETING_TOOLS: list[Tool] = [
                      "meeting each point was made, and cites the moments ([s12] a transcript line, [M2-s14] a line of "
                      "the 2nd meeting, [M2] its page); citations carry links. Across meetings, scope it with series "
                      "and/or since/until (otherwise a series or period named in the question is used, e.g. 'in Daily "
-                     "Standups last month'); questions about the latest state prefer recent meetings. Counts towards "
-                     "the user's 'Meetings AI' limit."),
+                     "Standups last month'); questions about the latest state prefer recent meetings. It knows who "
+                     "is asking (the signed-in user and the names they appear under in transcripts), so 'what did I "
+                     "say in the last standup' quotes the user's own lines, or says they attended but didn't speak. "
+                     "Counts towards the user's 'Meetings AI' limit."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "question": {"type": "string", "minLength": 1, "maxLength": meetings_ai.MAX_QUESTION},

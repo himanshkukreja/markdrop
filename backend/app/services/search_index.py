@@ -101,6 +101,8 @@ def title_only(raw: dict) -> bool:
 
 def _headings(md: str) -> list[dict]:
     out = []
+    # Front matter's closing "---" would make its last line a (setext) heading: "icon: … props: {…}".
+    md = st._FRONTMATTER.sub("", md.replace("\r\n", "\n"), count=1)
     try:
         hs = heading_ids.extract(md)
     except Exception:
