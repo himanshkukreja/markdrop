@@ -1,8 +1,9 @@
 """MCP tools for Markdrop for Slack (services/slack.py, services/slack_notify.py).
 
 * ``slack_status``: whether a workspace is connected to Slack, which Slack workspace, the meetings
-  channel and whether meetings are posted to it on their own, and whether the user's own Slack
-  account is linked (with their direct-message choices). The settings card's GET /slack/status, for
+  channel and whether meetings are posted to it on their own, whether the user's own Slack
+  account is linked (and how: found by email, Sign in with Slack), and whether they turned Slack
+  notifications on (off by default) with their per-kind choices. The settings card's GET /slack/status, for
   any member; never a token.
 * ``post_meeting_to_slack``: post a meeting's summary, decisions and action items (with Done
   buttons) to the workspace's meetings channel, again or for the first time (a past meeting brought
@@ -65,7 +66,8 @@ async def slack_status(ctx: Context, args: dict) -> tuple[str, dict]:
         "connected_at": None,
         "linked_people": None,
         "needs_reconnect": False,
-        "me": {"linked": bool(me["linked"]), "slack_name": me.get("slack_name"), "direct_messages": me["prefs"]},
+        "me": {"linked": bool(me["linked"]), "slack_name": me.get("slack_name"), "found_by": me.get("match"),
+               "notifications_on": bool(me.get("on")), "direct_messages": me["prefs"]},
     }
     if not st["configured"]:
         return ("Markdrop for Slack isn't available on this Markdrop server yet (the Slack app isn't set up), "
@@ -95,11 +97,20 @@ async def slack_status(ctx: Context, args: dict) -> tuple[str, dict]:
     if out["needs_reconnect"]:
         lines.append(f"Slack's connection broke: a workspace admin reconnects it in {_SETUP}.")
     lines.append(f"{inst.get('linked_people') or 0} people have linked their Slack account.")
-    if me["linked"]:
-        on = [slack.NOTIFY_LABELS[k] for k, v in me["prefs"].items() if v]
-        lines.append("Your Slack account is linked" + (f" as {me['slack_name']}" if me.get("slack_name") else "")
-                     + ("; direct messages for: " + ", ".join(on) if on else "; direct messages are off") + ".")
+    if not inst.get("can_find_by_email", True):
+        lines.append("The Slack app needs an update (new permissions to find people by email): a workspace admin "
+                     f"updates it in {_SETUP}.")
+    on = [slack.NOTIFY_LABELS[k] for k, v in me["prefs"].items() if v]
+    if not me.get("on"):
+        lines.append("Your Slack notifications are off (the default): turn them on in Settings › Account › "
+                     "Slack notifications, and Markdrop finds you in Slack by your email.")
+    elif me["linked"]:
+        lines.append("Your Slack notifications are on" + (f", as {me['slack_name']}" if me.get("slack_name") else "")
+                     + ("; direct messages for: " + ", ".join(on) if on else "; every kind is turned off") + ".")
     else:
+        lines.append("Your Slack notifications are on, but Markdrop hasn't found you in this Slack workspace: link "
+                     f"your Slack account in {_SETUP}, or run /markdrop link in Slack.")
+    if not me["linked"] and not me.get("on"):
         lines.append(f"Your Slack account isn't linked (link it in {_SETUP}, or run /markdrop link in Slack).")
     return "\n".join(lines), out
 
@@ -133,10 +144,12 @@ SLACK_TOOLS: list[Tool] = [
         title="Slack connection",
         description=("Whether a workspace is connected to Slack (Markdrop for Slack): which Slack workspace, the "
                      "channel meeting notes are posted to and whether new meetings are posted on their own, whether "
-                     "the connection needs reconnecting, how many people linked their Slack account, and whether the "
-                     "user's own account is linked (and which direct messages they get: mentions, sign-off requests, "
-                     "shares, access requests). Any member can ask. Read-only: connecting Slack, choosing the channel "
-                     "and linking an account are done on the website (Workspace settings › Integrations › Slack)."),
+                     "the connection needs reconnecting, how many people linked their Slack account, whether the user's own "
+                     "account is linked, and whether they turned Slack notifications on (me.notifications_on: off by "
+                     "default; once on, which direct messages they get: mentions, sign-off requests, shares, access "
+                     "requests). Any member can ask. Read-only: connecting Slack, choosing the channel and linking an "
+                     "account are done on the website (Workspace settings › Integrations › Slack), and Slack "
+                     "notifications are turned on in Settings › Account."),
         scope=READ,
         input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
         output_schema=_out({

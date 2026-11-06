@@ -438,14 +438,14 @@ class AdminApi(Base):
     async def asyncSetUp(self):
         await super().asyncSetUp()
         from app.main import app
-        from app.routers import admin_email
+        from app.routers import admin as admin_router, admin_email
+        from tests._admin_session import admin_headers
 
         self.app = app
         app.dependency_overrides[admin_email.get_db] = lambda: self.db
-        tok = jwt.encode({"sub": "admin", "exp": datetime.now(timezone.utc) + timedelta(hours=1)},
-                         settings.admin_secret, algorithm="HS256")
+        app.dependency_overrides[admin_router.get_db] = lambda: self.db
         self.http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://api.markdrop.in",
-                                      headers={"Authorization": f"Bearer {tok}"})
+                                      headers=await admin_headers(self.db))
 
     async def asyncTearDown(self):
         self.app.dependency_overrides.clear()
@@ -457,7 +457,8 @@ class AdminApi(Base):
                               settings.auth_secret, algorithm="HS256")
         for path in ("/api/v1/admin/email/usage", "/api/v1/admin/email/log"):
             self.assertEqual((await self.http.get(path, headers={"Authorization": ""})).status_code, 401)
-            self.assertEqual((await self.http.get(path, headers={"Authorization": f"Bearer {user_tok}"})).status_code, 401)
+            # A signed-in non-admin (here: not even a full session) gets 404, as if the route didn't exist.
+            self.assertEqual((await self.http.get(path, headers={"Authorization": f"Bearer {user_tok}"})).status_code, 404)
 
     async def test_usage_and_log(self):
         self.resend._limit, self.brevo._limit = 5, 5

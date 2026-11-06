@@ -30,7 +30,7 @@ from app import database
 from app.config import get_settings
 from app.limiter import limiter
 from app.main import app
-from app.routers.admin import _make_token
+from tests._admin_session import admin_headers
 from app.services import ai_output, ai_usage, docs_agent, docs_index
 from app.utils.auth import create_access_token, create_tenant_token
 
@@ -969,8 +969,7 @@ class AdminTests(DocsAIBase):
                                        user_id=None, ip="203.0.113.9")
         await docs_agent.page_feedback(self.db, path="/account/limits", helpful=True, comment=None, user_id=None, ip=None)
 
-        token, _ = _make_token()
-        h = {"Authorization": f"Bearer {token}"}
+        h = await admin_headers(self.db)
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=API) as c:
             ov = (await c.get("/api/v1/admin/ai/overview?range=7d&tz=Asia/Kolkata", headers=h)).json()
             qs = (await c.get("/api/v1/admin/ai/questions", headers=h)).json()

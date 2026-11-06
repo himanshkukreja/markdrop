@@ -98,34 +98,38 @@ function scopeTheme(page: Page, selector: string) {
   return page.locator(selector).first().evaluate((el) => el.closest("[data-theme]")?.getAttribute("data-theme") ?? null);
 }
 
-test("10 · portals inside a dark island (admin) render dark while the site is light", async ({ browser }) => {
+test("10 · the admin console follows the site theme (light by default); its toggle switches it, portals too", async ({ browser }) => {
   const token = await adminToken();
-  test.skip(!token, "needs admin credentials: E2E_FIXTURES (admin) or E2E_ADMIN_USER/E2E_ADMIN_PASSWORD");
+  test.skip(!token, "needs the sandbox API (/__sandbox/user) for an admin session");
 
-  const ctx = await browser.newContext({ colorScheme: "light" });
-  await seedLocalStorage(ctx, { md_theme: "light", md_theme_beta: "1", markdrop_admin_token: token! });
+  const ctx = await browser.newContext({ colorScheme: "dark" });
+  // No md_theme: the default, light (even on a dark OS).
+  await seedLocalStorage(ctx, { md_theme_beta: "1", markdrop_token: token! });
   const page = await ctx.newPage();
   await visit(page, "/admin?tab=documents");
 
   const actions = page.getByRole("button", { name: /^Actions for / }).first();
   await expect(actions).toBeVisible();
   await settle(page);
-  expect(await htmlTheme(page), "the site itself is light").toBe("light");
+  expect(await htmlTheme(page), "light by default").toBe("light");
 
-  // A menu (portalled to <body>, outside the island's DOM).
+  // A menu (portalled to <body>) follows the page.
   await actions.click();
   const menu = page.getByRole("menu").first();
   await expect(menu).toBeVisible();
-  expect(await menu.evaluate((el) => !!el.closest("main")), "the menu is portalled out of the island").toBe(false);
-  expect(await scopeTheme(page, '[role="menu"]')).toBe("dark");
+  expect(await scopeTheme(page, '[role="menu"]')).toBe("light");
   await actions.click(); // close it again (toggle)
   await expect(menu).toBeHidden();
 
-  // A dialog: the document drawer opened from a row.
+  // The shell's toggle: dark, remembered like anywhere on Markdrop.
+  await page.getByRole("button", { name: "Switch to dark theme" }).first().click();
+  await expect.poll(() => htmlTheme(page)).toBe("dark");
+  expect(await page.evaluate(() => localStorage.getItem("md_theme"))).toBe("dark");
+
+  // A dialog: the document drawer opened from a row, dark like the page.
   await page.getByRole("row").filter({ has: page.getByRole("button", { name: /^Actions for / }) }).first().getByRole("cell").first().click();
   const dialog = page.getByRole("dialog").first();
   await expect(dialog).toBeVisible();
   expect(await scopeTheme(page, '[role="dialog"]')).toBe("dark");
-  expect(await htmlTheme(page), "opening them didn't change the site theme").toBe("light");
   await ctx.close();
 });

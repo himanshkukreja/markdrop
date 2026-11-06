@@ -472,7 +472,7 @@ if _lat:
 
 # Markdrop for Slack against a fake Slack (PB_FAKE_SLACK=1, slack.mjs): the app counts as set up, and
 # every Web API call is answered in process (oauth.v2.access → team "Acme Slack", Sign in with Slack →
-# a Slack user per code, a few channels). The browser's trips to slack.fake are intercepted by the test.
+# a Slack user per code, a few channels, users.lookupByEmail knows Ben). The browser's trips to slack.fake are intercepted by the test.
 # Nothing leaves the machine; no real Slack app or secret exists here.
 if os.environ.get("PB_FAKE_SLACK"):
     import json as _sjson
@@ -507,6 +507,14 @@ if os.environ.get("PB_FAKE_SLACK"):
             who = request.headers.get("authorization", "").rsplit("-", 1)[-1]
             return httpx.Response(200, json={"ok": True, "name": f"slack-{who}", "https://slack.com/team_id": "TFAKE",
                                              "https://slack.com/user_id": f"U-{who.upper()}"})
+        if method == "users.lookupByEmail":
+            # Slack notifications turned on (slack.mjs `optin`): Ben (the seed's member) is in Acme Slack
+            # under his Markdrop email; nobody else is.
+            if str(data.get("email") or "").lower() == "ben@acme.test":
+                return httpx.Response(200, json={"ok": True, "user": {
+                    "id": "U-BEN-EMAIL", "name": "ben", "deleted": False, "is_bot": False, "is_email_confirmed": True,
+                    "profile": {"email": "ben@acme.test", "real_name": "Ben in Slack"}}})
+            return httpx.Response(200, json={"ok": False, "error": "users_not_found"})
         if method == "conversations.list":
             return httpx.Response(200, json={"ok": True, "channels": [
                 {"id": "C1", "name": "general", "is_private": False},

@@ -139,14 +139,13 @@ const busyFolder = await (async () => {
   return (folders.find((f) => f.name === "Product") ?? folders[0])?.id;
 })();
 
+// The admin console takes the owner's own Markdrop session (MARKDROP_ADMIN_EMAILS, default below).
 let adminToken = null;
 async function admin() {
   if (adminToken) return adminToken;
-  const env = fs.readFileSync(path.join(ROOT, "frontend/scripts/docs-media/stack/.env"), "utf8");
-  const v = (k) => (env.match(new RegExp(`^${k}=(.*)$`, "m"))?.[1] ?? "").replace(/^['"]|['"]$/g, "");
-  const r = await api("POST", "/api/v1/admin/login", null, { username: v("MARKDROP_ADMIN_USERNAME") || "admin", password: v("MARKDROP_ADMIN_PASSWORD") || "changeme" });
+  const r = await api("POST", "/__sandbox/user", null, { email: process.env.E2E_ADMIN_EMAIL || "kukreja.him@gmail.com", name: "Site Admin" });
   adminToken = r.body?.token ?? null;
-  if (!adminToken) log("admin login →", r.status);
+  if (!adminToken) log("admin session →", r.status);
   return adminToken;
 }
 
@@ -289,7 +288,7 @@ const STATES = [
   }],
   ["p2p-send", ["owner", "anon"], () => `${APP}/share`, (p) => p.locator("h1").first()],
   ["p2p-receive", ["anon"], () => `${APP}/share/abcd-efgh-ijkl`, (p) => p.locator("h1, h2").first()],
-  ["admin-login", ["anon"], () => `${APP}/admin`, (p) => p.locator("input").first()],
+  ["admin-signed-out", ["anon"], () => `${APP}/admin`, (p) => p.locator("input").first()],
   ["admin", ["admin"], () => `${APP}/admin`, (p) => p.locator("h1").first()],
   ["admin-users", ["admin"], () => `${APP}/admin?tab=users`, (p) => p.locator("h1").first()],
 ];
@@ -302,8 +301,7 @@ const findings = [];
 let states = 0;
 
 async function newContext(dev, theme, role) {
-  const token = role === "anon" || role === "admin" ? null : T[role];
-  const at = role === "admin" ? await admin() : null;
+  const token = role === "anon" ? null : role === "admin" ? await admin() : T[role];
   const c = await browser.newContext({
     viewport: { width: dev.w, height: dev.h },
     deviceScaleFactor: 2,
@@ -311,11 +309,10 @@ async function newContext(dev, theme, role) {
     hasTouch: true,
     colorScheme: theme,
   });
-  await c.addInitScript(([t, th, a]) => {
+  await c.addInitScript(([t, th]) => {
     try {
       if (t) localStorage.setItem("markdrop_token", t);
       else localStorage.removeItem("markdrop_token");
-      if (a) localStorage.setItem("markdrop_admin_token", a);
       localStorage.setItem("md_theme", th);
       localStorage.setItem("md_theme_beta", "1");
       localStorage.setItem("md_consent", "denied");
@@ -323,7 +320,7 @@ async function newContext(dev, theme, role) {
     } catch {}
     // A device that hasn't been asked about notifications yet (the headless shell reports "denied").
     try { if ("Notification" in window) Object.defineProperty(Notification, "permission", { get: () => "default", configurable: true }); } catch {}
-  }, [token, theme, at]);
+  }, [token, theme]);
   const p = await c.newPage();
   p.on("pageerror", (e) => log("  [pageerror]", dev.name, e.message.slice(0, 200)));
   return { c, p };

@@ -17,6 +17,7 @@ from app.config import get_settings
 from app.main import app
 from app.routers import admin as admin_router
 from app.services import docs_jobs, journeys, traffic
+from tests._admin_session import admin_headers
 from app.services.docs_site_store import EVENTS, JOBS, SITES
 
 settings = get_settings()
@@ -94,9 +95,8 @@ class GuidesUsage(unittest.IsolatedAsyncioTestCase):
         self.name = env.new_db_name()
         self.client, self.db = await env.make_db(self.name)
         app.dependency_overrides[admin_router.get_db] = lambda: self.db
-        tok = jwt.encode({"sub": "admin", "exp": now() + timedelta(hours=1)}, settings.admin_secret, algorithm="HS256")
         self.http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://api.markdrop.in",
-                                      headers={"Authorization": f"Bearer {tok}"})
+                                      headers=await admin_headers(self.db))
 
     async def asyncTearDown(self):
         app.dependency_overrides.clear()
