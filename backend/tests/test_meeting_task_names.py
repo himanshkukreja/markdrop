@@ -279,6 +279,33 @@ class Repair(MeetingsWorld):
         rows = meetings.person_rows([{"name": "Bo Chen Trim Intro"}, {"name": "Bo Chen"}], people)
         self.assertEqual([(r["name"], r["user_id"]) for r in rows], [("Bo Chen", self.uid["wm"])])
 
+    async def test_i_the_script_dry_runs_then_applies(self):
+        import contextlib
+        import io
+
+        from scripts import fix_attendee_task_names as script
+
+        m, oid, _old = await self.old_meeting(fixture(NOTES))
+
+        async def no_connect():
+            return None
+
+        buf = io.StringIO()
+        with mock.patch.object(script, "connect", no_connect), mock.patch.object(script, "get_database", lambda: self.db), \
+                contextlib.redirect_stdout(buf):
+            await script.main(False, None)
+        out = buf.getvalue()
+        self.assertIn("would change 1", out)
+        self.assertIn("before: ", out)
+        self.assertIn("Gautam Khurana Review Video", out)
+        self.assertEqual((await self.db["meetings"].find_one({"_id": oid}))["attendees_v"], 2)   # a dry run
+        buf = io.StringIO()
+        with mock.patch.object(script, "connect", no_connect), mock.patch.object(script, "get_database", lambda: self.db), \
+                contextlib.redirect_stdout(buf):
+            await script.main(True, None)
+        self.assertIn("Applied: checked", buf.getvalue())
+        self.assertEqual((await self.db["meetings"].find_one({"_id": oid}))["attendees_v"], meetings.ATTENDEES_V)
+
     async def test_h_memory_facts_never_have_a_fake_subject(self):
         from app.services import workspace_memory
 
