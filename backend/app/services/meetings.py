@@ -1595,11 +1595,14 @@ def fix_task_segments(row: dict, known: list[str]) -> dict | None:
     speaker): no transcript at all. Elsewhere the owner is the speaker."""
     segs = list(row.get("segments") or [])
     labels: dict[str, str | None] = {}
+    seen: dict[str, str | None] = {}
     for s in segs:
         sp = s.get("speaker")
         if not sp or sp in labels:
             continue
-        owner = mp.task_owner(sp, s.get("text"), known)
+        if sp not in seen:
+            seen[sp] = mp.task_owner(sp, None, known)
+        owner = seen[sp] or mp.task_owner(sp, s.get("text"))
         if owner or len(mp.clean_name(sp).split()) > mp.TASK_MAX_WORDS:
             labels[sp] = owner
     if not labels:

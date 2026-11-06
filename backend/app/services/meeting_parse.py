@@ -956,12 +956,15 @@ def clean_task_speakers(segments: list[dict], known: list[str] | tuple = (), *,
             names.append(clean_name(sp))
     out: list[dict] = []
     steps: list[str] = []
+    by_known: dict[str, str | None] = {}
     for s in segments:
         sp = s.get("speaker")
         if not sp:
             out.append(s)
             continue
-        owner = task_owner(sp, s.get("text"), names)
+        if sp not in by_known:      # once per speaker (a long transcript has thousands of lines)
+            by_known[sp] = task_owner(sp, None, names)
+        owner = by_known[sp] or task_owner(sp, s.get("text"))
         long = len(clean_name(sp).split()) > TASK_MAX_WORDS
         if notes_doc and ((owner and _says_owner(s.get("text"), owner)) or long):
             steps.append(f"{clean_name(sp)}: {(s.get('text') or '').strip()}")
