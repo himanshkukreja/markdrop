@@ -780,6 +780,57 @@ async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list
     return await db[COLL].find_one({"_id": row["_id"]})
 
 
+async def refresh_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *,
+                          wait: bool = False) -> dict:
+    """A Google Doc this meeting came from, sent again with newer content (Gemini filled its notes in after
+    the call, someone edited them, Meet added to the transcript): the meeting takes the new notes and the
+    longer transcript (its Transcript page rewritten), then, like an attach, the page is written again
+    when nobody edited it (else the new notes are added at the end) and the AI sections are written again.
+    ``_status``: "updated", or "duplicate" when nothing it has changed. Quiet (**Quiet**, at the top)."""
+    from app.services import notifications
+
+    with notifications.quiet():
+        return await _refresh_sources(db, user, row, group, wait=wait)
+
+
+async def _refresh_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *, wait: bool) -> dict:
+    from app.services import page_props
+
+    view = dict(row)
+    fids = {getattr(s, "_incoming").file_id for s in group}
+    changed = False
+    for s in group:
+        old = row.get("notes") or None
+        if s.notes and s.notes != old:
+            # _attach_sources fills what the meeting doesn't have: these notes replace the old ones.
+            view["notes"] = None
+            view["action_items"] = max(0, int(row.get("action_items") or 0) - len((old or {}).get("next_steps") or []))
+            changed = True
+        if s.segments and row.get("segments") and len(s.segments) > len(row["segments"]):
+            sets: dict[str, Any] = {"segments": s.segments, "approx_times": s.approx_times}
+            if s.duration_s and s.duration_s > int(row.get("duration_s") or 0):
+                sets["duration_s"] = s.duration_s
+            traw = await db["documents"].find_one({"_id": row.get("transcript_doc_id")}) if row.get("transcript_doc_id") else None
+            if traw is not None:
+                try:
+                    await _save(db, traw, page_props.apply(transcript_markdown(s.segments, approx=s.approx_times),
+                                                           {"icon": TRANSCRIPT_ICON}), access.Actor.of(user), access.Ctx(db))
+                except HTTPException as exc:
+                    log.info("meetings: transcript %s not rewritten (%s)", traw.get("slug"), exc.detail)
+            await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+            view.update(sets)
+            changed = True
+        elif s.segments and not row.get("segments"):
+            changed = True   # the transcript arrived in the same Doc (a Transcript tab): attached below
+    if not changed:
+        row["_status"] = "duplicate"
+        return row
+    view["sources"] = [x for x in row.get("sources") or [] if x.get("file_id") not in fids]
+    out = await _attach_sources(db, user, view, group, wait=wait)
+    out["_status"] = "updated"
+    return out
+
+
 def _added_block(row: dict, *, added_notes: bool, added_transcript: bool) -> str:
     parts = []
     notes = row.get("notes") or {}

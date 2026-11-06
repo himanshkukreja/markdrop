@@ -127,10 +127,11 @@ class ScriptStatus(AutoWorld):
     async def test_runs_are_reported_and_shown(self):
         out = await self.connect(include_shared=False)
         self.assertIn("var INCLUDE_SHARED = false;", out["script"])
-        self.assertIn("var SCRIPT_VERSION = 3;", out["script"])
+        self.assertIn("var SCRIPT_VERSION = 4;", out["script"])
         c = out["connection"]
-        # Nothing reported yet: it was just given v3, nothing to update.
-        self.assertEqual((c["script"], c["script_version"], c["latest_script_version"], c["needs_update"]), (None, 3, 3, False))
+        # Nothing reported yet: it was just given v4, nothing to update.
+        self.assertEqual((c["script"], c["script_version"], c["latest_script_version"], c["needs_update"]), (None, 4, 4, False))
+        self.assertEqual(c["check_now"], {"ready": False, "last_at": None, "last": None})
         self.assertFalse(c["include_shared"])
         tok = out["token"]
         # A connection made before v2 (never given a version, never reports) is told to get the new script.
@@ -140,10 +141,12 @@ class ScriptStatus(AutoWorld):
         # A v2 script reports: it is told a newer one exists (and the page says so).
         r = await self.status(tok, phase="start", version=2, mode="run", include_shared=False)
         self.assertEqual(r.status_code, 200, r.text)
-        self.assertEqual(r.json(), {"ok": True, "latest_version": 3, "queue": []})
+        key = r.json().get("check_key") or ""
+        self.assertEqual(r.json(), {"ok": True, "latest_version": 4, "queue": [], "check_key": key})
+        self.assertGreaterEqual(len(key), 30)
         r = await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))
         self.assertEqual((r.json()["connection"]["script_version"], r.json()["connection"]["needs_update"]), (2, True))
-        r = await self.status(tok, phase="done", version=3, mode="run", include_shared=False, found=0, sent=0,
+        r = await self.status(tok, phase="done", version=4, mode="run", include_shared=False, found=0, sent=0,
                               results={"imported": 0}, skipped={"not_yours": 14, "title": 3, "bogus": 9},
                               errors=[{"title": "X - Transcript", "error": "Could not read it"}], search="drive-v3")
         self.assertEqual(r.status_code, 200, r.text)
@@ -151,10 +154,10 @@ class ScriptStatus(AutoWorld):
         c = r.json()["connection"]
         self.assertFalse(c["needs_update"])
         sc = c["script"]
-        self.assertEqual((sc["version"], sc["found"], sc["sent"], sc["mode"]), (3, 0, 0, "run"))
+        self.assertEqual((sc["version"], sc["found"], sc["sent"], sc["mode"]), (4, 0, 0, "run"))
         # Nothing waits, and it didn't say whether it searches shared drives.
         self.assertEqual((sc["remaining"], sc["shared_drives"], sc["drive_api_url"]), (0, None, None))
-        self.assertEqual(sc["skipped"], {"already_sent": 0, "too_old": 0, "not_yours": 14, "title": 3, "writing": 0})
+        self.assertEqual(sc["skipped"], {"already_sent": 0, "too_old": 0, "not_yours": 14, "title": 3, "writing": 0, "not_ready": 0})
         self.assertEqual(sc["errors"], [{"title": "X - Transcript", "error": "Could not read it"}])
         self.assertTrue(sc["ran_at"] and sc["started_at"])
         # A teammate sees the same line on the owner's connection.
@@ -582,9 +585,9 @@ class Script(unittest.TestCase):
                 self.assertEqual(p.returncode, 0, p.stderr)
         out = self.run_script({"files": [], "runs": []})
         self.assertEqual(out["constants"], {"endpoint": "https://api.example.test/api/v1/meetings/inbox",
-                                            "token": "mdk_" + "A" * 43, "lookback": 48, "version": 3, "maxPerRun": 0,
+                                            "token": "mdk_" + "A" * 43, "lookback": 48, "version": 4, "maxPerRun": 0,
                                             "shared": True})
-        self.assertEqual(meetings_inbox.script_version(), 3)
+        self.assertEqual(meetings_inbox.script_version(), 4)
         self.assertNotIn("{{", self.render())
         # The manifest is JSON and asks for nothing that writes to Drive.
         man = json.loads(meetings_inbox.manifest())
@@ -625,7 +628,7 @@ class Script(unittest.TestCase):
         ]
         out = self.run_script({"files": files, "runs": ["setup", "syncMeetings"], "responses": [200, 200, 200]})
         # setup scheduled itself once, every 15 minutes, and ran.
-        self.assertEqual(out["triggers"], [{"fn": "syncMeetings", "every": 15}])
+        self.assertEqual(out["triggers"], [{"fn": "syncMeetings", "every": 5}])
         # Drive v3, every drive (shared drives too), shared-with-me included (no owner filter).
         search = next(v for v in out["v3"] if "vnd.google-apps.document" in v["q"])
         self.assertEqual((search["corpora"], search["all"]), ("allDrives", "true"))
@@ -637,12 +640,12 @@ class Script(unittest.TestCase):
         self.assertEqual(out["sent"], sorted([FID_N, FID_T, "1SharedMeet"]))
         shared = next(p for p in out["posts"] if p["body"]["file_id"] == "1SharedMeet")["body"]
         self.assertEqual(shared["owner"], {"name": "Gautam", "email": "gautam@acme.test", "me": False})
-        self.assertEqual((shared["version"], shared["requested"]), (3, False))
+        self.assertEqual((shared["version"], shared["requested"]), (4, False))
         # Each run told Markdrop how it went: start, then done with the counts.
         self.assertEqual([(st["phase"], st["mode"]) for st in out["statuses"]],
                          [("start", "setup"), ("done", "setup"), ("start", "run"), ("done", "run")])
         first = out["statuses"][1]
-        self.assertEqual((first["found"], first["sent"], first["version"], first["include_shared"]), (3, 3, 3, True))
+        self.assertEqual((first["found"], first["sent"], first["version"], first["include_shared"]), (3, 3, 4, True))
         self.assertEqual((first["remaining"], first["shared_drives"], first["drive_project"]), (0, "on", None))
         self.assertEqual(first["results"]["imported"], 3)
         self.assertEqual(first["skipped"]["title"], 2)       # "Quarterly plan", "Theirs - Transcript"
@@ -734,7 +737,7 @@ class Script(unittest.TestCase):
         self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [f"1Doc{i:010d}" for i in range(60)])
         done = out["statuses"][-1]
         self.assertEqual((done["phase"], done["found"], done["sent"], done["remaining"]), ("done", 79, 60, 19))
-        self.assertIn("Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now. "
+        self.assertIn("Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 5 min) — or run syncMeetings now. "
                       "Skipped: none.", out["logs"])
         # At about 3.5 s a send, 78 fit.
         out = self.run_script({"files": files, "docsFails": True, "sendMs": 3_500, "runs": ["syncMeetings"]})
@@ -904,6 +907,118 @@ class Script(unittest.TestCase):
         files = [{"id": FID_N, "name": NOTES, "created": just, "modified": just, "text": "Summary\nok"}]
         out = self.run_script({"files": files, "docsFails": True, "runs": ["syncMeetings"], "responses": [200]})
         self.assertEqual((out["posts"], out["sent"]), ([], []))   # Gemini may still be writing it: next run
+
+    # ── v4: Gemini's notes Doc is made when the call starts and filled in when it ends ──────────
+
+    NOW = "2026-11-06T10:00:00.000Z"
+
+    def at(self, minutes: float) -> str:
+        """NOW + minutes, ISO (negative: earlier)."""
+        t = datetime(2026, 11, 6, 10, tzinfo=timezone.utc) + timedelta(minutes=minutes)
+        return t.isoformat().replace("+00:00", "Z")
+
+    def test_gemini_notes_doc_waits_then_arrives_then_updates(self):
+        not_ready = {"code": 200, "body": {"status": "not_ready"}}
+        files = [{"id": FID_N, "name": NOTES, "created": self.at(-40), "modified": self.at(-39), "text": "Notes\nInvited Ada"}]
+        fill = f"__files[0].modified = new Date(Date.now() - 6 * 60000).toISOString(); __files[0].text = 'filled'"
+        edit = f"__files[0].modified = new Date(Date.now() - 6 * 60000).toISOString(); __files[0].text = 'edited'"
+        out = self.run_script({"now": self.NOW, "files": files, "docsFails": True, "runGapMs": 5 * 60000,
+                               "responses": [not_ready, 200, {"code": 200, "body": {"status": "updated"}}],
+                               "runs": ["syncMeetings",            # empty Doc (the call is on): not ready, remembered
+                                        "syncMeetings",            # unchanged: not sent again
+                                        fill, "syncMeetings",      # Gemini filled it in: sent, imported
+                                        "syncMeetings",            # unchanged: nothing
+                                        edit, "syncMeetings",      # someone edited the notes: sent again (updated)
+                                        "syncMeetings"]})
+        self.assertEqual([p["body"]["text"] for p in out["posts"]], ["Notes\nInvited Ada", "filled", "edited"])
+        self.assertEqual(out["sent"], [FID_N])
+        self.assertNotIn("wait:" + FID_N, out["props"])
+        self.assertIn('"Weekly product sync - 2026/11/04 10:00 GMT+05:30 - Notes by Gemini" has no notes or transcript in it '
+                      'yet: sent again when Google fills it in.', out["logs"])
+        done = [s for s in out["statuses"] if s["phase"] == "done"]
+        self.assertEqual((done[0]["results"]["not_ready"], done[0]["sent"]), (1, 0))
+        self.assertEqual(done[1]["skipped"]["not_ready"], 1)
+        self.assertEqual((done[4]["results"]["updated"], done[4]["sent"]), (1, 1))
+        self.assertEqual(done[5]["skipped"]["already_sent"], 1)
+        # A Doc Google keeps changing is sent again at most 5 times.
+        runs = []
+        for i in range(9):
+            runs += [f"__files[0].modified = new Date(Date.now() - 6 * 60000).toISOString(); __files[0].text = 'v{i}'", "syncMeetings"]
+        out = self.run_script({"now": self.NOW, "files": files, "docsFails": True, "runGapMs": 5 * 60000, "runs": runs})
+        self.assertEqual([p["body"]["text"] for p in out["posts"]], ["v0", "v1", "v2", "v3", "v4", "v5"])
+
+    def test_upgrade_from_v3_sends_its_docs_once_more(self):
+        """v3 sent today's Gemini Doc while the call was on and Markdrop ignored it (nothing in it yet); v3
+        kept "sent:<id>" = the time and never sent it again. The first v4 run sends it once more (and every
+        other Doc v3 sent in the lookback: Markdrop answers duplicate for the unchanged ones), then not again."""
+        files = [{"id": FID_N, "name": NOTES, "created": self.at(-90), "modified": self.at(-25), "text": "filled"},
+                 {"id": FID_T, "name": TRANSCRIPT, "created": self.at(-30), "modified": self.at(-29), "text": "A: hi\n"}]
+        v3_sent = str(int(datetime(2026, 11, 6, 9, 0, tzinfo=timezone.utc).timestamp() * 1000))
+        seed = (f"PropertiesService.getScriptProperties().setProperty('sent:{FID_N}', '{v3_sent}');"
+                f"PropertiesService.getScriptProperties().setProperty('sent:{FID_T}', '{v3_sent}')")
+        out = self.run_script({"now": self.NOW, "files": files, "docsFails": True, "runGapMs": 5 * 60000,
+                               "responses": [200, {"code": 200, "body": {"status": "duplicate"}}],
+                               "runs": [seed, "setup", "syncMeetings", "syncMeetings"]})
+        self.assertEqual(sorted(p["body"]["file_id"] for p in out["posts"]), sorted([FID_N, FID_T]))
+        self.assertEqual(out["triggers"], [{"fn": "syncMeetings", "every": 5}])
+        self.assertEqual(out["sent"], sorted([FID_N, FID_T]))
+
+    # ── Check now (v4): the web app Markdrop calls ───────────────────────────────
+
+    KEY = "k" * 32
+
+    def post(self, key: str | None) -> str:
+        body = json.dumps({} if key is None else {"key": key})
+        return f"doPost({{postData: {{contents: {json.dumps(body)}}}}})"
+
+    def test_check_now_runs_a_quick_sync_for_markdrops_key_only(self):
+        now = datetime.now(timezone.utc)
+        three = (now - timedelta(minutes=3)).isoformat().replace("+00:00", "Z")
+        files = [{"id": FID_T, "name": TRANSCRIPT, "created": three, "modified": three, "text": "Ada: hi\nBo: hello\n"}]
+        hello = {"code": 200, "body": {"ok": True, "latest_version": 4, "queue": [], "check_key": self.KEY}}
+        # Before the script ever heard from Markdrop it has no key: nothing runs.
+        out = self.run_script({"files": files, "docsFails": True, "runs": [self.post(self.KEY)]})
+        self.assertEqual(out["returns"][0]["body"]["error"], "no_key")
+        self.assertEqual((out["statuses"], out["posts"]), ([], []))
+        # setup: Markdrop hands it the key; the Doc Google finished 3 min ago waits (a scheduled run waits 10).
+        # Check now with a wrong key: nothing; with the key: a quick run sends it and says so.
+        out = self.run_script({"files": files, "docsFails": True, "statusResponses": [hello],
+                               "runs": ["setup", self.post("wrong"), self.post(None), self.post(self.KEY), self.post(self.KEY)]})
+        r = [x["body"] for x in out["returns"]]
+        self.assertEqual([x["error"] for x in r[:2]], ["bad_key", "bad_key"])
+        self.assertEqual(out["returns"][2]["mime"], "application/json")
+        self.assertEqual((r[2]["ok"], r[2]["found"], r[2]["sent"], r[2]["results"]["imported"], r[2]["version"]), (True, 1, 1, 1, 4))
+        # At most once a minute.
+        self.assertEqual((r[3]["ok"], r[3]["error"]), (False, "too_soon"))
+        self.assertGreater(r[3]["retry_in"], 50)
+        self.assertEqual([p["body"]["file_id"] for p in out["posts"]], [FID_T])
+        self.assertEqual([s["mode"] for s in out["statuses"]], ["setup", "setup", "now", "now"])
+        self.assertEqual(out["propValues"]["check_key"], self.KEY)
+        # The web app calls with the copy of the token setup keeps (a deployment of an older copy of the file).
+        self.assertEqual(out["propValues"]["markdrop_token"], "mdk_" + "A" * 43)
+        out = self.run_script({"files": files, "docsFails": True, "statusResponses": [hello],
+                               "runs": ["setup", "PropertiesService.getScriptProperties().setProperty('markdrop_token', 'mdk_newer')",
+                                        self.post(self.KEY)]})
+        self.assertEqual({p["auth"] for p in out["posts"]}, {"Bearer mdk_newer"})
+        self.assertEqual(out["statuses"][-1]["auth"], "Bearer mdk_newer")
+        # Opening the web app in a browser runs nothing.
+        out = self.run_script({"files": files, "runs": ["doGet()"]})
+        self.assertIn("Turn on Check now", out["returns"][0]["body"])
+        self.assertEqual((out["statuses"], out["posts"]), ([], []))
+
+    def test_check_now_busy_and_disconnected(self):
+        hello = {"code": 200, "body": {"ok": True, "latest_version": 4, "queue": [], "check_key": self.KEY}}
+        out = self.run_script({"files": [], "statusResponses": [hello], "runs": ["setup"]})
+        self.assertEqual(out["triggers"], [{"fn": "syncMeetings", "every": 5}])
+        # A scheduled run holds the lock: busy (nothing sent).
+        out = self.run_script({"files": [], "locked": True, "runs": [
+            f"PropertiesService.getScriptProperties().setProperty('check_key', '{self.KEY}')", self.post(self.KEY)]})
+        self.assertEqual(out["returns"][0]["body"]["error"], "busy")
+        # The token was replaced (401): the web app says so and leaves the schedule alone (the deployment may
+        # run an older copy of the file); a scheduled run still unschedules itself.
+        out = self.run_script({"files": [], "statusResponses": [hello, {"code": 200}, {"code": 401}], "runs": ["setup", self.post(self.KEY)]})
+        self.assertEqual(out["returns"][0]["body"], {"ok": False, "error": "disconnected", "version": 4})
+        self.assertEqual(out["triggers"], [{"fn": "syncMeetings", "every": 5}])
 
 
 if __name__ == "__main__":

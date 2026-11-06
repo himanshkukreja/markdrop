@@ -28,7 +28,7 @@ Use either, or both side by side. Markdrop recognizes a call it already has, so 
 Paste a transcript, upload a file, or pick the Docs Google saved in your Drive. Works for Zoom and Teams captions too.
 :::
 :::card[Import automatically]{href="/workspaces/meetings-auto-import" icon="refresh"}
-Connect Google Meet once. Every recorded or noted call shows up by itself, about 15 minutes after it ends.
+Connect Google Meet once. Every recorded or noted call shows up by itself, a few minutes after Google writes its notes or transcript (or right away with **Check for new meetings**).
 :::
 ::::
 

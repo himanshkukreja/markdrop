@@ -5,7 +5,8 @@
  * own Google account (backend services/meetings_inbox.py; .work/meetings/AUTO.md). Markdrop mints a
  * token that can only import meetings into this workspace and shows it once, inside a ready-made
  * script, with the four setup steps. The script sends the Meet transcripts and Gemini notes in their
- * Drive every 15 minutes; Disconnect revokes the token and the script stops.
+ * Drive every 5 minutes (and right away with "Check for new meetings": CheckNow.tsx); Disconnect revokes
+ * the token and the script stops.
  *
  *   <ConnectGoogleMeet>       the dialog (a bottom sheet on phones)
  *   <MeetConnectionStatus>    "Google Meet connected · last import 5 min ago · 3 meetings · Disconnect"
@@ -76,7 +77,8 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
         <Alert tone="info" title="Updating your script?">
           Open your existing project at <a href="https://script.google.com/home" target="_blank" rel="noreferrer">script.google.com</a>,
           replace everything in <code>Code.gs</code> with the new script below (step 3), Save, and Run <code>setup</code> (step 4).
-          The manifest hasn't changed.
+          The manifest hasn't changed. If you turned on Check now, also update its deployment: Deploy › Manage deployments ›
+          Edit (pencil) › Version: New version › Deploy.
         </Alert>
       )}
       <ol className="mt-connect__steps">
@@ -97,7 +99,7 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
           <b>Run setup once and allow.</b> Pick <code>setup</code> next to Run and press Run. Google asks you to allow it;
           as it's your own script it says “Google hasn't verified this app”: choose <b>Advanced › Go to … (unsafe)</b>, then Allow.
           It imports your last {made.past > 2 ? `${made.past} days` : "48 hours"} of meetings now (older ones first, over a few runs, without
-          notifying anyone) and checks every 15 minutes from then on. Markdrop shows how each run went here.
+          notifying anyone) and checks every 5 minutes from then on. Markdrop shows how each run went here.
         </li>
       </ol>
       <p className="mt-connect__fine">
@@ -110,7 +112,7 @@ export function ConnectGoogleMeet({ open, onClose, workspaceId, workspaceName, c
     <div className="mt-connect">
       <p className="mt-connect__lead">
         Every call recorded or noted by Google Meet becomes a page in <b>{wsName}</b>'s Meetings folder by itself: a small script
-        in your Google account sends the transcript and Gemini's notes to Markdrop every 15 minutes.
+        in your Google account sends the transcript and Gemini's notes to Markdrop every 5 minutes.
       </p>
       <ul className="mt-connect__facts">
         <li><Icon name="eye" /> It reads only Google Docs titled like a Meet transcript (“… - Transcript”) or Gemini's notes (“Notes by Gemini”).</li>
@@ -207,6 +209,7 @@ export function MeetConnectionStatus({ mine, others, workspaceId, onChanged, onR
             {here.last_imported_at ? `last import ${relativeTime(here.last_imported_at)}` : here.last_received_at ? `last checked ${relativeTime(here.last_received_at)}` : "waiting for the script's first run"}
             {here.last_received_at || n ? ` · ${n} ${n === 1 ? "meeting" : "meetings"}` : ""}
             {here.restricted ? " · attendees only" : ""}
+            {here.check_now?.last_at ? ` · checked now ${relativeTime(here.check_now.last_at)}` : ""}
           </span>
           {here.last_error && <span className="mt-conn__err" title={here.last_error}><Icon name="alert" /> {here.last_error}</span>}
           {onReconnect && !compact && !here.needs_update && <Button size="sm" variant="ghost" onClick={onReconnect}>New script</Button>}
@@ -237,24 +240,33 @@ const SKIP_LABELS: Record<MeetSkipReason, string> = {
   not_yours: "shared with you (not included)",
   too_old: "older than it looks back",
   writing: "still being written",
+  not_ready: "waiting for Google to fill them in",
   already_sent: "already sent",
 };
 
 /** "Script ran 10:42 · found 0 meeting Docs · 14 skipped: 12 not titled like Meet, 2 shared with you" (+ errors);
- *  with a backlog: "… · found 79 meeting Docs · sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now". */
+ *  with a backlog: "… · found 79 meeting Docs · sent 60 of 79 · 19 more in the next run (every 5 min) — or run syncMeetings now". */
 export function scriptRunSummary(sc: MeetScriptRun): { line: string; skipped: string | null } {
   const found = `found ${sc.found} meeting ${sc.found === 1 ? "Doc" : "Docs"}`;
   const left = sc.remaining || 0;
   const sent = left > 0
-    ? ` · sent ${sc.sent} of ${Math.max(sc.found, sc.sent + left)} · ${left} more in the next run (every 15 min) — or run syncMeetings now`
+    ? ` · sent ${sc.sent} of ${Math.max(sc.found, sc.sent + left)} · ${left} more in the next run (every 5 min) — or run syncMeetings now`
     : sc.sent ? ` · sent ${sc.sent}` : "";
   const parts = (Object.keys(SKIP_LABELS) as MeetSkipReason[])
-    .filter((k) => k !== "already_sent" && (sc.skipped[k] || 0) > 0)
+    .filter((k) => k !== "already_sent" && k !== "not_ready" && (sc.skipped[k] || 0) > 0)
     .map((k) => `${sc.skipped[k]} ${SKIP_LABELS[k]}`);
-  const n = (Object.keys(SKIP_LABELS) as MeetSkipReason[]).filter((k) => k !== "already_sent")
+  const n = (Object.keys(SKIP_LABELS) as MeetSkipReason[]).filter((k) => k !== "already_sent" && k !== "not_ready")
     .reduce((a, k) => a + (sc.skipped[k] || 0), 0);
-  const when = sc.ran_at ? `${sc.mode === "check" ? "Checked" : "Script ran"} ${relativeTime(sc.ran_at)}` : "Script running";
-  return { line: `${when} · ${found}${sent}`, skipped: n ? `${n} skipped: ${parts.join(", ")}` : null };
+  const when = sc.ran_at ? `${sc.mode === "check" ? "Checked" : sc.mode === "now" ? "Checked now" : "Script ran"} ${relativeTime(sc.ran_at)}` : "Script running";
+  const updated = sc.results.updated ? ` · ${sc.results.updated} updated` : "";
+  return { line: `${when} · ${found}${sent}${updated}`, skipped: n ? `${n} skipped: ${parts.join(", ")}` : null };
+}
+
+/** "1 meeting waiting for Gemini's notes — sent as soon as Google fills them in" (v4: Docs with nothing in them yet). */
+export function waitingLine(sc: MeetScriptRun): string | null {
+  const w = (sc.results.not_ready || 0) + (sc.skipped.not_ready || 0);
+  if (!w) return null;
+  return `${w} ${w === 1 ? "meeting" : "meetings"} waiting for Gemini's notes or the transcript — sent as soon as Google fills ${w === 1 ? "it" : "them"} in`;
 }
 
 function ScriptRunLine({ conn, compact, onReconnect, updateHref }: {
@@ -265,7 +277,8 @@ function ScriptRunLine({ conn, compact, onReconnect, updateHref }: {
     <span className="mt-conn__update" data-testid="meet-needs-update">
       <Badge size="sm" tone="warning" icon="refresh">New script</Badge>
       <span className="mt-conn__meta">
-        {sc ? "A newer script is available" : "Update your script: the new one also imports meetings shared with you and shows how each run went here"}
+        {sc ? "Update your script: the new one checks every 5 minutes, brings in Gemini's notes once Google fills them in, and adds Check now"
+          : "Update your script: the new one also imports meetings shared with you and shows how each run went here"}
       </span>
       {onReconnect && !compact && <Button size="sm" variant="secondary" onClick={onReconnect} data-testid="meet-update">Get the new script</Button>}
       {compact && updateHref && <Button size="sm" variant="secondary" href={updateHref} data-testid="meet-update">Get the new script</Button>}
@@ -273,6 +286,7 @@ function ScriptRunLine({ conn, compact, onReconnect, updateHref }: {
   ) : null;
   if (!sc) return update;
   const { line, skipped } = scriptRunSummary(sc);
+  const waiting = waitingLine(sc);
   const err = sc.errors[0];
   const hint = sc.found === 0 && (sc.skipped.not_yours || 0) > 0
     ? "Meetings someone else organized were left out: make a new script with “Include meetings shared with me” on."
@@ -284,6 +298,7 @@ function ScriptRunLine({ conn, compact, onReconnect, updateHref }: {
       <span className="mt-conn__run" data-testid="meet-script-run">
         <Icon name="clock" /> <span>{line}</span>
         {skipped && <span className="mt-conn__meta" data-testid="meet-script-skipped">· {skipped}</span>}
+        {waiting && <span className="mt-conn__meta" data-testid="meet-script-waiting">· {waiting}</span>}
         {err && <span className="mt-conn__err" title={err.error}><Icon name="alert" /> {err.title ? `${err.title}: ` : ""}{err.error}</span>}
       </span>
       {hint && <span className="mt-conn__hint" data-testid="meet-script-hint">{hint}</span>}
