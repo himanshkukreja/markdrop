@@ -14,7 +14,7 @@ It works in every page of a workspace that has meetings, for the workspace's mem
 ## From meetings
 
 - **In View mode**, select **From meetings** in the page's top bar, next to **✦ Ask** and **Edit**. On a phone it's the microphone button.
-- **In Edit mode**, select **From meetings** at the bottom right of the page.
+- **In Edit mode**, select **From meetings** at the bottom right of the page. On a phone, while you type, it's the microphone button in the editing toolbar above the keyboard.
 
 The number on the button is how many related items it found. A panel opens beside the page. On a phone, it opens as a sheet from the bottom, with buttons big enough to tap.
 

@@ -24,6 +24,18 @@
   "next": [],
   "entries": [
     {
+      "id": "from-meetings-phone-toolbar",
+      "date": "2026-11-06",
+      "title": "From meetings while you type on a phone",
+      "kind": "fixed",
+      "area": "Pages",
+      "products": [
+        "web"
+      ],
+      "summary": "On a phone, the From meetings button at the bottom right steps aside while you type, so it could not be reached in Edit mode with the keyboard up. The editing toolbar above the keyboard now has a microphone button, with the number of related items, that opens the same sheet.",
+      "body": "- See [Meeting memory](/pages/meeting-memory)."
+    },
+    {
       "id": "slack-action-items-after-meetings",
       "date": "2026-11-06",
       "title": "Everyone gets their own action items in Slack after a meeting",
