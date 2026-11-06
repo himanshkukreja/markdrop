@@ -288,6 +288,31 @@ class MyFiles(SugWorld):
         self.assertNotIn(self.ws["W2"], [w["id"] for w in c["workspaces"]])
 
 
+class Mcp(SugWorld):
+    async def test_ask_suggestions_tool_and_mine_scope(self):
+        await self.seed()
+        await sug.build(self.db, self.W)
+        tok = await self.mcp_token("wv", write=False)
+        code, res = await self.mcp_call(tok, "ask_suggestions", {"workspace": self.W})
+        self.assertEqual(code, 200)
+        self.assertFalse(res.get("isError"), res)
+        out = res["structuredContent"]
+        self.assertEqual(out["team"][0], {"topic": "Sourcing", "question": "What did we decide about Sourcing this week?"})
+        self.assertEqual(out["personal"][0]["intent"], "my_actions")
+        self.assertNotIn("Secret", json.dumps(out))
+        code, res = await self.mcp_call(tok, "ask_suggestions", {"workspace": self.ws["W2"]})
+        self.assertTrue(res.get("isError"))                                           # not a member
+        await self.put("my-mcp", "Albatross notes", "# Albatross\n\nAlbatross plan.", state="UL", owner="wv")
+        await self.put("ws-mcp", "Albatross team", "# Albatross\n\nAlbatross plan.")
+        await self.index_all()
+        self.fake.calls.clear()
+        code, res = await self.mcp_call(tok, "ask_documents", {"question": "What is the Albatross plan?", "scope": "mine"})
+        self.assertFalse(res.get("isError"), res)
+        p = self.prompts()
+        self.assertIn("Albatross notes", p)
+        self.assertNotIn("Albatross team", p)
+
+
 class Pure(unittest.TestCase):
     def test_headings_and_clean(self):
         self.assertEqual(sug.headings_of("# A\n```\n# not\n```\n## B {#b-abcd1234}\n### **C**\n#### D"), ["A", "B", "C"])

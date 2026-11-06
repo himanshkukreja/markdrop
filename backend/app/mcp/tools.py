@@ -1678,13 +1678,14 @@ async def search(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
-    """Ask Markdrop (services/ask_markdrop.py): Claude Haiku 5.5 answers from the user's own readable
+    """Ask, the in-app assistant (services/ask_markdrop.py): Claude Haiku 5.5 answers from the user's own readable
     meetings, documents, pages, files and Guides, citing them (a meeting's transcript moment as
     [n-sK]); thread_id continues a conversation; intent catch_up / my_actions. Counts towards the
     user's AI limits (feature search_ai)."""
     from app.services import ask_markdrop, pages_ai
 
-    ws, _owner = _search_scope(args.get("scope"))
+    ws, owner = _search_scope(args.get("scope"))
+    mine = owner == "me"            # "Ask my files": the user's own items outside any workspace
     q = args.get("question") or ""
     # The assistant's narrower scopes (services/assistant.py): a doc first, or one folder.
     page = None
@@ -1696,7 +1697,8 @@ async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
     try:
         done = await ask_markdrop.answer(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), q,
                                          thread_id=args.get("thread_id"), intent=None if page else args.get("intent"),
-                                         scope=ws, via="mcp", save=True, page=page, folder=None if page else folder)
+                                         scope=ws, via="mcp", save=True, page=page, folder=None if page else folder,
+                                         mine=mine and not page)
     except pages_ai.AIError as exc:
         raise ToolError(exc.detail)
 
@@ -1724,6 +1726,28 @@ async def ask_documents(ctx: Context, args: dict) -> tuple[str, dict]:
     if out["thread_id"]:
         text += f"\n\n(thread_id {out['thread_id']}: pass it to ask a follow-up)"
     return text, out
+
+
+async def ask_suggestions(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Ask's suggested questions (services/ask_suggestions.py): a workspace's live team questions (built
+    only from what every member can read, refreshed as meetings and pages change) and the user's own."""
+    from app.services import ask_suggestions as sug
+
+    ws = str(args.get("workspace") or "").strip() or None
+    try:
+        out = await sug.for_viewer(ctx.db, actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp"), ws)
+    except LookupError:
+        raise ToolError("Workspace not found (use list_workspaces for the ids of yours).")
+    body = {"workspace": out["workspace"], "updated_at": out["updated_at"], "refreshing": bool(out["refreshing"]),
+            "team": [{"topic": t.get("topic"), "question": t["question"]} for t in out["team"]],
+            "personal": [{"label": p["label"], "question": p["question"], "intent": p["intent"]} for p in out["personal"]]}
+    lines = [f"- {t['topic']}: {t['question']}" if t.get("topic") else f"- {t['question']}" for t in body["team"]]
+    lines += [f"- {p['question']}" for p in body["personal"]]
+    head = f"Suggested questions for {out['workspace']['name']}" if out["workspace"] else "Suggested questions"
+    if body["refreshing"] and not body["team"]:
+        head += " (the team's are being prepared; ask again in a minute)"
+    text = head + ":\n" + "\n".join(lines) + "\n\nAsk one with ask_documents (scope workspace:<id> for a workspace's)."
+    return text, body
 
 
 async def fetch(ctx: Context, args: dict) -> tuple[str, dict]:
@@ -2931,23 +2955,25 @@ TOOLS: list[Tool] = [
     ),
     Tool(
         name="ask_documents",
-        title="Ask Markdrop (AI)",
-        description=("Ask a question in plain words; Claude Haiku 5.5 searches everything the user can open "
+        title="Ask (AI)",
+        description=("Ask, the in-app assistant (\"Ask <Workspace>\", \"Ask my files\", \"Ask this page\"). "
+                     "Ask a question in plain words; Claude Haiku 5.5 searches everything the user can open "
                      "(meetings and their transcripts, documents, pages, files, Guides) and answers briefly, "
                      "citing the items it used as [n] (a meeting's transcript moment as [n-sK]) with their links. "
                      "Pass the returned thread_id to ask a follow-up in the same conversation. intent: ask "
                      "(default), catch_up (what changed in the last 7 days) or my_actions (open tasks that "
                      "@mention the user). Only text the user can read is sent to the model (to Anthropic); "
-                     "workspaces with AI turned off are left out. scope: all (default) or workspace:<id>; folder: "
+                     "workspaces with AI turned off are left out. scope: all (default), workspace:<id> (Ask "
+                     "<Workspace>) or mine (Ask my files: the user's own items outside any workspace); folder: "
                      "only that folder of the workspace (and its sub-folders); page: ask about that document or page "
-                     "first (then its workspace's meetings and documents), as the in-app assistant's This doc. "
+                     "first (then its workspace's meetings and documents), as the in-app assistant's Ask this page. "
                      "Counts towards the user's AI search limits."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "question": {"type": "string", "maxLength": 500,
                          "description": "The question (may be empty with intent catch_up or my_actions)."},
             "scope": {"type": "string", "maxLength": 40, "default": "all",
-                      "description": "all | workspace:<workspace id>"},
+                      "description": "all | workspace:<workspace id> | mine"},
             "thread_id": {"type": "string", "maxLength": 40,
                           "description": "Continue this conversation (from an earlier answer)."},
             "intent": {"type": "string", "enum": ["ask", "catch_up", "my_actions"],
@@ -2972,6 +2998,29 @@ TOOLS: list[Tool] = [
             "intent": {"type": "string"}}),
         annotations=_ann(True, False, False),
         handler=ask_documents,
+    ),
+    Tool(
+        name="ask_suggestions",
+        title="Ask: suggested questions",
+        description=("What to ask about right now. With workspace (an id from list_workspaces): that workspace's "
+                     "live team questions, each with its topic (\"Sourcing: What did we decide this week?\"), "
+                     "written by Claude Haiku 5.5 from the last 7 days of meetings and pages every member can read "
+                     "(never a restricted meeting or a private page), refreshed as they change, the same list for "
+                     "every member; and the user's own (their action items, their latest meeting). Without "
+                     "workspace: the user's own only. Reading the list never calls the model."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "workspace": {"type": "string", "maxLength": 40,
+                          "description": "Optional: a workspace id (from list_workspaces)."}}},
+        output_schema=_out({
+            "workspace": {"type": ["object", "null"]},
+            "updated_at": _NULLABLE_STR,
+            "refreshing": {"type": "boolean"},
+            "team": {"type": "array", "items": _out({"topic": _NULLABLE_STR, "question": {"type": "string"}}, ["question"])},
+            "personal": {"type": "array", "items": _out({"label": {"type": "string"}, "question": {"type": "string"},
+                                                         "intent": {"type": "string"}}, ["question"])}}),
+        annotations=_ann(True, False, True),
+        handler=ask_suggestions,
     ),
     Tool(
         name="fetch",

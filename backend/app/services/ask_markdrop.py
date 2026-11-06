@@ -1079,12 +1079,13 @@ EMPTY_Q = {"ask": "", "page": "", "catch_up": "Catch me up on this week", "my_ac
 
 async def answer(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str, *,
                  thread_id: str | None = None, intent: str | None = None, scope: str | None = None,
-                 via: str = "slack", save: bool = False, page: str | None = None, folder: str | None = None) -> dict:
+                 via: str = "slack", save: bool = False, page: str | None = None, folder: str | None = None,
+                 mine: bool = False) -> dict:
     """Run :func:`ask` to its end: the ``done`` data. Raises ``pages_ai.AIError`` (429 limit, 404 thread
     not found, 400 empty question, 502 upstream)."""
     last = None
     async for event, data in ask(db, actor, ctx, question, thread_id=thread_id, intent=intent, scope=scope,
-                                 via=via, save=save, page=page, folder=folder):
+                                 via=via, save=save, page=page, folder=folder, mine=mine):
         if event == "limit":
             raise pages_ai.AIError(429, "limit", data.get("message") or "AI limit reached.", data.get("reason"))
         if event == "error":

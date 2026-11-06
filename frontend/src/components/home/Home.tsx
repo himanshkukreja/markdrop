@@ -334,8 +334,8 @@ function AskBar({ onAsk, onAskMeetings, workspaces, liveWs }: {
       </form>
       <div className="hm-ask__chips">
         {chips.map((c) => (
-          <button key={c.label} type="button" className="hm-chip md-focus" onClick={c.run} data-testid={c.testId}
-            {...(c.icon === "history" ? { "aria-haspopup": "dialog" as const, "data-testid": "home-ask-history" } : {})}>
+          <button key={c.label} type="button" className="hm-chip md-focus" onClick={c.run}
+            data-testid={c.icon === "history" ? "home-ask-history" : c.testId} aria-haspopup={c.icon === "history" ? "dialog" : undefined}>
             <Icon name={c.icon} size={14} /> <span className="hm-chip__text">{c.label}</span>
           </button>
         ))}
