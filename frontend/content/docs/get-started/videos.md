@@ -2,7 +2,7 @@
 title: Watch the videos
 nav: Videos
 description: A two-and-a-half-minute overview of Markdrop, then a short video for each part, with chapters and captions, on the page it belongs to.
-updated: 2026-11-03
+updated: 2026-11-06
 keywords: [videos, video, tutorial, walkthrough, demo, watch, overview, captions]
 ---
 
@@ -48,6 +48,14 @@ Send files straight to another device, encrypted, with nothing stored on a serve
 :::
 :::card[README builder]{href="/documents/readme-builder" icon="builder"}
 Build a README from 49 ready-made sections, diagrams included, then copy, download or publish it. (1:12)
+:::
+::::
+
+## Meetings and Team
+
+::::cards
+:::card[Your workspace remembers]{href="/workspaces/meetings-and-team" icon="users"}
+One team's day: meeting notes arrive by themselves, everyone gets their action items in Slack, Team shows who's on what, and you can ask the workspace. One-on-ones stay private. (2:23)
 :::
 ::::
 

@@ -385,6 +385,27 @@
       "body": "- **First page first.** The page asks for 30 meetings, shows them, and fetches the next 30 while the browser is idle. Scrolling near the end shows them; **Load more meetings** does the same without scrolling.\n- **Lighter cards.** The list only carries what a card shows: title, date, series, the first few people, a line of the summary, counts and cover. Everything else stays on the meeting page.\n- **Search on the server.** Typing in the search box finds titles, series and people across every meeting you can open, not only the loaded ones. The counts on the series chips cover them all too.\n- **Same access.** A meeting restricted to its attendees still never appears for anyone else, on any page of the list.\n- **API and MCP.** `GET /api/v1/meetings` returns a page (`limit`, default 30, up to 100) with `next_cursor`; pass it back as `cursor` for the next one, and `sort` picks the order. MCP `list_meetings` takes `cursor` the same way."
     },
     {
+      "id": "team-meetings-video",
+      "date": "2026-11-06",
+      "title": "Watch: your workspace remembers",
+      "kind": "new",
+      "area": "Meetings",
+      "products": [
+        "web"
+      ],
+      "summary": "A two-and-a-half-minute video of one team's day with Meetings and Team, with chapters and captions, at the top of Meetings and Team: how it fits together.",
+      "body": "Maya joins Acme and asks what any new person would. Who takes the notes? (Nobody: Meet's transcript and Gemini's notes come in by themselves.) What did we decide? Does everyone know what they owe? Who's working on what? What is Sam doing, exactly? Can I just ask? Will my one-on-one show up?\n\n- **Eight chapters and captions**: notes by themselves, the meeting page, action items in Slack, Team, one person's page, Ask, and why a one-on-one stays private.\n- **Where it plays**: at the top of [Meetings and Team: how it fits together](/workspaces/meetings-and-team), and behind a **Watch** link on [Meetings](/workspaces/meetings) and [Team](/workspaces/team) that loads the video only when you open it. It's also on [Watch the videos](/get-started/videos).",
+      "media": {
+        "video": "team-meetings"
+      },
+      "docs": [
+        "/workspaces/meetings-and-team",
+        "/workspaces/meetings",
+        "/workspaces/team",
+        "/get-started/videos"
+      ]
+    },
+    {
       "id": "organize-meetings-background",
       "date": "2026-11-05",
       "title": "Organize meetings no longer times out, and shows what it will do",

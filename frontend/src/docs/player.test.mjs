@@ -85,6 +85,33 @@ test("parseVtt reads the trailer's chapters and captions files", () => {
   assert.ok(captions.every((c) => c.end > c.start));
 });
 
+test("parseVtt reads the Meetings and Team video's chapters and captions files", () => {
+  const chapters = parseVtt(fs.readFileSync(path.join(VIDEOS, "team-meetings.vtt"), "utf8"));
+  assert.deepEqual(
+    chapters.map((c) => c.text),
+    [
+      "Calls you can't remember",
+      "Notes, by themselves",
+      "The meeting page",
+      "Action items in Slack",
+      "Team: who's working on what",
+      "One person's page",
+      "Ask Acme",
+      "One-on-ones stay private",
+    ],
+  );
+  assert.equal(chapters[0].start, 0);
+  // Chapters tile the video: each starts where the last ended, and all are at least 10 s.
+  for (let i = 1; i < chapters.length; i++) assert.equal(chapters[i].start, chapters[i - 1].end);
+  assert.ok(chapters.every((c) => c.end - c.start >= 10));
+  assert.equal(formatTime(chapters[7].end), "2:22");
+  const captions = parseVtt(fs.readFileSync(path.join(VIDEOS, "team-meetings.captions.vtt"), "utf8"));
+  assert.ok(captions.length > 40);
+  assert.equal(captions[0].text, "It's Maya's first week at Acme.");
+  assert.equal(captions.at(-1).text, "Start at markdrop.in.");
+  assert.ok(captions.every((c) => c.end > c.start));
+});
+
 test("chapterSpans: each chapter runs to the next; the last to the end; bad and late ones dropped", () => {
   const spans = chapterSpans(
     [
