@@ -458,8 +458,9 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
                       workspaces: list[str] | None = None, folders: set[str] | None = None,
                       limit: int = WORK_ITEMS) -> list[tuple[dict, str]]:
     """What they did lately, newest first, from data Markdrop already keeps: documents and pages they
-    created (owner), edited (version history), signed off, and meetings they imported. Each item is
-    decided readable now; (the document row, "you created it Nov 2; edited Nov 5")."""
+    created (owner), edited (version history) or signed off — not meeting pages (an import of many
+    meetings would flood it; :func:`personal_meetings` covers meetings). Each item is decided readable
+    now; (the document row, "you created it Nov 2; you edited it Nov 5")."""
     from app.services import page_history, signoffs
 
     uid = you.user_id
@@ -480,10 +481,7 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
             note(v.get("doc_id"), v.get("ts"), "edited")
         async for s in db[signoffs.COLL].find({"signer_id": uid, "signed_at": {"$gte": since}},
                                               {"doc_id": 1, "signed_at": 1, "option": 1}).sort("signed_at", -1).limit(40):
-            note(s.get("doc_id"), s.get("signed_at"), f"signed off ({s.get('option')})" if s.get("option") else "signed off")
-        async for m in db[meetings.COLL].find({"$or": [{"imported_by": uid}, {"created_by": uid}], "created_at": {"$gte": since}},
-                                              {"doc_id": 1, "created_at": 1}).sort("created_at", -1).limit(40):
-            note(m.get("doc_id"), m.get("created_at"), "imported this meeting")
+            note(s.get("doc_id"), s.get("signed_at"), f"signed it off ({s.get('option')})" if s.get("option") else "signed it off")
         # Their own documents they touched lately even without a version row (a Markdown document's save).
         async for d in db["documents"].find({"owner_id": uid, "deleted_at": None, "updated_at": {"$gte": since}},
                                             {"updated_at": 1}).sort("updated_at", -1).limit(40):
@@ -504,16 +502,17 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
             continue
         if folders is not None and raw.get("folder_id") not in folders:
             continue
-        if raw.get("meeting_role") == "transcript":
-            continue
+        if raw.get("meeting_id"):
+            continue    # meetings are covered by personal_meetings (an import would flood this list)
         if not (await access.can(actor, raw, "read", ctx)).allowed:
             continue
         acts: dict[str, datetime] = {}
         for t, what in sorted(did[k], key=lambda x: -x[0].timestamp()):
             acts.setdefault(what, t)
         tz = ZoneInfo(you.tz)
-        text = "; ".join(f"you {what} it {meetings.fmt_date(t.astimezone(tz).date().isoformat())}" for what, t in acts.items())
-        out.append((raw, text.replace("you imported this meeting it", "you imported this meeting")))
+        text = "; ".join(f"you {what if ' it' in what else what + ' it'} {meetings.fmt_date(t.astimezone(tz).date().isoformat())}"
+                         for what, t in acts.items())
+        out.append((raw, text))
         if len(out) >= limit:
             break
     return out

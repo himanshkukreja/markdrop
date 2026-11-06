@@ -118,7 +118,7 @@ Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). Leave out items that are not relevant. If none are, write <ranking></ranking>.
 2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line as [n-sK] (transcript lines are the best evidence of what was said). When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
 
-Write in the language of the question."""
+Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
 PAGE_SYSTEM = f"""You are Ask AI inside a page in Markdrop, a workspace app with meetings, documents, pages, files and guides. The person is writing or reading that page and asked a question. Item [1] is the page itself. The other items are things they can open: their team's meetings (with the decisions, action items and open questions recorded in each, its date, and transcript lines labelled [n-sK] time Speaker: words) and documents. Each arrives inside an <untrusted_document n="…"> tag with its title, kind, where it lives and an excerpt.
 
@@ -130,7 +130,7 @@ Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). If none are, write <ranking></ranking>.
 2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine). For questions about when or why something was decided, who decided or owns it, or what was discussed or being worked on: answer from the meetings first and always name the meeting and its date (for example "on Oct 28, 2026 (Daily Standup)"); when meetings disagree, the later one wins and you say so. For questions about the page itself, answer from item [1]. Cite every claim right after it: an item as [n], a transcript line as [n-sK]. If the items don't answer the question, say so in one sentence. Never invent facts, names, dates, links or items that aren't listed.
 
-Write in the language of the question."""
+Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
 CATCHUP_SYSTEM = f"""You are Ask Markdrop, the assistant on a person's Markdrop home. They asked to be caught up on the last {CATCHUP_DAYS} days. You get the meetings, documents, pages, files and guides they can open that changed in that time, each inside an <untrusted_document n="…"> tag with its title, kind, where it lives, when it changed and an excerpt (meetings come first).
 
@@ -142,7 +142,7 @@ Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items worth reading, most important first (at most 12).
 2. Then a blank line and a catch-up: at most 180 words of plain Markdown, a short bullet list grouped by theme (decisions and meetings first, then what changed in documents), every bullet citing its items as [n]. Only what the items say; never invent anything. End with one line naming what most needs their attention, if anything does.
 
-Write in English unless the question is in another language."""
+Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
 ACTIONS_SYSTEM = f"""You are Ask Markdrop, the assistant on a person's Markdrop home. They asked for their open action items. You get the unchecked tasks that mention them (as @Name) in pages they can open, each inside an <untrusted_task n="…"> tag with the page it is on, where that lives, and when the page changed.
 
@@ -154,7 +154,7 @@ Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with every task's number, most urgent first (overdue or due soon first, then newest).
 2. Then a blank line and the answer: at most 180 words of plain Markdown — one short sentence on how many there are, then a bullet per task (grouped by page or meeting when several share one), each in a few words and citing it as [n], with its due date when it has one. Never invent tasks, dates or owners.
 
-Write in English unless the question is in another language."""
+Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
 
 def now_utc() -> datetime:

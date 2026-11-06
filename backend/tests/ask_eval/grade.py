@@ -14,7 +14,7 @@ NOT_FOUND = re.compile(
     r"don't see|do not see|didn't find|did not find|isn't (?:mentioned|covered|in|any)|aren't (?:mentioned|any)|"
     r"doesn't (?:mention|say|cover|appear|include)|don't (?:have|mention|cover|include)|do not (?:have|mention|include)|"
     r"there (?:is|are|was|were) no|none of|no (?:such|record)|nobody|didn't (?:say|mention|speak|come up)|"
-    r"did not (?:say|mention|speak|come up)|not (?:able|available)|no .{0,40}?(?:found|mentioned|recorded))", re.I)
+    r"did not (?:say|mention|speak|come up)|not (?:able|available)|nothing you can open|no .{0,40}?(?:found|mentioned|recorded))", re.I)
 _HINDI = re.compile(r"\b(hai|kya|mein|kitna|hua|tha|bola|wale|liye|nahi|haan|kal|hoga|baare)\b", re.I)
 LABEL = re.compile(r"^(?:M?\d{1,3}(?:-s\d{1,5})?|[sn]\d{1,5})$")
 BRACKET = re.compile(r"\[([^\[\]\n]{1,40})\]")

@@ -66,7 +66,7 @@ What it knows about you:
 - **Your account**: your name and email, the workspaces you belong to and your role in each, and today's date where you are.
 - **How you appear in meetings.** Transcripts name speakers the way the call did, like "Himanshu" or "priya.nair". Markdrop matches those names to your account the same way it does when it imports a meeting: by email, full name, or a first name only one member has. Your own lines are quoted as yours, and nobody else's are.
 - **Your meetings**: the ones you attended, organized or spoke in, newest first. Name a series ("my last sync-up") and those come first.
-- **Your recent work**: documents and pages you created, edited or signed off, and meetings you imported, from the last 30 days.
+- **Your recent work**: documents and pages you created, edited or signed off in the last 30 days.
 
 Answers say where each line came from, for example "In the Nov 5 Daily Syncup you said: …", and each line links to its moment in the transcript. If you were in a meeting but didn't speak, the answer says "You attended but didn't speak". If you weren't in the meeting you asked about, it says so and names the latest one you were in.
 
