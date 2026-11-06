@@ -47,6 +47,8 @@ class SettingsPayload(BaseModel):
     ai_enabled: bool = True
     # New pages get a cover picked for them (services/page_covers.py). Default on.
     auto_covers: bool = True
+    # Team memory (services/workspace_memory.py): default off; admins turn it on.
+    team_memory: bool = False
 
 
 class DomainSummary(BaseModel):

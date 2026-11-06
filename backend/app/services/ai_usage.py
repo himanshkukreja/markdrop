@@ -392,6 +392,7 @@ FEATURES: dict[str, str] = {
     "search_ai": "AI search",
     "analytics_ai": "Analytics AI",
     "meetings_ai": "Meetings AI",
+    "workspace_memory": "Team memory",
 }
 
 SETTINGS = "ai_settings"
@@ -412,6 +413,7 @@ _CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "search_ai": ("search_ai_daily_usd", "search_ai_monthly_usd", ("search_ai_enabled",)),
     "analytics_ai": ("analytics_ai_daily_usd", "analytics_ai_monthly_usd", ("analytics_ai_enabled",)),
     "meetings_ai": ("meetings_ai_daily_usd", "meetings_ai_monthly_usd", ("meetings_ai_enabled",)),
+    "workspace_memory": ("workspace_memory_daily_usd", "workspace_memory_monthly_usd", ("workspace_memory_enabled",)),
 }
 
 _cache: dict[tuple[str, str], tuple[float, Any]] = {}

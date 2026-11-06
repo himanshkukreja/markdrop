@@ -84,6 +84,7 @@ def _to_response(workspace: Workspace, role: str, counts: dict | None = None) ->
             default_access=s.default_access,
             ai_enabled=s.ai_enabled,
             auto_covers=s.auto_covers,
+            team_memory=s.team_memory,
         ),
         role=role,  # type: ignore[arg-type]
         default_access=s.default_access,
@@ -212,6 +213,12 @@ async def update_workspace(
     # behind admin rather than member.
     role = await ws_service.require_role(db, workspace_id, user.id, "admin")
     await ws_service.assert_open(db, workspace_id)  # R3-1: no settings changes mid-delete
+    sent = _settings_update(data.settings) or {}
+    if "team_memory" in sent:
+        # Team memory (services/workspace_memory.py): on starts the 30-day backfill; off deletes what it gathered.
+        from app.services import workspace_memory
+
+        await workspace_memory.switched(db, workspace_id, bool(sent["team_memory"]))
     workspace = await ws_service.update_workspace(
         db,
         workspace_id,
