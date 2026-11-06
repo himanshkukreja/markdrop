@@ -2338,6 +2338,30 @@ async def restore_file_version(ctx: Context, args: dict) -> tuple[str, dict]:
             "The link is unchanged."), out
 
 
+async def set_captions(ctx: Context, args: dict) -> tuple[str, dict]:
+    """Add, replace or remove a video's captions (services/captions.py)."""
+    from app.services import captions
+
+    raw = await load_for(ctx, args["document"], "edit_content", "add captions to")
+    actor, actx = actor_of(ctx), access_service.Ctx(ctx.db, surface="mcp")
+    try:
+        if args.get("remove"):
+            after = await captions.remove_captions(ctx.db, raw["slug"], actor, actx)
+        else:
+            if not (args.get("content") or "").strip():
+                raise ToolError("Pass content (the .vtt or .srt file's text), or remove: true.")
+            after = await captions.set_captions(ctx.db, raw["slug"], actor, actx,
+                                                file_name=args.get("file_name"), content=args["content"])
+    except HTTPException as exc:
+        raise ToolError(http_message(exc))
+    url = (await url_pair(ctx, after))["url"]
+    out = {"url": url, "slug": after["slug"], "captions": after.get("captions_name")}
+    if args.get("remove"):
+        return f"Removed the captions from {url}.", out
+    return (f"Captions {out['captions']} added to {url}: the player shows them, and search and Ask now read "
+            "the video by minute (a moment or two to index)."), out
+
+
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 _NULLABLE_STR = {"type": ["string", "null"]}
@@ -3283,6 +3307,33 @@ TOOLS: list[Tool] = [
         output_schema=_FILE_INFO,
         annotations=_ann(False, False, False),
         handler=restore_file_version,
+    ),
+    Tool(
+        name="set_captions",
+        title="Add captions to a video",
+        description=(
+            "Add or replace a video file's captions (subtitles) from a .vtt or .srt file's text, or remove "
+            "them (remove: true). The player shows them; global search and ask_documents read the video by "
+            "minute and link to the moment. Needs edit rights on the file; at most 2 MB."
+        ),
+        scope=WRITE,
+        writes=True,
+        input_schema={
+            "type": "object",
+            "properties": {
+                "document": _DOC_REF,
+                "file_name": {"type": "string", "maxLength": 200,
+                              "description": "The captions file's name, ending .vtt or .srt (e.g. 'demo.en.vtt')."},
+                "content": {"type": "string", "maxLength": 2_200_000,
+                            "description": "The .vtt or .srt file's text (WebVTT or SubRip cues)."},
+                "remove": {"type": "boolean", "description": "true removes the video's captions instead."},
+            },
+            "required": ["document"],
+        },
+        output_schema=_out({"url": {"type": "string"}, "slug": {"type": "string"}, "captions": _NULLABLE_STR},
+                           ["url", "slug"]),
+        annotations=_ann(False, False, True),
+        handler=set_captions,
     ),
 ]
 

@@ -460,3 +460,21 @@ class Coverage(AskWorld):
         status = await search_index.status(self.db)
         self.assertTrue(status["coverage"]["done"])
         self.assertTrue(m)
+
+    async def test_mcp_set_captions(self):
+        await self.file("owner", "clip", "Clip", b"\0" * 10, "video/mp4", filename="clip.mp4")
+        tok = await self.mcp_token("owner", write=True)
+        code, res = await self.mcp_call(tok, "set_captions", {"document": "clip", "file_name": "clip.vtt",
+                                                              "content": vtt([(65, "the axolotl appears")])})
+        self.assertEqual(code, 200)
+        self.assertFalse(res.get("isError"), res)
+        self.assertEqual(res["structuredContent"]["captions"], "clip.vtt")
+        await self.settle()
+        self.assertEqual([i["slug"] for i in (await self.find("wm", "axolotl"))["items"]], ["clip"])
+        # A reader can't; removing works.
+        code, res = await self.mcp_call(await self.mcp_token("wv", write=True), "set_captions",
+                                        {"document": "clip", "content": vtt([(0, "x")])})
+        self.assertTrue(res.get("isError"))
+        code, res = await self.mcp_call(tok, "set_captions", {"document": "clip", "remove": True})
+        self.assertFalse(res.get("isError"), res)
+        self.assertIsNone(res["structuredContent"]["captions"])
