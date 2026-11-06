@@ -142,6 +142,60 @@ class Due(unittest.TestCase):
             got = wm.resolve_due(text, b)
             self.assertEqual(got.isoformat() if got else None, want, text)
 
+    def test_deadline_in_a_sentence(self):
+        b = date(2026, 11, 4)  # Wednesday (the meeting's day)
+        cases = {
+            "Sam Lee will update the pricing page with the new tiers by Friday.": ("2026-11-06", "by Friday"),
+            "Ravi will send the deck to the client by EOD": ("2026-11-04", "by EOD"),
+            "Priya to share the launch notes by Nov 12": ("2026-11-12", "by Nov 12"),
+            "Bo will check with sales by 12 Nov": ("2026-11-12", "by 12 Nov"),
+            "Bo will look at the flaky tests next week": ("2026-11-09", "next week"),
+            "Ada will follow up with legal early next week.": ("2026-11-09", "early next week"),
+            "Ravi to share the draft tomorrow": ("2026-11-05", "tomorrow"),
+            "Close the books by the end of the month": ("2026-11-30", "by the end of the month"),
+            "Ship v2 by the end of next week": ("2026-11-13", "by the end of next week"),
+            "Bo will demo it on Thursday": ("2026-11-05", "on Thursday"),
+            "Draft due EOD Friday": ("2026-11-06", "due EOD Friday"),
+            "Fix the export in 3 days": ("2026-11-07", "in 3 days"),
+            # Hinglish
+            "Neha kal tak deck bhej degi": ("2026-11-05", "kal tak"),
+            "Amit Monday tak API ready karega": ("2026-11-09", "Monday tak"),
+            "Amit agle hafte tak fix karega": ("2026-11-09", "agle hafte tak"),
+            "Kiran mahine ke end tak report dega": ("2026-11-30", "mahine ke end tak"),
+            "Ravi parso tak review karega": ("2026-11-06", "parso tak"),
+            # Not deadlines
+            "Sam will review the Monday standup notes": None,
+            "Sam may update the pricing page": None,
+            "Review today's numbers with finance": None,
+            "Ship it once approved by the team": None,
+        }
+        for text, want in cases.items():
+            got = wm.due_in_text(text, b)
+            self.assertEqual((got[0].isoformat(), got[1]) if got else None, want, text)
+        # The meeting's own "due" wins; the sentence is read when there is none.
+        self.assertEqual(wm.free_due("Send the sheet by Friday", "Thursday", b), ("2026-11-05", "Thursday"))
+        self.assertEqual(wm.free_due("Send the sheet by Friday", None, b), ("2026-11-06", "by Friday"))
+        self.assertEqual(wm.free_due("Send the sheet", None, b), (None, None))
+        self.assertEqual(wm.resolve_due("kal tak", b).isoformat(), "2026-11-05")
+        self.assertEqual(wm.resolve_due("Friday tak", b).isoformat(), "2026-11-06")
+
+    def test_prefer_dated(self):
+        page = {"doc_id": "p", "meeting_id": "m"}
+        talk = {"doc_id": "p", "meeting_id": "m", "also": ["t"]}
+        undated = {"_id": 1, "kind": "action_item", "text": "will refresh the checklist", "due": None, "sources": [page],
+                   "done_at": None}
+        dated = {"_id": 2, "kind": "target", "text": "Refresh the checklist", "due": "2026-11-06", "sources": [talk]}
+        got = wm.prefer_dated(undated, dated)
+        self.assertEqual((got["_id"], got["due"], got["alt_text"]), (2, "2026-11-06", "will refresh the checklist"))
+        self.assertEqual(got["sources"], [talk])                       # same meeting: one source
+        self.assertIs(wm.prefer_dated(dated, undated), dated)          # already dated: kept
+        other = {**undated, "sources": [{"doc_id": "q", "meeting_id": "m2"}]}
+        self.assertEqual(len(wm.prefer_dated(other, dated)["sources"]), 2)
+        update = {**dated, "kind": "update"}
+        self.assertIs(wm.prefer_dated(undated, update), undated)       # only commitments
+        self.assertEqual(wm.kind_group("target"), wm.kind_group("action_item"))
+        self.assertNotEqual(wm.kind_group("update"), wm.kind_group("action_item"))
+
     def test_due_of_keeps_sane_model_dates(self):
         b = date(2026, 11, 3)
         self.assertEqual(wm.due_of({"due": "2026-11-05", "due_text": "by Thursday"}, b), "2026-11-05")
@@ -750,6 +804,119 @@ class ThisWeek(TeamWorld):
         # The person it is about still sees it on their own page (they were in the meeting).
         p = (await self.person("wm", who="owner")).json()
         self.assertIn("Secret restricted target", [t["text"] for t in p["targets"]])
+
+
+class GeminiDates(TeamWorld):
+    """Gemini's "Suggested next steps" reach Team with the deadline their words give ("by Friday", "kal
+    tak"), resolved against the meeting's day, and so the "This week" card; a near-duplicate the model
+    found with a date keeps it (the dated line wins); facts recorded before get their date nightly."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        from app.services import team_extras
+
+        await team_extras.ensure_indexes(self.db)
+        _pin_today(self, date(2026, 11, 4))                  # a Wednesday
+        await self.turn_on()
+        self.m = await self.standup(date="2026-11-04", title="Pricing sync")
+        await self.tick()
+        self.extract_reply = json.dumps({"facts": []})
+
+    async def gemini_steps(self, steps: list[str]):
+        from app.services import meeting_memory
+
+        await self.db["meetings"].update_one({"_id": ObjectId(self.m["id"])}, {"$set": {"notes.next_steps": steps}})
+        await meeting_memory.sync_meeting(self.db, self.m["id"])
+
+    async def extract(self) -> dict:
+        ws = await wm.ws_info(self.db, self.W)
+        row = await self.db["meetings"].find_one({"_id": ObjectId(self.m["id"])})
+        return await wm.extract_meeting(self.db, ws, row, await wm.members_of(self.db, self.W))
+
+    async def mine(self, who: str, needle: str) -> list[dict]:
+        return [f for f in await self.db[wm.FACTS].find({"subject": self.uid[who], "src_key": f"m:{self.m['id']}"}).to_list(100)
+                if needle in f["text"].lower()]
+
+    async def test_next_steps_with_deadlines_reach_this_week(self):
+        await self.gemini_steps(["Bo Chen <bo@acme.test> will update the pricing page with the new tiers by Friday.",
+                                 "Priya Sharma kal tak pricing deck bhej degi",
+                                 "Ravi Kumar will think about the FAQ"])
+        await self.extract()
+        bo = (await self.mine("wm", "pricing page"))[0]
+        self.assertEqual((bo["kind"], bo["due"], bo["due_text"], bo["origin"]),
+                         ("target", "2026-11-06", "by Friday", "meeting_fact"))
+        pr = (await self.mine("wa", "deck"))[0]
+        self.assertEqual((pr["kind"], pr["due"], pr["due_text"]), ("target", "2026-11-05", "kal tak"))
+        rv = (await self.mine("wv", "faq"))[0]
+        self.assertEqual((rv["kind"], rv["due"]), ("action_item", None))
+        b = (await self.board("wv")).json()
+        due = {x["text"]: x for x in b["this_week"]["due"]}
+        self.assertIn("will update the pricing page with the new tiers by Friday.", due)
+        self.assertEqual(due["will update the pricing page with the new tiers by Friday."]["due"], "2026-11-06")
+        self.assertEqual(due["will update the pricing page with the new tiers by Friday."]["person"]["id"], self.uid["wm"])
+        self.assertIn("kal tak pricing deck bhej degi", due)
+        cards = {c["id"]: c for c in b["people"]}
+        self.assertIn("2026-11-06", [t["due"] for t in cards[self.uid["wm"]]["targets"]])
+        self.assertGreaterEqual(b["totals"]["week_due"], 2)
+
+    async def test_the_dated_duplicate_wins(self):
+        await self.gemini_steps(["Bo Chen will refresh the onboarding checklist for the pilot"])
+        self.extract_reply = json.dumps({"facts": [
+            {"person": "Bo Chen", "kind": "target", "text": "Refresh the onboarding checklist for the pilot",
+             "due": None, "due_text": "by Friday", "cite": "s2", "confidence": 0.9}]})
+        await self.extract()
+        rows = await self.mine("wm", "onboarding checklist")
+        self.assertEqual(sorted((r["origin"], r["due"]) for r in rows), [("ai", "2026-11-06"), ("meeting_fact", None)])
+        self.assertEqual(len({r["cluster"] for r in rows}), 1)       # one commitment
+        self.assertEqual(len({r["norm"] for r in rows}), 1)          # one correction key
+        ai = next(r for r in rows if r["origin"] == "ai")
+        self.assertTrue(ai["sources"][0].get("also"))               # the date came from the call
+        # Board, person page and This week: one line, the dated one, with both sources.
+        b = (await self.board("wa")).json()
+        lines = [x for x in b["this_week"]["due"] if "onboarding checklist" in x["text"].lower()]
+        self.assertEqual([(x["id"], x["due"]) for x in lines], [(str(ai["_id"]), "2026-11-06")])
+        p = (await self.person("wm", who="wa")).json()
+        self.assertEqual([t["due"] for t in p["targets"] if "onboarding" in t["text"].lower()], ["2026-11-06"])
+        self.assertEqual([a for a in p["action_items"] if "onboarding" in a["text"].lower()], [])
+        # Someone who can't open the transcript (where the date was said) gets the undated line.
+        t = await self.doc(self.m["transcript_slug"])
+        await self.db["documents"].update_one({"_id": t["_id"]}, {"$set": {"access_level": "private", "access_inherit": False}})
+        p = (await self.person("wm", who="wa")).json()
+        self.assertEqual([t["due"] for t in p["targets"] if "onboarding" in t["text"].lower()], [])
+        self.assertEqual(len([a for a in p["action_items"] if "onboarding" in a["text"].lower()]), 1)
+        await self.db["documents"].update_one({"_id": t["_id"]}, {"$set": {"access_level": "workspace", "access_inherit": True}})
+        # Hiding the line hides its twin too (one correction key).
+        r = await self.http.post(f"/api/v1/team/{self.W}/facts/{ai['_id']}/hide", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        p = (await self.person("wm", who="wa")).json()
+        self.assertFalse([x for x in p["targets"] + p["action_items"] if "onboarding" in x["text"].lower()])
+        # A model match that already had its own deadline adds nothing.
+        await self.gemini_steps(["Bo Chen will send the pricing FAQ by Thursday"])
+        self.extract_reply = json.dumps({"facts": [
+            {"person": "Bo Chen", "kind": "target", "text": "Send the pricing FAQ", "due_text": "by Friday", "cite": "s2"}]})
+        await self.extract()
+        rows = await self.mine("wm", "faq")
+        self.assertEqual([(r["origin"], r["due"]) for r in rows], [("meeting_fact", "2026-11-05")])
+
+    async def test_recorded_before_get_their_date_nightly(self):
+        await self.gemini_steps(["Bo Chen will update the pricing page by Friday", "Priya Sharma Monday tak deck ready karegi",
+                                 "Ravi Kumar will think about the FAQ"])
+        await self.extract()
+        # As recorded before the fix: no due date.
+        await self.db[wm.FACTS].update_many({"origin": "meeting_fact"}, {"$set": {"due": None, "due_text": None,
+                                                                              "kind": "action_item"}})
+        rep = await wm.consolidate(self.db, self.W, now=datetime(2026, 11, 5, 3, tzinfo=timezone.utc))
+        self.assertEqual(rep["dated"], 2)
+        bo = (await self.mine("wm", "pricing page"))[0]
+        self.assertEqual((bo["kind"], bo["due"], bo["due_text"]), ("target", "2026-11-06", "by Friday"))
+        pr = (await self.mine("wa", "deck"))[0]
+        self.assertEqual((pr["kind"], pr["due"]), ("target", "2026-11-09"))
+        self.assertIsNone((await self.mine("wv", "faq"))[0]["due"])
+        # Idempotent.
+        rep = await wm.consolidate(self.db, self.W, now=datetime(2026, 11, 6, 3, tzinfo=timezone.utc))
+        self.assertEqual(rep["dated"], 0)
+        b = (await self.board("wv")).json()
+        self.assertIn("will update the pricing page by Friday", [x["text"] for x in b["this_week"]["due"]])
 
 
 if __name__ == "__main__":

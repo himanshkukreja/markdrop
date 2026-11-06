@@ -475,13 +475,10 @@ def _short_day(d: str | None) -> str | None:
     return day.strftime("%b %-d") + ("" if day.year == _now().year else f", {day.year}")
 
 
-_BY = re.compile(r"\b(?:by|before|until|due)\s+((?:the\s+)?(?:end of\s+)?(?:next|this)?\s*[A-Za-z]+(?:\s+\d{1,2})?)\b", re.I)
-
-
 def due_label(it: Item, meeting_day: str | None) -> str | None:
     """The deadline to show: the AI's "due …" with its date ("Thursday (Nov 12)"), or the date a
-    "by Friday" in the text means. Resolved against the meeting's day (workspace_memory.resolve_due,
-    the same reading Team's targets use)."""
+    "by Friday" (or "kal tak") in the text means. Resolved against the meeting's day
+    (workspace_memory.resolve_due / due_in_text, the same reading Team's targets use)."""
     from app.services import workspace_memory as wm
 
     try:
@@ -497,9 +494,8 @@ def due_label(it: Item, meeting_day: str | None) -> str | None:
         if d and re.fullmatch(r"\d{4}-\d{2}-\d{2}", it.due.strip()):
             return fmt(d)
         return f"{it.due} ({fmt(d)})" if d and not re.search(r"\d", it.due) else it.due
-    m = _BY.search(it.text)
-    d = wm.resolve_due(m.group(1), base) if m else None
-    return fmt(d) if d else None
+    got = wm.due_in_text(it.text, base)
+    return fmt(got[0]) if got else None
 
 
 async def _organizer_name(db: AsyncIOMotorDatabase, row: dict) -> str | None:
