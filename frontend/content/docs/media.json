@@ -2247,6 +2247,18 @@
     "bytes": 47044,
     "kind": "image"
   },
+  "/docs-assets/integrations/slack/illustration-team-weekly.dark.webp": {
+    "w": 1280,
+    "h": 944,
+    "bytes": 74302,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/slack/illustration-team-weekly.webp": {
+    "w": 1280,
+    "h": 944,
+    "bytes": 76620,
+    "kind": "image"
+  },
   "/docs-assets/integrations/slack/illustration-unfurl.dark.webp": {
     "w": 1280,
     "h": 656,

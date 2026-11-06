@@ -6,6 +6,7 @@
  * imported with the demo people (shots/_demo.mjs); the AI summary comes from the fake Meetings AI
  * (start the sandbox API through e2e/pages/real/api_run.py with PB_FAKE_MEETINGS_AI=1).
  * Organize meetings: the dialog's preview (the background-job version, main 15a0e09b+).
+ * The Meeting details panel is shot in k-team-meetings.mjs now (a meeting with Attendees and Invited).
  */
 import { api, meeting, transcript } from "./_demo.mjs";
 
@@ -61,22 +62,6 @@ export default [
       await openMeeting(h);
     },
     crop: { selector: "[data-testid='meeting-header']", pad: 12 },
-  },
-  {
-    id: "meetings-details-panel",
-    page: "/workspaces/meetings",
-    name: "meeting-details",
-    kind: "screenshot",
-    auth: "owner",
-    url: "/dashboard",
-    prepare: async (h) => {
-      await openMeeting(h);
-      await h.page.locator("[data-testid='meeting-pill']").first().click();
-      await h.loc(".mt-panel").waitFor({ timeout: 15000 });
-      await h.settle(600);
-      await h.page.mouse.move(5, 5);
-    },
-    crop: { selector: ".mt-panel", pad: 0 },
   },
   {
     id: "meetings-import-paste",
