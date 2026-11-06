@@ -32,21 +32,26 @@ function niceTop(v: number, whole: boolean): number {
   return Math.ceil(v);
 }
 
-export function FeatureLegend({ features }: { features: FeatureRef[] }) {
+export function FeatureLegend({ features, colorOf = featureColor }: { features: FeatureRef[]; colorOf?: (key: string) => string }) {
   return (
     <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-micro text-text-secondary" aria-label="Legend">
       {features.map((f) => (
         <li key={f.key} className="inline-flex items-center gap-1.5">
-          <span aria-hidden className="size-2.5 rounded-xs" style={{ background: featureColor(f.key) }} />{f.label}
+          <span aria-hidden className="size-2.5 rounded-xs" style={{ background: colorOf(f.key) }} />{f.label}
         </li>
       ))}
     </ul>
   );
 }
 
-export function DailyByFeature({ series, features, metric, height = 180 }: {
+export function DailyByFeature({ series, features, metric, height = 180, colorOf = featureColor, label: seriesLabel }: {
   series: DayRow[]; features: FeatureRef[]; metric: Metric; height?: number;
+  /** Colour per key (default: the AI features' fixed order). */
+  colorOf?: (key: string) => string;
+  /** What a column counts, for the empty-day label ("no requests"). */
+  label?: string;
 }) {
+  const featureColor = colorOf;
   const [hover, setHover] = useState<number | null>(null);
   const [table, setTable] = useState(false);
   const val = (d: DayRow, k: string) => (metric === "cost" ? d.by_feature[k] ?? 0 : d.requests_by_feature[k] ?? 0);
@@ -55,11 +60,11 @@ export function DailyByFeature({ series, features, metric, height = 180 }: {
   const top = niceTop(Math.max(0, ...totals), metric === "requests");
   const ticks = [0, 0.5, 1].map((f) => f * top);
   const every = Math.max(1, Math.ceil(series.length / 7));
-  const label = metric === "cost" ? "Spend" : "Requests";
+  const label = seriesLabel ?? (metric === "cost" ? "Spend" : "Requests");
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <FeatureLegend features={features} />
+        <FeatureLegend features={features} colorOf={colorOf} />
         <TableToggle table={table} onToggle={() => setTable((t) => !t)} />
       </div>
       {table ? (

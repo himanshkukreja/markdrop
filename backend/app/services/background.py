@@ -25,6 +25,8 @@ one API worker runs it (§5.1, §5.5, A6):
     meetings_backfill every 10 s  pick up "Import past meetings" queues a stopped process left
                              running, wake those that waited for the AI budget (services/meeting_backfill.py),
                              and "Organize meetings" runs likewise (services/meeting_organize.py)
+    email_retry     every 60 s  send the email that waited for a new UTC day because the daily
+                             limit was spent (services/email_delivery.py: process_retries)
     meeting_memory  every 15 s  meetings' decisions, action items… as facts for the editor's "From
                              meetings" panel: re-derive a batch of meetings changed since (or never
                              derived: the backfill), drop facts of deleted meetings (services/meeting_memory.py)
@@ -202,6 +204,12 @@ async def _search_index(db: AsyncIOMotorDatabase) -> None:
     await search_index.background(db)
 
 
+async def _email_retry(db: AsyncIOMotorDatabase) -> None:
+    from app.services import email_delivery
+
+    await email_delivery.process_retries(db)
+
+
 async def _meeting_memory(db: AsyncIOMotorDatabase) -> None:
     from app.services import meeting_memory
 
@@ -220,7 +228,8 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("search_index", 10.0, _search_index), ("slack_dm", 5.0, _slack),
                               ("push", 5.0, _push),
                               ("meetings_backfill", 10.0, _meetings_backfill),
-                              ("meeting_memory", 15.0, _meeting_memory)):
+                              ("meeting_memory", 15.0, _meeting_memory),
+                              ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
 

@@ -990,7 +990,7 @@ async def _send(user_row: dict, mail: dict, *, kind: str = "mention", ref: str |
         "html": mail["html"],
         "text": mail["text"],
         "headers": {"List-Unsubscribe": f"<{off}>", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click"},
-    })
+    }, kind=kind, ref=ref)
 
 
 async def _claim(db: AsyncIOMotorDatabase, user_id: str, doc_id: str, now: datetime) -> bool:
@@ -1116,7 +1116,9 @@ class _Person:
             await self.defer(rows)
             return False
         try:
-            await _send(self.user, mail, ref=None,
+            # The admin email log's ref: the page, when the email is about one page (a bundle spans several).
+            pages_in = {str(r.get("doc_id")) for r in rows}
+            await _send(self.user, mail, ref=pages_in.pop() if len(pages_in) == 1 else None,
                         kind="signoff" if all(r["kind"] == "signoff_requested" for r in rows) else "mention")
         except Exception:
             log.warning("notifications: email to %s failed", self.uid, exc_info=True)

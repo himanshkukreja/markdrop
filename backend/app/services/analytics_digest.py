@@ -494,7 +494,7 @@ async def send_one(db: AsyncIOMotorDatabase, user: dict, now: datetime) -> str:
             status = "empty"
         else:
             off = off_url(user_id)
-            await mailer._post({
+            sent = await mailer._post({
                 "from": mailer._sender("welcome"),
                 "to": [user["email"]],
                 "subject": d.subject,
@@ -505,8 +505,9 @@ async def send_one(db: AsyncIOMotorDatabase, user: dict, now: datetime) -> str:
                     "List-Unsubscribe": f"<{off}>",
                     "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
                 },
-            })
-            status = "sent"
+            }, kind="digest", ref=user_id)
+            # Over today's limit it waits in the email retry queue for tomorrow.
+            status = "sent" if sent in ("sent", None) else sent
     except Exception:
         log.exception("weekly digest for %s failed", user_id)
     await db[SENDS].update_one({"user_id": user_id, "week": week}, {"$set": {"status": status, "at": _now()}})

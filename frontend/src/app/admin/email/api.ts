@@ -68,6 +68,8 @@ export interface CampaignSummary {
   started_at?: string | null;
   finished_at?: string | null;
   lock_until?: string | null;
+  /** Today's email limit is spent: the campaign continues after this (next UTC midnight). */
+  deferred_until?: string | null;
   counts: Counts;
 }
 export interface Campaign extends CampaignSummary { doc: EmailDoc; legacy_html?: string }
@@ -81,6 +83,9 @@ export interface DomainsInfo { state: "ok" | "restricted" | "console" | "error";
 
 export interface Setup {
   transport: "resend" | "console";
+  /** Every provider and whether it's configured; provider_order: the configured ones, in send order. */
+  providers?: { name: string; configured: boolean; limit: number }[];
+  provider_order?: string[];
   tracking_base: string;
   site: string;
   batch: { size: number; gap_ms: number };
@@ -137,6 +142,34 @@ export interface Report {
   webhooks: boolean;
   transport: string;
 }
+
+// ── Every email sent (email_log) and provider usage ─────────────────────────
+
+export type Tier = "auth" | "transactional" | "bulk";
+export type LogStatus = "sent" | "failed" | "deferred" | "over_limit" | "skipped";
+export interface ProviderUsage { name: string; configured: boolean; limit: number; used: number; full: boolean }
+export interface UsageDay { day: string; sent: Record<string, number>; failed: number; deferred: number; over_limit: number; skipped: number }
+export interface KindRow { kind: string; priority: Tier; total: number; sent: number; failed: number; deferred: number; over_limit: number; skipped: number }
+export interface Usage {
+  day: string;
+  resets_at: string;
+  providers: ProviderUsage[];
+  order: string[];
+  total: { used: number; limit: number; pct: number };
+  caps: Record<Tier, { share: number; limit: number }>;
+  warn: boolean;
+  days: UsageDay[];
+  by_kind: KindRow[];
+  retry_waiting: number;
+  kinds: string[];
+  statuses: LogStatus[];
+}
+export interface LogRow {
+  id: string; at: string | null; kind: string; priority: Tier; to: string; subject: string; provider: string | null;
+  status: LogStatus; provider_message_id: string | null; error: string | null; ref: string | null; attempts: number;
+  updated_at: string | null;
+}
+export interface LogFilters { kind?: string; status?: string; provider?: string; q?: string; since?: string; until?: string; offset?: number; limit?: number }
 
 export interface MessageRow {
   id: string; email: string; name: string | null; user_id: string | null; status: MessageStatus; display_status: DisplayStatus;
@@ -223,6 +256,9 @@ export const emailApi = {
   messages: (t: string, id: string, o: { filter: RecipientFilter; q?: string; offset?: number; limit?: number }) =>
     req<{ rows: MessageRow[]; total: number; offset: number; limit: number }>(
       t, "GET", `/campaigns/${encodeURIComponent(id)}/recipients${q({ filter: o.filter, q: o.q, offset: o.offset, limit: o.limit })}`),
+  usage: (t: string, days = 14) => req<Usage>(t, "GET", `/usage${q({ days })}`),
+  log: (t: string, f: LogFilters) =>
+    req<{ rows: LogRow[]; total: number; offset: number; limit: number }>(t, "GET", `/log${q({ ...f })}`),
   async csv(t: string, id: string, filter: RecipientFilter, query: string): Promise<{ blob: Blob; filename: string }> {
     const res = await fetch(`${API_BASE}/api/v1/admin/email/campaigns/${encodeURIComponent(id)}/recipients${q({ filter, q: query, format: "csv" })}`, {
       headers: { Authorization: `Bearer ${t}` }, cache: "no-store",

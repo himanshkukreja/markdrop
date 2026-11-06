@@ -177,6 +177,11 @@ async def connect() -> None:
     await db["email_senders"].create_index("is_default")
     await db["email_outbox"].create_index("ts", expireAfterSeconds=7 * 24 * 3600)
     await db["email_webhook_events"].create_index("ts", expireAfterSeconds=30 * 24 * 3600)
+    # The one send path (services/email_delivery.py): the send log (90 days), daily
+    # quota counters, the retry queue for mail over today's limit, campaign batch routes.
+    from app.services import email_delivery as _email_delivery
+
+    await _email_delivery.ensure_indexes(db)
 
     # MCP server + OAuth (services/oauth_server.py). New collections only.
     # Pending consent requests (10 min) and authorization codes go by TTL; a

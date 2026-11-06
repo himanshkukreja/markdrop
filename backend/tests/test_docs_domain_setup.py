@@ -165,7 +165,7 @@ class EmailTests(DbCase):
         _configure(self, self.cf)
         self.sent: list[dict] = []
 
-        async def post(payload):
+        async def post(payload, **_kw):
             self.sent.append(payload)
 
         for target, name, value in ((mailer, "is_configured", lambda: True), (mailer, "_post", post)):

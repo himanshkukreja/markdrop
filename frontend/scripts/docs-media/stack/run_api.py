@@ -132,7 +132,7 @@ def _refuse_non_local() -> None:
     for name in ("api_base_url", "frontend_url", "artifact_origin", "r2_endpoint"):
         if host(getattr(settings, name)) not in LOOPBACK:
             problems.append(f"{name} {getattr(settings, name)}")
-    if settings.resend_api_key or settings.vercel_api_token or settings.anthropic_api_key:
+    if settings.resend_api_key or settings.brevo_api_key or settings.vercel_api_token or settings.anthropic_api_key:
         problems.append("a real third-party key is set")
     if problems:
         sys.exit("run_api.py: refusing to start, not local-only: " + "; ".join(problems))
@@ -449,10 +449,11 @@ from app.services import mailer  # noqa: E402
 OUTBOX = DATA / "outbox.jsonl"
 
 
-async def _outbox(payload: dict) -> None:
+async def _outbox(payload: dict, **_meta) -> str:
     DATA.mkdir(parents=True, exist_ok=True)
     with OUTBOX.open("a") as f:
         f.write(json.dumps({"at": datetime.now(timezone.utc).isoformat(), **payload}, default=str) + "\n")
+    return "sent"
 
 
 mailer.is_configured = lambda: True

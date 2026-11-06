@@ -35,7 +35,7 @@ class NotifyWorld(PageWorld):
         await page_history.ensure_indexes(self.db)
         self.sent: list[dict] = []
 
-        async def capture(payload):
+        async def capture(payload, **_kw):
             self.sent.append(payload)
 
         for p in (mock.patch.object(mailer, "is_configured", lambda: True),

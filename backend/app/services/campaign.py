@@ -23,7 +23,6 @@ import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import httpx
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
@@ -31,7 +30,6 @@ from app.config import get_settings
 
 settings = get_settings()
 
-_BATCH_URL = "https://api.resend.com/emails/batch"
 # Resend accepts up to 100 messages per batch call.
 BATCH_SIZE = 100
 # Pause between batches so a large send doesn't trip the API rate limit.
@@ -170,9 +168,13 @@ def render(html: str, recipient: dict[str, Any]) -> str:
 
 
 async def _send_batch(
-    client: httpx.AsyncClient, sender: str, subject: str, items: list[dict[str, Any]]
+    db: AsyncIOMotorDatabase, campaign_id: str, sender: str, subject: str, items: list[dict[str, Any]]
 ) -> tuple[int, int]:
-    """Send one Resend batch. Returns (sent, failed)."""
+    """Send one batch through the one send path (services/email_delivery:
+    daily limits, fallback, the send log). Returns (sent, failed); over today's
+    limit nothing goes and every message counts as failed."""
+    from app.services import email_delivery
+
     payload = [
         {
             "from": sender,
@@ -186,21 +188,17 @@ async def _send_batch(
             "headers": {
                 "List-Unsubscribe": f"<{unsubscribe_url(r['id'])}>",
                 "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+                "X-Markdrop-Campaign": campaign_id,
             },
         }
         for r in items
     ]
     try:
-        resp = await client.post(
-            _BATCH_URL,
-            headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-            json=payload,
-        )
-        if resp.status_code >= 400:
-            return 0, len(items)
-        return len(items), 0
+        outcomes = await email_delivery.RoutedTransport(db).send_batch(payload, None)
     except Exception:
         return 0, len(items)
+    bad = sum(1 for o in outcomes if o.error)
+    return len(items) - bad, bad
 
 
 async def run_campaign(db: AsyncIOMotorDatabase, campaign_id: str) -> None:
@@ -228,17 +226,16 @@ async def run_campaign(db: AsyncIOMotorDatabase, campaign_id: str) -> None:
 
     sent = failed = 0
     html, subject, sender = camp["html"], camp["subject"], camp["sender"]
-    async with httpx.AsyncClient(timeout=30) as client:
-        for i in range(0, len(recipients), BATCH_SIZE):
-            batch = [{**r, "_html": html} for r in recipients[i : i + BATCH_SIZE]]
-            ok, bad = await _send_batch(client, sender, subject, batch)
-            sent += ok
-            failed += bad
-            await db["campaigns"].update_one(
-                {"_id": oid}, {"$set": {"sent": sent, "failed": failed}}
-            )
-            if i + BATCH_SIZE < len(recipients):
-                await asyncio.sleep(BATCH_PAUSE_SECONDS)
+    for i in range(0, len(recipients), BATCH_SIZE):
+        batch = [{**r, "_html": html} for r in recipients[i : i + BATCH_SIZE]]
+        ok, bad = await _send_batch(db, campaign_id, sender, subject, batch)
+        sent += ok
+        failed += bad
+        await db["campaigns"].update_one(
+            {"_id": oid}, {"$set": {"sent": sent, "failed": failed}}
+        )
+        if i + BATCH_SIZE < len(recipients):
+            await asyncio.sleep(BATCH_PAUSE_SECONDS)
 
     await db["campaigns"].update_one(
         {"_id": oid},
@@ -249,20 +246,17 @@ async def run_campaign(db: AsyncIOMotorDatabase, campaign_id: str) -> None:
 
 async def send_test(to_email: str, subject: str, html: str, sender: str) -> bool:
     """Send a single preview copy so a template can be checked before the blast."""
+    from app.services import email_delivery
+
     preview_recipient = {"id": "preview", "email": to_email, "name": "there"}
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.resend.com/emails",
-                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-                json={
-                    "from": sender,
-                    "to": [to_email],
-                    "subject": f"[TEST] {subject}",
-                    "reply_to": settings.email_reply_to,
-                    "html": render(html, preview_recipient),
-                },
-            )
-            return resp.status_code < 400
+        r = await email_delivery.send({
+            "from": sender,
+            "to": [to_email],
+            "subject": f"[TEST] {subject}",
+            "reply_to": settings.email_reply_to,
+            "html": render(html, preview_recipient),
+        }, kind="campaign_test")
+        return r.status == "sent"
     except Exception:
         return False
