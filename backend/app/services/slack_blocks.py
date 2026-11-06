@@ -526,6 +526,10 @@ def team_weekly(*, workspace: str, team_url: str, span: str | None, highlights: 
               plural(len(meetings), "meeting") if meetings else None]
     blocks: list[dict | None] = [header(f"This week in {workspace}"), meta(esc(span) if span else None, *counts)]
     if highlights:
+        first = {}
+        for i, h in enumerate(highlights):
+            first.setdefault(h.get("who") or "", i)
+        highlights = sorted(highlights, key=lambda h: first[h.get("who") or ""])   # one person's lines together
         blocks.append(section(label("Highlights") + "\n" + bullets(
             f"*{esc(h['who'])}*  {esc(h['text'])}{src(h.get('src'))}" if h.get("who") else f"{esc(h['text'])}{src(h.get('src'))}"
             for h in highlights[:8])))

@@ -537,7 +537,7 @@ def compose_email(ws: wm.WsInfo, s: dict) -> dict:
     if p["overdue"]:
         body += [K.heading("Overdue", count=len(p["overdue"])), K.rows([
             K.item(x["text"], who=x["who"], meta=[K.strong(x["who"]), f" · was due {x['when']} · ",
-                                                   K.Html(f'<span style="color:{K.WARN_INK}">{K.esc(x["late"])}</span>')],
+                                                   K.warn(x["late"])],
                    last=k == len(p["overdue"]) - 1) for k, x in enumerate(p["overdue"])])]
     if p["due"]:
         body += [K.heading("Due this week", count=len(p["due"])), K.rows([

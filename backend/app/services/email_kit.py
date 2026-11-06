@@ -365,6 +365,12 @@ def bar(label_, value: str, pct: int, *, href: str | None = None, note: str | No
         f"- {lt}: {value}" + (f" ({note})" if note else ""))
 
 
+def warn(x) -> Html:
+    """Inline text in the warning colour ("4 days late")."""
+    h, _ = inline(x)
+    return Html(f'<span class="md-warn" style="color:{WARN_INK}">{h}</span>')
+
+
 def raw(markup: str, text: str = "") -> Part:
     """Markup built elsewhere and already safe (the campaign editor's blocks)."""
     return Part(markup, text or _text_of(markup))
@@ -418,7 +424,7 @@ CSS = f"""
     .md-pad {{ padding-left:20px !important; padding-right:20px !important; }}
     .md-h1 {{ font-size:21px !important; line-height:28px !important; }}
     .md-stack {{ display:block !important; width:100% !important; padding-right:0 !important; }}
-    .md-stack2 {{ display:inline-block !important; width:48% !important; }}
+    .md-stack2 {{ display:inline-block !important; width:50% !important; box-sizing:border-box !important; padding:0 4px 8px 0 !important; }}
     .md-btncell a {{ display:block !important; }}
   }}
   @media (prefers-color-scheme: dark) {{
@@ -430,6 +436,7 @@ CSS = f"""
     .md-body {{ color:{D_BODY} !important; }}
     .md-muted {{ color:{D_MUTED} !important; }}
     .md-link {{ color:{D_LINK} !important; }}
+    .md-warn {{ color:#fbbf24 !important; }}
   }}
   [data-ogsb] .md-bg {{ background-color:{D_GROUND} !important; }}
   [data-ogsb] .md-card {{ background-color:{D_CARD} !important; }}
@@ -438,6 +445,7 @@ CSS = f"""
   [data-ogsc] .md-body {{ color:{D_BODY} !important; }}
   [data-ogsc] .md-muted {{ color:{D_MUTED} !important; }}
   [data-ogsc] .md-link {{ color:{D_LINK} !important; }}
+  [data-ogsc] .md-warn {{ color:#fbbf24 !important; }}
 """
 
 
