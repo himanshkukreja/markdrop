@@ -1822,6 +1822,8 @@ async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
             continue
         if await ctx.role(wid, uid) is None:
             continue
+        if await db[FACTS].find_one({"workspace_id": wid}, {"_id": 1}) is None:
+            continue
         members = await members_of(db, wid)
         people = match_people(question, members, uid)
         projs = await match_projects(db, wid, question)
