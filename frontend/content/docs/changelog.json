@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "ask-your-workspace",
+      "date": "2026-11-06",
+      "title": "Ask has its own page, live suggestions, and a name that says what it asks",
+      "kind": "new",
+      "area": "AI and MCP",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "**Ask** in the sidebar opens the assistant as its own page: your conversations on the left, the conversation in the middle, and chips for **Everything**, each of your workspaces and **My files**. Its name follows what it answers from: **Ask Acme** in a workspace, **Ask my files** for your own files, **Ask this page** on a document or file. In a workspace, the suggestions come from what's happening now, such as **Sourcing: What did we decide this week?**, the same for everyone in it.",
+      "body": "- **The Ask page.** **Ask** in the sidebar (and in the **⌘ K** palette) opens it, on the workspace you're in. Your conversations are on the left (under **History** on a phone or an upright tablet); select one to continue it. **⌘ J** still opens Ask beside what you're reading, and **Open full page** in its header brings the same conversation here.\n- **A name for each scope.** **Ask Acme** answers from that workspace, **Ask my files** from your own items outside any workspace, **Ask this page** from the item you're on (✦ Ask on documents, pages and files), **Ask** from everything you can open. The panel has a chip for each of your workspaces and **My files**.\n- **Live suggestions.** In a workspace, the suggestions are written from the last 7 days: the topics, decisions and action items of its meetings and the titles and headings of pages that changed. Only what every member can open is used (never a restricted meeting or a private page), so everyone sees the same list, with **Updated 2 h ago**. They change a few minutes after things do, and at least daily. Select one and it's asked at once. Your own are next to them: your action items, your latest meeting, what you said in the last one of a series.\n- **On Home**, the Ask bar has a scope chip, and the chips under it are your team's live questions.\n- **MCP and API.** New `ask_suggestions` tool and `GET /api/v1/ask/suggestions`; `ask_documents` and `POST /api/v1/ask` take the scope `mine`.\n- See [Ask](/workspaces/ask-markdrop)."
+    },
+    {
       "id": "push-prompts-one-tap",
       "date": "2026-11-06",
       "title": "Turn on notifications in one tap, from Home or the bell",
@@ -231,7 +245,7 @@
       "date": "2026-11-05",
       "title": "Ask Markdrop everywhere: one assistant, ⌘J, and answers you can insert",
       "kind": "new",
-      "area": "AI",
+      "area": "AI and MCP",
       "products": [
         "web",
         "mcp",

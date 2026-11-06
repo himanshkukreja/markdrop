@@ -28,7 +28,7 @@ A page opens in **View mode** for everyone, including you when you can edit it. 
 
 To change the page, choose **Edit** in the top bar, or press **E** (not while you're typing in a field). The editor takes the page's place in the same spot, and your changes save as you go. Opening the editor doesn't hold the page: only your first real change does, so others can still edit until you type (see [Editing together](/pages/editing-together)). Choose **Done** to go back to reading: Markdrop saves anything still waiting first and lets go of the page, so someone else can edit it straight away. If a change can't be saved yet (someone else took over the page, or you're offline), the editor stays open and says **Your latest changes aren't saved yet, so the editor stays open**; **Leave anyway** keeps your changes in this browser for next time.
 
-**✦ Ask** sits beside **Edit** (and **Done**) for anyone signed in: it opens [Ask Markdrop](/workspaces/ask-markdrop) on this page. In View mode, **Insert** under an answer switches the page to Edit with the answer at the end of the section you were reading. See [Ask this page](/pages/ai#ask-this-page).
+**✦ Ask** sits beside **Edit** (and **Done**) for anyone signed in: it opens [Ask](/workspaces/ask-markdrop) on this page. In View mode, **Insert** under an answer switches the page to Edit with the answer at the end of the section you were reading. See [Ask this page](/pages/ai#ask-this-page).
 
 Some pages open straight in the editor:
 

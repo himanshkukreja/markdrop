@@ -19,7 +19,7 @@ Once you sign in, Markdrop opens on your **home**: what needs you today, what yo
 | Section | What's there |
 | --- | --- |
 | **Greeting** | The date and what's waiting: meetings today, open action items, unread notifications and access requests. |
-| **Ask bar** | Type a question and press **Enter**: [Ask Markdrop](/workspaces/ask-markdrop) answers in its panel. **Catch me up**, **My action items** and **Ask my meetings** ask for you. **Recent questions** opens your last conversations. |
+| **Ask bar** | Type a question and press **Enter**: [Ask](/workspaces/ask-markdrop) answers in its panel. **Catch me up**, **My action items** and **Ask my meetings** ask for you. **Recent questions** opens your last conversations. |
 | **Continue where you left off** | What you opened last, as cards with a preview. Swipe or scroll sideways for more; **All recent** opens [Recent](#the-sidebar). |
 | **Today** | Today's meetings, mentions, sign-off requests, shares and access requests. **All notifications** opens the bell. |
 | **Your action items** | Every open to-do that @mentions you, in meeting notes or any page you can open, newest first: by the meeting's date for meeting notes, by the page's last change for other pages. The first five show; **Show more** lists the rest. Tick the box to mark it done on its page (**Undo** puts it back); select the text to open the page at that to-do. A box you can't tick is on a page you can't edit. |
@@ -51,7 +51,7 @@ Your own documents and files are in **My files** in the sidebar.
 | --- | --- |
 | **Home** | Your [home](#your-home). |
 | **Search** | [Search](/workspaces/search) everything you can open. |
-| **Ask Markdrop** | Opens [Ask Markdrop](/workspaces/ask-markdrop) (**⌘ J**). |
+| **Ask** | Opens [Ask](/workspaces/ask-markdrop) (**⌘ J**). |
 | **Inbox** | Your notifications: mentions, sign-off requests and shares, with how many are unread. |
 | **My files** | Everything you own. Filter by **All**, **Documents** or **Artifacts**, and search by title or link. |
 | **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. |
@@ -65,7 +65,7 @@ Your own documents and files are in **My files** in the sidebar.
 
 **Collapse**, at the bottom, shrinks the sidebar to a rail of icons (point at one for its name); **Expand** at the top of the rail brings it back. Your browser remembers which you chose.
 
-![The app sidebar: Home, Search, Ask Markdrop and Inbox; My files, Shared with me (2 new), Recent, Analytics and Trash; the Workspaces section with Acme open on Meetings, Guides, Releases and Sales, then Northwind and New workspace; Settings, Help & docs, Send feedback and Collapse at the bottom.](/docs-assets/get-started/tour/sidebar.webp), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
+![The app sidebar: Home, Search, Ask and Inbox; My files, Shared with me (2 new), Recent, Analytics and Trash; the Workspaces section with Acme open on Meetings, Guides, Releases and Sales, then Northwind and New workspace; Settings, Help & docs, Send feedback and Collapse at the bottom.](/docs-assets/get-started/tour/sidebar.webp), Recent, Analytics, the Workspaces section showing Acme with its Guides, Releases and Sales folders, then VS Code (3 tokens), Connected apps and Settings.](/docs-assets/get-started/tour/sidebar.webp)
 
 Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
 
@@ -76,7 +76,7 @@ Each row in **My files** has a **Copy link** button and a menu with **Open**, **
 A document opens full screen, with nothing but the text. Press :kbd[Esc] or choose **Show details** in the corner to bring back its bar. It's one bar at the top, the same as a [page](/pages/overview#the-top-bar)'s, and it stays in place as you scroll. On the left are the sidebar button, the logo (your workspace's logo on its own domain) and the title, after the workspace and folder if you're a member. On the right:
 
 - [Who's viewing](/sharing/see-whos-viewing), when someone else has it open too.
-- **✦ Ask** (signed in): opens [Ask Markdrop](/workspaces/ask-markdrop) on this document. If you can edit it, **Insert** under an answer opens the editor with the answer after the section you were reading.
+- **✦ Ask** (signed in): opens [Ask](/workspaces/ask-markdrop) on this document. If you can edit it, **Insert** under an answer opens the editor with the answer after the section you were reading.
 - **Edit**: shown to the owner, to people who can edit it, and to whoever holds the edit secret in this tab. Everyone else finds **Edit** in **More actions**, where it asks for the edit secret.
 - **Read full screen**: hides everything but the text again. Press :kbd[F]; press :kbd[Esc] to come back.
 - **Share**: shown to the owner, and to people allowed to share it on. See [Share with specific people](/sharing/share-with-people). Everyone else gets **Copy link** here instead: it copies the address, and for an encrypted document it includes the key.
@@ -97,7 +97,7 @@ A file also opens full screen. Press :kbd[Esc] or choose **Show details** to see
 
 ## Search and shortcuts
 
-Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents. Press :kbd[⌘J] (:kbd[Ctrl J]) to open [Ask Markdrop](/workspaces/ask-markdrop), the assistant that answers about the doc you're in, your meetings or everything you can open.
+Press :kbd[⌘K] (:kbd[Ctrl K] on Windows and Linux) anywhere in the app to [search](/workspaces/search) everything you can open, typos and all, or ask AI a question about your documents. Press :kbd[⌘J] (:kbd[Ctrl J]) to open [Ask](/workspaces/ask-markdrop), the assistant that answers about the doc you're in, your meetings or everything you can open.
 
 Single-key shortcuts work when you aren't typing in a box: :kbd[F] reads a document full screen, :kbd[E] edits a page you can edit, and :kbd[/] jumps to the search box in **My files**. They're on by default. To turn them off, open **Settings › Account** and switch off **Keyboard shortcuts**. The setting applies to this browser.
 

@@ -97,7 +97,7 @@ If you aren't signed in as the owner, you'll need the document's edit secret. Se
 
 Readers can copy a link to any heading with its **Copy link to section** button, read full screen, see the raw Markdown with **View raw**, and save a PDF with **Export PDF**. Signed-in readers can choose **Save a copy** to put their own copy in **My files**.
 
-Signed-in readers can also ask the document questions with **✦ Ask** in its bar, or :kbd[⌘ J]: [Ask Markdrop](/workspaces/ask-markdrop) answers from the document first, with its sources. If you can edit the document, **Insert** under an answer opens the editor with the answer after the section you were reading; nothing is saved until you choose **Save changes**. End-to-end encrypted documents don't have **✦ Ask**.
+Signed-in readers can also ask the document questions with **✦ Ask** in its bar, or :kbd[⌘ J]: [Ask](/workspaces/ask-markdrop) answers from the document first, with its sources. If you can edit the document, **Insert** under an answer opens the editor with the answer after the section you were reading; nothing is saved until you choose **Save changes**. End-to-end encrypted documents don't have **✦ Ask**.
 
 ## More about documents
 

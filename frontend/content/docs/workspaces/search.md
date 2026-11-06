@@ -67,11 +67,11 @@ AI search uses Claude Haiku 5.5 from Anthropic. Only the matching excerpts of it
 
 AI search needs an account and counts towards your AI limits. When a limit is reached, search still works and the card says when AI will be back.
 
-For a conversation, with follow-ups, meeting transcripts and ready-made questions like **Catch me up on this week**, use [Ask Markdrop](/workspaces/ask-markdrop) at the top of your home.
+For a conversation, with follow-ups, meeting transcripts and ready-made questions like **Catch me up on this week**, use [Ask](/workspaces/ask-markdrop) at the top of your home.
 
 ## Search from an AI app
 
-The hosted MCP server's `search` tool uses the same search, and `ask_documents` asks a question the way [Ask Markdrop](/workspaces/ask-markdrop) does, follow-ups included. See [MCP tools](/ai/tools#read-and-find).
+The hosted MCP server's `search` tool uses the same search, and `ask_documents` asks a question the way [Ask](/workspaces/ask-markdrop) does, follow-ups included. See [MCP tools](/ai/tools#read-and-find).
 
 ## What searching a workspace records
 

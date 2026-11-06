@@ -1,18 +1,18 @@
 ---
 title: Ask your meetings
 nav: Ask meetings
-description: Ask one meeting or every meeting in a workspace with Ask Markdrop. Answers are in English and link to the moment it was said.
+description: Ask one meeting or every meeting in a workspace with Ask. Answers are in English and link to the moment it was said.
 updated: 2026-11-05
 keywords: [ask markdrop, cmd j, ask meetings button, meetings chat, meeting chat, meeting bar, organized by, meeting details, post to slack, all meetings, this meeting, any series, any time, ask this meeting, ask across meetings, ask meetings, meeting questions, what did we decide, action items, citations, sources, transcript moment, jump to the moment, follow-ups, new chat, stop, conversation, details, write it again, series, last month, date range, latest, keyboard]
 ---
 
 Ask a question about one meeting, or about all the meetings you can open in a workspace. Answers come from the transcripts and the meeting pages, including your edits, and every answer links to where it came from.
 
-You ask with [Ask Markdrop](/workspaces/ask-markdrop), the one assistant in Markdrop, on its **Meetings** chip. **⌘ J** opens it from anywhere; on a meeting page, on the Meetings page and in the Meetings folders it starts on **Meetings**. (Ask Markdrop replaced the separate meetings chat.)
+You ask with [Ask](/workspaces/ask-markdrop), the one assistant in Markdrop, on its **Meetings** chip. **⌘ J** opens it from anywhere; on a meeting page, on the Meetings page and in the Meetings folders it starts on **Meetings**. (Ask replaced the separate meetings chat.)
 
 ## Ask a meeting
 
-On a meeting page, select **Ask this meeting** in the bar under the meeting's properties, or **✦ Ask** in the top bar. Ask Markdrop opens on **Meetings** with **This meeting** picked. Pick a suggested question or ask your own, for example "What did we decide about pricing?" or "What did Priya take on?". Switch to **All meetings**, a series or a period in the question box to widen the question, or to **This doc** to ask about the page itself.
+On a meeting page, select **Ask this meeting** in the bar under the meeting's properties, or **✦ Ask** in the top bar. Ask opens on **Meetings** with **This meeting** picked. Pick a suggested question or ask your own, for example "What did we decide about pricing?" or "What did Priya take on?". Switch to **All meetings**, a series or a period in the question box to widen the question, or to **This page** to ask about the page itself.
 
 The meeting bar shows who was there, who organized the call (**Organized by**, when Markdrop knows), and who can open the page: **Everyone in the workspace** or **Only the people who were there**. On the transcript page, the bar has **The meeting** to go back instead of **Transcript**.
 
@@ -37,7 +37,7 @@ If the meeting has only Google's notes, without a transcript, the answer comes f
 
 ## Ask across meetings
 
-In the workspace's **Meetings** folder (or one of its series folders), select **Ask meetings** in the bar at the top. Or, on the [Meetings page](/workspaces/meetings#the-meetings-page), select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What did we decide this week?", "What's the latest on the release?" or "Which questions are still open?". Ask Markdrop opens on **Meetings**, beside your meetings on a computer and as a sheet on a phone.
+In the workspace's **Meetings** folder (or one of its series folders), select **Ask meetings** in the bar at the top. Or, on the [Meetings page](/workspaces/meetings#the-meetings-page), select the **Ask anything about your meetings** box at the top, or one of the questions under it, for example "What did we decide this week?", "What's the latest on the release?" or "Which questions are still open?". Ask opens on **Meetings**, beside your meetings on a computer and as a sheet on a phone.
 
 ![Ask across meetings beside the Meetings page: the question, an answer with numbered sources, and follow-up questions under it.](/docs-assets/workspaces/meetings-ask/ask-across.webp)
 
@@ -57,10 +57,10 @@ Answers always use only the meetings you can open. See [Privacy and cost](/works
 
 - **Enter** sends; **Shift+Enter** starts a new line.
 - **↑** in an empty box brings back your last question to edit.
-- **Esc** stops an answer that is still being written, closes the sources, or closes Ask Markdrop.
-- **⌘ J** opens or closes Ask Markdrop.
+- **Esc** stops an answer that is still being written, closes the sources, or closes Ask.
+- **⌘ J** opens or closes Ask.
 
-The conversation is one with the rest of Ask Markdrop: it's kept, it follows you to other pages, and a saved conversation is yours alone. If you can no longer open a meeting an answer used, that answer is hidden when you come back to it.
+The conversation is one with the rest of Ask: it's kept, it follows you to other pages, and a saved conversation is yours alone. If you can no longer open a meeting an answer used, that answer is hidden when you come back to it.
 
 To ask across meetings and everything else at once, pick **Everything**, or use the box at the top of your home. It cites meeting moments the same way, and **What are my open action items?** lists the action items assigned to you across meetings.
 
@@ -70,12 +70,12 @@ Meeting questions count towards the **Meetings AI** limit; see [AI limits](/work
 
 `ask_meetings` asks one meeting or a whole workspace from an AI app connected to the [hosted MCP server](/ai/hosted-mcp), optionally only one `series` or dates (`since`, `until`). It counts towards the same **Meetings AI** limit. See [MCP tools](/ai/tools#meetings).
 
-While you write a page, [Meeting memory](/pages/meeting-memory) shows what was decided about it, and Ask Markdrop's **This doc** answers from your meetings too.
+While you write a page, [Meeting memory](/pages/meeting-memory) shows what was decided about it, and **Ask this page** answers from your meetings too.
 
 ## Related
 
 - [Meeting memory while writing](/pages/meeting-memory)
-- [Ask Markdrop](/workspaces/ask-markdrop)
+- [Ask](/workspaces/ask-markdrop)
 - [Meetings](/workspaces/meetings)
 - [Search](/workspaces/search)
 - [Privacy and cost](/workspaces/meetings-privacy)
