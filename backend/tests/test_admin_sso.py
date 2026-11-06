@@ -201,5 +201,36 @@ class AdminSso(aenv.AccessWorld):
         self.assertEqual(row["ip_hash"], rows[0]["ip_hash"])
 
 
+    # ── break-glass (server-side script; nothing on the web) ──
+
+    async def test_break_glass_session_opens_the_console_and_is_logged(self):
+        from scripts import admin_access
+
+        tok, exp = await admin_access.mint_session(self.db, f"  {self.email['wo'].upper()} ", hours=1)
+        self.assertLess(exp - datetime.now(timezone.utc), timedelta(hours=1, minutes=1))
+        h = {"Authorization": f"Bearer {tok}"}
+        self.assertEqual((await self.call("GET", f"{ADMIN}/session", h)).status_code, 200)
+        row = await self.db["admin_access_log"].find_one({"action": "break_glass"})
+        self.assertEqual((row["email"], row["user_id"]), (self.email["wo"].lower(), self.uid["wo"]))
+        lines = await admin_access.status(self.db)
+        self.assertTrue(any(self.email["wo"].lower() in ln and self.uid["wo"] in ln for ln in lines))
+        self.assertTrue(any("break_glass" in ln for ln in await admin_access.recent(self.db, 1)))
+
+    async def test_break_glass_refuses_what_the_console_would(self):
+        from scripts import admin_access
+
+        for email, kw in ((self.email["stranger"], {}), (self.email["wo"], {"hours": 48}), (self.email["wo"], {"hours": 0}),
+                          ("someone@else.test", {})):
+            with self.assertRaises(admin_access.BreakGlassError, msg=(email, kw)):
+                await admin_access.mint_session(self.db, email, **kw)
+        # --create makes the allowlisted account that didn't exist yet.
+        tok, _ = await admin_access.mint_session(self.db, "someone@else.test", create=True)
+        self.assertEqual((await self.call("GET", f"{ADMIN}/session", {"Authorization": f"Bearer {tok}"})).status_code, 200)
+        await self.db["users"].update_one({"_id": aenv.ObjectId(self.uid["wo"])}, {"$set": {"disabled": True}})
+        with self.assertRaises(admin_access.BreakGlassError):
+            await admin_access.mint_session(self.db, self.email["wo"])
+        self.assertEqual(await self.db["admin_access_log"].count_documents({"action": "break_glass"}), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

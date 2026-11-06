@@ -21,6 +21,10 @@ Bearer tokens in a header (never a cookie, never a query parameter) are the app'
 the console uses the same. Every admin access, and every refused attempt by a signed-in account, is
 counted in `admin_access_log` beside the moderation actions (one `action: "access"` row per account,
 ip hash, outcome and UTC day); moderation rows name the admin and their ip hash too.
+
+Break-glass (no web route, by the owner's decision): on the API server,
+`python -m scripts.admin_access session <allowlisted email>` mints a short-lived session (logged as
+`break_glass`); `status` and `log` show who may get in and who did. See backend/scripts/admin_access.py.
 """
 
 import math

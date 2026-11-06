@@ -234,7 +234,8 @@ import time: **restart the server after any `.env` change**. List values such as
 E2E encryption, live refresh, OG cards, the README builder, P2P share (direct connections, STUN only),
 workspaces and folders (without automatic domain attach), per-document analytics (without geo), and the
 admin panel at `/admin` (no admin password: sign in to your local Markdrop with an address listed in
-`MARKDROP_ADMIN_EMAILS` and open `/admin`; anyone else signed in gets a 404).
+`MARKDROP_ADMIN_EMAILS` and open `/admin`; anyone else signed in gets a 404). Locked out on a server:
+`cd backend && .venv/bin/python -m scripts.admin_access session <that email>` (break-glass, server only).
 
 **What needs your OWN test accounts** (never ask for or use the owner's). Unconfigured, the app degrades cleanly:
 | Feature | Needs (env vars in `config.py`) | Without it |
