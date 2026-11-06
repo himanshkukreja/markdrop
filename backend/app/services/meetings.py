@@ -1587,10 +1587,11 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
     if user is None:
         out["page"] = "left"
         return out
-    fresh = {**row, **sets}
+    # The whole row (the tick reads it without Google's notes): the page is written from all of it.
+    fresh = {**(await db[COLL].find_one({"_id": row["_id"]}) or row), **sets}
     actor, ctx = access.Actor.of(user), access.Ctx(db)
     if out["page"] == "rewritten":
-        content = await full_markdown(db, fresh, row.get("generated"), people)
+        content = await full_markdown(db, fresh, fresh.get("generated"), people)
         after = await _save(db, page, content, actor, ctx, base_rev=int(page.get("rev") or 1))
     else:
         after = await _save(db, page, page_db.write_values(page.get("content"), {"attendees": attendees_text(fresh)}),

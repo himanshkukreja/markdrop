@@ -190,6 +190,7 @@ class Repair(MeetingsWorld):
         page = await self.doc(m["slug"])
         self.assertEqual(page_db.read_values(page["content"])["attendees"], ", ".join(SPEAKERS))
         self.assertIn("## Attendees\n\n", page["content"])     # untouched page: written again
+        self.assertIn("Summary · From Google Meet notes", page["content"])   # from the whole row
         # Idempotent: nothing left, the page isn't written again.
         rev = page.get("rev")
         meetings._ATTENDEES["done"] = False
