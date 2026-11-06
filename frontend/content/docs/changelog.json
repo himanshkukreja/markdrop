@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-start",
+      "date": "2026-11-06",
+      "title": "Start with your team: from markdrop.in to Connect Google Meet",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web"
+      ],
+      "summary": "markdrop.in has a new section, Your workspace remembers, with the Meetings and Team video. Its Start with your team button signs you in, then opens Meetings in your first workspace with the Connect Google Meet steps.",
+      "body": "- **One link: [markdrop.in/meetings/start](https://markdrop.in/meetings/start).** Signed out, it signs you in (Google or an email code) and comes back. Then it opens **Meetings** in the first workspace where you can bring meetings in, with **Connect Google Meet** open. If you're only a viewer, it opens that workspace's Meetings to read.\n- **No workspace yet?** It opens **New workspace**, and after you create one it goes straight to that workspace's Meetings and Connect Google Meet.\n- The video now opens on the Team board, here and in the docs.",
+      "media": {
+        "video": "team-meetings"
+      },
+      "docs": [
+        "/workspaces/meetings-and-team#set-it-up",
+        "/workspaces/meetings-auto-import"
+      ]
+    },
+    {
       "id": "team-gemini-next-step-dates",
       "date": "2026-11-06",
       "title": "Gemini's next steps keep their deadlines in Team",

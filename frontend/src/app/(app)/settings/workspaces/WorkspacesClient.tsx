@@ -13,6 +13,7 @@ import { BrandTile, type BrandingWithWell } from "@/components/workspace/BrandTi
 import { createWorkspace, listWorkspaces, type Workspace } from "@/lib/workspaces";
 import { track } from "@/lib/track";
 import { SettingsLoader, plural, shortDate, useRequireUser } from "../settings-shared";
+import { meetingsStartHref } from "@/lib/meetingsStart";
 
 const ROLE_LABEL: Record<string, string> = { owner: "Owner", admin: "Admin", member: "Can edit", viewer: "Can view" };
 
@@ -23,6 +24,9 @@ export default function WorkspacesClient() {
   const toast = useToast();
   const [workspaces, setWorkspaces] = useState<Workspace[] | null>(null);
   const [open, setOpen] = useState(false);
+  // ?then=meetings (from /meetings/start, the landing's "Start with your team"): after creating,
+  // go to the new workspace's Meetings with Connect Google Meet open, not its home.
+  const [thenMeetings, setThenMeetings] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -45,7 +49,9 @@ export default function WorkspacesClient() {
     const p = new URLSearchParams(window.location.search);
     if (p.get("new") !== "1") return;
     setOpen(true);
+    setThenMeetings(p.get("then") === "meetings");
     p.delete("new");
+    p.delete("then");
     const qs = p.toString();
     window.history.replaceState(window.history.state, "", `/settings/workspaces${qs ? `?${qs}` : ""}`);
   }, [ready]);
@@ -61,8 +67,9 @@ export default function WorkspacesClient() {
     try {
       const w = await createWorkspace(n);
       track("workspace_created");
-      // Straight into the new workspace: its "Get set up" checklist and drop zone.
-      router.push(`/w/${encodeURIComponent(w.id)}`);
+      // Straight into the new workspace: its "Get set up" checklist and drop zone, or (from
+      // /meetings/start) its Meetings with the Connect Google Meet steps.
+      router.push(thenMeetings ? meetingsStartHref(w.id) : `/w/${encodeURIComponent(w.id)}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't create the workspace. Try again.");
       setBusy(false);
@@ -181,14 +188,14 @@ export default function WorkspacesClient() {
 
       <Dialog
         open={open}
-        onClose={() => !busy && setOpen(false)}
+        onClose={() => { if (!busy) { setOpen(false); setThenMeetings(false); } }}
         dismissible={!busy}
         title="New workspace"
-        description="You can add a domain, logo and people next."
+        description={thenMeetings ? "Next, you'll connect Google Meet so your calls arrive as meeting pages." : "You can add a domain, logo and people next."}
         size="sm"
         footer={
           <>
-            <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+            <Button variant="ghost" onClick={() => { setOpen(false); setThenMeetings(false); }} disabled={busy}>Cancel</Button>
             <Button variant="primary" type="submit" form="new-workspace" loading={busy}>Create workspace</Button>
           </>
         }

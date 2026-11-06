@@ -820,6 +820,118 @@
   }
 }
 
+/* ── Your workspace remembers: the video on the desk ────────────────── */
+
+.memVisual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  min-width: 0;
+}
+.memScreen {
+  position: relative;
+  padding: 10px;
+  border-radius: 18px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xl);
+}
+.memTape {
+  display: none;
+}
+.memSticky {
+  display: none;
+}
+.memAsk {
+  display: none;
+  align-self: flex-start;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.memAsk svg {
+  font-size: 16px;
+  color: var(--accent-text);
+}
+@media (min-width: 900px) {
+  .memVisual {
+    display: block;
+    /* As wide as the column, and no taller than the section leaves room for (16:9 plus the frame). */
+    width: min(100%, 760px, calc((var(--land-usable) - 150px) * 16 / 9));
+    justify-self: center;
+    padding: 34px 0 58px;
+  }
+  .memScreen {
+    transform: rotate(-1deg);
+  }
+  .memTape {
+    display: block;
+    position: absolute;
+    top: -12px;
+    left: 50%;
+    width: 112px;
+    height: 26px;
+    transform: translateX(-50%) rotate(2deg);
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+    border-radius: 3px;
+    backdrop-filter: blur(2px);
+  }
+  .memSticky {
+    display: block;
+    position: absolute;
+    left: -38px;
+    top: -6px;
+    z-index: 2;
+    width: 138px;
+    padding: 14px 14px 12px;
+    box-sizing: border-box;
+    transform: rotate(-6deg);
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+    background: color-mix(in srgb, var(--accent) 16%, var(--surface-raised));
+    box-shadow: 0 10px 14px -6px rgb(17 26 44 / 0.25);
+    font-size: 15px;
+    line-height: 1.2;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--text);
+  }
+  /* Once the video plays, the note steps off the picture's corner. */
+  .memVisual:has([data-playing]) .memSticky {
+    opacity: 0;
+    transform: rotate(-10deg) translate(-12px, -8px);
+  }
+  .memSticky span {
+    display: block;
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0;
+    color: var(--accent-text);
+  }
+  .memAsk {
+    display: inline-flex;
+    position: absolute;
+    right: -14px;
+    bottom: 4px;
+    z-index: 2;
+    transform: rotate(1.5deg);
+    box-shadow: var(--shadow-lg);
+  }
+}
+
 /* ── 5 · Guides: notebook ───────────────────────────────────────────── */
 
 .nb {
@@ -1097,6 +1209,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .memSticky,
   .pin,
   .stampBody,
   .flag,

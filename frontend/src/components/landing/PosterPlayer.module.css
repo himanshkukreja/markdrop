@@ -1,0 +1,76 @@
+/* PosterPlayer: the poster as a button (Play in the middle, the length in a corner). Tokens only. */
+.box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+}
+.poster {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl, 12px);
+  overflow: hidden;
+  background: var(--surface-raised);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.poster img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.poster:hover img {
+  transform: scale(1.015);
+}
+.poster:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 3px;
+}
+.play {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  display: inline-flex;
+  width: clamp(52px, 14vw, 72px);
+  height: clamp(52px, 14vw, 72px);
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent, #fff);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 0.3), 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
+  transform: translate(-50%, -50%);
+  transition: transform 0.15s ease-out;
+}
+.play svg {
+  margin-left: 3px;
+}
+.poster:hover .play {
+  transform: translate(-50%, -50%) scale(1.06);
+}
+.chip {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.62);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@media (prefers-reduced-motion: reduce) {
+  .poster img,
+  .play {
+    transition: none;
+  }
+}

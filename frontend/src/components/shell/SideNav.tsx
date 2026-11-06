@@ -60,7 +60,7 @@ export function railKeyFor(pathname: string, search: string): string | null {
     if (pathname === "/dashboard" && !["kind", "q", "page", "gdocs"].some((k) => q.has(k))) return "home";
     return "files";
   }
-  const mt = pathname.match(/^\/meetings\/([^/]+)\/?$/);
+  const mt = pathname.match(/^\/meetings\/(?!start\/?$)([^/]+)\/?$/);
   if (mt) return wsMeetingsKey(decodeURIComponent(mt[1]!));
   const tm = pathname.match(/^\/team\/([^/]+)(?:\/.*)?$/);
   if (tm) return wsTeamKey(decodeURIComponent(tm[1]!));

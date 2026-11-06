@@ -69,6 +69,8 @@ Each call becomes one page in **Meetings › its series** (or **Other meetings**
 | A workspace admin | Connect Slack and pick the meetings channel | [Slack](/integrations/slack) |
 | Everyone | Set your status and focus; fix lines about you | [Your status and focus](/workspaces/team#your-status-and-focus) |
 
+New to Markdrop? **Start with your team** on [markdrop.in](https://markdrop.in) (or go to [markdrop.in/meetings/start](https://markdrop.in/meetings/start)) signs you in, then opens **Meetings** in your first workspace with the **Connect Google Meet** steps. With no workspace yet, it creates one first.
+
 ## Who sees what
 
 Every step keeps the meeting's own access:
