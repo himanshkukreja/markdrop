@@ -116,6 +116,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[SUBS].create_index("user_id")
     await db[OUTBOX].create_index([("state", 1), ("next_at", 1)])
     await db[OUTBOX].create_index([("user_id", 1), ("group", 1), ("state", 1)])
+    await db[OUTBOX].create_index("ref")   # notifications.withdraw
     await db[OUTBOX].create_index("created_at", expireAfterSeconds=7 * 24 * 3600)
     await db[PUSH_LOG].create_index("sent_at", expireAfterSeconds=24 * 3600)
 
