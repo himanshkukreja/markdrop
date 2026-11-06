@@ -62,3 +62,15 @@ def finish(text: str | None, stop: str | None, *, empty: str = CUT_EMPTY, note: 
     if not body:
         return empty
     return f"{body}\n\n{note}" if note else body
+
+
+# A citation list the model sometimes writes ("[2-s1, 2-s2]", "[1, 3]", "[M2-s4; M3]"): one bracket each, so
+# every label is kept, linked and counted ("[2-s1][2-s2]"). Labels: 3, 3-s12, M2, M2-s14, s12, n3.
+_LABEL = r"(?:M?\d{1,3}(?:-[sn]\d{1,5})?|[sn]\d{1,5})"
+_CITE_LIST = __import__("re").compile(rf"\[\s*({_LABEL}(?:\s*[,;]\s*{_LABEL})+)\s*\]")
+
+
+def split_cites(text: str | None) -> str:
+    import re
+
+    return _CITE_LIST.sub(lambda m: "".join(f"[{x.strip()}]" for x in re.split(r"[,;]", m.group(1))), text or "")

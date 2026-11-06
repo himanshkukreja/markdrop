@@ -65,7 +65,7 @@ MAX_QUESTION = 500
 MAX_CANDIDATES = 30
 EXCERPT_CHARS = 600
 MEETING_EXCERPT_CHARS = 1200
-MEETINGS_WITH_LINES = 4
+MEETINGS_WITH_LINES = 6
 PAGE_TEXT_CHARS = 8000             # the page itself, for intent "page"
 PAGE_MEETINGS = 5                  # meetings brought by their recorded facts, for intent "page"
 PAGE_FACTS_PER_MEETING = 6
@@ -116,7 +116,7 @@ ANSWER_SYSTEM = f"""You are Ask Markdrop, the assistant on a person's Markdrop h
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). Leave out items that are not relevant. If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line as [n-sK] (transcript lines are the best evidence of what was said). When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
+2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine), from the items only. Cite every claim right after it: an item as [n], a transcript line as [n-sK] (transcript lines are the best evidence of what was said). Use only labels shown in the items, one per bracket: a line can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. When items disagree, the newer one wins and you say so. If the items don't answer the question, say so in one sentence and name the closest ones with their [n]. Never invent facts, names, dates, links or items that aren't listed.
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -128,7 +128,7 @@ PAGE_SYSTEM = f"""You are Ask AI inside a page in Markdrop, a workspace app with
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the items that are relevant to the question, most relevant first (at most 12). If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine). For questions about when or why something was decided, who decided or owns it, or what was discussed or being worked on: answer from the meetings first and always name the meeting and its date (for example "on Oct 28, 2026 (Daily Standup)"); when meetings disagree, the later one wins and you say so. For questions about the page itself, answer from item [1]. Cite every claim right after it: an item as [n], a transcript line as [n-sK]. If the items don't answer the question, say so in one sentence. Never invent facts, names, dates, links or items that aren't listed.
+2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings; short bullet lists are fine). For questions about when or why something was decided, who decided or owns it, or what was discussed or being worked on: answer from the meetings first and always name the meeting and its date (for example "on Oct 28, 2026 (Daily Standup)"); when meetings disagree, the later one wins and you say so. For questions about the page itself, answer from item [1]. Cite every claim right after it: an item as [n], a transcript line as [n-sK]. Use only labels shown in the items, one per bracket: a line can be cited as [n-sK] only when it is listed with that label; otherwise cite its item [n]. If the items don't answer the question, say so in one sentence. Never invent facts, names, dates, links or items that aren't listed.
 
 Write in English, even when the question mixes Hindi (or another language) with English in Latin letters ("Hinglish"); answer in another language only when the whole question is written in it."""
 
@@ -331,6 +331,7 @@ def clean_answer(text: str, known: set[str]) -> str:
     body = _RANKING.sub("", text or "", count=1).strip()
     body = _RANKING_CUT.sub("", body, count=1).strip()
     body = re.sub(r"</?untrusted_\w+[^>]*>", "", body)
+    body = ai_output.split_cites(body)
     body = _CITE.sub(lambda m: m.group(0) if m.group(0)[1:-1] in known else "", body)
     body = re.sub(r"[ \t]+([.,;:])", r"\1", body)
     return re.sub(r"[ \t]{2,}", " ", body).strip()
@@ -459,12 +460,16 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
         {"_id": {"$in": [m for m in mids if m is not None]}}, {"title": 1, "date": 1, "series": 1}).to_list(length=len(mids) or 1)}
     out: list[Source] = []
     lined: set[str] = set()
+    # A meeting's page and its transcript both found: one source (the page, which brings the lines).
+    with_page = {v["meeting_id"] for v in mdocs.values() if v.get("role") == "page" and v.get("meeting_id")}
     for c in cands:
         item = shaped.get(c.key)
         if not item:
             continue
-        n = len(out) + 1
         md = mdocs.get(c.key)
+        if md and md.get("role") == "transcript" and md.get("meeting_id") in with_page:
+            continue
+        n = len(out) + 1
         chars = meeting_chars if md else EXCERPT_CHARS
         attrs = {"title": c.title or item.get("title") or "(untitled)", "kind": "meeting" if md and md["role"] == "page" else
                  ("meeting transcript" if md else c.kind), "where": _where(c, w.ws_names),
@@ -525,7 +530,12 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                                     "quote": quote(s.get("text")), "speaker": s.get("speaker") or None,
                                     "at": mp.clock(s.get("t")) if s.get("t") is not None else None}
                 head = "Their own transcript lines:\n" if mm is not None and mm.lines else "Transcript lines:\n"
+                if md["role"] == "transcript":
+                    src.text = ""     # the labelled lines replace the transcript's unlabelled excerpt
                 src.text = (src.text + "\n\n" + head if src.text else head) + "\n".join(txt)
+        if md and md["meeting_id"] not in lined and src.text:
+            # No labelled lines for this meeting: its text can only be cited as a whole.
+            src.text = "(Cite this item as [" + str(n) + "]; it has no numbered transcript lines.)\n" + src.text
         out.append(src)
     return out
 
@@ -1100,7 +1110,13 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     try:
         terms: list[str] = []
         standalone = question
-        if intent in ("ask", "page"):
+        profile_only = (intent == "ask" and you is not None and not history and ask_me.is_personal(question)
+                        and ask_me.is_profile(question) and not (ask_me.wants_meetings(question) or ask_me.wants_work(question)))
+        if profile_only:
+            # "Who am I?", "which workspaces am I in?": the You block answers it; no search, no expansion call.
+            sources, withheld, system = [], 0, ANSWER_SYSTEM
+            run.meta.update(candidates=0, personal=True, profile=True)
+        elif intent in ("ask", "page"):
             yield ev("status", stage="understanding")
             try:
                 standalone, terms = await _expand(run, question, history)
@@ -1117,9 +1133,6 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                 sources, _found, withheld = await _page_sources(db, actor, ctx, page_raw, standalone, terms, scope,
                                                                 you=you, mine=mine)
                 system = PAGE_SYSTEM
-            elif personal and ask_me.is_profile(about) and not (ask_me.wants_meetings(about) or ask_me.wants_work(about)):
-                sources, withheld = [], 0      # about their account: the You block answers it
-                system = ANSWER_SYSTEM
             else:
                 sources, _found, withheld = await _ask_sources(db, actor, ctx, standalone, terms, scope, keep,
                                                                you=you, mine=mine)

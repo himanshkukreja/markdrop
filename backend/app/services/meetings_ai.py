@@ -138,7 +138,7 @@ ACROSS_SYSTEM = f"""You answer questions about a team's meetings in Markdrop. A 
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the meetings that are relevant to the question, most relevant first. If none are, write <ranking></ranking>.
-2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings), from the meetings only. Say when and where each point was said, by the meeting's day and name, e.g. "On 28 Oct, in Daily Standup, Bo said…"; never call a meeting "Meeting 2" or "M2" in your words. Cite every claim right after it: a transcript line as [M2-s14], a meeting's page as [M2]. Cite a transcript line only for what that line itself says; for anything else from a meeting, cite its page. When meetings disagree, the later one wins and you say so; for "latest", "current" or "still" questions, answer from the most recent meeting that covers it. If they don't answer the question, say so in one sentence and name the closest meeting. Never invent names, dates, numbers or meetings."""
+2. Then a blank line and the answer: at most 160 words of plain Markdown (no headings), from the meetings only. Say when and where each point was said, by the meeting's day and name, e.g. "On 28 Oct, in Daily Standup, Bo said…"; never call a meeting "Meeting 2" or "M2" in your words. Cite every claim right after it: a transcript line as [M2-s14], a meeting's page as [M2], one label per bracket. Cite a transcript line only when it is listed with that label and only for what that line itself says; for anything else from a meeting, cite its page. When meetings disagree, the later one wins and you say so; for "latest", "current" or "still" questions, answer from the most recent meeting that covers it. If they don't answer the question, say so in one sentence and name the closest meeting. Never invent names, dates, numbers or meetings."""
 
 
 def now_utc() -> datetime:
@@ -607,7 +607,7 @@ def page_lines(page_body: str, limit: int = ASK_PAGE_CHARS) -> list[tuple[str, s
 def clean_answer(text: str) -> str:
     body = _RANKING.sub("", text or "", count=1).strip()
     body = _RANKING_CUT.sub("", body, count=1).strip()
-    return re.sub(r"</?untrusted_\w+[^>]*>", "", body).strip()
+    return ai_output.split_cites(re.sub(r"</?untrusted_\w+[^>]*>", "", body)).strip()
 
 
 class Cites:
