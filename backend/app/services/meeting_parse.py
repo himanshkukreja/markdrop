@@ -451,8 +451,8 @@ def parse_notes(lines: list[str]) -> dict | None:
         if (_HEADING.match(line) and not k) or _is_transcript_heading(line):
             sect = None   # some other section (e.g. the transcript tab's heading)
             continue
-        if _GEMINI_BOILER.match(line.strip()):
-            continue
+        if _GEMINI_BOILER.match(line.strip()) or _DATE_ONLY.match(line.strip()):
+            continue    # Google's notices; the date line under Gemini's "📝 Notes" label
         buf[sect].append(line)
     if "summary" not in seen or not (seen & {"details", "next_steps"}):
         return None

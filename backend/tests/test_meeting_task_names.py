@@ -1,0 +1,296 @@
+"""Gemini's next steps are never speakers or attendees (2026-11-06, ``attendees_v`` 3).
+
+Prod: 51 of Senseloaf's 166 meetings listed attendees like "Gautam Khurana Review Video", "Palak Jain Fix
+Email Bug", "S Guruprasad Test Use Cases". Gemini writes a next step as "<Owner Name> <Task Title>:
+<Owner> will …"; with a "Transcript" line above the notes (Gemini's meeting records) the parser read the
+whole notes tab as a transcript, so each next step was a turn of "Gautam Khurana Review Video", and the
+attendees repair (attendees_v 2) rebuilt attendees from those speakers. Now: notes sections are never
+transcript turns, a "<known person> <Title Case task>" label is that person (or, in a notes Doc, a next
+step), and meetings.repair_attendees fixes the meetings imported before.
+
+Fixtures: tests/fixtures/meetings/gemini_task_steps_notes.txt (notes only, the "Transcript" line in its
+header) and gemini_task_steps_with_transcript.txt (the same + a Transcript tab).
+"""
+
+from __future__ import annotations
+
+import unittest
+from unittest import mock
+
+from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
+from tests.test_meetings import MeetingsWorld, fixture
+
+from bson import ObjectId
+
+from app.services import meetings, page_db
+from app.services import meeting_parse as mp
+
+NAME = "Release Review - 2026/11/05 10:00 GMT+05:30 - Notes by Gemini"
+NOTES = "gemini_task_steps_notes.txt"
+WITH_TAB = "gemini_task_steps_with_transcript.txt"
+FAKE = ["Gautam Khurana Review Video", "Palak Jain Fix Email Bug", "Shreesha Joshi Security Testing",
+        "Himanshu Kukreja Update Prompts", "S Guruprasad Test Use Cases", "Bo Chen Trim Intro"]
+OWNERS = ["Gautam Khurana", "Palak Jain", "Shreesha Joshi", "Himanshu Kukreja", "S Guruprasad", "Bo Chen"]
+REAL = ["Ada Lovelace", "Gautam Khurana", "Bo Chen", "Palak Jain", "Shreesha Joshi", "S Guruprasad"]
+TURNS = """
+📖 Transcript
+Ada Lovelace: Okay, let's start with the release video.
+Gautam Khurana: The intro is too long, we should cut it down.
+Bo Chen: I can trim the first minute today.
+Palak Jain: Separately, the invite email still shows the old logo for some clients.
+Shreesha Joshi: And the penetration test is planned for next week on staging.
+S Guruprasad: I'll test the use cases before Friday.
+Ada Lovelace: Great, then we ship on Friday.
+"""
+
+
+def single_tab() -> str:
+    """The notes and the transcript in one tab (Drive's text export): the "Transcript" line of the
+    header above the notes, the transcript's own heading after them."""
+    return fixture(NOTES) + TURNS
+
+
+def old_parser():
+    """The parser as it was before attendees_v 3 (the bug, for building old meetings)."""
+    return [mock.patch.object(mp, "notes_span", lambda lines: set()),
+            mock.patch.object(mp, "clean_task_speakers", lambda segs, known=(), notes_doc=False: (segs, [])),
+            mock.patch.object(mp, "resolve_speaker", lambda name, known=(), text=None: mp.clean_name(name) or None)]
+
+
+class Parser(unittest.TestCase):
+    def test_a_notes_only_next_steps_are_never_turns(self):
+        s = mp.parse_source(NAME, fixture(NOTES))
+        self.assertEqual((s.kind, s.format, s.segments, s.speakers), ("notes", "gemini_notes", [], []))
+        self.assertEqual(s.attendees, [])
+        steps = s.notes["next_steps"]
+        self.assertEqual(len(steps), 6)
+        self.assertTrue(steps[0].startswith("Gautam Khurana Review Video: Gautam Khurana will review"))
+        known = [a["name"] for a in s.invited]
+        self.assertEqual([mp.owner_of_step(x, known) for x in steps], OWNERS)
+        m = mp.merge(mp.pair([s])[0])
+        self.assertEqual((m.attendees, m.attendees_from, len(m.invited)), ([], "invited", 8))
+
+    def test_a_notes_and_a_transcript_tab_speakers_are_the_real_ones(self):
+        s = mp.parse_source(NAME, fixture(WITH_TAB))
+        self.assertEqual(s.kind, "both")
+        self.assertEqual(s.speakers, REAL)
+        self.assertEqual([a["name"] for a in s.attendees], REAL)
+        self.assertEqual({a["name"]: a["email"] for a in s.attendees}["Gautam Khurana"], "gautam@senseloaf.test")
+        self.assertEqual(len(s.notes["next_steps"]), 6)
+
+    def test_a_one_tab_notes_then_transcript(self):
+        s = mp.parse_source(NAME, single_tab())
+        self.assertEqual(s.kind, "both")
+        self.assertEqual(s.speakers, REAL)
+        self.assertFalse(any("Review Video" in (x.get("speaker") or "") for x in s.segments))
+        self.assertFalse(any("Okay, let's start" in x for x in s.notes["next_steps"]))   # the notes end at its heading
+        self.assertEqual(len(s.notes["next_steps"]), 6)
+
+    def test_b_the_old_parser_read_them_as_speakers(self):
+        """The regression this guards: the same Doc through the old reading."""
+        patches = old_parser()
+        for p in patches:
+            p.start()
+        try:
+            s = mp.parse_source(NAME, fixture(NOTES))
+        finally:
+            for p in patches:
+                p.stop()
+        for f in FAKE:
+            self.assertIn(f, s.speakers)
+
+    def test_c_prod_examples_map_to_the_person(self):
+        known = ["Gautam Khurana", "Palak Jain", "Shreesha Joshi", "Himanshu Kukreja", "S Guruprasad"]
+        cases = {"Gautam Khurana Review Video": "Gautam Khurana", "Palak Jain Fix Email Bug": "Palak Jain",
+                 "Shreesha Joshi Security Testing": "Shreesha Joshi", "Himanshu Kukreja Update Prompts": "Himanshu Kukreja",
+                 "S Guruprasad Test Use Cases": "S Guruprasad"}
+        for label, owner in cases.items():
+            self.assertEqual(mp.task_owner(label, None, known), owner, label)
+            self.assertEqual(mp.resolve_speaker(label, known), owner, label)
+            # Nobody known: the words after the colon name the owner again.
+            first = owner.split()[0]
+            self.assertEqual(mp.task_owner(label, f"{owner} will do it.", []), owner, label)
+            self.assertEqual(mp.owner_of_step(f"{label}: {first} will do it.", []), owner, label)
+
+    def test_c_real_names_are_never_tasks(self):
+        known = ["Bo Chen", "Saurabh Kr. Singh", "Ada Lovelace", "Mohd Arif"]
+        for name in ("Bo Chen", "Saurabh Kr. Singh", "Rahul bhai", "Ada Lovelace", "Priya", "Divya S", "anand.k"):
+            self.assertIsNone(mp.task_owner(name, "Bo, can you take it?", known), name)
+            self.assertEqual(mp.resolve_speaker(name, known), name)
+        # A single-word known name never eats a two-word one; lower-case words aren't a task title.
+        self.assertIsNone(mp.task_owner("Bo Chen", None, ["Bo"]))
+        self.assertIsNone(mp.task_owner("Mohd Arif bhai", None, known))
+        self.assertIsNone(mp.resolve_speaker("discussed the sprint plan", known))
+
+    def test_d_a_transcript_line_shaped_like_a_next_step_is_its_owner(self):
+        text = ("Gautam Khurana: Hi all.\nPalak Jain: The bug is back.\n"
+                "Gautam Khurana Review Video: Gautam Khurana will review the video.\nPalak Jain: ok\n")
+        s = mp.parse_source("Sync - Transcript", text)
+        self.assertEqual(s.speakers, ["Gautam Khurana", "Palak Jain"])
+        self.assertEqual([a["name"] for a in s.attendees], ["Gautam Khurana", "Palak Jain"])
+
+    def test_d_a_label_longer_than_a_name_is_not_a_speaker(self):
+        text = "Ada Lovelace: Hi.\nBo Chen: Hello.\nThe Very Long Agenda Item Name Here: something\n"
+        s = mp.parse_source("Sync - Transcript", text)
+        self.assertEqual(s.speakers, ["Ada Lovelace", "Bo Chen"])
+
+
+class Repair(MeetingsWorld):
+    async def old_meeting(self, text: str, *, v2: bool = True, edited: bool = False,
+                          restricted: bool = False) -> tuple[dict, ObjectId, dict]:
+        """A meeting imported by the old parser, its attendees as prod has them: after the v2 repair
+        (``v2``: the fake speakers as attendees, member-matched by the start of the name) or before it
+        (every invitee and speaker in one list)."""
+        patches = old_parser()
+        for p in patches:
+            p.start()
+        try:
+            m = await self.imported(sources=[{"name": NAME, "text": text}])
+        finally:
+            for p in patches:
+                p.stop()
+        oid = ObjectId(m["id"])
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertTrue(any(s.get("speaker") in FAKE for s in row["segments"]))
+        people = await meetings.people_of(self.db, row["workspace_id"])
+        speakers = meetings._speakers_of(row)
+        if v2:
+            att = [{"name": sp, "user_id": (people.match(sp) or {}).get("id"), "email": None} for sp in speakers]
+            sets = {"attendees": att, "attendees_from": "speakers", "attendees_v": 2}
+            unset = {}
+        else:
+            att = [{"name": a["name"], "user_id": (people.match(a["name"], a.get("email")) or {}).get("id")}
+                   for a in mp.dedupe_people([*row["invited"], *[{"name": sp} for sp in speakers]])]
+            sets, unset = {"attendees": att}, {"attendees_v": "", "invited": "", "attendees_from": ""}
+        sets.update(restricted=restricted, granted=["kept@x.test"] if restricted else [])
+        await self.db["meetings"].update_one({"_id": oid}, {"$set": sets, **({"$unset": unset} if unset else {})})
+        old = await self.db["meetings"].find_one({"_id": oid})
+        page = await self.doc(m["slug"])
+        content = await meetings.full_markdown(self.db, old, old.get("generated"), people)
+        rev = int(page.get("rev") or 1)
+        if edited:
+            content = content.rstrip() + "\n\nTyped by hand after the call.\n"
+            rev += 1
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {"content": content, "rev": rev}})
+        self.assertIn("Gautam Khurana Review Video", content)
+        meetings._ATTENDEES["done"] = False
+        return m, oid, old
+
+    async def tick(self) -> None:
+        meetings._ATTENDEES["done"] = False
+        while await meetings.attendees_tick(self.db):
+            pass
+
+    async def test_e_notes_only_lose_the_fake_transcript_and_attendees(self):
+        m, oid, old = await self.old_meeting(fixture(NOTES), restricted=True)
+        self.assertTrue(old.get("transcript_doc_id"))
+        dry = await meetings.attendees_dry_run(self.db)
+        self.assertEqual((dry["would_change"], dry["segments"], dry["transcript"]), (1, {"dropped": 1}, {"trashed": 1}))
+        ex = dry["examples"][0]
+        self.assertIn("Gautam Khurana Review Video", ex["before"])
+        self.assertEqual(ex["after"], [])
+        await self.tick()
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertEqual((row["segments"], row["attendees"], row["attendees_from"], len(row["invited"])),
+                         ([], [], "invited", 8))
+        self.assertEqual((row["attendees_v"], row.get("transcript_doc_id"), row["sources"][0]["kind"]), (3, None, "notes"))
+        self.assertEqual((row["restricted"], row["granted"]), (True, ["kept@x.test"]))     # never touched
+        self.assertIsNone(await self.db["documents"].find_one({"_id": old["transcript_doc_id"]}))   # in the Trash
+        page = await self.doc(m["slug"])
+        for f in FAKE:
+            self.assertNotIn(f"**{f}**", page["content"])
+        self.assertIn("## Invited", page["content"])
+        self.assertNotIn(old["transcript_slug"], page["content"])
+        self.assertEqual(len(row["notes"]["next_steps"]), 6)      # the next steps stay next steps
+        # Idempotent.
+        rev = page.get("rev")
+        await self.tick()
+        self.assertEqual((await self.doc(m["slug"])).get("rev"), rev)
+        self.assertEqual((await meetings.attendees_dry_run(self.db))["pending"], 0)
+        people = await meetings.people_of(self.db, row["workspace_id"])
+        self.assertFalse((await meetings.repair_attendees(self.db, row, people, apply=False))["changed"])
+
+    async def test_e_before_v2_too(self):
+        m, oid, _old = await self.old_meeting(fixture(NOTES), v2=False)
+        await self.tick()
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertEqual((row["segments"], row["attendees"], row["attendees_from"], len(row["invited"])),
+                         ([], [], "invited", 8))
+        self.assertFalse(any(a["name"] in FAKE for a in row["invited"]))      # the old list went to the invite
+
+    async def test_f_notes_and_transcript_in_one_tab_keep_the_real_turns(self):
+        m, oid, old = await self.old_meeting(single_tab(), edited=True)
+        tslug = old["transcript_slug"]
+        self.assertIn("Gautam Khurana Review Video", (await self.doc(tslug))["content"])
+        await self.tick()
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertEqual(meetings._speakers_of(row), REAL)
+        self.assertEqual([a["name"] for a in row["attendees"]], REAL)
+        self.assertEqual({a["name"]: a.get("email") for a in row["attendees"]}["Palak Jain"], "palak@senseloaf.test")
+        self.assertEqual({a["name"]: a.get("user_id") for a in row["attendees"]}["Bo Chen"], self.uid["wm"])
+        self.assertEqual(row["attendees_from"], "speakers")
+        # The unedited Transcript page is written again; the edited meeting page only gets its Attendees.
+        t = (await self.doc(tslug))["content"]
+        self.assertNotIn("Review Video", t)
+        self.assertIn("Gautam Khurana", t)
+        page = await self.doc(m["slug"])
+        self.assertIn("Typed by hand after the call.", page["content"])
+        self.assertEqual(page_db.read_values(page["content"])["attendees"], ", ".join(REAL))
+        section = page["content"].split("## Attendees\n\n", 1)[1].split("\n\n", 1)[0]
+        self.assertNotIn("Review Video", section)
+        self.assertIn("Gautam Khurana, ", section)
+        self.assertIn(f':person[Bo Chen]{{id="{self.uid["wm"]}"}}', section)
+
+    async def test_f_an_edited_transcript_page_is_left(self):
+        m, oid, old = await self.old_meeting(single_tab())
+        t = await self.doc(old["transcript_slug"])
+        await self.db["documents"].update_one({"_id": t["_id"]}, {"$set": {"content": t["content"] + "\nfixed a typo\n"}})
+        await self.tick()
+        self.assertIn("fixed a typo", (await self.doc(old["transcript_slug"]))["content"])
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertEqual(meetings._speakers_of(row), REAL)      # the row's segments are fixed all the same
+
+    async def test_g_a_transcript_without_notes_renames_to_the_owner(self):
+        text = ("Ada Lovelace: Hi all.\nBo Chen: The bug is back.\nPriya Sharma: I'll look.\n"
+                "Bo Chen Fix Email Bug: Bo Chen will fix the email bug.\nAda Lovelace: Thanks.\n")
+        patches = old_parser()
+        for p in patches:
+            p.start()
+        try:
+            m = await self.imported(sources=[{"name": "Sync (2026-11-05 10:00 GMT+05:30) - Transcript", "text": text}])
+        finally:
+            for p in patches:
+                p.stop()
+        oid = ObjectId(m["id"])
+        people = await meetings.people_of(self.db, self.W)
+        row = await self.db["meetings"].find_one({"_id": oid})
+        att = [{"name": sp, "user_id": (people.match(sp) or {}).get("id"), "email": None} for sp in meetings._speakers_of(row)]
+        await self.db["meetings"].update_one({"_id": oid}, {"$set": {"attendees": att, "attendees_from": "speakers",
+                                                                     "attendees_v": 2}})
+        self.assertIn("Bo Chen Fix Email Bug", [a["name"] for a in att])
+        await self.tick()
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertEqual(meetings._speakers_of(row), ["Ada Lovelace", "Bo Chen", "Priya Sharma"])
+        self.assertEqual(len(row["segments"]), 5)
+        self.assertEqual([a["name"] for a in row["attendees"]], ["Ada Lovelace", "Bo Chen", "Priya Sharma"])
+
+    async def test_h_person_rows_names_a_member_not_the_task(self):
+        people = await meetings.people_of(self.db, self.W)
+        rows = meetings.person_rows([{"name": "Bo Chen Trim Intro"}, {"name": "Bo Chen"}], people)
+        self.assertEqual([(r["name"], r["user_id"]) for r in rows], [("Bo Chen", self.uid["wm"])])
+
+    async def test_h_memory_facts_never_have_a_fake_subject(self):
+        from app.services import workspace_memory
+
+        await self.db[workspace_memory.FACTS].insert_many([
+            {"workspace_id": self.W, "subject": self.uid["wm"], "kind": "action_item", "text": "trim the intro"},
+            {"workspace_id": self.W, "subject": "Gautam Khurana Review Video", "kind": "action_item", "text": "x"}])
+        got = await meetings.stray_fact_subjects(self.db)
+        self.assertEqual((got["not_member"], got["not_a_user"], got["removed"]), (1, 1, 0))
+        got = await meetings.stray_fact_subjects(self.db, apply=True)
+        self.assertEqual(got["removed"], 1)
+        self.assertEqual(await self.db[workspace_memory.FACTS].count_documents({"workspace_id": self.W}), 1)
+
+
+if __name__ == "__main__":
+    unittest.main()

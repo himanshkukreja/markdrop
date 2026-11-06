@@ -950,7 +950,9 @@ def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
     how = max((how, n_how), key=lambda h: rank.get(h, 0))
     if how in ("invited", "none") and att:
         how = "speakers"
-    return {"attendees": att, "invited": inv, "attendees_from": how, "attendees_v": ATTENDEES_V}
+    # A meeting from before v3 keeps its place in the repair queue (repair_attendees fixes its next steps).
+    v = ATTENDEES_V if int(row.get("attendees_v") or 0) >= ATTENDEES_V else ATTENDEES_V2
+    return {"attendees": att, "invited": inv, "attendees_from": how, "attendees_v": v}
 
 
 def _speakers_of(row: dict) -> list[str]:
@@ -1626,21 +1628,25 @@ def fix_task_segments(row: dict, known: list[str]) -> dict | None:
 
 
 def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, people: People,
-                    fixed: dict | None) -> tuple[list[dict], str]:
-    """(attendees, attendees_from) with no "<Owner> <Task Title>" name: each is the known person it
+                    fixed: dict | None) -> tuple[list[dict], list[dict], str]:
+    """(attendees, invited, attendees_from) with no "<Owner> <Task Title>" name: each is the known person it
     starts with (the invite, the members, the other attendees), once; a name that isn't one goes. Taken
     from the speakers ("speakers"), they are the fixed transcript's speakers again (a next step's owner
     is not someone who joined, the same as a new import)."""
     known = task_known({"invited": inv, "attendees": att}, people)
     labels = dict((fixed or {}).get("labels") or {})
     pool = [*att, *inv]
+    # Speakers whose every line went (the notes' own lines read as turns: "Email Bug"): nobody.
+    gone = {mp.clean_name(sp).casefold() for sp in _speakers_of({"segments": [*(view.get("_old_segments") or [])]})} \
+        - {sp.casefold() for sp in _speakers_of(view)} if fixed is not None else set()
 
     def fake(name: str) -> bool:
         return name in labels or bool(mp.task_owner(name, None, known))
 
     def entry(name: str) -> dict:
         key = name.casefold()
-        hit = next((a for a in pool if (a.get("name") or "").casefold() == key), None)
+        same = [a for a in pool if (a.get("name") or "").casefold() == key]
+        hit = max(same, key=lambda a: (bool(a.get("user_id")), bool(a.get("email")))) if same else None
         if hit is None:
             hits = [a for a in pool if a.get("name") and not fake(a["name"]) and mp._covers(name, a["name"])]
             hit = hits[0] if len(hits) == 1 else None
@@ -1649,24 +1655,30 @@ def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, peop
         mem = people.match(name)
         return {"name": name, "user_id": mem["id"] if mem else None, "email": (mem or {}).get("email")}
 
-    if how == "speakers" and fixed is not None:
-        found = [entry(sp) for sp in _speakers_of(view)]
-    else:
+    def mapped(entries: list[dict]) -> list[dict]:
         found = []
-        for a in att:
+        for a in entries:
             name = a.get("name") or ""
             owner = labels.get(name) if name in labels else mp.task_owner(name, None, known)
             if owner:
                 found.append(entry(owner))
             elif name in labels or (not a.get("user_id") and not a.get("email")
-                                    and (len(name.split()) > mp.TASK_MAX_WORDS or not mp.name_like(name))):
+                                    and (len(name.split()) > mp.TASK_MAX_WORDS or not mp.name_like(name)
+                                         or name.casefold() in gone)):
                 continue
             else:
                 found.append(a)
+        return found
+
+    if how == "speakers" and fixed is not None:
+        found = [entry(sp) for sp in _speakers_of(view)]
+    else:
+        found = mapped(att)
     out = person_rows(found, people)
+    invited = person_rows(mapped(inv), people, limit=200)
     if how == "speakers" and not out:
-        how = "invited" if inv else "none"
-    return out, how
+        how = "invited" if invited else "none"
+    return out, invited, how
 
 
 async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, *, apply: bool = True) -> dict:
@@ -1681,16 +1693,17 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
     from app.services import page_db, page_props, trash, user as user_service
 
     fixed = fix_task_segments(row, task_known(row, people))
-    view = {**row, "segments": fixed["segments"]} if fixed else row
+    view = {**row, "segments": fixed["segments"], "_old_segments": row.get("segments") or []} if fixed else row
     if int(row.get("attendees_v") or 0) < ATTENDEES_V2:
         att, inv, how = recompute_people(view, people)
     else:
         att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
-    att, how = fix_task_people(view, att, inv, how, people, fixed)
+    att, inv, how = fix_task_people(view, att, inv, how, people, fixed)
     before = row.get("attendees") or []
     seg_changed = fixed is not None and fixed["segments"] != (row.get("segments") or [])
     changed = [(a.get("name"), a.get("user_id")) for a in before] != [(a["name"], a["user_id"]) for a in att] \
-        or len(inv) != len(row.get("invited") or []) or seg_changed
+        or [a["name"] for a in inv] != [a.get("name") for a in row.get("invited") or []] or seg_changed \
+        or how != row.get("attendees_from")
     out = {"changed": changed, "from": how, "before": len(before), "after": len(att), "invited": len(inv),
            "page": "none", "segments": "same", "transcript": "none",
            "before_names": [a.get("name") for a in before], "after_names": [a["name"] for a in att]}
@@ -1780,14 +1793,14 @@ _ATTENDEES = {"done": False}
 
 
 async def attendees_tick(db: AsyncIOMotorDatabase, *, batch: int = 50) -> int:
-    """Meetings imported before attendees_v 2, a batch at a time from the background loop. Returns
-    how many it looked at (0: none left)."""
+    """Meetings from before attendees_v 3 (:func:`repair_attendees`), a batch at a time from the
+    background loop. Returns how many it looked at (0: none left)."""
     if _ATTENDEES["done"]:
         return 0
     n = 0
     cache: dict[str, People] = {}
     q = {"attendees_v": {"$not": {"$gte": ATTENDEES_V}}}
-    async for row in db[COLL].find(q, {"notes": 0}).limit(batch):
+    async for row in db[COLL].find(q).limit(batch):     # the notes too: fix_task_segments reads them
         ws = row["workspace_id"]
         try:
             cache[ws] = cache.get(ws) or await people_of(db, ws)
@@ -1809,15 +1822,17 @@ def _quiet():
 
 
 async def attendees_dry_run(db: AsyncIOMotorDatabase, *, workspace_id: str | None = None, examples: int = 15) -> dict:
-    """What :func:`attendees_tick` would do (scripts/fix_meeting_attendees.py --attendees): counts by
-    kind and a few examples (title, date, people before → after, invited)."""
+    """What :func:`attendees_tick` would do (scripts/fix_meeting_attendees.py,
+    scripts/fix_attendee_task_names.py): counts by kind and a few examples (title, date, attendees
+    before → after, what happens to the transcript and the page)."""
     q: dict[str, Any] = {"attendees_v": {"$not": {"$gte": ATTENDEES_V}}}
     if workspace_id:
         q["workspace_id"] = workspace_id
     out: dict[str, Any] = {"pending": 0, "would_change": 0, "from": {}, "page": {}, "people_before": 0,
-                           "people_after": 0, "invited": 0, "examples": []}
+                           "people_after": 0, "invited": 0, "segments": {}, "transcript": {}, "task_names": 0,
+                           "examples": []}
     cache: dict[str, People] = {}
-    async for row in db[COLL].find(q, {"notes": 0}):
+    async for row in db[COLL].find(q):
         out["pending"] += 1
         ws = row["workspace_id"]
         cache[ws] = cache.get(ws) or await people_of(db, ws)
@@ -1825,14 +1840,46 @@ async def attendees_dry_run(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
         if not r["changed"]:
             continue
         out["would_change"] += 1
-        out["from"][r["from"]] = out["from"].get(r["from"], 0) + 1
-        out["page"][r["page"]] = out["page"].get(r["page"], 0) + 1
+        for k in ("from", "page", "segments", "transcript"):
+            out[k][r[k]] = out[k].get(r[k], 0) + 1
         out["people_before"] += r["before"]
         out["people_after"] += r["after"]
         out["invited"] += r["invited"]
-        if len(out["examples"]) < examples:
-            out["examples"].append({"title": row.get("title"), "date": row.get("date"), "before": r["before"],
-                                    "after": r["after"], "invited": r["invited"], "from": r["from"], "page": r["page"]})
+        known = task_known(row, cache[ws])
+        task = [n for n in r["before_names"] if n and mp.task_owner(n, None, known)]
+        out["task_names"] += 1 if task or r["segments"] != "same" else 0
+        if len(out["examples"]) < examples and (task or r["segments"] != "same" or len(out["examples"]) < examples // 3):
+            out["examples"].append({"workspace_id": ws, "title": row.get("title"), "date": row.get("date"),
+                                    "before": r["before_names"], "after": r["after_names"], "invited": r["invited"],
+                                    "from": r["from"], "page": r["page"], "segments": r["segments"],
+                                    "transcript": r["transcript"]})
+    return out
+
+
+async def stray_fact_subjects(db: AsyncIOMotorDatabase, *, apply: bool = False) -> dict:
+    """Team memory facts (``memory_facts``) whose subject isn't a member of their workspace: a fake
+    "<Owner> <Task Title>" person never became one (subjects are member ids, matched by
+    People.match); counted, and with ``apply`` removed when the subject isn't anyone's account at all.
+    {facts, not_member, not_a_user, removed}."""
+    from app.services import workspace_memory
+
+    out = {"facts": 0, "not_member": 0, "not_a_user": 0, "removed": 0}
+    members: dict[str, set[str]] = {}
+    bad: list[Any] = []
+    async for f in db[workspace_memory.FACTS].find({}, {"workspace_id": 1, "subject": 1}):
+        out["facts"] += 1
+        ws = str(f.get("workspace_id") or "")
+        if ws not in members:
+            members[ws] = {m["id"] for m in (await people_of(db, ws)).members} if ws else set()
+        subj = str(f.get("subject") or "")
+        if subj in members[ws]:
+            continue
+        out["not_member"] += 1
+        if not ObjectId.is_valid(subj) or await db["users"].find_one({"_id": ObjectId(subj)}, {"_id": 1}) is None:
+            out["not_a_user"] += 1
+            bad.append(f["_id"])
+    if apply and bad:
+        out["removed"] = (await db[workspace_memory.FACTS].delete_many({"_id": {"$in": bad}})).deleted_count
     return out
 
 
