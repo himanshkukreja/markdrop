@@ -468,6 +468,33 @@ def _short_day(d: str | None) -> str | None:
     return day.strftime("%b %-d") + ("" if day.year == _now().year else f", {day.year}")
 
 
+_BY = re.compile(r"\b(?:by|before|until|due)\s+((?:the\s+)?(?:end of\s+)?(?:next|this)?\s*[A-Za-z]+(?:\s+\d{1,2})?)\b", re.I)
+
+
+def due_label(it: Item, meeting_day: str | None) -> str | None:
+    """The deadline to show: the AI's "due …" with its date ("Thursday (Nov 12)"), or the date a
+    "by Friday" in the text means. Resolved against the meeting's day (workspace_memory.resolve_due,
+    the same reading Team's targets use)."""
+    from app.services import workspace_memory as wm
+
+    try:
+        base = datetime.strptime(meeting_day or "", "%Y-%m-%d").date()
+    except ValueError:
+        base = _now().date()
+
+    def fmt(d) -> str:
+        return d.strftime("%a, %b %-d") + ("" if d.year == base.year else f", {d.year}")
+
+    if it.due:
+        d = wm.resolve_due(it.due, base)
+        if d and re.fullmatch(r"\d{4}-\d{2}-\d{2}", it.due.strip()):
+            return fmt(d)
+        return f"{it.due} ({fmt(d)})" if d and not re.search(r"\d", it.due) else it.due
+    m = _BY.search(it.text)
+    d = wm.resolve_due(m.group(1), base) if m else None
+    return fmt(d) if d else None
+
+
 async def _organizer_name(db: AsyncIOMotorDatabase, row: dict) -> str | None:
     org = row.get("organizer") or {}
     if org.get("name"):
@@ -498,7 +525,8 @@ async def render(db: AsyncIOMotorDatabase, row: dict, *, first: bool) -> tuple[d
                 continue          # removed from the page
             if it.done and (first or not entry.get("sent")):
                 continue          # ticked before the message went
-            items.append({"block": b, "text": kit.esc(kit.cut(it.text, 500)), "due": it.due, "done": it.done})
+            items.append({"block": b, "text": kit.esc(kit.cut(it.text, 500)), "due": due_label(it, mrow.get("date")),
+                          "done": it.done})
         if not items:
             continue
         user = await get_user_by_id(db, entry["user_id"]) if entry.get("user_id") else None
@@ -653,7 +681,7 @@ async def preview(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         member = bool(first.user_id)
         out["message"] = {
             "to": first.name, "title": row.get("title") or "Meeting", "when": _short_day(row.get("date")),
-            "items": [{"text": kit.cut(i.text, 300), "due": i.due} for i in first.items[:15]],
+            "items": [{"text": kit.cut(i.text, 300), "due": due_label(i, row.get("date"))} for i in first.items[:15]],
             "open_link": urls.markdrop_url(raw["slug"]) if member else None,
             "organizer": None if member else await _organizer_name(db, row),
             "done_buttons": member,

@@ -4,17 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Badge, Button, ConfirmDialog, Field, Select, Skeleton, useToast } from "@/components/ui";
 import {
-  slackChannels, slackDisconnect, slackInstallUrl, slackLinkStart, slackSettings, slackStatus, slackUnlink,
-  type SlackChannel, type SlackStatus,
+  slackActionItemsPreview, slackChannels, slackDisconnect, slackInstallUrl, slackLinkStart, slackSettings, slackStatus, slackUnlink,
+  type SlackActionItemsPreview, type SlackChannel, type SlackStatus,
 } from "@/lib/slack";
 import { SlackMark } from "@/components/integrations/SlackMark";
+import { ActionItemsPreview } from "@/components/integrations/ActionItemsPreview";
 import { SwitchRow, shortDate } from "../../../settings-shared";
 import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
 
 /**
  * Integrations (Workspace settings): Markdrop for Slack. Admins connect a Slack workspace (Add to Slack),
  * pick the channel meeting notes go to, update the app's permissions when Markdrop needs new ones, and
- * disconnect. Everyone links their own Slack account (Sign in with Slack); direct messages are opt-in,
+ * disconnect, and choose whether each attendee gets their own action items as a direct message after a
+ * meeting (on by default; with a preview of the next one). Everyone links their own Slack account (Sign in with Slack); direct messages are opt-in,
  * in Settings › Account › Slack notifications (SlackCard). Backend: routers/slack.py.
  */
 export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
@@ -22,7 +24,8 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
   const [st, setSt] = useState<SlackStatus | null>(null);
   const [error, setError] = useState("");
   const [channels, setChannels] = useState<SlackChannel[] | null>(null);
-  const [busy, setBusy] = useState<"" | "install" | "link" | "unlink" | "channel" | "auto">("");
+  const [busy, setBusy] = useState<"" | "install" | "link" | "unlink" | "channel" | "auto" | "dms">("");
+  const [preview, setPreview] = useState<SlackActionItemsPreview | null>(null);
   const [confirm, setConfirm] = useState(false);
 
   const load = useCallback(async () => {
@@ -35,6 +38,11 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
   }, [id]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!st?.install || !isAdmin || preview) return;
+    slackActionItemsPreview(id).then(setPreview).catch(() => setPreview(null));
+  }, [st?.install, isAdmin, id, preview]);
 
   useEffect(() => {
     if (!st?.install || !isAdmin || channels) return;
@@ -128,7 +136,7 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
                 actions={isAdmin ? <Button size="sm" loading={busy === "install"} onClick={() => void go("install")}>Update permissions</Button> : undefined}
               >
                 <span data-testid="slack-needs-update">
-                  Slack notifications find people by their email, which needs two more permissions in Slack.
+                  Slack notifications and each person&apos;s action items after meetings find people by their email, which needs two more permissions in Slack.
                   {isAdmin ? " Slack asks you to allow them, then brings you back here." : " A workspace admin updates it here."}
                   {" "}Until then, people link their Slack account to get them.
                 </span>
@@ -178,6 +186,34 @@ export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
                 </div>
               </Locked>
             )}
+            <div className="flex min-w-0 flex-col gap-3 border-t border-border pt-4" data-testid="slack-action-items">
+              <Locked locked={!isAdmin}>
+                <div>
+                  <SwitchRow
+                    id="slack-dms"
+                    label="Send each person their action items after meetings"
+                    hint="A direct message with only their own to-dos, to every attendee Markdrop finds in Slack, in this workspace or not. People outside it get the item text and who to ask for the notes, nothing else. Each message has Stop these."
+                    checked={inst.action_item_dms}
+                    disabled={busy === "dms"}
+                    locked={!isAdmin}
+                    onChange={async (on) => {
+                      const out = await run("dms", () => slackSettings(id, { action_item_dms: on }),
+                        on ? "Each person gets their action items after meetings." : "Action items aren't sent to people now.");
+                      if (out) setSt(out);
+                    }}
+                  />
+                </div>
+              </Locked>
+              {isAdmin && inst.action_items_last && (
+                <p className="text-caption text-text-muted" data-testid="slack-ai-last">
+                  After {inst.action_items_last.title || "the last meeting"}: {inst.action_items_last.queued} of {inst.action_items_last.people}
+                  {" "}{inst.action_items_last.people === 1 ? "person" : "people"} messaged
+                  {inst.action_items_last.missing > 0 ? `, ${inst.action_items_last.missing} not found in Slack` : ""}.
+                  {inst.action_items_last.needs_update && " Slack needs a permission update to find people by email (Update permissions, above)."}
+                </p>
+              )}
+              {isAdmin && inst.action_item_dms && preview && <ActionItemsPreview preview={preview} />}
+            </div>
             {isAdmin && (
               <div>
                 <Button size="sm" variant="secondary" iconLeft="logOut" onClick={() => setConfirm(true)}>Disconnect Slack…</Button>

@@ -72,6 +72,13 @@ class Parsing(unittest.TestCase):
         row = {"attendees": [{"name": "Bo Chen", "user_id": "a" * 24}]}
         self.assertEqual(sai.assign(row, sai.page_items(md)), [])
 
+    def test_due_dates(self):
+        it = sai.Item(block="b", done=False, text="Send the sheet by Friday.")
+        self.assertEqual(sai.due_label(it, "2026-11-04"), "Fri, Nov 6")
+        self.assertEqual(sai.due_label(sai.Item(block="b", done=False, text="x", due="Thursday"), "2026-11-04"),
+                         "Thursday (Thu, Nov 5)")
+        self.assertIsNone(sai.due_label(sai.Item(block="b", done=False, text="Book the room."), "2026-11-04"))
+
     def test_too_old(self):
         now = meetings.now_utc()
         self.assertTrue(sai.too_old({"history": True, "date": today(), "created_at": now}))
@@ -130,7 +137,7 @@ class Sending(ActionItemsWorld):
         text = json.dumps(bo[0])
         self.assertIn("Your action items from *Weekly product sync*", text)
         self.assertIn("Update the onboarding docs with the new screenshots", text)
-        self.assertIn("due next Wednesday", text)
+        self.assertIn("due next Wednesday (", text)      # with the date it means
         self.assertNotIn("Senseloaf", text)        # Ravi's
         self.assertNotIn("launch party", text)
         self.assertIn("Open the notes", text)
@@ -157,6 +164,7 @@ class Sending(ActionItemsWorld):
         self.assertEqual(len(z), 1)
         text = json.dumps(z[0])
         self.assertIn("Send the pricing sheet to finance by Friday.", text)
+        self.assertIn("_due Fri, ", text)                 # "by Friday" read as a date
         self.assertIn("Book the demo room.", text)
         self.assertNotIn("onboarding", text)
         self.assertNotIn("release notes", text)

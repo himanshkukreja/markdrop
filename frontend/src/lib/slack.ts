@@ -6,7 +6,8 @@
  *   POST   /api/v1/slack/connect                   {code, state}: the end of Add to Slack
  *   DELETE /api/v1/slack/install?workspace_id=     disconnect (admins)
  *   GET    /api/v1/slack/channels?workspace_id=    channels for meeting posts (admins)
- *   PATCH  /api/v1/slack/settings                  {workspace_id, meetings_channel_id?, clear_channel?, post_meetings?}
+ *   PATCH  /api/v1/slack/settings                  {workspace_id, meetings_channel_id?, clear_channel?, post_meetings?, action_item_dms?}
+ *   GET    /api/v1/slack/action-items/preview?workspace_id=   who'd get their action items after the latest meeting (admins)
  *   POST   /api/v1/slack/link/start                {workspace_id | team_id} → {url}: Sign in with Slack
  *   GET    /api/v1/slack/link/info?team_id=        the Slack workspace a link page is for
  *   POST   /api/v1/slack/link/finish               {code, state}
@@ -35,6 +36,40 @@ export interface SlackInstall {
   token_ok: boolean;
   /** False: installed before Markdrop could find people by email; an admin updates the app (Add to Slack again). */
   can_find_by_email: boolean;
+  /** Each attendee gets their own action items as a direct message after a meeting (on unless an admin turns it off). */
+  action_item_dms: boolean;
+  /** Admins only: the last meeting's action-items messages. */
+  action_items_last: SlackActionItemsRun | null;
+}
+
+export interface SlackActionItemsRun {
+  at: string | null;
+  title: string | null;
+  people: number;
+  queued: number;
+  /** People with items Markdrop couldn't find in Slack. */
+  missing: number;
+  /** Slack refused to look people up by email: the app needs its permissions updated. */
+  needs_update: boolean;
+}
+
+/** How Markdrop would find someone in Slack: their linked account, their email, or (last resort) their exact name. */
+export type SlackReach = "linked" | "email" | "name" | "none";
+
+export interface SlackActionItemsPreview {
+  on: boolean;
+  can_find_by_email: boolean;
+  meeting: { id: string; title: string | null; when: string | null; restricted: boolean } | null;
+  people: Array<{ name: string; member: boolean; reach: SlackReach; items: number }>;
+  message: {
+    to: string; title: string; when: string | null;
+    items: Array<{ text: string; due: string | null }>;
+    /** Only for someone whose Markdrop account can open the notes. */
+    open_link: string | null;
+    /** Who to ask for access, for everyone else. */
+    organizer: string | null;
+    done_buttons: boolean;
+  } | null;
 }
 
 /** How a Slack account got linked: found by email, Sign in with Slack, the installer, or from before opt-in. */
@@ -49,6 +84,8 @@ export interface SlackStatus {
     /** Slack notifications turned on (off by default; Settings › Account). */
     on: boolean;
     prefs: Record<SlackNotifyKind, boolean>;
+    /** Action items after meetings (on by default, separate from the opt-in notifications). */
+    action_items: boolean;
   };
   kinds: Array<{ key: SlackNotifyKind; label: string }>;
 }
@@ -72,6 +109,8 @@ export interface SlackMe {
   on: boolean;
   prefs: Record<SlackNotifyKind, boolean>;
   kinds: Array<{ key: SlackNotifyKind; label: string }>;
+  /** Action items after meetings: on by default (not opt-in), separate from `on`. */
+  action_items: boolean;
   /** Slack workspaces connected to Markdrop workspaces you're in. */
   teams: SlackTeam[];
   email: string;
@@ -94,8 +133,11 @@ export const slackDisconnect = (ws: string) =>
 
 export const slackChannels = (ws: string) => request<{ channels: SlackChannel[] }>(`/api/v1/slack/channels?${q(ws)}`);
 
-export const slackSettings = (ws: string, patch: { meetings_channel_id?: string; clear_channel?: boolean; post_meetings?: boolean }) =>
+export const slackSettings = (ws: string, patch: { meetings_channel_id?: string; clear_channel?: boolean; post_meetings?: boolean; action_item_dms?: boolean }) =>
   request<SlackStatus>("/api/v1/slack/settings", { method: "PATCH", body: JSON.stringify({ workspace_id: ws, ...patch }) });
+
+export const slackActionItemsPreview = (ws: string) =>
+  request<SlackActionItemsPreview>(`/api/v1/slack/action-items/preview?${q(ws)}`);
 
 export const slackLinkStart = (body: { workspace_id?: string; team_id?: string }) =>
   request<{ url: string }>("/api/v1/slack/link/start", { method: "POST", body: JSON.stringify(body) });
@@ -116,8 +158,8 @@ export const slackMe = () => request<SlackMe>("/api/v1/slack/me");
 export const slackSetNotifications = (on: boolean) =>
   request<SlackMe>("/api/v1/slack/me/notifications", { method: "PUT", body: JSON.stringify({ on }) });
 
-export const slackPrefs = (patch: Partial<Record<SlackNotifyKind, boolean>>) =>
-  request<{ prefs: Record<SlackNotifyKind, boolean> }>("/api/v1/slack/me/prefs", { method: "PATCH", body: JSON.stringify(patch) });
+export const slackPrefs = (patch: Partial<Record<SlackNotifyKind | "action_items", boolean>>) =>
+  request<{ prefs: Record<SlackNotifyKind, boolean>; action_items: boolean }>("/api/v1/slack/me/prefs", { method: "PATCH", body: JSON.stringify(patch) });
 
 export const slackPostMeeting = (meetingId: string) =>
   request<{ posted: boolean; channel: string | null }>(`/api/v1/slack/meetings/${encodeURIComponent(meetingId)}/post`, { method: "POST" });

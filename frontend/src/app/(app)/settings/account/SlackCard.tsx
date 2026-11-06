@@ -23,13 +23,14 @@ const KIND_HINTS: Record<SlackNotifyKind, string> = {
  * default. Turning it on finds you in each Slack workspace connected to a Markdrop workspace of yours
  * by your own sign-in email; where it can't, "Link my Slack account" (Sign in with Slack) is the
  * fallback. Then which kinds. Hidden while no workspace of yours has Slack connected (and it's off).
- * Each direct message's footer links here (#slack).
+ * Each direct message's footer links here (#slack). "Action items after meetings" is separate: on by
+ * default (owner, 2026-11-06), and a "Stop these" in Slack turns it off here too.
  */
 export function SlackCard() {
   const toast = useToast();
   const [me, setMe] = useState<SlackMe | null>(null);
   const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState<"" | "on" | "again" | `link:${string}` | SlackNotifyKind>("");
+  const [busy, setBusy] = useState<"" | "on" | "again" | "ai" | `link:${string}` | SlackNotifyKind>("");
   // What the last "turn on" said per team (not found, needs an update…), until the next look.
   const [notes, setNotes] = useState<Record<string, string>>({});
 
@@ -90,6 +91,19 @@ export function SlackCard() {
     try {
       const r = await slackPrefs({ [kind]: on });
       setMe({ ...me, prefs: r.prefs });
+    } catch {
+      toast.error("Couldn't save that. Check your connection and try again.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function setActionItems(on: boolean) {
+    if (!me) return;
+    setBusy("ai");
+    try {
+      const r = await slackPrefs({ action_items: on });
+      setMe({ ...me, action_items: r.action_items });
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");
     } finally {
@@ -181,6 +195,18 @@ export function SlackCard() {
                   />
                 ))}
               </div>
+            </div>
+          )}
+          {me.teams.length > 0 && (
+            <div className="border-t border-border pt-5" data-testid="slack-action-items-pref">
+              <SwitchRow
+                id="slack-pref-action-items"
+                label="Action items after meetings"
+                hint="Your own to-dos from each meeting you were in, as one message right after it. On unless you turn it off, even when the notifications above are off."
+                checked={me.action_items}
+                disabled={busy === "ai"}
+                onChange={(on) => void setActionItems(on)}
+              />
             </div>
           )}
           <p className="text-caption text-text-muted">
