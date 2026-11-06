@@ -180,7 +180,7 @@ class EvalWorld(AccessWorld, AIEnv):
         p = mock.patch.object(docs_agent, "get_client", lambda: self.rec)
         p.start()
         self.addCleanup(p.stop)
-        self.ids = await W.seed(self)
+        self.ids = await W.seed(self, noise=os.environ.get("ASK_EVAL_NOISE", "1") != "0")
 
     async def asyncTearDown(self):
         for t in list(meetings._bg):

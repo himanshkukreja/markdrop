@@ -211,4 +211,9 @@ Q: list[dict] = [
     {"id": "ac-11", "cat": "access", "who": "priya", "scope": "meetings", "q": "What was decided about hiring?", "leak": True, "forbid": LEAKS, "notfound": True},
     {"id": "pr-09", "cat": "profile", "who": "vikram", "q": "Can I edit things in Acme Labs? What's my role?", "expect": [["viewer"]]},
     {"id": "wk-07", "cat": "my-work", "who": "rohan", "q": "What documents do I own?", "expect": [["API rate limits"]], "forbid": ["Q4 Roadmap is yours"]},
+    # ── Against the noise (older syncups say the limit was 50/min) ──
+    {"id": "nz-01", "cat": "latest", "q": "What's the API rate limit right now?", "expect": [["100"]], "forbid": ["is still 50", "currently 50"]},
+    {"id": "nz-02", "cat": "personal-meetings", "q": "What was I working on about a month ago?",
+     "expect": [["billing migration", "CLI login", "editor toolbar", "PRs"]]},
+    {"id": "nz-03", "cat": "personal-meetings", "q": "What did I say in the sprint 21 planning?", "expect": [["CLI login"]]},
 ]

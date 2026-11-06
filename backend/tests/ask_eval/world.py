@@ -216,8 +216,52 @@ Priya Nair will publish the Ask Markdrop launch blog post next Tuesday.
 Aarav Mehta will open the webinar registrations on Monday."""
 
 
+# Noise: older meetings and documents, so retrieval works on a realistic amount (and old values compete
+# with current ones: the API limit was 50/min a month ago, 100 since the rate limiter, export 300 now).
+_NOISE_LINES = [
+    ("Himanshu", "I'm on the billing migration cleanup, nothing blocking."),
+    ("Himanshu", "Reviewing PRs today, then the editor toolbar bugs."),
+    ("Himanshu Kukreja", "Working on the CLI login flow."),
+    ("rohan.g", "The API rate limit is still 50 requests per minute, we should revisit it."),
+    ("rohan.g", "Looking at slow queries on the documents collection."),
+    ("priya.nair", "Writing the help center articles for workspaces."),
+    ("priya.nair", "Onboarding survey results are in, people want templates."),
+    ("Aarav Mehta", "Customer interviews this week, three scheduled."),
+    ("Aarav Mehta", "Pricing research: competitors charge 10 to 15 dollars per user."),
+    ("Sneha Iyer", "Working on icons for the new editor."),
+    ("Sneha Iyer", "User testing sessions for the sidebar on Thursday."),
+]
+
+
+def noise_meetings() -> list[dict]:
+    out = []
+    for i, ago in enumerate(range(14, 75, 2)):
+        lines = [SYNC_ATT, "Aarav Mehta: Morning, let's go round."]
+        for k in range(4):
+            sp, text = _NOISE_LINES[(i * 3 + k * 5) % len(_NOISE_LINES)]
+            lines.append(f"{sp}: {text}")
+        out.append({"key": f"old{ago}", "title": "Daily Syncup", "ago": ago, "series": "Daily Syncup", "lines": lines,
+                    "gen": _g("A routine round of updates.")})
+    for n, ago in ((21, 17), (20, 31), (19, 45)):
+        out.append({"key": f"sprint{n}", "title": f"Sprint {n} planning", "ago": ago, "series": "Sprint planning", "lines": [
+            SYNC_ATT, f"Aarav Mehta: Sprint {n} goals: editor polish and the CLI.", "Himanshu: I'll take the CLI login flow."],
+            "gen": _g(f"Sprint {n}: editor polish, CLI.", type_="Planning",
+                      decisions=[f"Sprint {n} goals are editor polish and the CLI."])})
+    return out
+
+
+NOISE_DOCS = [(f"note-{i}", f"{t} notes {i}", f"# {t} notes {i}\n\n{b}") for i, (t, b) in enumerate([
+    ("Editor", "Toolbar ideas: headings, lists, code blocks."), ("CLI", "The CLI logs in with a device code."),
+    ("Billing", "Invoices are generated on the 1st of each month."), ("Support", "Response time target is 4 hours."),
+    ("Hiring", "Interview loop: screen, take-home, panel."), ("Design", "Spacing scale is 4px based."),
+    ("Infra", "Backups run nightly at 02:00 UTC."), ("Security", "Tokens rotate every 90 days."),
+    ("Marketing", "Newsletter goes out every other Thursday."), ("Research", "Users want templates and faster search."),
+    ("Legal", "DPA template lives in the shared drive."), ("Sales", "Pilot length is 30 days by default."),
+] * 3)]
+
+
 def gen_for(title: str, day: str) -> dict | None:
-    for m in MEETINGS:
+    for m in [*MEETINGS, *noise_meetings()]:
         if m["title"] == title and D(m["ago"]) == day:
             return m["gen"]
     return None
@@ -242,7 +286,7 @@ def is_generate(params: dict) -> bool:
     return s.startswith(("You write the team's notes", "You merge partial", "You read Google's meeting notes"))
 
 
-async def seed(w) -> dict:
+async def seed(w, *, noise: bool = True) -> dict:
     """Build the world on ``w`` (an AccessWorld). Returns ids: users, workspace, meetings, docs."""
     from app.services import search_index
 
@@ -269,7 +313,7 @@ async def seed(w) -> dict:
         assert r.status_code == 200, r.text
         return r.json()["meetings"][0]
 
-    for m in MEETINGS:
+    for m in [*MEETINGS, *(noise_meetings() if noise else [])]:
         day = D(m["ago"])
         got = await imp(m["title"], day, "\n".join(m["lines"]), bool(m.get("restricted")))
         await w.db["meetings"].update_one({"_id": ObjectId(got["id"])}, {"$set": {"series": m.get("series")}})
@@ -361,5 +405,8 @@ Ask Markdrop answers from everything you can open. Press Cmd J to open it.
             "doc_id": str(d["_id"]), "slug": d["slug"], "n": 1, "ts": now - timedelta(days=ago), "started_at": now - timedelta(days=ago),
             "author_id": w.uid["hk"], "author_kind": "user", "author_name": PEOPLE["hk"][0], "title": d["title"],
             "markdown": d["content"], "bytes": len(d["content"]), "sealed": True})
+    if noise:
+        for i, (key, title, body) in enumerate(NOISE_DOCS):
+            await doc(key, ("aarav", "priya", "rohan", "sneha")[i % 4], title, body, created_ago=20 + i, updated_ago=15 + i)
     await search_index.drain()
     return ids
