@@ -189,25 +189,21 @@ export default [
     url: team,
     prepare: async (h) => {
       await board(h);
-      await h.page.getByTestId("team-filter-status").scrollIntoViewIfNeeded();
-      await h.page.evaluate(() => window.scrollBy(0, -140));
-      await h.sleep(500);
     },
     steps: async (h) => {
+      await h.wheel(600);
+      await h.sleep(500);
       const pick = async (testid, label) => {
         await h.move(`[data-testid='${testid}']`);
         await h.sleep(300);
         await h.page.getByTestId(testid).selectOption({ label });
-        await h.sleep(1600);
+        await h.sleep(1300);
       };
       await pick("team-filter-status", "Blocked or waiting");
       await pick("team-filter-status", "Any status");
       const groups = await h.page.getByTestId("team-filter-group").locator("option").allInnerTexts();
       const g = groups.find((t) => !/^Everyone/.test(t));
       if (g) await pick("team-filter-group", g);
-      await pick("team-filter-group", "Everyone");
-      await h.click({ role: "radio", name: "This week" }).catch(() => h.click({ text: "This week", exact: true }).catch(() => {}));
-      await h.sleep(1500);
     },
   },
   {

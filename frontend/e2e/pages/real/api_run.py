@@ -702,15 +702,6 @@ if os.environ.get("PB_FAKE_TEAM_AI"):
                                                      "email": u["email"], "name": u.get("name")}}, upsert=True)
         return {"ok": True}
 
-import uvicorn  # noqa: E402
-
-# Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
-# At uvicorn's default 5 s the scripts' first request after a blocking step (mcpToken / reseed run
-# Python with execFileSync, which holds Node's event loop for 2–5 s, so its 4 s timer never fires)
-# went out on a socket the server had just closed: "fetch failed" (ECONNRESET on macOS,
-# UND_ERR_SOCKET "other side closed" on Linux), e.g. bughunt draft-after-append's append_blocks.
-uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning", timeout_keep_alive=60)
-
 # The Google Meet script's "Check now" web app, faked: PB_FAKE_MEET_SCRIPT=1 (docs shots of Check for new meetings).
 # POST /__sandbox/meet-script/queue {workspace_id, item} holds a Doc (an /inbox body) for the next check; a check
 # (meetings_inbox.CHECK_TRANSPORT) finds the connection by its check key, delivers the held Docs through the real
@@ -752,3 +743,13 @@ if os.environ.get("PB_FAKE_MEET_SCRIPT"):
     async def _meet_queue(body: dict):
         _held.append({"workspace_id": body["workspace_id"], "item": body["item"]})
         return {"held": len(_held)}
+
+
+import uvicorn  # noqa: E402
+
+# Keep idle connections open well past the client's own idle limit (Node's fetch drops one after 4 s).
+# At uvicorn's default 5 s the scripts' first request after a blocking step (mcpToken / reseed run
+# Python with execFileSync, which holds Node's event loop for 2–5 s, so its 4 s timer never fires)
+# went out on a socket the server had just closed: "fetch failed" (ECONNRESET on macOS,
+# UND_ERR_SOCKET "other side closed" on Linux), e.g. bughunt draft-after-append's append_blocks.
+uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning", timeout_keep_alive=60)
