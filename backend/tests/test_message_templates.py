@@ -193,7 +193,7 @@ class EverySlackMessage(unittest.TestCase):
         self.assertEqual(len(rows), kit.MAX_ITEMS)
         ctx = [b["elements"][0]["text"] for b in msg["blocks"] if b["type"] == "context"]
         self.assertIn("<@U0MAYA> · 4 items", ctx)            # three or more: under their name
-        self.assertIn("<@U0MAYA> · 3 items", json.dumps(items))
+        self.assertIn("<@U0MAYA> · 3 items", json.dumps(items, ensure_ascii=False))
         self.assertTrue(any(c.startswith("+2 more in the notes") for c in ctx), ctx)
 
     def test_a_post_saved_before_the_redesign_still_renders(self):
