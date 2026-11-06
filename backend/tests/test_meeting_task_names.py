@@ -530,3 +530,23 @@ class ProdShapes(MeetingsWorld):
         m = await self.imported(sources=[{"name": "Daily Syncup (2026-11-04 10:00 GMT+05:30) - Transcript", "text": text}])
         self.assertEqual(m["attendees_from"], "notes")
         self.assertEqual(sorted(a["name"] for a in m["attendees"]), sorted(PROD["2026-11-04"][2]))
+
+    async def test_an_attendees_line_with_glued_names_and_a_task_label(self):
+        await self.imported(sources=[{"name": "Sourcing kickoff - Notes by Gemini", "text": INVITE_DOC}])
+        oid = await self.prod_meeting("2026-11-02", "Sourcing discussion", [
+            ("Jason Chad", "Can we see the ranking for the last search?"),
+            ("Prakhar Agrawal", "Yes, it is on the second tab."),
+            task("Arunprakaash G Fix Production Loop", "Arunprakaash G", "fix the production loop"),
+            ("Jason Chad", "Great, thanks.")])
+        await self.db["meetings"].update_one({"_id": oid}, {"$set": {"attendees_from": "attendees", "attendees": [
+            {"name": "Himanshu Kukreja Arunprakaash G Jason Chad", "user_id": None, "email": None},
+            {"name": "Arunprakaash G Fix Production Loop", "user_id": None, "email": None},
+            {"name": "Jason Chad", "user_id": None, "email": None}, {"name": "Prakhar Agrawal", "user_id": None, "email": None}]}})
+        meetings._ATTENDEES["done"] = False
+        while await meetings.attendees_tick(self.db):
+            pass
+        row = await self.db["meetings"].find_one({"_id": oid})
+        self.assertEqual([a["name"] for a in row["attendees"]], ["Himanshu Kukreja", "Arunprakaash G", "Jason Chad", "Prakhar Agrawal"])
+        self.assertEqual(row["attendees_from"], "attendees")
+        self.assertEqual(meetings._speakers_of(row), ["Jason Chad", "Prakhar Agrawal", "Arunprakaash G"])   # a real call: renamed
+        self.assertEqual({a["name"]: a["email"] for a in row["attendees"]}["Jason Chad"], "jason@client.test")

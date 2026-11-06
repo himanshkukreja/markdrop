@@ -975,7 +975,7 @@ def with_notes_people(att: list[dict], inv: list[dict], how: str, notes: dict | 
 
 
 def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
-                labels: dict[str, str | None] | None = None) -> list[dict]:
+                labels: dict[str, str | None] | None = None, *, limit: int = 100) -> list[dict]:
     """Meeting people with no task words and no headings: "<Person> <task words>" is that person (with
     their address and account when known), a heading or a label that is no one goes, each once.
     Someone with an address is who the address says."""
@@ -983,8 +983,8 @@ def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
     out: list[dict] = []
     for a in entries:
         name = a.get("name") or ""
-        if a.get("email") and name not in labels and not mp.topicish(name):
-            out.append(a)
+        if a.get("email") and name not in labels:
+            out.append(a)       # an address (the invite) says who it is
             continue
         if len(name.split()) >= 4 and not a.get("email"):
             # People chips run together ("Himanshu Kukreja Arunprakaash G Jason Chad"): each of them.
@@ -1004,7 +1004,7 @@ def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
             continue
         elif a.get("user_id") or (len(name.split()) <= mp.TASK_MAX_WORDS and mp.name_like(name)):
             out.append(a)       # "anand.k", "Speaker 1": a transcript's own way of naming someone
-    return person_rows(out, people)
+    return person_rows(out, people, limit=limit)
 
 
 async def people_universe(db: AsyncIOMotorDatabase, workspace_id: str, people: People) -> mp.Universe:
@@ -1775,8 +1775,8 @@ def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, peop
             found.append({"name": sp, "user_id": (hit or {}).get("user_id"), "email": (hit or {}).get("email")})
     else:
         found = att
-    out = tidy_people(person_rows(found, people), u, people, labels)
-    invited = tidy_people(person_rows(inv, people, limit=200), u, people, labels)
+    out = tidy_people(found, u, people, labels)
+    invited = tidy_people(inv, u, people, labels, limit=200)
     if how == "speakers" and not out:
         how = "invited" if invited else "none"
     notes = view.get("notes") or (fixed or {}).get("notes")
