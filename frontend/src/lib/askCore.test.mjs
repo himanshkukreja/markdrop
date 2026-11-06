@@ -67,7 +67,8 @@ test("live suggestions: team first with topics, then yours; Updated … ago", as
   assert.equal(s[7].q, "What are my open action items?");
   assert.equal(suggestionsOf({ team: [], personal: sug.personal }, 8).length, 2);
   assert.deepEqual(homeChips(sug, 3).map((c) => c.label), ["T1: Q1?", "T2: Q2?", "T3: Q3?"]);
-  assert.deepEqual(homeChips({ team: [], personal: sug.personal }).map((c) => c.label), ["Catch me up on Standup"]);
+  assert.deepEqual(homeChips({ team: [], personal: sug.personal }), []);
+  assert.deepEqual(homeChips({ team: sug.team.slice(0, 1), personal: sug.personal }).map((c) => c.label), ["T1: Q1?", "Catch me up on Standup"]);
   assert.equal(updatedLine(sug, Date.parse("2026-11-06T12:30:00Z")), "Updated 2 h ago.");
   assert.equal(updatedLine({ ...sug, team: [] }), "");
 });

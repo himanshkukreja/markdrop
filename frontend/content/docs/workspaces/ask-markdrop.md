@@ -1,6 +1,6 @@
 ---
 title: Ask
-description: One assistant, named after what it answers from. Ask your workspace ("Ask Acme"), your own files ("Ask my files") or the page you're on ("Ask this page"), on its own page or beside what you're reading, with live suggestions and cited sources.
+description: One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources.
 updated: 2026-11-06
 keywords: [ask, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
 ---

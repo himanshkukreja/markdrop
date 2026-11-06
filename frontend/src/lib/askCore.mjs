@@ -143,9 +143,10 @@ export function suggestionsOf(sug, max = 8) {
   return out.filter((x) => (seen.has(x.q.toLowerCase()) ? false : (seen.add(x.q.toLowerCase()), true)));
 }
 
-/** A few live chips for the home's Ask bar: the team's first (topic: question), then yours. */
+/** A few live chips for the home's Ask bar: the team's (topic: question), then yours; none without team ones
+ *  (the bar keeps its own: Catch me up, My action items…). */
 export function homeChips(sug, max = 3) {
-  if (!sug) return [];
+  if (!sug || !(sug.team || []).length) return [];
   const team = (sug.team || []).slice(0, max).map((t) => ({ label: t.topic ? `${t.topic}: ${t.question}` : t.question, question: t.question, team: true }));
   const mine = (sug.personal || []).filter((p) => p.intent === "ask").map((p) => ({ label: p.label, question: p.question, team: false }));
   return [...team, ...mine].slice(0, max);
