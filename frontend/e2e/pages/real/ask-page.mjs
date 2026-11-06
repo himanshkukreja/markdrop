@@ -141,7 +141,7 @@ await step("page", async () => {
   await p.getByTestId("ask-scope-everything").click();
   if ((await titleOf(p)) !== "Ask") fail(`Everything title: ${await titleOf(p)}`);
   // New chat empties it.
-  await p.getByTestId("ask-new").click();
+  await p.getByTestId("ask-history").getByTestId("ask-history-new").click();   // the column's (the header's is for narrow screens)
   await chatOf(p).getByTestId("chat-starters").waitFor({ timeout: 10000 });
   await noSideways(p, "desktop");
 });

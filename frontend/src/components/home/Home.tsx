@@ -308,7 +308,7 @@ function AskBar({ onAsk, onAskMeetings, workspaces, liveWs }: {
       >
         <span className="hm-ask__spark" aria-hidden><Icon name="sparkle" size={16} /></span>
         {workspaces.length > 0 && (
-          <Dropdown align="left" minWidth={220} aria-label="Ask about" items={scopeItems}
+          <Dropdown align="left" minWidth={220} aria-label="Ask about" items={scopeItems} className="hm-ask__scope-wrap"
             trigger={(
               <button type="button" className="hm-ask__scope md-focus" data-testid="home-ask-scope" title={`${title}: change what to ask about`}>
                 <span className="hm-ask__scope-label">{scopeLabel}</span>

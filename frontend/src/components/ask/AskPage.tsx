@@ -301,7 +301,7 @@ function History({ threads, current, onOpen, onNew, onForget, onClear }: {
 }) {
   return (
     <div className={s.history} data-ask-history="" data-testid="ask-history">
-      <button type="button" className={s.newRow} onClick={onNew}>
+      <button type="button" className={s.newRow} onClick={onNew} data-testid="ask-history-new">
         <Icon name="plus" size={16} /> New chat
       </button>
       <h2 className={s.historyTitle}>Recent</h2>

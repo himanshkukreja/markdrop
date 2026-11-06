@@ -22,8 +22,9 @@
 }
 .hm-ask__bar:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .hm-ask__spark { display: inline-grid; flex: none; width: 28px; height: 28px; place-items: center; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent-text); }
+.hm-ask__scope-wrap { flex: none; min-width: 0; max-width: 40%; }
 .hm-ask__scope {
-  display: inline-flex; flex: none; max-width: 40%; min-height: 36px; align-items: center; gap: 4px; padding: 0 10px;
+  display: inline-flex; max-width: 100%; min-height: 36px; align-items: center; gap: 4px; padding: 0 10px;
   border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface);
   color: var(--text-secondary); font: 500 13px/18px var(--font-sans); cursor: pointer;
 }
