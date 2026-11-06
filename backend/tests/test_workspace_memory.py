@@ -583,9 +583,173 @@ class Extras(TeamWorld):
         to = sorted(p["to"][0] for p, _k in sent)
         self.assertEqual(to, sorted([self.email["wa"], self.email["wo"]]))
         self.assertTrue(all(k == "digest" for _p, k in sent))
+        # The card is about the current week: in W46 it carries the sent summary; a week later it is live.
+        _pin_today(self, date(2026, 11, 10))
         b = (await self.board("wv")).json()
         self.assertEqual(b["this_week"]["week"], "2026-W46")
+        self.assertEqual((b["this_week"]["from"], b["this_week"]["to"]), ("2026-11-09", "2026-11-15"))
         self.assertFalse(b["this_week"]["live"])
+        self.assertNotIn(self.m["transcript_slug"], json.dumps(b["this_week"]))
+
+
+class ThisWeek(TeamWorld):
+    """The "This week" card's rules (team_extras.compose): Mon–Sun in the workspace's timezone; highlights
+    spread across people; due = this week; overdue = the last 14 days; done items never show."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        from app.services import team_extras
+
+        await team_extras.ensure_indexes(self.db)
+        _pin_today(self, date(2026, 11, 4))                  # a Wednesday
+        await self.turn_on()
+        self.m = await self.standup()
+        self.m2 = await self.standup(date="2026-11-04", title="Sourcing standup 2")
+        await self.tick()
+        self.proto = await self.db[wm.FACTS].find_one({"sources.meeting_id": self.m2["id"]})
+        self.assertIsNotNone(self.proto)
+
+    async def fact(self, who: str, kind: str, text: str, *, when: datetime | None = None, due: str | None = None,
+                   **extra) -> str:
+        _id = ObjectId()
+        await self.db[wm.FACTS].insert_one({
+            **{k: self.proto[k] for k in ("workspace_id", "sources", "subject_type", "origin", "confidence", "src_key")},
+            "_id": _id, "subject": self.uid[who], "kind": kind, "text": text, "norm": wm.norm(text), "cluster": str(_id),
+            "when": when or datetime(2026, 11, 4, 9, tzinfo=timezone.utc), "due": due, "status": "active",
+            "hidden": False, "correction": None, "project": None, **extra})
+        return str(_id)
+
+    async def compose(self, tz: str = "UTC", now: datetime | None = None):
+        from app.services import team_extras
+
+        ws = await wm.ws_info(self.db, self.W)
+        return await team_extras.compose(self.db, ws, team_extras.tz_of(tz),
+                                         now or datetime(2026, 11, 4, 12, tzinfo=timezone.utc), ai=False)
+
+    def test_week_bounds(self):
+        from app.services import team_extras
+
+        self.assertEqual(team_extras.week_bounds(date(2026, 11, 4)), (date(2026, 11, 2), date(2026, 11, 8)))
+        self.assertEqual(team_extras.week_bounds(date(2026, 11, 2)), (date(2026, 11, 2), date(2026, 11, 8)))
+        self.assertEqual(team_extras.week_bounds(date(2026, 11, 8)), (date(2026, 11, 2), date(2026, 11, 8)))
+
+    async def test_week_window_follows_the_timezone(self):
+        # Sunday 20:00 UTC is already Monday in Kolkata: a new week there, still the old one in UTC.
+        late_sunday = datetime(2026, 11, 8, 20, tzinfo=timezone.utc)
+        utc = await self.compose("UTC", late_sunday)
+        ist = await self.compose("Asia/Kolkata", late_sunday)
+        self.assertEqual((utc["from"], utc["to"], utc["week"]), ("2026-11-02", "2026-11-08", "2026-W45"))
+        self.assertEqual((ist["from"], ist["to"], ist["week"]), ("2026-11-09", "2026-11-15", "2026-W46"))
+        await self.fact("wm", "target", "Close the Q4 hiring plan", due="2026-11-09")
+        utc = await self.compose("UTC", late_sunday)
+        ist = await self.compose("Asia/Kolkata", late_sunday)
+        self.assertNotIn("Close the Q4 hiring plan", [x["text"] for x in utc["due"]])
+        self.assertIn("Close the Q4 hiring plan", [x["text"] for x in ist["due"]])
+
+    async def test_due_overdue_and_stale(self):
+        await self.fact("wm", "target", "Due friday item", due="2026-11-06")
+        await self.fact("wm", "target", "Due monday item", due="2026-11-02")          # this week, already late
+        await self.fact("wa", "action_item", "Ten days late item", due="2026-10-25")
+        await self.fact("wa", "action_item", "Twenty days late item", due="2026-10-15")  # stale
+        await self.fact("wa", "target", "Next week item", due="2026-11-12")
+        s = await self.compose()
+        due = {x["text"]: x for x in s["due"]}
+        over = {x["text"]: x for x in s["overdue"]}
+        self.assertIn("Due friday item", due)
+        self.assertIn("Due monday item", due)
+        self.assertEqual(due["Due monday item"]["days"], -2)
+        self.assertEqual(list(over), ["Ten days late item"])
+        self.assertEqual(over["Ten days late item"]["days"], -10)
+        self.assertEqual(over["Ten days late item"]["person"]["name"], "Priya Sharma")
+        self.assertNotIn("Next week item", due)
+        # Stale ones stay on the person's page.
+        r = await self.person("wa", who="wa")
+        self.assertIn("Twenty days late item", [t["text"] for t in r.json()["targets"]])
+
+    async def test_done_items_never_show(self):
+        fid = await self.fact("wm", "target", "Send the export spec", due="2026-11-05")
+        other = await self.fact("wa", "action_item", "Review the pricing page", due="2026-10-30")
+        s = await self.compose()
+        self.assertIn("Send the export spec", [x["text"] for x in s["due"]])
+        self.assertIn("Review the pricing page", [x["text"] for x in s["overdue"]])
+        # Only its person may mark it done.
+        r = await self.http.post(f"/api/v1/team/{self.W}/facts/{fid}/done", headers=self.session("wa"))
+        self.assertEqual(r.status_code, 403)
+        r = await self.http.post(f"/api/v1/team/{self.W}/facts/{fid}/done", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        s = await self.compose()
+        self.assertNotIn("Send the export spec", [x["text"] for x in s["due"]])
+        p = (await self.person("wm", who="wm")).json()
+        self.assertNotIn("Send the export spec", [t["text"] for t in p["targets"]])
+        # The mark survives the source being read again.
+        await self.db[wm.FACTS].update_many({"_id": ObjectId(fid)}, {"$set": {"done_at": None}})
+        f = await self.db[wm.FACTS].find_one({"_id": ObjectId(fid)})
+        await wm._write_facts(self.db, self.W, "test:redo", [{**{k: f[k] for k in ("subject", "kind", "text", "due")}, "origin": "ai"}],
+                              when=f["when"], source=f["sources"][0], members=await wm.members_of(self.db, self.W))
+        again = await self.db[wm.FACTS].find_one({"src_key": "test:redo"})
+        self.assertIsNotNone(again["done_at"])
+        r = await self.http.delete(f"/api/v1/team/{self.W}/facts/{fid}/done", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200)
+        # Ticked on its meeting page (- [x]): done too.
+        page = await self.db["documents"].find_one({"_id": self.proto["sources"][0]["doc_id"]})
+        await self.db["documents"].update_one({"_id": page["_id"]}, {"$set": {
+            "content": (page.get("content") or "") + "\n\n- [x] Review the pricing page\n"}})
+        s = await self.compose()
+        self.assertNotIn("Review the pricing page", [x["text"] for x in s["overdue"]])
+        # Not for a decision.
+        dec = await self.fact("wm", "decision", "Annual plans get twenty percent off")
+        r = await self.http.post(f"/api/v1/team/{self.W}/facts/{dec}/done", headers=self.session("wm"))
+        self.assertEqual(r.status_code, 422)
+
+    async def test_ticked_page_task_is_done(self):
+        wmid = self.uid["wm"]
+        content = f"# Billing\n\n- [ ] :person[Bo Chen]{{id=\"{wmid}\"}} send the invoice export\n"
+        doc = await self.mkdoc("W", owner="owner", content=content, editor="blocks", grants=False,
+                               updated_at=datetime(2026, 11, 2, 9, tzinfo=timezone.utc))
+        fid = await self.fact("wm", "target", "@Bo Chen send the invoice export", due="2026-11-06",
+                              sources=[{"type": "page", "doc_id": doc["_id"]}])
+        s = await self.compose()
+        self.assertIn(fid, [x["id"] for x in s["due"]])
+        await self.db["documents"].update_one({"_id": doc["_id"]}, {"$set": {"content": content.replace("- [ ]", "- [x]")}})
+        s = await self.compose()
+        self.assertNotIn(fid, [x["id"] for x in s["due"]])
+
+    async def test_highlights_this_week_spread_and_capped(self):
+        old = datetime(2026, 10, 20, 9, tzinfo=timezone.utc)
+        await self.fact("wa", "update", "Old July launch note from last month", when=old)
+        for i, t in enumerate(["Shipped the talent pool import", "Finished the talent pool filters",
+                               "Released talent pool search", "Working on talent pool export"]):
+            await self.fact("owner", "update", t, when=datetime(2026, 11, 3, 9 + i, tzinfo=timezone.utc))
+        await self.fact("owner", "update", "Shipped the talent pool import!", when=datetime(2026, 11, 3, 15, tzinfo=timezone.utc))
+        await self.fact("wa", "decision", "We use Stripe Checkout", when=datetime(2026, 11, 3, 10, tzinfo=timezone.utc))
+        s = await self.compose()
+        self.assertEqual(s["window"], "week")
+        texts = [h["text"] for h in s["highlights"]]
+        self.assertNotIn("Old July launch note from last month", texts)
+        per: dict[str, int] = {}
+        for h in s["highlights"]:
+            per[h["person"]["id"]] = per.get(h["person"]["id"], 0) + 1
+            self.assertFalse(h["text"].startswith(h["person"]["name"]))       # no "Name: " prefix
+        self.assertTrue(all(n <= 2 for n in per.values()), per)
+        self.assertGreaterEqual(len(per), 2)                                   # spread across people
+        self.assertEqual(sum(1 for t in texts if t.startswith("Shipped the talent pool import")), 1)   # no near-duplicates
+        self.assertIn("We use Stripe Checkout", texts)
+        # Nothing this week yet (a Monday morning): the last 7 days instead.
+        s = await self.compose(now=datetime(2026, 11, 9, 0, 30, tzinfo=timezone.utc))
+        self.assertEqual(s["window"], "last7")
+        self.assertTrue(s["highlights"])
+
+    async def test_card_access_team_visible_only(self):
+        # A restricted meeting's lines never reach the card, for anyone.
+        r = await self.http.patch(f"/api/v1/meetings/{self.m2['id']}", headers=self.session("owner"), json={"restricted": True})
+        self.assertEqual(r.status_code, 200)
+        await self.fact("wm", "target", "Secret restricted target", due="2026-11-06")    # sourced from m2
+        for who in ("owner", "wm", "wv"):
+            b = (await self.board(who)).json()
+            self.assertNotIn("Secret restricted target", json.dumps(b.get("this_week")), who)
+        # The person it is about still sees it on their own page (they were in the meeting).
+        p = (await self.person("wm", who="owner")).json()
+        self.assertIn("Secret restricted target", [t["text"] for t in p["targets"]])
 
 
 if __name__ == "__main__":

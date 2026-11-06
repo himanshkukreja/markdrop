@@ -10,7 +10,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Avatar, Button, Dialog, Dropdown, Field, Icon, IconButton, Input, Select, Textarea, useToast, type MenuEntry } from "@/components/ui";
 import {
-  correctLine, dueLabel, fmtDay, hideLine, setFocus, setStatus,
+  correctLine, dueLabel, fmtDay, hideLine, markDone, setFocus, setStatus,
   type DueState, type Line, type OwnStatus, type SourceLink, type Status, type StatusState,
 } from "@/lib/team";
 
@@ -63,8 +63,15 @@ export function LineRow({ line, ws, onChanged, showPerson, hiddenList }: {
   const toast = useToast();
   const [correcting, setCorrecting] = useState(false);
   const items: MenuEntry[] = [];
+  if (line.can_correct && !hiddenList && (line.kind === "action_item" || line.kind === "target")) {
+    items.push({ label: "Mark done", icon: "check", description: "It leaves your open items, the board and This week.",
+      onClick: async () => {
+        try { await markDone(ws, line.id); toast.success("Marked done."); onChanged(); }
+        catch (e) { toast.error(e instanceof Error ? e.message : "That didn't save."); }
+      } });
+  }
   if (line.can_correct && !hiddenList) {
-    items.push({ label: "Hide this line", icon: "eyeOff", description: "Nobody sees it, you can undo it here.",
+    items.push({ label: line.kind === "action_item" || line.kind === "target" ? "Dismiss (hide this line)" : "Hide this line", icon: "eyeOff", description: "Nobody sees it, you can undo it here.",
       onClick: async () => { await hideLine(ws, line.id); toast.success("Hidden. It won't come back from that source."); onChanged(); } });
     items.push({ label: line.corrected ? "Change the correction…" : "This is wrong…", icon: "edit",
       onClick: () => setCorrecting(true) });
