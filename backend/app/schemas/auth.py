@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
+EmailMode = Literal["instant", "hourly", "daily", "off"]
+
 
 class UserResponse(BaseModel):
     id: str
@@ -13,14 +15,24 @@ class UserResponse(BaseModel):
     created_at: datetime
     # Weekly analytics email (Settings → Account).
     analytics_digest: Literal["weekly", "off"] = "weekly"
-    # "Email me when someone mentions me" (and asks for my sign-off).
+    # "Email me when someone mentions me" (and asks for my sign-off): any kind's email on.
     mention_emails: bool = True
+    # How often, per kind (services/notifications.py email_modes).
+    email_notify: dict[str, EmailMode] = Field(default_factory=lambda: {"mention": "hourly", "signoff_requested": "instant"})
+
+
+class EmailNotifyUpdate(BaseModel):
+    mention: EmailMode | None = None
+    signoff_requested: EmailMode | None = None
 
 
 class PreferencesUpdate(BaseModel):
-    """Either or both; what's left out is unchanged."""
+    """Any of these; what's left out is unchanged. ``tz``: the browser's IANA timezone (the daily
+    digest goes at 08:00 there)."""
     analytics_digest: Literal["weekly", "off"] | None = None
     mention_emails: bool | None = None
+    email_notify: EmailNotifyUpdate | None = None
+    tz: str | None = Field(None, max_length=64)
 
 
 class TokenResponse(BaseModel):

@@ -331,6 +331,7 @@ def _to_user_response(user: User) -> UserResponse:
         created_at=user.created_at,
         analytics_digest=user.analytics_digest,
         mention_emails=user.mention_emails,
+        email_notify=user.email_notify,
     )
 
 

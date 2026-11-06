@@ -8,6 +8,7 @@ export const DOCS_PAGES = {
   accounts: "/get-started/accounts",
   installApp: "/get-started/install-app",
   pushNotifications: "/pages/mentions-and-notifications#push-notifications",
+  notificationEmail: "/pages/mentions-and-notifications#email",
   // Documents
   writing: "/documents/writing",
   addresses: "/documents/addresses",

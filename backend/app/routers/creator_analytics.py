@@ -211,12 +211,15 @@ async def update_preferences(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Account preferences: ``analytics_digest`` "weekly" | "off", and
-    ``mention_emails`` (bool; services/notifications.py). Either or both."""
+    """Account preferences: ``analytics_digest`` "weekly" | "off"; how often notification email
+    comes, per kind (``email_notify``: ``{mention, signoff_requested}`` → instant | hourly | daily |
+    off; services/notifications.py); the old switch ``mention_emails`` (bool: off turns both off,
+    on brings back the defaults); ``tz`` (the browser's timezone, for the daily digest). Any of them."""
     if is_tenant_request(request):
         # A workspace domain's session reads documents; it doesn't change the account.
         raise HTTPException(status_code=403, detail="Change this on markdrop.in.")
-    if data.analytics_digest is None and data.mention_emails is None:
+    notify = data.email_notify.model_dump(exclude_none=True) if data.email_notify else {}
+    if data.analytics_digest is None and data.mention_emails is None and not notify and data.tz is None:
         raise HTTPException(status_code=422, detail="Nothing to change.")
     from app.services import notifications
 
@@ -224,9 +227,15 @@ async def update_preferences(
         await digest.set_preference(db, user.id, data.analytics_digest)
     if data.mention_emails is not None:
         await notifications.set_preference(db, user.id, data.mention_emails)
-    row = await db["users"].find_one({"_id": ObjectId(user.id)}, {"analytics_digest": 1, "mention_emails": 1}) or {}
+    if notify:
+        await notifications.set_modes(db, user.id, notify)
+    if data.tz is not None and notifications.valid_tz(data.tz):
+        await db["users"].update_one({"_id": ObjectId(user.id)}, {"$set": {"email_tz": data.tz}})
+    row = await db["users"].find_one({"_id": ObjectId(user.id)},
+                                     {"analytics_digest": 1, "mention_emails": 1, "email_notify": 1}) or {}
+    modes = notifications.email_modes(row)
     return {"analytics_digest": "off" if row.get("analytics_digest") == "off" else "weekly",
-            "mention_emails": row.get("mention_emails") is not False}
+            "mention_emails": any(m != "off" for m in modes.values()), "email_notify": modes}
 
 
 _DIGEST_HEADERS = {"Cache-Control": "no-store", "Referrer-Policy": "no-referrer",

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Card, Field, Input, useToast } from "@/components/ui";
+import { Button, Card, Field, Input, Select, useToast } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { UserAvatar } from "@/components/shell/AccountMenu";
 import { ThemeSegmented } from "@/components/theme/ThemeSegmented";
 import { useAuth } from "@/contexts/AuthContext";
-import { updateMyName, updatePreferences } from "@/lib/api";
+import { DEFAULT_EMAIL_NOTIFY, updateMyName, updatePreferences, type EmailMode, type EmailNotify } from "@/lib/api";
 import { useTheme } from "@/lib/theme";
 import { useShortcutsEnabled } from "@/lib/shortcuts";
 import { useMounted } from "@/components/shell/useLocation";
@@ -15,6 +15,45 @@ import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
 import { PushCard } from "./PushCard";
 
 const NAME_MAX = 80;
+
+const EMAIL_MODES: Array<{ value: EmailMode; label: string }> = [
+  { value: "instant", label: "Instant" },
+  { value: "hourly", label: "Hourly bundle" },
+  { value: "daily", label: "Daily digest" },
+  { value: "off", label: "Off" },
+];
+const MODE_SAID: Record<EmailMode, string> = {
+  instant: "as they happen", hourly: "in an hourly bundle", daily: "in a daily digest", off: "off",
+};
+
+function browserTz(): string | undefined {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined; } catch { return undefined; }
+}
+
+/** One kind of notification email: a label, a hint and Instant / Hourly bundle / Daily digest / Off. */
+function EmailModeRow({ id, label, hint, value, disabled, onChange }: {
+  id: string; label: string; hint: React.ReactNode; value: EmailMode; disabled?: boolean;
+  onChange: (mode: EmailMode) => void;
+}) {
+  return (
+    <div className="flex min-h-11 min-w-0 flex-wrap items-start justify-between gap-x-4 gap-y-2">
+      <div className="min-w-0 flex-1 basis-56">
+        <label htmlFor={id} id={`${id}-label`} className="text-body-strong text-text">{label}</label>
+        <p id={`${id}-hint`} className="mt-0.5 text-caption text-text-muted">{hint}</p>
+      </div>
+      <div className="w-full shrink-0 sm:w-44">
+        <Select
+          id={id}
+          value={value}
+          disabled={disabled}
+          aria-describedby={`${id}-hint`}
+          options={EMAIL_MODES}
+          onChange={(e) => onChange(e.target.value as EmailMode)}
+        />
+      </div>
+    </div>
+  );
+}
 
 /** /settings/account (REVAMP_PLAN 7.11): profile, appearance, notifications on devices, email, sign out. */
 export default function AccountClient() {
@@ -30,7 +69,7 @@ export default function AccountClient() {
   const [saving, setSaving] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [savingDigest, setSavingDigest] = useState(false);
-  const [savingMentions, setSavingMentions] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
 
   // Seed the field once the user is known (and again if another tab renames them).
   const current = user?.name ?? "";
@@ -74,17 +113,22 @@ export default function AccountClient() {
     }
   }
 
-  async function setMentionEmails(on: boolean) {
+  const notify: EmailNotify = user.email_notify ?? (user.mention_emails === false
+    ? { mention: "off", signoff_requested: "off" } : DEFAULT_EMAIL_NOTIFY);
+
+  async function setEmailMode(kind: keyof EmailNotify, mode: EmailMode) {
     if (!user) return;
-    setSavingMentions(true);
+    setSavingEmail(true);
     try {
-      const res = await updatePreferences({ mention_emails: on });
-      updateUser({ ...user, mention_emails: res.mention_emails ?? on });
-      toast.info(on ? "Mention emails on." : "Mention emails off. You'll still see mentions under the bell.");
+      const res = await updatePreferences({ email_notify: { [kind]: mode }, tz: browserTz() });
+      const next = res.email_notify ?? { ...notify, [kind]: mode };
+      updateUser({ ...user, email_notify: next, mention_emails: res.mention_emails ?? true });
+      const what = kind === "mention" ? "Mention emails" : "Sign-off request emails";
+      toast.info(mode === "off" ? `${what} off. You'll still see them under the bell.` : `${what} ${MODE_SAID[mode]}.`);
     } catch {
       toast.error("Couldn't save that. Check your connection and try again.");
     } finally {
-      setSavingMentions(false);
+      setSavingEmail(false);
     }
   }
 
@@ -178,14 +222,29 @@ export default function AccountClient() {
       <PushCard />
 
       <Card title="Email" id="email">
-        <SwitchRow
-          id="mention-emails"
-          label="Email me when someone mentions me"
-          hint="Also when someone asks for your sign-off. At most one email per page every 10 minutes; you always see them under the bell."
-          checked={user.mention_emails !== false}
-          disabled={savingMentions}
-          onChange={setMentionEmails}
-        />
+        <div className="flex min-w-0 flex-col gap-4">
+          <EmailModeRow
+            id="email-mentions"
+            label="Mentions"
+            hint="When someone mentions you on a page, including a meeting's action item for you."
+            value={notify.mention}
+            disabled={savingEmail}
+            onChange={(m) => setEmailMode("mention", m)}
+          />
+          <EmailModeRow
+            id="email-signoffs"
+            label="Sign-off requests"
+            hint="When someone asks for your sign-off."
+            value={notify.signoff_requested}
+            disabled={savingEmail}
+            onChange={(m) => setEmailMode("signoff_requested", m)}
+          />
+          <p className="text-caption text-text-muted">
+            The app comes first: nothing is emailed that you already saw in Markdrop or got as a push
+            notification. At most 3 of these emails a day; the daily digest comes at 8:00 your time. Every one
+            has an <span className="text-text-secondary">Email me less</span> link. <ReadMore topic="notificationEmail" />
+          </p>
+        </div>
         <div className="my-4 border-t border-border" />
         <SwitchRow
           id="analytics-digest"

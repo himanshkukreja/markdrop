@@ -3,7 +3,7 @@ title: Mentions and notifications
 description: Mention someone and they're told under the bell, by email and on their phone or computer, with a link to the exact block. Only people who can open the page.
 updated: 2026-11-06
 prerequisites: [/pages/overview]
-keywords: [mention, mentions, remove a mention, undo mention, mistaken mention, wrong person, take a mention back, withdrawn, meeting mentions, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, list_notifications, mark_notifications_read, share_with_people]
+keywords: [mention, mentions, remove a mention, undo mention, mistaken mention, wrong person, take a mention back, withdrawn, meeting mentions, email me less, hourly bundle, daily digest, instant, email frequency, too many emails, catch-up, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, list_notifications, mark_notifications_read, share_with_people]
 ---
 
 When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop, get an email and, if they've turned it on, a notification on their phone or computer. Each one opens the page at the block that mentions them.
@@ -61,15 +61,43 @@ A notification about a page you can no longer open stays in the list without the
 
 ## Email
 
-You also get an email when someone mentions you or asks for your sign-off, with the block that mentions you quoted and a link to it.
+Markdrop can also email you when someone mentions you or asks for your sign-off, with the block quoted and a link to it. Email is the fallback, not a second copy: the app and your devices come first, and you choose how often email comes.
 
-- **Batched.** You get at most one email per page every 10 minutes. Mentions on the same page in that time arrive together in one email.
-- **Only what's still true.** Before an email goes, Markdrop checks again that you can open the page and that the mention is still there. If you've already read the notification in the app, no email is sent.
+### Choose how often
+
+Go to **Settings › Account › Email**. **Mentions** and **Sign-off requests** each have their own choice:
+
+| Choice | What you get |
+| --- | --- |
+| **Instant** | One email per page, about a minute after it happens. Mentions on the same page arrive together, at most one email per page every 10 minutes. The default for sign-off requests. |
+| **Hourly bundle** | At most one email an hour, listing everything new, such as "You were mentioned in 4 pages", with each page, who and the line. The default for mentions. |
+| **Daily digest** | One email a day at 8:00 your time with everything from the day before. |
+| **Off** | No email. You still see everything under the bell. |
+
+Your time zone comes from your browser when you use Markdrop. Until Markdrop knows it, the daily digest goes at 8:00 UTC.
+
+If you'd turned off the old **Email me when someone mentions me** switch, both choices start as **Off**.
+
+### The app comes first
+
+Markdrop doesn't email you about something you've already seen:
+
+- **Read it in the app,** or had Markdrop open when it arrived (the bell's badge showed it), and there's no email.
+- **Got it as a [push notification](#push-notifications)** on one of your devices, or as a [Slack message](/integrations/slack), and there's no email.
+- **You've been using Markdrop in the last half hour,** and an instant email waits up to 30 minutes for you to see it there (10 minutes for a sign-off request) before it goes.
+
+### Never a flood
+
+- **At most 3 a day.** You get at most 3 of these emails a day, counted in your time zone. Anything after that waits for one catch-up email at 8:00 the next morning. Nothing is lost, and it never comes as more than one catch-up email.
+- **Sign-off requests stay prompt.** A sign-off request can be a fourth email, once a day, because email may be the only way it reaches you.
+- **Only what's still true.** Before an email goes, Markdrop checks again that you can open each page. A page you can't open any more is left out, and so is a mention that was taken out of the page.
 - **Shares** send their own email straight away, with the message the sender added.
 
-### Turn mention emails off
+### Email me less
 
-Go to **Settings › Account › Email** and turn off **Email me when someone mentions me**, or choose **Turn off mention emails** at the bottom of any mention email. You still see mentions under the bell, and [push notifications](#push-notifications) keep their own setting. Other Markdrop email, such as sign-in codes, invitations and the [weekly analytics email](/analytics/weekly-email), isn't affected.
+Every one of these emails has an **Email me less** link at the bottom. It asks first, then moves the setting for what that email was about one step down, from **Instant** to **Hourly bundle**, to **Daily digest**, to **Off**. You don't need to sign in, and choosing the same link twice doesn't lower it twice.
+
+To stop them altogether, choose **Turn off these emails** at the bottom of any of them, or set both choices to **Off** in **Settings › Account › Email**. You still see mentions under the bell, and [push notifications](#push-notifications) keep their own setting. Other Markdrop email, such as sign-in codes, invitations and the [weekly analytics email](/analytics/weekly-email), isn't affected.
 
 ## Push notifications
 

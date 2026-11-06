@@ -156,6 +156,22 @@
       ]
     },
     {
+      "id": "email-calm",
+      "date": "2026-11-06",
+      "title": "Fewer notification emails: choose how often, and the app comes first",
+      "kind": "improved",
+      "area": "App",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "Mentions and sign-off requests no longer flood your inbox. Choose Instant, Hourly bundle, Daily digest or Off for each in Settings › Account › Email (mentions now come as an hourly bundle by default). Nothing is emailed that you already saw in the app or got as a push, at most 3 of these emails a day, and every one has an Email me less link.",
+      "body": "- **Choose how often**, separately for **Mentions** and **Sign-off requests**: **Instant**, **Hourly bundle** (\"You were mentioned in 4 pages\", each page with who and the line), **Daily digest** (8:00 your time) or **Off**. Mentions default to the hourly bundle, sign-off requests to Instant. If you'd turned mention emails off, both start as Off.\n- **The app comes first**: no email about something you read in the app, saw on the bell while Markdrop was open, or got as a push notification or Slack message. If you've used Markdrop in the last half hour, an instant email waits up to 30 minutes (10 for a sign-off request) for you to see it there.\n- **At most 3 a day**, in your time zone. Anything more waits for one catch-up email the next morning; nothing is lost. A sign-off request may be a fourth, once a day.\n- **Email me less** at the bottom of every one: one step down (Instant → Hourly bundle → Daily digest → Off), no sign-in needed. **Turn off these emails** still turns them all off.\n- **API**: `PATCH /api/v1/me/preferences` takes `email_notify` (`mention`, `signoff_requested`) and `tz`; `/api/v1/auth/me` returns `email_notify`. See [Mentions and notifications](/pages/mentions-and-notifications#email).",
+      "docs": [
+        "/pages/mentions-and-notifications"
+      ]
+    },
+    {
       "id": "organize-meetings-background",
       "date": "2026-11-05",
       "title": "Organize meetings no longer times out, and shows what it will do",
