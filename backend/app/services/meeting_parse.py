@@ -97,7 +97,10 @@ class Source:
     date: str | None = None
     time: str | None = None
     duration_s: int | None = None
-    attendees: list[dict] = field(default_factory=list)
+    attendees: list[dict] = field(default_factory=list)   # who joined (see people_lists / _with_speakers)
+    invited: list[dict] = field(default_factory=list)     # the calendar invite (Gemini's "Invited"), joined or not
+    listed: list[dict] = field(default_factory=list)      # an "Attendees" line's people, as written
+    attendees_from: str = "none"       # attendees | speakers | none
     organizer: dict | None = None      # {name, email} where the text says who organized the call
     segments: list[dict] = field(default_factory=list)
     notes: dict | None = None
@@ -117,6 +120,7 @@ class Source:
         return {"name": self.name, "kind": self.kind, "format": self.format, "title": self.title,
                 "date": self.date, "time": self.time, "duration_s": self.duration_s,
                 "attendees": [a["name"] for a in self.attendees], "speakers": self.speakers,
+                "invited": [a["name"] for a in self.invited], "attendees_from": self.attendees_from,
                 "organizer": (self.organizer or {}).get("name"),
                 "segments": len(self.segments), "has_notes": bool(self.notes), "truncated": self.truncated,
                 "approx_times": self.approx_times}
@@ -787,23 +791,188 @@ def organizer_in(text: str) -> dict | None:
     return None
 
 
-def _attendees_from(lines: list[str]) -> list[dict]:
-    """The names on an "Attendees" / "Invited" / "Participants" line (or the line under it)."""
+# ── Who was there (owner, 2026-11-06) ────────────────────────────────────────
+# Google's Gemini notes start with "Invited <chips>": everyone on the calendar invite, joined or not (a
+# daily sync-up showed "27 people" for 12). A Meet transcript Doc's "Attendees" line is who joined, and
+# the transcript's speakers joined too. So a meeting's attendees are an Attendees list when a source has
+# one (plus speakers it doesn't name), else its speakers; the invite list is kept apart as ``invited``.
+# A label's value is taken only when it reads as a list of names: never the paragraph after it.
+_PEOPLE_LABEL = re.compile(
+    r"^(?:#+\s*)?(?:[-*•]\s+)?(?:\*\*|__)?(?P<label>attendees|attendee|participants|present|invited|invitees|guests)"
+    r"(?:\*\*|__)?(?:\s*:\s*|\s+|$)(?P<rest>.*)$", re.I)
+_JOINED = frozenset(("attendees", "attendee", "participants", "present"))
+_STOP = frozenset("""
+the a an to of for with and or but is are was were be been being has have had do does did done this that these
+those it its we our us they their them he she his her him you your i me my on in at by from about into over under
+as if then than so not no yes also just all any each every some discussed agreed reviewed decided shared talked
+noted mentioned asked said says meeting meetings team call update updates project plan should would could need needs
+going will following following: today tomorrow yesterday week next last regarding including during after before
+""".split()) - {"will"}
+_MORE = re.compile(r"^(?:and\s+)?(?:\+\s*)?\d+\s+(?:more|others?|other people|guests?)$", re.I)
+
+
+def name_like(name: str | None) -> bool:
+    """A person's name, not words: 1-5 words, no sentence punctuation at the end, none of the little
+    words sentences are made of ("discussed the plan" is not a name; "Saurabh Kr. Singh",
+    "Rahul bhai", "anand.k" are)."""
+    n = (name or "").strip()
+    if not n or len(n) > 50 or "http" in n.lower() or not any(ch.isalpha() for ch in n):
+        return False
+    words = n.split()
+    if len(words) > 5 or n.endswith(("?", "!", ":", ";")) or (n.endswith(".") and len(words[-1]) > 3):
+        return False
+    if sum(ch.isdigit() for ch in n) > 2:
+        return False
+    low = [re.sub(r"[^\w]+", "", w).casefold() for w in words]
+    if low[0] in _NOT_NAMES or n.casefold() in _NOT_NAMES:
+        return False
+    return not any(w in _STOP for w in low if w)
+
+
+def _covers(a: str, b: str) -> bool:
+    """One name is the other, or the start of it ("Gautam" / "Gautam Kumar")."""
+    x, y = clean_name(a).casefold().split(), clean_name(b).casefold().split()
+    if not x or not y:
+        return False
+    k = min(len(x), len(y))
+    return x[:k] == y[:k]
+
+
+def _split_glued(text: str, known: list[str]) -> list[dict] | None:
+    """Names run together with nothing between them ("Gautam Kumar Ishaan Gupta Shreya Rao", people chips
+    exported without their addresses): split at the known names (the transcript's speakers, 2+ words);
+    the words between two known names are a name of their own when they read as one (1-3 words).
+    None when no known name is in it (it can't be told apart)."""
+    words = text.split()
+    names = sorted({" ".join(k.split()) for k in known if len(k.split()) >= 2}, key=lambda k: -len(k.split()))
     out: list[dict] = []
-    for i, raw in enumerate(lines[:60]):
+    buf: list[str] = []
+    hit = False
+
+    def flush() -> bool:
+        if not buf:
+            return True
+        chunk = " ".join(buf)
+        buf.clear()
+        if len(chunk.split()) > 3 or not name_like(chunk):
+            return False
+        out.append({"name": clean_name(chunk), "email": None})
+        return True
+
+    i = 0
+    while i < len(words):
+        for k in names:
+            n = len(k.split())
+            if " ".join(words[i:i + n]).casefold() == k.casefold():
+                if not flush():
+                    return None
+                out.append({"name": k, "email": None})
+                i += n
+                hit = True
+                break
+        else:
+            buf.append(words[i])
+            i += 1
+    if not flush() or not hit:
+        return None
+    return out
+
+
+def names_list(text: str | None, known: list[str] | None = None) -> list[dict] | None:
+    """The people in ``text`` when it is a list of people ("A, B and C", chips one after another,
+    "Name <email>"…), else None: a sentence, a paragraph, a heading. "+3 more" is skipped."""
+    t = (text or "").strip()
+    if not t or len(t) > 8000:
+        return None
+    items: list[dict | None] = []
+
+    def hold(raw: str) -> str:
+        items.append(person_of(raw))
+        return f",\x00{len(items) - 1}\x00,"
+
+    rest = _MD_LINK.sub(lambda m: hold(m.group(0)), t)
+    rest = _ANGLE.sub(lambda m: hold(m.group(0)), rest)
+    out: list[dict] = []
+    for part in re.split(r"[,;|]|\s+and\s+|\s+&\s+|\s{3,}|\t", rest):
+        part = part.strip()
+        if not part:
+            continue
+        held = re.fullmatch(r"\x00(\d+)\x00", part)
+        if held:
+            p = items[int(held.group(1))]
+            if p is None or not (name_like(p["name"]) or p.get("email")):
+                return None
+            out.append(p)
+            continue
+        if _MORE.match(part):
+            continue
+        p = person_of(part)
+        if p is None:
+            continue
+        if len(p["name"].split()) > 3 and not p.get("email"):
+            glued = _split_glued(p["name"], known or [])
+            if glued is None:
+                return None
+            out.extend(glued)
+            continue
+        if not name_like(p["name"]):
+            return None
+        out.append(p)
+    return dedupe_people(out)[:200] or None
+
+
+def people_lists(lines: list[str], known: list[str] | None = None) -> tuple[list[dict], list[dict]]:
+    """(attendees, invited) as a document lists them: an "Attendees" / "Participants" / "Present" line
+    (who joined) and an "Invited" / "Guests" line (the calendar invite), each with its names on the
+    line or, for a label alone, on the lines right under it (one line of names, or a bulleted list).
+    A value that isn't a list of names (a paragraph, a heading) is not taken."""
+    joined: list[dict] = []
+    invited: list[dict] = []
+    for i, raw in enumerate(lines[:80]):
         line = _clean_line(raw).strip()
-        m = re.match(r"^(?:#+\s*)?(attendees|invited|participants|present)\s*:?\s*(.*)$", line, re.I)
+        m = _PEOPLE_LABEL.match(line)
         if not m:
             continue
-        rest = m.group(2).strip()
-        if not rest and i + 1 < len(lines):
-            rest = _clean_line(lines[i + 1]).strip()
-        for p in people_in(rest):
-            if _plausible_name(p["name"]) and not any(a["name"] == p["name"] for a in out):
-                out.append(p)
-        if out:
-            break
-    return out[:100]
+        label, rest = m.group("label").casefold(), m.group("rest").strip()
+        got: list[dict] | None = None
+        if rest:
+            got = names_list(rest, known)
+        else:
+            j = i + 1
+            while j < len(lines) and j <= i + 2 and not _clean_line(lines[j]).strip():
+                j += 1
+            bullets: list[dict] = []
+            k = j
+            while k < len(lines) and _BULLET.match(_clean_line(lines[k])):
+                p = names_list(_strip_bullet(_clean_line(lines[k])), known)
+                if p is None or len(p) != 1:
+                    bullets = []
+                    break
+                bullets.extend(p)
+                k += 1
+            if bullets:
+                got = dedupe_people(bullets)
+            elif j < len(lines) and not _HEADING.match(_clean_line(lines[j]).strip()):
+                got = names_list(_clean_line(lines[j]).strip(), known)
+        if not got:
+            continue
+        target = joined if label in _JOINED else invited
+        if not target:
+            target.extend(got)
+    return joined[:200], invited[:200]
+
+
+def _with_speakers(listed: list[dict], speakers: list[str], invited: list[dict]) -> list[dict]:
+    """``listed`` and each speaker it doesn't name already; a speaker the invite names fuller
+    ("Gautam" → "Gautam Kumar <gautam@…>") takes that name and address (members match by address)."""
+    out = [dict(p) for p in listed]
+    for sp in speakers:
+        sp = clean_name(sp)
+        if not sp or any(_covers(sp, p["name"]) for p in out):
+            continue
+        inv = [p for p in invited if _covers(sp, p["name"])]
+        out.append(dict(inv[0]) if len(inv) == 1 else {"name": sp, "email": None})
+    return dedupe_people(out)
 
 
 # ── Detection ─────────────────────────────────────────────────────────────────
@@ -923,12 +1092,16 @@ def parse_source(name: str, text: str) -> Source:
         d, t = find_date(src.name)
     src.date, src.time = d, t
     src.organizer = organizer_in(text)
-    att = _attendees_from(all_lines)
-    for sp in src.speakers:
-        sp = clean_name(sp)
-        if sp and not any(a["name"].casefold() == sp.casefold() for a in att):
-            att.append({"name": sp, "email": None})
-    src.attendees = dedupe_people(att)[:100]
+    speakers = [clean_name(sp) for sp in src.speakers]
+    listed: list[dict] = []
+    invited: list[dict] = []
+    for _t, ls in tabs:
+        j, inv = people_lists(ls, speakers)
+        listed = listed or j
+        invited = invited or inv
+    src.listed, src.invited = listed, invited
+    src.attendees = _with_speakers(listed, speakers, invited)[:100]
+    src.attendees_from = "attendees" if listed else "speakers" if src.attendees else "none"
     return src
 
 
@@ -974,6 +1147,8 @@ class Merged:
     kinds: list[str]
     approx_times: bool
     truncated: bool
+    invited: list[dict] = field(default_factory=list)
+    attendees_from: str = "none"       # attendees | speakers | invited | none
 
 
 def merge(group: list[Source]) -> Merged:
@@ -984,11 +1159,27 @@ def merge(group: list[Source]) -> Merged:
     d = next((s.date for s in group if s.date), None)
     tm = next((s.time for s in group if s.time), None)
     dur = next((s.duration_s for s in group if s.duration_s), None)
-    att = dedupe_people([a for s in group for a in s.attendees])
+    att, invited, how = people_of_group(group)
     return Merged(title=title, date=d, time=tm, duration_s=dur, attendees=att[:100],
                   segments=tr.segments if tr else [], notes=nt.notes if nt else None,
                   kinds=[s.kind for s in group], approx_times=bool(tr and tr.approx_times),
-                  truncated=any(s.truncated for s in group))
+                  truncated=any(s.truncated for s in group), invited=invited[:200], attendees_from=how)
+
+
+def people_of_group(group: list[Source]) -> tuple[list[dict], list[dict], str]:
+    """(attendees, invited, attendees_from) of one meeting's sources: every "Attendees" list and the
+    speakers they don't name ("attendees"); else the speakers ("speakers"); else nobody, with the
+    invite list as the only names ("invited"), or none at all ("none")."""
+    invited = dedupe_people([a for s in group for a in s.invited])
+    listed = dedupe_people([a for s in group for a in s.listed])
+    speakers: list[str] = []
+    for s in group:
+        for sp in s.speakers:
+            if sp not in speakers:
+                speakers.append(sp)
+    att = _with_speakers(listed, speakers, invited)
+    how = "attendees" if listed else "speakers" if att else "invited" if invited else "none"
+    return att, invited, how
 
 
 # ── .docx and Google Docs → text ──────────────────────────────────────────────
@@ -1113,7 +1304,8 @@ def summary_of(sources: list[Source]) -> list[dict[str, Any]]:
     for g in pair(sources):
         m = merge(g)
         out.append({"title": m.title, "date": m.date, "time": m.time, "duration_s": m.duration_s,
-                    "attendees": [a["name"] for a in m.attendees], "segments": len(m.segments),
+                    "attendees": [a["name"] for a in m.attendees], "invited": [a["name"] for a in m.invited],
+                    "attendees_from": m.attendees_from, "segments": len(m.segments),
                     "has_notes": bool(m.notes), "kinds": m.kinds, "sources": [s.describe() for s in g],
                     "truncated": m.truncated})
     return out
