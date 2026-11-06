@@ -412,13 +412,23 @@ def _excerpt(c: search.Cand, row: dict | None, terms: search.Terms, *, chars: in
         return ""
     x = row.get("x") or ""
     sn = search.snippet(x, terms.marks, terms.prefixes, width=chars) if terms.tokens else None
-    text = sn["text"] if sn else x[:chars]
+    text = _lines_of(x, sn["text"]) if sn else x[:chars]
     # Section names help a long document; a meeting's are always the same (Decisions, Action items…).
     # Rows indexed before the front-matter fix may carry "icon: … props: {…}" as a heading: skipped.
     heads = [h.get("t") for h in (row.get("hd") or [])[:8] if h.get("t") and not _FRONT_HEAD.search(h["t"])]
     if heads and sections:
         text = "Sections: " + " · ".join(heads) + "\n" + text
     return re.sub(r"\s#\d{1,5}\b", "", text)       # the meeting page's "#12" transcript links
+
+
+def _lines_of(x: str, flat: str) -> str:
+    """The snippet (one line, for the results list) with its line breaks back: a to-do list read as one
+    run-on line ("…alert @Himanshu Kukreja Release notes…") loses whose item is whose."""
+    core = flat.removeprefix("…").removesuffix("…")
+    at = x.replace("\n", " ").find(core)
+    if at < 0 or not core:
+        return flat
+    return ("…" if flat.startswith("…") else "") + x[at:at + len(core)] + ("…" if flat.endswith("…") else "")
 
 
 def excerpt_terms(question: str, terms: list[str] | None = None) -> search.Terms:
