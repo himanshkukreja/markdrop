@@ -120,6 +120,21 @@ class AppFirst(Calm):
         self.assertEqual(self.sent, [])
         self.assertEqual([r["email"] for r in await self.notes("wm")], ["pushed", "slack"])
 
+    async def test_only_a_delivered_slack_dm_counts_as_slack(self):
+        # Slack DMs are opt-in (slack-dm-optin): one skipped because the person never turned them on, or
+        # turned them off, or that failed, is no reason to hold back the email.
+        await self.modes("wm")
+        await self.mention("wm")
+        await self.mention("wm")
+        ra, rb = await self.notes("wm")
+        await self.db[slack_notify.OUTBOX].insert_many([
+            {"user_id": self.uid["wm"], "kind": "mention", "ref": str(ra["_id"]), "state": "skipped", "error": "off",
+             "created_at": now()},
+            {"user_id": self.uid["wm"], "kind": "mention", "ref": str(rb["_id"]), "state": "failed", "error": "x",
+             "created_at": now()}])
+        self.assertEqual(await self.flush(2), {"sent": 2})
+        self.assertEqual([r["email"] for r in await self.notes("wm")], ["sent", "sent"])
+
     async def test_a_push_on_its_way_holds_the_email_then_failing_it_sends(self):
         await self.modes("wm")
         await self.mention("wm")
