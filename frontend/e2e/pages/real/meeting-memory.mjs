@@ -293,6 +293,7 @@ await step("phone", async () => {
   const bb = await btn.boundingBox();
   if (!bb || bb.width < 44 || bb.height < 44) fail(`the toolbar's button is ${bb?.width}x${bb?.height}`);
   await p.waitForFunction(() => Number(document.querySelector(".pb-phonebar__count")?.textContent || 0) > 0, null, { timeout: 20000 });
+  await shot(p, "mm10a-phone-toolbar");
   await btn.click();
   await panel(p).waitFor({ timeout: 5000 });
   await factOf(p, "ship the checkout redesign").waitFor({ timeout: 10000 });
