@@ -16,12 +16,33 @@ settings = get_settings()
 _ALGO = "HS256"
 
 
-def create_access_token(user_id: str, email: str) -> tuple[str, datetime]:
-    """Return (signed JWT, expiry datetime) for a user session."""
-    exp = datetime.now(timezone.utc) + timedelta(hours=settings.access_token_ttl_hours)
-    payload = {"sub": user_id, "email": email, "typ": "access", "exp": exp}
+def create_access_token(user_id: str, email: str, *, via: str | None = None) -> tuple[str, datetime]:
+    """Return (signed JWT, expiry datetime) for a user session.
+
+    `iat` says when the person signed in (the admin console asks for a recent one). `via` marks a
+    session handed to another of our hosts rather than signed into here: "studio" for Markdrop
+    Guides' studio host (routers/auth.mint_studio_token). It is a full session everywhere except the
+    admin console, which takes only sessions signed in on markdrop.in itself.
+    """
+    now = datetime.now(timezone.utc)
+    exp = now + timedelta(hours=settings.access_token_ttl_hours)
+    payload = {"sub": user_id, "email": email, "typ": "access", "iat": now, "exp": exp}
+    if via:
+        payload["via"] = via
     token = jwt.encode(payload, settings.auth_secret, algorithm=_ALGO)
     return token, exp
+
+
+def session_issued_at(payload: dict) -> datetime | None:
+    """When a decoded session was signed in: its `iat`, or (sessions made before `iat` was added)
+    its expiry less the session lifetime."""
+    iat = payload.get("iat")
+    if isinstance(iat, (int, float)):
+        return datetime.fromtimestamp(iat, timezone.utc)
+    exp = payload.get("exp")
+    if isinstance(exp, (int, float)):
+        return datetime.fromtimestamp(exp, timezone.utc) - timedelta(hours=settings.access_token_ttl_hours)
+    return None
 
 
 # A tenant token lasts hours, not weeks. It exists to carry one reader across

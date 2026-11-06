@@ -45,10 +45,18 @@ class Settings(BaseSettings):
     # Public URL of this backend API — used to build the email magic-link.
     api_base_url: str = "http://localhost:8080"
 
-    # Admin panel — override ALL THREE in production .env
-    admin_username: str = "admin"
-    admin_password: str = "changeme"
-    admin_secret: str = "change-this-jwt-secret-in-production"  # JWT signing key
+    # Admin console (/admin, routers/admin.require_admin). Who may open it: the signed-in Markdrop
+    # accounts whose email is listed here (comma-separated, case-insensitive, exact match). There is
+    # no admin username or password: the owner's own Markdrop session is the credential (2026-11-06).
+    admin_emails: str = "kukreja.him@gmail.com"
+    # An admin request needs a session signed in within this many days (the app's sessions last
+    # 30); an older one is asked to sign in again. 0 turns the check off.
+    admin_session_max_age_days: int = 7
+    # Retired with the admin password form (2026-11-06). Kept only so an existing .env that still
+    # sets MARKDROP_ADMIN_USERNAME / _PASSWORD / _SECRET keeps loading; nothing reads them.
+    admin_username: str = ""
+    admin_password: str = ""
+    admin_secret: str = ""
 
     # ── User authentication (optional login) ──────────────────────────────────
     # JWT signing key for USER sessions (separate from admin_secret). Override!
@@ -351,6 +359,11 @@ class Settings(BaseSettings):
         if origin and origin not in self.cors_origins:
             self.cors_origins = [*self.cors_origins, origin]
         return self
+
+    @property
+    def admin_email_set(self) -> frozenset[str]:
+        """MARKDROP_ADMIN_EMAILS as lowercase addresses (blank entries dropped)."""
+        return frozenset(e.strip().lower() for e in self.admin_emails.split(",") if e.strip())
 
     @property
     def posthog_configured(self) -> bool:
