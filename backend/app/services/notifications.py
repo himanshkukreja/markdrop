@@ -34,8 +34,19 @@ per page, batching every pending row for that page, once the newest has waited
 ``GATHER`` and no email went to that person about that page in the last 10
 minutes (``notification_email_log``, one row per person+page, claimed
 atomically). At send time it checks again: access, the preference, the
-suppression list, and whether the row was read in the app meanwhile (then no
-email: ``email: "seen"``).
+suppression list, whether the row was read in the app meanwhile (then no
+email: ``email: "seen"``) and whether the mention is still on the page (else
+``email: "withdrawn"``).
+
+Mistaken mentions (owner, 2026-11-06): a save that takes a mention out
+(:func:`removed_mentions`) withdraws that person's *unread* notifications for
+that page (:func:`withdraw`): the bell entry goes and a pending email, push or
+Slack message is dropped. Push and Slack messages about mentions and sign-off
+requests wait a minute too (services/push.py ``SLOW_GATHER``,
+services/slack_notify.py), so a mention fixed within a minute never reaches
+anyone. A read row stays; one already delivered leaves a tombstone
+(``notification_withdrawn``) so putting the mention back the same day doesn't
+ring twice.
 """
 
 from __future__ import annotations
@@ -64,6 +75,7 @@ log = logging.getLogger(__name__)
 
 COLL = "notifications"
 EMAIL_LOG = "notification_email_log"
+WITHDRAWN = "notification_withdrawn"   # delivered-then-withdrawn rows, for the 24-hour dedupe
 KINDS = ("mention", "signoff_requested", "shared")
 EMAIL_KINDS = ("mention", "signoff_requested")
 DEDUPE = timedelta(hours=24)
@@ -96,6 +108,8 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("email", 1), ("created_at", 1)])
     await db[COLL].create_index("created_at", expireAfterSeconds=KEEP_DAYS * 24 * 3600)
     await db[EMAIL_LOG].create_index("sent_at", expireAfterSeconds=24 * 3600)
+    await db[WITHDRAWN].create_index([("user_id", 1), ("kind", 1), ("doc_id", 1), ("block_id", 1)])
+    await db[WITHDRAWN].create_index("created_at", expireAfterSeconds=int(DEDUPE.total_seconds()))
 
 
 # ── Who ───────────────────────────────────────────────────────────────────────
@@ -206,8 +220,9 @@ async def notify(db: AsyncIOMotorDatabase, user_id: str, kind: str, doc: Any, bl
     doc_id = str(raw["_id"])
     now = _now()
     if kind != "shared":
-        dup = await db[COLL].find_one({"user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": block,
-                                       "created_at": {"$gt": now - DEDUPE}}, {"_id": 1})
+        same = {"user_id": user_id, "kind": kind, "doc_id": doc_id, "block_id": block,
+                "created_at": {"$gt": now - DEDUPE}}
+        dup = await db[COLL].find_one(same, {"_id": 1}) or await db[WITHDRAWN].find_one(same, {"_id": 1})
         if dup is not None:
             return None
     if actor_name is None:
@@ -347,6 +362,80 @@ def new_mentions(before: str | None, after: str | None) -> list[dict]:
     return out
 
 
+def removed_mentions(before: str | None, after: str | None) -> list[dict]:
+    """:func:`new_mentions`' counterpart: the mentions in ``before`` that ``after`` took away, one per
+    (kind, person, block): the person is named fewer times now, and fewer times at that block (a
+    mention that only moved, or whose block got an anchor, isn't removed). ``gone`` is True when the
+    person isn't named on the page at all any more (then every block of theirs counts)."""
+    from collections import Counter
+
+    old, new = mentions(before), mentions(after)
+    if not old:
+        return []
+    per_old = Counter((m["kind"], m["user"]) for m in old)
+    per_new = Counter((m["kind"], m["user"]) for m in new)
+    at_old = Counter((m["kind"], m["user"], m["block"]) for m in old)
+    at_new = Counter((m["kind"], m["user"], m["block"]) for m in new)
+    out, seen = [], set()
+    for m in old:
+        key = (m["kind"], m["user"], m["block"])
+        if key in seen or per_new[key[:2]] >= per_old[key[:2]] or (per_new[key[:2]] and at_new[key] >= at_old[key]):
+            continue
+        seen.add(key)
+        out.append({"kind": m["kind"], "user": m["user"], "block": m["block"], "gone": not per_new[key[:2]]})
+    return out
+
+
+def named_on(markdown: str | None) -> set[tuple[str, str]]:
+    """``(kind, person)`` for every mention and sign-off request on the page now: what a pending
+    email or push re-checks at send time (a mention taken out meanwhile is "withdrawn")."""
+    return {(m["kind"], m["user"]) for m in mentions(markdown)}
+
+
+def still_there(row: dict, named: set[tuple[str, str]]) -> bool:
+    """A mention / sign-off request still on the page (``named``: :func:`named_on` of its content).
+    Other kinds (a share) always are."""
+    return row.get("kind") not in EMAIL_KINDS or (row["kind"], row.get("user_id")) in named
+
+
+async def withdraw(db: AsyncIOMotorDatabase, doc_id: str, removed: list[dict]) -> int:
+    """A save took these mentions out (:func:`removed_mentions`): their *unread* notifications for this
+    page go. The bell entry is removed and a pending email, push or Slack message is dropped (outcome
+    "withdrawn"); an email or push already delivered can't be recalled, but a row delivered somewhere
+    leaves a tombstone so putting the mention back within a day doesn't ring again. A read row stays.
+    Returns how many rows went. Never raises."""
+    from app.services import push, slack_notify
+
+    try:
+        ids: list = []
+        for m in removed[:MAX_PER_SAVE]:
+            q: dict = {"user_id": m["user"], "kind": m["kind"], "doc_id": str(doc_id), "read_at": None}
+            if not m.get("gone"):
+                q["block_id"] = m["block"]
+            ids += [r["_id"] async for r in db[COLL].find(q, {"_id": 1})]
+        if not ids:
+            return 0
+        rows = await db[COLL].find({"_id": {"$in": ids}}).to_list(length=len(ids))
+        refs = [str(i) for i in ids]
+        delivered = {r["ref"] async for r in db[push.OUTBOX].find({"ref": {"$in": refs}, "state": "sent"}, {"ref": 1})}
+        delivered |= {r["ref"] async for r in db[slack_notify.OUTBOX].find({"ref": {"$in": refs}, "state": "sent"},
+                                                                         {"ref": 1})}
+        stones = [{k: r.get(k) for k in ("user_id", "kind", "doc_id", "block_id", "created_at")}
+                  | {"withdrawn_at": _now()}
+                  for r in rows if r.get("email") == "sent" or str(r["_id"]) in delivered]
+        if stones:
+            await db[WITHDRAWN].insert_many(stones)
+        res = await db[COLL].delete_many({"_id": {"$in": ids}, "read_at": None})
+        await db[push.OUTBOX].update_many({"ref": {"$in": refs}, "state": "pending"},
+                                          {"$set": {"state": "skipped", "outcome": "withdrawn", "done_at": _now()}})
+        await db[slack_notify.OUTBOX].update_many({"ref": {"$in": refs}, "state": "pending"},
+                                                  {"$set": {"state": "skipped", "error": "withdrawn", "done_at": _now()}})
+        return res.deleted_count
+    except Exception:
+        log.warning("notifications: withdrawing on %s failed", doc_id, exc_info=True)
+        return 0
+
+
 async def _excerpt_for(db: AsyncIOMotorDatabase, user_id: str, page: dict, line: str | None) -> str | None:
     """The mention's line as this recipient may read it: other people's names
     emptied outside the page's circle, and the labels of items they can't open
@@ -387,9 +476,16 @@ def is_quiet() -> bool:
 
 
 async def on_page_saved(db: AsyncIOMotorDatabase, before: dict | None, after: dict | None, actor: Any) -> int:
-    """After a write of a page: notify each person newly mentioned (or newly
-    named on a sign-off block). Returns how many were notified. Never raises.
-    Nobody is notified inside :func:`quiet`."""
+    """After a write of a page: withdraw what the save took out (:func:`withdraw`, even inside
+    :func:`quiet`), then notify each person newly mentioned (or newly named on a sign-off block).
+    Returns how many were notified. Never raises. Nobody is notified inside :func:`quiet`."""
+    try:
+        if before and after and "content" in after and after.get("kind") != "artifact":
+            gone = removed_mentions(before.get("content"), after.get("content"))
+            if gone:
+                await withdraw(db, str(after["_id"]), gone)
+    except Exception:
+        log.warning("notifications: withdrawing failed", exc_info=True)
     if _quiet.get():
         return 0
     try:
@@ -696,9 +792,19 @@ async def flush_emails(db: AsyncIOMotorDatabase, now: datetime | None = None) ->
             bump("seen", len(seen))
         if not unread:
             continue
+        doc = await db["documents"].find_one({"_id": ObjectId(doc_id)}) if ObjectId.is_valid(doc_id) else None
+        if doc is not None:
+            # Taken out of the page since (a mistaken mention): nothing is sent about it.
+            named = named_on(doc.get("content"))
+            gone = [r["_id"] for r in unread if not still_there(r, named)]
+            if gone:
+                await _mark(db, gone, "withdrawn")
+                bump("withdrawn", len(gone))
+                unread = [r for r in unread if r["_id"] not in gone]
+                if not unread:
+                    continue
         uids = [r["_id"] for r in unread]
         user_row = await _user_row(db, uid)
-        doc = await db["documents"].find_one({"_id": ObjectId(doc_id)}) if ObjectId.is_valid(doc_id) else None
         if not wants_email(user_row):
             await _mark(db, uids, "off")
             bump("off", len(uids))

@@ -12,8 +12,10 @@ Meeting posts
 Direct messages (``slack_outbox``)
     notifications.notify() (mentions, sign-off requests, shares) and access_requests.create()
     queue one row per linked recipient whose preference allows the kind; :func:`flush` (a
-    background loop) sends them, checking again at send time that the person may open the page.
-    Bell and email are unaffected.
+    background loop) sends them, checking again at send time that the person may open the page
+    and, for a mention or sign-off request, that it's still on the page. Those two wait
+    :data:`SLOW_WAIT` first (owner, 2026-11-06): a mention taken out again within a minute
+    (notifications.withdraw) never reaches anyone. Bell and email are unaffected.
 """
 
 from __future__ import annotations
@@ -38,6 +40,8 @@ POSTS = "slack_posts"
 OUTBOX = "slack_outbox"
 MAX_ATTEMPTS = 5
 STUCK = timedelta(minutes=5)
+SLOW_WAIT = timedelta(seconds=60)          # mentions and sign-off requests (push.SLOW_GATHER)
+SLOW_KINDS = ("mention", "signoff_requested")
 
 
 def _now() -> datetime:
@@ -309,8 +313,9 @@ async def _queue(db: AsyncIOMotorDatabase, user_id: str, kind: str, ref: str) ->
     if not slack.prefs_of(urow).get(kind):
         return 0
     now = _now()
+    at = now + SLOW_WAIT if kind in SLOW_KINDS else now
     rows = [{"user_id": user_id, "team_id": ln["team_id"], "slack_user_id": ln["slack_user_id"], "kind": kind,
-             "ref": ref, "state": "pending", "attempts": 0, "next_at": now, "created_at": now} for ln in links]
+             "ref": ref, "state": "pending", "attempts": 0, "next_at": at, "created_at": now} for ln in links]
     await db[OUTBOX].insert_many(rows)
     return len(rows)
 
@@ -404,6 +409,8 @@ async def _notification_message(db: AsyncIOMotorDatabase, inst: dict, row: dict,
     # Checked again now: they may have lost access since the notification was made.
     if raw is None or raw.get("encrypted") or not await notifications.can_open(db, urow, raw):
         return None
+    if not notifications.still_there(n, notifications.named_on(raw.get("content"))):
+        return None   # the mention was taken out of the page since
     title = md_outline.display_title(raw)
     url = urls.markdrop_url(raw["slug"])
     extra = n.get("extra") or {}
