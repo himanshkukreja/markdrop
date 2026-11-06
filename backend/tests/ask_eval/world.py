@@ -414,5 +414,76 @@ Ask Markdrop answers from everything you can open. Press Cmd J to open it.
     if noise:
         for i, (key, title, body) in enumerate(NOISE_DOCS):
             await doc(key, ("aarav", "priya", "rohan", "sneha")[i % 4], title, body, created_ago=20 + i, updated_ago=15 + i)
+    await seed_coverage(w, ids, imp)
     await search_index.drain()
     return ids
+
+
+# ── Whole-length coverage (feat/ask-coverage): a long transcript, Office files, a captioned video ──
+
+VENDOR_LINE = ("Aarav Mehta: Last thing on Zephyr: the data contract renews on March 3, and we agreed to cap it at "
+               "forty thousand dollars a year.")
+REFUND_RULE = "Refunds over 500 dollars need a second approver from finance, currently Rohan Gupta."
+CHURN_NOTE = "Churn fell to 2.1 percent in October, down from 3.4 percent in July."
+VIDEO_CUE = "The export button is hidden in the three-dot menu on the table header; click it and choose CSV."
+OFFER_SECRET = "Joining bonus for the L5 offer: 3 lakh rupees, paid after 90 days."
+
+
+async def seed_coverage(w, ids: dict, imp) -> None:
+    """A 90-minute vendor review (the answer at minute 70), a Word spec, a PowerPoint deck, an Excel
+    budget, a video with captions, and a private Word file of Sneha's. Seeded with the baseline's own
+    means only (import, documents rows, R2 objects), so the same world runs on origin/main."""
+    from tests.ask_eval import fixtures as F
+
+    from app.services import search_index
+
+    now = datetime.now(timezone.utc)
+    vtt = F.long_vtt(90, at_min=70, line=VENDOR_LINE.split(": ", 1)[1])
+    vtt = vtt.replace("<v Kabir Singh>", "<v Aarav Mehta>")
+    got = await imp("Vendor review", D(3), vtt, False, name="Vendor review.vtt")
+    ids["meetings"]["vendor"] = got
+
+    async def file(key: str, owner: str, title: str, data: bytes, mime: str, filename: str, *, state: str = "W",
+                   updated_ago: int = 2, **extra) -> dict:
+        d = await w.mkdoc(state, owner=owner, ws="ACME", kind="artifact", slug=key, title=title, grants=False,
+                          created_at=now - timedelta(days=updated_ago + 1), updated_at=now - timedelta(days=updated_ago))
+        w.r2.put_bytes(d["blob_key"], data, mime, False)
+        await w.db["documents"].update_one({"_id": d["_id"]}, {"$set": {"mime": mime, "size_bytes": len(data),
+                                                                          "original_filename": filename, **extra}})
+        await search_index.index_doc(w.db, d["_id"])
+        ids["docs"][key] = d
+        return d
+
+    await file("payments-spec", "rohan", "Payments API spec", F.make_docx([
+        ("Title", "Payments API spec"), (None, "This spec covers charges, payouts and refunds."),
+        ("Heading1", "Charges"), (None, "Charges are created with an idempotency key and settle in two days."),
+        ("Heading1", "Refunds"), (None, REFUND_RULE), (None, "Partial refunds are allowed once per charge."),
+        ("Heading1", "Webhooks"), (None, "Every event is signed with the workspace secret.")]),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "payments-spec.docx")
+    await file("board-deck", "aarav", "Q4 board deck", F.make_pptx([
+        ("Q4 board update", "Thank everyone for joining."), ("Revenue", "ARR grew 18 percent quarter on quarter."),
+        ("Hiring", "Four engineers joined this quarter."), ("Retention", CHURN_NOTE),
+        ("Next quarter", "Focus on the Slack app and enterprise SSO.")]),
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation", "q4-board.pptx")
+    await file("infra-budget", "aarav", "Infra budget 2027", F.make_xlsx({
+        "Summary": [["Area", "Annual USD"], ["Cloud", "64000"], ["Tools", "9000"]],
+        "Cloud": [["Item", "Annual USD", "Owner"], ["Database cluster", "22000", "Rohan"],
+                  ["GPU cluster", "18500", "Aarav"], ["Object storage", "6000", "Rohan"]]}),
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "infra-budget-2027.xlsx")
+    video = await file("walkthrough", "priya", "Onboarding walkthrough", b"\0" * 64, "video/mp4", "walkthrough.mp4")
+    cues = [(5, "Welcome to Markdrop. This walkthrough shows a new workspace."),
+            (95, "First, create a workspace and give it a name."), (250, "Invite your team from Settings, then Members."),
+            (500, VIDEO_CUE), (640, "That's it. Questions go to the support channel.")]
+    key = video["blob_key"].rsplit("/", 1)[0] + "/walkthroughcaps.captions.vtt"
+    w.r2.put_bytes(key, F.vtt(cues).encode(), "text/vtt", False)
+    await w.db["documents"].update_one({"_id": video["_id"]}, {"$set": {"captions_key": key,
+                                                                        "captions_name": "walkthrough.vtt"}})
+    await search_index.index_doc(w.db, video["_id"])
+    await file("offer-template", "sneha", "Offer letter template", F.make_docx([
+        ("Title", "Offer letter template"), (None, OFFER_SECRET)]),
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "offer.docx", state="P")
+    for _ in range(10):
+        n = await search_index.extract_pending(w.db)
+        around = getattr(search_index, "around_pending", None)
+        if not n and not (around and await around(w.db)):
+            break
