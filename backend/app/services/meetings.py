@@ -150,7 +150,9 @@ class People:
                 self.by_first.setdefault(n.split(" ")[0], []).append(m)
             local = (m.get("email") or "").split("@")[0].lower()
             if local:
-                self.by_name.setdefault(_pnorm(local.replace(".", " ").replace("_", " ")), []).append(m)
+                hits = self.by_name.setdefault(_pnorm(local.replace(".", " ").replace("_", " ")), [])
+                if not any(h is m for h in hits):   # priya.nair@… for Priya Nair: one member, not two
+                    hits.append(m)
 
     def match(self, name: str | None, email: str | None = None) -> dict | None:
         if email and email.lower() in self.by_email:

@@ -68,6 +68,15 @@ class Detect(unittest.TestCase):
         self.assertTrue(ask_me.wants_meetings("what did I say in my last sync-up"))
         self.assertTrue(ask_me.wants_work("what have I been working on"))
 
+    def test_a_member_whose_address_is_their_name_still_matches(self):
+        # priya.nair@… for Priya Nair registered her twice under "priya nair": every match by that name
+        # (the import's attendees, speakers, action-item owners, a 1:1's grants) gave up as ambiguous.
+        p = meetings.People([{"id": "u1", "name": "Priya Nair", "email": "priya.nair@acme.test"},
+                             {"id": "u2", "name": "Rohan Gupta", "email": "rohan.g@acme.test"}])
+        for name in ("Priya Nair", "priya.nair", "Priya"):
+            self.assertEqual((p.match(name) or {}).get("id"), "u1", name)
+        self.assertEqual((p.match("rohan.g") or {}).get("id"), "u2")
+
     def test_topical(self):
         row = {"title": "Daily Syncup", "series": "Daily Syncup"}
         q = "what did I tell in my last sync-up discussion"
