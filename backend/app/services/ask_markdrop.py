@@ -528,6 +528,9 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
             attrs["yours"] = my_work[c.key]
         if c.key in signoffs_of:
             attrs["signoffs"] = signoffs_of[c.key]
+        if md and md.get("role") == "transcript" and mrow_ is not None:
+            # A transcript found without its meeting page: cited as "<meeting> · transcript", never "Transcript".
+            item = {**item, "title": attrs["title"]}
         src = Source(n, c, item={**item, "n": n}, text=_excerpt(c, rows.get(c.content_id), terms, chars=chars,
                                                                  sections=not md), attrs=attrs)
         mm = my_meetings.get(str(md.get("meeting_id"))) if md else None

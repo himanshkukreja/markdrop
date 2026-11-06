@@ -183,6 +183,7 @@ class Coverage(AskWorld):
         self.assertRegex(p, r"\[\d+-s\d+\] 1:10:00 Kabir Singh: The Zephyr vendor contract renews")
         moment = next(c for c in done["citations"] if "-s" in c["label"])
         self.assertEqual(moment["at"], "1:10:00")
+        self.assertFalse([c for c in done["citations"] if c["title"] == "Transcript"])   # cited by its meeting
         # The chunked transcript is not re-chunked when nothing changed.
         before = await self.db[search_chunks.COLL].find_one({"p": t["_id"]}, sort=[("n", 1)])
         await search_index.index_doc(self.db, t["_id"])
