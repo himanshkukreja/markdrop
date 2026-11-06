@@ -50,7 +50,9 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
         ? detail
         : Array.isArray(detail)
           ? detail[0]?.msg || "That value isn't valid."
-          : `Request failed (${res.status})`;
+          : typeof detail?.message === "string"
+            ? detail.message
+            : `Request failed (${res.status})`;
     throw new WsApiError(message, res.status);
   }
   return res.status === 204 ? (undefined as T) : res.json();

@@ -700,13 +700,18 @@ function MeetingsSection({ data, today, onAsk }: { data: HomeData | null; today:
           text="Import a transcript or Google Meet notes. Markdrop writes the summary, the decisions and everyone's action items."
           action={importable[0] ? <Button size="sm" variant="secondary" iconLeft="plus" href={`${meetingsHref(importable[0].id)}?import=1`}>Import a meeting</Button> : null} />
       )}
-      {data && (withMeetings.length > 0 || connect) && (
+      {data && (withMeetings.length > 0 || connect || data.meet.connected) && (
         <div className="hm-meet-foot">
           {withMeetings.map((w) => (
             <Anchor key={w.id} href={meetingsHref(w.id)} className="hm-link md-focus" data-testid="home-open-meetings">
               {withMeetings.length > 1 ? <><span className="ph-sensitive ph-mask">{w.name}</span>&nbsp;meetings</> : "Open Meetings"}<Icon name="chevronRight" size={14} />
             </Anchor>
           ))}
+          {data.meet.connected && data.meet.workspace_id && (
+            <Anchor href={`${meetingsHref(data.meet.workspace_id)}?check=1`} className="hm-link hm-link--quiet md-focus" data-testid="home-check-meetings">
+              <Icon name="refresh" size={14} /> Check for new meetings
+            </Anchor>
+          )}
           {connect && (
             <Anchor href={`${meetingsHref(connectWs.id)}?connect=1`} className="hm-link hm-link--quiet md-focus" data-testid="home-connect-meet">
               <Icon name="refresh" size={14} /> Connect Google Meet to bring calls in automatically
