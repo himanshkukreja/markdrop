@@ -899,7 +899,10 @@ def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool
 # ── Who was there (attendees_v 2, owner 2026-11-06) ───────────────────────────
 # attendees: who joined (a transcript's "Attendees" list and its speakers; else the speakers);
 # invited: the calendar invite (Gemini notes' "Invited"), kept apart: not counted, never "attendees".
-ATTENDEES_V = 2
+# attendees_v 3 (2026-11-06): Gemini's next steps ("Gautam Khurana Review Video: Gautam Khurana will …")
+# are never speakers or attendees (meeting_parse.task_owner); repair_attendees fixes the old ones.
+ATTENDEES_V = 3
+ATTENDEES_V2 = 2   # attendees told apart from the invite (recompute_people)
 
 
 def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[dict]:
@@ -918,6 +921,8 @@ def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[
             mem = people.match(p["name"], email)
             uid = mem["id"] if mem else None
         name = p["name"] or (mem or {}).get("name") or ""
+        if mem and mem.get("name") and mp.task_owner(name, None, [mem["name"]]):
+            name = mem["name"]      # "Gautam Khurana Review Video" (a next step's label) is the member
         if not name or not (mp.name_like(name) or uid or email):
             continue
         if any((uid and x.get("user_id") == uid) or (email and x.get("email") == email)
@@ -934,7 +939,7 @@ def people_sets(row: dict, group: list[mp.Source], people: People) -> dict:
     changed Doc sent again) is in, by the same rules as a new import (meeting_parse.people_of_group):
     everyone either side knows joined (an "Attendees" list, a speaker) is an attendee, every invite
     list goes to the invitees, and attendees_from is the better of the two."""
-    if int(row.get("attendees_v") or 0) < ATTENDEES_V:
+    if int(row.get("attendees_v") or 0) < ATTENDEES_V2:
         att, inv, how = recompute_people(row, people)
     else:
         att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
@@ -1554,54 +1559,218 @@ async def count_dirty_names(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
     return out
 
 
-# ── Repair: attendees_v 2 (owner, 2026-11-06) ─────────────────────────────────
+# ── Repair: attendees_v 2 and 3 (owner, 2026-11-06) ───────────────────────────
+# v2: attendees told apart from the invite (recompute_people). v3: Gemini's next steps
+# ("Gautam Khurana Review Video: Gautam Khurana will review the video …") had been read as transcript
+# turns, so "Gautam Khurana Review Video" was a speaker and an attendee (51 of Senseloaf's 166
+# meetings). The fake turns came from the notes Doc: dropped (a meeting with Gemini notes and no real
+# transcript has no transcript any more); elsewhere the owner is the speaker. Attendees follow.
+
+
+def _norm_text(text: str | None) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[*_`#\\]+", " ", str(text or ""))).strip().casefold()
+
+
+def task_known(row: dict, people: People) -> list[str]:
+    """Who a "<Owner> <Task Title>" label can start with: the invite, the members, the attendees whose
+    names read as names (2-3 words, not themselves a task)."""
+    base = [a.get("name") or "" for a in row.get("invited") or []] + [m.get("name") or "" for m in people.members]
+    base = [b for b in base if b]
+    out = list(base)
+    for a in row.get("attendees") or []:
+        n = mp.clean_name(a.get("name"))
+        if 2 <= len(n.split()) <= 3 and mp.name_like(n) and not mp.task_owner(n, None, base):
+            out.append(n)
+    return out
+
+
+def fix_task_segments(row: dict, known: list[str]) -> dict | None:
+    """The meeting's segments without "<Owner> <Task Title>" speakers, or None when it has none:
+    {segments, labels: {fake label: owner or None}, dropped: n, notes_only: bool}.
+
+    With Gemini notes among its sources the fake turns (and every other line of the notes read as
+    turns: their text is in the notes kept) came from the notes Doc: dropped. Nothing real left (no
+    speaker): no transcript at all. Elsewhere the owner is the speaker."""
+    segs = list(row.get("segments") or [])
+    labels: dict[str, str | None] = {}
+    for s in segs:
+        sp = s.get("speaker")
+        if not sp or sp in labels:
+            continue
+        owner = mp.task_owner(sp, s.get("text"), known)
+        if owner or len(mp.clean_name(sp).split()) > mp.TASK_MAX_WORDS:
+            labels[sp] = owner
+    if not labels:
+        return None
+    gemini = any(s.get("format") == "gemini_notes" for s in row.get("sources") or [])
+    out: list[dict] = segs
+    if gemini:
+        notes = row.get("notes") or {}
+        corpus = _norm_text(" ".join([notes.get("summary") or "", *(notes.get("details") or []),
+                                      *(notes.get("next_steps") or [])]))
+
+        def from_notes(s: dict) -> bool:
+            sp = s.get("speaker")
+            if sp in labels:
+                return True
+            t = _norm_text(s.get("text"))
+            return len(t) >= 15 and t[:60] in corpus
+
+        out = [s for s in segs if not from_notes(s)]
+        if not any(s.get("speaker") for s in out):
+            out = []
+    # Elsewhere: the owner speaks (a label longer than a name with no owner: nobody's words).
+    out = [{**s, "speaker": labels[s["speaker"]]} if s.get("speaker") in labels and labels[s["speaker"]] else
+           {**s, "speaker": None} if s.get("speaker") in labels else s for s in out]
+    return {"segments": out, "labels": labels, "dropped": len(segs) - len(out), "notes_only": gemini and not out}
+
+
+def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, people: People,
+                    fixed: dict | None) -> tuple[list[dict], str]:
+    """(attendees, attendees_from) with no "<Owner> <Task Title>" name: each is the known person it
+    starts with (the invite, the members, the other attendees), once; a name that isn't one goes. Taken
+    from the speakers ("speakers"), they are the fixed transcript's speakers again (a next step's owner
+    is not someone who joined, the same as a new import)."""
+    known = task_known({"invited": inv, "attendees": att}, people)
+    labels = dict((fixed or {}).get("labels") or {})
+    pool = [*att, *inv]
+
+    def fake(name: str) -> bool:
+        return name in labels or bool(mp.task_owner(name, None, known))
+
+    def entry(name: str) -> dict:
+        key = name.casefold()
+        hit = next((a for a in pool if (a.get("name") or "").casefold() == key), None)
+        if hit is None:
+            hits = [a for a in pool if a.get("name") and not fake(a["name"]) and mp._covers(name, a["name"])]
+            hit = hits[0] if len(hits) == 1 else None
+        if hit is not None:
+            return {k: hit.get(k) for k in ("name", "user_id", "email") if hit.get(k) is not None}
+        mem = people.match(name)
+        return {"name": name, "user_id": mem["id"] if mem else None, "email": (mem or {}).get("email")}
+
+    if how == "speakers" and fixed is not None:
+        found = [entry(sp) for sp in _speakers_of(view)]
+    else:
+        found = []
+        for a in att:
+            name = a.get("name") or ""
+            owner = labels.get(name) if name in labels else mp.task_owner(name, None, known)
+            if owner:
+                found.append(entry(owner))
+            elif name in labels or (not a.get("user_id") and not a.get("email")
+                                    and (len(name.split()) > mp.TASK_MAX_WORDS or not mp.name_like(name))):
+                continue
+            else:
+                found.append(a)
+    out = person_rows(found, people)
+    if how == "speakers" and not out:
+        how = "invited" if inv else "none"
+    return out, how
 
 
 async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, *, apply: bool = True) -> dict:
-    """One meeting's attendees recomputed (:func:`recompute_people`). The page follows only where
-    Markdrop's own words are still there: a page nobody edited since Markdrop wrote it is written again
-    (its Attendees section and property); an edited one gets its Attendees property only when it
-    still reads what Markdrop wrote. Never touches the restriction or its grants. Idempotent
-    (``attendees_v``). Returns what it did: {changed, from, before, after, invited, page}."""
-    from app.services import page_db, user as user_service
+    """One meeting repaired (``attendees_v`` 3): its "<Owner> <Task Title>" speakers fixed
+    (:func:`fix_task_segments`), its attendees recomputed (:func:`recompute_people` when from before
+    v2, then :func:`fix_task_people`). The page follows only where Markdrop's own words are still
+    there: a page nobody edited since Markdrop wrote it is written again; an edited one gets its
+    Attendees property and section only where they still read what Markdrop wrote; the Transcript
+    page is written again (or, with no transcript left, moved to the Trash) only when nobody edited
+    it. Never touches the restriction or its grants. Idempotent. Returns what it did: {changed, from,
+    before, after, invited, page, segments, transcript, before_names, after_names}."""
+    from app.services import page_db, page_props, trash, user as user_service
 
-    att, inv, how = recompute_people(row, people)
+    fixed = fix_task_segments(row, task_known(row, people))
+    view = {**row, "segments": fixed["segments"]} if fixed else row
+    if int(row.get("attendees_v") or 0) < ATTENDEES_V2:
+        att, inv, how = recompute_people(view, people)
+    else:
+        att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
+    att, how = fix_task_people(view, att, inv, how, people, fixed)
     before = row.get("attendees") or []
+    seg_changed = fixed is not None and fixed["segments"] != (row.get("segments") or [])
     changed = [(a.get("name"), a.get("user_id")) for a in before] != [(a["name"], a["user_id"]) for a in att] \
-        or len(inv) != len(row.get("invited") or [])
-    out = {"changed": changed, "from": how, "before": len(before), "after": len(att), "invited": len(inv), "page": "none"}
+        or len(inv) != len(row.get("invited") or []) or seg_changed
+    out = {"changed": changed, "from": how, "before": len(before), "after": len(att), "invited": len(inv),
+           "page": "none", "segments": "same", "transcript": "none",
+           "before_names": [a.get("name") for a in before], "after_names": [a["name"] for a in att]}
+    if seg_changed:
+        out["segments"] = "dropped" if fixed["notes_only"] else f"fixed ({fixed['dropped']} dropped)" if fixed["dropped"] else "renamed"
     page = await page_of(db, row) if changed else None
     untouched = page is not None and int(page.get("rev") or 1) == int(row.get("base_rev") or 0)
     old_text = ", ".join(a.get("name") or "" for a in before)[:page_db.TEXT_MAX]
+    old_section = people_section(row, people)
     if page is not None:
         if untouched:
             out["page"] = "rewritten"
-        elif page_db.read_values(page.get("content")).get("attendees") == old_text:
-            out["page"] = "property"
+        elif page_db.read_values(page.get("content")).get("attendees") == old_text \
+                or (old_section and old_section in (page.get("content") or "")):
+            out["page"] = "attendees"
         else:
             out["page"] = "left"
+    traw = None
+    if seg_changed and row.get("transcript_doc_id"):
+        traw = await db["documents"].find_one({"_id": row["transcript_doc_id"]})
+        if traw is not None and not traw.get("deleted_at"):
+            want = page_props.apply(transcript_markdown(row.get("segments") or [], approx=bool(row.get("approx_times"))),
+                                    {"icon": TRANSCRIPT_ICON})
+            if (traw.get("content") or "").strip() == want.strip():
+                out["transcript"] = "trashed" if not fixed["segments"] else "rewritten"
+            else:
+                out["transcript"] = "left"
+        else:
+            traw = None
     if not apply:
         return out
     sets: dict[str, Any] = {"attendees_v": ATTENDEES_V, "names_v": NAMES_V, "attendees_from": how}
     if changed:
         sets.update(attendees=att, invited=inv,
-                    attendees_repair={"from": how, "before": len(before), "at": now_utc()})
+                    attendees_repair={"from": how, "before": len(before), "at": now_utc(), "v": ATTENDEES_V})
+    if seg_changed:
+        sets["segments"] = fixed["segments"]
+        sets["attendees_repair"]["segments"] = out["segments"]
+        if fixed["notes_only"]:
+            sets["sources"] = [{**s, "kind": "notes"} if s.get("kind") == "both" and s.get("format") == "gemini_notes" else s
+                               for s in row.get("sources") or []]
+            if out["transcript"] == "trashed":
+                sets.update(transcript_doc_id=None, transcript_slug=None)
     await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
-    if out["page"] not in ("rewritten", "property"):
+    if out["page"] not in ("rewritten", "attendees") and out["transcript"] not in ("rewritten", "trashed"):
         return out
     user = await user_service.get_user_by_id(db, row.get("created_by"))
     if user is None:
-        out["page"] = "left"
+        out["page"] = "left" if out["page"] != "none" else "none"
+        return out
+    actor, ctx = access.Actor.of(user), access.Ctx(db)
+    if traw is not None and out["transcript"] == "rewritten":
+        try:
+            await _save(db, traw, page_props.apply(transcript_markdown(fixed["segments"], approx=bool(row.get("approx_times"))),
+                                                   {"icon": TRANSCRIPT_ICON}), actor, ctx)
+        except HTTPException as exc:
+            log.info("meetings: transcript %s not rewritten (%s)", traw.get("slug"), exc.detail)
+            out["transcript"] = "left"
+    elif traw is not None and out["transcript"] == "trashed":
+        await trash.move(db, [traw], traw, actor)
+    if out["page"] not in ("rewritten", "attendees"):
         return out
     # The whole row (the tick reads it without Google's notes): the page is written from all of it.
     fresh = {**(await db[COLL].find_one({"_id": row["_id"]}) or row), **sets}
-    actor, ctx = access.Actor.of(user), access.Ctx(db)
+    page = await page_of(db, row) or page
     if out["page"] == "rewritten":
         content = await full_markdown(db, fresh, fresh.get("generated"), people)
         after = await _save(db, page, content, actor, ctx, base_rev=int(page.get("rev") or 1))
     else:
-        after = await _save(db, page, page_db.write_values(page.get("content"), {"attendees": attendees_text(fresh)}),
-                            actor, ctx)
+        content = page.get("content") or ""
+        if page_db.read_values(content).get("attendees") == old_text:
+            content = page_db.write_values(content, {"attendees": attendees_text(fresh)})
+        new_section = people_section(fresh, people)
+        if old_section and old_section in content and new_section != old_section:
+            content = content.replace(old_section, new_section, 1) if new_section \
+                else content.replace(old_section + "\n\n", "", 1).replace(old_section, "", 1)
+        if out["transcript"] == "trashed" and row.get("transcript_slug"):
+            embed = f'::page{{src="{row["transcript_slug"]}"}}'
+            content = content.replace(embed + "\n\n", "", 1).replace(embed, "", 1)
+        after = await _save(db, page, content, actor, ctx) if content != (page.get("content") or "") else None
     if after is not None and untouched:
         await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
     return out
