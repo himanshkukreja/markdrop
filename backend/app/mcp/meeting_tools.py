@@ -342,7 +342,7 @@ MEETING_TOOLS: list[Tool] = [
         name="import_meeting",
         title="Import a meeting",
         description=("Turn a meeting into a Markdrop page in the workspace's Meetings folder (made on first use): "
-                     "an AI summary, decisions, action items (@mentions that notify workspace members), open "
+                     "an AI summary, decisions, action items (@mentions of workspace members, as links: meeting imports notify nobody), open "
                      "questions, topics and the transcript as a sub-page whose lines answers cite. Give the "
                      "transcript as text (Google Meet's transcript Doc, Zoom/Teams captions, 'Name: words' "
                      "lines…), or a file as file_name + content_base64 (.txt .vtt .srt .sbv .docx), and/or "

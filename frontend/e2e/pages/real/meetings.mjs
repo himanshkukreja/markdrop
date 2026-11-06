@@ -3,7 +3,7 @@
  * model in api_run.py):
  *
  *   paste      the hub's empty state → Import → paste a Google Meet transcript → the page opens, the
- *              summary fills in (Decisions, Action items with @mentions that notify, Topics, Sources)
+ *              summary fills in (Decisions, Action items with @mentions that notify nobody, Topics, Sources)
  *   structure  the page's Markdown, the Meetings folder's properties, the anchored transcript sub-page
  *   ask        Ask this meeting streams an answer whose chip opens the transcript at that moment
  *   upload     Import → Upload a .vtt → a second meeting
@@ -45,7 +45,7 @@ async function snap(p, name, full = false) {
   log("shot", path.basename(file));
 }
 
-// Today: a meeting more than a day old imports quietly (nobody notified), and this one checks the mention.
+// Today: a meeting more than a day old is history (not posted to Slack); this one is a fresh meeting.
 const DAY = new Date().toLocaleDateString("en-CA");
 const TRANSCRIPT = `Sprint planning (${DAY} 09:30 GMT+05:30) - Transcript
 Attendees
@@ -132,9 +132,9 @@ await step("structure", async () => {
   const tree = ok(await api("GET", `/api/v1/workspaces/${WS}/tree`, T.owner), "tree");
   const folder = (tree.folders || []).find((f) => f.meetings);
   if (!folder || folder.name !== "Meetings") fail("no Meetings folder in the tree");
-  // Ben was mentioned: a notification.
+  // Ben was mentioned, as a link: meeting imports notify nobody (owner, 2026-11-06).
   const notes = ok(await api("GET", "/api/v1/notifications", T.member), "notifications");
-  if (!(notes.items || []).some((n) => n.kind === "mention" && (n.page?.slug === meeting.slug))) fail("Ben wasn't notified");
+  if ((notes.items || []).some((n) => n.page?.slug === meeting.slug)) fail("Ben was notified about a meeting's mention");
 });
 
 await step("ask", async () => {

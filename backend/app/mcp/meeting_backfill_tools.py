@@ -4,9 +4,9 @@
 with an optional date, title and series, and reviews them like the website's "Import past
 meetings": dates from the names or the text, the notes and the transcript of one call paired,
 series detected, duplicates of meetings already in the workspace skipped. ``dry_run`` returns only
-the review. Otherwise what is ready imports in the background, oldest first, without notifying
-anyone about old action items (``notify`` turns that on for meetings from the last day); call
-again with ``job`` to see how far it got.
+the review. Otherwise what is ready imports in the background, oldest first, notifying nobody about
+their @mentions (no meeting import does; ``notify`` lets meetings from the last day be posted to the
+Slack meetings channel); call again with ``job`` to see how far it got.
 """
 
 from __future__ import annotations
@@ -211,8 +211,8 @@ BACKFILL_TOOLS: list[Tool] = [
                      "meetings already in the workspace are skipped (status 'duplicate'). Items without a date come back "
                      "as 'needs_date' and aren't imported. dry_run=true only reviews. Otherwise the rest imports in the "
                      "background, oldest first, with AI summaries (the user's 'Meetings AI' limit; a big backlog may wait "
-                     "for tomorrow's budget) and without notifying anyone about old action items (notify=true notifies "
-                     "for meetings from the last day). Returns a job id: call again with job to see progress."),
+                     "for tomorrow's budget). Nobody is notified about their @mentions (no meeting import notifies); "
+                     "notify=true lets meetings from the last day be posted to the Slack meetings channel. Returns a job id: call again with job to see progress."),
         scope=WRITE,
         writes=True,
         input_schema={"type": "object", "properties": {

@@ -2,8 +2,8 @@
 title: Import a meeting manually
 nav: Import manually
 description: Paste a transcript, upload a caption or Word file, paste a Google Drive link, or pick Google Meet's transcript and Gemini notes from your Drive.
-updated: 2026-11-05
-keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, slack, pause, resume, retry, waiting for the ai budget]
+updated: 2026-11-06
+keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, don't post to slack, slack, pause, resume, retry, waiting for the ai budget]
 ---
 
 Import a call when it's over. It works for any call: Google Meet, Zoom, Microsoft Teams, or a transcript from anywhere else. To have Google Meet calls show up by themselves, see [Import meetings automatically](/workspaces/meetings-auto-import). You can use both.
@@ -55,7 +55,7 @@ Someone shared the call's transcript or Gemini notes with you, or sent you the l
 Markdrop takes links to Google Docs (`docs.google.com/document/d/…`) and Drive files (`drive.google.com/file/d/…`, `drive.google.com/open?id=…`), such as a `.vtt` or `.txt` transcript. Then:
 
 - **Shared with "anyone with the link"**: Markdrop reads it right away and imports it.
-- **Not shared that way, and your [Google Meet script](/workspaces/meetings-auto-import) is connected to this workspace**: you see **Queued**. The script fetches it with your own Google access on its next run, within 15 minutes (or run `syncMeetings` in Apps Script to do it now). People are notified as for any import, unless the Doc is more than a day old: then it's imported quietly and isn't posted to [Slack](/integrations/slack).
+- **Not shared that way, and your [Google Meet script](/workspaces/meetings-auto-import) is connected to this workspace**: you see **Queued**. The script fetches it with your own Google access on its next run, within 15 minutes (or run `syncMeetings` in Apps Script to do it now). Nobody is notified about its @mentions, as with any meeting. If the Doc is more than a day old, it isn't posted to [Slack](/integrations/slack) either.
 - **Otherwise**: Markdrop says it can't open the Doc. Connect Google Meet, ask the owner to share it with "anyone with the link", or download it and upload the file.
 
 Markdrop only fetches from Google's own addresses (`docs.google.com`, `drive.google.com`), and only the file the link names.
@@ -90,7 +90,7 @@ Have weeks of transcripts and Gemini notes already? Import them all at once, and
    - **Date**, and where it came from. Google names its Docs like "Daily Standup – 2026/10/28 10:00 IST – Transcript", so the date usually comes from the name. Otherwise it's the day Google created the Doc, or a date near the top of the text.
    - **Name** and **Series**, for recurring meetings such as a daily standup, and the **folder** it goes to: **Meetings › Daily Standup**, or **Meetings › Other meetings** for a one-off. See [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
    - **Who sees it**: **Attendees** for a 1:1 or a two-person call, **Team** for three or more people. Switch it per meeting.
-   - Which halves were found: **Notes**, **Transcript**, or both. Google's notes and the transcript of one call become one row. A row older than a day is marked **quiet**: it notifies nobody.
+   - Which halves were found: **Notes**, **Transcript**, or both. Google's notes and the transcript of one call become one row. A row older than a day is marked **quiet**: it isn't posted to Slack.
    - Whether it's new, **Already imported** or **Twice in this import** (left out), or **Adds notes** (or **the transcript**) **to the meeting already here**.
 
    Fix any date, name or series in place, untick a row to leave it out, or remove it with **×**. A row without a date is marked **Needs a date**: give it one, or untick it, before you can start (the button says **Add N dates first** until then). **Add more** brings in more files; **Discard** throws the review away. Switch on **Only the people who were there, for every meeting** to restrict them all.
@@ -102,7 +102,7 @@ The import runs in the background, **oldest first**, and keeps going if you clos
 
 ### Nobody is notified about old action items
 
-Action items in past meetings still @mention their owners, as links. But **Don't notify anyone** is on by default, so nobody gets a bell, an email or a Slack message about last month's tasks, and they aren't posted to your [Slack meetings channel](/integrations/slack). With it off, meetings from the last day notify as usual, and older ones are still imported quietly.
+Action items in past meetings still @mention their owners, as links, but nobody gets a bell, an email or a Slack message about them. That's true of every meeting Markdrop imports (see [Mentions in meeting notes](/workspaces/meetings#what-the-meeting-page-holds)). **Don't post to Slack** is on by default, so they aren't posted to your [Slack meetings channel](/integrations/slack) either. With it off, meetings from the last day are posted; older ones never are.
 
 ### Many meetings and the AI budget
 
