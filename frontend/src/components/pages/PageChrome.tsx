@@ -531,7 +531,7 @@ export function PageTopBar({
   className?: string;
   /** A notice under the bar (someone else is editing). */
   banner?: ReactNode;
-  /** ✦ Ask: Ask Markdrop about this (components/assistant), for someone signed in. */
+  /** ✦ Ask: "Ask this page" (components/assistant), for someone signed in. */
   ask?: boolean;
 }) {
   const scrolled = useScrolled();
@@ -590,7 +590,7 @@ export function PageTopBar({
         <div className="pb-bar__actions">
           {presence && <span className="pb-bar__presence">{presence}</span>}
           {status}
-          {ask && <AssistantButton className="pb-bar__btn pb-bar__ask" />}
+          {ask && <AssistantButton title="Ask this page" className="pb-bar__btn pb-bar__ask" />}
           {tools}
           {onShare ? (
             <Button variant="ghost" size="sm" className="pb-bar__btn pb-bar__share" onClick={onShare}>Share</Button>

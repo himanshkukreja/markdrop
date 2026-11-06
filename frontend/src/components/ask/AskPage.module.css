@@ -1,0 +1,325 @@
+/* The Ask page (AskPage.tsx). Tokens only: light and dark come from the theme. Full height under the 56px
+   header; the conversations column beside the chat from 900px, a drawer below. */
+
+.page {
+  display: flex;
+  min-width: 0;
+  height: calc(100dvh - 3.5rem - var(--safe-top, 0px));
+  background: var(--bg);
+}
+
+/* ── Conversations ─────────────────────────────────────────────────────── */
+
+.side {
+  display: none;
+  width: 264px;
+  flex: none;
+  overflow-y: auto;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+}
+
+@media (min-width: 900px) {
+  .side { display: block; }
+  .historyBtn { display: none !important; }
+}
+
+@media (min-width: 1280px) {
+  .side { width: 288px; }
+}
+
+.history {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 10px 16px;
+}
+
+.newRow {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  font: 600 14px/20px var(--font-sans);
+  cursor: pointer;
+}
+
+.newRow:hover { border-color: var(--border-strong); }
+.newRow:focus-visible, .thread:focus-visible, .chip:focus-visible, .historyBtn:focus-visible, .newBtn:focus-visible, .clear:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 1px;
+}
+
+.historyTitle {
+  margin: 14px 12px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.historyEmpty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 12px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--text-muted);
+}
+
+.threadList {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.threadRow {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.thread {
+  display: flex;
+  min-width: 0;
+  min-height: 44px;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  padding: 6px 40px 6px 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.thread:hover { background: var(--surface-hover, var(--surface)); }
+.threadOn { background: var(--accent-soft); }
+.threadOn:hover { background: var(--accent-soft); }
+
+.threadQ {
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.threadMeta {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-muted);
+}
+
+.forget {
+  position: absolute;
+  right: 4px;
+  opacity: 0;
+}
+
+.threadRow:hover .forget, .forget:focus-visible, .threadOn + .forget { opacity: 1; }
+
+@media (hover: none) {
+  .forget { opacity: 1; }
+}
+
+.clear {
+  align-self: flex-start;
+  min-height: 44px;
+  margin: 6px 0 0;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: 500 13px/18px var(--font-sans);
+  cursor: pointer;
+}
+
+.clear:hover { color: var(--text); }
+
+/* ── The conversation ──────────────────────────────────────────────────── */
+
+.main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.head {
+  display: flex;
+  min-width: 0;
+  flex: none;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 24px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.titleRow {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.title {
+  display: inline-flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+.titleText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.spark {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.historyBtn, .newBtn {
+  display: inline-flex;
+  min-width: 44px;
+  min-height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  font: 600 13.5px/18px var(--font-sans);
+  cursor: pointer;
+}
+
+.historyBtn:hover, .newBtn:hover { border-color: var(--border-strong); }
+
+.chips {
+  display: flex;
+  min-width: 0;
+  gap: 6px;
+  margin: 0 -24px;
+  padding: 2px 24px 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  display: inline-flex;
+  min-height: 36px;
+  max-width: 220px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  background: var(--surface);
+  color: var(--text-secondary, var(--text));
+  font: 500 13px/18px var(--font-sans);
+  cursor: pointer;
+  transition: background-color 100ms var(--ease-out), border-color 100ms var(--ease-out);
+}
+
+.chip:hover { border-color: var(--border-strong); }
+
+.chipOn, .chipOn:hover {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.chipLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wait {
+  display: inline-flex;
+  min-height: 36px;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.chat {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+}
+
+.chatInner {
+  min-height: 0;
+  flex: 1;
+}
+
+.note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-size: 13px;
+  color: var(--text-secondary, var(--text));
+}
+
+/* Touch: 44 px chips. Phones: tighter edges, icon-only header buttons. */
+@media (pointer: coarse) {
+  .chip { min-height: 44px; }
+}
+
+@media (max-width: 639px) {
+  .head { gap: 8px; padding: 10px 12px 8px; }
+  .chips { margin: 0 -12px; padding: 2px 12px 4px; }
+  .title { gap: 8px; font-size: 18px; line-height: 26px; }
+  .spark { width: 26px; height: 26px; }
+  .historyLabel, .newLabel { display: none; }
+  .historyBtn, .newBtn { padding: 0; }
+}

@@ -3,12 +3,16 @@
  * offers where you are, the request's scope, period ranges, labels, starter questions, and the server's
  * answers and saved turns in the shared chat's shapes (components/chat).
  *
- * Scopes (backend services/assistant.py): doc (This doc) · meetings · folder (This folder) · workspace ·
- * everything. The Meetings scope narrows further with composer chips: one meeting, a series, a period.
+ * Scopes (backend services/assistant.py): doc (This page) · meetings · folder (This folder) · workspace (a chip
+ * per workspace, by its name) · mine (My files) · everything. The Meetings scope narrows further with
+ * composer chips: one meeting, a series, a period.
+ *
+ * The name follows the scope (owner, 2026-11-06): "Ask" (everything), "Ask <Workspace>" (a workspace, its
+ * meetings or a folder in it), "Ask my files" (mine), "Ask this page" (doc).
  */
 
-export const SCOPE_ICON = { doc: "doc", meetings: "mic", folder: "folder", workspace: "users", everything: "sparkle" };
-export const SCOPE_LABEL = { doc: "This doc", meetings: "Meetings", folder: "This folder", workspace: "Workspace", everything: "Everything" };
+export const SCOPE_ICON = { doc: "doc", meetings: "mic", folder: "folder", workspace: "users", mine: "user", everything: "sparkle" };
+export const SCOPE_LABEL = { doc: "This page", meetings: "Meetings", folder: "This folder", workspace: "Workspace", mine: "My files", everything: "Everything" };
 
 /** The Meetings scope's periods (composer chip). */
 export const PERIODS = [
@@ -43,10 +47,34 @@ export function periodRange(period, today = new Date()) {
   }
 }
 
-/** The scope chips to show: the server's list (only what you can open), in its order. */
+/**
+ * The scope chips to show: the server's list (only what you can open), in its order, with the Workspace chip
+ * as one chip per workspace the person belongs to (the current one first), each named after its workspace.
+ * Each chip: {key, kind, workspace?, label, sub, icon}; `key` is "workspace:<id>" for a workspace, else the kind.
+ */
 export function scopeChips(ctx) {
   const list = (ctx && ctx.scopes) || [{ kind: "everything", label: "Everything", sub: null }];
-  return list.map((s) => ({ kind: s.kind, label: SCOPE_LABEL[s.kind] || s.label, sub: s.sub || null, icon: SCOPE_ICON[s.kind] || "sparkle" }));
+  const cur = ctx && ctx.workspace ? ctx.workspace : null;
+  const all = (ctx && ctx.workspaces) || [];
+  const wss = cur ? [cur, ...all.filter((w) => w.id !== cur.id)] : all;
+  const wsChip = (w) => ({ key: `workspace:${w.id}`, kind: "workspace", workspace: w.id, label: w.name || "Workspace", sub: null, icon: SCOPE_ICON.workspace });
+  const hasWs = list.some((x) => x.kind === "workspace");
+  const out = [];
+  for (const s of list) {
+    if (s.kind === "workspace") { out.push(...wss.map(wsChip)); continue; }
+    // Not in a workspace here (a page of your own, the home): every workspace, before My files.
+    if (s.kind === "mine" && !hasWs) out.push(...wss.map(wsChip));
+    out.push({ key: s.kind, kind: s.kind, label: SCOPE_LABEL[s.kind] || s.label, sub: s.sub || null, icon: SCOPE_ICON[s.kind] || "sparkle" });
+  }
+  return out;
+}
+
+/** The chip key of a scope ({kind, workspace?}); a workspace scope without an id is the current workspace's. */
+export function chipKey(scope, ctx) {
+  const kind = (scope && scope.kind) || "everything";
+  if (kind !== "workspace") return kind;
+  const ws = (scope && scope.workspace) || (ctx && ctx.workspace ? ctx.workspace.id : "");
+  return `workspace:${ws}`;
 }
 
 /** The scope to start with: what the person asked for when it's offered here, else the server's default. */
@@ -55,6 +83,35 @@ export function initialScope(ctx, wanted) {
   if (wanted && kinds.includes(wanted)) return wanted;
   if (ctx && kinds.includes(ctx.default)) return ctx.default;
   return kinds[0] || "everything";
+}
+
+/** The workspace a scope is about ({id, name}), or null (My files, Everything, a page outside workspaces). */
+export function scopeWorkspace(scope, ctx) {
+  const kind = (scope && scope.kind) || "everything";
+  if (kind === "workspace" && scope.workspace) {
+    const all = [...((ctx && ctx.workspaces) || []), ...(ctx && ctx.workspace ? [ctx.workspace] : [])];
+    return all.find((w) => w.id === scope.workspace) || { id: scope.workspace, name: null };
+  }
+  if (kind === "workspace" || kind === "meetings" || kind === "folder") return (ctx && ctx.workspace) || null;
+  return null;
+}
+
+/** The assistant's name for a scope: "Ask", "Ask Acme", "Ask my files", "Ask this page". */
+export function askTitle(kind, wsName) {
+  if (kind === "doc") return "Ask this page";
+  if (kind === "mine") return "Ask my files";
+  if ((kind === "workspace" || kind === "meetings" || kind === "folder") && wsName) return `Ask ${wsName}`;
+  return "Ask";
+}
+
+/** The composer's placeholder for a scope. */
+export function askPlaceholder(kind, wsName) {
+  if (kind === "doc") return "Ask about this page…";
+  if (kind === "meetings") return "Ask your meetings…";
+  if (kind === "folder") return "Ask about this folder…";
+  if (kind === "mine") return "Ask about your own files…";
+  if (kind === "workspace" && wsName) return `Ask anything about ${wsName}…`;
+  return "Ask anything…";
 }
 
 /**
@@ -85,7 +142,8 @@ export function scopeBody(kind, ctx, sub = {}, today = new Date()) {
   switch (kind) {
     case "doc": return ctx && ctx.page ? { kind: "doc", page: ctx.page.slug } : { kind: "everything" };
     case "folder": return ws && ctx.folder ? { kind: "folder", workspace: ws, folder: ctx.folder.id } : { kind: "everything" };
-    case "workspace": return ws ? { kind: "workspace", workspace: ws } : { kind: "everything" };
+    case "workspace": return sub.workspace || ws ? { kind: "workspace", workspace: sub.workspace || ws } : { kind: "everything" };
+    case "mine": return { kind: "mine" };
     case "meetings": {
       if (!ws) return { kind: "everything" };
       if (sub.meeting === "this" && ctx.meeting) return { kind: "meetings", workspace: ws, meeting: ctx.meeting.id };
@@ -100,7 +158,7 @@ export function starters(kind, ctx, home = []) {
   const meetingTitle = ctx && ctx.meeting && ctx.meeting.title;
   switch (kind) {
     case "doc": return [
-      { q: "Summarize this doc", icon: "lines" },
+      { q: "Summarize this page", icon: "lines" },
       { q: "What did we decide about this in meetings?", icon: "mic" },
       { q: "What's still open here?", icon: "flag" },
     ];
@@ -121,6 +179,10 @@ export function starters(kind, ctx, home = []) {
       { q: "Catch me up on this week", icon: "clock" },
       { q: "What are my open action items?", icon: "checkSquare" },
     ];
+    case "mine": return [
+      { q: "What changed in my files this week?", icon: "clock" },
+      { q: "What are my open action items?", icon: "checkSquare" },
+    ];
     default: return home.length ? home : [
       { q: "Catch me up on this week", icon: "clock" },
       { q: "What are my open action items?", icon: "checkSquare" },
@@ -139,7 +201,7 @@ export function toCitation(c, link) {
     token: c.label,
     title: c.title || "Untitled",
     subtitle: c.subtitle || null,
-    meta: c.moment || (c.source_kind === "this page" ? "This doc" : null),
+    meta: c.moment || (c.source_kind === "this page" ? "This page" : null),
     quote: c.quote || c.text || null,
     href: l.href,
     external: l.external,
@@ -156,7 +218,7 @@ export function toSource(it, link) {
 
 const STAGES = {
   understanding: "Reading your question…",
-  searching: { doc: "Looking in this doc and your meetings…", meetings: "Finding the meetings…", folder: "Searching this folder…", workspace: "Searching the workspace…", everything: "Searching everything you can open…" },
+  searching: { doc: "Looking in this page and your meetings…", meetings: "Finding the meetings…", folder: "Searching this folder…", workspace: "Searching the workspace…", mine: "Searching your files…", everything: "Searching everything you can open…" },
   answering: "Writing the answer…",
 };
 

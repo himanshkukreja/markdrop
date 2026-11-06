@@ -1,25 +1,30 @@
 "use client";
 
 /**
- * "Ask Markdrop": the one assistant, as a side panel (non-modal: the page stays usable beside it) or, on
- * phones, a bottom sheet. Opened by ✦ Ask in the top bar or ⌘J from anywhere (AssistantRoot).
+ * "Ask": the one assistant, as a side panel (non-modal: the page stays usable beside it) or, on phones, a
+ * bottom sheet. Opened by ✦ Ask in the top bar or ⌘J from anywhere (AssistantRoot); "Open full page" goes
+ * to the Ask page (/ask, components/ask/AskPage) with the same conversation.
  *
- *  - Scope chips at the top: This doc · Meetings · This folder · Workspace · Everything (only what the
- *    person can open here, GET /api/v1/ask/context); widen or narrow at any time. Meetings adds chips in
- *    the composer: this meeting / all, a series, a period.
+ *  - The name follows the scope: "Ask", "Ask <Workspace>", "Ask my files", "Ask this page".
+ *  - Scope chips at the top: This page · Meetings · This folder · <each workspace> · My files · Everything
+ *    (only what the person can open here, GET /api/v1/ask/context); widen or narrow at any time. Meetings
+ *    adds chips in the composer: this meeting / all, a series, a period.
+ *  - A workspace scope's empty state shows its live suggestions (GET /api/v1/ask/suggestions).
  *  - One conversation across screens: the thread id is kept (store) and the chat's turns follow the
  *    person from the home to a page and back; a reload reads the thread from the server.
  *  - In a doc, the question carries where the reader is (section, selection). "Insert" puts an answer
  *    into the doc at the caret, with its citations as links — editors only, and only when they click it.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Icon, Spinner, cx, useToast } from "@/components/ui";
 import { Chat } from "@/components/chat";
 import type { ChatHandle, ChatScope, ChatTurn } from "@/components/chat/types";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
-import { getAssistantContext, type AssistantContext, type AssistantScopeKind } from "@/lib/ask";
+import { getAskSuggestions, getAssistantContext, type AskSuggestions, type AssistantContext, type AssistantScopeKind } from "@/lib/ask";
+import { askHref, suggestionsOf, updatedLine } from "@/lib/askCore.mjs";
 import { track } from "@/lib/track";
-import { initialScope, meetingOptions, scopeChips, starters } from "./assistantCore.mjs";
+import { askPlaceholder, askTitle, chipKey, initialScope, meetingOptions, scopeChips, scopeWorkspace, starters } from "./assistantCore.mjs";
 import { PERSIST_KEY, closeAssistant, setAssistantThread, takePending, useAssistant } from "./store";
 import { assistantTransport, loadAssistantThread, type AssistantChatContext } from "./transport";
 import "./assistant.css";
@@ -28,6 +33,7 @@ const FOOT = "Answers use only what you can open. AI can be wrong.";
 
 export function AssistantPanel() {
   const { open, here, insert, threadId } = useAssistant();
+  const router = useRouter();
   const phone = useMediaQuery(PHONE_QUERY);
   const toast = useToast();
   const chat = useRef<ChatHandle>(null);
@@ -106,7 +112,21 @@ export function AssistantPanel() {
   const options = useMemo(() => (kind === "meetings" ? meetingOptions(ctx) : undefined), [kind, ctx]);
   const status = kind === "meetings" ? ctx?.status.meetings : ctx?.status.search;
   const context = useMemo<AssistantChatContext>(() => ({ ctx }), [ctx]);
-  const suggestions = useMemo(() => starters(kind, ctx), [kind, ctx]);
+  const ws = useMemo(() => scopeWorkspace(scope, ctx), [scope, ctx]);
+  const title = askTitle(kind, ws?.name);
+  const activeChip = chipKey(scope, ctx);
+
+  // A workspace's live suggestions (its team's, and yours) in the empty state.
+  const [live, setLive] = useState<AskSuggestions | null>(null);
+  const liveWs = open && kind === "workspace" ? ws?.id ?? null : null;
+  useEffect(() => {
+    setLive(null);
+    if (!liveWs) return;
+    let on = true;
+    getAskSuggestions(liveWs).then((x) => { if (on) setLive(x); }).catch(() => {});
+    return () => { on = false; };
+  }, [liveWs]);
+  const suggestions = useMemo(() => (live && kind === "workspace" ? suggestionsOf(live, 6) : null) ?? starters(kind, ctx), [kind, ctx, live]);
 
   const canInsert = !!ctx?.can_insert && !!insert;
   const onInsert = useCallback(async (markdown: string) => {
@@ -122,6 +142,11 @@ export function AssistantPanel() {
   }, [insert, toast, kind]);
 
   const close = useCallback(() => closeAssistant(), []);
+  const fullPage = useCallback(() => {
+    track("assistant_full_page", { scope: kind });
+    closeAssistant();
+    router.push(askHref({ workspace: kind === "workspace" || kind === "meetings" || kind === "folder" ? ws?.id : null, mine: kind === "mine" }));
+  }, [router, kind, ws]);
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && !e.defaultPrevented) {
       e.preventDefault();
@@ -145,14 +170,17 @@ export function AssistantPanel() {
         data-layout={layout}
         role="dialog"
         aria-modal={phone ? true : undefined}
-        aria-label="Ask Markdrop"
+        aria-label={title}
         onKeyDown={onKey}
         data-testid="assistant"
       >
         <header className="as-head">
-          <span className="as-head__title"><span className="as-head__glyph" aria-hidden><Icon name="sparkle" /></span>Ask Markdrop</span>
+          <span className="as-head__title" data-testid="assistant-title"><span className="as-head__glyph" aria-hidden><Icon name="sparkle" /></span><span className="as-head__name">{title}</span></span>
           <kbd className="as-head__kbd" aria-hidden>{shortcutLabel()}</kbd>
-          <button type="button" className="as-icon" onClick={close} aria-label="Close Ask Markdrop" title="Close (Esc)" data-testid="assistant-close">
+          <button type="button" className="as-icon" onClick={fullPage} aria-label="Open full page" title="Open full page" data-testid="assistant-full-page">
+            <Icon name="expand" />
+          </button>
+          <button type="button" className="as-icon" onClick={close} aria-label={`Close ${title}`} title="Close (Esc)" data-testid="assistant-close">
             <Icon name="x" />
           </button>
         </header>
@@ -161,14 +189,14 @@ export function AssistantPanel() {
           {failed && <span className="as-scopes__wait">Couldn&apos;t check this place. Everything you can open is used.</span>}
           {chips.map((c) => (
             <button
-              key={c.kind}
+              key={c.key}
               type="button"
               role="radio"
-              aria-checked={kind === c.kind}
-              className={cx("as-scope", kind === c.kind && "as-scope--on")}
-              onClick={() => { setScope((s) => ({ ...s, kind: c.kind })); track("assistant_scope", { scope: c.kind }); }}
+              aria-checked={activeChip === c.key}
+              className={cx("as-scope", activeChip === c.key && "as-scope--on")}
+              onClick={() => { setScope((s) => ({ ...s, kind: c.kind, workspace: c.workspace ?? "" })); track("assistant_scope", { scope: c.kind }); }}
               title={c.sub ? `${c.label} · ${c.sub}` : c.label}
-              data-testid={`assistant-scope-${c.kind}`}
+              data-testid={c.kind === "workspace" && c.workspace !== ctx?.workspace?.id ? `assistant-scope-ws-${c.workspace}` : `assistant-scope-${c.kind}`}
             >
               <Icon name={c.icon} />
               <span>{c.label}</span>
@@ -191,11 +219,11 @@ export function AssistantPanel() {
           followUps={followUps}
           onInsert={canInsert ? (md) => void onInsert(md) : undefined}
           onNavigate={phone ? close : undefined}
-          empty={{ icon: "sparkle", title: emptyTitle(kind, ctx), sub: emptySub(kind, ctx) }}
-          placeholder={placeholderFor(kind)}
+          empty={{ icon: "sparkle", title: emptyTitle(kind, ctx, ws?.name ?? null), sub: [emptySub(kind, ctx), kind === "workspace" ? updatedLine(live) : ""].filter(Boolean).join(" ") }}
+          placeholder={askPlaceholder(kind, ws?.name)}
           banner={status && !status.enabled ? <p className="as-banner" role="status"><Icon name="clock" /> {status.message ?? "AI isn't available right now."}</p> : null}
           footnote={FOOT}
-          assistantName="Ask Markdrop"
+          assistantName={title}
           className="as-chat"
           testId="assistant-chat"
         />
@@ -210,27 +238,20 @@ export function shortcutLabel(): string {
   return /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent) ? "⌘J" : "Ctrl J";
 }
 
-function emptyTitle(kind: AssistantScopeKind, ctx: AssistantContext | null): string {
-  if (kind === "doc") return ctx?.page?.title ? `Ask about “${ctx.page.title}”` : "Ask about this doc";
+function emptyTitle(kind: AssistantScopeKind, ctx: AssistantContext | null, wsName: string | null): string {
+  if (kind === "doc") return ctx?.page?.title ? `Ask about “${ctx.page.title}”` : "Ask this page";
   if (kind === "meetings") return ctx?.meeting?.title ? `Ask about ${ctx.meeting.title}` : "Ask your meetings";
   if (kind === "folder") return ctx?.folder?.name ? `Ask about ${ctx.folder.name}` : "Ask about this folder";
-  if (kind === "workspace") return ctx?.workspace?.name ? `Ask ${ctx.workspace.name}` : "Ask this workspace";
-  return "Ask Markdrop";
+  return askTitle(kind, wsName);
 }
 
 function emptySub(kind: AssistantScopeKind, ctx: AssistantContext | null): string {
-  if (kind === "doc") return ctx?.workspace ? "This doc first, then what your meetings decided, then the workspace. Sources are cited." : "This doc first, then everything you can open. Sources are cited.";
+  if (kind === "doc") return ctx?.workspace ? "This page first, then what your meetings decided, then the workspace. Sources are cited." : "This page first, then everything you can open. Sources are cited.";
   if (kind === "meetings") return "Decisions, owners and dates from the meetings you can open, with a jump to the moment.";
   if (kind === "folder") return "Only the docs, pages and files in this folder and its sub-folders.";
   if (kind === "workspace") return "The meetings, docs, pages and files of this workspace that you can open.";
+  if (kind === "mine") return "Your own documents, pages and files outside any workspace.";
   return "Your meetings, documents, pages, files and Guides — only what you can open.";
-}
-
-function placeholderFor(kind: AssistantScopeKind): string {
-  if (kind === "doc") return "Ask about this doc…";
-  if (kind === "meetings") return "Ask your meetings…";
-  if (kind === "folder") return "Ask about this folder…";
-  return "Ask anything…";
 }
 
 export default AssistantPanel;

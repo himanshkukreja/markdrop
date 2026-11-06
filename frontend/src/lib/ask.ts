@@ -1,7 +1,10 @@
 /**
- * Ask Markdrop's client (backend routers/ask.py):
+ * Ask's client (backend routers/ask.py). The assistant is "Ask" — "Ask <Workspace>", "Ask my files",
+ * "Ask this page" by scope (owner, 2026-11-06):
  *
  *   GET    /api/v1/ask/home              {status, suggestions, recent}
+ *   GET    /api/v1/ask/suggestions       ?workspace=: live team questions (only from what every member can
+ *                                        read) + the caller's own; {workspace, team, personal, updated_at, refreshing}
  *   POST   /api/v1/ask  (SSE)            {question, thread_id?, intent?, page?, scope?, context?}
  *          scope: the assistant's (components/assistant): doc | meetings | folder | workspace | everything
  *   GET    /api/v1/ask/context           what the assistant offers where you are
@@ -36,7 +39,7 @@ export interface AskCitation {
 }
 
 /** What the assistant answers from (backend services/assistant.py). */
-export type AssistantScopeKind = "doc" | "meetings" | "folder" | "workspace" | "everything";
+export type AssistantScopeKind = "doc" | "meetings" | "folder" | "workspace" | "mine" | "everything";
 export interface AssistantScope {
   kind: AssistantScopeKind;
   page?: string | null; workspace?: string | null; folder?: string | null; meeting?: string | null;
@@ -48,6 +51,8 @@ export interface AssistantContext {
   default: AssistantScopeKind;
   page: { slug: string; title: string | null; editor: string; meeting_id?: string | null; meeting_role?: string | null } | null;
   workspace: { id: string; name: string | null } | null;
+  /** Every workspace the person belongs to (a chip each, the current one first). */
+  workspaces?: { id: string; name: string | null }[];
   folder: { id: string; name: string | null } | null;
   meeting: { id: string; title: string | null; date?: string | null; series?: string | null } | null;
   series: string[];
@@ -84,6 +89,30 @@ export type AskEvent =
       scope?: { kind: AssistantScopeKind; label: string } | null; engine?: string | null }
   | { type: "limit"; reason: string; message: string }
   | { type: "error"; detail: string; code?: string };
+
+/** A team question (the same for every member of the workspace). */
+export interface AskTeamSuggestion { topic: string | null; question: string; label: string }
+/** One of the viewer's own (no AI): their action items, their latest meeting… */
+export interface AskPersonalSuggestion { label: string; question: string; intent: AskIntent; icon?: string }
+export interface AskSuggestions {
+  workspace: { id: string; name: string } | null;
+  team: AskTeamSuggestion[];
+  personal: AskPersonalSuggestion[];
+  /** When the team list was built. */
+  updated_at: string | null;
+  /** Being built for the first time: ask again in a few seconds. */
+  refreshing: boolean;
+  ai_off?: boolean;
+  status: AskStatus;
+}
+
+export function getAskSuggestions(workspace?: string | null): Promise<AskSuggestions> {
+  return request<AskSuggestions>(`/api/v1/ask/suggestions${workspace ? `?workspace=${encodeURIComponent(workspace)}` : ""}`);
+}
+
+export function listAskThreads(limit = 50): Promise<{ threads: AskThreadCard[] }> {
+  return request<{ threads: AskThreadCard[] }>(`/api/v1/ask/threads?limit=${limit}`);
+}
 
 export function askHome(): Promise<AskHomeData> {
   return request<AskHomeData>("/api/v1/ask/home");
@@ -132,7 +161,7 @@ export async function askMarkdrop(body: { question: string; thread_id?: string |
   }
   if (!res.ok || !res.body) {
     const j = await res.json().catch(() => null);
-    const detail = typeof j?.detail === "string" ? j.detail : res.status === 429 ? "You're asking very fast. Wait a moment." : "Ask Markdrop hit a problem. Try again.";
+    const detail = typeof j?.detail === "string" ? j.detail : res.status === 429 ? "You're asking very fast. Wait a moment." : "Ask hit a problem. Try again.";
     onEvent({ type: "error", detail });
     return;
   }

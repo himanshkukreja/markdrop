@@ -27,7 +27,9 @@ import { PushPromptCard } from "@/components/push/PushPromptCard";
 import { relativeTime } from "@/components/dashboard/format";
 import { PERSIST_KEY, openAssistant, setAssistantThread, useAssistantHere } from "@/components/assistant/store";
 import { forgetChat } from "@/components/chat/useChat";
-import { askHome, clearAskThreads, deleteAskThread, type AskHomeData, type AskThreadCard } from "@/lib/ask";
+import { askHome, clearAskThreads, deleteAskThread, getAskSuggestions, type AskHomeData, type AskSuggestions, type AskThreadCard } from "@/lib/ask";
+import { askHref, homeChips } from "@/lib/askCore.mjs";
+import { askPlaceholder, askTitle } from "@/components/assistant/assistantCore.mjs";
 import { shortAgo } from "@/lib/searchCore.mjs";
 import { PreviewBand } from "@/components/workspace/folder/CardPreview";
 import { ItemIcon, tintOf } from "@/components/workspace/folder/Listing";
@@ -200,7 +202,8 @@ export default function Home() {
         )}
       </header>
 
-      <AskBar onAsk={ask} onAskMeetings={data?.meetings.items[0] ? () => askMeetings(data.meetings.items[0]!.workspace_id) : null} />
+      <AskBar onAsk={ask} onAskMeetings={data?.meetings.items[0] ? () => askMeetings(data.meetings.items[0]!.workspace_id) : null}
+        workspaces={data?.workspaces ?? []} liveWs={data ? data.meetings.items[0]?.workspace_id ?? data.workspaces[0]?.id ?? null : null} />
 
       <NameCard />
       <PushPromptCard />
@@ -234,57 +237,106 @@ export default function Home() {
 
 /* ── Ask bar ───────────────────────────────────────────────────────────── */
 
-function AskBar({ onAsk, onAskMeetings }: { onAsk: (q?: string) => void; onAskMeetings: (() => void) | null }) {
+type BarScope = { kind: "everything" | "workspace" | "mine"; workspace?: string; name?: string };
+
+/**
+ * The home's Ask bar: "Ask" with a scope chip (Everything · a workspace · My files). Everything asks in the
+ * ✦ Ask panel; a workspace or My files opens the Ask page on that scope. Under it, live chips: the
+ * workspace's team questions (GET /ask/suggestions, the one of your newest meeting by default) and your own,
+ * each asking at once on the Ask page; the static ones when there are none yet.
+ */
+function AskBar({ onAsk, onAskMeetings, workspaces, liveWs }: {
+  onAsk: (q?: string) => void; onAskMeetings: (() => void) | null; workspaces: HomeWorkspace[]; liveWs: string | null;
+}) {
+  const router = useRouter();
   const [q, setQ] = useState("");
+  const [scope, setScope] = useState<BarScope>({ kind: "everything" });
   const [askData, setAskData] = useState<AskHomeData | null>(null);
+  const [sug, setSug] = useState<AskSuggestions | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const refreshAsk = useCallback(() => { askHome().then(setAskData).catch(() => {}); }, []);
   useEffect(() => { refreshAsk(); }, [refreshAsk]);
+  const sugWs = scope.kind === "workspace" ? scope.workspace ?? null : scope.kind === "mine" ? null : liveWs;
+  useEffect(() => {
+    setSug(null);
+    if (!sugWs) return;
+    let on = true;
+    getAskSuggestions(sugWs).then((x) => { if (on) setSug(x); }).catch(() => {});
+    return () => { on = false; };
+  }, [sugWs]);
   const recent = askData?.recent ?? [];
   const off = askData && askData.status.enabled === false ? askData.status.message || "AI isn't available right now." : null;
   const input = useRef<HTMLInputElement>(null);
   const mounted = useMounted();
   const mac = mounted && /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
-  const chips: Array<{ label: string; icon: string; run: () => void }> = [
+  const live = homeChips(sug, 3);
+  const goAsk = (question: string | null, to: BarScope = scope) => {
+    track("home_action", { what: "ask_page", scope: to.kind });
+    router.push(askHref({ workspace: to.kind === "workspace" ? to.workspace : null, mine: to.kind === "mine", q: question }));
+  };
+  const chips: Array<{ label: string; icon: string; run: () => void; testId?: string }> = live.length ? [
+    ...live.map((c) => ({ label: c.label, icon: c.team ? "sparkle" : "mic", testId: "home-ask-live",
+      run: () => goAsk(c.question, { kind: "workspace", workspace: sugWs ?? undefined }) })),
+    ...(recent.length ? [{ label: "Recent questions", icon: "history", run: () => setHistoryOpen(true) }] : []),
+  ] : [
     { label: "Catch me up", icon: "calendar", run: () => onAsk("Catch me up on this week") },
     { label: "My action items", icon: "check", run: () => onAsk("What are my open action items?") },
     ...(onAskMeetings ? [{ label: "Ask my meetings", icon: "mic", run: onAskMeetings }] : []),
     ...(recent.length ? [{ label: "Recent questions", icon: "history", run: () => setHistoryOpen(true) }] : []),
   ];
+  const scopeLabel = scope.kind === "workspace" ? scope.name || "Workspace" : scope.kind === "mine" ? "My files" : "Everything";
+  const scopeItems: MenuEntry[] = [
+    { label: "Everything", icon: scope.kind === "everything" ? "check" : "sparkle", onClick: () => setScope({ kind: "everything" }) },
+    ...workspaces.map((w) => ({ label: w.name, icon: scope.kind === "workspace" && scope.workspace === w.id ? "check" : "users",
+      onClick: () => setScope({ kind: "workspace", workspace: w.id, name: w.name }) })),
+    { label: "My files", icon: scope.kind === "mine" ? "check" : "user", onClick: () => setScope({ kind: "mine" }) },
+  ];
+  const title = askTitle(scope.kind, scope.name);
   return (
-    <section className="hm-ask" aria-label="Ask Markdrop" data-testid="home-ask">
+    <section className="hm-ask" aria-label="Ask" data-testid="home-ask">
       <form
         className="hm-ask__bar"
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
           const v = q.trim();
-          onAsk(v || undefined);
+          if (scope.kind === "everything") onAsk(v || undefined);
+          else goAsk(v || null);
           setQ("");
         }}
         onClick={(e) => { if (e.target === e.currentTarget) input.current?.focus(); }}
       >
         <span className="hm-ask__spark" aria-hidden><Icon name="sparkle" size={16} /></span>
+        {workspaces.length > 0 && (
+          <Dropdown align="left" minWidth={220} aria-label="Ask about" items={scopeItems}
+            trigger={(
+              <button type="button" className="hm-ask__scope md-focus" data-testid="home-ask-scope" title={`${title}: change what to ask about`}>
+                <span className="hm-ask__scope-label">{scopeLabel}</span>
+                <Icon name="chevronDown" size={14} />
+              </button>
+            )} />
+        )}
         <input
           ref={input}
           className="hm-ask__input"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Ask about your work…"
-          aria-label="Ask Markdrop"
+          placeholder={scope.kind === "everything" ? "Ask about your work…" : askPlaceholder(scope.kind, scope.name)}
+          aria-label={title}
           maxLength={500}
           enterKeyHint="send"
           data-testid="home-ask-input"
         />
         {!q && <span className="hm-ask__kbd" aria-hidden><Kbd>{mac ? "⌘" : "Ctrl"}</Kbd><Kbd>J</Kbd></span>}
-        <button type="submit" className="hm-ask__send md-focus" aria-label={q.trim() ? "Ask" : "Open Ask Markdrop"}>
+        <button type="submit" className="hm-ask__send md-focus" aria-label={q.trim() ? "Ask" : scope.kind === "everything" ? "Open Ask" : `Open ${title}`}>
           <Icon name={q.trim() ? "arrowUp" : "sparkle"} size={16} />
         </button>
       </form>
       <div className="hm-ask__chips">
         {chips.map((c) => (
-          <button key={c.label} type="button" className="hm-chip md-focus" onClick={c.run} {...(c.icon === "history" ? { "aria-haspopup": "dialog" as const, "data-testid": "home-ask-history" } : {})}>
-            <Icon name={c.icon} size={14} /> {c.label}
+          <button key={c.label} type="button" className="hm-chip md-focus" onClick={c.run} data-testid={c.testId}
+            {...(c.icon === "history" ? { "aria-haspopup": "dialog" as const, "data-testid": "home-ask-history" } : {})}>
+            <Icon name={c.icon} size={14} /> <span className="hm-chip__text">{c.label}</span>
           </button>
         ))}
       </div>
@@ -294,7 +346,7 @@ function AskBar({ onAsk, onAskMeetings }: { onAsk: (q?: string) => void; onAskMe
   );
 }
 
-/** Recent questions (the conversations with Ask Markdrop): open one in the assistant, forget one, clear all. */
+/** Recent questions (the conversations with Ask): open one in the assistant, forget one, clear all. */
 function AskHistory({ open, onClose, recent, onChanged }: { open: boolean; onClose: () => void; recent: AskThreadCard[]; onChanged: () => void }) {
   const toast = useToast();
   const [clearing, setClearing] = useState(false);
@@ -332,7 +384,7 @@ function AskHistory({ open, onClose, recent, onChanged }: { open: boolean; onClo
         open={clearing}
         onClose={() => setClearing(false)}
         title="Clear recent questions?"
-        body={<p className="text-body text-text-secondary">Every conversation you had with Ask Markdrop is deleted. Your documents aren&apos;t touched.</p>}
+        body={<p className="text-body text-text-secondary">Every conversation you had with Ask is deleted. Your documents aren&apos;t touched.</p>}
         confirmLabel="Clear"
         onConfirm={async () => { await clearAskThreads(); setAssistantThread(null); forgetChat(PERSIST_KEY); setClearing(false); onClose(); onChanged(); toast.success("Recent questions cleared"); }}
       />

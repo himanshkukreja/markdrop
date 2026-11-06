@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Anchor, Dropdown, FileIcon, Icon, Skeleton, Tooltip, copyText, cx, useToast } from "@/components/ui";
 import { usePwa } from "@/components/pwa/PwaProvider";
-import { toggleAssistant } from "@/components/assistant/store";
 import { openNotifications, useUnreadCount } from "./NotificationBell";
 import { DOCS_URL } from "./links";
 import { studioUrl } from "@/lib/studioHost";
@@ -38,7 +37,7 @@ export const wsMeetingsKey = (id: string) => `ws:${id}:meetings`;
 const meetingsHref = (id: string) => `/meetings/${encodeURIComponent(id)}`;
 
 /**
- * Which rail item the URL points at. Keys: "home" | "search" | "files" | "shared" | "recent" | "analytics" | "trash" |
+ * Which rail item the URL points at. Keys: "home" | "search" | "ask" | "files" | "shared" | "recent" | "analytics" | "trash" |
  * "ws:<id>:root" | "ws:<id>:folder:<fid>" | "ws:<id>:meetings" | "ws:<id>:settings" | "ws:new" | "settings".
  */
 export function railKeyFor(pathname: string, search: string): string | null {
@@ -61,6 +60,7 @@ export function railKeyFor(pathname: string, search: string): string | null {
   const mt = pathname.match(/^\/meetings\/([^/]+)\/?$/);
   if (mt) return wsMeetingsKey(decodeURIComponent(mt[1]!));
   if (pathname === "/search") return "search";
+  if (pathname === "/ask") return "ask";
   if (pathname === "/shared" || pathname.startsWith("/requests")) return "shared";
   if (pathname === "/recent") return "recent";
   if (pathname === "/trash") return "trash";
@@ -72,6 +72,12 @@ export function railKeyFor(pathname: string, search: string): string | null {
   if (pathname === "/settings" || pathname.startsWith("/settings/account") || pathname.startsWith("/settings/tokens")
     || pathname.startsWith("/settings/connections")) return "settings";
   return null;
+}
+
+/** The Ask page for where you are: in a workspace, Ask <Workspace> (?workspace=); else Ask. */
+export function askLinkFor(active: string | null): string {
+  const ws = workspaceOfKey(active);
+  return ws ? `/ask?workspace=${encodeURIComponent(ws)}` : "/ask";
 }
 
 /** The workspace an item key belongs to, if any. */
@@ -135,10 +141,10 @@ const TREE_ITEM =
   "md-focus relative flex h-[30px] min-w-0 items-center gap-1.5 rounded-md pr-2 text-body text-text-secondary no-underline transition-colors duration-(--duration-fast) hover:bg-surface-hover hover:text-text max-lg:h-11 pointer-coarse:h-11";
 const ACTIVE = "font-semibold text-accent-text hover:bg-transparent hover:text-accent-text";
 
-function RailLink({ k, href, active, onNavigate, children, style, className }: { k: string; href: string; active: string | null; onNavigate?: () => void; children: React.ReactNode; style?: React.CSSProperties; className?: string }) {
+function RailLink({ k, href, active, onNavigate, children, style, className, testId }: { k: string; href: string; active: string | null; onNavigate?: () => void; children: React.ReactNode; style?: React.CSSProperties; className?: string; testId?: string }) {
   const on = active === k;
   return (
-    <Anchor href={href} data-rail-key={k} aria-current={on ? "page" : undefined} className={cx(ITEM, on && ACTIVE, className)} onClick={onNavigate} style={style}>
+    <Anchor href={href} data-rail-key={k} aria-current={on ? "page" : undefined} className={cx(ITEM, on && ACTIVE, className)} onClick={onNavigate} style={style} data-testid={testId}>
       {children}
     </Anchor>
   );
@@ -527,11 +533,10 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         <RailLink k="search" href="/search" active={active} onNavigate={onNavigate}>
           <Icon name="search" size={18} /> <span className="truncate">Search</span>
         </RailLink>
-        <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(() => toggleAssistant())}
-          aria-haspopup="dialog" aria-keyshortcuts="Meta+J Control+J" data-testid="rail-ask">
-          <Icon name="sparkle" size={18} className="text-accent-text" /> <span className="truncate">Ask Markdrop</span>
-          <span className="ml-auto hidden shrink-0 text-caption text-text-muted lg:pointer-fine:inline" aria-hidden>⌘J</span>
-        </button>
+        {/* Ask: the assistant's own page (⌘J still opens it as a side panel anywhere). */}
+        <RailLink k="ask" href={askLinkFor(active)} active={active} onNavigate={onNavigate} testId="rail-ask">
+          <Icon name="sparkle" size={18} className="text-accent-text" /> <span className="truncate">Ask</span>
+        </RailLink>
         <button type="button" className={cx(ITEM, "w-full cursor-pointer bg-transparent text-left")} onClick={go(openNotifications)}
           aria-haspopup="dialog" aria-label={unread ? `Inbox, ${unread} unread` : "Inbox"} data-testid="rail-inbox">
           <Icon name="bell" size={18} /> <span className="truncate">Inbox</span>
@@ -663,7 +668,7 @@ function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand,
       <div className="flex flex-col items-center gap-1">
         <RailIcon k="home" href="/dashboard" label="Home" icon={<Icon name="home" size={18} />} active={active} />
         <RailIcon k="search" href="/search" label="Search" icon={<Icon name="search" size={18} />} active={active} />
-        <RailIcon label="Ask Markdrop (⌘J)" icon={<Icon name="sparkle" size={18} className="text-accent-text" />} active={active} onClick={() => toggleAssistant()} testId="rail-ask" />
+        <RailIcon k="ask" href={askLinkFor(active)} label="Ask" icon={<Icon name="sparkle" size={18} className="text-accent-text" />} active={active} testId="rail-ask" />
         <RailIcon label="Inbox" icon={<Icon name="bell" size={18} />} active={active} onClick={openNotifications} badge={unread} testId="rail-inbox" />
       </div>
       <span className="h-px w-8 bg-border" aria-hidden />
