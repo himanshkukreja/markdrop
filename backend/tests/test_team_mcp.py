@@ -60,8 +60,9 @@ class TeamMcp(TeamWorld):
         self.assertEqual(prof["focus"], "Shipping the sourcing filters")
         self.assertFalse(prof["you"])
         # A read-only token can't write.
-        res = await self.call("wm", "set_focus_note", {"text": "nope"}, write=False)
-        self.assertTrue(res.get("isError"), res)
+        token = await self.mcp_token("wm", write=False)
+        status, _res = await self.mcp_call(token, "set_focus_note", {"workspace": self.W, "text": "nope"})
+        self.assertEqual(status, 403)
         row = await self.db[wm.PROFILES].find_one({"_id": f"{self.W}:{self.uid['wm']}"})
         self.assertEqual(row["focus"]["text"], "Shipping the sourcing filters")
 
@@ -102,6 +103,7 @@ class TeamMcp(TeamWorld):
 
     async def test_groups_admins_only(self):
         self.refused(await self.call("wm", "save_team_group", {"name": "Sourcing", "members": ["Bo"]}), "admins")
+        await self.standup(date="2026-11-04", title="Sourcing standup 2")
         await self.db["meetings"].update_many({}, {"$set": {"series": "Sourcing standup"}})
         got = self.ok(await self.call("wm", "list_team_groups", {}, write=False))
         self.assertEqual((got["groups"], got["suggestions"], got["can_manage"]), ([], [], False))
