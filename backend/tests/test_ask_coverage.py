@@ -9,9 +9,6 @@ never reaches anyone else), and the resumable coverage pass. The model is always
 from __future__ import annotations
 
 import io
-import json
-import re
-import secrets
 import zipfile
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
@@ -23,7 +20,7 @@ import unittest
 
 from app.services import file_text, meetings, search_chunks, search_index
 
-from tests.ask_eval.fixtures import FILLER, _zip, clock, long_vtt, make_docx, make_pptx, make_xlsx, vtt, W_NS  # noqa: E402
+from tests.ask_eval.fixtures import FILLER, W_NS, _zip, long_vtt, make_docx, make_pptx, make_xlsx, vtt  # noqa: E402
 
 
 # ── Extraction (pure) ─────────────────────────────────────────────────────────
