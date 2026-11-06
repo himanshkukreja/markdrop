@@ -14,7 +14,7 @@ NOT_FOUND = re.compile(
     r"don't see|do not see|didn't find|did not find|isn't (?:mentioned|covered|in|any)|aren't (?:mentioned|any)|"
     r"doesn't (?:mention|say|cover|appear|include)|don't (?:have|mention|cover|include)|do not (?:have|mention|include)|"
     r"there (?:is|are|was|were) no|none of|no (?:such|record)|nobody|didn't (?:say|mention|speak|come up)|"
-    r"did not (?:say|mention|speak|come up)|not (?:able|available)|nothing you can open|found no|find no|(?:don't|doesn't|do not|does not) (?:answer|show|cover|contain|record|state|give|list|say)|"
+    r"did not (?:say|mention|speak|come up)|(?:doesn't|does not|didn't|did not) (?:speak|appear|attend)|not (?:able|available)|nothing you can open|found no|find no|(?:don't|doesn't|do not|does not) (?:answer|show|cover|contain|record|state|give|list|say)|"
     r"none (?:of them |of these )?(?:gives?|says?|states?|mentions?)|"
     r"no .{0,40}?(?:found|mentioned|recorded|in (?:your|the|these) (?:items|results|meetings|records)))", re.I)
 _HINDI = re.compile(r"\b(hai|kya|mein|kitna|hua|tha|bola|wale|liye|nahi|haan|kal|hoga|baare)\b", re.I)

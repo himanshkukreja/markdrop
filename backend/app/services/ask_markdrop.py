@@ -471,7 +471,8 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
     # Every meeting among them: its title, day and series (a meeting page's updated_at is the import's).
     mids = [meetings.oid(v["meeting_id"]) for v in mdocs.values() if v.get("meeting_id")]
     mrows = {str(r["_id"]): r for r in await db[meetings.COLL].find(
-        {"_id": {"$in": [m for m in mids if m is not None]}}, {"title": 1, "date": 1, "series": 1}).to_list(length=len(mids) or 1)}
+        {"_id": {"$in": [m for m in mids if m is not None]}}, {"title": 1, "date": 1, "series": 1, "attendees.name": 1}
+    ).to_list(length=len(mids) or 1)}
     signoffs_of = await _signoff_notes(db, actor, ctx, cands)
     out: list[Source] = []
     lined: set[str] = set()
@@ -498,6 +499,9 @@ async def _sources_from(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acce
                 attrs["date"] = mrow_["date"]
             if mrow_.get("series"):
                 attrs["series"] = mrow_["series"]
+            names = [a.get("name") for a in mrow_.get("attendees") or [] if a.get("name")]
+            if names:   # as the meeting page's Attendees property shows them
+                attrs["attendees"] = ", ".join(names[:30])
         if c.key in my_work:
             attrs["yours"] = my_work[c.key]
         if c.key in signoffs_of:
