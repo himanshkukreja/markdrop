@@ -268,7 +268,13 @@ await step("sync", async () => {
   await chip.waitFor({ timeout: 30000 });
   const key = await chip.getAttribute("data-key");
   // Tick in Markdrop → Done in Jira (as Ben).
-  await li.locator('input[type="checkbox"]').first().click({ force: true });
+  const box = li.locator('input[type="checkbox"]').first();
+  await li.locator(".md-task-check--live").first().waitFor({ timeout: 20000 });
+  for (let i = 0; i < 2 && !(await box.isChecked()); i++) {
+    await box.click({ force: true });
+    await p.waitForFunction((el) => el.checked, await box.elementHandle(), { timeout: 8000 }).catch(() => log(`tick ${i + 1} did not take (WebKit: a click right after the chips load is sometimes lost)`));
+  }
+  if (!(await box.isChecked())) fail("the box didn't tick");
   let st = null;
   for (let i = 0; i < 40; i++) {
     st = (await issue(key)).fields.status.name;
