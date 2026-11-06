@@ -378,6 +378,11 @@ class Withdraw(NotifyWorld):
     """A mention taken out again (owner, 2026-11-06): its unread notification goes, and nothing
     pending about it is sent."""
 
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        for who in ("wm", "wa"):
+            await self.modes(who)  # Instant email: one per page (tests/test_email_calm.py covers the others)
+
     async def test_added_and_removed_within_the_minute_sends_nothing(self):
         p = await self.page()
         await self.save(p["slug"], "owner", f"Ping {person(self.uid['wm'], 'WM')} about QA {{#b-qa0001}}")
