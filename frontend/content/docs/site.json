@@ -234,7 +234,8 @@
         "/workspaces/meetings-import",
         "/workspaces/meetings-auto-import",
         "/workspaces/meetings-ask",
-        "/workspaces/meetings-privacy"
+        "/workspaces/meetings-privacy",
+        "/workspaces/team"
       ]
     },
     {
