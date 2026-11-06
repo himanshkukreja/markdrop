@@ -96,6 +96,8 @@ interface Ctx {
   jira?: PageJira | null;
   /** Jira links pasted in the page that the viewer's own Jira can open: URL → issue. */
   jiraUrls?: Record<string, JiraIssue>;
+  /** On a meeting page: where the items under Decisions / Action items / Open questions start (offsets). */
+  jiraItems?: Set<number> | null;
 }
 const PageCtx = createContext<Ctx>({ embeds: {}, headings: [], crumbs: [], title: null, href: (s) => `/${encodeURIComponent(s)}`, signoffs: null });
 /** The list item a checkbox belongs to: where it starts in the body (from the Markdown's positions). */
@@ -387,7 +389,7 @@ function FigureImage({ src, alt, caption, size }: { src: string; alt: string; ca
 
 function Li({ node, children, ...rest }: P<"li">) {
   const at = (node as { position?: { start?: { offset?: number } } } | undefined)?.position?.start?.offset;
-  const { jira } = useContext(PageCtx);
+  const { jira, jiraItems } = useContext(PageCtx);
   const bid = str(rest["data-bid"]) ?? null;
   const link = jira && bid ? jira.links[bid] : undefined;
   const offset = typeof at === "number" ? at : null;
@@ -396,7 +398,7 @@ function Li({ node, children, ...rest }: P<"li">) {
       <TaskCtx.Provider value={offset}>{children}</TaskCtx.Provider>
       {link ? (
         <JiraChip link={link} onRetry={jira?.onRetry ? () => jira.onRetry?.(link.id) : null} />
-      ) : jira?.canCreate && (bid || offset !== null) ? (
+      ) : jira?.canCreate && (bid || offset !== null) && (!jiraItems || (offset !== null && jiraItems.has(offset))) ? (
         <button type="button" className="jr-add md-focus no-print" data-testid="jira-add"
           aria-label="Create Jira issue from this item" title="Create Jira issue"
           onClick={() => jira.onCreate({ block: bid, offset: bid ? null : offset, text: textOf(children).trim() })}>
@@ -417,6 +419,20 @@ function A({ node: _n, children, href, ...rest }: P<"a">) {
       {issue && <JiraChip issue={issue} compact />}
     </>
   );
+}
+
+// A meeting page's items that can become issues: the list items of these sections (not the summary, topics or sources).
+const JIRA_SECTIONS = /^##\s+(decisions|action items|open questions)\s*$/i;
+export function meetingItemOffsets(body: string): Set<number> {
+  const out = new Set<number>();
+  let on = false;
+  let at = 0;
+  for (const line of body.split("\n")) {
+    if (/^#{1,6}\s/.test(line)) on = JIRA_SECTIONS.test(line.trim());
+    else if (on && /^[-*+] /.test(line)) out.add(at);
+    at += line.length + 1;
+  }
+  return out;
 }
 
 const JIRA_URL = /https:\/\/[a-z0-9.-]+\/browse\/[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}/g;
@@ -521,6 +537,7 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
   const toggle = useMemo(() => (canToggle ? (at: number) => toggleRef.current?.(at) : null), [canToggle]);
   // Jira links pasted in the page: live chips for what the viewer's own Jira can open (signed in only).
   const jiraKey = useMemo(() => (viewer ? Array.from(new Set(content.match(JIRA_URL) ?? [])).slice(0, 50).join(" ") : ""), [content, viewer]);
+  const jiraItems = useMemo(() => (jira?.canCreate ? meetingItemOffsets(content) : null), [jira?.canCreate, content]);
   const [jiraUrls, setJiraUrls] = useState<Record<string, JiraIssue>>({});
   useEffect(() => {
     if (!jiraKey) { setJiraUrls({}); return; }
@@ -528,7 +545,7 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
     import("@/lib/jira").then((m) => m.jiraLookup(jiraKey.split(" "))).then((r) => { if (!gone) setJiraUrls(r.issues); }).catch(() => {});
     return () => { gone = true; };
   }, [jiraKey]);
-  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle, jira, jiraUrls }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle, jira, jiraUrls]);
+  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle, jira, jiraUrls, jiraItems }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle, jira, jiraUrls, jiraItems]);
   const root = useRef<HTMLDivElement>(null);
   useBlockAnchor(root);
   return (
