@@ -516,7 +516,7 @@ function FactRow({ fact: f, canInsert, viewing, onInsert, inserted }: { fact: Me
           <a className="mm-btn" href={m.href}><Icon name="arrowUpRight" /> Open meeting</a>
         ) : null}
         <button type="button" className="mm-btn" onClick={() => openAssistant({ scope: "doc", question: askAbout(f) })}
-          title="Ask Markdrop about this" data-testid="mm-ask">
+          title="Ask about this" data-testid="mm-ask">
           <Icon name="sparkle" /> Ask about this
         </button>
         {canInsert && (
