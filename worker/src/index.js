@@ -42,6 +42,9 @@ const VIEWERS = new Set(["pdf", "sheet", "text", "docx", "video", "audio"]);
 // Anything else in ?poster= is ignored, so the parameter can only ever point
 // the player at a poster image on this origin.
 const POSTER_KEY = /^art\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.poster\.jpg$/;
+// A video's captions (WebVTT beside it, services/captions.py): ?cc=<key> (+ ?ct=<its token>).
+const CAPTIONS_KEY = /^art\/[A-Za-z0-9_-]+\/[A-Za-z0-9_-]+\.captions\.vtt$/;
+const TOKEN_CHARS = /^[A-Za-z0-9_.-]{1,2048}$/;
 
 // The only two strings that can ever reach the data-theme attribute.
 const THEMES = new Set(["dark", "light"]);
@@ -525,11 +528,20 @@ function serveViewer(renderer, blobKey, url, env, request) {
   const poster = posterKey && POSTER_KEY.test(posterKey)
     ? `/r/${posterKey}${posterToken ? `?t=${encodeURIComponent(posterToken)}` : ""}`
     : null;
+  // Captions (?cc=<key>, ?ct=<token>) and where to start (?at=<seconds> for a video, <page> for a PDF):
+  // what an Ask answer links to ("at 12:34", "page 3").
+  const ccKey = url.searchParams.get("cc");
+  const ccToken = url.searchParams.get("ct");
+  const captions = ccKey && CAPTIONS_KEY.test(ccKey) && (!ccToken || TOKEN_CHARS.test(ccToken))
+    ? `/r/${ccKey}${ccToken ? `?t=${encodeURIComponent(ccToken)}` : ""}`
+    : null;
+  const atRaw = Number(url.searchParams.get("at"));
+  const at = Number.isFinite(atRaw) && atRaw > 0 ? Math.min(Math.floor(atRaw), 1e7) : 0;
   const html =
-    renderer === "pdf" ? pdfViewer(src, theme)
+    renderer === "pdf" ? pdfViewer(src, theme, at)
     : renderer === "sheet" ? sheetViewer(src, theme)
     : renderer === "docx" ? docxViewer(src, theme)
-    : renderer === "video" ? videoViewer(src, poster)
+    : renderer === "video" ? videoViewer(src, poster, captions, at)
     : renderer === "audio" ? audioViewer(src, theme)
     : textViewer(src, theme);
   const headers = {
@@ -771,7 +783,7 @@ function showUnavailable(){
   document.body.innerHTML = '<main class="na-body">' + ${JSON.stringify(NA_MARKUP)} + '</main>';
 }`;
 
-function pdfViewer(src, theme) {
+function pdfViewer(src, theme, at = 0) {
   // Rendered with PDF.js to <canvas>, NOT <embed>. A sandboxed iframe blocks
   // plugin content outright, so the browser's built-in PDF viewer silently
   // fails here. Sandboxing is non-negotiable for user files, so we draw.
@@ -819,6 +831,7 @@ function pdfViewer(src, theme) {
 <div id="live" class="sr" aria-live="polite" aria-atomic="true"></div>
 <script type="module">
 const SRC = ${JSON.stringify(src)};
+const AT_PAGE = ${Number(at) || 0};   // ?at=<page>: open there (an Ask answer's "page 3")
 const V = "4.10.38";
 ${NA_SCRIPT}
 const $ = (id) => document.getElementById(id);
@@ -977,6 +990,9 @@ try {
   fitBtn.disabled = false;
   mdPost({ ev: 'pdf', n: limit }); // pages this viewer shows, so "reached the end" is reachable past LIMIT
   layout();
+  if (AT_PAGE > 1 && pages[AT_PAGE - 1]) {
+    scroller.scrollTop = pages[AT_PAGE - 1].wrap.offsetTop - 12;
+  }
   track();
   say(doc.numPages + (doc.numPages === 1 ? ' page' : ' pages'));
 
@@ -1408,7 +1424,7 @@ ${MEDIA_BRIDGE}`;
  * Everything here is inline. The page renders inside a sandboxed iframe on a
  * throwaway origin with no build step and no network beyond the video itself.
  */
-function videoViewer(src, poster = null) {
+function videoViewer(src, poster = null, captions = null, at = 0) {
   // Dark in both app themes, on purpose: a light frame around moving pictures
   // fights the picture. It still takes the design tokens (dark set) and the
   // accent, so it reads as the same product as the other viewers.
@@ -1486,12 +1502,19 @@ function videoViewer(src, poster = null) {
   /* Narrow frames: keep play, scrub, volume, time, speed and full screen; the
      ±10s and picture-in-picture buttons stay on the keyboard (← → j l). */
   @media (max-width:480px){#back,#fwd,#pip{display:none!important}.row{gap:2px}#ui{padding:40px 8px 8px}}
+  #cc{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);max-width:88%;text-align:center;
+    pointer-events:none;transition:bottom .18s}
+  #cc span{display:inline;background:rgb(0 0 0 / .78);color:#fff;font:500 clamp(14px,2.6vw,22px)/1.45 var(--sans);
+    padding:2px 8px;border-radius:4px;box-decoration-break:clone;-webkit-box-decoration-break:clone;white-space:pre-line}
+  #stage.show #cc,#stage:not(.playing) #cc{bottom:96px}
+  #ccBtn[aria-pressed="false"]{opacity:.55}
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
 </style></head><body>
 <div id="stage" tabindex="0">
   <video id="v" playsinline preload="metadata"${poster ? ` poster="${poster}"` : ""} src="${src}"></video>
   <button id="big" aria-label="Play"><span><svg width="26" height="26" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg></span></button>
   <div id="toast"></div>
+  <div id="cc" aria-live="off"></div>
   <div id="ui">
     <div class="bar" id="bar">
       <div class="track"><div class="buffered" id="buf"></div><div class="played" id="played"></div></div>
@@ -1512,6 +1535,7 @@ function videoViewer(src, poster = null) {
         <button id="speedBtn" aria-label="Playback speed" title="Speed">1×</button>
         <div id="speedList"></div>
       </div>
+      <button id="ccBtn" aria-label="Captions" title="Captions (c)" aria-pressed="true" style="display:none"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M10 10.5a2 2 0 1 0 0 3M17 10.5a2 2 0 1 0 0 3"/></svg></button>
       <button id="pip" aria-label="Picture in picture" title="Picture in picture"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><rect x="12" y="12" width="8" height="6" rx="1" fill="currentColor"/></svg></button>
       <button id="fs" aria-label="Full screen" title="Full screen (f)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/></svg></button>
     </div>
@@ -1639,6 +1663,46 @@ function videoViewer(src, poster = null) {
     else if(k>='0'&&k<='9'&&v.duration){v.currentTime=v.duration*(+k/10);flash(k*10+'%')}
   });
   stage.focus();
+
+  // Start where the link said (?at=<seconds>: an Ask answer's "at 12:34").
+  var AT=${at};
+  if(AT>0){var seek=function(){try{v.currentTime=Math.min(AT,(v.duration||AT+1)-0.5)}catch(_){}};
+    if(v.readyState>=1)seek();else v.addEventListener('loadedmetadata',seek,{once:true})}
+
+  // Captions: the WebVTT beside the video, drawn as text (never HTML) over the picture.
+  var CC=${JSON.stringify(captions).replace(/</g, "\\u003c")};
+  var ccBox=document.getElementById('cc'),ccBtn=document.getElementById('ccBtn'),cues=[],ccOn=true,ccLast=null;
+  function ts(x){var p=x.trim().replace(',','.').split(':'),s=0;for(var i=0;i<p.length;i++)s=s*60+parseFloat(p[i]);return s}
+  function parseVtt(t){
+    var out=[],blocks=t.replace(/\\r/g,'').split(/\\n\\s*\\n/);
+    for(var i=0;i<blocks.length;i++){
+      var lines=blocks[i].split('\\n'),j=0;
+      while(j<lines.length&&lines[j].indexOf('-->')<0)j++;
+      if(j>=lines.length)continue;
+      var m=lines[j].split('-->');var a=ts(m[0]),b=ts(m[1].trim().split(/\\s+/)[0]);
+      var text=lines.slice(j+1).join('\\n').replace(/<v(?:\\.[^\\s>]*)?\\s+([^>]+)>/g,'$1: ').replace(/<[^>]*>/g,'');
+      if(isFinite(a)&&isFinite(b)&&text.trim())out.push({a:a,b:b,t:text.trim()});
+    }
+    return out;
+  }
+  function showCue(){
+    if(!ccOn||!cues.length){if(ccLast!==null){ccBox.textContent='';ccLast=null}return}
+    var t=v.currentTime,txt='';
+    for(var i=0;i<cues.length;i++){if(cues[i].a<=t&&t<cues[i].b){txt=cues[i].t;break}}
+    if(txt===ccLast)return;ccLast=txt;ccBox.textContent='';
+    if(txt){var sp=document.createElement('span');sp.textContent=txt;ccBox.appendChild(sp)}
+  }
+  function setCc(on){ccOn=on;ccBtn.setAttribute('aria-pressed',on?'true':'false');ccLast=null;showCue();flash(on?'Captions on':'Captions off')}
+  if(CC){
+    fetch(CC).then(function(r){return r.ok?r.text():''}).then(function(t){
+      cues=parseVtt(t||'');if(cues.length){ccBtn.style.display='';showCue()}
+    }).catch(function(){});
+    v.addEventListener('timeupdate',showCue);v.addEventListener('seeked',showCue);
+    ccBtn.onclick=function(){setCc(!ccOn)};
+    document.addEventListener('keydown',function(e){
+      if((e.key==='c'||e.key==='C')&&!e.metaKey&&!e.ctrlKey&&cues.length){e.preventDefault();setCc(!ccOn)}
+    });
+  }
 
   // Two very different failures reach this handler looking identical: a codec
   // the browser cannot decode, and a file it was never allowed to fetch. A

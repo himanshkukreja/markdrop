@@ -295,3 +295,24 @@ test("page images (pa/): public ones by URL, guarded ones only with a token for 
   assert.equal((await get("/r/other/x.png")).status, 404);
   assert.equal((await get("/r/pa/d1/..%2F..%2Fart/u1/page.html")).status, 404);
 });
+
+test("video player: captions only from a captions key (as text, never HTML), and ?at= starts there", async () => {
+  const page = await (await get("/v/video/art/u1/clip.mp4?cc=art/u1/abc_DEF-1.captions.vtt&ct=aa.bb_cc&at=754")).text();
+  assert.match(page, /var CC="\/r\/art\/u1\/abc_DEF-1\.captions\.vtt\?t=aa\.bb_cc";/);
+  assert.match(page, /var AT=754;/);
+  assert.match(page, /sp\.textContent=txt/);              // cue text is set as text
+  assert.doesNotMatch(page, /ccBox\.innerHTML/);
+  // Not a captions key, a key elsewhere, or a token with odd characters: no captions.
+  for (const q of ["cc=art/u1/clip.mp4", "cc=pa/d1/x.captions.vtt", "cc=art/u1/x.captions.vtt&ct=%22%3E%3Cscript%3E",
+                   "cc=art/u1/../x.captions.vtt"]) {
+    const html = await (await get(`/v/video/art/u1/clip.mp4?${q}`)).text();
+    assert.match(html, /var CC=null;/, q);
+  }
+  assert.match(await (await get("/v/video/art/u1/clip.mp4?at=-5")).text(), /var AT=0;/);
+  assert.match(await (await get("/v/video/art/u1/clip.mp4?at=abc")).text(), /var AT=0;/);
+  // The PDF viewer opens at ?at=<page>.
+  assert.match(await (await get("/v/pdf/art/u1/r.pdf?at=3")).text(), /const AT_PAGE = 3;/);
+  // The player's script parses with captions and a start time.
+  const js = page.slice(page.indexOf("<script>") + 8, page.indexOf("</script>"));
+  assert.doesNotThrow(() => new vm.Script(js));
+});
