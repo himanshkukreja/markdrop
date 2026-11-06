@@ -842,6 +842,25 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
                   group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
                   restricted: bool | None, wait: bool, via: str, history: bool = False, series: str | None = None,
                   series_from: str | None = None) -> dict:
+    """A meeting held more than a day ago is history however it comes in (Import meeting by hand, a
+    Drive link, the API): its @mentions stay links and nobody is notified about something long past,
+    the same rule as the script's backfill and Import past meetings."""
+    from app.services import notifications
+
+    kw = dict(title=title, date_=date_, type_=type_, restricted=restricted, wait=wait, via=via,
+              series=series, series_from=series_from)
+    if not history and not notifications.is_quiet():
+        d = date_ or mp.merge(group).date
+        if d and d < (now_utc().date() - timedelta(days=1)).isoformat():
+            with notifications.quiet():
+                return await _create_row(db, user, workspace_id, folder, people, group, history=True, **kw)
+    return await _create_row(db, user, workspace_id, folder, people, group, history=history, **kw)
+
+
+async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
+                      group: list[mp.Source], *, title: str | None, date_: str | None, type_: str | None,
+                      restricted: bool | None, wait: bool, via: str, history: bool = False, series: str | None = None,
+                      series_from: str | None = None) -> dict:
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
     from app.services import meeting_series, meetings_ai, page_covers, pages

@@ -45,7 +45,9 @@ async function snap(p, name, full = false) {
   log("shot", path.basename(file));
 }
 
-const TRANSCRIPT = `Sprint planning (2026-11-05 09:30 GMT+05:30) - Transcript
+// Today: a meeting more than a day old imports quietly (nobody notified), and this one checks the mention.
+const DAY = new Date().toLocaleDateString("en-CA");
+const TRANSCRIPT = `Sprint planning (${DAY} 09:30 GMT+05:30) - Transcript
 Attendees
 Ada Owner, Ben Member, Vic Viewer
 Transcript
@@ -88,7 +90,7 @@ await step("paste", async () => {
   await dlg.locator("#mt-paste").fill(TRANSCRIPT);
   await dlg.getByText("9 transcript lines").waitFor({ timeout: 15000 });
   if ((await dlg.locator("#mt-title").inputValue()) !== "Sprint planning") fail("title not detected");
-  if ((await dlg.locator("#mt-date").inputValue()) !== "2026-11-05") fail("date not detected");
+  if ((await dlg.locator("#mt-date").inputValue()) !== DAY) fail("date not detected");
   await snap(p, "import-paste-light");
   await dlg.getByRole("button", { name: "Import meeting" }).click();
   await p.waitForURL((u) => !u.pathname.startsWith("/meetings/"), { timeout: 30000 });
@@ -117,7 +119,7 @@ await step("structure", async () => {
   const doc = ok(await api("GET", `/api/v1/documents/${meeting.slug}`, T.owner), "page");
   const c = doc.content;
   for (const want of [':::note[Summary]{icon="✨"}', "## Decisions", "## Action items", "## Open questions", "## Topics", "## Sources",
-    `::page{src="${meeting.transcript_slug}"}`, 'date: "2026-11-05"', 'type: "Planning"']) {
+    `::page{src="${meeting.transcript_slug}"}`, `date: "${DAY}"`, 'type: "Planning"']) {
     if (!c.includes(want)) fail(`page lacks ${want}`);
   }
   if (!/:person\[Vic Viewer\]\{id="[0-9a-f]{24}"\} run the staging dry run/.test(c)) fail("Vic's action item isn't a mention");

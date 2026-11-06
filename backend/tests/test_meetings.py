@@ -14,6 +14,7 @@ import io
 import json
 import re
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
@@ -519,12 +520,24 @@ class Import(MeetingsWorld):
         self.assertEqual(rows[0]["user_id"], self.uid["owner"])
 
     async def test_mentions_notify_members(self):
-        await self.imported()
+        await self.imported(date=meetings.now_utc().date().isoformat())
         notes = await self.db["notifications"].find({}).to_list(50)
         to = {n["user_id"] for n in notes}
         self.assertIn(self.uid["wv"], to)    # Ravi
         self.assertIn(self.uid["wm"], to)    # Bo
         self.assertNotIn(self.uid["stranger"], to)
+
+    async def test_an_old_meeting_imported_by_hand_notifies_nobody(self):
+        # Held days ago: history, however it comes in (the same rule as the backfill).
+        old = (meetings.now_utc().date() - timedelta(days=3)).isoformat()
+        m = await self.imported(date=old)
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
+        row = await self.db["meetings"].find_one({"_id": ObjectId(m["id"])})
+        self.assertTrue(row.get("history"))
+        self.assertIn(":person[Ravi Kumar]", (await self.doc(m["slug"]))["content"])   # still a link
+        # Yesterday's still notifies.
+        await self.imported(date=(meetings.now_utc().date() - timedelta(days=1)).isoformat(), title="Yesterday's sync")
+        self.assertGreater(await self.db["notifications"].count_documents({}), 0)
 
     async def test_prompt_is_wrapped_and_english(self):
         await self.imported()
