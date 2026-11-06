@@ -13,6 +13,7 @@ import { useShortcutsEnabled } from "@/lib/shortcuts";
 import { useMounted } from "@/components/shell/useLocation";
 import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
 import { PushCard } from "./PushCard";
+import { SlackCard } from "./SlackCard";
 
 const NAME_MAX = 80;
 
@@ -55,7 +56,7 @@ function EmailModeRow({ id, label, hint, value, disabled, onChange }: {
   );
 }
 
-/** /settings/account (REVAMP_PLAN 7.11): profile, appearance, notifications on devices, email, sign out. */
+/** /settings/account (REVAMP_PLAN 7.11): profile, appearance, notifications on devices, Slack notifications, email, sign out. */
 export default function AccountClient() {
   const { user, ready } = useRequireUser("/settings/account");
   const { updateUser, signOut: authSignOut } = useAuth();
@@ -221,6 +222,8 @@ export default function AccountClient() {
 
       <PushCard />
 
+      <SlackCard />
+
       <Card title="Email" id="email">
         <div className="flex min-w-0 flex-col gap-4">
           <EmailModeRow
@@ -241,7 +244,7 @@ export default function AccountClient() {
           />
           <p className="text-caption text-text-muted">
             The app comes first: nothing is emailed that you already saw in Markdrop or got as a push
-            notification. At most 3 of these emails a day; the daily digest comes at 8:00 your time. Every one
+            notification or a Slack message. At most 3 of these emails a day; the daily digest comes at 8:00 your time. Every one
             has an <span className="text-text-secondary">Email me less</span> link. <ReadMore topic="notificationEmail" />
           </p>
         </div>
