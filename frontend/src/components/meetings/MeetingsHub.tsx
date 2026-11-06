@@ -452,7 +452,7 @@ function MeetingCardItem({ m, onDelete }: { m: MeetingCard; onDelete?: () => voi
     ...(onDelete ? [{ label: "Delete meeting", icon: "trash", danger: true, separated: true, onClick: onDelete }] : []),
   ];
   return (
-    <li className="mt-card" data-testid="meeting-card" data-series={m.series ? "" : undefined}>
+    <li className="mt-card" data-testid="meeting-card" data-id={m.id} data-series={m.series ? "" : undefined}>
       <Link className="mt-card__link" href={`/${m.slug}`} aria-label={`${title}${m.date ? `, ${fmtDay(m.date)}` : ""}`} />
       <span className="mt-card__thumb" aria-hidden
         style={{ backgroundColor: m.series ? seriesTint(m.series) : "var(--surface-inset)" }}>
