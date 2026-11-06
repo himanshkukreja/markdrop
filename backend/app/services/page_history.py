@@ -337,6 +337,9 @@ def _author(row: dict, people: dict[str, dict]) -> dict:
         label = "Earlier version"
     elif kind == "signoff":
         label = (row.get("event") or {}).get("text") or "Sign-off"
+    elif kind == "jira":
+        # A to-do ticked (or reopened) because its linked issue moved in Jira (services/jira_links.py).
+        label = f"{name or 'Someone'} via Jira"
     else:
         label = name or "Someone"
     return {"kind": kind, "id": row.get("author_id"), "name": name, "client": row.get("client"),

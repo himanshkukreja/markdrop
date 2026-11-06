@@ -20,6 +20,7 @@
     { "id": "meetings", "title": "Meetings", "tags": ["meetings", "meeting-memory"] },
     { "id": "team", "title": "Team", "tags": ["team"] },
     { "id": "slack", "title": "Slack", "tags": ["slack"] },
+    { "id": "jira", "title": "Jira", "tags": ["jira"] },
     { "id": "domains", "title": "Custom domains", "tags": ["domains"] },
     { "id": "analytics", "title": "Analytics", "tags": ["creator-analytics", "analytics-ai"] },
     { "id": "account", "title": "Account", "tags": ["auth", "me", "personal", "oauth"] }
@@ -1649,6 +1650,111 @@
       "description": "A run of **Organize meetings** (`job`): `state` (`running`, `done` or `failed`, with a `message`), `done` of `total` meetings, how many moved (`filed`), joined a series (`series_set`) or got a cover (`covers`), how many couldn't be organized (`errors`, with a few `error_samples`: `title`, `error`), and once done the `folders` and `series` in use, `transcripts_hidden` and `duplicates_removed`. Poll it every second or two while it runs. The workspace's admins and owners; 404 for anyone else.",
       "paramNotes": {"run": "The run's `id` from Organize meetings."},
       "guide": {"label": "Organize meetings", "href": "/workspaces/meetings#organize-meetings"}
+    },
+    "GET /api/v1/jira/status": {
+      "title": "Jira connection status",
+      "description": "What Workspace settings › Integrations › Jira shows: whether Jira is set up on this server (`configured`), the workspace's Jira site (`site`: name, link, default project and issue type, the projects on Team, who connected it, how many people connected their account), whether you can change it (`can_manage`: admins and owners), and your own Atlassian connection (`me`). Members of the workspace only.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/connect/start": {
+      "title": "Start connecting Jira",
+      "description": "Returns Atlassian's consent address. `kind: \"site\"` (admins and owners, with `workspace_id`) connects the workspace's Jira site; `kind: \"me\"` connects your own Atlassian account (`back`: where to return on markdrop.in). Atlassian sends you back to markdrop.in, which finishes with **Finish connecting Jira**. 503 when Jira isn't set up on this server.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/connect/finish": {
+      "title": "Finish connecting Jira",
+      "description": "The end of Atlassian's consent: `code` and `state` from its redirect. Stores your Atlassian connection (tokens encrypted). The `state` is for the account that started, lasts 15 minutes and works once.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/sites": {
+      "title": "Jira sites my connection reaches",
+      "description": "The Jira sites your Atlassian connection reaches, for an admin choosing the workspace's site.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/projects": {
+      "title": "Jira projects",
+      "description": "The projects you can see on the workspace's Jira site (or `cloud_id`), through your own connection.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/issue-types": {
+      "title": "Issue types of a Jira project",
+      "description": "The issue types you can create in `project`, through your own connection.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "PUT /api/v1/jira/site": {
+      "title": "Connect the workspace's Jira site",
+      "description": "Admins and owners: the Jira site (`cloud_id`, one your connection reaches), the projects on Team (`projects`; none: Team shows nothing from Jira), and the default project and issue type for new issues. Registers the webhooks that keep statuses in step.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "DELETE /api/v1/jira/site": {
+      "title": "Disconnect the workspace's Jira site",
+      "description": "Admins and owners. Issues stay in Jira and links stay on pages; Team, status sync and chips stop until the site is connected again.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/me": {
+      "title": "My Atlassian connection",
+      "description": "Whether your Atlassian account is connected, as whom, the sites it reaches, and the workspaces whose Jira site it reaches. Never returns a token.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "DELETE /api/v1/jira/me": {
+      "title": "Disconnect my Atlassian account",
+      "description": "Deletes your Atlassian tokens. Issues you created stay in Jira.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/page": {
+      "title": "Jira chips on a page",
+      "description": "The page's linked issues by block id, for you: key, status and assignee when your own Jira can open the issue, the key alone otherwise; and whether you can create issues from it (`can_create`, `can_edit`).",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/draft": {
+      "title": "Draft a Jira issue from an item",
+      "description": "The AI draft of an issue (summary, description, issue type, priority, assignee, due date, labels) from an item on a page (`slug` with `block`, `offset` or `selection`) or a Team line (`fact_id`), with the projects, issue types, priorities and people to pick from. Creates nothing. When AI can't run, the draft is the item as written (`ai: false`, `note` says why). Needs your own Atlassian connection (409 otherwise).",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/draft/all": {
+      "title": "Draft Jira issues for a meeting's action items",
+      "description": "Drafts for every open action item on the page that has no issue yet (at most 25), in one AI request. Creates nothing.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/issues": {
+      "title": "Create a Jira issue from an item",
+      "description": "Creates the issue as you, with the reviewed `fields`, and links it to the item: the description gets the item quoted and a link back to the page or meeting moment. Returns the issue's key and link.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/issues/bulk": {
+      "title": "Create several Jira issues from a page",
+      "description": "Creates an issue for each `items` entry (block id and reviewed fields) as you, and links each to its item. Each result says whether it was created.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/links": {
+      "title": "Link a Jira issue to an item",
+      "description": "Links an existing issue (`key`: a key or an issue link) to an item on a page. Your Atlassian account must be able to open the issue; needs edit access to the page.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "DELETE /api/v1/jira/links/{link_id}": {
+      "title": "Unlink a Jira issue",
+      "description": "Removes the link (the issue stays in Jira). The person who linked it, or a workspace admin.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/links/{link_id}/retry": {
+      "title": "Sync a linked to-do to Jira again",
+      "description": "Moves the issue to match the to-do (ticked: Done; unticked: To do), as you, after a failed sync.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "POST /api/v1/jira/lookup": {
+      "title": "Live chips for pasted Jira links",
+      "description": "For Jira issue links pasted in pages: the issues your own Atlassian connection can open (key, summary, status, assignee). Links it can't open are left out.",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/team/{workspace_id}": {
+      "title": "Jira on the Team board",
+      "description": "Each member's Jira issues in the projects on Team (updated in the last 30 days): with your connection, the issues your Jira can open (`mode: \"details\"`); without it, counts only (`mode: \"counts\"`). `no_projects` when an admin hasn't picked any. Cached for 5 minutes (`refresh=true` asks Jira now).",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
+    },
+    "GET /api/v1/jira/team/{workspace_id}/people/{user_id}": {
+      "title": "A person's Jira issues",
+      "description": "One member's issues grouped as overdue, blocked, in progress, to do and done lately (details), or their counts (no connection).",
+      "guide": {"label": "Jira", "href": "/integrations/jira"}
     },
     "GET /api/v1/slack/status": {
       "title": "Slack connection status",

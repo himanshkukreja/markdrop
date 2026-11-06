@@ -2139,6 +2139,114 @@
     "bytes": 146306,
     "kind": "image"
   },
+  "/docs-assets/integrations/jira/account.dark.webp": {
+    "w": 1628,
+    "h": 192,
+    "bytes": 7650,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/account.webp": {
+    "w": 1628,
+    "h": 192,
+    "bytes": 7726,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/bulk.dark.webp": {
+    "w": 1280,
+    "h": 906,
+    "bytes": 38098,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/bulk.webp": {
+    "w": 1280,
+    "h": 906,
+    "bytes": 41450,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/card-connected.dark.webp": {
+    "w": 1712,
+    "h": 868,
+    "bytes": 54802,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/card-connected.webp": {
+    "w": 1712,
+    "h": 868,
+    "bytes": 56102,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/chips.dark.webp": {
+    "w": 1506,
+    "h": 306,
+    "bytes": 21108,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/chips.webp": {
+    "w": 1506,
+    "h": 306,
+    "bytes": 22626,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/create-dialog.dark.webp": {
+    "w": 1280,
+    "h": 1394,
+    "bytes": 55846,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/create-dialog.webp": {
+    "w": 1280,
+    "h": 1394,
+    "bytes": 59146,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/projects.dark.webp": {
+    "w": 1712,
+    "h": 976,
+    "bytes": 60122,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/projects.webp": {
+    "w": 1712,
+    "h": 976,
+    "bytes": 62242,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/team-card.dark.webp": {
+    "w": 784,
+    "h": 624,
+    "bytes": 19910,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/team-card.webp": {
+    "w": 784,
+    "h": 624,
+    "bytes": 21030,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/team-counts.dark.webp": {
+    "w": 2304,
+    "h": 484,
+    "bytes": 20304,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/team-counts.webp": {
+    "w": 2304,
+    "h": 484,
+    "bytes": 21620,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/team.dark.webp": {
+    "w": 2304,
+    "h": 640,
+    "bytes": 24688,
+    "kind": "image"
+  },
+  "/docs-assets/integrations/jira/team.webp": {
+    "w": 2304,
+    "h": 640,
+    "bytes": 26508,
+    "kind": "image"
+  },
   "/docs-assets/integrations/slack/card-connected.dark.webp": {
     "w": 1712,
     "h": 894,

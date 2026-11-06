@@ -702,6 +702,129 @@ if os.environ.get("PB_FAKE_TEAM_AI"):
                                                      "email": u["email"], "name": u.get("name")}}, upsert=True)
         return {"ok": True}
 
+# Jira Cloud against a fake Atlassian (PB_FAKE_JIRA=1, jira.mjs): backend/tests/_jira_fake.FakeJira answers
+# OAuth (codes "code-acc-<name>") and Jira REST in process. Accounts: Ada, Ben and Wes see every project;
+# Vic sees only WEB (so a PAY chip stays a bare key for him). The browser's trips to auth.jira.test are
+# intercepted by the test and sent back to the callback page. Drafts come from a fake model (below): the
+# item's words as the summary, the first member named in it as the assignee, "due YYYY-MM-DD" as the due
+# date. POST /__sandbox/jira/reset rebuilds the fake world; /__sandbox/jira/move {key, status, by} moves an
+# issue in "Jira" and delivers the signed webhook to /api/v1/jira/webhook/<ws> like Jira does;
+# GET /__sandbox/jira/issue/<key> reads an issue back. Nothing leaves the machine.
+if os.environ.get("PB_FAKE_JIRA"):
+    import json as _jjson
+    import re as _jre
+    from types import SimpleNamespace as _JNS
+
+    from app.services import jira_ai as _jira_ai, jira_api as _jira_api
+    from app.utils import crypto as _jcrypto
+    from tests._jira_fake import FakeJira as _FakeJira, today_plus as _jtoday
+
+    mod.settings.atlassian_client_id = "fake-atlassian-client"
+    mod.settings.atlassian_client_secret = "fake-atlassian-secret"
+    mod.settings.atlassian_auth_base = "https://auth.jira.test"
+    mod.settings.atlassian_api_base = "https://api.jira.test"
+    if not mod.settings.token_encryption_key:
+        mod.settings.token_encryption_key = "8Kq0Qb3oQ1n3yYbqQh1w8sV9t6rXo5Wm2Zc4Jd7Lp0E="
+    _jcrypto._fernet.cache_clear()
+
+    def _jira_world() -> _FakeJira:
+        f = _FakeJira()
+        f.add_account("acc-ada", "Ada Owner", "ada@acme.test")
+        f.add_account("acc-ben", "Ben Member", "ben@acme.test")
+        f.add_account("acc-wes", "Wes Admin", "wes@acme.test")
+        f.add_account("acc-vic", "Vic Viewer", "vic@acme.test", projects=["WEB"])
+        f.add_issue("PAY", "Retry failed card payments", status="In Progress", assignee="acc-ben", due=_jtoday(-2), priority="High")
+        f.add_issue("PAY", "Refund flow for annual plans", assignee="acc-ben", due=_jtoday(6))
+        f.add_issue("PAY", "Invoice PDF footer", status="Blocked", assignee="acc-wes")
+        f.add_issue("WEB", "Pricing page copy", status="Done", assignee="acc-ben")
+        f.add_issue("WEB", "Cookie banner for EU", assignee="acc-ada", due=_jtoday(3))
+        f.add_issue("SEC", "Rotate the signing keys", assignee="acc-wes")
+        return f
+
+    _JIRA = {"fake": _jira_world()}
+
+    async def _jira_handler(request: httpx.Request) -> httpx.Response:
+        return await _JIRA["fake"].handler(request)
+
+    _jira_api.TRANSPORT = httpx.MockTransport(_jira_handler)
+
+    _J_ITEM = _jre.compile(r"<untrusted_item>\n(.*?)\n</untrusted_item>", _jre.S)
+
+    def _jira_fields(text: str, members: list[str]) -> dict:
+        t = _jre.sub(r":person\[[^\]]*\]\{[^}]*\}", "", text)
+        t = _jre.sub(r"\[\d\d:\d\d\]\([^)]*\)|\{#[^}]*\}|·", " ", t)
+        due = _jre.search(r"due (\d{4}-\d{2}-\d{2})", t)
+        t = _jre.sub(r"due \d{4}-\d{2}-\d{2}", "", t)
+        t = " ".join(t.split()).strip(" .-")
+        who = next((m for m in members if m.split()[0].lower() in text.lower()), "")
+        if who and t.lower().startswith(who.lower()):
+            t = t[len(who):].strip(" :,-")
+        return {"summary": (t[:1].upper() + t[1:])[:120] or "New issue",
+                "description": f"Goal: {t}.\nDone when it's shipped and checked.",
+                "issue_type": "Bug" if _jre.search(r"\b(broken|bug|fails?)\b", t, _jre.I) else "Task",
+                "priority": "High" if _jre.search(r"\b(asap|urgent|blocker)\b", t, _jre.I) else "",
+                "assignee": who, "due": due.group(1) if due else "",
+                "labels": ["billing"] if "billing" in t.lower() else []}
+
+    class _JStream:
+        def __init__(self, text):
+            self.text = text
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            return self._gen()
+
+        async def _gen(self):
+            yield _JNS(type="text", text=self.text)
+
+        async def get_final_message(self):
+            return _JNS(content=[_JNS(type="text", text=self.text)], stop_reason="end_turn",
+                        usage=_JNS(input_tokens=700, output_tokens=len(self.text) // 4 + 5, cache_read_input_tokens=0,
+                                   cache_creation_input_tokens=0, cache_creation=None))
+
+    class _JMessages:
+        def stream(self, **params):
+            user = params["messages"][-1]["content"][-1]["text"]
+            mm = _jre.search(r"^Members[^:]*: (.*)$", user, _jre.M)
+            members = [] if not mm or mm.group(1) == "(none)" else [x.strip() for x in mm.group(1).split(";")]
+            body = (_J_ITEM.search(user) or _JNS(group=lambda _n: "")).group(1)
+            if params["system"][0]["text"].startswith("You turn each numbered item"):
+                rows = _jre.findall(r"^(\d+)\. (.*)$", body, _jre.M)
+                return _JStream(_jjson.dumps({"drafts": [{"n": int(n), **_jira_fields(t, members)} for n, t in rows]}))
+            return _JStream(_jjson.dumps(_jira_fields(body, members)))
+
+    _jclient = _JNS(messages=_JMessages())
+    _jira_ai.docs_agent = _JNS(get_client=lambda: _jclient, configured=lambda: True)
+
+    @mod.app.post("/__sandbox/jira/reset", include_in_schema=False)
+    async def _jira_reset():
+        _JIRA["fake"] = _jira_world()
+        return {"ok": True}
+
+    @mod.app.post("/__sandbox/jira/move", include_in_schema=False)
+    async def _jira_move(body: dict):
+        f = _JIRA["fake"]
+        payload = f.move(body["key"], body["status"], body.get("by"))
+        token = f.jwt(mod.settings.atlassian_client_secret)
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.post(f"http://127.0.0.1:{8180 + 10 * STACK_ID}/api/v1/jira/webhook/{body['workspace_id']}",
+                                  content=_jjson.dumps(payload), headers={"Authorization": f"Bearer {token}",
+                                                                          "Content-Type": "application/json"})
+        return {"status": r.status_code, "body": r.json() if r.headers.get("content-type", "").startswith("application/json") else None}
+
+    @mod.app.get("/__sandbox/jira/issue/{key}", include_in_schema=False)
+    async def _jira_issue(key: str):
+        it = _JIRA["fake"].issues.get(key)
+        return it or {"missing": True}
+
+    @mod.app.get("/__sandbox/jira/webhooks", include_in_schema=False)
+    async def _jira_webhooks():
+        return {"webhooks": {str(k): v for k, v in _JIRA["fake"].webhooks.items()}}
 # The Google Meet script's "Check now" web app, faked: PB_FAKE_MEET_SCRIPT=1 (docs shots of Check for new meetings).
 # POST /__sandbox/meet-script/queue {workspace_id, item} holds a Doc (an /inbox body) for the next check; a check
 # (meetings_inbox.CHECK_TRANSPORT) finds the connection by its check key, delivers the held Docs through the real

@@ -406,6 +406,20 @@
       ]
     },
     {
+      "id": "jira-cloud",
+      "date": "2026-11-06",
+      "title": "Jira: issues from meetings and pages, tickets on Team, to-dos in step both ways",
+      "kind": "new",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Connect a workspace to Jira Cloud in Workspace settings › Integrations › Jira, and each person connects their own Atlassian account. Turn a meeting's action item, decision or open question, a Team line or any text in a page into a Jira issue that Markdrop AI drafts and you review; it's created as you. Linked to-dos and issues stay in step both ways, Team shows each person's tickets, and Ask answers questions about tickets.",
+      "body": "- **Connect.** An admin connects the Jira site and picks the default project and issue type for new issues, and which projects show on Team (none: Team shows nothing from Jira). Everyone connects their own Atlassian account (Settings › Account › Jira); everything in Jira happens as them.\n- **Create.** **+ Jira** on a meeting's decisions, action items and open questions, **Jira issues** in the meeting bar for all open action items, **Create Jira issue** in the editor's selection toolbar and block menu, and in a Team line's menu. The AI draft (summary, description, type, priority, assignee, due date, labels) is reviewed before anything is created; the issue links back to the moment in the meeting. Restricted meetings warn that the issue's text is visible to everyone in Jira.\n- **In step.** Tick a linked to-do: the issue moves to Done, as you. Move the issue in Jira: the to-do ticks or unticks (\"via Jira\" in version history). A chip next to the item shows key, status and assignee to people whose own Jira can open the issue.\n- **Team.** Each card's open issues, overdue and blocked issues and issues per project; counts only until you connect your account.\n- **Ask and links.** Ask reads your own Jira for questions about tickets; pasted Jira links show a live chip.\n- **AI apps.** New MCP tools `jira_status`, `create_jira_issue` (with `draft`), `link_jira_issue`, `list_jira_issues` and `transition_jira_issue`.\n- See [Jira](/integrations/jira)."
+    },
+    {
       "id": "organize-meetings-background",
       "date": "2026-11-05",
       "title": "Organize meetings no longer times out, and shows what it will do",

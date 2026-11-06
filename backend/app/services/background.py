@@ -34,6 +34,8 @@ one API worker runs it (§5.1, §5.5, A6):
                              that changed (pages 10 min after their last save) in workspaces that turned
                              it on, under the ``workspace_memory`` AI cap; consolidate once a day; delete
                              what a workspace gathered when it turns Team memory off
+    jira          every 60 s  Jira (services/jira*.py): tick the to-dos Jira moved while their page was
+                             being edited; extend the workspaces' Jira webhooks before their 30 days run out
 
 Started from the app lifespan when ``MARKDROP_BACKGROUND_WORKERS_ENABLED`` (on
 by default; tests leave it off and call the loop bodies directly).
@@ -228,6 +230,16 @@ async def _ask_suggestions(db: AsyncIOMotorDatabase) -> None:
     from app.services import ask_suggestions
 
     await ask_suggestions.background(db)
+async def _jira(db: AsyncIOMotorDatabase) -> None:
+    from app.services import jira, jira_links
+
+    if not jira.configured():
+        return
+    # To-dos Jira moved while someone was editing their page, then the webhooks (30 days) extended.
+    await jira_links.retry_pending(db)
+    await jira.refresh_webhooks(db)
+
+
 async def _workspace_memory(db: AsyncIOMotorDatabase) -> None:
     from app.services import workspace_memory
 
@@ -249,6 +261,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("meeting_memory", 15.0, _meeting_memory),
                               ("ask_suggestions", 300.0, _ask_suggestions),
                               ("workspace_memory", 30.0, _workspace_memory),
+                              ("jira", 60.0, _jira),
                               ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 

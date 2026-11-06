@@ -407,6 +407,15 @@ export function FormatToolbar({ editor, stickyTop, assist }: { editor: Editor; s
                 <Icon name="message" />
               </Btn>
             )}
+            {host.pages?.jira && (
+              <Btn label="Create Jira issue" onClick={() => {
+                const { from, to } = editor.state.selection;
+                const text = editor.state.doc.textBetween(from, to, "\n", " ").trim();
+                if (text) host.pages?.jira?.({ block: null, selection: text.slice(0, 4000), text });
+              }}>
+                <Icon name="checkSquare" />
+              </Btn>
+            )}
           </>
         )}
       </div>

@@ -61,7 +61,7 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
  * The meeting bar under a meeting page's properties: who was there, who can open it, and the two things
  * people do next — read the transcript, ask the meeting. On the transcript: back to the meeting, ask.
  */
-export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: string }) {
+export function MeetingHeader({ meetingId, role, extra }: { meetingId: string; role?: string; extra?: React.ReactNode }) {
   const [m] = useMeeting(meetingId);
   if (!m) return null;
   // Who joined; with nobody known to have joined, the calendar invite, worded "invited" (never "people").
@@ -89,6 +89,7 @@ export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: s
         </span>
       </div>
       <div className="mt-pagebar__actions">
+        {extra}
         {role === "transcript"
           ? <Button size="sm" variant="secondary" iconLeft="arrowLeft" href={`/${m.slug}`}>The meeting</Button>
           : m.transcript_slug && <Button size="sm" variant="secondary" iconLeft="lines" href={`/${m.transcript_slug}`} data-testid="meeting-transcript">Transcript</Button>}

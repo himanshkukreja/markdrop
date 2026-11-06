@@ -747,6 +747,14 @@ async def still_readable(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
         for raw in await db["documents"].find({"_id": {"$in": dids}}, {"content": 0}).to_list(length=len(dids)):
             if not raw.get("deleted_at") and (await access.can(actor, raw, "read", ctx)).allowed:
                 ok.add(f"d:{raw['_id']}")
+    # Jira issues (``j:<cloud>:<KEY>``): while the asker's own Atlassian connection still reaches the site.
+    clouds = {k.split(":")[1] for k in keys if k.startswith("j:") and k.count(":") == 2}
+    if clouds:
+        from app.services import jira
+
+        for cloud in clouds:
+            if await jira.can_use(db, actor.user_id, cloud):
+                ok |= {k for k in keys if k.startswith(f"j:{cloud}:")}
     gids = [ObjectId(k[2:]) for k in keys if k.startswith("g:") and ObjectId.is_valid(k[2:])]
     if gids:
         w = await search.world_of(db, actor, ctx)
@@ -1110,7 +1118,32 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     kept, withheld = await _ai_off(db, cands)
     sources = await _sources_from(db, actor, ctx, w, kept, standalone, you=you, mine=mine, expanded=terms)
     _team_memory_text(sources, mem)
+    # ── Jira hook (services/jira_team.py): questions about tickets read the asker's own Jira ─────────
+    if keep is None:
+        sources += await _jira_sources(db, actor, standalone, [scope] if scope else list(w.member_ws), len(sources))
     return sources, len(cands), withheld
+
+
+async def _jira_sources(db: AsyncIOMotorDatabase, actor: access.Actor, question: str, workspace_ids: list[str],
+                        start: int) -> list[Source]:
+    """Jira issues as numbered candidates (key ``j:<cloud>:<KEY>``), only through the asker's own
+    Atlassian connection; [] when the question isn't about tickets or they aren't connected."""
+    from app.services import jira_team
+
+    try:
+        issues = await jira_team.ask_issues(db, actor, question, workspace_ids)
+    except Exception:
+        log.warning("ask: Jira sources failed", exc_info=True)
+        return []
+    out: list[Source] = []
+    for i in issues:
+        n = start + len(out) + 1
+        title = f"{i['key']} · {i.get('summary') or ''}".strip(" ·")
+        item = {"key": f"j:{i['cloud_id']}:{i['key']}", "n": n, "kind": "jira", "title": title, "url": i.get("url"),
+                "web_url": i.get("url"), "slug": None}
+        out.append(Source(n, None, item=item, text=jira_team.ask_text(i), tag="jira_issue",
+                          attrs={"title": title, "kind": "Jira issue", "updated": str(i.get("updated") or "")[:10] or None}))
+    return out
 
 
 async def _team_memory(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str,

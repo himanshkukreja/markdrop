@@ -396,6 +396,16 @@ export function BlockHandle({ editor, container }: { editor: Editor; container: 
           },
         }]
       : []),
+    ...(pageMode && !many && host.pages?.jira && anchorable(editor.state.doc, shown.pos) && shown.node.textContent.trim()
+      ? [{
+          label: "Create Jira issue",
+          icon: "checkSquare",
+          onClick: () => {
+            const id = ensureAnchor(editor, shown.pos);
+            host.pages?.jira?.({ block: id || null, selection: null, text: shown.node.textContent.trim() });
+          },
+        }]
+      : []),
     ...(pageMode && !many && shown.node.type.name === "heading" && shown.node.textContent.trim()
       ? [{ label: "Copy link to section", icon: "hash", onClick: () => { void copyText(`${window.location.origin}${window.location.pathname.replace(/\/$/, "")}#user-content-${slugify(shown.node.textContent)}`); } }]
       : []),

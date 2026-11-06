@@ -3550,6 +3550,11 @@ TOOLS += SLACK_TOOLS
 from app.mcp.team_tools import TEAM_TOOLS  # noqa: E402
 
 TOOLS += TEAM_TOOLS
+# Jira Cloud (jira_status, create_jira_issue, link_jira_issue, list_jira_issues, transition_jira_issue):
+# app/mcp/jira_tools.py.
+from app.mcp.jira_tools import JIRA_TOOLS  # noqa: E402
+
+TOOLS += JIRA_TOOLS
 
 # Every write tool takes an optional idempotency_key (mcp/protocol.py): a retry with the same key
 # answers with the first call's result instead of writing twice.

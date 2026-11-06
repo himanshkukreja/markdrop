@@ -20,6 +20,8 @@ import {
 import { useAssistantHere } from "@/components/assistant/store";
 import { ActivityStrip, FocusDialog, HeatLegend, StatusChip, StatusDialog, TargetChip } from "./parts";
 import { GroupsDialog, ThisWeekCard } from "./extras";
+import { JiraCardLine, JiraGlance, JiraTeamContext, useJiraTeam } from "@/components/jira/JiraTeam";
+import type { JiraTeam } from "@/lib/jira";
 import "./team.css";
 
 type Range = "7" | "14";
@@ -146,7 +148,10 @@ function TeamOn(p: {
     open_items: people.reduce((a, c) => a + c.open_items, 0),
   }), [people]);
   const lanes = board.lanes.filter((l) => !p.project || l.key === p.project);
+  // Jira (components/jira/JiraTeam.tsx): each card's tickets and the team's, for this viewer.
+  const jira = useJiraTeam(workspaceId).data;
   return (
+    <JiraTeamContext.Provider value={{ on: !!jira && jira.mode !== "off", ws: workspaceId }}>
     <div className="tm-page" data-testid="team-board">
       <Head name={board.workspace.name} wsId={workspaceId}>
         {me && (
@@ -211,10 +216,11 @@ function TeamOn(p: {
               {filtered && <Button size="sm" variant="secondary" onClick={() => { p.setQ(""); p.setStatusF(""); p.setProject(""); p.setGroup(""); }}>Clear the filters</Button>}</div>
           ) : (
             <ul className="tm-cards" data-testid="team-cards">
-              {people.map((c) => <MemberCard key={c.id} c={c} ws={workspaceId} days={days} today={board.today} />)}
+              {people.map((c) => <MemberCard key={c.id} c={c} ws={workspaceId} days={days} today={board.today} jira={jira} />)}
             </ul>
           )}
           <Glance board={board} people={people} days={days} ws={workspaceId} />
+          <JiraGlance data={jira} people={people.map((c) => c.id)} ws={workspaceId} canManage={board.can_manage} />
           {board.former.length > 0 && (
             <p className="tm-muted tm-former">Former members: {board.former.map((f, i) => (
               <span key={f.id}>{i > 0 && ", "}<Link href={personHref(workspaceId, f.id)}>{f.name}</Link></span>))}</p>
@@ -236,6 +242,7 @@ function TeamOn(p: {
         </>
       )}
     </div>
+    </JiraTeamContext.Provider>
   );
 }
 
@@ -248,7 +255,7 @@ function Tile({ n, label, icon, tone }: { n: number; label: string; icon: string
   );
 }
 
-function MemberCard({ c, ws, days, today }: { c: Card; ws: string; days: number; today: string }) {
+function MemberCard({ c, ws, days, today, jira }: { c: Card; ws: string; days: number; today: string; jira: JiraTeam | null }) {
   const n = within(c, days);
   return (
     <li className={`tm-card tm-card--${c.status.state}`} data-testid="team-card" data-person={c.name}>
@@ -274,6 +281,7 @@ function MemberCard({ c, ws, days, today }: { c: Card; ws: string; days: number;
           {c.targets.length > 3 && <li className="tm-muted">+{c.targets.length - 3} more</li>}
         </ul>
       )}
+      <JiraCardLine data={jira} userId={c.id} />
       <div className="tm-card__foot">
         <span className="tm-card__count" title="Open action items and targets"><Icon name="checkSquare" />{c.open_items} open</span>
         <ActivityStrip counts={c.activity.slice(-days)} today={today} label={`${c.name}'s updates`} />

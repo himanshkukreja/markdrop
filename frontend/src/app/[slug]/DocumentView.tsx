@@ -93,6 +93,7 @@ const pagesApi = () => import("@/lib/pages");
 // Meetings (components/meetings): a meeting page's own pill and panel (Ask this meeting, details).
 const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
 const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
+import { usePageJira } from "@/components/jira/usePageJira";
 // From meetings (components/pages/memory) in View mode: the bar's button and the same panel as in Edit.
 const MeetingMemory = dynamic(() => import("@/components/pages/memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
@@ -537,6 +538,12 @@ export default function DocumentView(props: DocumentViewProps) {
   }, [enterEdit, readRef]);
   useAssistantEditor(askable && canEditPage && !showRaw && !editMode ? viewInsert : null, null);
 
+  // Jira (components/jira): chips on linked items, "Create Jira issue" on a meeting's list items, the dialogs.
+  const pageJira = usePageJira({
+    slug, enabled: readable && !!user && isPage && !!page?.workspace_id && !tenant && !pwdLocked && !pwdFetching && !artifactDoc,
+    meeting: !!page?.meeting && page.meeting.role !== "transcript", workspaceId: page?.workspace_id ?? null, rev: v.docRev,
+  });
+
   // ── Artifact discovered behind the password gate ───────────────────────────
   if (artifactDoc) {
     // Its code was fetched before the read was adopted (doc/preload): render it directly.
@@ -922,7 +929,7 @@ export default function DocumentView(props: DocumentViewProps) {
   const pageBacklinks = !tenant ? <Backlinks key={user?.id ?? "anon"} slug={slug} addressing={addressing} /> : null;
   // A meeting page (or its transcript): who was there, who can open it, Transcript and Ask.
   const meetingBar = readable && !!user && isPage && page?.meeting && !tenant
-    ? <MeetingHeader meetingId={page.meeting.id} role={page.meeting.role} /> : null;
+    ? <MeetingHeader meetingId={page.meeting.id} role={page.meeting.role} extra={pageJira.bulkButton} /> : null;
   // From meetings in View mode (signed-in members of the page's workspace; the server decides what
   // they see): related decisions and action items for the section in view. Insert, for someone who
   // can edit, opens Edit with it after that section, as Ask Markdrop's Insert does.
@@ -1040,8 +1047,10 @@ export default function DocumentView(props: DocumentViewProps) {
                 viewer={user?.id ?? null}
                 subscribeLive={v.subscribeLive}
                 onToggleTask={canEditPage && !editMode && !othersEditing && !(pageProps?.locked && !isOwner && !v.access?.can?.edit_locked) ? toggleTask : null}
+                jira={pageJira.jira}
               />
             )}
+            {pageJira.dialogs}
             {!showRaw && !(wideRail && pageRail && tocEntries.length > 0) && <PresenceMargin root={readRef} markers={markers} left={-14} />}
           </PageFrame>
         )}

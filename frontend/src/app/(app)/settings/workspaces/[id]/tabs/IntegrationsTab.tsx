@@ -9,6 +9,7 @@ import {
 } from "@/lib/slack";
 import { SlackMark } from "@/components/integrations/SlackMark";
 import { ActionItemsPreview } from "@/components/integrations/ActionItemsPreview";
+import { JiraWorkspaceCard } from "@/components/jira/JiraWorkspaceCard";
 import { SwitchRow, shortDate } from "../../../settings-shared";
 import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-shared";
 
@@ -19,7 +20,17 @@ import { Locked, lockProps, lockSelectProps, type WsTabProps } from "../ws-share
  * meeting (on by default; with a preview of the next one). Everyone links their own Slack account (Sign in with Slack); direct messages are opt-in,
  * in Settings › Account › Slack notifications (SlackCard). Backend: routers/slack.py.
  */
-export default function IntegrationsTab({ id, isAdmin }: WsTabProps) {
+export default function IntegrationsTab(props: WsTabProps) {
+  return (
+    <div className="flex min-w-0 flex-col gap-8">
+      <SlackSection {...props} />
+      {/* Jira Cloud (components/jira/JiraWorkspaceCard.tsx, backend routers/jira.py). */}
+      <JiraWorkspaceCard id={props.id} isAdmin={props.isAdmin} />
+    </div>
+  );
+}
+
+function SlackSection({ id, isAdmin }: WsTabProps) {
   const toast = useToast();
   const [st, setSt] = useState<SlackStatus | null>(null);
   const [error, setError] = useState("");

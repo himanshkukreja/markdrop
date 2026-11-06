@@ -39,8 +39,24 @@ import { ImageLightbox } from "@/components/docs-editor/views/Lightbox";
 import { SignoffCard } from "./signoff/SignoffCard";
 import { usePageSignoffs, useSignoffState, type SignoffStore } from "./signoff/store";
 import { signoffInfo } from "@/lib/signoff.mjs";
+import dynamic from "next/dynamic";
+import type { JiraIssue, JiraLink } from "@/lib/jira";
 import "./pages.css";
 import "./page-blocks.css";
+import "@/components/jira/jira.css";
+
+// Jira chips load only on pages that have some (components/jira; never on a public page's first paint).
+const JiraChip = dynamic(() => import("@/components/jira/JiraChip").then((m) => m.JiraChip), { ssr: false, loading: () => null });
+
+/** Jira on a page, for a signed-in member (DocumentView): linked items' chips, and "Create Jira issue". */
+export interface PageJira {
+  /** Block id → its linked issue (details only when the viewer's own Jira can open it). */
+  links: Record<string, JiraLink>;
+  /** Offer "Create Jira issue" on list items (meeting pages). */
+  canCreate: boolean;
+  onCreate: (ref: { block: string | null; offset: number | null; text: string }) => void;
+  onRetry?: ((linkId: string) => void) | null;
+}
 
 
 const PB_ATTRS = ["dataPb", "dataKind", "dataLabel", "dataSrc", "dataMode", "dataAsset", "dataIcon", "dataColor", "dataHeading", "dataUrl", "dataTitle", "dataDesc", "dataImage", "dataSite", "dataPerson", "dataOptions", "dataLock", "dataRef"];
@@ -77,6 +93,11 @@ interface Ctx {
   signoffs: SignoffStore | null;
   /** View mode, for people who can edit: a checklist item's box ticks (its list item's offset in the body). */
   onToggleTask?: ((offset: number) => void) | null;
+  jira?: PageJira | null;
+  /** Jira links pasted in the page that the viewer's own Jira can open: URL → issue. */
+  jiraUrls?: Record<string, JiraIssue>;
+  /** On a meeting page: where the items under Decisions / Action items / Open questions start (offsets). */
+  jiraItems?: Set<number> | null;
 }
 const PageCtx = createContext<Ctx>({ embeds: {}, headings: [], crumbs: [], title: null, href: (s) => `/${encodeURIComponent(s)}`, signoffs: null });
 /** The list item a checkbox belongs to: where it starts in the body (from the Markdown's positions). */
@@ -368,12 +389,53 @@ function FigureImage({ src, alt, caption, size }: { src: string; alt: string; ca
 
 function Li({ node, children, ...rest }: P<"li">) {
   const at = (node as { position?: { start?: { offset?: number } } } | undefined)?.position?.start?.offset;
+  const { jira, jiraItems } = useContext(PageCtx);
+  const bid = str(rest["data-bid"]) ?? null;
+  const link = jira && bid ? jira.links[bid] : undefined;
+  const offset = typeof at === "number" ? at : null;
   return (
     <li {...(rest as object)}>
-      <TaskCtx.Provider value={typeof at === "number" ? at : null}>{children}</TaskCtx.Provider>
+      <TaskCtx.Provider value={offset}>{children}</TaskCtx.Provider>
+      {link ? (
+        <JiraChip link={link} onRetry={jira?.onRetry ? () => jira.onRetry?.(link.id) : null} />
+      ) : jira?.canCreate && (bid || offset !== null) && (!jiraItems || (offset !== null && jiraItems.has(offset))) ? (
+        <button type="button" className="jr-add md-focus no-print" data-testid="jira-add"
+          aria-label="Create Jira issue from this item" title="Create Jira issue"
+          onClick={() => jira.onCreate({ block: bid, offset: bid ? null : offset, text: textOf(children).trim() })}>
+          <Icon name="plus" />Jira
+        </button>
+      ) : null}
     </li>
   );
 }
+
+/** A link; a Jira issue link the viewer's own Jira can open gets its live chip after it. */
+function A({ node: _n, children, href, ...rest }: P<"a">) {
+  const { jiraUrls } = useContext(PageCtx);
+  const issue = typeof href === "string" && jiraUrls ? jiraUrls[href] : undefined;
+  return (
+    <>
+      <a href={href} {...(rest as object)}>{children}</a>
+      {issue && <JiraChip issue={issue} compact />}
+    </>
+  );
+}
+
+// A meeting page's items that can become issues: the list items of these sections (not the summary, topics or sources).
+const JIRA_SECTIONS = /^##\s+(decisions|action items|open questions)\s*$/i;
+export function meetingItemOffsets(body: string): Set<number> {
+  const out = new Set<number>();
+  let on = false;
+  let at = 0;
+  for (const line of body.split("\n")) {
+    if (/^#{1,6}\s/.test(line)) on = JIRA_SECTIONS.test(line.trim());
+    else if (on && /^[-*+] /.test(line)) out.add(at);
+    at += line.length + 1;
+  }
+  return out;
+}
+
+const JIRA_URL = /https:\/\/[a-z0-9.-]+\/browse\/[A-Z][A-Z0-9_]{0,19}-[1-9][0-9]{0,8}/g;
 
 function Input({ node: _n, type, checked, ...props }: P<"input">) {
   const { onToggleTask } = useContext(PageCtx);
@@ -397,7 +459,7 @@ function Input({ node: _n, type, checked, ...props }: P<"input">) {
   );
 }
 
-const COMPONENTS = { div: Div, span: Span, details: Details, pre: Pre, table: Table, img: Img, input: Input, li: Li } as unknown as Components;
+const COMPONENTS = { div: Div, span: Span, details: Details, pre: Pre, table: Table, img: Img, input: Input, li: Li, a: A } as unknown as Components;
 export interface PageRendererProps {
   /** The page's slug: embeds and mentions are resolved through it, for this viewer. */
   slug: string;
@@ -423,11 +485,13 @@ export interface PageRendererProps {
    * page's body (after its front matter) where that item's list marker starts.
    */
   onToggleTask?: ((offset: number) => void) | null;
+  /** Jira chips and "Create Jira issue" (signed-in members, pages in a workspace with Jira). */
+  jira?: PageJira | null;
 }
 
 const defaultHref = (s: string) => `/${encodeURIComponent(s)}`;
 
-export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null, subscribeLive = null, onToggleTask = null }: PageRendererProps) {
+export function PageRenderer({ slug, content: source, assets, signInHref, onHeadings, embeds: given, crumbs, title, href, className, viewer = null, subscribeLive = null, onToggleTask = null, jira = null }: PageRendererProps) {
   // The page's properties (icon, cover, width…) live in its front matter; the body is the rest.
   const content = useMemo(() => splitFrontmatter(source).body, [source]);
   const refs = useMemo(() => pageRefs(content), [content]);
@@ -471,7 +535,17 @@ export function PageRenderer({ slug, content: source, assets, signInHref, onHead
   toggleRef.current = onToggleTask;
   const canToggle = !!onToggleTask;
   const toggle = useMemo(() => (canToggle ? (at: number) => toggleRef.current?.(at) : null), [canToggle]);
-  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle]);
+  // Jira links pasted in the page: live chips for what the viewer's own Jira can open (signed in only).
+  const jiraKey = useMemo(() => (viewer ? Array.from(new Set(content.match(JIRA_URL) ?? [])).slice(0, 50).join(" ") : ""), [content, viewer]);
+  const jiraItems = useMemo(() => (jira?.canCreate ? meetingItemOffsets(content) : null), [jira?.canCreate, content]);
+  const [jiraUrls, setJiraUrls] = useState<Record<string, JiraIssue>>({});
+  useEffect(() => {
+    if (!jiraKey) { setJiraUrls({}); return; }
+    let gone = false;
+    import("@/lib/jira").then((m) => m.jiraLookup(jiraKey.split(" "))).then((r) => { if (!gone) setJiraUrls(r.issues); }).catch(() => {});
+    return () => { gone = true; };
+  }, [jiraKey]);
+  const ctx = useMemo(() => ({ embeds, signInHref, headings, crumbs: crumbs ?? [], title: title ?? null, href: href ?? defaultHref, signoffs, onToggleTask: toggle, jira, jiraUrls, jiraItems }), [embeds, signInHref, headings, crumbs, title, href, signoffs, toggle, jira, jiraUrls, jiraItems]);
   const root = useRef<HTMLDivElement>(null);
   useBlockAnchor(root);
   return (

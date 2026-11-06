@@ -14,6 +14,7 @@ import { useMounted } from "@/components/shell/useLocation";
 import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
 import { PushCard } from "./PushCard";
 import { SlackCard } from "./SlackCard";
+import { JiraCard } from "./JiraCard";
 
 const NAME_MAX = 80;
 
@@ -223,6 +224,8 @@ export default function AccountClient() {
       <PushCard />
 
       <SlackCard />
+
+      <JiraCard />
 
       <Card title="Email" id="email">
         <div className="flex min-w-0 flex-col gap-4">
