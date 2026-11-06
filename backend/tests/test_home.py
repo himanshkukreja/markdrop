@@ -69,6 +69,41 @@ class Actions(HomeWorld):
             self.assertNotRegex(a["text"], r"#\d|b-t\d|\]\(")
             self.assertEqual(a["text"][:1], a["text"][:1].upper())
 
+    async def test_newest_meeting_first_whatever_was_touched_last(self):
+        # A bulk import touches every meeting page at once; the list follows the meetings' own dates.
+        from datetime import datetime, timedelta, timezone
+
+        from bson import ObjectId
+        wm = self.uid["wm"]
+        t0 = datetime(2026, 11, 6, 3, 0, tzinfo=timezone.utc)
+        for slug, date_, touched, blocks in [
+            ("may-standup", "2026-05-21", t0 + timedelta(minutes=3), ["b-may00001"]),
+            ("oct-sync", "2026-10-27", t0 + timedelta(minutes=1), ["b-oct00001", "b-oct00002"]),
+            ("nov-sync", "2026-11-05", t0, ["b-nov00001"]),
+        ]:
+            mid = ObjectId()
+            await self.db["meetings"].insert_one({"_id": mid, "date": date_, "title": slug})
+            await self.put(slug, slug, "\n".join(todo(wm, "Bo", f"{slug} {b}", b) for b in blocks), editor="blocks",
+                           meeting_id=str(mid), updated_at=touched)
+        await self.put("plain", "Plain page", todo(wm, "Bo", "plain task", "b-pln00001"), editor="blocks",
+                       updated_at=datetime(2026, 10, 30, tzinfo=timezone.utc))
+        h = await self.home("wm")
+        self.assertEqual([(a["slug"], a["block"]) for a in h["actions"]["items"]], [
+            ("nov-sync", "b-nov00001"), ("plain", "b-pln00001"),
+            ("oct-sync", "b-oct00001"), ("oct-sync", "b-oct00002"),       # within a page, in page order
+            ("may-standup", "b-may00001"),
+        ])
+        self.assertEqual(h["actions"]["items"][0]["date"], "2026-11-05")
+        self.assertEqual((h["actions"]["more"], h["actions"]["hidden"]), (False, 0))
+
+    async def test_count_includes_what_is_past_the_cap(self):
+        wm = self.uid["wm"]
+        await self.put("many", "Many", "\n".join(todo(wm, "Bo", f"Task {i}", f"b-many{i:04d}")
+                                                 for i in range(home_service.ACTIONS_MAX + 4)), editor="blocks")
+        a = (await self.home("wm"))["actions"]
+        self.assertEqual((len(a["items"]), a["more"], a["hidden"]), (home_service.ACTIONS_MAX, True, 4))
+        self.assertEqual(a["items"][0]["text"], "Task 0")
+
 
 class Tick(HomeWorld):
     async def test_tick_flips_one_line_as_you(self):

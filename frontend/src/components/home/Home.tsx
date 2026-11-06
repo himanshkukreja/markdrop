@@ -558,7 +558,7 @@ function ActionsSection({ data, onTicked, onUndone, toast, compact }: {
   };
 
   return (
-    <Section id="actions" title="Your action items" count={items.length || null} className={compact ? "hm-sec--compact" : undefined}>
+    <Section id="actions" title="Your action items" count={items.length + (data?.actions.hidden ?? 0) || null} className={compact ? "hm-sec--compact" : undefined}>
       {!data ? <RowsSkeleton n={3} /> : items.length === 0 ? (
         <Quiet icon="check" title="No open action items" text="To-dos that @mention you, in meeting notes or any page, show up here." />
       ) : (

@@ -26,14 +26,15 @@
     {
       "id": "home-quiet-strip",
       "date": "2026-11-06",
-      "title": "Home: an empty Today no longer leaves a gap beside your action items",
+      "title": "Home: action items newest first, and no gap beside an empty Today",
       "kind": "improved",
       "area": "App",
       "products": [
-        "web"
+        "web",
+        "api"
       ],
-      "summary": "When Today (or your action items) has nothing in it, it shrinks to a one-line \"all caught up\" strip and the other section uses the full width. When both have something, the two cards are the same height. Meeting cards' attendee initials no longer run together.",
-      "body": "- **Nothing today**: Today becomes a one-line strip above your action items, which use the full width.\n- **No action items**: the same, the other way round.\n- **Both have items**: they sit side by side at the same height.\n- **Meeting cards**: attendee avatars overlap less, so each person's initials are readable."
+      "summary": "Your action items are now newest first by the meeting's date (a bulk import no longer shuffles them), and the count includes everything open. When Today (or your action items) has nothing in it, it shrinks to a one-line \"all caught up\" strip and the other section uses the full width. Meeting cards' attendee initials no longer run together.",
+      "body": "- **Action items, newest first**: by the meeting's date for meeting notes, by the page's last change for other pages. Before, a page's last change decided, so importing many meetings at once mixed old and new.\n- **The count is the real number** of open to-dos that mention you, even past the 30 the home lists.\n- **Nothing today**: Today becomes a one-line strip above your action items, which use the full width. **No action items**: the same, the other way round. **Both have items**: side by side at the same height.\n- **Meeting cards**: attendee avatars overlap less, so each person's initials are readable."
     },
     {
       "id": "meetings-organizer-not-a-speaker",

@@ -69,12 +69,16 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
     uid = actor.user_id
     filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q=""))
     if filt is None or not uid:
-        return {"items": [], "more": False}
+        return {"items": [], "more": False, "hidden": 0}
     filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
     filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
     rows = await db["documents"].find(filt).sort("updated_at", -1).limit(ACTIONS_SCAN).to_list(length=ACTIONS_SCAN)
+    # Newest first by when the to-do was set: a meeting's own date for meeting notes (a bulk import touches
+    # every page at once, so updated_at would shuffle them), else the page's last change.
+    mids = {_oid(r.get("meeting_id")) for r in rows if r.get("meeting_id")} - {None}
+    mdate = {str(m["_id"]): m.get("date") for m in await db["meetings"].find(
+        {"_id": {"$in": list(mids)}}, {"date": 1}).to_list(length=len(mids))} if mids else {}
     out: list[dict] = []
-    more = False
     for raw in rows:
         if search_index.title_only(raw):
             continue
@@ -88,26 +92,26 @@ async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx
         ws_id = raw.get("workspace_id")
         # "@Bo Order the banners" → "Order the banners": on your own list, your own mention is noise.
         me = {f"@{n}" for n in re.findall(r':person\[([^\]\n]*)\]\{id="' + re.escape(uid) + '"', raw.get("content") or "")}
-        for full, anchor in tasks:
+        upd = raw.get("updated_at")
+        when = mdate.get(str(raw.get("meeting_id"))) or (upd.date().isoformat() if hasattr(upd, "date") else None)
+        for i, (full, anchor) in enumerate(tasks):
             text = full
             for m in me:
                 text = text.replace(m, " ")
             text = re.sub(r"\s+", " ", text).strip(" ,;:-") or full
             text = text[:1].upper() + text[1:]
-            if len(out) >= ACTIONS_MAX:
-                more = True
-                break
             out.append({
                 "text": text, "slug": raw["slug"], "block": anchor, "title": title,
                 "url": f"/{raw['slug']}" + (f"#{anchor}" if anchor else ""),
                 "workspace": {"id": ws_id, "name": w.ws_names.get(ws_id)} if ws_id in w.ws_names else None,
                 "meeting": bool(raw.get("meeting_id")),
-                "updated_at": raw.get("updated_at"),
+                "updated_at": upd,
+                "date": when,
                 "can_tick": bool(can_tick and anchor),
+                "_k": (when or "", upd.isoformat() if hasattr(upd, "isoformat") else "", -i),
             })
-        if more:
-            break
-    return {"items": out, "more": more}
+    out.sort(key=lambda a: a.pop("_k"), reverse=True)
+    return {"items": out[:ACTIONS_MAX], "more": len(out) > ACTIONS_MAX, "hidden": max(0, len(out) - ACTIONS_MAX)}
 
 
 async def tick(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, slug: str, block: str,

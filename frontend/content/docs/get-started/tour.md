@@ -22,7 +22,7 @@ Once you sign in, Markdrop opens on your **home**: what needs you today, what yo
 | **Ask bar** | Type a question and press **Enter**: [Ask Markdrop](/workspaces/ask-markdrop) answers in its panel. **Catch me up**, **My action items** and **Ask my meetings** ask for you. **Recent questions** opens your last conversations. |
 | **Continue where you left off** | What you opened last, as cards with a preview. Swipe or scroll sideways for more; **All recent** opens [Recent](#the-sidebar). |
 | **Today** | Today's meetings, mentions, sign-off requests, shares and access requests. **All notifications** opens the bell. |
-| **Your action items** | Every open to-do that @mentions you, in meeting notes or any page you can open. Tick the box to mark it done on its page (**Undo** puts it back); select the text to open the page at that to-do. A box you can't tick is on a page you can't edit. |
+| **Your action items** | Every open to-do that @mentions you, in meeting notes or any page you can open, newest first: by the meeting's date for meeting notes, by the page's last change for other pages. The first five show; **Show more** lists the rest. Tick the box to mark it done on its page (**Undo** puts it back); select the text to open the page at that to-do. A box you can't tick is on a page you can't edit. |
 | **Meetings** | The latest meetings across your workspaces, with their date, time, people and summary. **Ask** asks about them, **Import meeting** brings one in, **Open Meetings** opens the workspace's [Meetings](/workspaces/meetings) page, and **Connect Google Meet** shows until you've connected it. |
 | **Workspaces** | Each of your workspaces with its people, how many items you can open and its meetings. **New workspace** creates one. |
 

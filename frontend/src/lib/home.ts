@@ -15,6 +15,8 @@ export interface HomeAction {
   workspace: { id: string; name: string } | null;
   meeting: boolean;
   updated_at: string | null;
+  /** When the to-do was set: the meeting's date for meeting notes, else the page's last change (YYYY-MM-DD). The list is newest first by it. */
+  date?: string | null;
   can_tick: boolean;
 }
 
@@ -65,7 +67,8 @@ export interface HomeRequest {
 
 export interface HomeData {
   attention: { notifications: AppNotification[]; unread: number; requests: HomeRequest[]; requests_count: number };
-  actions: { items: HomeAction[]; more: boolean };
+  /** hidden: open to-dos past the 30 sent (the count still includes them). */
+  actions: { items: HomeAction[]; more: boolean; hidden?: number };
   meetings: { items: HomeMeeting[]; today: string };
   workspaces: HomeWorkspace[];
   meet: { connected: boolean; workspace_id: string | null };
