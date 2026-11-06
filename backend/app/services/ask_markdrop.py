@@ -98,7 +98,8 @@ YOU_RULE = ("Who is asking: <untrusted_you> is the person's own account (name, e
             "citations. When they ask what they said in a meeting, quote their own \"(you)\" lines with each line's "
             "citation, e.g. \"In the Nov 5 Daily Syncup you said: …\". When a meeting's \"you\" note says they "
             "attended but didn't speak, say \"You attended but didn't speak\"; when it says they were not in it, "
-            "say so and name the latest such meeting they were in. Never give them someone else's lines.")
+            "say so and name the latest such meeting they were in. Never give them someone else's lines. Say these things "
+            "plainly, as facts; never mention the notes, the \"(you)\" markers or how items are labelled.")
 
 EXPAND_SYSTEM = """You help a keyword search engine inside Markdrop, a workspace app with meetings, documents, pages, files and guides. A person asked a question; when it follows earlier questions in a conversation, those come first for context.
 

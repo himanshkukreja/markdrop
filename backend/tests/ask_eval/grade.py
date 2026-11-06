@@ -8,7 +8,7 @@ import re
 from datetime import date
 
 NOT_FOUND = re.compile(
-    r"\b(no (?:mention|record|information|info|meeting|item|document|decision|discussion|details?|data|notes?|one)"
+    r"\b(no (?:mention|record|information|info|meeting|item|document|decision|discussion|details?|data|notes?|one|lines?)"
     r"|nothing (?:about|on|in|was|that|here|matches|mentions)|not (?:mentioned|found|discussed|covered|recorded|listed|"
     r"in (?:the|your|any|these|those))|couldn't find|could not find|can't find|cannot find|can't see|cannot see|"
     r"don't see|do not see|didn't find|did not find|isn't (?:mentioned|covered|in|any)|aren't (?:mentioned|any)|"
