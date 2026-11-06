@@ -169,6 +169,13 @@ func (g *Guard) CheckSharePath(p string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// A secret location is refused by its name first, whether or not it exists here: on a
+	// case-sensitive disk "~/.SSH/config" may be missing, and that must not read as "not found".
+	if !g.AllowAny {
+		if why := secretReason(abs); why != "" {
+			return "", &refusal{path: abs, why: why}
+		}
+	}
 	fi, err := os.Stat(abs)
 	if err != nil {
 		return "", fmt.Errorf("cannot access %s: %w", abs, unwrapPathErr(err))
