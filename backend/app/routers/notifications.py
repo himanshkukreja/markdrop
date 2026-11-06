@@ -102,7 +102,7 @@ _BAD_LINK = "This link isn't valid. You can change these emails in Settings → 
 def _page(heading: str, body: str, *, status: int = 200, form: str = "") -> HTMLResponse:
     content = (mailer._eyebrow("Email preferences") + mailer._heading(heading) + mailer._p(body) + form
                + mailer._p(mailer._link(mailer._base(), "Go to Markdrop"), margin="0 0 20px"))
-    footer = f"Markdrop &middot; {mailer._footer_link(mailer._base(), 'markdrop.in')}"
+    footer = ""
     return HTMLResponse(mailer._shell(title=heading, content=content, footer=footer, page=True),
                         status_code=status, headers=_HEADERS)
 

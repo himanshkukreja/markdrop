@@ -362,117 +362,47 @@ def _e(s: Any) -> str:
     return html.escape(str(s), quote=True)
 
 
-def _story_html(story: dict | None) -> str:
-    """The AI story section: its bullets, each linking to where to look (plain text otherwise)."""
-    if not story or not story.get("bullets"):
-        return ""
-    S, M, INK, BODY = mailer._SANS, mailer._MUTED, mailer._INK, mailer._BODY
+def _email(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tips: list[dict],
+           analytics_url: str, off: str, story: dict | None = None):
+    """The weekly email (HTML and text from the same content)."""
+    from app.services import email_kit as K
+
     base = settings.frontend_url.rstrip("/")
-    items = []
-    for b in story["bullets"][:5]:
-        text = _e(b.get("text") or "")
-        href = b.get("href") or ""
-        if href.startswith("/dashboard/analytics"):
-            text += (f' <a href="{_e(base + href)}" style="color:{BODY};white-space:nowrap">'
-                     f"Look&nbsp;&rarr;</a>")
-        items.append(f'<li style="font-family:{S};font-size:13px;line-height:20px;color:{BODY};'
-                     f'margin:0 0 8px">{text}</li>')
-    return (f'<h2 style="font-family:{S};font-size:15px;line-height:22px;font-weight:600;color:{INK};'
-            f'margin:0 0 6px;padding:0">&#10022; {_e(story.get("headline") or "What changed")}</h2>'
-            f'<div style="font-family:{S};font-size:12px;line-height:16px;color:{M};margin:0 0 8px">'
-            "Written by AI from your numbers</div>"
-            f'<ul style="margin:0 0 22px;padding:0 0 0 18px">{"".join(items)}</ul>')
+    body = [K.eyebrow("Your week on Markdrop"), K.title(head), K.p(sub, size=14, muted=True, margin="-4px 0 20px"),
+            K.stats(kpis)]
+    if story and story.get("bullets"):
+        bl = story["bullets"][:5]
+        lines = []
+        for k, b in enumerate(bl):
+            href = b.get("href") or ""
+            look = href.startswith("/dashboard/analytics")
+            lines.append(K.item(b.get("text") or "", href=base + href if look else None, action="Look" if look else None,
+                                pad=8, last=k == len(bl) - 1))
+        body.append(K.card(K.p([K.strong("✦ " + (story.get("headline") or "What changed"))], margin="0 0 2px"),
+                           K.small("Written by AI from your numbers", margin="0 0 4px"), K.rows(lines, margin="0"),
+                           inset=True, pad="14px 18px"))
+    if top:
+        body.append(K.heading("Top links", top=8))
+        body += [K.bar(t["title"], f"{_count(t['views'])} views", t["pct"], href=f"{base}/dashboard/analytics/{t['slug']}",
+                       note=t["note"] or None) for t in top]
+    if tips:
+        body.append(K.heading("Worth a look", top=16))
+        body.append(K.rows([K.item(K.strong(t["title"]), body=t["body"], meta=f"“{t['doc']}”" if t["doc"] else None,
+                                   last=k == len(tips) - 1) for k, t in enumerate(tips)]))
+    body.append(K.button(analytics_url, "Open analytics", margin="14px 0 24px"))
+    return K.layout(title_=head, preheader=f"{head}. {sub}.", base=base, body=body,
+                    footer=K.Footer(why="You get this every Monday.",
+                                    links=[("Turn off weekly emails", off), ("Email settings", base + "/settings/account")]))
 
 
 def _html(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tips: list[dict],
           analytics_url: str, off: str, story: dict | None = None) -> str:
-    S, M, INK, BODY, LINE, INSET, ACC = (mailer._SANS, mailer._MUTED, mailer._INK, mailer._BODY,
-                                         mailer._LINE, mailer._INSET, mailer._ACCENT)
-    cells = "".join(
-        f'<td width="33%" valign="top" style="padding:0 {6 if i < 2 else 0}px 0 0">'
-        f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-        f'<td bgcolor="{INSET}" style="background-color:{INSET};border-radius:8px;padding:12px">'
-        f'<div style="font-family:{S};font-size:12px;line-height:16px;color:{M}">{_e(label)}</div>'
-        f'<div style="font-family:{S};font-size:22px;line-height:28px;font-weight:700;color:{INK}">{_e(value)}</div>'
-        f"</td></tr></table></td>"
-        for i, (label, value) in enumerate(kpis))
-    kpi_row = (f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-               f'style="margin:4px 0 24px"><tr>{cells}</tr></table>')
-
-    def h2(text: str) -> str:
-        return (f'<h2 style="font-family:{S};font-size:15px;line-height:22px;font-weight:600;color:{INK};'
-                f'margin:0 0 10px;padding:0">{text}</h2>')
-
-    base = settings.frontend_url.rstrip("/")
-    rows = []
-    for t in top:
-        href = _e(f"{base}/dashboard/analytics/{t['slug']}")
-        note = (f'<div style="font-family:{S};font-size:12px;line-height:18px;color:{M};margin-top:4px">'
-                f"{_e(t['note'])}</div>") if t["note"] else ""
-        rows.append(
-            '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-            'style="margin:0 0 14px"><tr>'
-            f'<td style="font-family:{S};font-size:13px;line-height:20px;font-weight:600;color:{INK}">'
-            f'<a href="{href}" style="color:{INK};text-decoration:none">{_e(t["title"])}</a></td>'
-            f'<td align="right" style="font-family:{S};font-size:13px;line-height:20px;color:{BODY};'
-            f'white-space:nowrap;padding-left:12px">{_e(_count(t["views"]))}</td></tr>'
-            '<tr><td colspan="2" style="padding-top:4px">'
-            f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f'<td bgcolor="{INSET}" style="background-color:{INSET};border-radius:3px;height:6px;line-height:6px;font-size:0">'
-            f'<table role="presentation" width="{t["pct"]}%" cellpadding="0" cellspacing="0" border="0"><tr>'
-            f'<td bgcolor="{ACC}" style="background-color:{ACC};border-radius:3px;height:6px;line-height:6px;'
-            f'font-size:0">&nbsp;</td></tr></table></td></tr></table>'
-            f"{note}</td></tr></table>")
-    links_html = h2("Top links") + "".join(rows) if rows else ""
-
-    tip_html = ""
-    if tips:
-        boxes = []
-        for t in tips:
-            body = _e(t["body"])
-            if t["doc"]:
-                body = f"{_e('“' + t['doc'] + '”')} · {body}"
-            boxes.append(
-                '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-                f'style="margin:0 0 10px"><tr><td style="border:1px solid {LINE};border-radius:8px;padding:12px 14px">'
-                f'<div style="font-family:{S};font-size:13px;line-height:20px;font-weight:600;color:{INK}">{_e(t["title"])}</div>'
-                f'<div style="font-family:{S};font-size:13px;line-height:20px;color:{BODY}">{body}</div>'
-                "</td></tr></table>")
-        tip_html = '<div style="height:10px;line-height:10px;font-size:0">&nbsp;</div>' + h2("Worth a look") + "".join(boxes)
-
-    content = (
-        mailer._heading(_e(head))
-        + mailer._p(_e(sub), size=14, color=M, margin="-4px 0 20px")
-        + kpi_row
-        + _story_html(story)
-        + links_html
-        + tip_html
-        + mailer._button(_e(analytics_url), "Open analytics", margin="14px 0 20px")
-    )
-    footer = ("You get this every Monday. "
-              f"{mailer._footer_link(_e(off), 'Turn off weekly emails')} &middot; "
-              f"{mailer._footer_link(_e(base + '/settings/account'), 'Email settings')}")
-    return mailer._shell(title=_e(head), preheader=_e(f"{head}. {sub}."), content=content, footer=footer)
+    return _email(head, sub, kpis, top, tips, analytics_url, off, story).html
 
 
 def _text(head: str, sub: str, kpis: list[tuple[str, str]], top: list[dict], tips: list[dict],
           analytics_url: str, off: str, story: dict | None = None) -> str:
-    out = [head, sub, ""]
-    out += [f"{label}: {value}" for label, value in kpis]
-    if story and story.get("bullets"):
-        out += ["", f"{story.get('headline') or 'What changed'} (written by AI from your numbers)"]
-        out += [f"- {b.get('text')}" for b in story["bullets"][:5]]
-    if top:
-        out += ["", "Top links"]
-        for t in top:
-            out.append(f"- {t['title']}: {_count(t['views'])} views" + (f" ({t['note']})" if t["note"] else ""))
-    if tips:
-        out += ["", "Worth a look"]
-        for t in tips:
-            out.append(f"- {t['title']}. " + (f"“{t['doc']}”: " if t["doc"] else "") + t["body"])
-    out += ["", f"Open analytics: {analytics_url}", "",
-            "You get this every Monday.", f"Turn off weekly emails: {off}"]
-    return "\n".join(out)
+    return _email(head, sub, kpis, top, tips, analytics_url, off, story).text
 
 
 # ── Sending ───────────────────────────────────────────────────────────────────

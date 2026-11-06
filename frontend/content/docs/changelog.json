@@ -41,6 +41,22 @@
       ]
     },
     {
+      "id": "message-templates",
+      "date": "2026-11-06",
+      "title": "Emails and Slack messages, redesigned",
+      "kind": "improved",
+      "area": "Notifications",
+      "products": [
+        "web"
+      ],
+      "summary": "Every email and Slack message Markdrop sends now shares one design: the key facts first, one main button, readable on a phone, and in light or dark to match your mail app. The meeting post in Slack and the weekly team summary got the biggest changes.",
+      "body": "- **Meeting notes in Slack.** The meeting's name, then one line with the date, length, who was there and **Open notes**. The summary is cut to a few sentences, with **Read the full notes**. Decisions and open questions come next. Each action item shows its owner, the task and its due date, with **Done** beside it. Someone with three or more items gets them under their name.\n- **This week in your workspace.** The Monday summary, by email and in Slack, starts with the counts. Then it shows each person's highlights, the week's decisions, what's overdue and due (with dates), who's blocked and the week's meetings.\n- **Direct messages in Slack** (mentions, sign-offs, shares, access requests, your action items) start with what they are and which workspace they're from.\n- **Emails** (sign-in, invitations, shares, access requests, mention emails and digests, the weekly analytics email) follow your mail app's dark mode, and every one has a plain-text version. Notification emails keep **Email me less** and the turn-off link in the footer.",
+      "docs": [
+        "/integrations/slack#meeting-notes-and-done",
+        "/workspaces/team#the-weekly-summary"
+      ]
+    },
+    {
       "id": "meetings-start",
       "date": "2026-11-06",
       "title": "Start with your team: from markdrop.in to Connect Google Meet",

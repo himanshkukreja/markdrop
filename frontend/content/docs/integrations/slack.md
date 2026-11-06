@@ -69,15 +69,15 @@ You don't need to link for [Slack notifications](#slack-notifications): turning 
 
 When a meeting is imported and its AI summary is ready, Markdrop posts it to the meetings channel. The post has:
 
-- the meeting's name, linked to its page, and its date and time;
-- **Summary**;
-- **Decisions**;
-- **Action items**, each with a **Done** button;
-- **Open the meeting**.
+- the meeting's name, then one line with its date and time, how long it took, who was there ("6 people: Maya, Alex, Sam +3") and **Open notes**;
+- **Summary**: its first few sentences, with **Read the full notes** when there's more;
+- **Decisions** (up to five, then "+2 more in the notes") and **Open questions**;
+- **Action items**: how many are open and done, then one row per item with its owner, the task and its due date ("due Tue, Nov 11"), and a **Done** button. Someone with three or more items gets them under their name. Up to eight rows, then "+3 more in the notes";
+- **Open notes**, and a line saying that meetings restricted to their attendees are never posted.
 
-An action item's owner is @mentioned when they've linked their Slack account. Otherwise their name is shown.
+An action item's owner is @mentioned when they've linked their Slack account. Otherwise their name is shown in bold. The message's notification reads like "Daily Syncup · Nov 7: 3 decisions, 6 action items".
 
-**Done** ticks the item on the meeting's page, as the person who clicked, and the post then shows it crossed out with "Done by" and their name. It works for anyone who can edit that page in Markdrop. If you haven't linked your account yet, Slack shows you a link button instead. If someone is editing the page right then, try again in a minute. An item ticked in Markdrop before the post went out shows as done already.
+**Done** ticks the item on the meeting's page, as the person who clicked, and the post then shows it crossed out with "done by" and their name. It works for anyone who can edit that page in Markdrop. If you haven't linked your account yet, Slack shows you a link button instead. If someone is editing the page right then, try again in a minute. An item ticked in Markdrop before the post went out shows as done already.
 
 Which meetings are posted:
 
@@ -86,13 +86,13 @@ Which meetings are posted:
 - Each meeting is posted on its own once. Writing its summary again doesn't post it again.
 - Past meetings brought in quietly aren't posted on their own, so a backlog doesn't flood the channel. That's [Import past meetings](/workspaces/meetings-import#import-past-meetings) with **Don't post to Slack** on (the default), the past days that [Connect Google Meet](/workspaces/meetings-auto-import#past-meetings) brings in, and any meeting held more than a day before it was imported.
 
-![Illustration of a meeting post in the #meetings channel: the meeting's title and date, its summary and decisions, the action items with the people mentioned and a Done button each, one already done by Sam Lee, and Open the meeting.](/docs-assets/integrations/slack/illustration-meeting-post.webp)
+![Illustration of a meeting post in the #meetings channel: the meeting's name, a line with its date, length, people and Open notes, a short summary, decisions and an open question, then the action items with their owner, task, due date and a Done button each, one already done by Sam Lee, and Open notes.](/docs-assets/integrations/slack/illustration-meeting-post.webp)
 
 ### Team's weekly summary
 
-When the workspace has [Team memory](/workspaces/team) on, Team's summary of the week is posted to the same meetings channel every Monday at 9 am in the workspace's timezone: highlights (each with a link to its meeting or page), current blockers, what's due this week and what's overdue, each line with the person's name. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
+When the workspace has [Team memory](/workspaces/team) on, Team's summary of the week is posted to the same meetings channel every Monday at 9 am in the workspace's timezone: a line with the week and its counts, highlights (one person's together, each with a link to its meeting or page), decisions, what's overdue (with how late) and due this week (with the day), who's blocked and on whom, and the week's meetings. It only uses meetings and pages everyone in the workspace can open, so a restricted meeting never shows. A week with nothing in it isn't posted. Admins can send it right away with **Send now** on Team's **This week** card. See [The weekly summary](/workspaces/team#the-weekly-summary).
 
-![Illustration of Team's weekly summary in the #meetings channel: This week in Acme, Highlights with each person's name and a link to the meeting, Blockers with who they wait on, Due this week, Overdue with how late each item is, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
+![Illustration of Team's weekly summary in the #meetings channel: This week in Acme with the week and its counts, Highlights with each person's name and a link to the meeting, Overdue with how late each item is, Due this week with the day, Blocked with who they wait on, Meetings this week, and Open Team.](/docs-assets/integrations/slack/illustration-team-weekly.webp)
 
 ### Post a meeting by hand
 

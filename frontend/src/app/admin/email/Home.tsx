@@ -9,6 +9,7 @@ import { CampaignBadge, Section, TimeAgo, num, pct } from "./bits";
 import type { Navigate } from "./EmailSection";
 import { LimitBanner, SentLog, UsagePanel, useUsage } from "./Sent";
 import Senders from "./Senders";
+import Gallery from "./Gallery";
 
 type SortKey = "name" | "status" | "sent" | "opened" | "clicked" | "updated";
 const STATUS_ORDER: Record<CampaignStatus, number> = { sending: 0, scheduled: 1, paused: 2, draft: 3, sent: 4, cancelled: 5 };
@@ -181,7 +182,7 @@ function TemplatePicker({ meta, metaError, reloadMeta, navigate }: {
   );
 }
 
-export type HomeTab = "campaigns" | "usage" | "sent" | "senders";
+export type HomeTab = "campaigns" | "usage" | "sent" | "senders" | "templates";
 
 export default function Home({ token, tab, info, infoError, meta, metaError, reload, reloadMeta, navigate }: {
   token: string; tab: HomeTab; info: Info | null; infoError: string | null;
@@ -200,8 +201,10 @@ export default function Home({ token, tab, info, infoError, meta, metaError, rel
   return (
     <>
       <PageHead
-        title={tab === "usage" || tab === "sent" ? "Email" : "Email campaigns"}
-        caption={tab === "usage" || tab === "sent"
+        title={tab === "usage" || tab === "sent" ? "Email" : tab === "templates" ? "Messages" : "Email campaigns"}
+        caption={tab === "templates"
+          ? "Every email and Slack message Markdrop sends, built by the real templates from sample data. Nothing is sent from here."
+          : tab === "usage" || tab === "sent"
           ? "Every email Markdrop sends, from sign-in codes to campaigns: which provider took it under today's limits, and what happened."
           : "Compose with merge tags, preview as a real account, test, then send in throttled batches and watch deliveries, opens and clicks come in."}
         actions={tab === "campaigns" ? (
@@ -220,6 +223,7 @@ export default function Home({ token, tab, info, infoError, meta, metaError, rel
           { value: "usage", label: "Usage" },
           { value: "sent", label: "Sent" },
           { value: "senders", label: "Senders", count: info ? info.senders.length : undefined },
+          { value: "templates", label: "Templates" },
         ]}
       />
       {infoError && !info && (
@@ -231,6 +235,8 @@ export default function Home({ token, tab, info, infoError, meta, metaError, rel
         <UsagePanel usage={usage} error={usageError} reload={reloadUsage} onKind={(k) => { setLogKind(k); go("sent"); }} />
       ) : tab === "sent" ? (
         <SentLog token={token} usage={usage} kind={logKind} setKind={setLogKind} />
+      ) : tab === "templates" ? (
+        <Gallery token={token} />
       ) : tab === "senders" ? (
         <Senders token={token} info={info} onChanged={reload} />
       ) : (

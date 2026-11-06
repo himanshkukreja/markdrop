@@ -181,6 +181,14 @@ export type RecipientFilter = "all" | "opened" | "unopened" | "clicked" | "faile
 
 export interface Suppression { email: string; reason: "unsubscribed" | "bounced" | "complained" | "manual"; detail: string | null; created_at: string | null; updated_at: string | null }
 
+// ── Message gallery (every email and Slack message, from fixtures) ───────────
+
+export interface GalleryEntry { id: string; kind: "email" | "slack" | "page"; group: string; name: string; note: string }
+export interface GalleryItem extends GalleryEntry {
+  subject?: string | null; preheader?: string | null; html?: string; text?: string | null; sender?: string | null; bytes?: number;
+  message?: unknown; blocks?: number; html_light?: string; html_dark?: string;
+}
+
 // ── Transport ─────────────────────────────────────────────────────────────────
 
 /** An API error with the server's extras (`expected` for the typed confirmation, `problems`). */
@@ -221,6 +229,8 @@ const q = (o: Record<string, string | number | boolean | undefined | null>) => {
 
 export const emailApi = {
   info: (t: string) => req<Info>(t, "GET", "/info"),
+  gallery: (t: string) => req<{ entries: GalleryEntry[] }>(t, "GET", "/gallery"),
+  galleryItem: (t: string, id: string) => req<GalleryItem>(t, "GET", `/gallery/${encodeURIComponent(id)}`),
   templates: (t: string) => req<TemplatesResponse>(t, "GET", "/templates"),
   render: (t: string, draft: Draft, asEmail?: string | null) => req<Rendered>(t, "POST", "/render", { ...draft, as_email: asEmail || null }),
   test: (t: string, draft: Draft, to?: string, asEmail?: string | null) =>

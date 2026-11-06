@@ -498,6 +498,24 @@ def due_label(it: Item, meeting_day: str | None) -> str | None:
     return fmt(got[0]) if got else None
 
 
+def due_short(it: Item, meeting_day: str | None) -> str | None:
+    """The deadline as a date alone ("Tue, Nov 11"), for the meetings channel post; the words as written
+    when they don't name a day."""
+    from app.services import workspace_memory as wm
+
+    try:
+        base = datetime.strptime(meeting_day or "", "%Y-%m-%d").date()
+    except ValueError:
+        base = _now().date()
+    d = wm.resolve_due(it.due, base) if it.due else None
+    if d is None and not it.due:
+        got = wm.due_in_text(it.text, base)
+        d = got[0] if got else None
+    if d is None:
+        return it.due or None
+    return d.strftime("%a, %b %-d") + ("" if d.year == base.year else f", {d.year}")
+
+
 async def _organizer_name(db: AsyncIOMotorDatabase, row: dict) -> str | None:
     org = row.get("organizer") or {}
     if org.get("name"):

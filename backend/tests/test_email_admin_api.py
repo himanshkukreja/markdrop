@@ -39,6 +39,22 @@ class AdminApi(unittest.IsolatedAsyncioTestCase):
         await self.client.drop_database(self.name)
         self.client.close()
 
+    async def test_message_gallery(self):
+        r = await self.http.get("/api/v1/admin/email/gallery", headers={"Authorization": "Bearer nope"})
+        self.assertEqual(r.status_code, 401)
+        entries = (await self.http.get("/api/v1/admin/email/gallery")).json()["entries"]
+        self.assertIn("slack-meeting-post", [e["id"] for e in entries])
+        self.assertIn("email-team-weekly", [e["id"] for e in entries])
+        m = (await self.http.get("/api/v1/admin/email/gallery/email-team-weekly")).json()
+        self.assertTrue(m["subject"].startswith("This week in Senseloaf"))
+        self.assertIn("<!DOCTYPE html>", m["html"])
+        self.assertTrue(m["text"])
+        s = (await self.http.get("/api/v1/admin/email/gallery/slack-meeting-post")).json()
+        self.assertEqual(s["message"]["blocks"][0]["type"], "header")
+        self.assertIn('class="dark"', s["html_dark"])
+        self.assertEqual((await self.http.get("/api/v1/admin/email/gallery/nope")).status_code, 404)
+        self.assertEqual(await self.db["email_log"].count_documents({}), 0)   # nothing sent
+
     async def test_flow(self):
         r = await self.http.get("/api/v1/admin/email/info", headers={"Authorization": "Bearer nope"})
         self.assertEqual(r.status_code, 401)
