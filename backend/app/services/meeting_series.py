@@ -318,19 +318,9 @@ async def target_folder(db: AsyncIOMotorDatabase, root: dict, series: str | None
 
 async def list_series(db: AsyncIOMotorDatabase, workspace_id: str, actor, ctx) -> list[dict]:
     """The series of the meetings the caller can open: [{name, count, last}] (most meetings first)."""
-    from app.services import meetings
+    from app.services import meetings_list
 
-    counts: Counter = Counter()
-    last: dict[str, str] = {}
-    async for r in db[COLL].find({"workspace_id": workspace_id, "series": {"$nin": [None, ""]}},
-                                 {"series": 1, "date": 1, "doc_id": 1}):
-        if await meetings.readable(db, r, actor, ctx) is None:
-            continue
-        counts[r["series"]] += 1
-        if (r.get("date") or "") > last.get(r["series"], ""):
-            last[r["series"]] = r.get("date") or ""
-    return [{"name": n, "count": c, "last": last.get(n) or None}
-            for n, c in sorted(counts.items(), key=lambda x: (-x[1], x[0].casefold()))]
+    return (await meetings_list.facets(db, workspace_id, actor, ctx))["series"]
 
 
 def oid(v: Any) -> ObjectId | None:

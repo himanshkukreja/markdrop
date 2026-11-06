@@ -68,7 +68,6 @@ SCHEMA = [
 MAX_SOURCES = 6
 MAX_SOURCE_BYTES = 4_000_000
 MAX_PASTE_CHARS = 1_500_000
-MAX_LIST = 300
 PENDING_STALE = timedelta(minutes=15)
 PAGE_ICON = "🎙️"
 TRANSCRIPT_ICON = "📜"
@@ -112,6 +111,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index([("workspace_id", 1), ("date", -1), ("created_at", -1)])
     await db[COLL].create_index("doc_id")
     await db[COLL].create_index("transcript_doc_id", sparse=True)
+    from app.services import meetings_list
+
+    await meetings_list.ensure_indexes(db)
 
 
 def oid(value: Any) -> ObjectId | None:
@@ -1407,53 +1409,23 @@ def source_of(row: dict) -> str:
 
 
 async def list_meetings(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.Actor, ctx: access.Ctx, *,
-                        limit: int = 100, q: str | None = None, source: str | None = None,
-                        since: str | None = None, until: str | None = None, series: str | None = None) -> dict:
-    """The meetings of a workspace the caller can open, newest first. A workspace admin also sees
-    restricted meetings they can't open, without their title (so they can delete them).
+                        limit: int = 30, q: str | None = None, source: str | None = None,
+                        since: str | None = None, until: str | None = None, series: str | None = None,
+                        cursor: str | None = None, sort: str = "date_desc", overview: bool = True,
+                        attendees_max: int | None = 5) -> dict:
+    """The meetings of a workspace the caller can open, a page at a time (services/meetings_list.py):
+    {meetings (cards), next_cursor, total (first page), hidden, folder_id (first page)}. A workspace
+    admin also sees restricted meetings they can't open, without their title (so they can delete them).
 
-    ``source``: only those that came in that way (:data:`SOURCES`); ``since`` / ``until``: only
-    meetings on or after / on or before that date (YYYY-MM-DD); ``series``: only that series (any
-    case; "none": meetings without one)."""
-    await require_member(db, workspace_id, actor.user_id, write=False)
-    admin = await is_ws_admin(db, workspace_id, actor.user_id)
-    limit = max(1, min(limit, MAX_LIST))
-    out, hidden = [], []
-    query: dict[str, Any] = {"workspace_id": workspace_id}
-    if source:
-        if source not in SOURCES:
-            raise HTTPException(status_code=422, detail=f"source is one of {', '.join(SOURCES)}.")
-        query["via"] = _VIA[source]
-    for name, v, op in (("since", since, "$gte"), ("until", until, "$lte")):
-        if not v:
-            continue
-        try:
-            date.fromisoformat(v)
-        except ValueError:
-            raise HTTPException(status_code=422, detail=f"{name} is a date, YYYY-MM-DD.")
-        query.setdefault("date", {})[op] = v
-    if series:
-        if series.strip().casefold() == "none":
-            query["series"] = {"$in": [None, ""]}
-        else:
-            query["series"] = {"$regex": f"^{re.escape(series.strip())}$", "$options": "i"}
-    filtered = bool(q or source or since or until or series)
-    cursor = db[COLL].find(query, {"segments": 0}).sort([("date", -1), ("created_at", -1)])
-    async for row in cursor:
-        raw = await page_of(db, row)
-        if raw is None:
-            continue
-        if (await access.can(actor, raw, "read", ctx)).allowed:
-            if q and q.casefold() not in (row.get("title") or "").casefold():
-                continue
-            out.append(await shape(db, row, raw, actor, ctx))
-        elif admin and not filtered:
-            hidden.append({"id": str(row["_id"]), "date": row.get("date"), "restricted": True, "redacted": True,
-                           "can_delete": True})
-        if len(out) >= limit:
-            break
-    folder = await folder_of(db, workspace_id)
-    return {"meetings": out, "hidden": hidden[:50], "folder_id": str(folder["_id"]) if folder else None}
+    ``q``: titles, series or attendee names containing it; ``source``: only those that came in that way
+    (:data:`SOURCES`); ``since`` / ``until``: only meetings on or after / on or before that date
+    (YYYY-MM-DD); ``series``: only that series (any case; "none": meetings without one)."""
+    from app.services import meetings_list
+
+    return await meetings_list.list_page(
+        db, workspace_id, actor, ctx, limit=limit, cursor=cursor, sort=sort, overview=overview,
+        attendees_max=attendees_max,
+        filters=meetings_list.Filters(q=q, source=source, since=since, until=until, series=series))
 
 
 # ── Changes ───────────────────────────────────────────────────────────────────

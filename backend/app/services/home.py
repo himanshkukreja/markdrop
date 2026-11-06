@@ -159,7 +159,8 @@ async def meetings_across(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
     found: list[dict] = []
     for ws, _role in w.memberships:
         try:
-            res = await meetings.list_meetings(db, ws.id, actor, ctx, limit=MEETINGS_MAX, since=since)
+            res = await meetings.list_meetings(db, ws.id, actor, ctx, limit=MEETINGS_MAX, since=since,
+                                               overview=False, attendees_max=6)
         except HTTPException:
             continue
         for m in res["meetings"]:
@@ -170,9 +171,9 @@ async def meetings_across(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: ac
             "type", "series", "attendees", "action_items", "summary", "decisions", "open_questions", "cover",
             "restricted", "ai")
     items = [{k: m.get(k) for k in keep} for m in found[:MEETINGS_MAX]]
-    for it in items:
+    for it, m in zip(items, found):
         it["attendees"] = [{"name": a.get("name")} for a in (it.get("attendees") or [])][:6]
-        it["attendee_count"] = len([a for a in (it.get("attendees") or [])])
+        it["attendee_count"] = m.get("attendee_count", len(it["attendees"]))
         it["ai"] = {"state": (it.get("ai") or {}).get("state")}
     return {"items": items, "today": ctx.now.date().isoformat()}
 
