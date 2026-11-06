@@ -565,6 +565,10 @@ async def update_document(
     from app.services import notifications
 
     await notifications.on_page_saved(db, raw, after, actor)
+    # Jira (services/jira_links.py): a to-do with a linked issue ticked or unticked moves the issue.
+    from app.services import jira_links
+
+    await jira_links.on_page_saved(db, raw, after, actor)
     # A new page waiting for its auto cover gets it once it says what it's about.
     if after.get("cover_pick") == "waiting":
         await page_covers.after_save(db, after)
