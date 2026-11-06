@@ -294,6 +294,9 @@ async def connect() -> None:
         from app.services import ask_markdrop as _ask
 
         await _ask.ensure_indexes(db)
+        from app.services import ask_suggestions as _ask_sugg
+
+        await _ask_sugg.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] ask indexes skipped: {exc}")
 

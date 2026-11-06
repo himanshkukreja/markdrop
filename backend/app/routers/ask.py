@@ -11,6 +11,9 @@
            doc/folder/workspace/everything count towards AI search, meetings towards Meetings AI
     GET    /api/v1/ask/context          {scopes, default, page, workspace, folder, meeting, series,
                                          can_insert, status}   what the assistant offers here
+    GET    /api/v1/ask/suggestions      {workspace, team, personal, updated_at, refreshing, status}
+                                         ?workspace=: its live team questions (only from what every
+                                         member can read) + the caller's own; 404 for a non-member
     GET    /api/v1/ask/threads          {threads}            recent questions
     GET    /api/v1/ask/threads/{id}     {id, title, turns}   a turn whose sources you can no longer
                                                              open comes back withheld
@@ -34,7 +37,7 @@ from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import require_user
 from app.routers.pages_ai import sse
-from app.services import access, ask_markdrop, assistant
+from app.services import access, ask_markdrop, ask_suggestions, assistant
 from app.utils.net import get_client_ip
 
 router = APIRouter(prefix="/api/v1/ask", tags=["ask"])
@@ -58,7 +61,7 @@ async def ask_home(request: Request, db: AsyncIOMotorDatabase = Depends(get_db),
 
 
 class ScopeBody(BaseModel):
-    kind: Literal["doc", "meetings", "folder", "workspace", "everything"] = "everything"
+    kind: Literal["doc", "meetings", "folder", "workspace", "mine", "everything"] = "everything"
     page: Optional[str] = Field(None, max_length=200, description="doc: the document or page (its slug)")
     workspace: Optional[str] = Field(None, max_length=40, description="meetings / folder / workspace: the workspace id")
     folder: Optional[str] = Field(None, max_length=40, description="folder: the folder id (its sub-folders too)")
@@ -115,6 +118,21 @@ async def ask_context(request: Request, page: Optional[str] = Query(None, max_le
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await assistant.context_for(db, actor, ctx, page=page, workspace=workspace, folder=folder,
                                                         meeting=meeting))
+
+
+@router.get("/suggestions")
+@limiter.limit("120/minute")
+async def suggestions(request: Request, workspace: Optional[str] = Query(None, max_length=40),
+                      db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Suggested questions for Ask. With ``workspace``: its team questions, refreshed from what happened
+    there in the last 7 days (meetings and pages every member can read; one list for all members), and
+    yours (your action items, your latest meeting). Without: yours, across your workspaces."""
+    actor, ctx = _ac(request, db, user)
+    try:
+        out = await ask_suggestions.for_viewer(db, actor, ctx, workspace or None)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+    return jsonable_encoder(out)
 
 
 @router.get("/threads")

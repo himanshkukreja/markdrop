@@ -84,7 +84,7 @@ class Routing(AssistantWorld):
                                         {"kind": "doc", "page": prd["slug"]},
                                         context={"heading": "Payments", "selection": "moves to a hosted page"}))
         self.assertEqual(done["intent"], "page")
-        self.assertEqual(done["scope"], {"kind": "doc", "label": "This doc · Checkout redesign PRD"})
+        self.assertEqual(done["scope"], {"kind": "doc", "label": "This page · Checkout redesign PRD"})
         self.assertEqual(done["engine"], "search_ai")
         titles = [c["title"] for c in done["citations"]]
         self.assertTrue(any(t.startswith("Checkout redesign sync") for t in titles), titles)
@@ -273,7 +273,7 @@ class Context(AssistantWorld):
     async def test_in_a_page(self):
         prd = await self.prd()
         c = await self.ctx("wm", page=prd["slug"])
-        self.assertEqual([s["kind"] for s in c["scopes"]], ["doc", "meetings", "workspace", "everything"])
+        self.assertEqual([s["kind"] for s in c["scopes"]], ["doc", "meetings", "workspace", "mine", "everything"])
         self.assertEqual(c["default"], "doc")
         self.assertEqual(c["page"]["title"], "Checkout redesign PRD")
         self.assertEqual(c["workspace"]["id"], self.W)
@@ -309,14 +309,14 @@ class Context(AssistantWorld):
     async def test_folder_and_workspace(self):
         f = await folder_service.create_folder(self.db, self.W, "Specs", None)
         c = await self.ctx("wm", workspace=self.W, folder=f.id)
-        self.assertEqual([s["kind"] for s in c["scopes"]], ["meetings", "folder", "workspace", "everything"])
+        self.assertEqual([s["kind"] for s in c["scopes"]], ["meetings", "folder", "workspace", "mine", "everything"])
         self.assertEqual(c["default"], "folder")
         self.assertEqual(c["folder"]["name"], "Specs")
         c = await self.ctx("wm", workspace=self.W)
         self.assertEqual(c["default"], "workspace")
         # Not a member: only Everything.
         c = await self.ctx("stranger", workspace=self.W, folder=f.id)
-        self.assertEqual([s["kind"] for s in c["scopes"]], ["everything"])
+        self.assertEqual([s["kind"] for s in c["scopes"]], ["mine", "everything"])
         self.assertIsNone(c["workspace"])
 
 

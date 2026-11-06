@@ -591,6 +591,12 @@ class Settings(BaseSettings):
     meetings_ai_enabled: bool = True
     meetings_ai_daily_usd: float = 5.0
     meetings_ai_monthly_usd: float = 50.0
+    # Ask's live suggestions (services/ask_suggestions.py, ledger feature "ask_suggestions"): one Haiku
+    # call per workspace rebuild (owner decision 2026-11-06: $0.50 a day, $5 a month; the admin AI tab
+    # overrides them).
+    ask_suggestions_enabled: bool = True
+    ask_suggestions_daily_usd: float = 0.5
+    ask_suggestions_monthly_usd: float = 5.0
 
     # ── Markdrop for Slack (services/slack*.py, routers/slack.py) ────────────
     # The one Slack app Markdrop owns (docs-platform/slack/manifest.yaml + SETUP.md). All three come

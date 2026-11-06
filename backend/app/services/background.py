@@ -216,6 +216,12 @@ async def _meeting_memory(db: AsyncIOMotorDatabase) -> None:
     await meeting_memory.background(db)
 
 
+async def _ask_suggestions(db: AsyncIOMotorDatabase) -> None:
+    from app.services import ask_suggestions
+
+    await ask_suggestions.background(db)
+
+
 def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
     if not settings.background_workers_enabled or _TASKS:
         return
@@ -229,6 +235,7 @@ def start(get_db: Callable[[], AsyncIOMotorDatabase]) -> None:
                               ("push", 5.0, _push),
                               ("meetings_backfill", 10.0, _meetings_backfill),
                               ("meeting_memory", 15.0, _meeting_memory),
+                              ("ask_suggestions", 300.0, _ask_suggestions),
                               ("email_retry", 60.0, _email_retry)):
         _TASKS.append(loop.create_task(_loop(name, every, get_db, body)))
 
