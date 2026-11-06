@@ -1,12 +1,12 @@
 ---
 title: Mentions and notifications
-description: Mention someone and they're told under the bell, by email and on their phone or computer, with a link to the exact block. Only people who can open the page.
+description: Mention someone and they're told under the bell, by email, on their phone or computer and in Slack, with a link to the exact block. Only people who can open the page.
 updated: 2026-11-06
 prerequisites: [/pages/overview]
-keywords: [mention, mentions, remove a mention, undo mention, mistaken mention, wrong person, take a mention back, withdrawn, meeting mentions, email me less, hourly bundle, daily digest, instant, email frequency, too many emails, catch-up, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, list_notifications, mark_notifications_read, share_with_people]
+keywords: [mention, mentions, remove a mention, undo mention, mistaken mention, wrong person, take a mention back, withdrawn, meeting mentions, email me less, hourly bundle, daily digest, instant, email frequency, too many emails, catch-up, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, slack, slack notifications, slack direct message, get these in slack, list_notifications, mark_notifications_read, share_with_people]
 ---
 
-When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop, get an email and, if they've turned it on, a notification on their phone or computer. Each one opens the page at the block that mentions them.
+When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop, get an email and, if they've turned them on, a notification on their phone or computer and a message in Slack. Each one opens the page at the block that mentions them.
 
 ## Mention someone
 
@@ -83,7 +83,7 @@ If you'd turned off the old **Email me when someone mentions me** switch, both c
 Markdrop doesn't email you about something you've already seen:
 
 - **Read it in the app,** or had Markdrop open when it arrived (the bell's badge showed it), and there's no email.
-- **Got it as a [push notification](#push-notifications)** on one of your devices, or as a [Slack message](/integrations/slack), and there's no email.
+- **Got it as a [push notification](#push-notifications)** on one of your devices, or as a [Slack message](#slack), and there's no email. Only a message that really reached you counts: with Slack notifications off, the email comes as usual.
 - **You've been using Markdrop in the last half hour,** and an instant email waits up to 30 minutes for you to see it there (10 minutes for a sign-off request) before it goes.
 
 ### Never a flood
@@ -153,6 +153,12 @@ Under **Notify me when**, turn off any of **Mentions**, **Sign-off requests**, *
 - **Private on the way.** Each notification is encrypted for your device, so the notification service that delivers it (Google, Apple, Mozilla or Microsoft, depending on your browser) can't read it.
 
 To stop them on a device, choose **Turn off** under **This device**, or block notifications for markdrop.in in your browser's site settings.
+
+## Slack
+
+When a workspace you're in is connected to [Slack](/integrations/slack), the same notifications can come as direct messages from the Markdrop app in Slack: mentions, sign-off requests (choose an option right there), shares and access requests (**Approve** or **Decline**).
+
+They're **off** until you turn them on: **Settings › Account › Slack notifications** › **Get notifications in Slack**. Markdrop finds you in Slack by your sign-in email, so there's nothing to link, and only you can turn yours on. The bell offers it too (**Get these in Slack**), but never at the same time as the push notification offer. Each message ends with **Turn off**. See [Slack notifications](/integrations/slack#slack-notifications) for what to do when Markdrop can't find you, and for choosing which kinds.
 
 ## From an AI app
 
