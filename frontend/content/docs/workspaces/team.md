@@ -75,7 +75,8 @@ Every Monday at 9 am in the workspace's timezone, Team puts together the week, M
 
 Done items never show: ones ticked off (- [x]) on their meeting or page, marked done by their person, or reported done later.
 
-- It's emailed to the workspace's admins and owner.
+- Two more lists go out with it: the week's **decisions** (ones the highlights don't already say) and the **meetings** held this week.
+- It's emailed to the workspace's admins and owner ("This week in Acme: 4 highlights, 2 due, 1 overdue"): the counts at the top, then each person's highlights beside their initials, and every overdue and due item with its date.
 - It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected.
 - It's the **This week** card at the top of Team, for the current week ("This week · Nov 3–9"): three columns on a computer, two and one on a tablet, stacked on a phone. Someone with three or more lines in a column shows as one row ("Gautam · 4 items") that opens. Tap a line to read it in full.
 

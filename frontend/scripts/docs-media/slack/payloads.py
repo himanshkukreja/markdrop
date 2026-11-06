@@ -32,14 +32,20 @@ def esc(s: str) -> str:
 
 meeting = kit.meeting_post(
     TEAM, "6aecc9488c77e564c2be27a1",
-    title="Weekly product sync", url=f"{BASE}/weekly-product-sync-nov-4", when="Tue Nov 4, 2026 · 10:00",
+    title="Weekly product sync", url=f"{BASE}/weekly-product-sync-nov-4", when="Tue, Nov 4 · 10:00", day="Nov 4",
+    duration="32 min", people=["Maya Patel", "Alex Chen", "Sam Lee"], people_total=5,
     summary=("We agreed to ship the new onboarding checklist on Nov 12 and to keep the old flow behind a flag for "
-             "two weeks. Billing's annual-plan bug is fixed in 2.4.1; support will tell the three affected customers."),
+             "two weeks. Billing's annual-plan bug is fixed in 2.4.1; support will tell the three affected customers. "
+             "Sam is finishing the partner pricing sheet, and finance wants it before Thursday's review."),
     decisions=["Ship the onboarding checklist on Nov 12", "Keep the old onboarding flow behind a flag for two weeks"],
+    open_questions=["Do the EU tiers need legal review before the partner review?"],
     items=[
-        {"block": "b-1a2b3c4d", "text": f"<@U0MAYA> {esc('Update the onboarding docs before the release')}", "done_by": None},
-        {"block": "b-2b3c4d5e", "text": f"<@U0ALEX> {esc('Email the three affected billing customers')}", "done_by": None},
-        {"block": "b-3c4d5e6f", "text": f"<@U0SAM> {esc('Turn on the flag in staging')}", "done_by": "Sam Lee"},
+        {"block": "b-1a2b3c4d", "owner": "<@U0MAYA>", "owner_key": "u:maya",
+         "text": esc("Update the onboarding docs before the release"), "due": "Tue, Nov 11", "done_by": None},
+        {"block": "b-2b3c4d5e", "owner": "<@U0ALEX>", "owner_key": "u:alex",
+         "text": esc("Email the three affected billing customers"), "due": "Thu, Nov 6", "done_by": None},
+        {"block": "b-3c4d5e6f", "owner": "<@U0SAM>", "owner_key": "u:sam", "text": esc("Turn on the flag in staging"),
+         "due": None, "done_by": "Sam Lee"},
     ])
 
 search = kit.search_results("onboarding", [
@@ -71,7 +77,7 @@ unfurl = kit.item_unfurl(
 unfurl_minimal = kit.minimal_unfurl(f"{BASE}/q3-plan-internal")
 
 mention = kit.dm_mention("Alex Chen", "Release notes 2.4", f"{BASE}/release-notes-2-4#b-9f8e7d6c",
-                         "@Riya Sharma can you check the migration steps before we publish?")
+                         "@Riya Sharma can you check the migration steps before we publish?", where="Acme")
 access_request = kit.dm_access_request(
     TEAM, "Jordan Park", "jordan@northwind.com", "Q3 plan", f"{BASE}/requests/6aecc9488c77e564c2be2796",
     "6aecc9488c77e564c2be2796", True, "I'm preparing the partner review and need to add our numbers.", False)
@@ -101,6 +107,9 @@ from app.services import workspace_memory as _wm  # noqa: E402
 
 _src = lambda title, slug: [{"title": title, "href": f"{BASE}/{slug}"}]  # noqa: E731
 weekly_blocks, _weekly_text = team_extras.slack_blocks(_wm.WsInfo("6aecc9488c77e564c2be27c0", "Acme", True, True), {
+    "from": "2026-11-03", "to": "2026-11-09",
+    "meetings": [{"title": "Weekly product sync", "date": "2026-11-04", "time": "10:00", "href": "/weekly-product-sync-nov-4"},
+                 {"title": "Pricing review", "date": "2026-11-05", "time": "15:30", "href": "/pricing-review-nov-5"}],
     "highlights": [
         {"person": {"name": "Maya Patel"}, "text": "Shipped the onboarding checklist behind a flag",
          "sources": _src("Weekly product sync", "weekly-product-sync-nov-4")},

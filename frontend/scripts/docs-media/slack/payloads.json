@@ -10,45 +10,65 @@
   "message": {
    "blocks": [
     {
+     "type": "header",
+     "text": {
+      "type": "plain_text",
+      "text": "Weekly product sync",
+      "emoji": false
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Tue, Nov 4 · 10:00 · 32 min · 5 people: Maya, Alex, Sam +2 · <https://markdrop.in/weekly-product-sync-nov-4|Open notes>"
+      }
+     ]
+    },
+    {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":spiral_note_pad: *<https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>*\nTue Nov 4, 2026 · 10:00"
+      "text": "*Summary*\nWe agreed to ship the new onboarding checklist on Nov 12 and to keep the old flow behind a flag for two weeks. Billing's annual-plan bug is fixed in 2.4.1; support will tell the three affected customers. Sam is finishing the partner pricing sheet, and finance wants it before Thursday's review."
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Summary*\nWe agreed to ship the new onboarding checklist on Nov 12 and to keep the old flow behind a flag for two weeks. Billing's annual-plan bug is fixed in 2.4.1; support will tell the three affected customers."
+      "text": "*Decisions*\n•  Ship the onboarding checklist on Nov 12\n•  Keep the old onboarding flow behind a flag for two weeks"
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Decisions*\n• Ship the onboarding checklist on Nov 12\n• Keep the old onboarding flow behind a flag for two weeks"
+      "text": "*Open questions*\n•  Do the EU tiers need legal review before the partner review?"
+     }
+    },
+    {
+     "type": "divider"
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Action items*  ·  2 open  ·  1 done"
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Action items*"
-     }
-    },
-    {
-     "type": "section",
-     "text": {
-      "type": "mrkdwn",
-      "text": ":white_large_square: <@U0MAYA> Update the onboarding docs before the release"
+      "text": "<@U0MAYA> Update the onboarding docs before the release  ·  _due Tue, Nov 11_"
      },
      "accessory": {
       "type": "button",
       "text": {
        "type": "plain_text",
        "text": "Done",
-       "emoji": true
+       "emoji": false
       },
       "action_id": "md_done",
       "value": "done|6aecc9488c77e564c2be27a1|b-1a2b3c4d|1Sui2U6-kjrUaj0Q"
@@ -58,14 +78,14 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":white_large_square: <@U0ALEX> Email the three affected billing customers"
+      "text": "<@U0ALEX> Email the three affected billing customers  ·  _due Thu, Nov 6_"
      },
      "accessory": {
       "type": "button",
       "text": {
        "type": "plain_text",
        "text": "Done",
-       "emoji": true
+       "emoji": false
       },
       "action_id": "md_done",
       "value": "done|6aecc9488c77e564c2be27a1|b-2b3c4d5e|h5qK4yhQosycIYTW"
@@ -75,7 +95,7 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":white_check_mark: ~<@U0SAM> Turn on the flag in staging~\n_Done by Sam Lee_"
+      "text": "✓  <@U0SAM> ~Turn on the flag in staging~  ·  _done by Sam Lee_"
      }
     },
     {
@@ -85,16 +105,26 @@
        "type": "button",
        "text": {
         "type": "plain_text",
-        "text": "Open the meeting",
-        "emoji": true
+        "text": "Open notes",
+        "emoji": false
        },
        "action_id": "md_open",
-       "url": "https://markdrop.in/weekly-product-sync-nov-4"
+       "url": "https://markdrop.in/weekly-product-sync-nov-4",
+       "style": "primary"
+      }
+     ]
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Posted by Markdrop · Meetings restricted to their attendees are never posted"
       }
      ]
     }
    ],
-   "text": "Meeting notes: Weekly product sync"
+   "text": "Weekly product sync · Nov 4: 2 decisions, 3 action items"
   }
  },
  "search": {
@@ -107,29 +137,59 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "Results for *onboarding*"
+      "text": "*3 results* for “onboarding”  ·  <https://markdrop.in/search?q=onboarding|See all in Markdrop>"
      }
+    },
+    {
+     "type": "divider"
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*<https://docs.acme.com/guides/onboarding-guide|Onboarding guide>*  _Page · Acme_\nEverything a new teammate needs in their first week: accounts, tools and who to ask."
+      "text": "*<https://docs.acme.com/guides/onboarding-guide|Onboarding guide>*\nEverything a new teammate needs in their first week: accounts, tools and who to ask."
      }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Page · Acme"
+      }
+     ]
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*<https://docs.acme.com/onboarding-handbook|Onboarding handbook>*  _PDF · Acme_\nBenefits, time off and the team calendar."
+      "text": "*<https://docs.acme.com/onboarding-handbook|Onboarding handbook>*\nBenefits, time off and the team calendar."
      }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "PDF · Acme"
+      }
+     ]
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*<https://docs.acme.com/guides/setup/getting-started|Getting started>*  _Document · Acme_\nInstall the CLI, connect a data source and invite your team."
+      "text": "*<https://docs.acme.com/guides/setup/getting-started|Getting started>*\nInstall the CLI, connect a data source and invite your team."
      }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Document · Acme"
+      }
+     ]
     },
     {
      "type": "actions",
@@ -139,7 +199,7 @@
        "text": {
         "type": "plain_text",
         "text": "See all in Markdrop",
-        "emoji": true
+        "emoji": false
        },
        "action_id": "md_open",
        "url": "https://markdrop.in/search?q=onboarding"
@@ -161,7 +221,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "_How do I connect Postgres?_"
+       "text": "*Asked* · “How do I connect Postgres?”"
       }
      ]
     },
@@ -176,7 +236,7 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Sources*\n[1] <https://docs.acme.com/guides/setup/connect-postgres|Connect Postgres>\n[2] <https://docs.acme.com/security-faq|Security FAQ>"
+      "text": "*Sources*\n`1`  <https://docs.acme.com/guides/setup/connect-postgres|Connect Postgres>\n`2`  <https://docs.acme.com/security-faq|Security FAQ>"
      }
     },
     {
@@ -203,7 +263,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "_When do we ship the onboarding checklist?_"
+       "text": "*Asked* · “When do we ship the onboarding checklist?”"
       }
      ]
     },
@@ -218,7 +278,7 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Sources*\n[1] <https://markdrop.in/weekly-product-sync-nov-4#t=760|Weekly product sync, Nov 4 (Maya Patel at 12:40)>"
+      "text": "*Sources*\n`1`  <https://markdrop.in/weekly-product-sync-nov-4#t=760|Weekly product sync, Nov 4 (Maya Patel at 12:40)>"
      }
     },
     {
@@ -253,7 +313,7 @@
       "elements": [
        {
         "type": "mrkdwn",
-        "text": "Page · Acme · updated Nov 3, 2026"
+        "text": "Page · Acme · Updated Nov 3, 2026"
        }
       ]
      }
@@ -287,6 +347,15 @@
   "message": {
    "blocks": [
     {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "*Mention* · Acme"
+      }
+     ]
+    },
+    {
      "type": "section",
      "text": {
       "type": "mrkdwn",
@@ -300,11 +369,12 @@
        "type": "button",
        "text": {
         "type": "plain_text",
-        "text": "Open in Markdrop",
-        "emoji": true
+        "text": "Open the mention",
+        "emoji": false
        },
        "action_id": "md_open",
-       "url": "https://markdrop.in/release-notes-2-4#b-9f8e7d6c"
+       "url": "https://markdrop.in/release-notes-2-4#b-9f8e7d6c",
+       "style": "primary"
       }
      ]
     },
@@ -327,10 +397,35 @@
   "message": {
    "blocks": [
     {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "*Edit access request*"
+      }
+     ]
+    },
+    {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Jordan Park (jordan@northwind.com)* asked to edit *<https://markdrop.in/requests/6aecc9488c77e564c2be2796|Q3 plan>*\n>I'm preparing the partner review and need to add our numbers."
+      "text": "*Jordan Park* asked to edit *<https://markdrop.in/requests/6aecc9488c77e564c2be2796|Q3 plan>*"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "jordan@northwind.com"
+      }
+     ]
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ">I'm preparing the partner review and need to add our numbers."
      }
     },
     {
@@ -341,7 +436,7 @@
        "text": {
         "type": "plain_text",
         "text": "Approve",
-        "emoji": true
+        "emoji": false
        },
        "action_id": "md_ar_ok",
        "value": "ar|6aecc9488c77e564c2be2796|edit|P489T4OPnW8oSxbZ",
@@ -352,7 +447,7 @@
        "text": {
         "type": "plain_text",
         "text": "Decline",
-        "emoji": true
+        "emoji": false
        },
        "action_id": "md_ar_no",
        "value": "ar|6aecc9488c77e564c2be2796|decline|fpkyT8nb2eL44z8g",
@@ -363,7 +458,7 @@
        "text": {
         "type": "plain_text",
         "text": "Review in Markdrop",
-        "emoji": true
+        "emoji": false
        },
        "action_id": "md_open",
        "url": "https://markdrop.in/requests/6aecc9488c77e564c2be2796"
@@ -385,10 +480,19 @@
   "after": {
    "blocks": [
     {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "*Edit access request*"
+      }
+     ]
+    },
+    {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Jordan Park (jordan@northwind.com)* asked to edit *<https://markdrop.in/requests/6aecc9488c77e564c2be2796|Q3 plan>*\n>I'm preparing the partner review and need to add our numbers."
+      "text": "*Jordan Park* asked to edit *<https://markdrop.in/requests/6aecc9488c77e564c2be2796|Q3 plan>*"
      }
     },
     {
@@ -396,7 +500,23 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "Approved by you: they can edit it now."
+       "text": "jordan@northwind.com"
+      }
+     ]
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": ">I'm preparing the partner review and need to add our numbers."
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "✓ Approved by you: they can edit it now."
       }
      ]
     },
@@ -408,7 +528,7 @@
        "text": {
         "type": "plain_text",
         "text": "Open in Markdrop",
-        "emoji": true
+        "emoji": false
        },
        "action_id": "md_open",
        "url": "https://markdrop.in/requests/6aecc9488c77e564c2be2796"
@@ -437,35 +557,8 @@
      "type": "header",
      "text": {
       "type": "plain_text",
-      "text": "This week in Acme"
-     }
-    },
-    {
-     "type": "section",
-     "text": {
-      "type": "mrkdwn",
-      "text": "*Highlights*\n• Maya Patel: Shipped the onboarding checklist behind a flag <https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>\n• Alex Chen: Fixed the annual-plan billing bug in 2.4.1 <https://markdrop.in/daily-standup-nov-5|Daily standup>\n• Sam Lee: Decided: the partner pricing sheet goes to finance first <https://markdrop.in/pricing-review-nov-5|Pricing review>"
-     }
-    },
-    {
-     "type": "section",
-     "text": {
-      "type": "mrkdwn",
-      "text": "*Blockers*\n• *Jordan Park*: The Postgres connector needs read-only credentials (waiting on Alex Chen)"
-     }
-    },
-    {
-     "type": "section",
-     "text": {
-      "type": "mrkdwn",
-      "text": "*Due this week*\n• Maya Patel: Update the onboarding docs — due 2026-11-11\n• Sam Lee: Send the release notes to customers — due 2026-11-12"
-     }
-    },
-    {
-     "type": "section",
-     "text": {
-      "type": "mrkdwn",
-      "text": "*Overdue*\n• Alex Chen: Triage the crash reports — due 2026-11-06 (3 days late)"
+      "text": "This week in Acme",
+      "emoji": false
      }
     },
     {
@@ -473,12 +566,75 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "<http://localhost:3000/team/6aecc9488c77e564c2be27c0|Open Team> · only from meetings and pages everyone in the workspace can open"
+       "text": "Nov 3 – 9 · 3 highlights · 2 due · 1 overdue · 1 blocker · 2 meetings"
+      }
+     ]
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Highlights*\n•  *Maya Patel*  Shipped the onboarding checklist behind a flag  ·  <https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>\n•  *Alex Chen*  Fixed the annual-plan billing bug in 2.4.1  ·  <https://markdrop.in/daily-standup-nov-5|Daily standup>\n•  *Sam Lee*  Decided: the partner pricing sheet goes to finance first  ·  <https://markdrop.in/pricing-review-nov-5|Pricing review>"
+     }
+    },
+    {
+     "type": "divider"
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Overdue*  ·  1\n•  *Alex Chen*  Triage the crash reports  ·  _Fri, Nov 6, 3 days late_"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Due this week*  ·  2\n•  *Maya Patel*  Update the onboarding docs  ·  _Wed, Nov 11_\n•  *Sam Lee*  Send the release notes to customers  ·  _Thu, Nov 12_"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Blocked*\n•  *Jordan Park*  The Postgres connector needs read-only credentials  ·  _waiting on Alex Chen_"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Meetings this week*\n•  <http://localhost:3000/weekly-product-sync-nov-4|Weekly product sync>  ·  _Wed, Nov 4 · 10:00_\n•  <http://localhost:3000/pricing-review-nov-5|Pricing review>  ·  _Thu, Nov 5 · 15:30_"
+     }
+    },
+    {
+     "type": "actions",
+     "elements": [
+      {
+       "type": "button",
+       "text": {
+        "type": "plain_text",
+        "text": "Open Team",
+        "emoji": false
+       },
+       "action_id": "md_open",
+       "url": "http://localhost:3000/team/6aecc9488c77e564c2be27c0",
+       "style": "primary"
+      }
+     ]
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "Only from meetings and pages everyone in the workspace can open · Sent every Monday"
       }
      ]
     }
    ],
-   "text": "This week in Acme"
+   "text": "This week in Acme: 3 highlights, 2 due, 1 overdue, 1 blocker, 2 meetings"
   }
  },
  "help": {
@@ -488,10 +644,11 @@
   "message": {
    "blocks": [
     {
-     "type": "section",
+     "type": "header",
      "text": {
-      "type": "mrkdwn",
-      "text": "*Markdrop in Slack* (only you see these replies)\n• `/markdrop search <words>` finds documents, pages, files and folders you can open\n• `/markdrop ask <question>` asks your workspace (Ask <Workspace>): answers from what you can open, with sources\n• `/markdrop meetings <question>` answers from your workspace's meetings\n• `/markdrop link` links your Slack account to your Markdrop account (once)\n• `/markdrop unlink` removes that link\nDirect messages for mentions, sign-off requests, shares and access requests are off until you turn them on in Markdrop: Settings › Account › Slack notifications."
+      "type": "plain_text",
+      "text": "Markdrop in Slack",
+      "emoji": false
      }
     },
     {
@@ -499,7 +656,37 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "You're linked as *Riya Sharma*."
+       "text": "Only you see these replies."
+      }
+     ]
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Find and ask*\n`/markdrop search <words>`\nDocuments, pages, files and folders you can open\n`/markdrop ask <question>`\nAsk your workspace: answers from what you can open, with sources\n`/markdrop meetings <question>`\nAnswers from your workspace's meetings"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Your account*\n`/markdrop link`  Link your Slack account to your Markdrop account (once)\n`/markdrop unlink`  Remove that link"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Direct messages*\nMentions, sign-off requests, shares and access requests are off until you turn them on in Markdrop: Settings › Account › Slack notifications. Your action items after a meeting come on their own; each message has *Stop these*."
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "You're linked as *Riya Sharma*. · <http://localhost:3000/settings/account#slack|Slack settings>"
       }
      ]
     }
@@ -513,24 +700,33 @@
   "message": {
    "blocks": [
     {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "*Your action items* · Nov 4"
+      }
+     ]
+    },
+    {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":clipboard: Your action items from *Weekly product sync* · Nov 4"
+      "text": "Your action items from *Weekly product sync*"
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":white_large_square: Update the onboarding docs before the release  _due next Wednesday (Wed, Nov 11)_"
+      "text": "Update the onboarding docs before the release\n_due next Wednesday (Wed, Nov 11)_"
      },
      "accessory": {
       "type": "button",
       "text": {
        "type": "plain_text",
        "text": "Done",
-       "emoji": true
+       "emoji": false
       },
       "action_id": "md_ai_done",
       "value": "aid|6aecc9488c77e564c2be27b0|b-1a2b3c4d|1NXFa4mk-0HAVZlN"
@@ -540,14 +736,14 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":white_large_square: Send Alex the new screenshots  _due Thu, Nov 5_"
+      "text": "Send Alex the new screenshots\n_due Thu, Nov 5_"
      },
      "accessory": {
       "type": "button",
       "text": {
        "type": "plain_text",
        "text": "Done",
-       "emoji": true
+       "emoji": false
       },
       "action_id": "md_ai_done",
       "value": "aid|6aecc9488c77e564c2be27b0|b-4d5e6f70|zlvrVaxb9NgB7CD4"
@@ -561,10 +757,11 @@
        "text": {
         "type": "plain_text",
         "text": "Open the notes",
-        "emoji": true
+        "emoji": false
        },
        "action_id": "md_open",
-       "url": "https://markdrop.in/weekly-product-sync-nov-4"
+       "url": "https://markdrop.in/weekly-product-sync-nov-4",
+       "style": "primary"
       }
      ]
     },
@@ -575,36 +772,45 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "_Sent after each meeting_"
+      "text": "_Sent after each meeting where you have an action item_"
      },
      "accessory": {
       "type": "button",
       "text": {
        "type": "plain_text",
        "text": "Stop these",
-       "emoji": true
+       "emoji": false
       },
       "action_id": "md_ai_stop",
       "value": "stop|U0MAYA|6aecc9488c77e564c2be27b1|D5oOxX2dFGZbNMyw"
      }
     }
    ],
-   "text": "Your action items from Weekly product sync"
+   "text": "Your action items from Weekly product sync (2)"
   },
   "after": {
    "blocks": [
     {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "*Your action items* · Nov 4"
+      }
+     ]
+    },
+    {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":clipboard: Your action items from *Weekly product sync* · Nov 4"
+      "text": "Your action items from *Weekly product sync*"
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": ":white_large_square: Share the partner pricing sheet with finance  _due Fri, Nov 6_"
+      "text": "Share the partner pricing sheet with finance\n_due Fri, Nov 6_"
      }
     },
     {
@@ -623,21 +829,21 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "_Sent after each meeting_"
+      "text": "_Sent after each meeting where you have an action item_"
      },
      "accessory": {
       "type": "button",
       "text": {
        "type": "plain_text",
        "text": "Stop these",
-       "emoji": true
+       "emoji": false
       },
       "action_id": "md_ai_stop",
       "value": "stop|U0JORDAN||8WTG3bckvwX9fR0u"
      }
     }
    ],
-   "text": "Your action items from Weekly product sync"
+   "text": "Your action items from Weekly product sync (1)"
   },
   "afterLabel": "Someone who isn't in Markdrop gets only their own items:"
  }

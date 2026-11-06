@@ -2274,109 +2274,109 @@
   "/docs-assets/integrations/slack/illustration-ask.dark.webp": {
     "w": 1280,
     "h": 628,
-    "bytes": 46416,
+    "bytes": 46542,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-ask.webp": {
     "w": 1280,
     "h": 628,
-    "bytes": 47954,
+    "bytes": 48088,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-dm-access-request.dark.webp": {
     "w": 1280,
-    "h": 790,
-    "bytes": 47864,
+    "h": 1110,
+    "bytes": 54184,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-dm-access-request.webp": {
     "w": 1280,
-    "h": 790,
-    "bytes": 50402,
+    "h": 1110,
+    "bytes": 56746,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-dm-action-items.dark.webp": {
     "w": 1280,
-    "h": 1052,
-    "bytes": 61992,
+    "h": 1224,
+    "bytes": 71052,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-dm-action-items.webp": {
     "w": 1280,
-    "h": 1052,
-    "bytes": 63646,
+    "h": 1224,
+    "bytes": 72952,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-dm-mention.dark.webp": {
     "w": 1280,
-    "h": 388,
-    "bytes": 21322,
+    "h": 488,
+    "bytes": 25656,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-dm-mention.webp": {
     "w": 1280,
-    "h": 388,
-    "bytes": 22346,
+    "h": 488,
+    "bytes": 27146,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-meeting-post.dark.webp": {
     "w": 1280,
-    "h": 1036,
-    "bytes": 71878,
+    "h": 1274,
+    "bytes": 99850,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-meeting-post.webp": {
     "w": 1280,
-    "h": 1036,
-    "bytes": 74314,
+    "h": 1274,
+    "bytes": 102888,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-meetings-ask.dark.webp": {
     "w": 1280,
     "h": 538,
-    "bytes": 40802,
+    "bytes": 40996,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-meetings-ask.webp": {
     "w": 1280,
     "h": 538,
-    "bytes": 42680,
+    "bytes": 43092,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-search.dark.webp": {
     "w": 1280,
-    "h": 694,
-    "bytes": 45056,
+    "h": 868,
+    "bytes": 46774,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-search.webp": {
     "w": 1280,
-    "h": 694,
-    "bytes": 47044,
+    "h": 868,
+    "bytes": 49390,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-team-weekly.dark.webp": {
     "w": 1280,
-    "h": 944,
-    "bytes": 74302,
+    "h": 1296,
+    "bytes": 90198,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-team-weekly.webp": {
     "w": 1280,
-    "h": 944,
-    "bytes": 76620,
+    "h": 1296,
+    "bytes": 93436,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-unfurl.dark.webp": {
     "w": 1280,
     "h": 656,
-    "bytes": 41480,
+    "bytes": 41540,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/illustration-unfurl.webp": {
     "w": 1280,
     "h": 656,
-    "bytes": 44342,
+    "bytes": 44428,
     "kind": "image"
   },
   "/docs-assets/integrations/slack/notifications-card.dark.webp": {
