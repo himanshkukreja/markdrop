@@ -27,8 +27,8 @@ export function PageModeButton({ mode, onClick, busy = false }: { mode: "edit" |
     <IconButton icon="edit" label="Edit" size="sm" variant="ghost" className="pb-bar__btn pb-mode" data-page-mode="edit" aria-keyshortcuts={keys} loading={busy} onClick={onClick} />
   ) : (
     <Tooltip side="bottom" content={<span className="inline-flex items-center gap-1.5">Edit this page{keys && <> <Kbd>E</Kbd></>}</span>}>
-      <Button variant="ghost" size="sm" iconLeft="edit" className="pb-bar__btn pb-mode" data-page-mode="edit" aria-keyshortcuts={keys} loading={busy} onClick={onClick}>
-        Edit
+      <Button variant="ghost" size="sm" iconLeft="edit" className="pb-bar__btn pb-mode" data-page-mode="edit" aria-label="Edit" aria-keyshortcuts={keys} loading={busy} onClick={onClick}>
+        <span className="pb-bar__label">Edit</span>
       </Button>
     </Tooltip>
   );

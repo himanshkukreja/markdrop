@@ -50,11 +50,18 @@ Admins can make simple groups, like "Sourcing team", with **Groups** on the boar
 
 ## The weekly summary
 
-Every Monday at 9 am in the workspace's timezone, Team puts together the week: **highlights** (what shipped, decisions, changes of plan), current **blockers**, and the **commitments due this week** and overdue.
+Every Monday at 9 am in the workspace's timezone, Team puts together the week, Monday to Sunday:
+
+- **Highlights**: what happened this week (or, early on Monday, the last 7 days): what shipped, decisions, changes of plan. At most two per person, spread across the team, without repeats.
+- **Due this week**: open action items and targets due Monday to Sunday.
+- **Overdue**: open ones that were due in the last two weeks, with how late they are. Older ones count as stale: they stay on the person's page, where they can **Mark done** or dismiss them, but leave the summary.
+- Current **blockers** (email and Slack; on the board they're under Team at a glance).
+
+Done items never show: ones ticked off (- [x]) on their meeting or page, marked done by their person, or reported done later.
 
 - It's emailed to the workspace's admins and owner.
 - It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected.
-- It's the **This week** card at the top of Team. Before the first Monday, the card shows the week so far.
+- It's the **This week** card at the top of Team, for the current week ("This week · Nov 3–9"): three columns on a computer, two and one on a tablet, stacked on a phone. Someone with three or more lines in a column shows as one row ("Gautam · 4 items") that opens. Tap a line to read it in full.
 
 The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card.
 
@@ -94,10 +101,11 @@ On Team, or your own page:
 
 Each line about you has a menu on your own page:
 
-- **Hide this line**: nobody sees it. It stays hidden even when the meeting or page is read again. Undo it under **Hidden by you**.
+- **Mark done** (action items and targets): it leaves your open items, the board and This week, and stays done when the meeting or page is read again. Ticking it off on the page works too.
+- **Hide this line** (**Dismiss** on action items and targets): nobody sees it. It stays hidden even when the meeting or page is read again. Undo it under **Hidden by you**.
 - **This is wrong…**: write what's right, and people see that instead, marked *corrected*. Leave it empty to take the line down. Markdrop is told about it the next time it reads that meeting or page, so it doesn't say it again.
 
-Only the person a line is about can hide or correct it.
+Only the person a line is about can mark it done, hide it or correct it.
 
 ## Ask about your team
 

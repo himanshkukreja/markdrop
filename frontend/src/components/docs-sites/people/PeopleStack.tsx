@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Anchor, Tooltip, cx } from "@/components/ui";
 import { roleLabel, type GuidePerson } from "@/lib/docsSites";
 import { colorFor, viewerColor } from "@/lib/presence";
+import { initialsOf } from "@/lib/initials.mjs";
 
 /** One letter: two don't fit a small circle legibly. */
-const initial = (name: string) => Array.from(name.trim())[0]?.toUpperCase() || "?";
+const initial = (name: string) => Array.from(initialsOf(name))[0] || "?";
 
 /** "You", else their name. */
 export const personLabel = (p: Pick<GuidePerson, "name" | "you">) => (p.you ? "You" : p.name || "Someone");

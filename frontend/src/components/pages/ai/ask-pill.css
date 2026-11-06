@@ -42,3 +42,6 @@ body:has(.pb-phonebar[data-on]) .pa-pill { opacity: 0; transform: translateY(6px
   .pa-pill[aria-busy="true"] .pa-pill__icon { animation: none; }
 }
 @media print { .pa-pill { display: none; } }
+
+/* Touch screens: a 44 px target (mobile-shell.mjs "target"). */
+@media (pointer: coarse) { .pa-pill { height: 44px; } }

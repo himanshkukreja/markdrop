@@ -208,6 +208,29 @@ export function measure({ checkTargets }) {
     }
   }
 
+  // 7b. a top bar's own items running into each other or out of the bar (owner 2026-11-06: the page
+  // bar's title, Ask, From meetings, Edit, Share, ⋯ merged on tablets). Each visible leaf item of a
+  // bar (a button, a link, the title, the faces) must not cover another, nor pass the bar's edges.
+  for (const bar of document.querySelectorAll(".pb-bar, .mt-pagebar, [data-audit-bar]")) {
+    if (!visible(bar)) continue;
+    const br = bar.getBoundingClientRect();
+    const items = [];
+    for (const el of bar.querySelectorAll("button, a[href], [role=button], .pb-crumb__text, .pb-bar__presence, .mt-pagebar__people, .mt-pagebar__fact")) {
+      if (!visible(el) || el.closest("[role=menu], [role=dialog], .md-popover")) continue;
+      if ([...el.querySelectorAll("button, a[href], [role=button], .pb-crumb__text")].some((c) => c !== el && visible(c))) continue;
+      const r = el.getBoundingClientRect();
+      items.push([el, r]);
+      if (r.left < br.left - 1 || r.right > br.right + 1) push("baritems", el, `${describe(el)} passes the bar's edge (${Math.round(r.left)}–${Math.round(r.right)} of ${Math.round(br.left)}–${Math.round(br.right)})`);
+    }
+    for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+      const [a, ra] = items[i], [b, rb] = items[j];
+      if (a.contains(b) || b.contains(a)) continue;
+      const w = Math.min(ra.right, rb.right) - Math.max(ra.left, rb.left);
+      const h = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+      if (w > 1 && h > 1) push("baritems", a, `${describe(a)} and ${describe(b)} overlap ${Math.round(w)}×${Math.round(h)}`);
+    }
+  }
+
   // 8. hover-only controls (touch screens): opacity 0 / visibility hidden unless hovered
   for (const el of scope.querySelectorAll(INTERACTIVE)) {
     const cs = getComputedStyle(el);

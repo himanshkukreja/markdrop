@@ -14,12 +14,11 @@ import { DOCS_PAGES } from "@/lib/docsLinks";
 import { DOCS_URL, docsUrl } from "./links";
 import { useMounted, useSignInHref } from "./useLocation";
 import { usePwa } from "@/components/pwa/PwaProvider";
+import { initialsOf as initialsFrom } from "@/lib/initials.mjs";
 
 /** Initials for the avatar: two words → two letters, else the first letter of the name or email. */
 export function initialsOf(user: Pick<MeUser, "name" | "email">): string {
-  const words = (user.name || "").trim().split(/\s+/).filter(Boolean);
-  if (words.length >= 2) return (words[0]![0]! + words[1]![0]!).toUpperCase();
-  return (words[0]?.[0] || user.email.charAt(0) || "?").toUpperCase();
+  return initialsFrom(user.name, user.email);
 }
 
 /**

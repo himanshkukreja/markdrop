@@ -7,6 +7,7 @@
     PUT    /api/v1/team/{ws}/me/status                {text, emoji?, until?}  your own status (wins over AI)
     POST   /api/v1/team/{ws}/facts/{id}/hide          hide a line about you (for everyone); DELETE: undo
     POST   /api/v1/team/{ws}/facts/{id}/correct       {text?} "This is wrong" (+ the right version); DELETE: undo
+    POST   /api/v1/team/{ws}/facts/{id}/done          mark your action item / target done; DELETE: undo
     GET    /api/v1/team/{ws}/groups                   the groups (+ suggestions from meeting series, admins)
     POST   /api/v1/team/{ws}/groups                   {name, member_ids}  admins; PUT/DELETE …/groups/{id}
     POST   /api/v1/team/{ws}/weekly/send              admins: send this week's summary now (services/team_extras.py)
@@ -169,6 +170,32 @@ async def unhide(request: Request, workspace_id: str, fact_id: str, db: AsyncIOM
     actor, ctx = _ac(request, db, user)
     try:
         return await wm.hide(db, actor, ctx, ws, fact_id, role, on=False)
+    except wm.Refused as exc:
+        raise _refused(exc)
+
+
+@router.post("/{workspace_id}/facts/{fact_id}/done")
+@limiter.limit("60/minute")
+async def mark_done(request: Request, workspace_id: str, fact_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                    user: User = Depends(require_user)):
+    """Mark one of your action items or targets done: it leaves your open items, the board and "This week"."""
+    ws, role = await _member(db, workspace_id, user)
+    actor, ctx = _ac(request, db, user)
+    try:
+        return await wm.mark_done(db, actor, ctx, ws, fact_id, role, on=True)
+    except wm.Refused as exc:
+        raise _refused(exc)
+
+
+@router.delete("/{workspace_id}/facts/{fact_id}/done")
+@limiter.limit("60/minute")
+async def unmark_done(request: Request, workspace_id: str, fact_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
+                      user: User = Depends(require_user)):
+    """Undo "Mark done"."""
+    ws, role = await _member(db, workspace_id, user)
+    actor, ctx = _ac(request, db, user)
+    try:
+        return await wm.mark_done(db, actor, ctx, ws, fact_id, role, on=False)
     except wm.Refused as exc:
         raise _refused(exc)
 

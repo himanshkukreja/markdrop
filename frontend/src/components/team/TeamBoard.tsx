@@ -140,8 +140,9 @@ function TeamOn(p: {
   const totals = useMemo(() => ({
     on_track: people.filter((c) => c.status.state === "on_track").length,
     blocked: people.filter((c) => c.status.state === "blocked" || c.status.state === "waiting").length,
-    due_week: people.reduce((a, c) => a + c.due_week, 0),
-    overdue: people.reduce((a, c) => a + c.overdue, 0),
+    // Same rules as the This week card (stale items, due more than two weeks ago, stay on people's pages).
+    due_week: people.reduce((a, c) => a + (c.week_due ?? c.due_week), 0),
+    overdue: people.reduce((a, c) => a + (c.week_overdue ?? c.overdue), 0),
     open_items: people.reduce((a, c) => a + c.open_items, 0),
   }), [people]);
   const lanes = board.lanes.filter((l) => !p.project || l.key === p.project);

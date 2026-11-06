@@ -184,7 +184,7 @@
 
 @keyframes mm-in { from { opacity: 0; transform: translateY(6px) scale(0.98); } }
 /* While a phone's editing toolbar is up, the dock gets out of its way. */
-body:has(.pb-phonebar[data-on]) .mm-dock { opacity: 0; pointer-events: none; }
+body:has(.pb-phonebar[data-on]) .mm-dock, body:has(.pb-phonebar[data-on]) .mm-dock > * { opacity: 0; pointer-events: none; }
 @media (max-width: 639px) {
   .mm-dock { right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
 }

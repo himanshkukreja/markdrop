@@ -315,6 +315,7 @@ button.pb-mention--date { cursor: pointer; }
 .pb-crumb--current .pb-crumb__link { max-width: 100%; color: var(--text); font-weight: 600; cursor: default; }
 .pb-crumb--current .pb-crumb__link:hover { background: none; }
 .pb-crumb__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.pb-crumb:not(.pb-crumb--current) .pb-crumb__link { overflow: hidden; }
 .pb-crumb__sep { flex: none; padding: 0 1px; color: var(--text-subtle); }
 .pb-crumb__emoji { flex: none; font-size: 15px; line-height: 1; }
 .pb-crumb__img { flex: none; width: 16px; height: 16px; border-radius: 3px; object-fit: cover; }
@@ -522,6 +523,25 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 .pb-format__glyph { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--surface); color: var(--text-secondary); font: 600 13px/1 var(--font-sans); }
 .pb-format__check { margin-left: auto; color: var(--accent-text); }
 
+/* Tablets and small laptops (< 1024 px): the bar's buttons are icons (their names stay as aria-label and
+   tooltip), the title takes what's left and ends in an ellipsis; nothing in the bar may overlap
+   (mobile-shell.mjs "baritems", owner 2026-11-06). Phones also move Share and ✦ Ask into ⋯. */
+@media (max-width: 1023px) {
+  .pb-bar .pb-bar__label, .pb-bar .as-btn__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+  .pb-bar .pb-bar__btn:has(> .pb-bar__label), .pb-bar .pb-bar__ask { width: 30px; min-width: 30px; padding: 0; justify-content: center; gap: 0; }
+  .pb-bar .mm-barbtn { position: relative; min-width: 30px; justify-content: center; padding: 0 6px; }
+  .pb-bar__crumbs { min-width: 48px; }
+  /* The pages above fold into one "…" (as on phones): the title keeps the room. */
+  .pb-crumb--wide { display: none; }
+  .pb-crumb--narrow { display: flex; }
+  .pb-bar__brand { flex: 0 1 auto; max-width: 30%; overflow: hidden; }
+  .pb-bar__actions { min-width: 0; }
+}
+@media (max-width: 1023px) and (pointer: coarse) {
+  .pb-bar .pb-bar__btn:has(> .pb-bar__label), .pb-bar .pb-bar__ask { width: 44px; min-width: 44px; height: 44px; }
+  .pb-bar .mm-barbtn { min-width: 44px; height: 44px; }
+}
+
 @media (max-width: 639px) {
   .pb-bar { gap: 2px; padding: 0 4px; }
   .pb-bar__wide, .pb-bar__div { display: none !important; }
@@ -661,4 +681,11 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 @media (min-width: 640px) {
   .pb-phonebar { left: 50%; right: auto; width: min(640px, calc(100vw - 32px)); margin-left: max(-320px, calc(16px - 50vw)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); padding: 4px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-xl); box-shadow: 0 8px 24px rgb(0 0 0 / 0.16); }
   .pb-sheet { left: 0; right: 0; width: min(560px, 100%); margin-inline: auto; }
+}
+
+/* The Markdrop logo never shrinks under its own box (it ran onto the folded crumbs at 360 px); a
+   workspace brand (a name) can. */
+.pb-bar__brand:has(> .md-logo) { flex: none; }
+@media (pointer: coarse) {
+  .pb-children__add { min-height: 44px; }
 }

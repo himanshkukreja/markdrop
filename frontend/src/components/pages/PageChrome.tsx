@@ -34,6 +34,7 @@ import { fetchChildren } from "@/lib/navStore";
 import { pagePath } from "@/lib/pageBlocks.mjs";
 import type { SaveState } from "./usePageEditSession";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
+import { openAssistant } from "@/components/assistant/store";
 import { PageAccount, PageBrand } from "./PageBarEnds";
 import { RAIL_SCRIPT, RAIL_WIDE, closeRailDrawer, setRailPeek, toggleRail, useRail, useRailControls } from "./railState";
 import "./pages.css";
@@ -564,8 +565,12 @@ export function PageTopBar({
       : []),
   ];
   const railOpen = rail.drawer || (wide && !rail.collapsed);
-  // Phones: Share leads the ⋯ menu (the bar keeps its room for the title).
-  const items = [...(phone && onShare ? [{ label: "Share", icon: "share", onClick: onShare }] : []), ...menu, ...extra];
+  // Phones: Share and ✦ Ask lead the ⋯ menu (the bar keeps its room for the title, Edit and ⋯).
+  const items = [
+    ...(phone && onShare ? [{ label: "Share", icon: "share", onClick: onShare }] : []),
+    ...(phone && ask && user ? [{ label: "Ask this page", icon: "sparkle", onClick: () => openAssistant() }] : []),
+    ...menu, ...extra,
+  ];
   return (
     <header className={cx("pb-barwrap no-print", className)} data-scrolled={scrolled ? "" : undefined}>
       <SkipLink />
@@ -590,10 +595,11 @@ export function PageTopBar({
         <div className="pb-bar__actions">
           {presence && <span className="pb-bar__presence">{presence}</span>}
           {status}
-          {ask && <AssistantButton title="Ask this page" className="pb-bar__btn pb-bar__ask" />}
+          {ask && !phone && <AssistantButton title="Ask this page" className="pb-bar__btn pb-bar__ask" />}
           {tools}
           {onShare ? (
-            <Button variant="ghost" size="sm" className="pb-bar__btn pb-bar__share" onClick={onShare}>Share</Button>
+            // Under 1024 px the icon alone (pages.css .pb-bar__label); the name stays for screen readers.
+            <Button variant="ghost" size="sm" iconLeft="share" className="pb-bar__btn pb-bar__share" aria-label="Share" title="Share" onClick={onShare}><span className="pb-bar__label">Share</span></Button>
           ) : shareUrl ? (
             <CopyButton text={shareUrl} label="Copy link" size="sm" variant="ghost" iconOnly className="pb-bar__btn pb-bar__copy" onCopy={onCopied} />
           ) : null}
@@ -703,7 +709,7 @@ export function SubPages({
           Pages inside
         </h2>
         {onAdd && (
-          <Button size="sm" variant="ghost" iconLeft="plus" onClick={onAdd}>
+          <Button size="sm" variant="ghost" iconLeft="plus" className="pb-children__add" onClick={onAdd}>
             Add a sub-page
           </Button>
         )}

@@ -79,6 +79,9 @@ export interface Card {
   targets: Target[];
   open_items: number;
   due_week: number;
+  /** As on "This week": due Mon–Sun (workspace time) / due before this week within the last two weeks. */
+  week_due: number;
+  week_overdue: number;
   overdue: number;
   activity: number[];
   projects: Array<{ key: string; name: string }>;
@@ -128,7 +131,7 @@ export interface Board {
   projects: ProjectRow[];
   lanes: Lane[];
   blockers: Blocker[];
-  totals: { open_items: number; due_week: number; overdue: number; blocked: number; on_track: number; quiet: number };
+  totals: { open_items: number; due_week: number; overdue: number; week_due: number; week_overdue: number; blocked: number; on_track: number; quiet: number };
   you: string;
   role: string;
   since: string | null;
@@ -139,11 +142,16 @@ export interface Board {
 
 export interface Group { id: string; name: string; member_ids: string[] }
 export interface GroupSuggestion { name: string; member_ids: string[]; meetings: number }
-export interface WeekItem { person: string; text: string; due: string; source: Status["source"] }
+export interface WeekPerson { id: string; name: string; avatar_url: string | null }
+/** A commitment on the "This week" card: ``days`` is due minus today (workspace time; < 0 late). */
+export interface WeekItem { id: string; person: WeekPerson; text: string; due: string; days: number; source: Status["source"] }
+export interface WeekHighlight { text: string; kind?: FactKind; person: WeekPerson | null; day?: string; cites?: number[]; sources?: NonNullable<Status["source"]>[] }
+/** "This week" (services/team_extras.py): Mon–Sun in the workspace's timezone. Highlights happened this
+ *  week (``window: "last7"``: none yet, so the last 7 days); ``overdue`` is the last two weeks only. */
 export interface ThisWeek {
-  week: string; from: string; to: string; at: string | null; live: boolean;
-  highlights: Array<{ text: string; cites?: number[]; sources?: NonNullable<Status["source"]>[] }>;
-  blockers: Array<{ person: string; text: string | null; waiting_on: string | null; since: string | null; source: Status["source"] }>;
+  week: string; from: string; to: string; today?: string; window?: "week" | "last7"; at: string | null; live: boolean;
+  highlights: WeekHighlight[];
+  blockers: Array<{ person: WeekPerson; text: string | null; waiting_on: string | null; since: string | null; source: Status["source"] }>;
   due: WeekItem[];
   overdue: WeekItem[];
 }
@@ -205,6 +213,8 @@ export const setStatus = (ws: string, body: { text: string; emoji?: string | nul
   request<{ status: OwnStatus | null }>(`${base(ws)}/me/status`, { method: "PUT", body: JSON.stringify(body) });
 export const hideLine = (ws: string, id: string, on = true) =>
   request<{ id: string; hidden: boolean }>(`${base(ws)}/facts/${encodeURIComponent(id)}/hide`, { method: on ? "POST" : "DELETE" });
+export const markDone = (ws: string, id: string, on = true) =>
+  request<{ id: string; done: boolean }>(`${base(ws)}/facts/${encodeURIComponent(id)}/done`, { method: on ? "POST" : "DELETE" });
 export const correctLine = (ws: string, id: string, text: string | null) =>
   text === null
     ? request(`${base(ws)}/facts/${encodeURIComponent(id)}/correct`, { method: "DELETE" })
@@ -240,3 +250,23 @@ export const STATUS_ORDER: StatusState[] = ["blocked", "waiting", "on_track", "s
 export const STATUS_LABEL: Record<StatusState, string> = {
   blocked: "Blocked", waiting: "Waiting on someone", on_track: "On track", self: "Own status", away: "Away", quiet: "Quiet lately",
 };
+
+/** "Nov 3–9", "Oct 27 – Nov 2" for a Monday..Sunday pair of YYYY-MM-DD dates. */
+export function weekRange(from: string, to: string): string {
+  const d = (v: string) => { const [y, m, dd] = v.split("-").map(Number); return new Date(y!, (m ?? 1) - 1, dd ?? 1); };
+  const a = d(from), b = d(to);
+  const mon = (x: Date) => x.toLocaleDateString("en-US", { month: "short" });
+  return a.getMonth() === b.getMonth() ? `${mon(a)} ${a.getDate()}–${b.getDate()}` : `${mon(a)} ${a.getDate()} – ${mon(b)} ${b.getDate()}`;
+}
+
+/** "Today", "Tomorrow", "Fri", "2 days late" for a commitment ``days`` from today. */
+export function dueWhen(item: Pick<WeekItem, "due" | "days">): string {
+  const n = item.days;
+  if (n < 0) return `${-n} day${n === -1 ? "" : "s"} late`;
+  if (n === 0) return "Today";
+  if (n === 1) return "Tomorrow";
+  const [y, m, d] = item.due.split("-").map(Number);
+  return new Date(y!, (m ?? 1) - 1, d ?? 1).toLocaleDateString(undefined, { weekday: "short" });
+}
+
+export const firstName = (name: string) => name.trim().split(/\s+/)[0] || name;

@@ -27,6 +27,7 @@ import { openAssistant } from "@/components/assistant/store";
 import "@/components/pages/ai/ask-pill.css";
 import "@/components/pages/ai/ask.css";
 import "./meetings.css";
+import { initialsOf } from "@/lib/initials.mjs";
 
 
 // One meeting, shared by the panel and the page's meeting bar (one fetch; a change in Details shows in both).
@@ -73,7 +74,7 @@ export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: s
             <span className="mt-faces" aria-hidden>
               {people.slice(0, 5).map((a) => (
                 <span key={a.name} className="mt-face" style={{ background: `hsl(${hueOf(a.name)} 45% 46%)` }}>
-                  {a.name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("")}
+                  {initialsOf(a.name)}
                 </span>
               ))}
             </span>
@@ -263,7 +264,7 @@ function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Me
           {m.attendees.length === 0 && <span className="mt-cost">Nobody named in it.</span>}
           {m.attendees.map((a) => (
             <span key={a.name} className="mt-person" data-member={a.user_id ? "" : undefined} title={a.user_id ? "A member of this workspace" : "Not a member of this workspace"}>
-              <span className="mt-date__m" style={{ display: "grid", placeItems: "center", width: 20, height: 20, borderRadius: 999, background: "var(--surface-inset)" }}>{a.name.slice(0, 1)}</span>
+              <span className="mt-date__m" style={{ display: "grid", placeItems: "center", width: 20, height: 20, borderRadius: 999, background: "var(--surface-inset)" }}>{initialsOf(a.name).slice(0, 1)}</span>
               {a.name}
             </span>
           ))}

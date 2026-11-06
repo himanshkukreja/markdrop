@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { ICONS } from "./icons";
 import { useLinkComponent } from "./link";
 import { PortalScope } from "./scope";
+import { initialsOf } from "@/lib/initials.mjs";
 
 export { ICONS };
 export type { IconName } from "./icons";
@@ -295,7 +296,7 @@ export function Kbd({ children, className }: { children: React.ReactNode; classN
 /* ── Avatar ───────────────────────────────────────────────────────────── */
 export interface AvatarProps { name: string; src?: string; size?: "sm" | "md" | "lg" | "xl"; status?: "online" | "away" | "offline"; neutral?: boolean; className?: string; }
 export function Avatar({ name, src, size = "md", status, neutral, className }: AvatarProps) {
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join("");
+  const initials = initialsOf(name);
   return (
     <span className={cx("md-avatar", `md-avatar--${size}`, neutral && "md-avatar--neutral", className)} title={name} aria-label={name} role="img">
       {src ? <img src={src} alt="" /> : initials}

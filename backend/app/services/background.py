@@ -200,6 +200,8 @@ async def _meetings_backfill(db: AsyncIOMotorDatabase) -> None:
     await meeting_organize.background(db)
     # Meetings from before covers and hidden transcripts: a batch per tick until none are left.
     await meetings.upgrade_tick(db)
+    # Meetings from before attendee names were cleaned ("[Ishaan Gupta](mailto:…)"), a batch per tick.
+    await meetings.names_tick(db)
 
 
 async def _search_index(db: AsyncIOMotorDatabase) -> None:

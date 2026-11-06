@@ -89,9 +89,10 @@ async def list_team(ctx: Context, args: dict) -> tuple[str, dict]:
         p["groups"] = [g["name"] for g in groups if p["id"] in g["member_ids"]]
     week = await team_extras.this_week(ctx.db, ws)
     out = {"workspace": ws.name, "people": people, "projects": projects, "groups": [g["name"] for g in groups],
-           "this_week": ({"highlights": [h["text"] for h in week["highlights"]],
-                          "due": [f"{x['person']}: {x['text']} (due {x['due']})" for x in week["due"]],
-                          "overdue": [f"{x['person']}: {x['text']} (due {x['due']})" for x in week["overdue"]]} if week else None),
+           "this_week": ({"from": week["from"], "to": week["to"],
+                          "highlights": [team_extras.highlight_line(h) for h in week["highlights"]],
+                          "due": [f"{team_extras.pname(x)}: {x['text']} (due {x['due']})" for x in week["due"]],
+                          "overdue": [f"{team_extras.pname(x)}: {x['text']} (due {x['due']})" for x in week["overdue"]]} if week else None),
            "blockers": [{"person": b["person"]["name"], "text": b["text"], "since": b.get("since"),
                          "waiting_on": (b.get("waiting_on") or {}).get("name")} for b in got["blockers"]],
            "url": _abs(f"/team/{ws.id}")}
