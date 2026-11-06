@@ -38,6 +38,20 @@
       "body": "- **Slides.** Each slide shows its title, text boxes and bullets, tables and pictures; shapes side by side stay side by side. Move with the arrow buttons, **←** / **→** or a swipe, or pick a thumbnail on a wide screen. **Notes** shows the speaker notes; hidden slides are marked. The layout is approximated, not pixel-perfect: charts show as a labelled box with their title and SmartArt as its text. See [Supported file types](/files/supported-types#powerpoint-decks).\n- **Safe to open.** A deck with macros (`.pptm`, or renamed to `.pptx`), a password-protected deck and a damaged one are refused at upload, in the app, when replacing a file and through MCP `create_upload`.\n- **Ask and search.** A deck's slides and speaker notes are read for search and Ask; an answer's \"slide 5\" opens the deck at slide 5.\n- **Page path.** Under 1280 px the pages above the one you're on fold into one \"…\" (a menu with the full path). From 1280 px the whole path shows, and a crumb ends in \"…\" only when the bar runs out of room."
     },
     {
+      "id": "meetings-auto-import-v4-check-now",
+      "date": "2026-11-06",
+      "title": "Gemini's notes always arrive, every 5 minutes, and Check for new meetings",
+      "kind": "fixed",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Automatic import (Connect Google Meet) no longer misses a call whose Gemini notes were sent while the meeting was still on: the Google Meet script version 4 sends a Doc again when Google fills it in or changes it, and the meeting is updated instead of duplicated. It now runs every 5 minutes, and Check for new meetings on the Meetings page runs it right away. Update your script (Meetings › Get the new script) to get it.",
+      "body": "- **Not ready yet.** Gemini makes its notes Doc when note-taking starts and writes the notes when the call ends. An empty or placeholder Doc is now answered *not ready* and sent again as soon as Google changes it (for 12 hours), instead of being ignored for good. The Meetings page shows \"1 meeting waiting for Gemini's notes\" meanwhile.\n- **Changes come through.** A Doc changed after it was imported (notes filled in or edited, a longer transcript) updates its meeting: new notes, the Transcript page rewritten, the page written again when nobody edited it (else the new notes are added at the end) and the summary written again. At most 5 times per Doc; a deleted meeting isn't made again.\n- **Every 5 minutes** instead of 15, and a Doc is sent once Google hasn't changed it for 5 minutes (was 10).\n- **Upgrading catches up.** Version 4's first run sends once more the Docs version 3 sent in the last 48 hours, so a meeting that was missed arrives (the ones already imported are recognized).\n- **Check for new meetings.** On the Meetings page (the ⋯ menu on phones, and Home's Meetings section): the connected scripts run at once and Markdrop says what arrived. Turn it on once by deploying the script as a web app and pasting its URL (Meetings › Turn on Check now). Any member can press it, once a minute per workspace. New MCP tool `check_meetings_now`; API `POST /api/v1/meetings/check-now` and `PUT /api/v1/meetings/connection/check-now`."
+    },
+    {
       "id": "meeting-names-and-tablet-bar",
       "date": "2026-11-06",
       "title": "Clean attendee names, and a page bar that fits tablets and phones",

@@ -4,12 +4,14 @@
  * Sends the Google Meet transcripts and Gemini meeting notes you can open in Google Drive to
  * Markdrop, which turns each call into a page in the Meetings folder of "{{WORKSPACE_NAME}}".
  *
- * What it does, every 15 minutes:
+ * What it does, every 5 minutes:
  *   1. Looks for Google Docs created in the last LOOKBACK_HOURS that look like a Meet transcript
  *      ("… - Transcript") or Gemini's notes ("… - Notes by Gemini"), in your Drive, in the ones
  *      shared with you (a meeting someone else organized lives in THEIR Drive) and in shared drives.
- *   2. Skips the ones it already sent (it remembers their ids in this project's properties), and
- *      waits for a Doc that changed in the last QUIET_MINUTES (Google may still be writing it).
+ *   2. Skips the ones it already sent (it remembers their ids in this project's properties) unless
+ *      Google changed them since (Gemini fills its notes Doc in when the call ends; then Markdrop updates
+ *      the meeting), and waits for a Doc that changed in the last QUIET_MINUTES (Google may still be
+ *      writing it). A Doc with nothing in it yet waits until Google changes it.
  *   3. Reads each one's text (every tab) and sends it to Markdrop, for up to about 4½ minutes (Google
  *      gives a run 6): a big backlog takes a run or two, or Run → syncMeetings to send the next batch
  *      now. A failure is tried again next run.
@@ -32,18 +34,25 @@
  * files shared with you (meetings someone else organized are still imported). To search shared
  * drives too, open the link the log gives you and click Enable.
  *
+ * Check now (optional): Markdrop's "Check for new meetings" button runs this script right away instead
+ * of waiting for the next 15-minute run. Turn it on once: Deploy → New deployment → Web app (Execute as:
+ * Me, Who has access: Anyone) → Deploy, then paste the Web app URL in Markdrop (Meetings › Turn on Check
+ * now). The web app does nothing for a caller without the key Markdrop gives this script (doPost), at
+ * most once a minute, and only looks at the last LOOKBACK_HOURS.
+ *
  * Set up: Run → setup (once), and allow. That's all. Updating from an older version: replace all
  * of this file with the new one, save, and Run → setup again.
  */
 
-var SCRIPT_VERSION = 3;
+var SCRIPT_VERSION = 4;
 var MARKDROP_ENDPOINT = '{{ENDPOINT}}';
 var MARKDROP_TOKEN = '{{TOKEN}}';
 
 var LOOKBACK_HOURS = 48;      // how far back to look (raise it once to import older meetings)
 var INCLUDE_SHARED = '{{INCLUDE_SHARED}}';  // true: also meetings shared with you (organized by someone else)
 var MAX_PER_RUN = 0;          // 0 = no fixed cap, the time budget decides (else: at most this many a run)
-var QUIET_MINUTES = 10;       // a Doc changed this recently may still be being written: next run
+var QUIET_MINUTES = 5;        // a Doc changed this recently may still be being written: next run
+var MAX_RESENDS = 5;          // a Doc Google keeps changing is sent again at most this many times
 var BACKFILL_DAYS = '{{BACKFILL_DAYS}}';  // setup also brings in this many days of past meetings (0: none)
 
 // What Google calls them, in the languages Meet writes them in. A title ends with one of these,
@@ -69,14 +78,69 @@ var DOC_MIME = 'application/vnd.google-apps.document';
 var TIME_BUDGET_MS = 4.5 * 60 * 1000;
 var HARD_CAP = 200;
 var DRIVE_API_PAGE = 'https://console.developers.google.com/apis/api/drive.googleapis.com/overview';
+// Check now (doPost): a quick run (Markdrop waits about 50 s for the answer), at most once a minute, that
+// sends a Doc Google finished writing a couple of minutes ago (a scheduled run waits QUIET_MINUTES).
+var NOW_BUDGET_MS = 35 * 1000;
+var NOW_QUIET_MINUTES = 2;
+var NOW_GAP_MS = 60 * 1000;
+// The token this execution calls Markdrop with. A scheduled run uses the one in this file (and keeps a
+// copy in the project's properties); the web app reads that copy, so a deployment made with an older
+// copy of this file still works after "Get the new script" + setup.
+var ACTIVE_TOKEN_ = MARKDROP_TOKEN;
 
-/** Run this once: it schedules syncMeetings every 15 minutes, then runs it now (and, when
- *  BACKFILL_DAYS is set, starts bringing in the past meetings too). */
+function auth_() {
+  return 'Bearer ' + ACTIVE_TOKEN_;
+}
+
+function json_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+/**
+ * Check now: Markdrop calls this (the web app) when someone presses "Check for new meetings". It runs
+ * only for Markdrop's key (handed to this script by Markdrop with each run), at most once a minute,
+ * and answers how it went: {ok, found, sent, results, skipped, remaining} or {ok: false, error}.
+ */
+function doPost(e) {
+  var props = PropertiesService.getScriptProperties();
+  var body = {};
+  try { body = JSON.parse((e && e.postData && e.postData.contents) || '{}') || {}; } catch (err) { body = {}; }
+  var key = props.getProperty('check_key');
+  if (!key || typeof body.key !== 'string' || body.key !== key) {
+    return json_({ ok: false, error: key ? 'bad_key' : 'no_key', version: SCRIPT_VERSION });
+  }
+  var last = Number(props.getProperty('now_at') || 0);
+  if (Date.now() - last < NOW_GAP_MS) {
+    return json_({ ok: false, error: 'too_soon', retry_in: Math.ceil((NOW_GAP_MS - (Date.now() - last)) / 1000), version: SCRIPT_VERSION });
+  }
+  props.setProperty('now_at', String(Date.now()));
+  var st;
+  try {
+    st = run_('now');
+  } catch (err) {
+    return json_({ ok: false, error: 'failed', message: String(err).slice(0, 300), version: SCRIPT_VERSION });
+  }
+  if (!st) return json_({ ok: false, error: 'busy', version: SCRIPT_VERSION });
+  if (st.disconnected) return json_({ ok: false, error: 'disconnected', version: SCRIPT_VERSION });
+  return json_({
+    ok: true, version: SCRIPT_VERSION, found: st.found, sent: st.sent, results: st.results, skipped: st.skipped,
+    remaining: st.remaining, errors: st.errors.length, error: st.errors.length ? st.errors[0].error : null
+  });
+}
+
+/** The web app opened in a browser: says what it is (it runs nothing). */
+function doGet() {
+  return ContentService.createTextOutput('This is your Markdrop meetings script (version ' + SCRIPT_VERSION + '). To turn on ' +
+    '"Check for new meetings", paste this page\'s address in Markdrop: Meetings › Turn on Check now.');
+}
+
+/** Run this once: it schedules syncMeetings every 5 minutes, then runs it now (and, when
+ *  BACKFILL_DAYS is set, starts bringing in the past meetings too). A run that finds nothing new is quick. */
 function setup() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'syncMeetings') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('syncMeetings').timeBased().everyMinutes(15).create();
+  ScriptApp.newTrigger('syncMeetings').timeBased().everyMinutes(5).create();
   if (BACKFILL_DAYS > 0) startBackfill_(BACKFILL_DAYS);
   run_('setup');
 }
@@ -123,20 +187,29 @@ function syncMeetings() {
   run_('run');
 }
 
+/** One run → its stats (null: another run is going). 'now' (Check now): quick, no backfill. */
 function run_(mode) {
   var lock = LockService.getScriptLock();
-  if (!lock.tryLock(1000)) return;  // a run is still going
+  if (!lock.tryLock(mode === 'now' ? 5000 : 1000)) return null;  // a run is still going
   var st = newStats_(mode);
+  var now = mode === 'now';
   try {
     var props = PropertiesService.getScriptProperties();
+    if (now) {
+      ACTIVE_TOKEN_ = props.getProperty('markdrop_token') || MARKDROP_TOKEN;
+    } else {
+      ACTIVE_TOKEN_ = MARKDROP_TOKEN;
+      if (props.getProperty('markdrop_token') !== MARKDROP_TOKEN) props.setProperty('markdrop_token', MARKDROP_TOKEN);
+    }
     // As many as fit in the time budget (and under the cap); the rest wait for the next run.
-    var budget = { left: MAX_PER_RUN > 0 ? Math.min(MAX_PER_RUN, HARD_CAP) : HARD_CAP, until: st.startedAt + TIME_BUDGET_MS };
+    var budget = { left: MAX_PER_RUN > 0 ? Math.min(MAX_PER_RUN, HARD_CAP) : HARD_CAP,
+      until: st.startedAt + (now ? NOW_BUDGET_MS : TIME_BUDGET_MS) };
     var hello = status_('start', st);
-    if (hello === 'stop') return;
+    if (hello === 'stop') return st;
     // Docs someone asked for by link in Markdrop come first.
-    if (hello && hello.queue && hello.queue.length && sendQueued_(props, hello.queue, st, budget) === 'stop') return;
+    if (hello && hello.queue && hello.queue.length && sendQueued_(props, hello.queue, st, budget) === 'stop') return st;
     var recent = sendSince_(props, new Date(Date.now() - LOOKBACK_HOURS * 3600 * 1000), false, budget, st);
-    if (recent !== 'stop') {
+    if (recent !== 'stop' && !now) {
       var from = props.getProperty('backfill_since');
       if (from) {
         // Out of time already: still looked at, to count what waits for the next run.
@@ -150,6 +223,7 @@ function run_(mode) {
     }
     console.log(runSummary_(st));
     if (!st.stopped) status_('done', st);
+    return st;
   } catch (e) {
     st.errors.push({ title: '', error: String(e).slice(0, 300) });
     status_('done', st);
@@ -161,20 +235,20 @@ function run_(mode) {
 
 function newStats_(mode) {
   return {
-    mode: mode, found: 0, sent: 0, stopped: false, startedAt: Date.now(), seen: {}, waiting: {}, remaining: 0,
+    mode: mode, found: 0, sent: 0, stopped: false, disconnected: false, startedAt: Date.now(), seen: {}, waiting: {}, remaining: 0,
     sharedDrives: null, driveProject: null, driveOffSaid: false,
-    results: { imported: 0, attached: 0, duplicate: 0, ignored: 0 },
-    skipped: { already_sent: 0, too_old: 0, not_yours: 0, title: 0, writing: 0 },
+    results: { imported: 0, attached: 0, duplicate: 0, ignored: 0, updated: 0, not_ready: 0 },
+    skipped: { already_sent: 0, too_old: 0, not_yours: 0, title: 0, writing: 0, not_ready: 0 },
     errors: [], queue_done: [], queue_failed: [], search: ''
   };
 }
 
-/** "Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 15 min) — or run syncMeetings now. Skipped: …" */
+/** "Found 79 meeting Docs. Sent 60 of 79 · 19 more in the next run (every 5 min) — or run syncMeetings now. Skipped: …" */
 function runSummary_(st) {
   var head = 'Found ' + st.found + ' meeting Docs, sent ' + st.sent + '.';
   if (st.remaining > 0) {
     head = 'Found ' + st.found + ' meeting Docs. Sent ' + st.sent + ' of ' + Math.max(st.found, st.sent + st.remaining) +
-      ' · ' + st.remaining + ' more in the next run (every 15 min) — or run syncMeetings now.';
+      ' · ' + st.remaining + ' more in the next run (every 5 min) — or run syncMeetings now.';
   }
   return head + ' Skipped: ' + summary_(st.skipped) + '.';
 }
@@ -204,7 +278,7 @@ function status_(phase, st) {
     var res = UrlFetchApp.fetch(MARKDROP_ENDPOINT + '/status', {
       method: 'post',
       contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + MARKDROP_TOKEN },
+      headers: { Authorization: auth_() },
       muteHttpExceptions: true,
       payload: JSON.stringify({
         phase: phase, version: SCRIPT_VERSION, mode: st.mode, include_shared: INCLUDE_SHARED === true,
@@ -215,9 +289,14 @@ function status_(phase, st) {
       })
     });
     var code = res.getResponseCode();
-    if (code === 401) { unschedule_(); return 'stop'; }
+    if (code === 401) { disconnected_(st); return 'stop'; }
     if (code >= 200 && code < 300) {
       var body = JSON.parse(res.getContentText() || '{}');
+      // The key Markdrop's "Check for new meetings" calls the web app with (doPost).
+      if (body.check_key && typeof body.check_key === 'string') {
+        var props = PropertiesService.getScriptProperties();
+        if (props.getProperty('check_key') !== body.check_key) props.setProperty('check_key', body.check_key);
+      }
       if (phase === 'start' && body.latest_version && body.latest_version > SCRIPT_VERSION) {
         console.warn('A newer version of this script is available: in Markdrop, Meetings › Connect Google Meet › Get the new script.');
       }
@@ -227,6 +306,13 @@ function status_(phase, st) {
     console.warn('Could not tell Markdrop how the run went: ' + e);
   }
   return null;
+}
+
+/** Markdrop answered 401: this token was revoked. A scheduled run stops the schedule; the web app (which
+ *  may be an older deployment, reading an older copy of the token) only says so. */
+function disconnected_(st) {
+  st.disconnected = true;
+  if (st.mode !== 'now') unschedule_();
 }
 
 function unschedule_() {
@@ -377,7 +463,7 @@ function kindOf_(c) {
 
 /** Sorts the candidates changed after `since` into what to send now and why the rest wait. */
 function scan_(props, since, st, verbose) {
-  var settled = new Date(Date.now() - QUIET_MINUTES * 60 * 1000);
+  var settled = new Date(Date.now() - (st.mode === 'now' ? NOW_QUIET_MINUTES : QUIET_MINUTES) * 60 * 1000);
   var todo = [];
   var skipped = [];
   var more = false;
@@ -387,10 +473,14 @@ function scan_(props, since, st, verbose) {
     seen[c.id] = true;
     var kind = kindOf_(c);
     var reason = null;
+    var mark = sentMark_(props, c.id);
+    var waiting = Number(props.getProperty('wait:' + c.id) || 0);
+    c.prev = mark;
     if (!kind) reason = 'title';
     else if (c.created < since) reason = 'too_old';
     else if (!c.mine && INCLUDE_SHARED !== true) reason = 'not_yours';
-    else if (props.getProperty('sent:' + c.id)) reason = 'already_sent';
+    else if (mark && !changedSince_(mark, c)) reason = 'already_sent';
+    else if (waiting && modifiedMs_(c) <= waiting) reason = 'not_ready';
     else if (c.modified > settled) { reason = 'writing'; more = true; }
     if (reason) {
       st.skipped[reason]++;
@@ -402,6 +492,33 @@ function scan_(props, since, st, verbose) {
   });
   todo.sort(function (a, b) { return a.created.getTime() - b.created.getTime(); });
   return { todo: todo, skipped: skipped, more: more };
+}
+
+// ── What was sent (props "sent:<id>" = "<sent at>|<the Doc's modified time then>|<times sent>") ────────
+
+function modifiedMs_(c) {
+  return c.modified && c.modified.getTime ? c.modified.getTime() : 0;
+}
+
+/** {at, modified (null: sent by v3, which didn't keep it), count} or null (never sent). */
+function sentMark_(props, id) {
+  var v = props.getProperty('sent:' + id);
+  if (!v) return null;
+  var p = String(v).split('|');
+  return { at: Number(p[0]) || 0, modified: p.length > 1 ? Number(p[1]) || 0 : null, count: Number(p[2]) || 1 };
+}
+
+/** Google changed the Doc after it was sent (and it wasn't sent too often already). A Doc a v3 script sent
+ *  is sent once more: v3 sent Gemini's notes Doc while the call was on, before Google filled it in. */
+function changedSince_(mark, c) {
+  if (mark.count > MAX_RESENDS) return false;
+  if (mark.modified === null) return true;
+  return modifiedMs_(c) > mark.modified;
+}
+
+function markSent_(props, c) {
+  props.setProperty('sent:' + c.id, Date.now() + '|' + modifiedMs_(c) + '|' + ((c.prev ? c.prev.count : 0) + 1));
+  props.deleteProperty('wait:' + c.id);
 }
 
 /**
@@ -422,7 +539,11 @@ function sendSince_(props, since, backfill, budget, st) {
     var result = send_(found.todo[i], backfill, false, st);
     if (result === 'stop') return 'stop';
     if (result === 'done') {
-      props.setProperty('sent:' + found.todo[i].id, String(Date.now()));
+      markSent_(props, found.todo[i]);
+      budget.left--;
+    } else if (result === 'not_ready') {
+      // Nothing in it yet (Gemini's notes Doc while the call is on): sent again once Google changes it.
+      props.setProperty('wait:' + found.todo[i].id, String(modifiedMs_(found.todo[i])));
       budget.left--;
     } else {
       more = true;
@@ -456,10 +577,11 @@ function sendQueued_(props, queue, st, budget) {
       st.queue_failed.push({ file_id: id, error: 'not_a_doc' });
       continue;
     }
+    c.prev = sentMark_(props, id);
     var result = send_(c, false, true, st);
     if (result === 'stop') return 'stop';
     if (result === 'done') {
-      props.setProperty('sent:' + id, String(Date.now()));
+      markSent_(props, c);
       st.queue_done.push(id);
       budget.left--;
     } else {
@@ -469,7 +591,8 @@ function sendQueued_(props, queue, st, budget) {
   return 'ok';
 }
 
-/** 'done' (sent, or Markdrop will never take it), 'retry' (next run) or 'stop'. */
+/** 'done' (sent, or Markdrop will never take it), 'not_ready' (nothing in it yet: when Google changes it),
+ *  'retry' (next run) or 'stop'. */
 function send_(c, backfill, requested, st) {
   var text;
   try {
@@ -484,7 +607,7 @@ function send_(c, backfill, requested, st) {
     res = UrlFetchApp.fetch(MARKDROP_ENDPOINT, {
       method: 'post',
       contentType: 'application/json',
-      headers: { Authorization: 'Bearer ' + MARKDROP_TOKEN },
+      headers: { Authorization: auth_() },
       muteHttpExceptions: true,
       payload: JSON.stringify({
         source: 'google-meet-script',
@@ -508,17 +631,20 @@ function send_(c, backfill, requested, st) {
   }
   var code = res.getResponseCode();
   if (code >= 200 && code < 300) {
+    var r = null;
+    try { r = JSON.parse(res.getContentText()).status; } catch (e) { r = null; /* counted as sent */ }
+    if (r && r in st.results) st.results[r]++;
+    if (r === 'not_ready') {
+      console.log('"' + c.name + '" has no notes or transcript in it yet: sent again when Google fills it in.');
+      return 'not_ready';
+    }
     console.log('Sent "' + c.name + '": ' + res.getContentText().slice(0, 200));
     st.sent++;
-    try {
-      var r = JSON.parse(res.getContentText()).status;
-      if (r in st.results) st.results[r]++;
-    } catch (e) { /* counted as sent */ }
     return 'done';
   }
   if (code === 401) {
     // Disconnected in Markdrop (the token was revoked): stop running.
-    unschedule_();
+    disconnected_(st);
     st.stopped = true;
     return 'stop';
   }
@@ -610,6 +736,7 @@ function forgetOld_(props) {
   var backfilling = !!all.backfill_since;
   Object.keys(all).forEach(function (k) {
     // While a backfill is going, keep everything (it looks further back than the lookback).
-    if (!backfilling && k.indexOf('sent:') === 0 && Number(all[k]) < cutoff) props.deleteProperty(k);
+    if (backfilling || (k.indexOf('sent:') !== 0 && k.indexOf('wait:') !== 0)) return;
+    if (Number(String(all[k]).split('|')[0]) < cutoff) props.deleteProperty(k);
   });
 }

@@ -8,6 +8,8 @@
     GET    /api/v1/meetings/connection?workspace=    "Connect Google Meet": {connection | null, others}
     POST   /api/v1/meetings/connection               {workspace, restricted?} → {token, script, manifest, …} (once)
     DELETE /api/v1/meetings/connection               Disconnect (the token is revoked; the script stops)
+    PUT    /api/v1/meetings/connection/check-now     {url | null}: the script's web app (Check now on / off)
+    POST   /api/v1/meetings/check-now                {workspace} → the connected scripts run now → {message, …}
     POST   /api/v1/meetings/inbox                    the Google Meet script's deliveries (its own token only)
     GET    /api/v1/meetings?workspace=&limit=&q=&source=&since=&until=&series=   {meetings, hidden, folder_id}
     GET    /api/v1/meetings/{id}                     a meeting
@@ -135,6 +137,15 @@ class StatusBody(BaseModel):
     drive_project: str | None = Field(None, max_length=40)    # …and that project (for the link that turns it on)
     queue_done: list[str] | None = Field(None, max_length=100)
     queue_failed: list[dict[str, Any]] | None = Field(None, max_length=100)
+
+
+class WebAppBody(BaseModel):
+    # The script's Web app URL (Apps Script: Deploy › New deployment › Web app), or null to turn Check now off.
+    url: str | None = Field(None, max_length=400)
+
+
+class CheckNowBody(BaseModel):
+    workspace: str = Field(..., max_length=40)
 
 
 class LinkBody(BaseModel):
@@ -339,6 +350,26 @@ async def disconnect(request: Request, db: AsyncIOMotorDatabase = Depends(get_db
     return {"disconnected": await meetings_inbox.disconnect(db, user.id)}
 
 
+@router.put("/connection/check-now")
+@limiter.limit("20/minute")
+async def set_check_now(request: Request, body: WebAppBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                        user: User = Depends(require_user)):
+    """Turn "Check for new meetings" on for your connection: the Web app URL of your script (it's never
+    shown to anyone else), or null to turn it off."""
+    return {"connection": await meetings_inbox.set_web_app(db, user.id, body.url)}
+
+
+@router.post("/check-now")
+@limiter.limit("6/minute")
+async def check_now(request: Request, body: CheckNowBody, db: AsyncIOMotorDatabase = Depends(get_db),
+                    user: User = Depends(require_user)):
+    """"Check for new meetings": the Google Meet scripts connected to the workspace (with Check now on)
+    run now instead of at their next scheduled run; waits for them (up to about 50 s) →
+    {ok, message, imported, attached, writing, remaining, checked, failed, connections}. Members; once a
+    minute per workspace (429 + retry_after)."""
+    return await meetings_inbox.check_now(db, user, _ws(body.workspace))
+
+
 def _inline_schema(model: type[BaseModel]) -> dict:
     """A model's JSON schema with its ``$defs`` written in place (the body is described by hand above)."""
     schema = model.model_json_schema()
@@ -393,7 +424,7 @@ async def inbox(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
 
 @router.post("/inbox/status", openapi_extra={"x-markdrop": {"auth": "token"}})
 @limiter.limit("30/minute", key_func=_inbox_key)
-@limiter.limit("600/day", key_func=_inbox_key)
+@limiter.limit("2000/day", key_func=_inbox_key)   # v4 runs every 5 minutes: two calls a run (576 a day), + Check now
 async def inbox_status(request: Request, body: StatusBody, db: AsyncIOMotorDatabase = Depends(get_db)):
     """How a run of the Google Meet script went (Bearer: its ``meetings:import`` token): 'start' →
     {queue: the Docs asked for by link, to fetch first; latest_version}; 'done' → counts (found, sent,

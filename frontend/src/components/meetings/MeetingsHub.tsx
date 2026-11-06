@@ -28,6 +28,8 @@ import { BackfillProgress } from "./BackfillProgress";
 import { OrganizeMeetings } from "./OrganizeMeetings";
 import { PHONE_QUERY, useMediaQuery } from "@/components/kit/publish-utils";
 import { ConnectGoogleMeet, MeetConnectionStatus } from "./ConnectGoogleMeet";
+import { CheckNowSetup, useCheckNow } from "./CheckNow";
+import { relativeTime } from "@/components/dashboard/format";
 import { AskMeetingsDock } from "./AskMeetingsDock";
 import { useAssistantHere } from "@/components/assistant/store";
 import "./meetings.css";
@@ -88,6 +90,17 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     .then((r) => setJob(r.jobs.find((j) => j.state !== "draft") ?? null)).catch(() => {}), [workspaceId]);
 
   useEffect(() => { if (user) { void load(); void loadConn(); void loadJob(); } }, [user, load, loadConn, loadJob]);
+  // "Check for new meetings": the connected scripts run now; the list and the connection line refresh.
+  const afterCheck = useCallback(() => { void load(); void loadConn(); }, [load, loadConn]);
+  const checkNow = useCheckNow({ workspaceId, mine: conn.mine, others: conn.others, onChecked: afterCheck });
+  // ?check=1 (Home's "Check for new meetings"): once the connections are known.
+  const autoCheck = useRef(false);
+  const { available: checkAvailable, ready: checkReady, run: runCheck } = checkNow;
+  useEffect(() => {
+    if (!autoCheck.current || !checkAvailable) return;
+    autoCheck.current = false;
+    if (checkReady || conn.mine?.workspace_id === workspaceId) runCheck();
+  }, [checkAvailable, checkReady, runCheck, conn.mine, workspaceId]);
   // Admins: a run already going (started in another tab, or by another admin) shows its progress here too.
   const canOrganize = !!status?.can_organize;
   useEffect(() => {
@@ -135,6 +148,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     if (q.get("import") === "past") setBulk(true);
     else if (q.get("import") === "1") setImporting(true);
     else if (q.get("connect") === "1") setConnecting(true);
+    else if (q.get("check") === "1") autoCheck.current = true;
   }, []);
 
   const shown = useMemo(() => {
@@ -168,12 +182,23 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const connectButton = canImport && !connectedHere && (
     <Button variant="secondary" iconLeft="refresh" onClick={() => setConnecting(true)} data-testid="connect-meet">Connect Google Meet</Button>
   );
+  const lastChecked = [conn.mine, ...conn.others].map((c) => c?.check_now?.last_at).filter(Boolean).sort().pop() ?? null;
+  const checkLabel = checkNow.ready || !connectedHere ? "Check for new meetings" : "Turn on Check now";
+  const checkHint = checkNow.reason ?? (checkNow.ready
+    ? (lastChecked ? `Last checked ${relativeTime(lastChecked)}. The script also checks every 5 minutes.` : "Don't wait for the script's next run (every 5 minutes).")
+    : "One time: lets this button run your script right away.");
+  const checkButton = canImport && checkNow.available && (
+    <Button variant="secondary" iconLeft="refresh" onClick={checkNow.run} loading={checkNow.busy} disabled={!!checkNow.reason}
+      title={checkHint} data-testid="check-now">{checkNow.busy ? "Checking…" : checkLabel}</Button>
+  );
   const pastButton = canImport && (
     <Button variant="ghost" iconLeft="history" onClick={() => setBulk(true)} data-testid="import-past">Import past meetings</Button>
   );
   // The ⋯ menu: what isn't a button already (on phones the header's secondary buttons fold into it).
   const folded = phone || !any;
   const more: MenuEntry[] = [
+    ...(canImport && checkNow.available ? [{ label: checkNow.busy ? "Checking…" : checkLabel, icon: "refresh", onClick: checkNow.run,
+      disabled: !!checkNow.reason || checkNow.busy, description: checkHint }] : []),
     ...(canImport && !connectedHere && phone ? [{ label: "Connect Google Meet", icon: "refresh", onClick: () => setConnecting(true),
       description: "Every call arrives by itself" }] : []),
     ...(canImport && folded ? [{ label: "Import past meetings", icon: "history", onClick: () => setBulk(true),
@@ -198,7 +223,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
           <p className="mt-hub__sub">Every call as a page — summary, decisions, action items and the transcript.</p>
         </div>
         <div className="mt-hub__actions">
-          <span className="mt-hub__secondary">{connectButton}{any && pastButton}</span>
+          <span className="mt-hub__secondary">{checkButton}{connectButton}{any && pastButton}</span>
           {canImport && <Button iconLeft="plus" onClick={() => setImporting(true)} data-testid="import-meeting">Import meeting</Button>}
           {more.length > 0 && (
             <Dropdown align="right" aria-label="More meeting actions" items={more} portal minWidth={300}
@@ -316,6 +341,8 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         seriesNames={series.map((x) => x.name)} onStarted={(j) => setJob(j)} />
       <ConnectGoogleMeet open={connecting} onClose={() => { setConnecting(false); void load(); }} workspaceId={workspaceId}
         workspaceName={ws?.name ?? null} current={conn.mine} onConnected={(c) => setConn((x) => ({ ...x, mine: c }))} />
+      <CheckNowSetup open={checkNow.setup} onClose={checkNow.closeSetup} conn={conn.mine}
+        onSaved={(c) => setConn((x) => ({ ...x, mine: c }))} />
       <OrganizeMeetings open={organizing} workspaceId={workspaceId} job={orgJob} onJob={setOrgJob} folderHref={folderHref}
         onClose={() => { setOrganizing(false); if (orgJob && orgJob.state !== "running") setOrgJob(null); }} />
       <ConfirmDialog open={!!deleting} onClose={() => setDeleting(null)} tone="danger" title="Delete this meeting?"
