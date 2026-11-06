@@ -19,12 +19,12 @@ import { AccessSyncNote, Locked, lockProps, lockSelectProps, type WsTabProps } f
 export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: WsTabProps) {
   const toast = useToast();
   const router = useRouter();
-  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers">("");
+  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers" | "team">("");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const team = teamName(ws);
   const current: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
 
-  async function save(key: "default" | "share" | "auth" | "ai" | "covers", patch: Partial<WorkspaceSettings>, done: string) {
+  async function save(key: "default" | "share" | "auth" | "ai" | "covers" | "team", patch: Partial<WorkspaceSettings>, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     try {
@@ -114,6 +114,19 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               disabled={saving === "covers"}
               locked={!isAdmin}
               onChange={(on) => void save("covers", { auto_covers: on }, on ? "New pages here get a cover." : "New pages here start without a cover.")}
+            />
+          </div>
+        </Locked>
+        <Locked locked={!isAdmin}>
+          <div>
+            <SwitchRow
+              id="ws-team-memory"
+              label="Team memory"
+              hint={<>A Team page with who&apos;s doing what, read from this workspace&apos;s meetings and pages by AI in the background (the last 30 days first). Everyone sees only lines from things they can open, and can hide or correct lines about them. Turning it off deletes what it gathered. <ReadMore topic="teamMemory" /></>}
+              checked={ws.settings.team_memory === true}
+              disabled={saving === "team"}
+              locked={!isAdmin}
+              onChange={(on) => void save("team", { team_memory: on }, on ? "Team memory is on. Team fills in over the next minutes." : "Team memory is off. What it gathered is deleted.")}
             />
           </div>
         </Locked>

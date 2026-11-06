@@ -84,6 +84,8 @@ export interface WorkspaceSettings {
   ai_enabled?: boolean;
   /** Auto covers: new pages get a cover picked for what they're about. Absent on older backends (= true). */
   auto_covers?: boolean;
+  /** Team memory (Team board: who is doing what, from meetings and pages). Default off; admins turn it on. */
+  team_memory?: boolean;
 }
 
 /** v2 `GET /workspaces` item domain summary. */
