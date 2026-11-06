@@ -81,7 +81,9 @@ It lists every meeting you can open by the day it happened, newest first, under 
 
 A meeting that came in automatically is marked **Auto**, one only its attendees can open is marked **Attendees only**, and one whose summary is still being written shows **Summarizing**. Point at a meeting (or tap **⋯** on a phone) to open its transcript or ask it. Its **⋯** menu also copies its link, and **Delete meeting** is there for the person who imported it and workspace admins.
 
-Search by title, series or person in the box above the list. To change the order, use the sort menu next to it: **Meeting date, newest**, **Meeting date, oldest**, **Title** or **Recently imported**. The two date orders group by month; the others are one list. Markdrop remembers your choice on this device. Select a series chip to see only that series, or **One-offs** for meetings without one.
+Search by title, series or person in the box above the list. To change the order, use the sort menu next to it: **Meeting date, newest**, **Meeting date, oldest**, **Title** or **Recently imported**. The two date orders group by month; the others are one list. Markdrop remembers your choice on this device. Select a series chip to see only that series, or **One-offs** for meetings without one. Search, the chips and the order cover every meeting you can open, not only the ones on screen.
+
+The page shows the first 30 meetings straight away and loads more as you scroll down, or when you select **Load more meetings** at the end of the list. Going back from a meeting returns you to the same place in the list.
 
 The **Ask anything about your meetings** box above the list opens [Ask](/workspaces/ask-markdrop) on your meetings. See [Ask your meetings](/workspaces/meetings-ask).
 

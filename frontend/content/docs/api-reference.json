@@ -1524,8 +1524,8 @@
     },
     "GET /api/v1/meetings": {
       "title": "List meetings",
-      "description": "The meetings of a workspace you can open, newest first. Each has its `title`, `date` (the day it happened), `series`, `type`, `attendees` (with `user_id` for members), `slug` and `transcript_slug`, `action_items`, `restricted`, its `sources`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). A workspace admin also gets `hidden`: meetings restricted from them, without a title, so they can delete them.",
-      "paramNotes": {"workspace": "The workspace's id.", "q": "Only titles containing this.", "limit": "At most this many (1-300).", "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).", "since": "Only meetings on or after this date (YYYY-MM-DD).", "until": "Only meetings on or before this date (YYYY-MM-DD).", "series": "Only this series (any case), or `none` for meetings without one."},
+      "description": "The meetings of a workspace you can open, a page at a time, newest first. Each is a card: `title`, `date` (the day it happened) and `time`, `series`, `type`, the first five `attendees` and `attendee_count`, `slug` and `transcript_slug`, a line of the AI `summary`, the `decisions`, `action_items` and `open_questions` counts, `cover`, `restricted`, how it came in (`source`: `manual`, `auto` or `mcp`) and its AI summary's state (`ai`). Get one meeting for the rest. When `next_cursor` is set, pass it back as `cursor` with the same filters and sort for the next page. The first page also has `total` (how many match) and, for a workspace admin with no filter, `hidden`: meetings restricted from them, without a title, so they can delete them. Answers carry an `ETag`; send it as `If-None-Match` to get `304` when nothing changed.",
+      "paramNotes": {"workspace": "The workspace's id.", "q": "Only meetings whose title, series or an attendee's name contains this.", "limit": "How many per page (1-100, default 30).", "cursor": "The previous page's `next_cursor`.", "sort": "`date_desc` (default: meeting date, newest first), `date_asc` (oldest first; meetings without a date last either way), `title` (A to Z, any case) or `imported` (most recently imported first).", "source": "Only meetings that came in this way: `manual` (the website), `auto` (Connect Google Meet) or `mcp` (an AI app).", "since": "Only meetings on or after this date (YYYY-MM-DD).", "until": "Only meetings on or before this date (YYYY-MM-DD).", "series": "Only this series (any case), or `none` for meetings without one."},
       "mcp": "list_meetings",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
@@ -1627,7 +1627,7 @@
     },
     "GET /api/v1/meetings/series": {
       "title": "List meeting series",
-      "description": "The series of the meetings you can open in `workspace` (recurring meetings such as \"Daily Standup\"): `name`, how many meetings (`count`) and the latest one's date (`last`), most meetings first.",
+      "description": "The series of the meetings you can open in `workspace` (recurring meetings such as \"Daily Standup\"): `name`, how many meetings (`count`) and the latest one's date (`last`), most meetings first. Also `total`, how many meetings you can open, and `one_offs`, how many of them belong to no series.",
       "paramNotes": {"workspace": "The workspace's id."},
       "guide": {"label": "How meetings are organised", "href": "/workspaces/meetings#how-meetings-are-organised"}
     },

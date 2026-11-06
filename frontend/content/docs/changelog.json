@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-load-faster",
+      "date": "2026-11-06",
+      "title": "Meetings load faster",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "The Meetings page shows your first 30 meetings at once and loads the rest as you scroll, instead of waiting for every meeting in the workspace. Search, series chips and the sort order now ask Markdrop for matching meetings, so they cover every meeting you can open. Going back from a meeting returns you to the same place in the list.",
+      "body": "- **First page first.** The page asks for 30 meetings, shows them, and fetches the next 30 while the browser is idle. Scrolling near the end shows them; **Load more meetings** does the same without scrolling.\n- **Lighter cards.** The list only carries what a card shows: title, date, series, the first few people, a line of the summary, counts and cover. Everything else stays on the meeting page.\n- **Search on the server.** Typing in the search box finds titles, series and people across every meeting you can open, not only the loaded ones. The counts on the series chips cover them all too.\n- **Same access.** A meeting restricted to its attendees still never appears for anyone else, on any page of the list.\n- **API and MCP.** `GET /api/v1/meetings` returns a page (`limit`, default 30, up to 100) with `next_cursor`; pass it back as `cursor` for the next one, and `sort` picks the order. MCP `list_meetings` takes `cursor` the same way."
+    },
+    {
       "id": "meetings-auto-import-v4-check-now",
       "date": "2026-11-06",
       "title": "Gemini's notes always arrive, every 5 minutes, and Check for new meetings",
