@@ -340,4 +340,31 @@ export default [
     prepare: hubReady,
     crop: "viewport",
   },
+
+  // ── Ask: a live suggestion, asked with one click ────────────────────────────
+  {
+    id: "ask-suggestion-click",
+    page: "/workspaces/ask-markdrop",
+    name: "suggestion",
+    kind: "clip",
+    auth: "admin",
+    url: "/dashboard",
+    prepare: async (h) => {
+      for (let i = 0; i < 40; i++) {
+        const r = await ok(h, "GET", `/api/v1/ask/suggestions?workspace=${h.fx.workspace.id}`, undefined, "admin");
+        if (r.team?.length) break;
+        await h.sleep(500);
+      }
+      await h.goto(`/ask?workspace=${encodeURIComponent(h.fx.workspace.id)}`);
+      await h.loc("[data-testid='ask-page-chat'] [data-testid='chat-starters'] button").waitFor({ timeout: 30000 });
+      await h.settle(800);
+    },
+    steps: async (h) => {
+      await h.sleep(600);
+      await h.click("[data-testid='ask-page-chat'] [data-testid='chat-starters'] button");
+      await h.page.locator("[data-testid='ask-page-chat'] ol[aria-label='Conversation'] > li[data-state='done'] .ch-md:not([data-streaming])")
+        .first().waitFor({ timeout: 40000 });
+      await h.sleep(2500);
+    },
+  },
 ];
