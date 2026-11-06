@@ -314,10 +314,14 @@
 .tm-wk__peek { margin: 0; padding-left: 34px; font-size: 14px; line-height: 20px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tm-wk__more { align-self: flex-start; margin-top: 6px; padding: 4px 0; border: 0; background: none; color: var(--accent-text); font: 600 14px/20px var(--font-sans); cursor: pointer; }
 .tm-wk__more:hover { text-decoration: underline; }
+/* Touch: 44px hit areas without 44px of air — the text button and the source link overhang their row. */
 @media (pointer: coarse) {
-  .tm-wk__text, .tm-wk__ghead { font-size: 16px; line-height: 24px; min-height: 44px; align-items: center; }
-  .tm-wk__src, .tm-wk__more { min-height: 44px; }
-  .tm-wk__sub, .tm-wk__peek { padding-left: 34px; }
+  .tm-wk__text, .tm-wk__ghead { font-size: 16px; line-height: 24px; min-height: 44px; align-items: center; margin-block: -10px; }
+  .tm-wk__meta { margin-top: 6px; }
+  .tm-wk__src { min-height: 44px; margin-block: -13px; }
+  .tm-wk__row, .tm-wk__group { padding: 12px 0; }
+  .tm-wk__av { margin-top: 0; }
+  .tm-wk__more { min-height: 44px; }
 }
 .tm-groups { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
 .tm-groups__list { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; }
