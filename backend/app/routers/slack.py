@@ -6,14 +6,15 @@ Settings (signed in, markdrop.in only):
     POST   /connect {code, state}             the end of Add to Slack
     DELETE /install?workspace_id=             disconnect (uninstalls the app from that Slack team)
     GET    /channels?workspace_id=            channels the meetings post can go to (admins)
-    PATCH  /settings {workspace_id, meetings_channel_id?, post_meetings?}            (admins)
+    PATCH  /settings {workspace_id, meetings_channel_id?, post_meetings?, action_item_dms?}  (admins)
+    GET    /action-items/preview?workspace_id=   who'd get their action items after the latest meeting (admins)
     POST   /link/start {workspace_id | team_id} → {url}: Sign in with Slack to link my account
     GET    /link/info?team_id=                which Slack team a link page is for
     POST   /link/finish {code, state}         the end of Sign in with Slack
     DELETE /link?workspace_id=                unlink my Slack account
     GET    /me                                Slack notifications (Settings › Account): on?, kinds, my Slack teams
     PUT    /me/notifications {on}             turn them on (finds me by my own email in each team) or off
-    PATCH  /me/prefs {mention?, signoff_requested?, shared?, access_request?}   my Slack DMs, per kind
+    PATCH  /me/prefs {mention?, signoff_requested?, shared?, access_request?, action_items?}   my Slack DMs
     POST   /meetings/{meeting_id}/post        post (again) to the meetings channel (who can edit it)
 
 From Slack (signed with the app's signing secret; no user session; out of the public schema):
@@ -27,6 +28,7 @@ import json
 import logging
 from urllib.parse import parse_qs
 
+from bson import ObjectId
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -36,7 +38,7 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.routers.auth import is_tenant_request, require_user
-from app.services import access, slack, slack_events, slack_notify
+from app.services import access, slack, slack_action_items, slack_events, slack_notify
 
 log = logging.getLogger("markdrop.slack")
 
@@ -69,6 +71,7 @@ class SettingsIn(BaseModel):
     meetings_channel_id: str | None = Field(None, max_length=40)
     clear_channel: bool = False
     post_meetings: bool | None = None
+    action_item_dms: bool | None = None
 
 
 class LinkStartIn(BaseModel):
@@ -85,6 +88,7 @@ class PrefsIn(BaseModel):
     signoff_requested: bool | None = None
     shared: bool | None = None
     access_request: bool | None = None
+    action_items: bool | None = None
 
 
 # ── Settings ──────────────────────────────────────────────────────────────────
@@ -143,7 +147,19 @@ async def settings(request: Request, body: SettingsIn, db: AsyncIOMotorDatabase 
                    user: User = Depends(require_user)):
     _app_only(request)
     chan = None if body.clear_channel else (body.meetings_channel_id or ...)
-    return await slack.set_settings(db, user, body.workspace_id, channel_id=chan, post_meetings=body.post_meetings)
+    return await slack.set_settings(db, user, body.workspace_id, channel_id=chan, post_meetings=body.post_meetings,
+                                    action_item_dms=body.action_item_dms)
+
+
+@router.get("/action-items/preview", summary="Preview the action-items messages")
+@limiter.limit("30/minute")
+async def action_items_preview(request: Request, workspace_id: str = Query(..., pattern=_WS),
+                               db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
+    """Admins: from the newest meeting you can open that has action items with a person, who would get
+    a direct message with their own items after it (and how Markdrop finds them in Slack), and what
+    the first one would read. Nothing is sent, and Slack isn't asked."""
+    _app_only(request)
+    return await slack_action_items.preview(db, user, workspace_id)
 
 
 @router.post("/link/start", summary="Start linking my Slack account")
@@ -205,7 +221,13 @@ async def me_notifications(request: Request, body: NotificationsIn, db: AsyncIOM
 async def prefs(request: Request, body: PrefsIn, db: AsyncIOMotorDatabase = Depends(get_db),
                 user: User = Depends(require_user)):
     _app_only(request)
-    return {"prefs": await slack.set_prefs(db, user.id, body.model_dump(exclude_none=True))}
+    changes = body.model_dump(exclude_none=True)
+    if "action_items" in changes:
+        # Action items after meetings: on by default, separate from the opt-in notifications.
+        await slack_action_items.set_mine(db, user.id, changes.pop("action_items"))
+    prefs = await slack.set_prefs(db, user.id, changes)
+    urow = await db["users"].find_one({"_id": ObjectId(user.id)}, {"slack_notify": 1})
+    return {"prefs": prefs, "action_items": slack_action_items.member_on(urow)}
 
 
 @router.post("/meetings/{meeting_id}/post", summary="Post a meeting to Slack")

@@ -233,3 +233,52 @@ def dm_access_request(team_id: str, requester: str, email: str | None, title: st
             open_button(url, "Review in Markdrop")))
     blocks.append(dm_footer())
     return {"blocks": blocks, "text": f"{requester} asked to {verb} {cut(title, 80)}"}
+
+
+# ── Action items after a meeting (services/slack_action_items.py) ─────────────
+
+
+def dm_action_items(team_id: str, row_id: str, meetings: list[dict], *, stop_value: str) -> dict:
+    """One person's action items from one meeting (or a few that ended close together).
+
+    ``meetings``: [{title, when, url | None, organizer | None, can_edit, items: [{block, text (mrkdwn,
+    already escaped), due | None, done}]}]. ``url`` only for someone whose Markdrop account may open
+    the notes; without it the message holds the item text and who to ask, nothing else of the
+    meeting. A Done button per open item only where ``can_edit``."""
+    one = len(meetings) == 1
+    if one:
+        m = meetings[0]
+        head = f"Your action items from *{esc(cut(m['title'], 120))}*" + (f" · {esc(m['when'])}" if m.get("when") else "")
+    else:
+        head = f"Your action items from {len(meetings)} meetings"
+    blocks: list[dict] = [section(":clipboard: " + head)]
+    for m in meetings:
+        if not one:
+            blocks.append(section(f"*{esc(cut(m['title'], 120))}*" + (f" · {esc(m['when'])}" if m.get("when") else "")))
+        for it in m["items"][:15]:
+            due = f"  _due {esc(cut(it['due'], 60))}_" if it.get("due") else ""
+            if it.get("done"):
+                blocks.append(section(f":white_check_mark: ~{it['text']}~"))
+            elif m.get("can_edit"):
+                blocks.append(section(f":white_large_square: {it['text']}{due}", accessory=button(
+                    "Done", action_id="md_ai_done", value=slack.sign_value(team_id, "aid", row_id, it["block"]))))
+            else:
+                blocks.append(section(f":white_large_square: {it['text']}{due}"))
+        if m.get("url"):
+            blocks.append(actions(open_button(m["url"], "Open the notes")))
+        else:
+            who = f"ask {esc(cut(m['organizer'], 80))} for access" if m.get("organizer") else "ask the organizer for access"
+            blocks.append(context(f"Notes are in Markdrop ({who})"))
+    blocks = blocks[:47]
+    blocks.append({"type": "divider"})
+    blocks.append(section("_Sent after each meeting_", accessory=button(
+        "Stop these", action_id="md_ai_stop", value=stop_value)))
+    text = ("Your action items from " + cut(meetings[0]["title"], 100)) if one else \
+        f"Your action items from {len(meetings)} meetings"
+    return {"blocks": blocks, "text": text}
+
+
+def action_items_stopped(start_value: str) -> dict:
+    return {"blocks": [section("Done: Markdrop won't send you your action items after meetings any more.",
+                               accessory=button("Turn back on", action_id="md_ai_start", value=start_value))],
+            "text": "Action items after meetings: off"}

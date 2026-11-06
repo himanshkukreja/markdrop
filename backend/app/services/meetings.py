@@ -737,7 +737,8 @@ async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list
             mem = people.match(a["name"], a.get("email"))
             if mem and any(x.get("user_id") == mem["id"] for x in attendees):
                 continue
-            attendees.append({"name": a["name"], "user_id": mem["id"] if mem else None})
+            attendees.append({"name": a["name"], "user_id": mem["id"] if mem else None,
+                              **({"email": a["email"]} if a.get("email") else {})})
         sources.append({"kind": s.kind, "origin": inc.origin, "name": inc.name, "file_id": inc.file_id,
                         "url": inc.url, "format": s.format})
     if not row.get("organizer"):
@@ -889,8 +890,10 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
         mem = people.match(a["name"], a.get("email"))
         if mem and any(x["user_id"] == mem["id"] for x in attendees):
             continue    # the same member under another name (the invite's "Priya Nair", the speaker "priya.nair")
+        # The address stays on the row (never shown: shape() and the API give names only): Markdrop for
+        # Slack finds the person by it to send them their action items (services/slack_action_items.py).
         attendees.append({"name": mem["name"] if mem and not a["name"] else a["name"],
-                          "user_id": mem["id"] if mem else None})
+                          "user_id": mem["id"] if mem else None, **({"email": a["email"]} if a.get("email") else {})})
     sources = []
     for s in group:
         inc: Incoming = s._incoming  # type: ignore[attr-defined]
@@ -1298,7 +1301,8 @@ def clean_people(row: dict, people: People) -> tuple[list[dict], dict | None]:
             continue
         if any(x["name"].casefold() == p["name"].casefold() and (not uid or not x.get("user_id")) for x in out):
             continue
-        out.append({**a, "name": p["name"], "user_id": uid})
+        email = a.get("email") or p["email"]
+        out.append({**a, "name": p["name"], "user_id": uid, **({"email": email} if email else {})})
     org = row.get("organizer")
     if org and org.get("name"):
         p = mp.person_of(org["name"])

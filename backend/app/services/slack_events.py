@@ -22,7 +22,7 @@ from urllib.parse import quote, urlsplit
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import slack, slack_api, slack_notify
+from app.services import slack, slack_action_items, slack_api, slack_notify
 from app.services import slack_blocks as kit
 
 log = logging.getLogger("markdrop.slack")
@@ -171,6 +171,18 @@ async def interaction(db: AsyncIOMotorDatabase, payload: dict) -> None:
     if parts is None:
         log.info("slack: refused a click with a forged or foreign value (team %s, action %s)", team_id, action_id)
         await slack_api.respond(response_url, kit.notice("That button isn't valid any more."))
+        return
+    # A person's own action-items message (services/slack_action_items.py): bound to who it was sent
+    # to, so these work without a linked Slack account (people who aren't in Markdrop get them too).
+    if parts[0] == "aid" and len(parts) == 3 and action_id == "md_ai_done":
+        why = await slack_action_items.click_done(db, inst, slack_user, parts[1], parts[2], payload)
+        if why:
+            await slack_api.respond(response_url, kit.notice(why))
+        return
+    if parts[0] in ("stop", "start") and action_id in ("md_ai_stop", "md_ai_start"):
+        reply = await slack_action_items.click_stop(db, inst, slack_user, parts, on=parts[0] == "start")
+        if reply:
+            await slack_api.respond(response_url, reply)
         return
     user = await slack.linked_user(db, team_id, slack_user)
     if user is None:

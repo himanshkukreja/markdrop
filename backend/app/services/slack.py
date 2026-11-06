@@ -394,7 +394,7 @@ async def forget_team(db: AsyncIOMotorDatabase, team_id: str) -> None:
 
 
 async def set_settings(db: AsyncIOMotorDatabase, user, workspace_id: str, *, channel_id: str | None = ...,
-                       post_meetings: bool | None = None) -> dict:
+                       post_meetings: bool | None = None, action_item_dms: bool | None = None) -> dict:
     await require_admin(db, user, workspace_id)
     inst = await install_for_workspace(db, workspace_id)
     if inst is None:
@@ -411,6 +411,9 @@ async def set_settings(db: AsyncIOMotorDatabase, user, workspace_id: str, *, cha
         sets["meetings_channel"] = {"id": hit["id"], "name": hit["name"], "private": hit["private"]}
     if post_meetings is not None:
         sets["post_meetings"] = bool(post_meetings)
+    if action_item_dms is not None:
+        # Each person's action items as a direct message after a meeting (services/slack_action_items.py).
+        sets["action_item_dms"] = bool(action_item_dms)
     await db[INSTALLS].update_one({"_id": inst["_id"]}, {"$set": sets})
     return await status(db, user, workspace_id)
 
@@ -688,9 +691,11 @@ async def me_status(db: AsyncIOMotorDatabase, user) -> dict:
                       "slack_name": (link or {}).get("slack_name"), "match": (link or {}).get("match") or
                       ("legacy" if link is not None else None),
                       "can_find_by_email": can_find_by_email(inst), "token_ok": bot_token(inst) is not None})
+    from app.services import slack_action_items
+
     return {"configured": configured(), "on": await dm_on(db, {"_id": user.id, **(urow or {})}),
             "prefs": prefs_of(urow), "kinds": [{"key": k, "label": NOTIFY_LABELS[k]} for k in NOTIFY_KINDS],
-            "teams": teams, "email": user.email}
+            "action_items": slack_action_items.member_on(urow), "teams": teams, "email": user.email}
 
 
 async def set_on(db: AsyncIOMotorDatabase, user, on: bool) -> dict:
@@ -738,8 +743,19 @@ async def match_opted_in(db: AsyncIOMotorDatabase, team_id: str, *, limit: int =
 # ── Status (the settings card) ────────────────────────────────────────────────
 
 
+def _last_run(last: dict | None, admin: bool) -> dict | None:
+    """The last meeting's action-items messages, for admins: how many went, how many people Markdrop
+    couldn't find in Slack, whether the app needs the email permission (``needs_update``)."""
+    if not last or not admin:
+        return None
+    return {"at": last.get("at"), "title": last.get("title"), "people": int(last.get("people") or 0),
+            "queued": int(last.get("queued") or 0), "missing": int(last.get("missing") or 0),
+            "needs_update": bool(last.get("needs_update"))}
+
+
 async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
     from app.models.workspace import role_allows
+    from app.services import slack_action_items
 
     role = await require_member(db, user, workspace_id)
     inst = await install_for_workspace(db, workspace_id)
@@ -749,7 +765,8 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
         "can_manage": role_allows(role, "admin"),
         "install": None,
         "me": {"linked": False, "slack_user_id": None, "slack_name": None, "match": None, "prefs": prefs_of(me_row),
-               "on": await dm_on(db, {"_id": user.id, **(me_row or {})})},
+               "on": await dm_on(db, {"_id": user.id, **(me_row or {})}),
+               "action_items": slack_action_items.member_on(me_row)},
         "kinds": [{"key": k, "label": NOTIFY_LABELS[k]} for k in NOTIFY_KINDS],
     }
     if inst is not None:
@@ -764,6 +781,9 @@ async def status(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
             "linked_people": await db[LINKS].count_documents({"team_id": inst["_id"]}),
             "token_ok": bot_token(inst) is not None,
             "can_find_by_email": can_find_by_email(inst),
+            # Each person's action items as a direct message after a meeting (on unless an admin turns it off).
+            "action_item_dms": slack_action_items.workspace_on(inst),
+            "action_items_last": _last_run(inst.get("action_items_last"), role_allows(role, "admin")),
         }
         link = await link_for(db, inst["_id"], user.id)
         if link is not None:

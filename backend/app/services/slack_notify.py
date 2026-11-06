@@ -61,6 +61,9 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[OUTBOX].create_index([("state", 1), ("next_at", 1)])
     await db[OUTBOX].create_index("ref")   # notifications.withdraw
     await db[OUTBOX].create_index("created_at", expireAfterSeconds=30 * 24 * 3600)
+    from app.services import slack_action_items
+
+    await slack_action_items.ensure_indexes(db)
 
 
 # ── Who may see it: the channel's audience ────────────────────────────────────
@@ -234,37 +237,54 @@ async def meeting_ready(db: AsyncIOMotorDatabase, meeting_id: str) -> None:
         return
 
     async def go() -> None:
+        from app.services import slack_action_items
+
         try:
             await post_meeting(db, meeting_id)
         except Exception:
             log.warning("slack: posting meeting %s failed", meeting_id, exc_info=True)
+        # Each person's own action items as a direct message (with or without a meetings channel).
+        try:
+            await slack_action_items.queue_meeting(db, meeting_id)
+        except Exception:
+            log.warning("slack: queueing the action items of meeting %s failed", meeting_id, exc_info=True)
 
     slack.spawn(go())
 
 
 async def mark_done(db: AsyncIOMotorDatabase, inst: dict, user, post_id: str, block: str) -> str:
     """A Done click by ``user`` (their linked Markdrop account). Returns what to tell them."""
-    from app.services import access, meetings, pages
-
     post = await db[POSTS].find_one({"_id": _oid(post_id)}) if _oid(post_id) else None
     if post is None or post.get("team_id") != inst["_id"]:
         return "That meeting post isn't from this Slack workspace."
     raw = await db["documents"].find_one({"_id": _oid(post.get("doc_id"))})
     if raw is None:
         return "That meeting's page is gone (deleted or in the trash)."
+    why, done = await tick(db, raw, user, block)
+    if done:
+        await _set_done(db, post, block, "someone in Markdrop" if why else (user.name or user.email))
+    return why
+
+
+async def tick(db: AsyncIOMotorDatabase, raw: dict, user, block: str) -> tuple[str, bool]:
+    """Tick the to-do ``block`` on ``raw`` as ``user`` (``- [ ]`` → ``- [x]``), through the normal save
+    path, only when they may edit the page. Returns (what to tell them, whether it's done now): ("",
+    True) ticked by them; ("That one is already done.", True); (why not, False). Both Done buttons
+    use it: the meetings channel post's and the one in a person's action-items message
+    (services/slack_action_items.py)."""
+    from app.services import access, meetings, pages
+
     actor, ctx = access.Actor.of(user, cred="session"), access.Ctx(db, surface="slack")
     d = await access.can(actor, raw, "edit_content", ctx)
     if not d.allowed:
-        return "You can't edit that meeting's page in Markdrop, so you can't tick its action items."
-    name = user.name or user.email
+        return "You can't edit that meeting's page in Markdrop, so you can't tick its action items.", False
     for _attempt in range(3):
         content = raw.get("content") or ""
         hit = next((m for m in _TODO.finditer(content) if m.group("block") == block), None)
         if hit is None:
-            return "That action item was changed or removed on the page."
+            return "That action item was changed or removed on the page.", False
         if hit.group("mark") in "xX":
-            await _set_done(db, post, block, "someone in Markdrop")
-            return "That one is already done."
+            return "That one is already done.", True
         new = content[: hit.start("mark")] + "x" + content[hit.end("mark"):]
         try:
             await pages.check_page_lock(raw, actor, ctx, new)
@@ -274,11 +294,17 @@ async def mark_done(db: AsyncIOMotorDatabase, inst: dict, user, post_id: str, bl
                 raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
                 continue
             if exc.status_code == 423:
-                return "Someone is editing that page right now. Try again in a minute."
-            return str(exc.detail) if isinstance(exc.detail, str) else "Markdrop couldn't save that."
+                return "Someone is editing that page right now. Try again in a minute.", False
+            return (str(exc.detail) if isinstance(exc.detail, str) else "Markdrop couldn't save that."), False
+        return "", True
+    return "That page keeps changing. Try again in a moment.", False
+
+
+async def done_elsewhere(db: AsyncIOMotorDatabase, team_id: str, meeting_id: str, block: str, name: str) -> None:
+    """A to-do ticked from someone's action-items message: the meetings channel post shows it too."""
+    async for post in db[POSTS].find({"team_id": team_id, "meeting_id": meeting_id, "state": "posted",
+                                      "items": {"$elemMatch": {"block": block, "done_by": None}}}):
         await _set_done(db, post, block, name)
-        return ""
-    return "That page keeps changing. Try again in a moment."
 
 
 async def _set_done(db: AsyncIOMotorDatabase, post: dict, block: str, name: str) -> None:
@@ -382,6 +408,10 @@ async def flush(db: AsyncIOMotorDatabase, *, limit: int = 50, now: datetime | No
 
 
 async def _deliver(db: AsyncIOMotorDatabase, row: dict) -> tuple[str, dict]:
+    if row.get("kind") == "action_items":
+        from app.services import slack_action_items
+
+        return await slack_action_items.deliver(db, row)
     inst = await slack.get_install(db, row["team_id"])
     link = await db[slack.LINKS].find_one({"_id": f"{row['team_id']}:{row['slack_user_id']}"})
     if inst is None or link is None or link.get("user_id") != row["user_id"]:
