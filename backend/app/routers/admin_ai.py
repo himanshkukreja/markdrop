@@ -2,7 +2,7 @@
 
 Reads the generic ledger (`ai_requests`, services/ai_usage.py), the exact spend
 counters (`ai_spend`) and the docs site's page votes (`docs_feedback`). Same
-admin JWT as every other admin tab (routers/admin.require_admin).
+admin session as every other admin tab (routers/admin.require_admin).
 
 Raw IPs are never stored, so never shown: a signed-out asker appears as the
 first 8 characters of their salted IP hash.

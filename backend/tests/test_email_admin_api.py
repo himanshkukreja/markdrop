@@ -13,7 +13,8 @@ import jwt
 
 from app.config import get_settings
 from app.main import app
-from app.routers import admin_email
+from app.routers import admin as admin_router, admin_email
+from tests._admin_session import admin_email as the_admin_email, admin_headers
 from app.services.email_campaigns import audience
 
 settings = get_settings()
@@ -26,9 +27,9 @@ class AdminApi(unittest.IsolatedAsyncioTestCase):
         self.client, self.db = await env.make_db(self.name)
         audience.invalidate()
         app.dependency_overrides[admin_email.get_db] = lambda: self.db
-        tok = jwt.encode({"sub": "admin", "exp": datetime.now(timezone.utc) + timedelta(hours=1)}, settings.admin_secret, algorithm="HS256")
+        app.dependency_overrides[admin_router.get_db] = lambda: self.db
         self.http = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="https://api.markdrop.in",
-                                      headers={"Authorization": f"Bearer {tok}"})
+                                      headers=await admin_headers(self.db))
         await self.db["users"].insert_one({"email": "ann@example.com", "name": "Ann Lee", "created_at": datetime.now(timezone.utc)})
 
     async def asyncTearDown(self):
@@ -57,7 +58,7 @@ class AdminApi(unittest.IsolatedAsyncioTestCase):
 
         c = (await self.http.post("/api/v1/admin/email/campaigns", json=draft)).json()["campaign"]
         cid = c["id"]
-        self.assertEqual((c["status"], c["created_by"]), ("draft", "admin"))
+        self.assertEqual((c["status"], c["created_by"]), ("draft", the_admin_email()))
         r = await self.http.patch(f"/api/v1/admin/email/campaigns/{cid}", json={**draft, "subject": "Hello {{first_name|you}}"})
         self.assertEqual(r.json()["campaign"]["subject"], "Hello {{first_name|you}}")
 

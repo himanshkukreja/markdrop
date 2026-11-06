@@ -416,11 +416,13 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] access migrations skipped: {exc}")
 
-    # Admin console access log (routers/admin.require_admin): one row per account, ip hash,
-    # outcome and day, kept a year.
+    # Admin console access rows in the moderation audit log (routers/admin.require_admin): one per
+    # account, ip hash, outcome and day, kept a year. Partial: the moderation rows (slug, action,
+    # ts) share the collection.
     try:
         await db["admin_access_log"].create_index(
-            [("email", 1), ("user_id", 1), ("ip_hash", 1), ("outcome", 1), ("day", 1)], unique=True)
+            [("email", 1), ("user_id", 1), ("ip_hash", 1), ("outcome", 1), ("day", 1)],
+            unique=True, partialFilterExpression={"action": "access"}, name="access_day")
         await db["admin_access_log"].create_index("first_at", expireAfterSeconds=365 * 24 * 3600)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] admin access log indexes skipped: {exc}")

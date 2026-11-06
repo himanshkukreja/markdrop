@@ -19,7 +19,8 @@ Anyone else signed in gets 404 Not Found, the same as a route that doesn't exist
 expired one) gets the app's usual 401. The decision is made here, on the server, on every request.
 Bearer tokens in a header (never a cookie, never a query parameter) are the app's CSRF defence, and
 the console uses the same. Every admin access, and every refused attempt by a signed-in account, is
-counted in `admin_access_log` (one row per account, ip hash, outcome and UTC day).
+counted in `admin_access_log` beside the moderation actions (one `action: "access"` row per account,
+ip hash, outcome and UTC day); moderation rows name the admin and their ip hash too.
 """
 
 import math
@@ -48,7 +49,7 @@ from app.schemas.auth import (
     RenderedSample,
 )
 from app.schemas.document import MAX_CONTENT
-from app.services import ai_usage, api_token, artifact, campaign, mailer
+from app.services import ai_usage, api_token, artifact, campaign, mailer, oauth_server
 from app.services import feedback as feedback_service
 
 settings = get_settings()
@@ -235,30 +236,37 @@ def _is_disabled(raw: dict) -> bool:
     return bool(raw.get("disabled") or raw.get("disabled_at") or raw.get("deleted_at"))
 
 
-async def _log_access(request: Request, email: str, user_id: str, outcome: str) -> None:
-    """One row per (account, ip hash, outcome, UTC day): first and last time, and a count."""
+async def _log_access(db: AsyncIOMotorDatabase, email: str, user_id: str, ip_hash: str | None,
+                      outcome: str, path: str) -> None:
+    """Console access, in the moderation audit log (`admin_access_log`): one `action: "access"` row
+    per (account, ip hash, outcome, UTC day) with first and last time and a count."""
     now = datetime.now(timezone.utc)
-    key = {"email": email, "user_id": user_id, "ip_hash": ai_usage.hash_ip(get_client_ip(request)),
+    key = {"action": "access", "email": email, "user_id": user_id, "ip_hash": ip_hash,
            "outcome": outcome, "day": now.strftime("%Y-%m-%d")}
     try:
-        await get_database()[ACCESS_LOG].update_one(
+        await db[ACCESS_LOG].update_one(
             key,
-            {"$setOnInsert": {"first_at": now}, "$set": {"last_at": now, "last_path": request.url.path},
-             "$inc": {"count": 1}},
+            {"$setOnInsert": {"first_at": now}, "$set": {"last_at": now, "last_path": path}, "$inc": {"count": 1}},
             upsert=True,
         )
     except Exception:  # the log never decides access
         pass
 
 
-async def require_admin(request: Request) -> dict:
+def _audit_row(admin: dict, slug: str, action: str) -> dict:
+    """A moderation action (read, update, delete of one document): what, when, who, from where."""
+    return {"slug": slug, "action": action, "ts": datetime.now(timezone.utc),
+            "admin": admin.get("email"), "ip_hash": admin.get("ip_hash")}
+
+
+async def require_admin(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)) -> dict:
     """FastAPI dependency: the signed-in admin, as {sub, email, user_id, name}. See the module doc."""
     auth = request.headers.get("Authorization", "")
     token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
     if not token:
         raise HTTPException(status_code=401, detail="Authentication required")
-    if token.startswith(api_token.TOKEN_PREFIX):
-        # API tokens (CLI, VS Code, MCP) never open the console, valid or not.
+    if token.startswith((api_token.TOKEN_PREFIX, oauth_server.ACCESS_PREFIX)):
+        # API tokens (CLI, VS Code) and MCP connector tokens never open the console, valid or not.
         raise _NOT_FOUND
     try:
         payload = decode_access_token(token)
@@ -271,21 +279,24 @@ async def require_admin(request: Request) -> dict:
         # the auth secret (OAuth state, tickets): only a session signed in on markdrop.in counts.
         raise _NOT_FOUND
     uid = str(payload.get("sub") or "")
-    raw = await get_database()["users"].find_one({"_id": ObjectId(uid)}) if ObjectId.is_valid(uid) else None
+    raw = await db["users"].find_one({"_id": ObjectId(uid)}) if ObjectId.is_valid(uid) else None
     if raw is None:
         raise HTTPException(status_code=401, detail="User no longer exists")
     email = str(raw.get("email") or "").strip().lower()
+    ip_hash = ai_usage.hash_ip(get_client_ip(request))
+    path = request.url.path
     if not email or email not in settings.admin_email_set or _is_disabled(raw):
-        await _log_access(request, email, uid, "denied")
+        await _log_access(db, email, uid, ip_hash, "denied", path)
         raise _NOT_FOUND
     max_age = settings.admin_session_max_age_days
     issued = session_issued_at(payload)
     if max_age > 0 and (issued is None or datetime.now(timezone.utc) - issued > timedelta(days=max_age)):
-        await _log_access(request, email, uid, "reauth")
+        await _log_access(db, email, uid, ip_hash, "reauth", path)
         raise HTTPException(status_code=401, detail="Sign in again to open the admin console.",
                             headers={"X-Admin-Reauth": "1"})
-    await _log_access(request, email, uid, "ok")
-    return {"sub": email, "email": email, "user_id": uid, "name": raw.get("name"), "picture": raw.get("picture")}
+    await _log_access(db, email, uid, ip_hash, "ok", path)
+    return {"sub": email, "email": email, "user_id": uid, "ip_hash": ip_hash,
+            "name": raw.get("name"), "picture": raw.get("picture")}
 
 
 def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem:
@@ -863,15 +874,14 @@ async def delete_feedback(
 async def admin_get_document(
     slug: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
     """Fetch a single document (bypasses password gate)."""
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
     if not raw:
         raise HTTPException(status_code=404, detail="Document not found")
     # Moderation reads bypass every gate, so each one is recorded (§6.20 #254).
-    await db["admin_access_log"].insert_one(
-        {"slug": slug, "action": "read", "ts": datetime.now(timezone.utc)})
+    await db[ACCESS_LOG].insert_one(_audit_row(admin, slug, "read"))
     return _to_doc_response(raw)
 
 
@@ -880,7 +890,7 @@ async def admin_update_document(
     slug: str,
     data: AdminDocumentUpdate,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
     """Update title and content without requiring the per-document edit_secret."""
     raw = await db["documents"].find_one({"slug": slug}, {"_id": 0})
@@ -913,7 +923,7 @@ async def admin_update_document(
         from app.services import search_index
 
         search_index.touch(db, full["_id"])
-    await db["admin_access_log"].insert_one({"slug": slug, "action": "update", "ts": now})
+    await db[ACCESS_LOG].insert_one(_audit_row(admin, slug, "update"))
     raw.update(updates)
     return _to_doc_response(raw)
 
@@ -922,7 +932,7 @@ async def admin_update_document(
 async def admin_delete_document(
     slug: str,
     db: AsyncIOMotorDatabase = Depends(get_db),
-    _: dict = Depends(require_admin),
+    admin: dict = Depends(require_admin),
 ):
     """Permanently delete a document without requiring the edit_secret. The
     same cleanup as an owner's delete (A8): bytes, versions, posters, grants,
@@ -932,8 +942,7 @@ async def admin_delete_document(
     raw = await db["documents"].find_one({"slug": slug})
     if raw is None or not await lifecycle.destroy(db, raw, reason="admin delete"):
         raise HTTPException(status_code=404, detail="Document not found")
-    await db["admin_access_log"].insert_one(
-        {"slug": slug, "action": "delete", "ts": datetime.now(timezone.utc)})
+    await db[ACCESS_LOG].insert_one(_audit_row(admin, slug, "delete"))
 
 
 # ── Email campaigns ────────────────────────────────────────────────────────────
