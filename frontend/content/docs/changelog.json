@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "team-this-week-cleanup",
+      "date": "2026-11-06",
+      "title": "Team's This week card is about this week",
+      "kind": "fixed",
+      "area": "Team",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "The This week card on Team now covers Monday to Sunday in your workspace's timezone, in three tidy columns: highlights spread across the team, what's due this week, and what's overdue from the last two weeks. Team pages also use the full width and read more easily.",
+      "body": "- **This week only.** Highlights are from this week (early Monday, the last 7 days), at most two per person, without repeats or the person's name in front of every line.\n- **Due vs overdue.** *Due this week* is only what's due Monday to Sunday. *Overdue* is a separate, amber list of things due in the last two weeks, with \"2 days late\". Older items are stale: they stay on the person's page, not the card.\n- **Done is done.** Items ticked off on their meeting or page, or marked done, never show. On your own page, action items and targets have **Mark done**.\n- **Easier to scan.** Avatars and first names, one line each (tap for the rest), the meeting or page it came from, counts on each column, and one expandable row for someone with three or more items. Three columns on a computer, two and one on a tablet, stacked on a phone.\n- **Wider, more readable Team pages.** The board uses the window's width, with larger body text and clearer labels in light and dark.\n- The Monday email and Slack summary follow the same rules."
+    },
+    {
       "id": "ask-knows-you",
       "date": "2026-11-06",
       "title": "Ask knows who is asking",
