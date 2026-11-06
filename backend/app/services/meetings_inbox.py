@@ -65,7 +65,7 @@ _PLACEHOLDER = re.compile(
     r"gemini (?:is|will be) taking notes|taking notes (?:for|in) (?:you|this|the) |notes (?:will|are going to) be "
     r"(?:shared|available|ready|added|generated|written|sent)|notes (?:will )?appear (?:here )?(?:after|when|once)|"
     r"(?:being|been) (?:generated|written|prepared)|will be (?:available|ready|shared) (?:after|when|once)|"
-    r"after the (?:meeting|call) (?:ends|is over)|in progress", re.I)
+    r"after the (?:meeting|call) (?:ends|is over)|note[- ]taking (?:is )?in progress|notes? (?:are|is) in progress", re.I)
 _DIR = Path(__file__).parent / "meeting_script"
 _FILE_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
 _PROJECT = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")

@@ -27,6 +27,7 @@ import httpx
 from tests.test_meetings import fixture
 from tests.test_meetings_auto import FID_N, FID_T, NOTES, TRANSCRIPT, AutoWorld
 
+from app.services import meeting_parse as mp
 from app.services import meetings_inbox
 
 EXEC = "https://script.google.com/macros/s/AKfycbx" + "Q" * 60 + "/exec"
@@ -59,6 +60,8 @@ class Lifecycle(AutoWorld):
             r = await self.send(tok, text)
             self.assertEqual((r.status_code, r.json()["status"]), (200, "not_ready"), text)
         self.assertEqual(await self.rows(), [])
+        # A short summary that merely says something is in progress is a meeting (with Google's sections).
+        self.assertTrue(meetings_inbox.usable(mp.parse_source(NOTES, "## Summary\nThe migration is in progress.\n## Details\n")))
         notes = fixture("gemini_notes.txt")
         r = await self.send(tok, notes)
         self.assertEqual(r.json()["status"], "imported", r.text)
