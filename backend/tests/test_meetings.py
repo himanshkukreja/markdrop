@@ -85,8 +85,10 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(len(s.notes["details"]), 4)
         self.assertEqual(len(s.notes["next_steps"]), 3)
         self.assertTrue(s.notes["next_steps"][0].startswith("Priya Sharma will run"))
-        # Person chips carry addresses (the Docs API reader writes "Name <email>").
-        self.assertEqual({a["name"]: a["email"] for a in s.attendees}["Bo Chen"], "bo@acme.test")
+        # Person chips carry addresses (the Docs API reader writes "Name <email>"). Gemini's "Invited" is
+        # the calendar invite, not who joined: no attendees from notes alone.
+        self.assertEqual({a["name"]: a["email"] for a in s.invited}["Bo Chen"], "bo@acme.test")
+        self.assertEqual((s.attendees, s.attendees_from), ([], "none"))
         self.assertEqual(s.segments, [])
         # Google's footer isn't a next step.
         self.assertFalse(any("Gemini" in x for x in s.notes["next_steps"]))

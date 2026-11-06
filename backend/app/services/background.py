@@ -202,6 +202,8 @@ async def _meetings_backfill(db: AsyncIOMotorDatabase) -> None:
     await meetings.upgrade_tick(db)
     # Meetings from before attendee names were cleaned ("[Ishaan Gupta](mailto:…)"), a batch per tick.
     await meetings.names_tick(db)
+    # Meetings from before attendees and invitees were told apart (27 "people" for 12 who joined).
+    await meetings.attendees_tick(db)
 
 
 async def _search_index(db: AsyncIOMotorDatabase) -> None:

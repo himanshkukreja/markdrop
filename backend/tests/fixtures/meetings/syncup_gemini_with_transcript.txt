@@ -1,0 +1,33 @@
+Nov 6, 2026
+# Daily Syncup
+Invited Ada Lovelace <ada@acme.test> Bo Chen <bo@acme.test> Priya Sharma <priya@acme.test> Rahul bhai <rahul.bhai@senseloaf.test> Saurabh Kr. Singh <saurabh.kr.singh@senseloaf.test> Mohd. Arif <mohd.arif@senseloaf.test> Neha Verma <neha.verma@senseloaf.test> Ankit Jha <ankit.jha@senseloaf.test> Divya S <divya.s@senseloaf.test> Karan Mehta <karan.mehta@senseloaf.test> Ishaan Gupta <ishaan.gupta@senseloaf.test> Shreya Iyer <shreya.iyer@senseloaf.test> Ravi Kumar <ravi@acme.test> Amit Shah <amit.shah@senseloaf.test> Ritu Jain <ritu.jain@senseloaf.test> Pooja Das <pooja.das@senseloaf.test> Rohan Gill <rohan.gill@senseloaf.test> Sana Khan <sana.khan@senseloaf.test> Tarun Bose <tarun.bose@senseloaf.test> Uma Iyer <uma.iyer@senseloaf.test> Varun Roy <varun.roy@senseloaf.test> Yash Pal <yash.pal@senseloaf.test> Zoya Ali <zoya.ali@senseloaf.test> Arjun Sen <arjun.sen@senseloaf.test> Bhavna Rao <bhavna.rao@senseloaf.test> Chirag Shah <chirag.shah@senseloaf.test> Deepak Lal <deepak.lal@senseloaf.test>
+Attachments Daily Syncup
+Meeting records Transcript Recording
+
+## Summary
+Participants discussed the sprint status, agreed to move the client demo to Friday, and Bo Chen will finish the staging import test today.
+
+## Details
+- **Staging import**: Bo Chen reported the parser fix is merged and is being tested on staging (00:00:20).
+- **Migration**: Priya Sharma will run the migration dry run tomorrow morning (00:00:40).
+
+## Suggested next steps
+- [ ] Bo Chen will finish the staging import test today.
+- [ ] Priya Sharma will run the migration dry run tomorrow morning.
+
+You should review Gemini's notes to make sure they're accurate. Get tips and learn how Gemini takes notes
+Please provide feedback about using Gemini to take notes in a short survey.
+=== Tab: 📖 Transcript ===
+Nov 6, 2026
+Daily Syncup - Transcript
+00:00:00
+
+Ada Lovelace: Good morning everyone, chaliye shuru karte hain. Quick round of updates.
+Bo Chen: The parser fix is merged, I'm testing the import on staging today.
+Priya Sharma: Haan, migration dry run kal subah kar dungi, then we can ship.
+Rahul bhai: Client demo ka deck ready hai, bas pricing slide pending hai.
+Saurabh Kr. Singh: Infra side sab theek hai, the alerts are quiet since Monday.
+Neha Verma: Hiring: two interviews today, one offer going out.
+Ishaan Gupta: I'll pair with Bo on the staging import after this call.
+Karan Mehta: Nothing blocking from my side.
+Transcription ended after 00:14:05

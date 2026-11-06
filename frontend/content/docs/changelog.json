@@ -305,6 +305,20 @@
       ]
     },
     {
+      "id": "meeting-attendees-not-invitees",
+      "date": "2026-11-06",
+      "title": "A meeting's attendees are who joined, not everyone invited",
+      "kind": "fixed",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "A meeting imported from Gemini's notes no longer counts everyone on the calendar invite as attendees (\"27 people\" for a call 12 joined), and its Attendees no longer shows a paragraph of text. Attendees are the people who joined, listed on the page with members as @mentions; the invite list is kept apart as Invited.",
+      "body": "- **Who joined.** Attendees come from a Google Meet transcript's Attendees line and the people who spoke; without a transcript, nobody is counted as an attendee and the meeting bar says how many were **invited** instead.\n- **Invited.** Gemini's \"Invited\" list is shown in the meeting's Details as **Invited** with a count, never as attendees. People invited to a restricted meeting who are members still get access, as before.\n- **A list, not a paragraph.** Only a list of names is read as attendees: a summary paragraph after the label, a heading, or names run together that can't be told apart are left out. The page lists the attendees under **Attendees** (members as @mentions, nobody notified), and the **Attendees** property has their names.\n- **Earlier meetings** are corrected in the background from what they kept (the speakers of their transcript). A page is written again only where Markdrop's own text is still there; who can open a meeting doesn't change. A Doc sent again by the Google Meet script follows the same rules."
+    },
+    {
       "id": "organize-meetings-background",
       "date": "2026-11-05",
       "title": "Organize meetings no longer times out, and shows what it will do",

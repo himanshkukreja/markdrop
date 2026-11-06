@@ -44,7 +44,7 @@ The **Meetings** folder itself opens on these folders. Each of them opens on **A
 - **Date**: the day the meeting happened, not the day it was imported.
 - **Type** (Standup, Planning, Review, 1:1, Interview, Customer or Other).
 - **Series**: the recurring meeting it belongs to, such as "Daily Sync Up".
-- **Attendees**, **Organizer** (who ran the call, when Markdrop knows: see [Organizer and imported by](/workspaces/meetings-import#organizer-and-imported-by)), **Duration** and **Action items**.
+- **Attendees** (who joined the call, not everyone invited: see [Attendees and invited](/workspaces/meetings-import#attendees-and-invited)), **Organizer** (who ran the call, when Markdrop knows: see [Organizer and imported by](/workspaces/meetings-import#organizer-and-imported-by)), **Duration** and **Action items**.
 
 Sort, filter or add views as in any folder; see [Folders](/workspaces/folders). Renaming a folder is fine: Markdrop keeps filing that series there.
 

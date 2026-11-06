@@ -62,6 +62,8 @@ def _meeting_out(m: dict) -> dict[str, Any]:
         "url": urls.markdrop_url(m["slug"]), "slug": m["slug"],
         "transcript_url": urls.markdrop_url(m["transcript_slug"]) if m.get("transcript_slug") else None,
         "attendees": [a["name"] for a in m.get("attendees") or []], "restricted": m.get("restricted"),
+        # The calendar invite (Gemini notes' "Invited"), joined or not; never the attendees.
+        "invited": [a["name"] for a in m.get("invited") or []],
         "action_items": m.get("action_items"), "has_notes": m.get("has_notes"),
         "segments": m.get("segments"), "ai": m.get("ai"), "source": m.get("source"), "series": m.get("series"),
         # What it was about at a glance (the Meetings page's cards): a line of the summary and the counts.
@@ -349,7 +351,9 @@ async def meeting_context(ctx: Context, args: dict) -> tuple[str, dict]:
 _MEETING_OUT = {"type": "object", "properties": {
     "id": {"type": "string"}, "title": _NULLABLE_STR, "date": _NULLABLE_STR, "type": _NULLABLE_STR,
     "url": {"type": "string"}, "slug": {"type": "string"}, "transcript_url": _NULLABLE_STR,
-    "attendees": {"type": "array", "items": {"type": "string"}}, "restricted": {"type": "boolean"},
+    "attendees": {"type": "array", "items": {"type": "string"}, "description": "Who joined the call."},
+    "invited": {"type": "array", "items": {"type": "string"}, "description": "Everyone on the calendar invite, joined or not."},
+    "restricted": {"type": "boolean"},
     "action_items": {"type": "integer"}, "has_notes": {"type": "boolean"}, "segments": {"type": "integer"},
     "ai": {"type": "object"}, "source": {"type": "string", "enum": list(meetings.SOURCES)},
     "series": _NULLABLE_STR,

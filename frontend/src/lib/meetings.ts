@@ -52,7 +52,12 @@ export interface Meeting {
   time: string | null;
   duration_s: number | null;
   type: MeetingType | string | null;
+  /** Who joined: a Meet transcript's Attendees list and the speakers (else the speakers). */
   attendees: Array<{ name: string; user_id: string | null }>;
+  /** The calendar invite (Gemini notes' "Invited"), joined or not: shown as "Invited: N", never as attendees. */
+  invited?: Array<{ name: string; user_id: string | null }>;
+  /** Where the attendees came from: "attendees" | "speakers" | "invited" (nobody known to have joined) | "none". */
+  attendees_from?: string | null;
   restricted: boolean;
   action_items: number;
   segments: number;

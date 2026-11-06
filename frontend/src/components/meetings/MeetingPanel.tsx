@@ -64,7 +64,9 @@ function useMeeting(id: string): [Meeting | null, (m: Meeting) => void, () => Pr
 export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: string }) {
   const [m] = useMeeting(meetingId);
   if (!m) return null;
-  const people = m.attendees;
+  // Who joined; with nobody known to have joined, the calendar invite, worded "invited" (never "people").
+  const invitedOnly = m.attendees.length === 0 && (m.invited?.length ?? 0) > 0;
+  const people = invitedOnly ? m.invited ?? [] : m.attendees;
   const ask = () => openAssistant({ scope: "meetings" });
   return (
     <div className="mt-pagebar no-print" data-testid="meeting-header">
@@ -78,7 +80,7 @@ export function MeetingHeader({ meetingId, role }: { meetingId: string; role?: s
                 </span>
               ))}
             </span>
-            {people.length} {people.length === 1 ? "person" : "people"}
+            {invitedOnly ? `${people.length} invited` : `${people.length} ${people.length === 1 ? "person" : "people"}`}
           </span>
         )}
         {m.organizer?.name && <span className="mt-pagebar__fact"><Icon name="user" />Organized by {m.organizer.name}</span>}
@@ -256,12 +258,15 @@ function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Me
             : <span className="mt-cost">Not known{m.can_regenerate ? " (set it in the page's Organizer property)" : ""}</span>}
         </dd>
         {m.imported_by?.name && <><dt>Imported by</dt><dd data-testid="meeting-imported-by">{m.imported_by.name}</dd></>}
+        {(m.invited?.length ?? 0) > 0 && (
+          <><dt>Invited</dt><dd data-testid="meeting-invited" title={(m.invited ?? []).map((a) => a.name).join(", ")}>{m.invited!.length}<span className="mt-cost"> · on the calendar invite, joined or not</span></dd></>
+        )}
       </dl>
 
       <div>
         <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>Who was there</p>
         <div className="mt-people">
-          {m.attendees.length === 0 && <span className="mt-cost">Nobody named in it.</span>}
+          {m.attendees.length === 0 && <span className="mt-cost">{(m.invited?.length ?? 0) > 0 ? "Not known: Google's notes only list who was invited." : "Nobody named in it."}</span>}
           {m.attendees.map((a) => (
             <span key={a.name} className="mt-person" data-member={a.user_id ? "" : undefined} title={a.user_id ? "A member of this workspace" : "Not a member of this workspace"}>
               <span className="mt-date__m" style={{ display: "grid", placeItems: "center", width: 20, height: 20, borderRadius: 999, background: "var(--surface-inset)" }}>{initialsOf(a.name).slice(0, 1)}</span>
