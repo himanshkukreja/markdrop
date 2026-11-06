@@ -1182,7 +1182,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             about = question if standalone == question else f"{question}\n{standalone}"
             mine = await ask_me.personal(db, actor, ctx, you, about, workspaces=[scope] if scope else None,
                                          folders=folders)
-            personal = you is not None and ask_me.is_personal(about)
+            personal = you is not None and (ask_me.is_personal(about) or you.named_in(about))
             if intent == "page":
                 sources, _found, withheld = await _page_sources(db, actor, ctx, page_raw, standalone, terms, scope,
                                                                 you=you, mine=mine)

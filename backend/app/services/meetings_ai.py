@@ -993,7 +993,7 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
         order = await _rank(db, actor, cands, question, workspace_id, recent=meeting_scope.wants_recent(question))
         # A question about the asker ("what did I say in my last sync-up"): their meetings first, with their lines.
         mine: dict[str, Any] = {}
-        if you is not None and ask_me.is_personal(question):
+        if you is not None and (ask_me.is_personal(question) or you.named_in(question)):
             pms = await ask_me.personal_meetings(db, actor, ctx, you, question, workspaces=[workspace_id],
                                                  since=scope.since, until=scope.until, series=scope.series)
             idx = {str(r["_id"]): i for i, (r, _raw, _t) in enumerate(cands)}

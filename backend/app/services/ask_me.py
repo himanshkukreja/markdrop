@@ -136,6 +136,17 @@ class You:
             return n in self.names[workspace_id]
         return n in self.all_names()
 
+    def named_in(self, question: str | None) -> bool:
+        """The question names the asker ("what has Himanshu worked on?" from Himanshu): a question about them."""
+        words = f" {pnorm(re.sub(r"['’]s\b", '', question or ''))} "
+        for n in {pnorm(self.name), *self.all_names()}:
+            if not n:
+                continue
+            first = n.split(" ")[0]
+            if f" {n} " in words or (len(first) >= 3 and f" {first} " in words):
+                return True
+        return False
+
     def ws_name(self, ws_id: str | None) -> str | None:
         return next((w["name"] for w in self.workspaces if w["id"] == ws_id), None)
 
@@ -479,17 +490,21 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         did.setdefault(str(doc_id), []).append((at if at.tzinfo else at.replace(tzinfo=timezone.utc), what))
 
     try:
-        async for d in db["documents"].find({"owner_id": uid, "deleted_at": None, "created_at": {"$gte": since}},
+        # Not meeting pages: an import writes (and versions) every meeting page as the importer's.
+        async for d in db["documents"].find({"owner_id": uid, "deleted_at": None, "created_at": {"$gte": since},
+                                             "meeting_id": {"$exists": False}},
                                             {"created_at": 1}).sort("created_at", -1).limit(40):
             note(d["_id"], d.get("created_at"), "created")
-        async for v in db[page_history.COLL].find({"author_id": uid, "ts": {"$gte": since}},
-                                                  {"doc_id": 1, "ts": 1}).sort("ts", -1).limit(200):
-            note(v.get("doc_id"), v.get("ts"), "edited")
+        async for v in db[page_history.COLL].aggregate([
+                {"$match": {"author_id": uid, "ts": {"$gte": since}}},
+                {"$group": {"_id": "$doc_id", "ts": {"$max": "$ts"}}}, {"$sort": {"ts": -1}}, {"$limit": 300}]):
+            note(v.get("_id"), v.get("ts"), "edited")
         async for s in db[signoffs.COLL].find({"signer_id": uid, "signed_at": {"$gte": since}},
                                               {"doc_id": 1, "signed_at": 1, "option": 1}).sort("signed_at", -1).limit(40):
             note(s.get("doc_id"), s.get("signed_at"), f"signed it off ({s.get('option')})" if s.get("option") else "signed it off")
         # Their own documents they touched lately even without a version row (a Markdown document's save).
-        async for d in db["documents"].find({"owner_id": uid, "deleted_at": None, "updated_at": {"$gte": since}},
+        async for d in db["documents"].find({"owner_id": uid, "deleted_at": None, "updated_at": {"$gte": since},
+                                             "meeting_id": {"$exists": False}},
                                             {"updated_at": 1}).sort("updated_at", -1).limit(40):
             if str(d["_id"]) not in did:
                 note(d["_id"], d.get("updated_at"), "updated")
@@ -497,8 +512,9 @@ async def recent_work(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         log.warning("ask_me: recent work failed", exc_info=True)
         return []
     order = sorted(did, key=lambda k: -max(t for t, _ in did[k]).timestamp())
-    oids = [ObjectId(k) for k in order if ObjectId.is_valid(k)][:60]
-    rows = {str(r["_id"]): r for r in await db["documents"].find({"_id": {"$in": oids}}, {"content": 0}).to_list(length=len(oids))}
+    oids = [ObjectId(k) for k in order if ObjectId.is_valid(k)][:400]
+    rows = {str(r["_id"]): r for r in await db["documents"].find(
+        {"_id": {"$in": oids}, "meeting_id": {"$exists": False}}, {"content": 0}).to_list(length=len(oids))}
     out: list[tuple[dict, str]] = []
     for k in order:
         raw = rows.get(k)
@@ -528,7 +544,7 @@ async def personal(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ct
                    workspaces: list[str] | None = None, folders: set[str] | None = None) -> Personal:
     """What a personal question needs about the asker (empty for any other question)."""
     out = Personal()
-    if you is None or not is_personal(question):
+    if you is None or not (is_personal(question) or you.named_in(question)):
         return out
     profile_only = is_profile(question) and not wants_meetings(question) and not wants_work(question)
     if profile_only:
