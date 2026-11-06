@@ -14,6 +14,7 @@ import { Icon, cx } from "@/components/ui";
 import type { LinkInfo } from "./api";
 import { searchMembers, searchPages } from "./api";
 import { isSlug, isUrl, linkList, nextColor, optionColor, type Person, type PropDef, type PropValue } from "./model.mjs";
+import { initialsOf } from "@/lib/initials.mjs";
 
 /* ── context ──────────────────────────────────────────────────────────── */
 
@@ -58,7 +59,7 @@ function hash(s: string) {
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
   return Math.abs(h);
 }
-const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+const initials = (name: string) => initialsOf(name);
 
 export function PersonAvatar({ id, person, large }: { id: string; person?: Person | null; large?: boolean }) {
   if (!person) return <span className={cx("pp-avatar pp-avatar--anon", large && "pp-avatar--lg")} aria-hidden><Icon name="user" size={12} /></span>;

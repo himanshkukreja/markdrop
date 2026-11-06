@@ -2,6 +2,7 @@
 
 import { createContext, useContext } from "react";
 import { MarkdropLoader, cx } from "@/components/ui";
+import { initialsOf } from "@/lib/initials.mjs";
 
 /**
  * Small pieces every admin page shares: the page head, the date/size formatters, the URL state
@@ -145,7 +146,7 @@ export function LoadingBlock({ label, size = "sm", minHeight = 160, className }:
 
 /** A decorative avatar beside a visible name. Google pictures load without a referrer. */
 export function PersonAvatar({ name, src, size = "sm" }: { name: string; src?: string | null; size?: "sm" | "md" }) {
-  const initials = name.replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((w) => w[0]!.toUpperCase()).join("") || "?";
+  const initials = initialsOf(name);
   return (
     <span aria-hidden className={`md-avatar md-avatar--${size} shrink-0`}>
       {src ? (
