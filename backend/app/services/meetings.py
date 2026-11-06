@@ -7,7 +7,7 @@ A meeting is a ``meetings`` row plus two pages:
 * the **meeting page** (blocks editor) in the workspace's Meetings folder (``folders.meetings``,
   created on the first import with typed properties: Date, Type, Attendees, Organizer, Duration,
   Action items): a summary callout, Decisions, Action items (``:person`` mentions for assignees who
-  are members, which notify through the page-save path), Open questions, Topics, Google's Details
+  are members), Open questions, Topics, Google's Details
   when Google's notes were imported, and Sources;
 * the **Transcript** sub-page: one anchored paragraph per segment (``{#b-t0012}``), which answers
   and the meeting page link to ("[Ada Lovelace, 12:34]").
@@ -21,6 +21,14 @@ removes exactly the grants it added. Every read of a meeting (list, detail, ask,
 **Retention** (owner, 2026-11-05): the transcript (``segments``) stays on the row until the meeting
 is deleted. Deleting (the page's owner, or a workspace admin/owner for any meeting) drops the row
 and moves both pages to the Trash.
+
+**Quiet** (owner, 2026-11-06): Markdrop's meeting writer notifies nobody about the @mentions it
+writes, on every path (Import meeting, a Drive link, the Google Meet script and its inbox, MCP
+``import_meeting``, Import past meetings, the other half attached later, the AI sections written or
+regenerated, Organize). Every one of its saves runs inside ``notifications.quiet()`` (:func:`_save`;
+background tasks spawned inside inherit it). The mentions stay links, and action items still show on
+Home. A person editing a meeting page by hand notifies as usual. A meeting held more than a day ago
+is also ``history``: not posted to the Slack meetings channel on its own.
 
 The AI half (summary, decisions, … and asking) is services/meetings_ai.py.
 """
@@ -540,8 +548,9 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
     is that meeting), "all" (also a meeting with the same name, date and start time: see
     :func:`find_existing`).
 
-    ``notify=False``: history (a past meeting brought in by a backfill). Its @mentions stay links and
-    nobody is notified, now or when its AI sections are written; the meeting is marked ``history``.
+    Nobody is notified about the @mentions of any meeting, however it comes in (**Quiet**, at the top).
+    ``notify=False``: history (a past meeting brought in by a backfill): the meeting is marked
+    ``history`` and isn't posted to the Slack meetings channel on its own.
 
     ``series``/``series_from``: the meeting's series as decided elsewhere (Import past meetings'
     review, services/meeting_backfill.py: "auto" detected, "user" set by the person, None for none);
@@ -554,10 +563,9 @@ async def import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, inc
 
     kw = dict(title=title, date_=date_, type_=type_, restricted=restricted, wait=wait, via=via, dedupe=dedupe,
               series=series, series_from=series_from)
-    if not notify:
-        with notifications.quiet():
-            return await _import_meetings(db, user, workspace_id, incoming, history=True, **kw)
-    return await _import_meetings(db, user, workspace_id, incoming, history=False, **kw)
+    # A meeting import notifies nobody, however it comes in: its @mentions stay links (**Quiet**, at the top).
+    with notifications.quiet():
+        return await _import_meetings(db, user, workspace_id, incoming, history=not notify, **kw)
 
 
 async def _import_meetings(db: AsyncIOMotorDatabase, user, workspace_id: str, incoming: list[Incoming], *,
@@ -682,14 +690,12 @@ async def attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[
     """The other half of a call into its meeting: the transcript (segments and the Transcript
     sub-page) or Google's notes, whichever the meeting doesn't have yet; attendees and sources merged.
     The page is written again when nobody edited it since (else the new parts are added at the end),
-    and the AI sections are written again once a summary still being written has finished. A
-    ``history`` meeting stays quiet (no notifications)."""
+    and the AI sections are written again once a summary still being written has finished.
+    Quiet, like every meeting write (**Quiet**, at the top)."""
     from app.services import notifications
 
-    if row.get("history") and not notifications.is_quiet():
-        with notifications.quiet():
-            return await _attach_sources(db, user, row, group, wait=wait)
-    return await _attach_sources(db, user, row, group, wait=wait)
+    with notifications.quiet():
+        return await _attach_sources(db, user, row, group, wait=wait)
 
 
 async def _attach_sources(db: AsyncIOMotorDatabase, user, row: dict, group: list[mp.Source], *,
@@ -843,18 +849,18 @@ async def _create(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dic
                   restricted: bool | None, wait: bool, via: str, history: bool = False, series: str | None = None,
                   series_from: str | None = None) -> dict:
     """A meeting held more than a day ago is history however it comes in (Import meeting by hand, a
-    Drive link, the API): its @mentions stay links and nobody is notified about something long past,
-    the same rule as the script's backfill and Import past meetings."""
+    Drive link, the API), the same rule as the script's backfill and Import past meetings: it isn't
+    posted to the Slack meetings channel on its own. Nobody is notified about any meeting's @mentions
+    (**Quiet**, at the top)."""
     from app.services import notifications
 
-    kw = dict(title=title, date_=date_, type_=type_, restricted=restricted, wait=wait, via=via,
-              series=series, series_from=series_from)
-    if not history and not notifications.is_quiet():
+    if not history:
         d = date_ or mp.merge(group).date
-        if d and d < (now_utc().date() - timedelta(days=1)).isoformat():
-            with notifications.quiet():
-                return await _create_row(db, user, workspace_id, folder, people, group, history=True, **kw)
-    return await _create_row(db, user, workspace_id, folder, people, group, history=history, **kw)
+        history = bool(d and d < (now_utc().date() - timedelta(days=1)).isoformat())
+    with notifications.quiet():
+        return await _create_row(db, user, workspace_id, folder, people, group, title=title, date_=date_,
+                                 type_=type_, restricted=restricted, wait=wait, via=via, history=history,
+                                 series=series, series_from=series_from)
 
 
 async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder: dict, people: People,
@@ -1038,27 +1044,29 @@ def spawn(coro) -> None:
 
 
 async def _save(db: AsyncIOMotorDatabase, raw: dict, content: str, actor, ctx, *, base_rev: int | None = None) -> dict | None:
-    """Through the website's save path: the edit lock, revisions, search, mention notifications."""
+    """Through the website's save path (the edit lock, revisions, search), quietly: every write of
+    Markdrop's meeting writer (the page made at import, the transcript, the other half attached, the AI
+    sections written or regenerated, a to-do ticked from Home or Slack) goes through here, in a
+    background task or not, and notifies nobody about the @mentions in it (**Quiet**, at the top). A person
+    editing the meeting page by hand saves through the website as usual, and their mentions notify."""
     from app.schemas.document import DocumentUpdate
     from app.services import document as doc_service
+    from app.services import notifications
 
     data = DocumentUpdate(title=raw.get("title"), content=content or "\n", base_rev=base_rev)
-    return await doc_service.update_document(db, raw["slug"], data, actor, ctx)
+    with notifications.quiet():
+        return await doc_service.update_document(db, raw["slug"], data, actor, ctx)
 
 
 async def write_generated(db: AsyncIOMotorDatabase, meeting: dict, gen: dict | None, user) -> None:
     """The AI's sections into the meeting page: the whole page when nobody changed it since import,
-    else the new sections appended at the end (never over someone's edits). A ``history`` meeting's
-    mentions notify nobody."""
-    from app.services import notifications
-
-    from app.services import meeting_memory
+    else the new sections appended at the end (never over someone's edits). Its mentions notify
+    nobody (**Quiet**, at the top)."""
+    from app.services import meeting_memory, notifications
 
     try:
-        if meeting.get("history") and not notifications.is_quiet():
-            with notifications.quiet():
-                return await _write_generated(db, meeting, gen, user)
-        return await _write_generated(db, meeting, gen, user)
+        with notifications.quiet():
+            return await _write_generated(db, meeting, gen, user)
     finally:
         # Meeting memory (services/meeting_memory.py): the summary's decisions, action items… as facts.
         await meeting_memory.sync_quietly(db, meeting.get("_id"))
