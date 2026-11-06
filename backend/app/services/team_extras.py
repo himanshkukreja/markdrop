@@ -37,6 +37,8 @@ NAME_MAX = 60
 SUGGEST_DAYS = 60
 WEEKLY_HOUR = 9
 HIGHLIGHTS = 8
+DECISIONS = 5
+MEETINGS = 12
 
 
 def now_utc() -> datetime:
@@ -133,11 +135,23 @@ async def suggest_groups(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
 # ── Team-visible lines ────────────────────────────────────────────────────────
 
 
+async def team_doc(db: AsyncIOMotorDatabase, d: dict, workspace_id: str, ctx: access.Ctx) -> bool:
+    """Everyone in the workspace can open ``d``: workspace or link access, no password, not expired, not
+    deleted or encrypted, in this workspace."""
+    from app.services import publicity
+
+    if d.get("deleted_at") or d.get("encrypted"):
+        return False
+    eff = await access.effective_doc(db, d, ctx)
+    return ((eff.get("access_level") or "link") in ("workspace", "link") and not eff.get("read_password_hash")
+            and eff.get("workspace_id") == workspace_id and not publicity.is_expired(d, ctx.now))
+
+
 async def team_visible(db: AsyncIOMotorDatabase, workspace_id: str) -> wm.Visible:
     """The workspace's facts whose source everyone in it can open: an ordinary member's view, built from
     the documents' own settings (workspace / link access, no password, not expired, not deleted, in this
     workspace) and never a restricted meeting."""
-    from app.services import meetings, publicity
+    from app.services import meetings
 
     rows = await db[wm.FACTS].find({"workspace_id": workspace_id, "hidden": {"$ne": True}}).sort("when", -1).limit(
         wm.SCAN_FACTS).to_list(length=wm.SCAN_FACTS)
@@ -145,11 +159,7 @@ async def team_visible(db: AsyncIOMotorDatabase, workspace_id: str) -> wm.Visibl
     ctx = access.Ctx(db)
     ok: dict[ObjectId, dict] = {}
     for d in await db["documents"].find({"_id": {"$in": dids}}, {"content": 0}).to_list(length=len(dids) or 1):
-        if d.get("deleted_at") or d.get("encrypted"):
-            continue
-        eff = await access.effective_doc(db, d, ctx)
-        if ((eff.get("access_level") or "link") in ("workspace", "link") and not eff.get("read_password_hash")
-                and eff.get("workspace_id") == workspace_id and not publicity.is_expired(d, ctx.now)):
+        if await team_doc(db, d, workspace_id, ctx):
             ok[d["_id"]] = d
     restricted = {str(r["_id"]) for r in await db[meetings.COLL].find(
         {"workspace_id": workspace_id, "restricted": True}, {"_id": 1}).to_list(length=5000)}
@@ -359,9 +369,39 @@ async def compose(db: AsyncIOMotorDatabase, ws: wm.WsInfo, tz: ZoneInfo, now: da
                              "since": st["since"], "source": link(f)})
     due.sort(key=lambda x: (x["due"], x["person"]["name"].casefold()))
     overdue.sort(key=lambda x: (x["due"], x["person"]["name"].casefold()))
+    # Decisions the highlights don't already carry, newest first.
+    cited = {id(picked[c - 1]) for h in highlights for c in h.get("cites") or [] if 0 < c <= len(picked)}
+    decisions = []
+    for f in sorted((f for f in pool if f["kind"] == "decision" and id(f) not in cited),
+                    key=lambda f: -(wm._aware(f.get("when")) or now).timestamp())[:DECISIONS]:
+        decisions.append({"person": people.get(f["subject"]), "text": wm._text(f), "day": local_day(f).isoformat(),
+                          "source": link(f)})
     return {"workspace_id": ws.id, "v": SUMMARY_V, "week": week_key(today), "from": start.isoformat(),
             "to": end.isoformat(), "today": today.isoformat(), "window": window, "highlights": highlights,
-            "blockers": blockers, "due": due[:50], "overdue": overdue[:50], "at": now}
+            "blockers": blockers, "due": due[:50], "overdue": overdue[:50], "decisions": decisions,
+            "meetings": await week_meetings(db, ws.id, start, end), "at": now}
+
+
+async def week_meetings(db: AsyncIOMotorDatabase, workspace_id: str, start: date, end: date) -> list[dict]:
+    """This week's meetings everyone in the workspace can open (never a restricted one): [{title, date,
+    time, href}], in order."""
+    from app.services import meetings
+
+    rows = await db[meetings.COLL].find(
+        {"workspace_id": workspace_id, "date": {"$gte": start.isoformat(), "$lte": end.isoformat()},
+         "restricted": {"$ne": True}}, {"title": 1, "date": 1, "time": 1, "doc_id": 1}).sort(
+        [("date", 1), ("time", 1)]).to_list(length=60)
+    docs = {d["_id"]: d for d in await db["documents"].find(
+        {"_id": {"$in": [r["doc_id"] for r in rows if r.get("doc_id")]}}, {"content": 0}).to_list(length=60)}
+    ctx = access.Ctx(db)
+    out = []
+    for r in rows:
+        d = docs.get(r.get("doc_id"))
+        if d is None or not await team_doc(db, d, workspace_id, ctx):
+            continue
+        out.append({"title": r.get("title") or d.get("title") or "Meeting", "date": r.get("date"), "time": r.get("time"),
+                    "href": f"/{d['slug']}"})
+    return out[:MEETINGS]
 
 
 def pname(x: dict) -> str:
@@ -390,30 +430,67 @@ def _late(x: dict) -> str:
     return f"{n} day{'s' if n != 1 else ''} late" if n > 0 else "late"
 
 
+def _d(iso: str | None, *, weekday: bool = True) -> str:
+    """"2026-11-11" → "Tue, Nov 11" (``weekday``) or "Nov 11"."""
+    try:
+        x = date.fromisoformat(iso or "")
+    except ValueError:
+        return iso or ""
+    return x.strftime("%a, %b %-d" if weekday else "%b %-d")
+
+
+def span_of(s: dict) -> str | None:
+    """"Nov 3 – 9" (or "Oct 27 – Nov 2")."""
+    try:
+        a, b = date.fromisoformat(s["from"]), date.fromisoformat(s["to"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return f"{a.strftime('%b %-d')} – {b.strftime('%-d') if a.month == b.month else b.strftime('%b %-d')}"
+
+
+def _src(x: dict) -> tuple[str, str] | None:
+    src = x.get("source") or ((x.get("sources") or [None])[0])
+    return (src["title"], _abs(src["href"])) if src and src.get("href") else None
+
+
+def plain_summary(s: dict) -> dict:
+    """The summary reduced to plain values for the message builders (Slack and email alike)."""
+    return {
+        "span": span_of(s),
+        "highlights": [{"who": pname(h), "text": highlight_text(h), "src": _src(h)} for h in s.get("highlights") or []],
+        "decisions": [{"who": pname(x) if x.get("person") else "", "text": x.get("text") or "", "src": _src(x)}
+                      for x in s.get("decisions") or []],
+        "blockers": [{"who": pname(b), "text": b.get("text") or "", "waiting_on": b.get("waiting_on"), "src": _src(b)}
+                     for b in s.get("blockers") or []],
+        "due": [{"who": pname(x), "text": x.get("text") or "", "when": _d(x.get("due")), "src": _src(x), "late": ""}
+                for x in s.get("due") or []],
+        "overdue": [{"who": pname(x), "text": x.get("text") or "", "when": _d(x.get("due")), "late": _late(x), "src": _src(x)}
+                    for x in s.get("overdue") or []],
+        "meetings": [{"title": m.get("title") or "Meeting", "url": _abs(m.get("href")),
+                      "when": _d(m.get("date")) + (f" · {m['time']}" if m.get("time") else "")}
+                     for m in s.get("meetings") or []],
+    }
+
+
+def highlight_text(h: dict) -> str:
+    """A highlight's text without its person's name in front (the name is shown beside it)."""
+    who, t = pname(h), (h.get("text") or "").strip()
+    first = who.split(" ")[0] if who else ""
+    for lead in (who, first):
+        if lead and t.casefold().startswith(lead.casefold()) and len(t) > len(lead) + 2:
+            rest = t[len(lead):].lstrip(" :,-—")
+            return rest[:1].upper() + rest[1:] if rest else t
+    return t
+
+
 def slack_blocks(ws: wm.WsInfo, s: dict) -> tuple[list[dict], str]:
-    def esc(t: str) -> str:
-        return (t or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    from app.services import slack_blocks as kit
 
-    def lnk(src: dict | None) -> str:
-        return f" <{_abs(src['href'])}|{esc(src['title'])}>" if src else ""
-
-    text = f"This week in {ws.name}"
-    blocks: list[dict] = [{"type": "header", "text": {"type": "plain_text", "text": text[:150]}}]
-    if s["highlights"]:
-        body = "\n".join(f"• {esc(highlight_line(h))}{lnk((h.get('sources') or [None])[0])}" for h in s["highlights"])
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*Highlights*\n{body}"[:2900]}})
-    if s["blockers"]:
-        body = "\n".join(f"• *{esc(pname(b))}*: {esc(b['text'] or '')}" + (f" (waiting on {esc(b['waiting_on'])})" if b.get("waiting_on") else "")
-                         for b in s["blockers"])
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*Blockers*\n{body}"[:2900]}})
-    if s["due"]:
-        body = "\n".join(f"• {esc(pname(x))}: {esc(x['text'])} — due {x['due']}" for x in s["due"])
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*Due this week*\n{body}"[:2900]}})
-    if s["overdue"]:
-        body = "\n".join(f"• {esc(pname(x))}: {esc(x['text'])} — due {x['due']} ({_late(x)})" for x in s["overdue"])
-        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": f"*Overdue*\n{body}"[:2900]}})
-    blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"<{_abs('/team/' + ws.id)}|Open Team> · only from meetings and pages everyone in the workspace can open"}]})
-    return blocks, text
+    p = plain_summary(s)
+    msg = kit.team_weekly(workspace=ws.name, team_url=_abs(f"/team/{ws.id}"), span=p["span"], highlights=p["highlights"],
+                          decisions=p["decisions"], blockers=p["blockers"], due=p["due"], overdue=p["overdue"],
+                          meetings=p["meetings"])
+    return msg["blocks"], msg["text"]
 
 
 def email_parts(ws: wm.WsInfo, s: dict) -> tuple[str, str, str]:

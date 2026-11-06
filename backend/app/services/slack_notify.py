@@ -128,29 +128,47 @@ async def _slack_names(db: AsyncIOMotorDatabase, team_id: str, user_ids: set[str
     return {r["user_id"]: r["slack_user_id"] for r in rows}
 
 
-async def action_items(db: AsyncIOMotorDatabase, team_id: str, md: str) -> list[dict]:
-    """The to-dos under "## Action items": [{block, done, text (mrkdwn)}]. A member who has linked
-    Slack is @mentioned there; anyone else is shown by name."""
+async def action_items(db: AsyncIOMotorDatabase, team_id: str, md: str, row: dict | None = None) -> list[dict]:
+    """The to-dos under "## Action items": [{block, done, text (mrkdwn), owner, owner_key, due}]. The
+    person an item starts with is its owner, shown apart: a member who has linked Slack is @mentioned,
+    anyone else is shown by name in bold. ``due``: the date it means ("Tue, Nov 11"), when it has one.
+    With the meeting's ``row``, a name Google's notes start the line with counts too (an attendee's)."""
     from app.services import search_text
+    from app.services import slack_action_items as sai
 
-    sec = _section(md, "Action items")
-    found = list(_TODO.finditer(sec))
-    ids = {pm.group(2) for m in found for pm in _PERSON.finditer(m.group("rest"))}
+    items = sai.page_items(md or "")
+    if row is not None:
+        sai.assign(row, items)    # "Ravi Kumar will …": the attendee's name taken off the front
+    found = list(_TODO.finditer(_section(md, "Action items")))
+    raw_rest = {m.group("block"): _CITE.sub("", m.group("rest")) for m in found}
+    ids = {it.who_id for it in items if it.who_id} | {pm.group(2) for r in raw_rest.values() for pm in _PERSON.finditer(r)}
     slack_ids = await _slack_names(db, team_id, ids)
+    day = (row or {}).get("date")
     out = []
-    for m in found:
-        rest = _CITE.sub("", m.group("rest"))
-        marks: list[str] = []
+    for it in items:
+        owner = key = None
+        if it.who_id:
+            sid = slack_ids.get(it.who_id)
+            owner, key = (f"<@{sid}>" if sid else f"*{kit.esc(it.who_name or 'Someone')}*"), f"u:{it.who_id}"
+        elif it.who_name:
+            owner, key = f"*{kit.esc(it.who_name)}*", f"n:{it.who_name.casefold()}"
+        text = it.text
+        if owner is None:
+            # No person in front: other mentions inside the line still show (as Slack mentions when linked).
+            marks: list[str] = []
 
-        def person(pm: re.Match) -> str:
-            sid = slack_ids.get(pm.group(2))
-            marks.append(f"<@{sid}>" if sid else f"*{kit.esc(pm.group(1))}*")
-            return f"MDPERSON{len(marks) - 1}MDPERSON"
+            def person(pm: re.Match) -> str:
+                sid = slack_ids.get(pm.group(2))
+                marks.append(f"<@{sid}>" if sid else f"*{kit.esc(pm.group(1))}*")
+                return f"MDPERSON{len(marks) - 1}MDPERSON"
 
-        rest = _PERSON.sub(person, rest)
-        text = kit.esc(search_text.markdown_text(rest).replace("\n", " "))
-        text = re.sub(r"MDPERSON(\d+)MDPERSON", lambda x: marks[int(x.group(1))], text)
-        out.append({"block": m.group("block"), "done": m.group("mark") in "xX", "text": kit.cut(text, 600)})
+            rest = sai._DUE.sub("", _PERSON.sub(person, raw_rest.get(it.block, "")))
+            text = kit.esc(search_text.markdown_text(rest).replace("\n", " "))
+            text = re.sub(r"MDPERSON(\d+)MDPERSON", lambda x: marks[int(x.group(1))], text)
+        else:
+            text = kit.esc(text)
+        out.append({"block": it.block, "done": it.done, "text": kit.cut(text, 600), "owner": owner, "owner_key": key,
+                    "due": sai.due_short(it, day)})
     return out
 
 
@@ -159,16 +177,27 @@ def _when(row: dict) -> str | None:
     if not d:
         return None
     try:
-        day = datetime.strptime(d, "%Y-%m-%d").strftime("%a %b %-d, %Y")
+        x = datetime.strptime(d, "%Y-%m-%d")
+        day = x.strftime("%a, %b %-d") + ("" if x.year == _now().year else f", {x.year}")
     except ValueError:
         day = d
     return f"{day} · {row['time']}" if row.get("time") else day
 
 
+def _day(row: dict) -> str | None:
+    d = row.get("date")
+    try:
+        return datetime.strptime(d or "", "%Y-%m-%d").strftime("%b %-d")
+    except ValueError:
+        return d or None
+
+
 def _render_post(post: dict) -> dict:
     return kit.meeting_post(post["team_id"], str(post["_id"]), title=post["title"], url=post["url"], when=post.get("when"),
                             summary=post.get("summary"), decisions=post.get("decisions") or [],
-                            items=post.get("items") or [])
+                            items=post.get("items") or [], day=post.get("day"), duration=post.get("duration"),
+                            series=post.get("series"), people=post.get("people"), people_total=post.get("people_total"),
+                            open_questions=post.get("open_questions"))
 
 
 async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool = False) -> dict:
@@ -201,13 +230,20 @@ async def post_meeting(db: AsyncIOMotorDatabase, meeting_id: str, *, again: bool
     notes = row.get("notes") or {}
     summary = (notes.get("summary") or gen.get("summary") or "").strip()
     decisions = [d.get("text") if isinstance(d, dict) else str(d) for d in gen.get("decisions") or []]
-    items = await action_items(db, inst["_id"], raw.get("content") or "")
+    questions = [q.get("text") if isinstance(q, dict) else str(q) for q in gen.get("open_questions") or []]
+    items = await action_items(db, inst["_id"], raw.get("content") or "", row)
+    names = [a.get("name") or "" for a in row.get("attendees") or [] if (a.get("name") or "").strip()]
     # Posted on its own once per meeting (writing the summary again doesn't post again); by hand, every time.
     key = f"m:{meeting_id}:{inst['_id']}" + (f":{_now().timestamp()}" if again else "")
     post = {"key": key, "team_id": inst["_id"], "channel": chan, "ts": None, "meeting_id": str(row["_id"]),
             "doc_id": str(raw["_id"]), "title": md_outline.display_title(raw), "url": urls.markdrop_url(raw["slug"]),
-            "when": _when(row), "summary": summary or None, "decisions": [d for d in decisions if d][:8],
-            "items": [{"block": i["block"], "text": i["text"], "done_by": "Markdrop" if i["done"] else None} for i in items],
+            "when": _when(row), "day": _day(row), "duration": meetings.fmt_duration(row.get("duration_s")),
+            "series": row.get("series") or None, "people": names[:3], "people_total": len(names),
+            "summary": summary or None, "decisions": [d for d in decisions if d][:12],
+            "open_questions": [q for q in questions if q][:8],
+            # Done before posting: done_by "" (shown as done, by nobody in particular).
+            "items": [{"block": i["block"], "text": i["text"], "owner": i["owner"], "owner_key": i["owner_key"],
+                       "due": i["due"], "done_by": "" if i["done"] else None} for i in items],
             "created_at": _now(), "state": "posting"}
     try:
         res = await db[POSTS].insert_one(post)
@@ -311,7 +347,7 @@ async def _set_done(db: AsyncIOMotorDatabase, post: dict, block: str, name: str)
     items = post.get("items") or []
     changed = False
     for it in items:
-        if it["block"] == block and not it.get("done_by"):
+        if it["block"] == block and it.get("done_by") is None:
             it["done_by"] = name[:80]
             changed = True
     if not changed:
