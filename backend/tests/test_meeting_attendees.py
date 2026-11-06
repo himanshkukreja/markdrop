@@ -187,7 +187,7 @@ class Repair(MeetingsWorld):
         row = await self.db["meetings"].find_one({"_id": oid})
         self.assertEqual([a["name"] for a in row["attendees"]], SPEAKERS)
         self.assertEqual(len(row["invited"]), 27)
-        self.assertEqual((row["attendees_from"], row["attendees_v"], row["attendees_repair"]["before"]), ("speakers", 2, 27))
+        self.assertEqual((row["attendees_from"], row["attendees_v"], row["attendees_repair"]["before"]), ("speakers", meetings.ATTENDEES_V, 27))
         self.assertEqual((row["restricted"], row["granted"]), (True, ["kept@x.test"]))
         page = await self.doc(m["slug"])
         self.assertEqual(page_db.read_values(page["content"])["attendees"], ", ".join(SPEAKERS))
