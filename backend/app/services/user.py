@@ -46,8 +46,15 @@ def _user_from_mongo(raw: dict) -> User:
         last_login_at=raw.get("last_login_at"),
         google_refresh_token_enc=raw.get("google_refresh_token_enc"),
         analytics_digest="off" if raw.get("analytics_digest") == "off" else "weekly",
-        mention_emails=raw.get("mention_emails") is not False,
+        mention_emails=_notify_modes(raw) != {"mention": "off", "signoff_requested": "off"},
+        email_notify=_notify_modes(raw),
     )
+
+
+def _notify_modes(raw: dict) -> dict:
+    from app.services.notifications import email_modes
+
+    return email_modes(raw)
 
 
 async def update_name(db: AsyncIOMotorDatabase, user_id: str, name: str) -> User | None:
