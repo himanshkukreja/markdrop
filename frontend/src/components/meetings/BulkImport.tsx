@@ -276,10 +276,10 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
       )}
       <div className="mt-switchrow">
         <span className="mt-switchrow__text">
-          <b>Don't notify anyone</b>
-          Action items in past meetings still @mention people, as links, but nobody gets a bell or an email about them. Meetings older than a day are always imported quietly.
+          <b>Don't post to Slack</b>
+          These meetings aren't posted to your Slack meetings channel. With this off, meetings from the last day are; older ones never are. Nobody is notified about a meeting's @mentions either way.
         </span>
-        <Switch checked={job.quiet} onChange={(e) => void patch({ quiet: e.target.checked })} aria-label="Don't notify anyone" data-testid="bulk-quiet" />
+        <Switch checked={job.quiet} onChange={(e) => void patch({ quiet: e.target.checked })} aria-label="Don't post to Slack" data-testid="bulk-quiet" />
       </div>
       <div className="mt-switchrow">
         <span className="mt-switchrow__text">
@@ -351,7 +351,7 @@ function Kinds({ row }: { row: BackfillRow }) {
     <span className="mt-bulk__kinds">
       {row.kinds.includes("notes") && <Badge size="sm" tone="info">Notes</Badge>}
       {row.kinds.includes("transcript") && <Badge size="sm" tone="neutral">Transcript</Badge>}
-      {row.past && <span className="mt-bulk__quiet" title="Older than a day: imported without notifying anyone"><Icon name="bell" />quiet</span>}
+      {row.past && <span className="mt-bulk__quiet" title="Older than a day: not posted to Slack"><Icon name="bell" />quiet</span>}
     </span>
   );
 }

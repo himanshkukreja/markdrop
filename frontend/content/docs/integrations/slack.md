@@ -1,7 +1,7 @@
 ---
 title: Slack
 description: Post meeting notes with Done buttons to a channel, search and ask Markdrop from Slack, preview links, and get mentions and requests as direct messages.
-updated: 2026-11-05
+updated: 2026-11-06
 keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack]
 ---
 
@@ -78,7 +78,7 @@ Which meetings are posted:
 - Only meetings everyone in the channel may open. A meeting [restricted to its attendees](/workspaces/meetings-privacy#restricted-meetings) is never posted.
 - In a channel shared with another organization (Slack Connect), only meetings anyone with the link can open.
 - Each meeting is posted on its own once. Writing its summary again doesn't post it again.
-- Past meetings brought in quietly aren't posted on their own, so a backlog doesn't flood the channel. That's [Import past meetings](/workspaces/meetings-import#import-past-meetings) with **Don't notify anyone** on (the default), and the past days that [Connect Google Meet](/workspaces/meetings-auto-import#past-meetings) brings in.
+- Past meetings brought in quietly aren't posted on their own, so a backlog doesn't flood the channel. That's [Import past meetings](/workspaces/meetings-import#import-past-meetings) with **Don't post to Slack** on (the default), the past days that [Connect Google Meet](/workspaces/meetings-auto-import#past-meetings) brings in, and any meeting held more than a day before it was imported.
 
 ![Illustration of a meeting post in the #meetings channel: the meeting's title and date, its summary and decisions, the action items with the people mentioned and a Done button each, one already done by Sam Lee, and Open the meeting.](/docs-assets/integrations/slack/illustration-meeting-post.webp)
 
@@ -127,14 +127,14 @@ For anything else, the preview just says **Markdrop link — sign in to view**, 
 
 Once your account is linked, Markdrop sends you a direct message when:
 
-- someone **mentions** you on a page (**Mentions**), with the line you were mentioned in and **Open in Markdrop**;
+- someone **mentions** you on a page (**Mentions**), with the line you were mentioned in and **Open in Markdrop**. Mentions in [meeting notes](/workspaces/meetings#what-the-meeting-page-holds) don't send one;
 - someone asks for your **sign-off** (**Sign-off requests**). Choose an option from the message;
 - someone **shares** something with you (**Shared with you**), with what you can do with it and their note;
 - someone asks to **open or edit** something you own (**Access requests**). Select **Approve** or **Decline**, or **Review in Markdrop**. When the item's owner can't approve it, the workspace's admins get the message, marked "You're getting this as a workspace admin".
 
 After you choose, the message changes to say what you did, like "Approved by you: they can edit it now." If someone else answered first, Slack tells you.
 
-Turn each kind on or off in **Workspace settings** › **Integrations** › **Your Slack account** › **Direct messages from Markdrop**. All four are on when you link. The bell and email notifications don't change. If you lose access to something before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
+Turn each kind on or off in **Workspace settings** › **Integrations** › **Your Slack account** › **Direct messages from Markdrop**. All four are on when you link. The bell and email notifications don't change. Mentions and sign-off requests wait a minute before they go, so a mention [removed within a minute](/pages/mentions-and-notifications#take-a-mention-back) never reaches you. If you lose access to something, or the mention is taken out, before the message goes out, it isn't sent, and [end-to-end encrypted](/sharing/end-to-end-encryption) items never get one.
 
 ![Illustration of a direct message: Alex Chen mentioned you in Release notes 2.4, with the line and Open in Markdrop.](/docs-assets/integrations/slack/illustration-dm-mention.webp)
 

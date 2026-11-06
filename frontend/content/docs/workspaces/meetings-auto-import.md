@@ -2,7 +2,7 @@
 title: Import meetings automatically
 nav: Import automatically
 description: Connect Google Meet once, and every call's transcript and Gemini notes become a meeting page by themselves, with a small script in your own Google account.
-updated: 2026-11-05
+updated: 2026-11-06
 keywords: [shared meetings, meetings shared with me, organizer, nothing imported, check, script status, update script, new script, shared drives, auto import, backfill, past meetings, import old meetings, automatic import, connect google meet, google meet, apps script, google apps script, gemini notes, notes by gemini, transcript, meet transcript, script.google.com, unverified app, trigger, every 15 minutes, disconnect, meetings token, include_shared, script version 3, syncmeetings, max_per_run, backfill_days, last 30 days, drive api, script ran, also importing here, get the new script, slack, quiet import]
 ---
 
@@ -87,7 +87,7 @@ To update:
 When you connect, the script can also bring in the meetings already in your Drive: the last 7, 30 or 90 days.
 
 - **Oldest first**, as many as a run has time for (about 4½ minutes, at most 200 Docs), so a long history takes a run or two, 15 minutes apart. To send the next batch right away, pick `syncMeetings` next to **Run** and press **Run**. The script's log in Apps Script says **Backfill finished** when it's done.
-- **Nobody is notified.** A past meeting's action items still name their owners, and the @mentions are links, but no one gets a notification or an email about a call that's long over, and it isn't posted to your [Slack meetings channel](/integrations/slack). Meetings from the last 48 hours notify (and post) as usual.
+- **Nobody is notified.** A past meeting's action items still name their owners, and the @mentions are links, but no one gets a notification or an email about them (that's true of [every meeting](/workspaces/meetings#what-the-meeting-page-holds)), and a call that's long over isn't posted to your [Slack meetings channel](/integrations/slack). Meetings from the last 48 hours are posted as usual.
 - **Dated by the call**, not by the import: the date in Google's title, or when Google made the Doc. The Meetings page lists them by date, and each goes into its series' folder. See [How meetings are organised](/workspaces/meetings#how-meetings-are-organised).
 - **No duplicates.** Meetings already in the workspace, imported by hand or by an earlier run, are skipped.
 

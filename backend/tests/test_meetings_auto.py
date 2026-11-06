@@ -268,9 +268,9 @@ class Inbox(AutoWorld):
         page = await self.doc(row["slug"])
         self.assertIn("## Decisions", page["content"])
         self.assertEqual(page["owner_id"], self.uid["owner"])
-        # @mentions notify, as with a manual import.
-        to = {n["user_id"] for n in await self.db["notifications"].find({}).to_list(50)}
-        self.assertIn(self.uid["wv"], to)
+        # @mentions stay links and notify nobody, as with every meeting import (owner, 2026-11-06).
+        self.assertIn(f'id="{self.uid["wv"]}"', page["content"])
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
         r = await self.http.get(f"/api/v1/meetings?workspace={self.W}&source=auto", headers=self.session("wm"))
         self.assertEqual([m["source"] for m in r.json()["meetings"]], ["auto"])
         r = await self.http.get(f"/api/v1/meetings?workspace={self.W}&source=manual", headers=self.session("wm"))
@@ -386,11 +386,13 @@ class Inbox(AutoWorld):
         r = await self.deliver(tok, file_id=FID_N, title=NOTES, text=fixture("gemini_notes.txt"), kind="notes", backfill=True)
         self.assertEqual(r.json()["status"], "attached")
         self.assertEqual(await self.db["notifications"].count_documents({}), 0)
-        # A new call afterwards notifies as usual.
-        await self.deliver(tok, file_id="1AnotherCallAbcdefghijklm",
-                           title="Release review (2026-11-05 15:00 GMT+05:30) - Transcript",
-                           text="Ada Lovelace: Bo Chen will update the docs by Friday.\nBo Chen: Yes, I will update the docs.\n")
-        self.assertGreater(await self.db["notifications"].count_documents({}), 0)
+        # A new call afterwards isn't history (Slack may post it), and notifies nobody either.
+        r = await self.deliver(tok, file_id="1AnotherCallAbcdefghijklm",
+                               title=f"Release review ({meetings.now_utc().date().isoformat()} 15:00 GMT+05:30) - Transcript",
+                               text="Ada Lovelace: Bo Chen will update the docs by Friday.\nBo Chen: Yes, I will update the docs.\n")
+        new = await self.db[meetings.COLL].find_one({"_id": ObjectId(r.json()["meeting_id"])})
+        self.assertFalse(new.get("history"))
+        self.assertEqual(await self.db["notifications"].count_documents({}), 0)
 
 
 class Pairing(AutoWorld):

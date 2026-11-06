@@ -1,7 +1,7 @@
 """Push notifications: the third channel next to the bell and email (and Slack DMs).
 
-With Markdrop installed as an app (or in any browser that has Web Push), mentions — a meeting's
-action item that names you is a mention too — sign-off requests, shares and access requests arrive
+With Markdrop installed as an app (or in any browser that has Web Push), mentions (not the ones
+Markdrop writes into meeting notes: those notify nobody), sign-off requests, shares and access requests arrive
 as real notifications on each device the person turned them on for.
 
 Collections::
@@ -24,9 +24,11 @@ What a notification may say, the rules every path follows:
 
 Delivery (:func:`flush`, a background loop every few seconds): notify() and access_requests.create()
 queue one outbox row per item (only for a person with a device and that kind on). Rows for the
-same person and page wait ``GATHER`` for more, then go as one notification; after one, the next
-about that page waits ``GAP`` (like the email's 10 minutes, but short: a phone should ring soon).
-Notifications read in the app meanwhile, or whose kind was turned off, are dropped. Each device's
+same person and page wait ``GATHER`` for more (``SLOW_GATHER``, a minute, when a mention or a sign-off
+request is among them), then go as one notification; after one, the next about that page waits
+``GAP`` (like the email's 10 minutes, but short: a phone should ring soon). Notifications read in
+the app meanwhile, whose kind was turned off, or whose mention was taken out of the page since
+(outcome "withdrawn"; notifications.withdraw drops them as the save happens), are dropped. Each device's
 notification for a page has the same tag, so a newer one replaces it instead of stacking.
 
 A push service answering 404 / 410 (unsubscribed, expired) or 403 (another VAPID key) means the
@@ -67,12 +69,16 @@ LABELS = {
     "access_request": "Access requests",
 }
 HINTS = {
-    "mention": "Someone mentions you on a page, including a meeting's action item for you.",
+    "mention": "Someone mentions you on a page.",
     "signoff_requested": "Someone asks for your sign-off.",
     "shared": "Someone shares a page with you and ticks Notify people.",
     "access_request": "Someone asks to open or edit something you own or manage.",
 }
 GATHER = timedelta(seconds=10)
+# Mentions and sign-off requests wait a minute (owner, 2026-11-06): a mention taken out again within
+# it (notifications.withdraw) never rings a phone. Shares and access requests keep GATHER.
+SLOW_GATHER = timedelta(seconds=60)
+SLOW_KINDS = ("mention", "signoff_requested")
 GAP = timedelta(minutes=2)
 MAX_DEVICES = 20
 MAX_ATTEMPTS = 5
@@ -110,6 +116,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[SUBS].create_index("user_id")
     await db[OUTBOX].create_index([("state", 1), ("next_at", 1)])
     await db[OUTBOX].create_index([("user_id", 1), ("group", 1), ("state", 1)])
+    await db[OUTBOX].create_index("ref")   # notifications.withdraw
     await db[OUTBOX].create_index("created_at", expireAfterSeconds=7 * 24 * 3600)
     await db[PUSH_LOG].create_index("sent_at", expireAfterSeconds=24 * 3600)
 
@@ -523,6 +530,16 @@ async def _group_payload(db: AsyncIOMotorDatabase, user_id: str, group: str, row
             dropped.setdefault("gone", []).append(r["_id"])
         elif r["ref"] in read_ids:
             dropped.setdefault("seen", []).append(r["_id"])
+    if unread:
+        # A mention taken out of the page since: nothing is said about it.
+        page = await db["documents"].find_one({"_id": _oid(unread[0].get("doc_id"))}, {"content": 1})
+        if page is not None:
+            named = notifications.named_on(page.get("content"))
+            out = {str(n["_id"]) for n in unread if not notifications.still_there(n, named)}
+            if out:
+                dropped.setdefault("withdrawn", []).extend(r["_id"] for r in keep if r["ref"] in out)
+                unread = [n for n in unread if str(n["_id"]) not in out]
+                read_ids |= out
     if not unread:
         return None, dropped
     views = await notifications._view(db, unread, urow)
@@ -548,7 +565,8 @@ async def flush(db: AsyncIOMotorDatabase, now: datetime | None = None, *, client
     await _prune(db, now)
     groups = await db[OUTBOX].aggregate([
         {"$match": {"state": "pending", "next_at": {"$lte": now}}},
-        {"$group": {"_id": {"u": "$user_id", "g": "$group"}, "newest": {"$max": "$created_at"}}},
+        {"$group": {"_id": {"u": "$user_id", "g": "$group"}, "newest": {"$max": "$created_at"},
+                    "kinds": {"$addToSet": "$kind"}}},
         {"$sort": {"newest": 1}},
         {"$limit": FLUSH_GROUPS * 5},
     ]).to_list(length=FLUSH_GROUPS * 5)
@@ -556,7 +574,8 @@ async def flush(db: AsyncIOMotorDatabase, now: datetime | None = None, *, client
     for g in groups:
         if done >= FLUSH_GROUPS:
             break
-        if (_aware(g["newest"]) or now) > now - GATHER:
+        wait = SLOW_GATHER if any(k in SLOW_KINDS for k in g.get("kinds") or []) else GATHER
+        if (_aware(g["newest"]) or now) > now - wait:
             continue
         uid, group = g["_id"]["u"], g["_id"]["g"]
         rows = await db[OUTBOX].find({"user_id": uid, "group": group, "state": "pending",

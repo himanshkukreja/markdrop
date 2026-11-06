@@ -13,6 +13,7 @@ import json
 import re
 import time
 import unittest
+from datetime import timedelta
 from pathlib import Path
 from urllib.parse import parse_qs, urlencode, urlsplit
 
@@ -25,7 +26,7 @@ import yaml
 from bson import ObjectId
 
 from app.config import get_settings
-from app.services import (ai_usage, notifications, search_ai, slack, slack_api, slack_events,
+from app.services import (ai_usage, meetings, notifications, search_ai, slack, slack_api, slack_events,
                           slack_notify)
 from app.utils import crypto
 
@@ -566,12 +567,18 @@ class DirectMessages(SlackWorld):
         await self.link("owner", "U0OWN")
         await self.link("wm", "U0WM")
 
+    async def later(self, seconds: int = 90) -> int:
+        """The DM flush once a mention's minute has passed (slack_notify.SLOW_WAIT)."""
+        return await slack_notify.flush(self.db, now=now() + timedelta(seconds=seconds))
+
     async def test_mention_dm_respects_access_and_prefs(self):
-        doc = await self.mkdoc("W", grants=False, title="Plan")
+        doc = await self.mkdoc("W", grants=False, title="Plan",
+                               content=f':person[Owner]{{id="{self.uid["owner"]}"}} can you check this')
         n = await notifications.notify(self.db, self.uid["owner"], "mention", doc, None, actor=self.uid["wm"],
                                        extra={"excerpt": "can you check this"})
         self.assertIsNotNone(n)
-        self.assertEqual(await slack_notify.flush(self.db), 1)
+        self.assertEqual(await slack_notify.flush(self.db), 0)   # a mention waits a minute
+        self.assertEqual(await self.later(), 1)
         dm = self.sk.of("chat.postMessage")[-1]
         self.assertEqual(dm["channel"], "U0OWN")
         self.assertIn("mentioned you", json.dumps(dm))
@@ -582,6 +589,23 @@ class DirectMessages(SlackWorld):
         doc2 = await self.mkdoc("W", grants=False)
         await notifications.notify(self.db, self.uid["owner"], "mention", doc2, None, actor=self.uid["wm"])
         self.assertEqual(await self.db[slack_notify.OUTBOX].count_documents({"state": "pending"}), 0)
+
+    async def test_a_mention_taken_out_before_the_minute_is_not_sent(self):
+        doc = await self.mkdoc("W", grants=False, title="Plan", editor="blocks",
+                               content=f':person[Owner]{{id="{self.uid["owner"]}"}} check this')
+        await notifications.notify(self.db, self.uid["owner"], "mention", doc, None, actor=self.uid["wm"])
+        await self.db["documents"].update_one({"_id": doc["_id"]}, {"$set": {"content": "check this"}})
+        self.assertEqual(await self.later(), 0)
+        self.assertEqual((await self.db[slack_notify.OUTBOX].find_one({}))["state"], "skipped")
+        # Taken out by a save: withdrawn at once.
+        doc2 = await self.mkdoc("W", grants=False, title="Plan 2", editor="blocks", content="# Plan\n")
+        before = await self.db["documents"].find_one({"_id": doc2["_id"]})
+        after = {**before, "content": f':person[Owner]{{id="{self.uid["owner"]}"}} check this'}
+        await self.db["documents"].update_one({"_id": doc2["_id"]}, {"$set": {"content": after["content"]}})
+        self.assertEqual(await notifications.on_page_saved(self.db, before, after, self.uid["wm"]), 1)
+        await notifications.on_page_saved(self.db, after, before, self.uid["wm"])
+        row = await self.db[slack_notify.OUTBOX].find_one({"ref": {"$exists": True}}, sort=[("created_at", -1)])
+        self.assertEqual((row["state"], row.get("error")), ("skipped", "withdrawn"))
 
     async def test_access_lost_before_sending_is_skipped(self):
         doc = await self.mkdoc("W", grants=False)
@@ -636,7 +660,7 @@ class DirectMessages(SlackWorld):
                                 content=f':::signoff{{#b-5161a0ff person="{self.uid["owner"]}" label="Spec v2"}}\n:::\n')
         await notifications.notify(self.db, self.uid["owner"], "signoff_requested", page, "b-5161a0ff", actor=self.uid["wm"],
                                    extra={"label": "Spec v2"})
-        await slack_notify.flush(self.db)
+        await self.later()
         dm = self.sk.of("chat.postMessage")[-1]
         btn = dm["blocks"][1]["elements"][0]
         self.assertEqual(btn["text"]["text"], "Approved")
@@ -661,6 +685,8 @@ class MeetingPosts(MeetingsWorld, SlackWorld):
         await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"meetings_channel": {"id": "C2", "name": "meetings"}}})
 
     async def imported(self, **kw) -> dict:
+        # Held today: a meeting more than a day old is history and isn't posted on its own.
+        kw.setdefault("date", meetings.now_utc().date().isoformat())
         m = await MeetingsWorld.imported(self, **kw)
         await slack.drain()
         return m

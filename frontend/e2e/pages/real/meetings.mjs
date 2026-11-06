@@ -3,7 +3,7 @@
  * model in api_run.py):
  *
  *   paste      the hub's empty state → Import → paste a Google Meet transcript → the page opens, the
- *              summary fills in (Decisions, Action items with @mentions that notify, Topics, Sources)
+ *              summary fills in (Decisions, Action items with @mentions that notify nobody, Topics, Sources)
  *   structure  the page's Markdown, the Meetings folder's properties, the anchored transcript sub-page
  *   ask        Ask this meeting streams an answer whose chip opens the transcript at that moment
  *   upload     Import → Upload a .vtt → a second meeting
@@ -45,7 +45,9 @@ async function snap(p, name, full = false) {
   log("shot", path.basename(file));
 }
 
-const TRANSCRIPT = `Sprint planning (2026-11-05 09:30 GMT+05:30) - Transcript
+// Today: a meeting more than a day old is history (not posted to Slack); this one is a fresh meeting.
+const DAY = new Date().toLocaleDateString("en-CA");
+const TRANSCRIPT = `Sprint planning (${DAY} 09:30 GMT+05:30) - Transcript
 Attendees
 Ada Owner, Ben Member, Vic Viewer
 Transcript
@@ -88,7 +90,7 @@ await step("paste", async () => {
   await dlg.locator("#mt-paste").fill(TRANSCRIPT);
   await dlg.getByText("9 transcript lines").waitFor({ timeout: 15000 });
   if ((await dlg.locator("#mt-title").inputValue()) !== "Sprint planning") fail("title not detected");
-  if ((await dlg.locator("#mt-date").inputValue()) !== "2026-11-05") fail("date not detected");
+  if ((await dlg.locator("#mt-date").inputValue()) !== DAY) fail("date not detected");
   await snap(p, "import-paste-light");
   await dlg.getByRole("button", { name: "Import meeting" }).click();
   await p.waitForURL((u) => !u.pathname.startsWith("/meetings/"), { timeout: 30000 });
@@ -117,7 +119,7 @@ await step("structure", async () => {
   const doc = ok(await api("GET", `/api/v1/documents/${meeting.slug}`, T.owner), "page");
   const c = doc.content;
   for (const want of [':::note[Summary]{icon="✨"}', "## Decisions", "## Action items", "## Open questions", "## Topics", "## Sources",
-    `::page{src="${meeting.transcript_slug}"}`, 'date: "2026-11-05"', 'type: "Planning"']) {
+    `::page{src="${meeting.transcript_slug}"}`, `date: "${DAY}"`, 'type: "Planning"']) {
     if (!c.includes(want)) fail(`page lacks ${want}`);
   }
   if (!/:person\[Vic Viewer\]\{id="[0-9a-f]{24}"\} run the staging dry run/.test(c)) fail("Vic's action item isn't a mention");
@@ -130,9 +132,9 @@ await step("structure", async () => {
   const tree = ok(await api("GET", `/api/v1/workspaces/${WS}/tree`, T.owner), "tree");
   const folder = (tree.folders || []).find((f) => f.meetings);
   if (!folder || folder.name !== "Meetings") fail("no Meetings folder in the tree");
-  // Ben was mentioned: a notification.
+  // Ben was mentioned, as a link: meeting imports notify nobody (owner, 2026-11-06).
   const notes = ok(await api("GET", "/api/v1/notifications", T.member), "notifications");
-  if (!(notes.items || []).some((n) => n.kind === "mention" && (n.page?.slug === meeting.slug))) fail("Ben wasn't notified");
+  if ((notes.items || []).some((n) => n.page?.slug === meeting.slug)) fail("Ben was notified about a meeting's mention");
 });
 
 await step("ask", async () => {

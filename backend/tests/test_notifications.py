@@ -364,6 +364,91 @@ class Email(NotifyWorld):
 # ── Share dialog: "Notify people" ─────────────────────────────────────────────
 
 
+class Withdraw(NotifyWorld):
+    """A mention taken out again (owner, 2026-11-06): its unread notification goes, and nothing
+    pending about it is sent."""
+
+    async def test_added_and_removed_within_the_minute_sends_nothing(self):
+        p = await self.page()
+        await self.save(p["slug"], "owner", f"Ping {person(self.uid['wm'], 'WM')} about QA {{#b-qa0001}}")
+        self.assertEqual(len(await self.notes("wm")), 1)
+        await self.save(p["slug"], "owner", f"Ping {person(self.uid['wa'], 'WA')} about QA {{#b-qa0001}}")  # the right one
+        self.assertEqual(await self.notes("wm"), [])                       # the bell entry is gone
+        self.assertEqual((await self.listing("wm"))["unread_count"], 0)
+        self.assertEqual(await self.flush(), {"sent": 1})                  # WA's email only
+        self.assertEqual([m["to"] for m in self.sent], [[self.email["wa"]]])
+        self.assertEqual(await self.db[notifications.WITHDRAWN].count_documents({}), 0)  # never delivered
+        # Put back later: they're told then (they never were).
+        await self.save(p["slug"], "owner", f"Ping {person(self.uid['wm'], 'WM')} about QA {{#b-qa0001}}")
+        self.assertEqual(len(await self.notes("wm")), 1)
+
+    async def test_removed_after_the_email_the_unread_bell_entry_goes_and_doesnt_come_back(self):
+        p = await self.page()
+        text = f"Ping {person(self.uid['wm'], 'WM')} {{#b-qa0001}}\n\nAnd {person(self.uid['wa'], 'WA')} {{#b-qa0002}}"
+        await self.save(p["slug"], "owner", text)
+        self.assertEqual(await self.flush(), {"sent": 2})
+        await self.http.post("/api/v1/notifications/read", json={"all": True}, headers=self.session("wa"))
+        await self.save(p["slug"], "owner", "Nobody here now")
+        self.assertEqual(await self.notes("wm"), [])                       # unread: gone from the bell
+        self.assertEqual(len(await self.notes("wa")), 1)                   # read: stays
+        # Put back the same day: the email already went, so no second one (and no bell row).
+        await self.save(p["slug"], "owner", text)
+        self.assertEqual(await self.notes("wm"), [])
+        self.assertEqual(await self.flush(15), {})
+        self.assertEqual(len(self.sent), 2)
+
+    async def test_only_the_mention_taken_out(self):
+        p = await self.page()
+        a = f"A {person(self.uid['wm'], 'WM')} {{#b-aaaa01}}"
+        b = f"B {person(self.uid['wm'], 'WM')} {{#b-aaaa02}}"
+        await self.save(p["slug"], "owner", a)
+        await self.save(p["slug"], "owner", a + "\n\n" + b)
+        self.assertEqual([r["block_id"] for r in await self.notes("wm")], ["b-aaaa01", "b-aaaa02"])
+        await self.save(p["slug"], "owner", b)
+        self.assertEqual([r["block_id"] for r in await self.notes("wm")], ["b-aaaa02"])
+        # Moved, or its block got an anchor: not taken out.
+        await self.save(p["slug"], "owner", "Intro\n\n" + b)
+        self.assertEqual(len(await self.notes("wm")), 1)
+
+    async def test_a_signoff_request_taken_out(self):
+        p = await self.page()
+        await self.save(p["slug"], "owner", f':::signoff{{#b-so0001 person="{self.uid["wm"]}" label="Go live"}}\n:::\n')
+        self.assertEqual([r["kind"] for r in await self.notes("wm")], ["signoff_requested"])
+        await self.save(p["slug"], "owner", "# Plan\n")
+        self.assertEqual(await self.notes("wm"), [])
+        self.assertEqual(await self.flush(), {})
+
+    async def test_send_time_recheck(self):
+        # The row was made, then the mention left the page without the save hook seeing it (another
+        # writer, a race): the email flush checks the page as it is now.
+        p = await self.page()
+        await self.save(p["slug"], "owner", f"Ping {person(self.uid['wm'], 'WM')} and {person(self.uid['wa'], 'WA')}")
+        await self.db["documents"].update_one({"_id": p["_id"]}, {"$set": {"content": f"Ping {person(self.uid['wa'], 'WA')}"}})
+        self.assertEqual(await self.flush(), {"withdrawn": 1, "sent": 1})
+        self.assertEqual([m["to"] for m in self.sent], [[self.email["wa"]]])
+        self.assertEqual((await self.notes("wm"))[0]["email"], "withdrawn")
+
+    async def test_quiet_writes_still_withdraw(self):
+        p = await self.page()
+        await self.save(p["slug"], "owner", f"Ping {person(self.uid['wm'], 'WM')}")
+        before = await self.db["documents"].find_one({"_id": p["_id"]})
+        after = {**before, "content": "Ping nobody"}
+        with notifications.quiet():
+            self.assertEqual(await notifications.on_page_saved(self.db, before, after, None), 0)
+        self.assertEqual(await self.notes("wm"), [])
+
+    def test_removed_mentions(self):
+        wm, wa = self.uid["wm"], self.uid["wa"]
+        a, b = f"A {person(wm, 'WM')} {{#b-aaaa01}}", f"B {person(wm, 'WM')} {{#b-aaaa02}}"
+        rm = notifications.removed_mentions
+        self.assertEqual(rm(a + "\n\n" + b, b), [{"kind": "mention", "user": wm, "block": "b-aaaa01", "gone": False}])
+        self.assertEqual(rm(a, "nothing"), [{"kind": "mention", "user": wm, "block": "b-aaaa01", "gone": True}])
+        self.assertEqual(rm(a, "Intro\n\n" + a), [])                       # moved
+        self.assertEqual(rm(f"A {person(wm, 'WM')}", a), [])                # got an anchor
+        self.assertEqual(rm(a, a + f" {person(wa, 'WA')}"), [])             # added, not removed
+        self.assertEqual(rm(None, a), [])
+
+
 class Share(NotifyWorld):
     async def test_notify_people_emails_and_notifies_with_the_message(self):
         p = await self.page("P")
