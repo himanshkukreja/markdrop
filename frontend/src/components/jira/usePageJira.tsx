@@ -11,8 +11,9 @@ const BulkIssuesDialog = dynamic(() => import("./CreateIssueDialog").then((m) =>
 
 /**
  * Jira on a page in View mode (DocumentView), for a signed-in member of the page's workspace when the
- * workspace has a Jira site: the page's chips (GET /jira/page), "Create Jira issue" on a meeting page's
- * list items, "Jira issues" (draft issues for all action items) in the meeting bar, and the dialogs.
+ * workspace has a Jira site: the page's chips (GET /jira/page), "Create Jira issue" on a meeting's
+ * decisions, action items and open questions and "Jira issues" (draft issues for all action items) in the
+ * meeting bar — both for people who can edit the page (the item gets the chip and ticks both ways) — and the dialogs.
  * `rev`: the page's revision; the chips are fetched again when it changes.
  */
 export function usePageJira({ slug, enabled, meeting, workspaceId, rev }: {
@@ -33,7 +34,7 @@ export function usePageJira({ slug, enabled, meeting, workspaceId, rev }: {
   const create = useCallback((ref: JiraItemRef) => setItem({ slug, ...ref }), [slug]);
   const jira = useMemo<PageJira | null>(() => (live && info ? {
     links: info.links,
-    canCreate: meeting && info.can_create,
+    canCreate: meeting && info.can_create && info.can_edit,
     onCreate: ({ block, offset }) => setItem({ slug, block, offset }),
     onRetry: async (id: string) => {
       try {
@@ -47,7 +48,7 @@ export function usePageJira({ slug, enabled, meeting, workspaceId, rev }: {
     },
   } : null), [live, info, meeting, slug, toast, load]);
 
-  const bulkButton = live && meeting && info?.can_create ? (
+  const bulkButton = live && meeting && info?.can_create && info?.can_edit ? (
     <Button size="sm" variant="secondary" iconLeft="checkSquare" onClick={() => setBulk(true)} data-testid="jira-bulk-open">Jira issues</Button>
   ) : null;
 

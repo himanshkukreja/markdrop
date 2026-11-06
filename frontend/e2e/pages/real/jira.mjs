@@ -268,7 +268,7 @@ await step("sync", async () => {
   await chip.waitFor({ timeout: 30000 });
   const key = await chip.getAttribute("data-key");
   // Tick in Markdrop → Done in Jira (as Ben).
-  await li.locator('input[type="checkbox"]').first().check({ force: true });
+  await li.locator('input[type="checkbox"]').first().click({ force: true });
   let st = null;
   for (let i = 0; i < 40; i++) {
     st = (await issue(key)).fields.status.name;
