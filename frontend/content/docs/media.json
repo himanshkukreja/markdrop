@@ -3559,40 +3559,100 @@
     "bytes": 4582,
     "kind": "image"
   },
+  "/docs-assets/workspaces/team/board-phone.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 48352,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/board-phone.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 50178,
+    "kind": "image"
+  },
   "/docs-assets/workspaces/team/board.dark.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1800,
-    "bytes": 107960,
+    "bytes": 141692,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/board.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1800,
-    "bytes": 111194,
+    "bytes": 146590,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/glance.dark.webp": {
-    "w": 1664,
-    "h": 834,
-    "bytes": 41184,
+    "w": 2256,
+    "h": 888,
+    "bytes": 45502,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/glance.webp": {
-    "w": 1664,
-    "h": 834,
-    "bytes": 42634,
+    "w": 2256,
+    "h": 888,
+    "bytes": 47094,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/groups.dark.webp": {
+    "w": 896,
+    "h": 768,
+    "bytes": 24582,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/groups.webp": {
+    "w": 896,
+    "h": 768,
+    "bytes": 26136,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/line-menu.dark.webp": {
+    "w": 1358,
+    "h": 568,
+    "bytes": 29066,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/line-menu.webp": {
+    "w": 1358,
+    "h": 568,
+    "bytes": 30154,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/person.dark.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1720,
-    "bytes": 86128,
+    "bytes": 96226,
     "kind": "image"
   },
   "/docs-assets/workspaces/team/person.webp": {
-    "w": 1728,
+    "w": 2320,
     "h": 1720,
-    "bytes": 86348,
+    "bytes": 97118,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/status.dark.webp": {
+    "w": 720,
+    "h": 906,
+    "bytes": 24970,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/status.webp": {
+    "w": 720,
+    "h": 906,
+    "bytes": 26774,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/this-week.dark.webp": {
+    "w": 2304,
+    "h": 920,
+    "bytes": 70462,
+    "kind": "image"
+  },
+  "/docs-assets/workspaces/team/this-week.webp": {
+    "w": 2304,
+    "h": 920,
+    "bytes": 74364,
     "kind": "image"
   }
 }
