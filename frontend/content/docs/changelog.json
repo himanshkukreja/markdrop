@@ -24,6 +24,27 @@
   "next": [],
   "entries": [
     {
+      "id": "team-meetings-video",
+      "date": "2026-11-06",
+      "title": "Watch: your workspace remembers",
+      "kind": "new",
+      "area": "Meetings",
+      "products": [
+        "web"
+      ],
+      "summary": "A two-and-a-half-minute video of one team's day with Meetings and Team, with chapters and captions, at the top of Meetings and Team: how it fits together.",
+      "body": "Maya joins Acme and asks what any new person would. Who takes the notes? (Nobody: Meet's transcript and Gemini's notes come in by themselves.) What did we decide? Does everyone know what they owe? Who's working on what? What is Sam doing, exactly? Can I just ask? Will my one-on-one show up?\n\n- **Eight chapters and captions**: notes by themselves, the meeting page, action items in Slack, Team, one person's page, Ask, and why a one-on-one stays private.\n- **Where it plays**: at the top of [Meetings and Team: how it fits together](/workspaces/meetings-and-team), and behind a **Watch** link on [Meetings](/workspaces/meetings) and [Team](/workspaces/team) that loads the video only when you open it. It's also on [Watch the videos](/get-started/videos).",
+      "media": {
+        "video": "team-meetings"
+      },
+      "docs": [
+        "/workspaces/meetings-and-team",
+        "/workspaces/meetings",
+        "/workspaces/team",
+        "/get-started/videos"
+      ]
+    },
+    {
       "id": "team-meetings-docs-mcp",
       "date": "2026-11-06",
       "title": "Team for AI apps, and a guide to how Meetings and Team fit together",

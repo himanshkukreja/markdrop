@@ -3,10 +3,12 @@ title: "Meetings and Team: how it fits together"
 nav: How it fits together
 description: How a Google Meet call becomes a meeting page, then Team memory, then answers in Ask and messages in Slack, and who sees what at each step.
 updated: 2026-11-06
-keywords: [overview, how it works, how it fits together, pipeline, google meet, gemini, gemini notes, transcript, apps script, connect google meet, check now, meeting page, team memory, team, this week, weekly summary, ask, ask acme, slack, action items, meetings channel, mcp, set up, owner setup, admin setup, checklist, who sees what, privacy, restricted meetings, cost]
+keywords: [overview, video, watch, your workspace remembers, how it works, how it fits together, pipeline, google meet, gemini, gemini notes, transcript, apps script, connect google meet, check now, meeting page, team memory, team, this week, weekly summary, ask, ask acme, slack, action items, meetings channel, mcp, set up, owner setup, admin setup, checklist, who sees what, privacy, restricted meetings, cost]
 ---
 
 A call in Google Meet can end up in four places in Markdrop: a **meeting page** with its summary, the **Team** board, answers in **Ask**, and messages in **Slack**. This page shows how each step feeds the next, what you set up once, and who sees what along the way.
+
+::video{id="team-meetings" title="Your workspace remembers: meetings become pages, Team shows who's on what, and you can just ask" duration="2:23"}
 
 ```mermaid
 flowchart LR

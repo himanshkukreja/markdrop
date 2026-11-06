@@ -215,6 +215,14 @@
     "duration": "0:37",
     "chapters": "/docs-assets/videos/share-with-people.vtt"
   },
+  "team-meetings": {
+    "src": "/docs-assets/videos/team-meetings.mp4",
+    "poster": "/docs-assets/videos/team-meetings.webp",
+    "duration": "2:23",
+    "title": "Your workspace remembers: meetings become pages, Team shows who's on what, and you can just ask",
+    "chapters": "/docs-assets/videos/team-meetings.vtt",
+    "captions": "/docs-assets/videos/team-meetings.captions.vtt"
+  },
   "video-analytics": {
     "src": "/docs-assets/videos/video-analytics.mp4",
     "poster": "/docs-assets/videos/video-analytics.webp",
