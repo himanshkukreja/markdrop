@@ -63,6 +63,8 @@ function storage(): Storage | null {
 
 export interface PushPrompt {
   show: boolean;
+  /** Decided whether to show (the bell's Slack nudge waits for this: one nudge at a time). */
+  settled: boolean;
   busy: boolean;
   /** Call from the click: the browser's permission prompt needs the gesture. */
   turnOn: () => Promise<void>;
@@ -117,5 +119,5 @@ export function usePushPrompt(where: PushPromptWhere, active = true): PushPrompt
     track("push_prompt", { where, action: "not_now" });
   }, [where]);
 
-  return { show: state === "show", busy, turnOn, dismiss };
+  return { show: state === "show", settled: !active || state !== "loading", busy, turnOn, dismiss };
 }

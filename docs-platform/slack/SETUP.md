@@ -29,8 +29,10 @@ Slack may say the **Event Subscriptions** request URL isn't verified yet. That's
 can't answer Slack until it has the signing secret (step 3). You verify it in step 4.
 
 The manifest asks for these bot scopes: `commands`, `chat:write`, `chat:write.public`, `links:read`,
-`links:write`, `im:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, and the user scope `openid` (Sign in with
-Slack, used once to link a person's account; Markdrop keeps no user token).
+`links:write`, `im:write`, `channels:read`, `groups:read`, `im:read`, `mpim:read`, `users:read`,
+`users:read.email` (to find a person who turned Slack notifications on by their own Markdrop email),
+and the user scope `openid` (Sign in with Slack, used once to link a person's account; Markdrop
+keeps no user token).
 
 ## 2. Copy the three secrets (1 minute)
 
@@ -88,6 +90,23 @@ Back on api.slack.com, in the app:
    preview. A private document's link shows "Markdrop link — sign in to view" instead.
 5. Import a meeting in Markdrop (Meetings › Import). When its summary is ready, it's posted in the
    meetings channel; click **Done** on an action item and it's ticked on the Markdrop page.
+
+## Updating the app's permissions (when the manifest's scopes change)
+
+Slack notifications find people by email (2026-11): that needs the bot scopes `users:read` and
+`users:read.email`. An app created from an older manifest lacks them, and every Slack workspace that
+installed it keeps the old permissions until it's reinstalled.
+
+1. https://api.slack.com/apps › **Markdrop** › **App Manifest** (left menu) › **YAML**. Replace
+   everything with `docs-platform/slack/manifest.yaml` › **Save Changes**. Slack shows a yellow
+   "reinstall your app" banner.
+2. **Install App** (left menu) › **Reinstall to Workspace** › **Allow**. This updates your own
+   Slack workspace; the bot token stays the same (no `.env` change).
+3. In Markdrop, an admin of each connected workspace opens **Workspace settings › Integrations ›
+   Slack**. A card that says **Update Markdrop for Slack** needs one click on **Update permissions**
+   (Slack's consent screen, then back to Markdrop). Until then, people there can still link with
+   Sign in with Slack; finding them by email waits for the update. Updating also finds everyone who
+   had already turned Slack notifications on.
 
 ## Rotating a secret
 

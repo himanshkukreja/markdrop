@@ -9,6 +9,7 @@ export const DOCS_PAGES = {
   installApp: "/get-started/install-app",
   pushNotifications: "/pages/mentions-and-notifications#push-notifications",
   notificationEmail: "/pages/mentions-and-notifications#email",
+  slackNotifications: "/integrations/slack#slack-notifications",
   // Documents
   writing: "/documents/writing",
   addresses: "/documents/addresses",

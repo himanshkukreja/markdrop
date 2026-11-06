@@ -24,6 +24,20 @@
   "next": [],
   "entries": [
     {
+      "id": "slack-notifications-opt-in",
+      "date": "2026-11-06",
+      "title": "Slack notifications: off until you turn them on, and found by your email",
+      "kind": "improved",
+      "area": "Integrations",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Direct messages in Slack for mentions, sign-off requests, shares and access requests are now something you turn on, in **Settings › Account › Slack notifications**. Markdrop finds you in Slack by your sign-in email, so there's nothing to link first.",
+      "body": "- **Off by default.** Nobody gets Slack messages until they turn on **Get notifications in Slack**, even with a linked Slack account. Only you can turn on your own. If you linked your Slack account before this change, yours stay on until you turn them off.\n- **Found by your email.** Turning them on looks you up in each Slack workspace connected to one of your Markdrop workspaces, by your own sign-in email, and shows **Found** with your Slack name. If no one there uses that email, **Link my Slack account** (Sign in with Slack) still works.\n- **Choose which ones** under **Message me when**: Mentions, Sign-off requests, Shared with you, Access requests. Every message ends with **Turn off**.\n- **The bell offers it** (**Get these in Slack** › **Turn on**) when a workspace of yours has Slack connected, never at the same time as the push notification offer. **Not now** hides it on that device.\n- **Admins:** a workspace connected before this shows **Update Markdrop for Slack** on its **Integrations** tab. **Update permissions** grants the two Slack permissions this needs (`users:read`, `users:read.email`) and finds everyone who had already turned notifications on.\n- **Email** still counts only a Slack message that really reached you.\n- **MCP:** `slack_status` reports `me.notifications_on` and how your account was found. **API:** `GET /api/v1/slack/me` and `PUT /api/v1/slack/me/notifications`.\n- See [Slack notifications](/integrations/slack#slack-notifications)."
+    },
+    {
       "id": "push-prompts-one-tap",
       "date": "2026-11-06",
       "title": "Turn on notifications in one tap, from Home or the bell",

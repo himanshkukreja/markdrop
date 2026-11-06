@@ -54,6 +54,8 @@ class FakeSlack:
         self.oidc_user = "U0ADA"
         self.authed_user = "U0WO"
         self.fail: dict[str, str] = {}
+        # users.lookupByEmail: email -> Slack user (profile.email set the way Slack returns it).
+        self.directory: dict[str, dict] = {}
 
     async def handler(self, request: httpx.Request) -> httpx.Response:
         if self.delay:
@@ -86,6 +88,11 @@ class FakeSlack:
             return httpx.Response(200, json={"ok": True, "sub": self.oidc_user, "name": "Ada in Slack",
                                              "https://slack.com/user_id": self.oidc_user,
                                              "https://slack.com/team_id": self.oidc_team})
+        if method == "users.lookupByEmail":
+            u = self.directory.get(str(data.get("email") or "").lower())
+            if u is None:
+                return httpx.Response(200, json={"ok": False, "error": "users_not_found"})
+            return httpx.Response(200, json={"ok": True, "user": u})
         if method == "conversations.info":
             return httpx.Response(200, json={"ok": True, "channel": {**self.channel_info, "id": data.get("channel")}})
         if method == "conversations.list":
@@ -145,8 +152,22 @@ class SlackWorld(AccessWorld):
         self.assertEqual(r.status_code, 200, r.text)
         return r.json()
 
-    async def link(self, who: str, slack_user: str, team: str = TEAM) -> None:
-        await slack.save_link(self.db, team, slack_user, self.uid[who], who)
+    async def link(self, who: str, slack_user: str, team: str = TEAM, *, match: str = "oauth") -> None:
+        await slack.save_link(self.db, team, slack_user, self.uid[who], who, match=match)
+
+    async def opt_in(self, *who: str) -> None:
+        """Slack notifications on (they're off by default), as the switch in Settings › Account stores it."""
+        for w in who:
+            await self.db["users"].update_one({"_id": ObjectId(self.uid[w])}, {"$set": {"slack_notify.on": True}})
+
+    def in_slack(self, who: str, slack_user: str, **extra) -> None:
+        """``who`` is in the fake Slack team under their Markdrop email."""
+        self.sk.directory[self.email[who].lower()] = {
+            "id": slack_user, "name": who, "deleted": False, "is_bot": False, "is_email_confirmed": True,
+            "profile": {"email": self.email[who], "real_name": who.upper() + " in Slack"}, **extra}
+
+    async def turn(self, who: str, on: bool = True, **body) -> httpx.Response:
+        return await self.http.put("/api/v1/slack/me/notifications", json={"on": on, **body}, headers=self.session(who))
 
     async def post_signed(self, path: str, body: bytes, *, ctype: str, headers: dict | None = None) -> httpx.Response:
         return await self.http.post(path, content=body, headers={"Content-Type": ctype,
@@ -566,6 +587,7 @@ class DirectMessages(SlackWorld):
         await self.install()
         await self.link("owner", "U0OWN")
         await self.link("wm", "U0WM")
+        await self.opt_in("owner", "wm")
 
     async def later(self, seconds: int = 90) -> int:
         """The DM flush once a mention's minute has passed (slack_notify.SLOW_WAIT)."""
@@ -671,6 +693,211 @@ class DirectMessages(SlackWorld):
         await slack.drain()
         so = await self.db["signoffs"].find_one({"doc_id": str(page["_id"])})
         self.assertEqual((so["option"], so["via"]), ("Approved", "slack"))
+
+
+# ── Slack notifications: opt-in, found by email ───────────────────────────────
+
+
+class OptIn(SlackWorld):
+    """Direct messages are off until the person turns them on; turning them on finds them in Slack by
+    their own Markdrop email (users.lookupByEmail), no Sign in with Slack needed (owner, 2026-11-06)."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        await self.install()
+
+    async def later(self, seconds: int = 90) -> int:
+        return await slack_notify.flush(self.db, now=now() + timedelta(seconds=seconds))
+
+    async def mention(self, who: str, title: str = "Plan") -> dict:
+        doc = await self.mkdoc("W", grants=False, title=title,
+                               content=f':person[{who}]{{id="{self.uid[who]}"}} can you check this')
+        await notifications.notify(self.db, self.uid[who], "mention", doc, None, actor=self.uid["wo"])
+        return doc
+
+    async def me(self, who: str) -> dict:
+        r = await self.http.get("/api/v1/slack/me", headers=self.session(who))
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()
+
+    async def test_off_by_default_even_when_linked(self):
+        # Linked with Sign in with Slack (for /markdrop) or as the installer: still no DMs until turned on.
+        await self.link("wm", "U0WM")
+        self.assertIsNotNone(await slack.linked_user(self.db, TEAM, "U0WO"))   # the installer
+        me = await self.me("wm")
+        self.assertFalse(me["on"])
+        self.assertEqual([(t["team_name"], t["linked"], t["match"]) for t in me["teams"]], [("Acme Slack", True, "oauth")])
+        st = (await self.http.get("/api/v1/slack/status", params={"workspace_id": self.W}, headers=self.session("wm"))).json()
+        self.assertFalse(st["me"]["on"])
+        await self.mention("wm")
+        await self.mention("wa")
+        self.assertEqual(await self.db[slack_notify.OUTBOX].count_documents({}), 0)
+        self.assertEqual(await self.later(), 0)
+        self.assertEqual(self.sk.of("chat.postMessage"), [])
+        # Matched by email for someone else's sake? Never: nobody is looked up who didn't turn it on.
+        self.assertEqual(self.sk.of("users.lookupByEmail"), [])
+
+    async def test_turn_on_finds_me_by_my_email(self):
+        self.in_slack("wm", "U0WMS")
+        self.in_slack("wv", "U0WVS")
+        # The body can't pick whose email is looked up: only the caller's own.
+        r = await self.turn("wm", email=self.email["wv"], user_id=self.uid["wv"])
+        self.assertEqual(r.status_code, 200, r.text)
+        out = r.json()
+        self.assertTrue(out["on"])
+        self.assertEqual([(x["team_id"], x["result"]) for x in out["results"]], [(TEAM, "matched")])
+        self.assertIn("Found you in Acme Slack as WM in Slack", out["results"][0]["message"])
+        self.assertEqual([d["email"] for d in self.sk.of("users.lookupByEmail")], [self.email["wm"]])
+        row = await self.db[slack.LINKS].find_one({"user_id": self.uid["wm"]})
+        self.assertEqual((row["slack_user_id"], row["match"], row["team_id"]), ("U0WMS", "email", TEAM))
+        self.assertIsNone(await self.db[slack.LINKS].find_one({"user_id": self.uid["wv"]}))
+        self.assertFalse((await self.me("wv"))["on"])
+        # DMs now arrive: after the mention's minute, with the footer that says how to stop them.
+        await self.mention("wm")
+        self.assertEqual(await slack_notify.flush(self.db), 0)
+        self.assertEqual(await self.later(), 1)
+        dm = self.sk.of("chat.postMessage")[-1]
+        self.assertEqual(dm["channel"], "U0WMS")
+        foot = dm["blocks"][-1]
+        self.assertEqual(foot["type"], "context")
+        self.assertIn("You turned these on in Markdrop", foot["elements"][0]["text"])
+        self.assertIn("https://markdrop.in/settings/account#slack|Turn off", foot["elements"][0]["text"])
+        # Per kind still applies once on.
+        r = await self.http.patch("/api/v1/slack/me/prefs", json={"mention": False}, headers=self.session("wm"))
+        self.assertFalse(r.json()["prefs"]["mention"])
+        await self.mention("wm", "Plan 2")
+        self.assertEqual(await self.db[slack_notify.OUTBOX].count_documents({"state": "pending"}), 0)
+        # Turning it on again: already linked, Slack isn't asked again.
+        n = len(self.sk.of("users.lookupByEmail"))
+        self.assertEqual((await self.turn("wm")).json()["results"][0]["result"], "linked")
+        self.assertEqual(len(self.sk.of("users.lookupByEmail")), n)
+
+    async def test_not_found_says_so_and_link_is_the_fallback(self):
+        r = await self.turn("wm")
+        self.assertEqual(r.status_code, 200, r.text)
+        res = r.json()["results"][0]
+        self.assertEqual(res["result"], "not_found")
+        self.assertEqual(res["message"], f"No one in Acme Slack uses {self.email['wm']}. Link your Slack account instead.")
+        self.assertTrue(r.json()["on"])                 # their choice is kept: linking is all that's missing
+        self.assertFalse(r.json()["teams"][0]["linked"])
+        await self.mention("wm")
+        self.assertEqual(await self.db[slack_notify.OUTBOX].count_documents({}), 0)
+        # Sign in with Slack (the fallback) links them, and DMs flow.
+        r = await self.http.post("/api/v1/slack/link/start", json={"workspace_id": self.W}, headers=self.session("wm"))
+        state = parse_qs(urlsplit(r.json()["url"]).query)["state"][0]
+        r = await self.http.post("/api/v1/slack/link/finish", json={"code": "c", "state": state}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual((await self.me("wm"))["teams"][0]["match"], "oauth")
+        await self.mention("wm", "Plan 2")
+        self.assertEqual(await self.later(), 1)
+        self.assertEqual(self.sk.of("chat.postMessage")[-1]["channel"], "U0ADA")
+
+    async def test_unconfirmed_bot_or_deactivated_accounts_are_not_matched(self):
+        for extra in ({"is_email_confirmed": False}, {"is_bot": True}, {"deleted": True}):
+            self.in_slack("wm", "U0X", **extra)
+            self.assertEqual((await self.turn("wm")).json()["results"][0]["result"], "not_found", extra)
+        # Slack's profile email differing from the address asked for: not them.
+        self.in_slack("wm", "U0X")
+        self.sk.directory[self.email["wm"]]["profile"]["email"] = "someone-else@example.com"
+        self.assertEqual((await self.turn("wm")).json()["results"][0]["result"], "not_found")
+        self.assertIsNone(await self.db[slack.LINKS].find_one({"user_id": self.uid["wm"]}))
+
+    async def test_an_install_without_the_new_scopes_needs_an_update(self):
+        self.in_slack("wm", "U0WMS")
+        # Installed before users:read.email was added: the settings card asks an admin to update it.
+        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$pull": {"scopes": {"$in": list(slack.EMAIL_SCOPES)}}})
+        st = (await self.http.get("/api/v1/slack/status", params={"workspace_id": self.W}, headers=self.session("wo"))).json()
+        self.assertFalse(st["install"]["can_find_by_email"])
+        # Slack says missing_scope: "needs an update", and the team is NOT forgotten (missing_scope is
+        # one of slack_api.DEAD_TOKEN's errors elsewhere).
+        self.sk.fail["users.lookupByEmail"] = "missing_scope"
+        res = (await self.turn("wm")).json()["results"][0]
+        self.assertEqual(res["result"], "needs_update")
+        self.assertIn("a workspace admin updates it in Workspace settings", res["message"])
+        self.assertIsNotNone(await self.db[slack.INSTALLS].find_one({"_id": TEAM}))
+        self.assertIsNone(await self.db[slack.LINKS].find_one({"user_id": self.uid["wm"]}))
+        # The scope list said yes: Slack's answer corrects it (the settings card then asks for the update).
+        await self.db[slack.INSTALLS].update_one({"_id": TEAM}, {"$set": {"scopes": list(slack.BOT_SCOPES)}})
+        await self.turn("wm")
+        self.assertFalse(slack.can_find_by_email(await self.db[slack.INSTALLS].find_one({"_id": TEAM})))
+        # Reinstalled from Slack's own app page (not through Markdrop): Slack now answers, the list is corrected.
+        self.sk.fail.clear()
+        self.in_slack("wa", "U0WAS")
+        self.assertEqual((await self.turn("wa")).json()["results"][0]["result"], "matched")
+        self.assertTrue(slack.can_find_by_email(await self.db[slack.INSTALLS].find_one({"_id": TEAM})))
+        await self.db[slack.LINKS].delete_many({"user_id": self.uid["wa"]})
+        # The admin updates the app through Markdrop (Add to Slack again): the same team, new scopes, and
+        # wm, who had turned it on, is found by email on its own.
+        self.sk.fail["users.lookupByEmail"] = "missing_scope"
+        await self.turn("wm")
+        self.sk.fail.clear()
+        await self.install()
+        self.assertTrue(slack.can_find_by_email(await self.db[slack.INSTALLS].find_one({"_id": TEAM})))
+        await slack.drain()
+        # wm had turned it on: the update found them by email on its own.
+        self.assertEqual((await self.db[slack.LINKS].find_one({"user_id": self.uid["wm"]}))["match"], "email")
+
+    async def test_a_slack_account_linked_to_someone_else_is_not_taken_over(self):
+        self.in_slack("wm", "U0SHARED")
+        await self.link("wv", "U0SHARED")
+        res = (await self.turn("wm")).json()["results"][0]
+        self.assertEqual(res["result"], "taken")
+        self.assertEqual((await slack.linked_user(self.db, TEAM, "U0SHARED")).id, self.uid["wv"])
+
+    async def test_only_members_of_a_connected_workspace(self):
+        r = await self.turn("stranger")
+        self.assertEqual(r.status_code, 409)
+        self.assertIn("None of your workspaces has Slack connected", r.json()["detail"])
+        self.assertFalse((await self.me("stranger"))["on"])
+        self.assertEqual((await self.me("stranger"))["teams"], [])
+        self.assertEqual(self.sk.of("users.lookupByEmail"), [])
+        r = await self.http.put("/api/v1/slack/me/notifications", json={"on": True})
+        self.assertEqual(r.status_code, 401)
+
+    async def test_every_connected_team_is_matched(self):
+        await self.add_member("W2", "wm", "member")
+        self.sk.oauth_team = TEAM2
+        await self.install(who="wm2", ws=self.ws["W2"])
+        self.in_slack("wm", "U0WMS")
+        out = (await self.turn("wm")).json()
+        self.assertEqual(sorted((x["team_id"], x["result"]) for x in out["results"]), [(TEAM, "matched"), (TEAM2, "matched")])
+        self.assertEqual(len(out["teams"]), 2)
+        await self.mention("wm")
+        self.assertEqual(await self.later(), 2)
+
+    async def test_turning_off_drops_whats_waiting(self):
+        self.in_slack("wm", "U0WMS")
+        await self.turn("wm")
+        await self.mention("wm")
+        self.assertEqual(await self.db[slack_notify.OUTBOX].count_documents({"state": "pending"}), 1)
+        r = await self.turn("wm", on=False)
+        self.assertFalse(r.json()["on"])
+        self.assertTrue(r.json()["teams"][0]["linked"])     # the link stays (for /markdrop)
+        self.assertEqual(await self.later(), 0)
+        row = await self.db[slack_notify.OUTBOX].find_one({})
+        self.assertEqual((row["state"], row["error"]), ("skipped", "off"))
+
+    async def test_people_linked_before_opt_in_keep_their_dms(self):
+        # A link row from before (no "match"), and the person never chose: still on.
+        await self.db[slack.LINKS].insert_one({"_id": f"{TEAM}:U0OLD", "team_id": TEAM, "slack_user_id": "U0OLD",
+                                               "user_id": self.uid["wm"], "slack_name": "wm", "linked_at": now()})
+        me = await self.me("wm")
+        self.assertTrue(me["on"])
+        self.assertEqual(me["teams"][0]["match"], "legacy")
+        await self.mention("wm")
+        self.assertEqual(await self.later(), 1)
+        # Linking again (which replaces that row) keeps it on.
+        await self.link("wm", "U0NEW")
+        self.assertTrue((await self.me("wm"))["on"])
+        self.assertEqual((await self.db["users"].find_one({"_id": ObjectId(self.uid["wm"])}))["slack_notify"]["on"], True)
+        # Their own choice wins.
+        await self.turn("wm", on=False)
+        await self.mention("wm", "Plan 2")
+        self.assertEqual(await self.db[slack_notify.OUTBOX].count_documents({"state": "pending"}), 0)
+
+    async def test_help_says_how_to_turn_them_on(self):
+        r = await self.command("help")
+        self.assertIn("Settings › Account › Slack notifications", json.dumps(r.json(), ensure_ascii=False))
 
 
 # ── Meeting posts and Done ────────────────────────────────────────────────────
@@ -814,8 +1041,14 @@ class McpTools(MeetingsWorld, SlackWorld):
         self.assertEqual(out["meetings_channel"], {"id": "C2", "name": "meetings"})
         self.assertTrue(out["post_meetings"])
         self.assertTrue(out["me"]["linked"])
+        self.assertEqual((out["me"]["notifications_on"], out["me"]["found_by"]), (False, "oauth"))   # off by default
+        self.assertIn("Your Slack notifications are off", res["content"][0]["text"])
         self.assertFalse(out["can_manage"])
         self.assertIn("#meetings", res["content"][0]["text"])
+        await self.opt_in("wm")
+        res = await self.call("wm", "slack_status", {"workspace": self.W})
+        self.assertTrue(self.ok(res)["me"]["notifications_on"])
+        self.assertIn("Your Slack notifications are on", res["content"][0]["text"])
         self.assertNotIn(BOT_TOKEN, json.dumps(res))
         self.assertNotIn("bot_token", json.dumps(res))
         self.assertTrue(self.ok(await self.call("wa", "slack_status", {"workspace": self.W}))["can_manage"])

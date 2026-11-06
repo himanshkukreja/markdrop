@@ -11,6 +11,8 @@
  *   GET    /api/v1/slack/link/info?team_id=        the Slack workspace a link page is for
  *   POST   /api/v1/slack/link/finish               {code, state}
  *   DELETE /api/v1/slack/link?workspace_id=        unlink my Slack account
+ *   GET    /api/v1/slack/me                        Slack notifications (Settings › Account): on?, kinds, my Slack teams
+ *   PUT    /api/v1/slack/me/notifications          {on}: turn them on (finds me by my own email) or off
  *   PATCH  /api/v1/slack/me/prefs                  my Slack direct messages, per kind
  *   POST   /api/v1/slack/meetings/{id}/post        post a meeting to the meetings channel (again)
  *
@@ -31,14 +33,50 @@ export interface SlackInstall {
   post_meetings: boolean;
   linked_people: number;
   token_ok: boolean;
+  /** False: installed before Markdrop could find people by email; an admin updates the app (Add to Slack again). */
+  can_find_by_email: boolean;
 }
+
+/** How a Slack account got linked: found by email, Sign in with Slack, the installer, or from before opt-in. */
+export type SlackMatch = "email" | "oauth" | "install" | "legacy";
 
 export interface SlackStatus {
   configured: boolean;
   can_manage: boolean;
   install: SlackInstall | null;
-  me: { linked: boolean; slack_user_id: string | null; slack_name: string | null; prefs: Record<SlackNotifyKind, boolean> };
+  me: {
+    linked: boolean; slack_user_id: string | null; slack_name: string | null; match: SlackMatch | null;
+    /** Slack notifications turned on (off by default; Settings › Account). */
+    on: boolean;
+    prefs: Record<SlackNotifyKind, boolean>;
+  };
   kinds: Array<{ key: SlackNotifyKind; label: string }>;
+}
+
+export interface SlackTeam {
+  team_id: string;
+  team_name: string;
+  workspace_id: string;
+  workspace_name: string;
+  linked: boolean;
+  slack_name: string | null;
+  match: SlackMatch | null;
+  can_find_by_email: boolean;
+  token_ok: boolean;
+}
+
+export type SlackFindResult = "linked" | "matched" | "not_found" | "taken" | "needs_update" | "token" | "error";
+
+export interface SlackMe {
+  configured: boolean;
+  on: boolean;
+  prefs: Record<SlackNotifyKind, boolean>;
+  kinds: Array<{ key: SlackNotifyKind; label: string }>;
+  /** Slack workspaces connected to Markdrop workspaces you're in. */
+  teams: SlackTeam[];
+  email: string;
+  /** PUT /me/notifications only: what turning it on found, per team. */
+  results?: Array<{ team_id: string; team_name: string; result: SlackFindResult; message: string | null }>;
 }
 
 const q = (ws: string) => `workspace_id=${encodeURIComponent(ws)}`;
@@ -73,6 +111,11 @@ export const slackLinkFinish = (code: string, state: string) =>
 
 export const slackUnlink = (ws: string) => request<SlackStatus>(`/api/v1/slack/link?${q(ws)}`, { method: "DELETE" });
 
+export const slackMe = () => request<SlackMe>("/api/v1/slack/me");
+
+export const slackSetNotifications = (on: boolean) =>
+  request<SlackMe>("/api/v1/slack/me/notifications", { method: "PUT", body: JSON.stringify({ on }) });
+
 export const slackPrefs = (patch: Partial<Record<SlackNotifyKind, boolean>>) =>
   request<{ prefs: Record<SlackNotifyKind, boolean> }>("/api/v1/slack/me/prefs", { method: "PATCH", body: JSON.stringify(patch) });
 
@@ -88,5 +131,23 @@ export function readSlackState(state: string): { kind: string | null; workspace:
     return { kind: typeof data.k === "string" ? data.k : null, workspace: typeof data.w === "string" ? data.w : null };
   } catch {
     return { kind: null, workspace: null };
+  }
+}
+
+const RETURN_KEY = "md_slack_return";
+
+/** Where Sign in with Slack should land afterwards, when not the workspace's Integrations tab (the
+ *  account card's "Link my Slack account" comes back to Settings › Account). Only same-site paths. */
+export function setSlackReturn(path: string): void {
+  try { if (path.startsWith("/") && !path.startsWith("//")) sessionStorage.setItem(RETURN_KEY, path); } catch { /* ignore */ }
+}
+
+export function takeSlackReturn(): string | null {
+  try {
+    const v = sessionStorage.getItem(RETURN_KEY);
+    sessionStorage.removeItem(RETURN_KEY);
+    return v && v.startsWith("/") && !v.startsWith("//") ? v : null;
+  } catch {
+    return null;
   }
 }

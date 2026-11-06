@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Alert, Button, Card, MarkdropLoader, VisuallyHidden } from "@/components/ui";
-import { readSlackState, slackConnect, slackLinkFinish } from "@/lib/slack";
+import { readSlackState, slackConnect, slackLinkFinish, takeSlackReturn } from "@/lib/slack";
 import { SlackMark } from "@/components/integrations/SlackMark";
 
 /**
@@ -40,7 +40,9 @@ export default function SlackCallbackClient() {
           router.replace(`/settings/workspaces/${encodeURIComponent(workspace || "")}?tab=integrations&slack=connected`);
         } else {
           const out = await slackLinkFinish(code, state);
-          if (out.workspace_id) router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}?tab=integrations&slack=linked`);
+          const back = takeSlackReturn();
+          if (back) router.replace(back);
+          else if (out.workspace_id) router.replace(`/settings/workspaces/${encodeURIComponent(out.workspace_id)}?tab=integrations&slack=linked`);
           else setLinked(out.team_name || "Slack");
         }
       } catch (e) {
