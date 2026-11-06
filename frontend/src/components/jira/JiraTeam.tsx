@@ -42,7 +42,7 @@ export function JiraCardLine({ data, userId }: { data: JiraTeam | null; userId: 
     <div className="jr-card" data-testid="team-card-jira">
       <span className="tm-card__label"><JiraMark size={12} /> Jira</span>
       <Counts c={p.counts} compact />
-      {data.mode === "details" && p.top.length > 0 && <ul>{p.top.map((i) => <JiraIssueRow key={i.key} issue={i} />)}</ul>}
+      {data.mode === "details" && p.top.length > 0 && <ul>{p.top.map((i) => <JiraIssueRow key={i.key} issue={i} dense />)}</ul>}
     </div>
   );
 }

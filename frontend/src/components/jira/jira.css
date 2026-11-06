@@ -57,3 +57,8 @@ li:hover > .jr-add, li:focus-within > .jr-add, .jr-add:focus-visible { opacity: 
 .jr-table th:first-child, .jr-table td:first-child { text-align: left; padding-inline-start: 0; white-space: normal; overflow-wrap: anywhere; }
 .jr-table thead th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
 .jr-table tbody th { font-weight: 500; color: var(--text); }
+/* Icon + words on one line in Team's Jira labels and headings. */
+.jr-card .tm-card__label, .jr-team .tm-card__label, [data-testid="team-jira"] > .tm-chart__title, [data-testid="person-jira"] > .tm-h2 {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.jr-card .tm-card__label svg, .jr-team .tm-card__label svg { width: 14px; height: 14px; flex: none; }

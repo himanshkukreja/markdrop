@@ -204,7 +204,7 @@ await step("create", async () => {
   const dlg = p.getByTestId("jira-dialog");
   await dlg.waitFor({ timeout: 30000 });
   const summary = await p.getByTestId("jira-summary").inputValue();
-  if (!/billing webhooks/i.test(summary)) fail(`drafted summary: ${summary}`);
+  if (!/^Migrate the billing webhooks/i.test(summary)) fail(`drafted summary: ${summary}`);
   const who = await p.getByTestId("jira-assignee").inputValue();
   if (who !== U.member) fail(`drafted assignee: ${who} (Ben is ${U.member})`);
   const due = await p.getByTestId("jira-due").inputValue();

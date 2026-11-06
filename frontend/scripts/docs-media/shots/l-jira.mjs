@@ -89,7 +89,7 @@ export default [
       await h.loc("[data-testid='jira-dialog']").waitFor({ timeout: 30000 });
       await still(h);
     },
-    crop: { selector: "[role='dialog']", pad: 0 },
+    crop: { selector: "[role='dialog']:has([data-testid^='jira-'])", pad: 0 },
   },
   {
     id: "jira-bulk",
@@ -105,7 +105,7 @@ export default [
       await h.loc("[data-testid='jira-bulk']").waitFor({ timeout: 30000 });
       await still(h);
     },
-    crop: { selector: "[role='dialog']", pad: 0 },
+    crop: { selector: "[role='dialog']:has([data-testid^='jira-'])", pad: 0 },
   },
   {
     id: "jira-chips",

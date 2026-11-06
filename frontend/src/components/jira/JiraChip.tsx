@@ -49,13 +49,13 @@ export function JiraChip({ link, issue, url, onRetry, compact }: {
   );
 }
 
-/** One issue as a row (Team, a person's page): chip, summary, due. */
-export function JiraIssueRow({ issue }: { issue: JiraIssue }) {
+/** One issue as a row (Team, a person's page): chip, summary, due (not in `dense` rows: a Team card). */
+export function JiraIssueRow({ issue, dense }: { issue: JiraIssue; dense?: boolean }) {
   return (
     <li className="jr-row" data-testid="jira-issue-row">
       <JiraChip issue={issue} compact />
       <span className="jr-row__summary">{issue.summary}</span>
-      {issue.due && <span className={`jr-row__due${issue.overdue ? " jr-row__due--late" : ""}`}>{issue.overdue ? "Overdue · " : "Due "}{issue.due}</span>}
+      {issue.due && !dense && <span className={`jr-row__due${issue.overdue ? " jr-row__due--late" : ""}`}>{issue.overdue ? "Overdue · " : "Due "}{issue.due}</span>}
     </li>
   );
 }

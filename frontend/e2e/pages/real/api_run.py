@@ -757,6 +757,8 @@ if os.environ.get("PB_FAKE_JIRA"):
         t = _jre.sub(r"due \d{4}-\d{2}-\d{2}", "", t)
         t = " ".join(t.split()).strip(" .-")
         who = next((m for m in members if m.split()[0].lower() in text.lower()), "")
+        if who and t.lower().startswith(who.lower()):
+            t = t[len(who):].strip(" :,-")
         return {"summary": (t[:1].upper() + t[1:])[:120] or "New issue",
                 "description": f"Goal: {t}.\nDone when it's shipped and checked.",
                 "issue_type": "Bug" if _jre.search(r"\b(broken|bug|fails?)\b", t, _jre.I) else "Task",
