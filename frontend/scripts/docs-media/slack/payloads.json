@@ -428,6 +428,59 @@
    "text": "Jordan Park asked to edit Q3 plan"
   }
  },
+ "team_weekly": {
+  "where": "#meetings",
+  "from": "Markdrop",
+  "message": {
+   "blocks": [
+    {
+     "type": "header",
+     "text": {
+      "type": "plain_text",
+      "text": "This week in Acme"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Highlights*\n• Maya Patel: Shipped the onboarding checklist behind a flag <https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>\n• Alex Chen: Fixed the annual-plan billing bug in 2.4.1 <https://markdrop.in/daily-standup-nov-5|Daily standup>\n• Sam Lee: Decided: the partner pricing sheet goes to finance first <https://markdrop.in/pricing-review-nov-5|Pricing review>"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Blockers*\n• *Jordan Park*: The Postgres connector needs read-only credentials (waiting on Alex Chen)"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Due this week*\n• Maya Patel: Update the onboarding docs — due 2026-11-11\n• Sam Lee: Send the release notes to customers — due 2026-11-12"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Overdue*\n• Alex Chen: Triage the crash reports — due 2026-11-06 (3 days late)"
+     }
+    },
+    {
+     "type": "context",
+     "elements": [
+      {
+       "type": "mrkdwn",
+       "text": "<http://localhost:3000/team/6aecc9488c77e564c2be27c0|Open Team> · only from meetings and pages everyone in the workspace can open"
+      }
+     ]
+    }
+   ],
+   "text": "This week in Acme"
+  }
+ },
  "help": {
   "where": "/markdrop help",
   "from": "Markdrop",

@@ -710,3 +710,45 @@ import uvicorn  # noqa: E402
 # went out on a socket the server had just closed: "fetch failed" (ECONNRESET on macOS,
 # UND_ERR_SOCKET "other side closed" on Linux), e.g. bughunt draft-after-append's append_blocks.
 uvicorn.run(mod.asgi, host="127.0.0.1", port=8180 + 10 * STACK_ID, log_level="warning", timeout_keep_alive=60)
+
+# The Google Meet script's "Check now" web app, faked: PB_FAKE_MEET_SCRIPT=1 (docs shots of Check for new meetings).
+# POST /__sandbox/meet-script/queue {workspace_id, item} holds a Doc (an /inbox body) for the next check; a check
+# (meetings_inbox.CHECK_TRANSPORT) finds the connection by its check key, delivers the held Docs through the real
+# inbox (meetings_inbox.receive), waits a moment like a real run, and answers with its counts via Google's echo URL.
+if os.environ.get("PB_FAKE_MEET_SCRIPT"):
+    import asyncio as _masyncio
+    import json as _mjson
+
+    from app import database as _mdatabase
+    from app.services import meetings_inbox as _mi
+
+    _held: list[dict] = []
+    _replies: dict[str, dict] = {}
+    _ECHO = "https://script.googleusercontent.com/macros/echo?user_content_key="
+
+    async def _fake_script(req: httpx.Request) -> httpx.Response:
+        if req.method == "GET":
+            key = str(req.url).split("user_content_key=", 1)[-1]
+            return httpx.Response(200, json=_replies.pop(key, {"ok": False, "error": "failed"}))
+        body = _mjson.loads(req.content or b"{}")
+        db = _mdatabase.get_database()
+        rec = await db["api_tokens"].find_one({"scope": _mi.SCOPE, "check_key": body.get("key")}) if body.get("key") else None
+        if rec is None:
+            return httpx.Response(200, json={"ok": False, "error": "bad_key"})
+        mine = [h for h in _held if h["workspace_id"] == rec["workspace_id"]]
+        results: dict[str, int] = {}
+        for h in mine:
+            _held.remove(h)
+            got = await _mi.receive(db, rec, {"source": "google-meet-script", "version": 4, **h["item"]})
+            results[got["status"]] = results.get(got["status"], 0) + 1
+        await _masyncio.sleep(float(os.environ.get("PB_FAKE_MEET_SCRIPT_DELAY", "2")))
+        k = str(len(_replies) + 1) + "x" + str(id(req))
+        _replies[k] = {"ok": True, "found": len(mine), "sent": len(mine), "results": results, "skipped": {}, "remaining": 0}
+        return httpx.Response(302, headers={"location": _ECHO + k})
+
+    _mi.CHECK_TRANSPORT = httpx.MockTransport(_fake_script)
+
+    @mod.app.post("/__sandbox/meet-script/queue", include_in_schema=False)
+    async def _meet_queue(body: dict):
+        _held.append({"workspace_id": body["workspace_id"], "item": body["item"]})
+        return {"held": len(_held)}
