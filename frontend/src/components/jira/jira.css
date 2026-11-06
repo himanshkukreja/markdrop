@@ -1,0 +1,54 @@
+/* Jira chips, rows and the create dialog (components/jira). Tokens only: light and dark follow the theme. */
+.jr-chip { display: inline-flex; align-items: center; gap: 4px; vertical-align: baseline; margin-inline-start: 6px; max-width: 100%; }
+.jr-chip__main {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%;
+  padding: 1px 8px; border: 1px solid var(--border); border-radius: var(--radius-full);
+  background: var(--surface); color: var(--text); font-size: 12px; line-height: 18px; text-decoration: none; white-space: nowrap;
+}
+.jr-chip__main:hover { border-color: var(--border-strong); background: var(--surface-hover); }
+.jr-chip__key { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--accent-text); }
+.jr-chip__who { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; max-width: 12em; }
+.jr-chip__late { color: var(--danger); font-weight: 600; }
+.jr-chip--compact .jr-chip__main { padding: 0 6px; }
+.jr-chip__sync { display: inline-flex; align-items: center; gap: 4px; color: var(--warning); font-size: 12px; }
+.jr-chip__sync svg { width: 14px; height: 14px; }
+.jr-chip__sync--pending { color: var(--text-muted); }
+.jr-chip__retry { border: 0; background: none; padding: 0; color: var(--accent-text); font: inherit; font-size: 12px; cursor: pointer; text-decoration: underline; }
+
+.jr-status { display: inline-block; padding: 0 6px; border-radius: 4px; font-size: 11px; font-weight: 600; line-height: 16px; text-transform: uppercase; letter-spacing: 0.02em; }
+.jr-status--new { background: var(--surface-active); color: var(--text-secondary); }
+.jr-status--indeterminate { background: var(--accent-soft); color: var(--accent-text); }
+.jr-status--done { background: var(--success-soft); color: var(--success); }
+.jr-status--blocked { background: var(--danger-soft); color: var(--danger); }
+
+/* "Create Jira issue" on a meeting list item (view mode): shows on hover / focus, always on touch. */
+.jr-add {
+  display: inline-flex; align-items: center; gap: 4px; margin-inline-start: 6px; padding: 0 6px; vertical-align: baseline;
+  border: 1px dashed var(--border-strong); border-radius: var(--radius-full); background: none;
+  color: var(--text-secondary); font-size: 12px; line-height: 18px; cursor: pointer; opacity: 0; transition: opacity 120ms var(--ease-out);
+}
+.jr-add svg { width: 12px; height: 12px; }
+li:hover > .jr-add, li:focus-within > .jr-add, .jr-add:focus-visible { opacity: 1; }
+@media (hover: none) { .jr-add { opacity: 0.85; } }
+.jr-add:hover { color: var(--accent-text); border-color: var(--accent); }
+
+.jr-row { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 4px 0; font-size: 13px; }
+.jr-row .jr-chip { margin: 0; flex: none; }
+.jr-row__summary { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.jr-row__due { flex: none; color: var(--text-muted); font-size: 12px; }
+.jr-row__due--late { color: var(--danger); }
+
+.jr-quote { margin: 0; padding: 8px 12px; border-inline-start: 3px solid var(--border-strong); background: var(--surface-raised); border-radius: 6px; color: var(--text-secondary); font-size: 13px; overflow-wrap: anywhere; }
+.jr-back { font-size: 12px; color: var(--text-muted); }
+.jr-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.jr-bulk { display: flex; flex-direction: column; gap: 8px; max-height: 50vh; overflow: auto; }
+.jr-bulk__item { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: start; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+.jr-bulk__meta { grid-column: 2; font-size: 12px; color: var(--text-muted); }
+
+/* Team */
+.jr-team { display: flex; flex-direction: column; gap: 12px; }
+.jr-counts { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--text-secondary); }
+.jr-counts b { color: var(--text); font-weight: 600; }
+.jr-counts .jr-late b { color: var(--danger); }
+.jr-card { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); position: relative; z-index: 1; }
+.jr-card ul { list-style: none; margin: 0; padding: 0; }
