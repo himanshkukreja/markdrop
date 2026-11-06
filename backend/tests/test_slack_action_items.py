@@ -185,6 +185,15 @@ class Sending(ActionItemsWorld):
         r = await self.http.get(f"/api/v1/meetings/{row['_id']}", headers=self.session("owner"))
         self.assertNotIn("zara@ext.test", r.text)
 
+    async def test_without_meetings_ai_googles_notes_still_send(self):
+        from tests.test_meetings import settings as msettings
+
+        msettings.meetings_ai_enabled = False
+        self.sk.directory["zara@ext.test"] = ext("U0ZARA", "Zara Khan", "zara@ext.test")
+        await self.notes_meeting()
+        await self.send()
+        self.assertEqual(len(self.dms("U0ZARA")), 1)
+
     async def test_by_name_only_when_unambiguous_and_never_for_restricted(self):
         steps = ["Sam Lee will review the deck."]
         invited = "Ada Lovelace <owner@example.com>, Bo Chen <wm@example.com>, Sam Lee"

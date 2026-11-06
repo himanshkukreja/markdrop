@@ -1021,6 +1021,10 @@ async def _create_row(db: AsyncIOMotorDatabase, user, workspace_id: str, folder:
             await meetings_ai.generate(db, str(row["_id"]), user)
         else:
             spawn(meetings_ai.generate(db, str(row["_id"]), user))
+    elif (m.notes or {}).get("summary"):
+        # No AI (off, not set up, over its limit): Google's notes are the summary, so the meeting is
+        # ready now — the Slack channel post and each person's action items (as meetings_ai does).
+        await meetings_ai._slack_ready(db, row)
     return await db[COLL].find_one({"_id": row["_id"]})
 
 
