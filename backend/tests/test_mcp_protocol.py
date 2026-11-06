@@ -151,6 +151,8 @@ class Transport(McpTestCase):
             "slack_status", "post_meeting_to_slack",
             # Team memory: who is doing what (the board, a person, a project).
             "list_team", "get_person_profile", "get_project_status",
+            # Jira Cloud: the connection, issues from items (draft / create / link), listing, moving.
+            "jira_status", "create_jira_issue", "link_jira_issue", "list_jira_issues", "transition_jira_issue",
         # A video's captions (search and Ask read it by minute).
         "set_captions"})
         for t in tools.values():

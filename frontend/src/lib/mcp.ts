@@ -160,6 +160,17 @@ export const MCP_TOOL_GROUPS: Array<{ title: string; icon: string; tools: McpToo
     ],
   },
   {
+    title: "Jira",
+    icon: "checkSquare",
+    tools: [
+      { name: "jira_status", scope: "read" },
+      { name: "create_jira_issue", scope: "write" },
+      { name: "link_jira_issue", scope: "write" },
+      { name: "list_jira_issues", scope: "read" },
+      { name: "transition_jira_issue", scope: "write" },
+    ],
+  },
+  {
     title: "Who's viewing",
     icon: "users",
     tools: [

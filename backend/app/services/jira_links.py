@@ -957,3 +957,35 @@ async def retry_pending(db: AsyncIOMotorDatabase, limit: int = 20) -> int:
             ln["jira_done"] = p["done"]
             n += await _follow_jira(db, ln, bool(p["done"]), p.get("account"))
     return n
+
+
+# ── Finding an item by its words (MCP) ────────────────────────────────────────
+
+
+def find_item(content: str, ref: str) -> tuple[str | None, int | None, list[str]]:
+    """(block id, body offset, candidates) for ``ref``: a block id ("b-…"), or words of the item. One
+    match: its block id (or, without one, its offset in the body); several: their texts (to ask)."""
+    ref = (ref or "").strip()
+    if re.match(r"^b-[0-9A-Za-z_-]{1,40}$", ref):
+        return (ref, None, []) if item_at(content, block=ref) else (None, None, [])
+    needle = re.sub(r"\s+", " ", ref).strip().lower()
+    if len(needle) < 3:
+        return None, None, []
+    start = _body_start(content)
+    body = content[start:]
+    hits: list[tuple[str | None, int, str]] = []
+    pos = 0
+    fence = False
+    for line in body.split("\n"):
+        if line.lstrip().startswith(("```", "~~~")):
+            fence = not fence
+        elif not fence and line.strip() and not line.lstrip().startswith(("#", ":::", "---", "|")):
+            text, _p, _m, _d = _plain(line)
+            if needle in text.lower():
+                bm = _BLOCK.search(line)
+                hits.append((bm.group(1) if bm else None, pos, text))
+        pos += len(line) + 1
+    if len(hits) == 1:
+        b, off, _t = hits[0]
+        return (b, None if b else off, [])
+    return None, None, [t for _b, _o, t in hits[:8]]
