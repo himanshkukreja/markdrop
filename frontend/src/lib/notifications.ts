@@ -69,8 +69,19 @@ export const listNotifications = (opts: { unreadOnly?: boolean; limit?: number; 
   return request<NotificationPage>(`/api/v1/notifications${s ? `?${s}` : ""}`);
 };
 
-export const unreadCount = () =>
-  request<{ unread_count: number }>("/api/v1/notifications/unread-count").then((r) => r.unread_count);
+/** The browser's IANA timezone (the daily email digest goes at 08:00 there), or "" when unknown. */
+function browserTz(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch { return ""; }
+}
+
+/** The bell's poll (only while the tab is visible): it also tells the API the bell was shown, so what
+ * came before needs no email, and the timezone for the daily digest. */
+export const unreadCount = () => {
+  const tz = browserTz();
+  return request<{ unread_count: number }>(
+    "/api/v1/notifications/unread-count" + (tz ? `?tz=${encodeURIComponent(tz)}` : ""),
+  ).then((r) => r.unread_count);
+};
 
 export const markRead = (ids: string[] | "all") =>
   request<{ marked: number; unread_count: number }>("/api/v1/notifications/read", {
