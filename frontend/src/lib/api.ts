@@ -127,6 +127,9 @@ export interface DocumentResponse {
   download_url?: string | null;
   /** A video's poster frame on the artifact origin (signed when guarded); null until generated. */
   poster_url?: string | null;
+  /** A video's captions (.vtt on the artifact origin) and the uploaded file's name. */
+  captions_url?: string | null;
+  captions_name?: string | null;
   /** ffprobe's reading of a video or audio file; null until known. */
   media?: MediaInfo | null;
   /** Artifacts: the live file version (1 for a never-replaced file). Sent as `ver` with analytics beacons. */
@@ -1294,6 +1297,31 @@ export async function updateArtifactSettings(
     }),
   });
   if (!res.ok) throw await artifactError(res, "Could not save changes");
+  return res.json();
+}
+
+/**
+ * A video's captions: a .vtt or .srt file's text (2 MB at most). The player shows them as
+ * subtitles; search and Ask read them by minute. Editors of the file only.
+ */
+export async function setArtifactCaptions(slug: string, file: File): Promise<DocumentResponse> {
+  if (file.size > 2 * 1024 * 1024) throw new Error("That captions file is too big (2 MB at most).");
+  const content = await file.text();
+  const res = await fetch(`${API_BASE}/api/v1/artifacts/${encodeURIComponent(slug)}/captions`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: JSON.stringify({ file_name: file.name, content }),
+  });
+  if (!res.ok) throw await artifactError(res, "Could not add the captions");
+  return res.json();
+}
+
+export async function removeArtifactCaptions(slug: string): Promise<DocumentResponse> {
+  const res = await fetch(`${API_BASE}/api/v1/artifacts/${encodeURIComponent(slug)}/captions`, {
+    method: "DELETE",
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await artifactError(res, "Could not remove the captions");
   return res.json();
 }
 

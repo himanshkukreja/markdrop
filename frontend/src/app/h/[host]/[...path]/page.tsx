@@ -268,6 +268,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           artifactUrl={doc.artifact_url ?? null}
           downloadUrl={doc.download_url ?? null}
           posterUrl={doc.poster_url ?? null}
+          captionsUrl={doc.captions_url ?? null}
           readTicket={doc.read_ticket ?? null}
           fileVersion={doc.file_version ?? null}
           workspaceId={doc.workspace_id ?? null}

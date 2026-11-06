@@ -29,7 +29,9 @@ import {
   changeSlug,
   getDocument,
   recordEvent,
+  removeArtifactCaptions,
   replaceArtifactFile,
+  setArtifactCaptions,
   updateArtifactSettings,
   type ArtifactRenderer,
   liveSocketUrl,
@@ -49,7 +51,7 @@ import { ArtifactVersions } from "./artifact/ArtifactVersions";
 import { ImageStage } from "./artifact/ImageStage";
 import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
-import { basePathOf, isPaper, linkPrefixOf, shortDate, themedFrameSrc } from "./artifact/frame";
+import { basePathOf, isPaper, linkPrefixOf, shortDate, startFromHash, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
 import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
 import { fromFrameOrigin, type BridgeMessage } from "@/lib/engageCore";
@@ -96,6 +98,8 @@ interface Props {
   downloadUrl: string | null;
   /** A video's poster frame (API `poster_url`), shown by the player before it plays. */
   posterUrl?: string | null;
+  /** A video's captions (API `captions_url`, .vtt), shown by the player as subtitles. */
+  captionsUrl?: string | null;
   /** Opaque analytics reference (API `ref`); never the slug. */
   docRef?: string | null;
   /**
@@ -139,6 +143,7 @@ export default function ArtifactView({
   artifactUrl: initialArtifactUrl,
   downloadUrl: initialDownloadUrl,
   posterUrl: initialPosterUrl = null,
+  captionsUrl: initialCaptionsUrl = null,
   docRef = null,
   viewerChrome = "full",
   readTicket: initialReadTicket = null,
@@ -163,6 +168,10 @@ export default function ArtifactView({
   const artifactUrlRef = useRef(initialArtifactUrl);
   const [downloadUrl, setDownloadUrl] = useState(initialDownloadUrl);
   const [posterUrl, setPosterUrl] = useState(initialPosterUrl);
+  const captionsInput = useRef<HTMLInputElement>(null);
+  const [captionsUrl, setCaptionsUrl] = useState(initialCaptionsUrl);
+  // `#t=754` / `#page=3` (an Ask answer's "at 12:34" / "page 3"): where the player or PDF starts.
+  const [startAt, setStartAt] = useState<number | null>(null);
   const [renderer, setRenderer] = useState(initialRenderer);
   const [typeLabel, setTypeLabel] = useState(initialTypeLabel);
   const [sizeBytes, setSizeBytes] = useState(initialSize);
@@ -347,6 +356,7 @@ export default function ArtifactView({
     if (remount) setReloadKey((k) => k + 1);
     setDownloadUrl(doc.download_url ?? null);
     setPosterUrl(doc.poster_url ?? null);
+    setCaptionsUrl(doc.captions_url ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
     if (doc.type_label) setTypeLabel(doc.type_label);
     if (doc.size_bytes) setSizeBytes(doc.size_bytes);
@@ -683,8 +693,16 @@ export default function ArtifactView({
   const loadingLabel = `Loading ${typeLabel}…`;
   // Theme on Worker viewer pages (`/v/…`), via the URL API so a signed `?t=` survives. Waits for
   // hydration *and* the resolved theme, so the iframe mounts once with its final src.
+  useEffect(() => {
+    const read = () => setStartAt(startFromHash(window.location.hash, renderer));
+    read();
+    window.addEventListener("hashchange", read);
+    return () => window.removeEventListener("hashchange", read);
+  }, [renderer]);
   const frameSrc =
-    hydrated && resolved && artifactUrl ? themedFrameSrc(artifactUrl, resolved, posterUrl) : null;
+    hydrated && resolved && artifactUrl
+      ? themedFrameSrc(artifactUrl, resolved, posterUrl, captionsUrl, startAt)
+      : null;
   const showCover = frameLoading && !liveReload;
   const showLiveProgress = frameLoading && liveReload;
   const canOpen = !!artifactUrl && !locked;
@@ -761,6 +779,15 @@ export default function ArtifactView({
   if (!isOwner && canReplace && !locked && !tenant) {
     menu.push({ label: "Replace file", icon: "upload", onClick: openEdit });
   }
+  if (renderer === "video" && (isOwner || canEditTitle) && !locked && !tenant) {
+    menu.push({
+      label: captionsUrl ? "Replace captions" : "Add captions (.vtt/.srt)",
+      icon: "upload",
+      description: "Subtitles in the player; search and Ask read them by minute",
+      onClick: () => captionsInput.current?.click(),
+    });
+    if (captionsUrl) menu.push({ label: "Remove captions", icon: "x", onClick: () => void dropCaptions() });
+  }
   if (isOwner && tenant) {
     // (External links: the menu draws the ↗ itself.)
     menu.push(
@@ -779,10 +806,44 @@ export default function ArtifactView({
     menu.push({ label: "Remove me", icon: "x", danger: true, onClick: () => setShowLeave(true) });
   }
 
+  async function pickCaptions(file: File | undefined) {
+    if (!file) return;
+    try {
+      const doc = await setArtifactCaptions(slug, file);
+      setCaptionsUrl(doc.captions_url ?? null);
+      toast.success("Captions added");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not add the captions");
+    } finally {
+      if (captionsInput.current) captionsInput.current.value = "";
+    }
+  }
+
+  async function dropCaptions() {
+    try {
+      await removeArtifactCaptions(slug);
+      setCaptionsUrl(null);
+      toast.success("Captions removed");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not remove the captions");
+    }
+  }
+
   const showPanel = isNew && panelOpen && immersive && !!artifactUrl && !locked && access !== null;
 
   return (
     <>
+      {renderer === "video" && (
+        <input
+          ref={captionsInput}
+          type="file"
+          accept=".vtt,.srt,text/vtt"
+          className="hidden"
+          aria-hidden
+          tabIndex={-1}
+          onChange={(e) => void pickCaptions(e.target.files?.[0])}
+        />
+      )}
       {/* Back from signing in on a workspace's domain (#mdt=): nothing else on a file's page takes
           the session (DocumentView does for documents, and has already when it shows this view). */}
       {tenant && <TenantHandoff />}

@@ -69,6 +69,13 @@ test("citations: moments jump, meetings and pages open", () => {
   assert.equal(p.meta, "This page");
   assert.equal(p.icon, "lines");
   assert.equal(p.action, "Open");
+  // Whole-length passages: a file's slide, a video's minute (Ask's [n-sK] on a file).
+  const slide = toCitation({ label: "3-s1", key: "d:3", title: "Q4 deck", url: "/deck#slide=2", kind: "file", moment: "slide 2",
+    source_kind: "passage" }, link);
+  assert.deepEqual([slide.icon, slide.meta, slide.action, slide.href], ["layers", "slide 2", "Open at slide 2", "/deck#slide=2"]);
+  const minute = toCitation({ label: "4-s2", key: "d:4", title: "Demo", url: "/demo#t=754", kind: "file", moment: "12:34", at: "12:34",
+    source_kind: "passage" }, link);
+  assert.equal(minute.action, "Play from 12:34");
 });
 
 test("saved turns keep their scope; withheld ones stay hidden", () => {

@@ -21,17 +21,44 @@ export function isPaper(renderer: ArtifactRenderer): boolean {
 export function themedFrameSrc(
   artifactUrl: string,
   theme: "dark" | "light",
-  posterUrl?: string | null
+  posterUrl?: string | null,
+  captionsUrl?: string | null,
+  at?: number | null
 ): string {
   try {
     const u = new URL(artifactUrl);
     if (!u.pathname.startsWith("/v/")) return artifactUrl;
     u.searchParams.set("theme", theme);
     if (posterUrl && u.pathname.startsWith("/v/video/")) addPoster(u, posterUrl);
+    if (captionsUrl && u.pathname.startsWith("/v/video/")) addCaptions(u, captionsUrl);
+    if (at && at > 0 && (u.pathname.startsWith("/v/video/") || u.pathname.startsWith("/v/pdf/"))) {
+      u.searchParams.set("at", String(Math.floor(at)));
+    }
     return u.toString();
   } catch {
     return artifactUrl;
   }
+}
+
+/**
+ * Where a link into a file starts: `#t=754` (a video's second) or `#page=3` (a PDF's page), as
+ * Ask's answers and search results link ("at 12:34", "page 3"). Null when the hash says neither.
+ */
+export function startFromHash(hash: string | null | undefined, renderer: string): number | null {
+  const m = /^#?(t|page)=(\d{1,7})$/.exec((hash || "").trim());
+  if (!m) return null;
+  if ((m[1] === "t" && renderer !== "video") || (m[1] === "page" && renderer !== "pdf")) return null;
+  const n = Number(m[2]);
+  return n > 0 ? n : null;
+}
+
+/** The player's captions: the API's `captions_url` (raw .vtt on the artifact origin) as `cc` + `ct`. */
+function addCaptions(frame: URL, captionsUrl: string): void {
+  const c = new URL(captionsUrl);
+  if (c.origin !== frame.origin || !c.pathname.startsWith("/r/")) return;
+  frame.searchParams.set("cc", decodeURIComponent(c.pathname.slice(3)));
+  const token = c.searchParams.get("t");
+  if (token) frame.searchParams.set("ct", token);
 }
 
 /**

@@ -557,6 +557,7 @@ export default function DocumentView(props: DocumentViewProps) {
         artifactUrl={artifactDoc.artifact_url ?? null}
         downloadUrl={artifactDoc.download_url ?? null}
         posterUrl={artifactDoc.poster_url ?? null}
+        captionsUrl={artifactDoc.captions_url ?? null}
         docRef={artifactDoc.ref ?? null}
         readTicket={artifactDoc.read_ticket ?? null}
         fileVersion={artifactDoc.file_version ?? null}
