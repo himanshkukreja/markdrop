@@ -825,7 +825,7 @@ class GeminiDates(TeamWorld):
     async def gemini_steps(self, steps: list[str]):
         from app.services import meeting_memory
 
-        await self.db["meetings"].update_one({"_id": ObjectId(self.m["id"])}, {"$set": {"notes.next_steps": steps}})
+        await self.db["meetings"].update_one({"_id": ObjectId(self.m["id"])}, {"$set": {"notes": {"next_steps": steps}}})
         await meeting_memory.sync_meeting(self.db, self.m["id"])
 
     async def extract(self) -> dict:
@@ -865,7 +865,7 @@ class GeminiDates(TeamWorld):
             {"person": "Bo Chen", "kind": "target", "text": "Refresh the onboarding checklist for the pilot",
              "due": None, "due_text": "by Friday", "cite": "s2", "confidence": 0.9}]})
         await self.extract()
-        rows = await self.mine("wm", "onboarding checklist")
+        rows = await self.mine("wm", "checklist")
         self.assertEqual(sorted((r["origin"], r["due"]) for r in rows), [("ai", "2026-11-06"), ("meeting_fact", None)])
         self.assertEqual(len({r["cluster"] for r in rows}), 1)       # one commitment
         self.assertEqual(len({r["norm"] for r in rows}), 1)          # one correction key
@@ -873,23 +873,23 @@ class GeminiDates(TeamWorld):
         self.assertTrue(ai["sources"][0].get("also"))               # the date came from the call
         # Board, person page and This week: one line, the dated one, with both sources.
         b = (await self.board("wa")).json()
-        lines = [x for x in b["this_week"]["due"] if "onboarding checklist" in x["text"].lower()]
+        lines = [x for x in b["this_week"]["due"] if "checklist" in x["text"].lower()]
         self.assertEqual([(x["id"], x["due"]) for x in lines], [(str(ai["_id"]), "2026-11-06")])
         p = (await self.person("wm", who="wa")).json()
-        self.assertEqual([t["due"] for t in p["targets"] if "onboarding" in t["text"].lower()], ["2026-11-06"])
-        self.assertEqual([a for a in p["action_items"] if "onboarding" in a["text"].lower()], [])
+        self.assertEqual([t["due"] for t in p["targets"] if "checklist" in t["text"].lower()], ["2026-11-06"])
+        self.assertEqual([a for a in p["action_items"] if "checklist" in a["text"].lower()], [])
         # Someone who can't open the transcript (where the date was said) gets the undated line.
         t = await self.doc(self.m["transcript_slug"])
         await self.db["documents"].update_one({"_id": t["_id"]}, {"$set": {"access_level": "private", "access_inherit": False}})
         p = (await self.person("wm", who="wa")).json()
-        self.assertEqual([t["due"] for t in p["targets"] if "onboarding" in t["text"].lower()], [])
-        self.assertEqual(len([a for a in p["action_items"] if "onboarding" in a["text"].lower()]), 1)
+        self.assertEqual([t["due"] for t in p["targets"] if "checklist" in t["text"].lower()], [])
+        self.assertEqual(len([a for a in p["action_items"] if "checklist" in a["text"].lower()]), 1)
         await self.db["documents"].update_one({"_id": t["_id"]}, {"$set": {"access_level": "workspace", "access_inherit": True}})
         # Hiding the line hides its twin too (one correction key).
         r = await self.http.post(f"/api/v1/team/{self.W}/facts/{ai['_id']}/hide", headers=self.session("wm"))
         self.assertEqual(r.status_code, 200, r.text)
         p = (await self.person("wm", who="wa")).json()
-        self.assertFalse([x for x in p["targets"] + p["action_items"] if "onboarding" in x["text"].lower()])
+        self.assertFalse([x for x in p["targets"] + p["action_items"] if "checklist" in x["text"].lower()])
         # A model match that already had its own deadline adds nothing.
         await self.gemini_steps(["Bo Chen will send the pricing FAQ by Thursday"])
         self.extract_reply = json.dumps({"facts": [
