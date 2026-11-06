@@ -1662,6 +1662,9 @@ def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, peop
         found = []
         for a in entries:
             name = a.get("name") or ""
+            if a.get("email") and name not in labels:
+                found.append(a)     # someone with an address (the invite) is who the address says
+                continue
             owner = labels.get(name) if name in labels else mp.task_owner(name, None, known)
             if owner:
                 found.append(entry(owner))
@@ -1738,6 +1741,12 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
             traw = None
     if not apply:
         return out
+    user = None
+    if out["page"] in ("rewritten", "attendees") or out["transcript"] in ("rewritten", "trashed"):
+        user = await user_service.get_user_by_id(db, row.get("created_by"))
+        if user is None:    # nobody to write as: the pages stay as they are (the row is fixed all the same)
+            out["page"] = "left" if out["page"] != "none" else "none"
+            out["transcript"] = "left" if out["transcript"] != "none" else "none"
     sets: dict[str, Any] = {"attendees_v": ATTENDEES_V, "names_v": NAMES_V, "attendees_from": how}
     if changed:
         sets.update(attendees=att, invited=inv,
@@ -1755,11 +1764,7 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
         from app.services import meeting_memory
 
         await meeting_memory.sync_quietly(db, row["_id"])     # its facts' speakers and segments
-    if out["page"] not in ("rewritten", "attendees") and out["transcript"] not in ("rewritten", "trashed"):
-        return out
-    user = await user_service.get_user_by_id(db, row.get("created_by"))
     if user is None:
-        out["page"] = "left" if out["page"] != "none" else "none"
         return out
     actor, ctx = access.Actor.of(user), access.Ctx(db)
     if traw is not None and out["transcript"] == "rewritten":
