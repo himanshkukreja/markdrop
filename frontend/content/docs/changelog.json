@@ -24,6 +24,42 @@
   "next": [],
   "entries": [
     {
+      "id": "meetings-mentions-quiet",
+      "date": "2026-11-06",
+      "title": "Mentions in meeting notes don't notify anyone",
+      "kind": "improved",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "The @mentions Markdrop writes into a meeting (an action item's owner, for example) stay links but no longer send a bell, email, phone notification or Slack message, however the meeting came in. Action items still show on each person's home.",
+      "body": "- **Every way in is quiet**: Import meeting, a Drive link, the Google Meet script, `import_meeting` and `import_meetings_bulk` from an AI app, Import past meetings, the other half of a call added later, and the summary written again or regenerated.\n- **Your own mentions still notify.** Edit a meeting page and @mention someone, and they're told as on any page.\n- **Slack meeting posts don't change.** New meetings are still posted to your meetings channel; a meeting held more than a day before it was imported isn't posted on its own.\n- **Import past meetings**: the switch is now **Don't post to Slack** (on by default), since nobody is notified either way.",
+      "docs": [
+        "/workspaces/meetings",
+        "/workspaces/meetings-import",
+        "/workspaces/meetings-privacy"
+      ]
+    },
+    {
+      "id": "mentions-take-back",
+      "date": "2026-11-06",
+      "title": "A mention you remove within a minute is never sent",
+      "kind": "improved",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Mentioned the wrong person? Remove the mention and save: their unread bell entry goes, and the email, phone notification or Slack message that was waiting is dropped. Mentions and sign-off requests now wait a minute before ringing a phone or sending a Slack message.",
+      "body": "- **The bell**: an unread notification for a mention you removed disappears when the page saves. One the person already read stays.\n- **Email, push and Slack** are checked again just before they go: a mention no longer on the page sends nothing. Push and Slack messages for mentions and sign-off requests wait a minute (email already did), so a quick fix never buzzes anyone. Shares and access requests keep their timing.\n- **Putting it back** the same day doesn't ring twice when something already reached them.\n- **Sign-off requests** are taken back the same way when you remove the sign-off block or the person on it.",
+      "docs": [
+        "/pages/mentions-and-notifications"
+      ]
+    },
+    {
       "id": "home-quiet-strip",
       "date": "2026-11-06",
       "title": "Home: action items newest first, and no gap beside an empty Today",

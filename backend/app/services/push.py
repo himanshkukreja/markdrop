@@ -1,7 +1,7 @@
 """Push notifications: the third channel next to the bell and email (and Slack DMs).
 
-With Markdrop installed as an app (or in any browser that has Web Push), mentions — a meeting's
-action item that names you is a mention too — sign-off requests, shares and access requests arrive
+With Markdrop installed as an app (or in any browser that has Web Push), mentions (not the ones
+Markdrop writes into meeting notes: those notify nobody), sign-off requests, shares and access requests arrive
 as real notifications on each device the person turned them on for.
 
 Collections::
@@ -69,7 +69,7 @@ LABELS = {
     "access_request": "Access requests",
 }
 HINTS = {
-    "mention": "Someone mentions you on a page, including a meeting's action item for you.",
+    "mention": "Someone mentions you on a page.",
     "signoff_requested": "Someone asks for your sign-off.",
     "shared": "Someone shares a page with you and ticks Notify people.",
     "access_request": "Someone asks to open or edit something you own or manage.",

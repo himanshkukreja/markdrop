@@ -1,9 +1,9 @@
 ---
 title: Mentions and notifications
 description: Mention someone and they're told under the bell, by email and on their phone or computer, with a link to the exact block. Only people who can open the page.
-updated: 2026-11-05
+updated: 2026-11-06
 prerequisites: [/pages/overview]
-keywords: [mention, mentions, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, list_notifications, mark_notifications_read, share_with_people]
+keywords: [mention, mentions, remove a mention, undo mention, mistaken mention, wrong person, take a mention back, withdrawn, meeting mentions, edit mode, mention someone, "@", at sign, people picker, mention in table, notify, notification, notifications, bell, inbox, email, unsubscribe, turn off, sign-off, signoff, share, notify people, at mention, push, push notifications, phone, desktop notifications, lock screen, devices, list_notifications, mark_notifications_read, share_with_people]
 ---
 
 When you mention someone on a page, Markdrop tells them. They see it under the bell at the top of Markdrop, get an email and, if they've turned it on, a notification on their phone or computer. Each one opens the page at the block that mentions them.
@@ -18,7 +18,7 @@ While you edit a page (choose **Edit** or press **E**), type `@` or `/person` (o
 - **Who's listed.** Everyone in the page's workspace, including you. A page that isn't in a workspace has nobody to mention; move it into a workspace first. Someone editing with an edit link but no account, or who can edit the page but isn't in its workspace, can't mention people.
 - **On a workspace's own domain** the list shows names and pictures, but not email addresses.
 
-Everyone you newly mention is notified when the page saves. That includes mentions made by an AI app through [MCP](/ai/tools#notifications) and mentions that come back when you [restore a version](/pages/history). The notification names whoever made the change.
+Everyone you newly mention is notified when the page saves. That includes mentions made by an AI app through [MCP](/ai/tools#notifications) and mentions that come back when you [restore a version](/pages/history). The notification names whoever made the change. Mentioned the wrong person? [Take it back](#take-a-mention-back).
 
 Who isn't notified:
 
@@ -26,8 +26,18 @@ Who isn't notified:
 - **You,** when you mention yourself.
 - **The same person twice.** People already mentioned in the page before your change aren't notified again. Moving a mention, or removing it and putting it back within a day, doesn't notify them again either.
 - **Anyone, from a visitor who isn't signed in.** Someone editing with an edit link but no account can't notify people.
+- **Anyone, from meeting notes.** The @mentions Markdrop writes into a [meeting](/workspaces/meetings#what-the-meeting-page-holds), such as an action item's owner, stay links and notify nobody, however the meeting came in. They show on that person's home under **Your action items**. Mentioning someone yourself while you edit a meeting page notifies them as usual.
 
 Mentions in code blocks and in classic-editor documents don't notify anyone. At most 50 people are notified by one save.
+
+## Take a mention back
+
+A mention you remove within a minute is never sent. Delete it (or swap it for the right person) and save, and the person you mentioned by mistake gets nothing: no email, no notification on their devices and no Slack message, and the bell entry is gone.
+
+- **The bell.** Their notification leaves the bell as soon as the page saves without the mention, as long as they haven't read it yet. One they've already read stays.
+- **Email, phone and Slack** wait at least a minute before they go, and are checked again just before sending: a mention that's no longer on the page sends nothing. An email or notification that already went can't be recalled.
+- **Putting it back** the same day doesn't notify them again if something already reached them. If nothing did, they're told then.
+- **Sign-off requests** work the same way: remove the sign-off block, or the person on it, and their request is taken back.
 
 ![Typing @ in a page while editing: the Mention someone list shows the workspace's members with their avatars and email addresses.](/docs-assets/pages/mentions-and-notifications/mention.webp)
 
@@ -54,7 +64,7 @@ A notification about a page you can no longer open stays in the list without the
 You also get an email when someone mentions you or asks for your sign-off, with the block that mentions you quoted and a link to it.
 
 - **Batched.** You get at most one email per page every 10 minutes. Mentions on the same page in that time arrive together in one email.
-- **Only what's still true.** Before an email goes, Markdrop checks again that you can open the page. If you've already read the notification in the app, no email is sent.
+- **Only what's still true.** Before an email goes, Markdrop checks again that you can open the page and that the mention is still there. If you've already read the notification in the app, no email is sent.
 - **Shares** send their own email straight away, with the message the sender added.
 
 ### Turn mention emails off
@@ -65,7 +75,7 @@ Go to **Settings › Account › Email** and turn off **Email me when someone me
 
 Turn on notifications for your phone, tablet or computer and Markdrop rings it even when Markdrop is closed. You get one when someone:
 
-- mentions you on a page, including a meeting's action item that names you;
+- mentions you on a page;
 - asks for your sign-off;
 - shares a page with you with **Notify people** ticked;
 - asks to open or edit something you own or manage (an [access request](/sharing/request-access)).
@@ -96,7 +106,7 @@ Under **Notify me when**, turn off any of **Mentions**, **Sign-off requests**, *
 
 - **Only what the bell says:** who did it, the page's title and the line that mentions you (or the sign-off's label, or the note on a share).
 - **Only about pages you can still open.** Markdrop checks your access when it sends. If you've lost access by then, nothing is sent at all.
-- **Not twice.** If you've already read it under the bell, no notification is sent. Several on the same page within a few seconds arrive as one, such as "You were mentioned 3 times in “Launch plan”", and a newer one about a page replaces the older one on your screen.
+- **Not twice.** If you've already read it under the bell, no notification is sent. Mentions and sign-off requests wait a minute, so several on the same page in that time arrive as one, such as "You were mentioned 3 times in “Launch plan”", and one [taken back](#take-a-mention-back) in that minute never rings. Shares and access requests go within seconds. A newer notification about a page replaces the older one on your screen.
 - **Private on the way.** Each notification is encrypted for your device, so the notification service that delivers it (Google, Apple, Mozilla or Microsoft, depending on your browser) can't read it.
 
 To stop them on a device, choose **Turn off** under **This device**, or block notifications for markdrop.in in your browser's site settings.

@@ -2,7 +2,7 @@
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
 updated: 2026-11-06
-keywords: [meetings, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
+keywords: [meetings, mentions in meetings, meeting notifications, no notifications, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
 ---
 
 Meetings turns a call into a page in your workspace. Bring in Google Meet's transcript, Gemini's meeting notes, or both, and Markdrop writes:
@@ -95,7 +95,7 @@ Every meeting page has a cover from Markdrop's cover gallery. All the meetings o
 
 - **Summary.** Either AI's summary, or Google's notes when they came in.
 - **Decisions.**
-- **Action items**, as a checklist. If the person who owns an item is a member of the workspace, they are @mentioned and notified, in Markdrop and by email unless they turned emails off. Other names stay plain text. Tick items off as they get done.
+- **Action items**, as a checklist. If the person who owns an item is a member of the workspace, they are @mentioned, as a link to them, and the item shows under **Your action items** on their [home](/get-started/tour#your-home). Other names stay plain text. Tick items off as they get done.
 - **Open questions** and **Topics.**
 - **Details**, when Google's notes came in.
 - **Sources.** The **Transcript** sub-page, with a line for each turn and the time it was said, plus links back to the Google Docs. The transcript belongs to its meeting: folder views, counts and search show the meeting once, not its transcript as a second item. A word that was only said in the call finds the meeting page. Open the transcript from **Sources**, from **Details**, or under the meeting page in the sidebar.
@@ -103,6 +103,10 @@ Every meeting page has a cover from Markdrop's cover gallery. All the meetings o
 Links like **12:34** next to a decision or an action item open the transcript at that moment. Google Meet marks the time only every five minutes, so the times in between are estimated.
 
 When Google's notes are there, Markdrop uses them as written, marked **From Google Meet notes**. That covers the summary, the details and the suggested next steps. AI only adds what the notes leave out: the decisions, the open questions, the topics, and any action items the next steps miss.
+
+:::note[Mentions in meeting notes don't notify anyone]
+Markdrop never notifies anyone about the @mentions it writes into a meeting: no bell, email, phone notification or Slack message, whether the meeting came in by hand, from a Drive link, from the Google Meet script, from an AI app or with Import past meetings, and not when its summary is written again later. People find their action items on their home and in the meeting page. The meeting can still be [posted to your Slack meetings channel](/integrations/slack). If you edit a meeting page yourself and @mention someone, they're notified as on any page.
+:::
 
 The page is an ordinary page. Edit it like any other: fix a name, add notes, tick off action items. Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken.
 
