@@ -35,6 +35,7 @@ from app.schemas.artifact import (
     ArtifactStatusResponse,
     ArtifactUploadUrlRequest,
     ArtifactUploadUrlResponse,
+    CaptionsRequest,
 )
 from app.services import artifact as art_service
 from app.services import bundle
@@ -431,6 +432,42 @@ async def update_artifact_settings(
         expires_in=data.expires_in,
         custom_expires_at=data.custom_expires_at,
     )
+    return await _artifact_response(db, after, user)
+
+
+@router.put("/{slug}/captions", response_model=ArtifactResponse)
+@limiter.limit("20/minute")
+async def set_video_captions(
+    request: Request,
+    slug: str,
+    data: CaptionsRequest,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Add or replace a video's captions (a .vtt or .srt file's text): the player shows them as
+    subtitles, and search and Ask read them by minute. can(edit_content) on the file."""
+    from app.services import captions
+
+    _require_configured()
+    actor, ctx = _actor_ctx(request, db, user)
+    after = await captions.set_captions(db, slug, actor, ctx, file_name=data.file_name, content=data.content)
+    return await _artifact_response(db, after, user)
+
+
+@router.delete("/{slug}/captions", response_model=ArtifactResponse)
+@limiter.limit("20/minute")
+async def remove_video_captions(
+    request: Request,
+    slug: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Remove a video's captions."""
+    from app.services import captions
+
+    _require_configured()
+    actor, ctx = _actor_ctx(request, db, user)
+    after = await captions.remove_captions(db, slug, actor, ctx)
     return await _artifact_response(db, after, user)
 
 

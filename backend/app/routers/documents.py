@@ -97,6 +97,8 @@ def _to_response(doc, viewer_id: str | None = None, *, public: bool | None = Non
         artifact_url=byte_urls["artifact_url"],
         download_url=byte_urls["download_url"],
         poster_url=byte_urls["poster_url"],
+        captions_url=byte_urls.get("captions_url"),
+        captions_name=doc.captions_name if doc.kind == "artifact" else None,
         media=doc.media if doc.kind == "artifact" else None,
         # Which version of the file this is (artifacts); the engagement tracker
         # tags its sessions with it so versions can be compared.

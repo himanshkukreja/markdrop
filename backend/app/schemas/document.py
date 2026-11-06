@@ -125,6 +125,8 @@ class DocumentResponse(BaseModel):
     # Video poster frame (raw image URL, signed when guarded) and ffprobe's
     # reading of a video or audio file; null until known.
     poster_url: str | None = None
+    captions_url: str | None = None
+    captions_name: str | None = None
     media: dict | None = None
     # The current file's version number (artifacts only; null for markdown).
     file_version: int | None = None

@@ -109,6 +109,8 @@ def _doc_from_mongo(raw: dict) -> Document:
         sha256=raw.get("sha256"),
         media=raw.get("media"),
         poster_key=raw.get("poster_key"),
+        captions_key=raw.get("captions_key"),
+        captions_name=raw.get("captions_name"),
         access_epoch=int(raw.get("access_epoch") or 0),
         old_slugs=list(raw.get("old_slugs") or []),
         editor=raw.get("editor"),

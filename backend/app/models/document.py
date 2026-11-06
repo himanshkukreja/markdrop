@@ -81,6 +81,10 @@ class Document:
     # R2 key of a poster frame for a video, stored beside it with the same
     # publicity.
     poster_key: str | None = None
+    # A video's captions (.vtt, R2, beside it with the same publicity; services/captions.py):
+    # the player shows them, search and Ask read them by minute.
+    captions_key: str | None = None
+    captions_name: str | None = None
     # ── Access bookkeeping (services/access.py, services/publicity.py) ───────
     # Bumped on every narrowing; signed byte links and read tickets carry it, so
     # a bump revokes the ones already handed out. Absent on old rows = 0.

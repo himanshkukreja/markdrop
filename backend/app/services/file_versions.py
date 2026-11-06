@@ -391,6 +391,7 @@ async def forget_document(db: AsyncIOMotorDatabase, doc_id: str, current: dict |
     await db[VERSIONS].delete_many({"doc_id": doc_id})
     if current:
         keys.add(current.get("poster_key") or "")
+        keys.add(current.get("captions_key") or "")    # captions are not versioned: only the document holds them
         keys.discard(current.get("blob_key") or "")  # the caller deletes it
     gone = await _unreferenced(db, keys)
     await _delete_objects(gone)

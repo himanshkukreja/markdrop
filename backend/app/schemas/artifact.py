@@ -85,6 +85,8 @@ class ArtifactResponse(BaseModel):
     # A video's poster frame (signed when guarded) and ffprobe's metadata
     # {duration_s, width, height, video_codec, audio_codec}; null until known.
     poster_url: str | None = None
+    captions_url: str | None = None
+    captions_name: str | None = None
     media: dict | None = None
     created_at: datetime
     updated_at: datetime
@@ -119,6 +121,13 @@ class ArtifactStatusResponse(BaseModel):
     quota_bytes: int
     used_bytes: int = 0
     accepted_types: list[str] = []
+
+
+class CaptionsRequest(BaseModel):
+    """A video's captions: the text of a .vtt or .srt file (services/captions.py)."""
+
+    file_name: str | None = Field(None, max_length=200)
+    content: str = Field(..., min_length=1, max_length=2_200_000)
 
 
 class ArtifactSettingsRequest(BaseModel):

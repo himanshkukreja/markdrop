@@ -195,7 +195,9 @@ const KIND_ICON = { page: "lines", doc: "doc", file: "layers", guide: "listTree"
 /** One answer's citation in the shared chat's shape. `link(c)` → {href, external} (lib/search hrefOf). */
 export function toCitation(c, link) {
   const l = link(c);
-  const moment = c.source_kind === "moment" || !!c.moment;
+  // A file's page / slide / sheet, or a minute of a video (Ask's whole-length passages).
+  const passage = c.source_kind === "passage";
+  const moment = !passage && (c.source_kind === "moment" || !!c.moment);
   const meeting = c.source_kind === "meeting" || (!!c.meeting_id && !moment);
   return {
     token: c.label,
@@ -206,7 +208,7 @@ export function toCitation(c, link) {
     href: l.href,
     external: l.external,
     icon: moment ? "mic" : meeting ? "calendar" : KIND_ICON[c.kind] || "doc",
-    action: moment ? "Jump to moment" : "Open",
+    action: moment ? "Jump to moment" : passage ? (c.at ? `Play from ${c.at}` : `Open at ${c.moment || "the passage"}`) : "Open",
   };
 }
 

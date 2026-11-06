@@ -120,6 +120,9 @@ async def apply(doc: Any, public: bool, *, epoch: int | None = None) -> bool:
         if _get(doc, "poster_key"):
             ok = bool(await run_in_threadpool(
                 r2.set_public, _get(doc, "poster_key"), public, "image/jpeg", epoch)) and ok
+        if _get(doc, "captions_key"):
+            ok = bool(await run_in_threadpool(
+                r2.set_public, _get(doc, "captions_key"), public, "text/vtt", epoch)) and ok
     except Exception:
         log.warning("R2 publicity change failed for %s", _get(doc, "slug"), exc_info=True)
         return False
@@ -174,7 +177,8 @@ def byte_urls(doc: Any, *, public: bool) -> dict[str, str | None]:
 
     public = unsigned_ok(doc, public)
 
-    out: dict[str, str | None] = {"artifact_url": None, "download_url": None, "poster_url": None}
+    out: dict[str, str | None] = {"artifact_url": None, "download_url": None, "poster_url": None,
+                                  "captions_url": None}
     if _get(doc, "kind") != "artifact" or not r2.is_configured():
         return out
     blob = _get(doc, "blob_key")
@@ -190,4 +194,8 @@ def byte_urls(doc: Any, *, public: bool) -> dict[str, str | None]:
     if poster:
         out["poster_url"] = art_service.build_download_url(
             poster, private=not public, epoch=epoch, ttl=ttl)
+    captions = _get(doc, "captions_key")
+    if captions:
+        out["captions_url"] = art_service.build_download_url(
+            captions, private=not public, epoch=epoch, ttl=ttl)
     return out

@@ -296,6 +296,17 @@ def poster_url(doc, *, private: bool) -> str | None:
                               ttl=publicity.ttl_for(getattr(doc, "mime", None)))
 
 
+def captions_url(doc, *, private: bool) -> str | None:
+    """Raw URL of a video's captions (.vtt), signed when guarded."""
+    key = getattr(doc, "captions_key", None)
+    if not key:
+        return None
+    from app.services import publicity
+
+    return build_download_url(key, private=private, epoch=publicity.epoch_of(doc),
+                              ttl=publicity.ttl_for(getattr(doc, "mime", None)))
+
+
 def to_response(doc, *, is_owner: bool, public: bool | None = None,
                 workspace_url: str | None = None) -> dict:
     """Shape an artifact Document for the API, including its sandbox URL.
@@ -312,6 +323,8 @@ def to_response(doc, *, is_owner: bool, public: bool | None = None,
     epoch, ttl = publicity.epoch_of(doc), publicity.ttl_for(doc.mime)
     return dict(
         poster_url=poster_url(doc, private=not public),
+        captions_url=captions_url(doc, private=not public),
+        captions_name=getattr(doc, "captions_name", None),
         media=getattr(doc, "media", None),
         slug=doc.slug,
         url=f"{settings.frontend_url.rstrip('/')}/{doc.slug}",
