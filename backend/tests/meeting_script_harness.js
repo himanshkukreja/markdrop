@@ -1,12 +1,14 @@
 // Runs the generated Google Meet script (Code.gs) against fake Apps Script services, for
 // tests/test_meetings_auto.py. Usage: node meeting_script_harness.js <script.gs> <scenario.json>
 // The scenario: {files: [{id, name, created, modified, owned, owner?, parents?, driveId?, mime?, doc?, text?}],
-// folders?: [{id, name}], responses: [code…] (the inbox's answers), statusResponses?: [{code, body}…],
+// folders?: [{id, name}], responses: [code | {code, body}…] (the inbox's answers), statusResponses?: [{code, body}…],
 // queue?: [file ids] (handed out by the first 'start' status), runs: ["setup" | "syncMeetings" | "check" …],
 // docsFails?: bool, driveFails?: bool (Drive v3 errors: the script falls back to DriveApp),
 // driveOff?: bool (Drive v3 answers Google's 403 "Drive API has not been used in project … or it is disabled").
 // The clock is fake: it starts at `now` (ISO; default the real time), each delivery to the inbox takes
-// `sendMs` (default 0) and `runGapMs` passes between runs (default 0). Prints a JSON report.
+// `sendMs` (default 0) and `runGapMs` passes between runs (default 0). `locked`: another run holds the
+// script lock. A run can change the files between runs: "__files[0].modified = '…'". A run like "doPost({...})" (Check now) has its answer in report.returns (JSON parsed).
+// Prints a JSON report.
 const fs = require("fs");
 const vm = require("vm");
 
@@ -14,7 +16,7 @@ const [scriptPath, scenarioPath] = process.argv.slice(2);
 const code = fs.readFileSync(scriptPath, "utf8");
 const sc = JSON.parse(fs.readFileSync(scenarioPath, "utf8"));
 
-const report = { posts: [], statuses: [], triggers: [], deletedTriggers: 0, searches: [], v3: [], logs: [], exports: [] };
+const report = { posts: [], statuses: [], triggers: [], deletedTriggers: 0, searches: [], v3: [], logs: [], exports: [], returns: [] };
 const DRIVE_OFF = JSON.stringify({ error: { code: 403, message: "Google Drive API has not been used in project 1034426400429 " +
   "before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/drive.googleapis.com/overview?project=1034426400429 then retry.",
   errors: [{ reason: "accessNotConfigured" }], status: "PERMISSION_DENIED", details: [{ reason: "SERVICE_DISABLED" }] } });
@@ -85,8 +87,12 @@ const sandbox = {
     warn: (m) => report.logs.push("WARN " + String(m)),
     info: (m) => report.logs.push("INFO " + String(m)),
   },
-  Date: FakeDate, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
-  LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock: () => {} }) },
+  __files: sc.files, Date: FakeDate, JSON, Object, Number, String, Math, RegExp, Error, encodeURIComponent,
+  LockService: { getScriptLock: () => ({ tryLock: () => !sc.locked, releaseLock: () => {} }) },
+  ContentService: {
+    MimeType: { JSON: "application/json" },
+    createTextOutput: (text) => ({ text, mime: "text/plain", setMimeType(m) { this.mime = m; return this; } }),
+  },
   PropertiesService: {
     getScriptProperties: () => ({
       getProperty: (k) => (k in props ? props[k] : null),
@@ -103,6 +109,7 @@ const sandbox = {
       return { timeBased: () => ({ everyMinutes: (n) => ({ create: () => { t.every = n; triggers.push(t); return t; } }) }) };
     },
     getOAuthToken: () => "fake-oauth",
+    getService: () => ({ getUrl: () => sc.webAppUrl || null }),
   },
   DriveApp: {
     getFileById: (id) => {
@@ -147,10 +154,12 @@ const sandbox = {
         const f = sc.files.find((x) => x.id === id);
         return { getContentText: () => f.text || "", getResponseCode: () => 200 };
       }
-      const status = responses.length ? responses.shift() : 200;
+      const r = responses.length ? responses.shift() : 200;
+      const status = typeof r === "object" ? r.code : r;
+      const answer = typeof r === "object" && r.body ? r.body : { status: status < 300 ? "imported" : "error" };
       clock += sc.sendMs || 0;
       report.posts.push({ url, auth: opts.headers.Authorization, method: opts.method, body: JSON.parse(opts.payload), status });
-      return { getResponseCode: () => status, getContentText: () => JSON.stringify({ status: status < 300 ? "imported" : "error" }) };
+      return { getResponseCode: () => status, getContentText: () => JSON.stringify(answer) };
     },
   },
 };
@@ -158,7 +167,12 @@ vm.createContext(sandbox);
 vm.runInContext(code, sandbox, { filename: "Code.gs" });
 (sc.runs || ["setup"]).forEach((fn, i) => {
   if (i) clock += sc.runGapMs || 0;
-  vm.runInContext(fn.includes("(") ? fn : fn + "()", sandbox);
+  const out = vm.runInContext(fn.includes("(") ? fn : fn + "()", sandbox);
+  if (out && typeof out.text === "string") {
+    let v = out.text;
+    try { v = JSON.parse(out.text); } catch (e) { /* text */ }
+    report.returns.push({ run: fn, mime: out.mime, body: v });
+  }
 });
 report.triggers = triggers.map((t) => ({ fn: t.fn, every: t.every }));
 report.props = Object.keys(props).filter((k) => !k.startsWith("sent:"));

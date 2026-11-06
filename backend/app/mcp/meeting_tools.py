@@ -12,6 +12,8 @@
 * ``meetings_connection``: whether meetings are imported automatically into a workspace ("Connect
   Google Meet", services/meetings_inbox.py): who connected it, when it last imported, how many.
   Read-only: never the token or the script (connecting is done on the website).
+* ``check_meetings_now``: "Check for new meetings": the workspace's connected scripts (with Check now
+  turned on) run now instead of at their next scheduled run; says what arrived.
 
 ``import_meeting`` dedupes like the Google Meet script's inbox: the same call (name, date, start
 time) already in the workspace with that half is returned as a duplicate, and the other half of a
@@ -200,6 +202,24 @@ async def meetings_connection(ctx: Context, args: dict) -> tuple[str, dict]:
             lines.append("  their script is out of date: Meetings › Connect Google Meet › Get the new script "
                          "(the new one also imports meetings shared with them)")
     return "\n".join(lines), {"connected": True, "connections": out}
+
+
+async def check_meetings_now(ctx: Context, args: dict) -> tuple[str, dict]:
+    ws_id = await _ws(ctx, args["workspace"])
+    try:
+        out = await meetings_inbox.check_now(ctx.db, ctx.user, ws_id)
+    except HTTPException as exc:
+        d = exc.detail
+        raise ToolError(d.get("message") if isinstance(d, dict) else http_message(exc))
+    lines = [out["message"]]
+    for c in out["connections"]:
+        who = c["connected_by"].get("name") or "Someone"
+        lines.append(f"- {who}'s script: " + (f"found {c['found']} meeting Doc(s), sent {c['sent']}" if c["ok"] else c["message"]))
+    if out["not_set_up"]:
+        lines.append(f"{out['not_set_up']} other connected script(s) don't have Check now on; they send at their next run.")
+    if out["imported"] or out["attached"]:
+        lines.append("list_meetings shows them.")
+    return "\n".join(lines), out
 
 
 async def _row(ctx: Context, ref: str) -> tuple[dict, dict]:
@@ -489,5 +509,21 @@ MEETING_TOOLS: list[Tool] = [
         output_schema=_out({"connected": {"type": "boolean"}, "connections": {"type": "array", "items": {"type": "object"}}}),
         annotations=_ann(True, False, True),
         handler=meetings_connection,
+    ),
+    Tool(
+        name="check_meetings_now",
+        title="Check for new meetings now",
+        description=("Check for new meetings in a workspace now (\"Check for new meetings\" on the Meetings page): the "
+                     "Google Meet scripts connected to it run right away instead of at their next scheduled run, "
+                     "and the transcripts and Gemini notes Google has finished arrive as meeting pages. Takes up to "
+                     "about 50 seconds. Members only; once a minute per workspace. Works when whoever connected "
+                     "Google Meet turned Check now on (Meetings › Turn on Check now); otherwise says so."),
+        scope=WRITE,
+        input_schema={"type": "object", "properties": {"workspace": _WORKSPACE_ARG}, "required": ["workspace"]},
+        output_schema=_out({"ok": {"type": "boolean"}, "message": {"type": "string"}, "imported": {"type": "integer"},
+                            "attached": {"type": "integer"}, "checked": {"type": "integer"},
+                            "connections": {"type": "array", "items": {"type": "object"}}}),
+        annotations=_ann(False, False, False),
+        handler=check_meetings_now,
     ),
 ]
