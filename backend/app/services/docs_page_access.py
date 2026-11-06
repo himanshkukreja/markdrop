@@ -470,42 +470,21 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
 async def send_link_email(*, to: str, guide: str, url: str) -> None:
     from app.services import mailer as m
 
-    g = html.escape(guide)
-    content = (m._eyebrow("Sign in") + m._heading(f"Open {g}")
-               + m._p(f"Use this button to sign in to <strong>{g}</strong> as {html.escape(to)}. It works once, for 15 minutes.")
-               + m._button(url, "Sign in and open the page")
-               + m._p("If you didn't ask for this, ignore this email: nothing happens unless the button is used.", size=13))
-    await m._post({"from": m._sender("login"), "to": [to], "subject": f"Sign in to {m._one_line(guide, 80)}",
-                   "reply_to": get_settings().email_reply_to,
-                   "html": m._shell(title=f"Sign in to {g}", content=content, footer="Sent by Markdrop Guides because someone entered this address on the guide's sign-in page.")}, kind="guide_signin")
+    await m._send(to, m.compose_guide_signin(to=to, guide=guide, url=url), purpose="login", kind="guide_signin")
 
 
 async def send_request_email(*, to: list[str], guide: str, email: str, rule_name: str, note: str, url: str) -> None:
     from app.services import mailer as m
 
-    g = html.escape(guide)
-    content = (m._eyebrow("Access request") + m._heading(f"{html.escape(email)} asked for access")
-               + m._p(f"They want to open <strong>{html.escape(rule_name)}</strong> pages in {g}.")
-               + (m._p(f"&ldquo;{html.escape(note)}&rdquo;", size=14) if note else "")
-               + m._button(url, "Review the request"))
-    await m._post({"from": m._sender("share"), "to": to[:20], "subject": f"Access request for {m._one_line(guide, 80)}",
-                   "reply_to": get_settings().email_reply_to,
-                   "html": m._shell(title="Access request", content=content, footer="You get these because you're an admin of this guide in Markdrop Guides.")}, kind="guide_access_request")
+    await m._send(to[:20], m.compose_guide_access_request(guide=guide, email=email, rule_name=rule_name, note=note, url=url),
+                  purpose="share", kind="guide_access_request")
 
 
 async def send_decision_email(*, to: str, guide: str, approved: bool, url: str) -> None:
     from app.services import mailer as m
 
-    g = html.escape(guide)
-    if approved:
-        content = (m._eyebrow("Access request") + m._heading(f"You can open {g}")
-                   + m._p("Your request was approved. Open the page and sign in with this email address.")
-                   + m._button(url, "Open the guide"))
-    else:
-        content = m._eyebrow("Access request") + m._heading("Your request wasn't approved") + m._p(f"The team behind {g} didn't approve access for this address.")
-    await m._post({"from": m._sender("share"), "to": [to], "subject": f"Your access request for {m._one_line(guide, 80)}",
-                   "reply_to": get_settings().email_reply_to,
-                   "html": m._shell(title="Access request", content=content, footer="Sent by Markdrop Guides.")}, kind="guide_access_decision")
+    await m._send(to, m.compose_guide_access_decision(guide=guide, approved=approved, url=url), purpose="share",
+                  kind="guide_access_decision")
 
 
 # ── changes (the studio) ─────────────────────────────────────────────────────

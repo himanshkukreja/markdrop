@@ -493,32 +493,78 @@ def slack_blocks(ws: wm.WsInfo, s: dict) -> tuple[list[dict], str]:
     return msg["blocks"], msg["text"]
 
 
-def email_parts(ws: wm.WsInfo, s: dict) -> tuple[str, str, str]:
+def weekly_subject(ws_name: str, p: dict) -> str:
+    bits = [f"{len(p['highlights'])} highlight{'s' if len(p['highlights']) != 1 else ''}" if p["highlights"] else None,
+            f"{len(p['due'])} due" if p["due"] else None, f"{len(p['overdue'])} overdue" if p["overdue"] else None,
+            f"{len(p['blockers'])} blocked" if p["blockers"] else None]
+    bits = [b for b in bits if b]
+    return f"This week in {ws_name}" + (f": {', '.join(bits)}" if bits else "")
+
+
+def compose_email(ws: wm.WsInfo, s: dict) -> dict:
+    """"This week in <Workspace>": counts first, then highlights by person, decisions, what's overdue
+    and due (with dates), who's blocked, and the week's meetings. {subject, preheader, html, text}."""
+    from app.services import email_kit as K
     from app.services import mailer
 
-    e = html.escape
-    subject = f"This week in {ws.name}"
-    parts = [mailer._eyebrow("Team · this week"), mailer._heading(e(subject))]
-    text = [subject, ""]
+    p = plain_summary(s)
+    team_url = _abs(f"/team/{ws.id}")
+    subject = mailer._one_line(weekly_subject(ws.name, p), 150)
 
-    def section(title: str, items: list[str]) -> None:
-        if not items:
-            return
-        parts.append(mailer._p(mailer._strong(e(title)), margin="8px 0 6px"))
-        parts.append("".join(mailer._p("• " + e(i), size=14, margin="0 0 6px") for i in items))
-        text.extend([title, *[f"- {i}" for i in items], ""])
+    def src(x: dict):
+        return K.link(x["src"][1], x["src"][0], muted=True) if x.get("src") else None
 
-    section("Highlights", [highlight_line(h) for h in s["highlights"]])
-    section("Blockers", [f"{pname(b)}: {b['text']}" + (f" (waiting on {b['waiting_on']})" if b.get("waiting_on") else "") for b in s["blockers"]])
-    section("Due this week", [f"{pname(x)}: {x['text']} (due {x['due']})" for x in s["due"]])
-    section("Overdue", [f"{pname(x)}: {x['text']} (due {x['due']}, {_late(x)})" for x in s["overdue"]])
-    url = _abs(f"/team/{ws.id}")
-    parts.append(mailer._button(url, "Open Team"))
-    parts.append(mailer._p("Only from meetings and pages everyone in the workspace can open. You get this as an admin of "
-                           f"{e(ws.name)}; turn Team memory off in the workspace's settings to stop it.", size=12, color=mailer._MUTED))
-    text.append(url)
-    body = mailer._shell(title=e(subject), content="".join(parts), footer="", preheader=e(subject))
-    return subject, body, "\n".join(text)
+    body = [K.eyebrow("Weekly summary" + (f" · {p['span']}" if p["span"] else "")), K.title(f"This week in {ws.name}")]
+    tiles = [("Highlights", str(len(p["highlights"]))), ("Due this week", str(len(p["due"]))),
+             ("Overdue", str(len(p["overdue"]))), ("Blocked", str(len(p["blockers"])))]
+    body.append(K.stats(tiles, margin="4px 0 12px"))
+    if p["highlights"]:
+        by: dict[str, list[dict]] = {}
+        for h in p["highlights"]:
+            by.setdefault(h["who"] or "", []).append(h)
+        rows = []
+        for k, (who, hs) in enumerate(by.items()):
+            rows.append(K.item(K.strong(who) if who else "", who=who or None,
+                               body=K.Html("<br>".join(K.inline([h["text"]] + ([" · ", src(h)] if h.get("src") else []))[0]
+                                                       for h in hs)),
+                               last=k == len(by) - 1))
+        body += [K.heading("Highlights", count=len(p["highlights"]), top=20), K.rows(rows)]
+    if p["decisions"]:
+        body += [K.heading("Decisions", count=len(p["decisions"])), K.rows([
+            K.item(d["text"], who=d["who"] or None, meta=[d["who"], " · " if d["who"] and d.get("src") else "", src(d)]
+                   if (d["who"] or d.get("src")) else None, last=k == len(p["decisions"]) - 1)
+            for k, d in enumerate(p["decisions"])])]
+    if p["overdue"]:
+        body += [K.heading("Overdue", count=len(p["overdue"])), K.rows([
+            K.item(x["text"], who=x["who"], meta=[K.strong(x["who"]), f" · was due {x['when']} · ",
+                                                   K.Html(f'<span style="color:{K.WARN_INK}">{K.esc(x["late"])}</span>')],
+                   last=k == len(p["overdue"]) - 1) for k, x in enumerate(p["overdue"])])]
+    if p["due"]:
+        body += [K.heading("Due this week", count=len(p["due"])), K.rows([
+            K.item(x["text"], who=x["who"], meta=[K.strong(x["who"]), f" · due {x['when']}"],
+                   last=k == len(p["due"]) - 1) for k, x in enumerate(p["due"])])]
+    if p["blockers"]:
+        body += [K.heading("Blocked", count=len(p["blockers"])), K.rows([
+            K.item(b["text"], who=b["who"], meta=[K.strong(b["who"])] + ([f" · waiting on {b['waiting_on']}"]
+                                                                        if b.get("waiting_on") else []),
+                   last=k == len(p["blockers"]) - 1) for k, b in enumerate(p["blockers"])])]
+    if p["meetings"]:
+        body += [K.heading("Meetings this week", count=len(p["meetings"])), K.rows([
+            K.item(K.link(m["url"], m["title"]) if m.get("url") else m["title"], meta=m["when"], pad=10,
+                   last=k == len(p["meetings"]) - 1) for k, m in enumerate(p["meetings"])])]
+    body.append(K.button(team_url, "Open Team", margin="16px 0 24px"))
+    first = p["highlights"][0] if p["highlights"] else None
+    pre = (f"{first['who']}: {first['text']}" if first and first["who"] else (first["text"] if first else subject))
+    e = K.layout(title_=subject, preheader=pre, base=mailer._base(), label_=ws.name, body=body, footer=K.Footer(
+        why=f"You get this every Monday as an admin of {ws.name}. Only from meetings and pages everyone in the "
+            "workspace can open.",
+        links=[("Turn off Team memory", _abs(f"/settings/workspaces/{ws.id}"))]))
+    return {"subject": subject, "preheader": pre, "html": e.html, "text": e.text}
+
+
+def email_parts(ws: wm.WsInfo, s: dict) -> tuple[str, str, str]:
+    m = compose_email(ws, s)
+    return m["subject"], m["html"], m["text"]
 
 
 async def send_weekly(db: AsyncIOMotorDatabase, ws: wm.WsInfo, *, now: datetime | None = None, force: bool = False) -> dict | None:
@@ -561,7 +607,8 @@ async def send_weekly(db: AsyncIOMotorDatabase, ws: wm.WsInfo, *, now: datetime 
                     continue
                 try:
                     await mailer._post({"from": mailer._sender("share"), "to": [u["email"]], "subject": subject,
-                                        "html": body, "text": text}, kind="digest", ref=f"team:{ws.id}")
+                                        "reply_to": mailer.settings.email_reply_to, "html": body, "text": text},
+                                       kind="digest", ref=f"team:{ws.id}")
                     out["emails"] += 1
                 except Exception:
                     log.warning("team weekly email to an admin of %s failed", ws.id, exc_info=True)

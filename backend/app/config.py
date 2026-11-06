@@ -103,6 +103,8 @@ class Settings(BaseSettings):
     # reply to a personal mailbox is a different thing to be than the one the
     # rest of these emails are dressed as.
     email_reply_to: str = "himanshu@markdrop.in"
+    # The sender's postal address in every email's footer (blank: "Markdrop · markdrop.in").
+    email_postal_address: str = ""
     # ── Email campaigns (admin → Email; services/email_campaigns) ──────────
     # The env default campaign sender. Blank keeps the previous behaviour: the
     # `updates@` mailbox on email_from's domain, so a complaint about an

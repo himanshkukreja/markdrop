@@ -78,7 +78,7 @@ def _page(title: str, heading: str, body_html: str, *, status: int = 200, form: 
         + form
         + mailer._p(mailer._link(links.site_base(), "Go to Markdrop"), margin="0 0 20px")
     )
-    footer = f"Markdrop &middot; {mailer._footer_link(links.site_base(), 'markdrop.in')}"
+    footer = ""
     return HTMLResponse(
         mailer._shell(title=html.escape(title), content=content, footer=footer, page=True),
         status_code=status, headers=NO_CACHE,

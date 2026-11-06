@@ -301,6 +301,207 @@ def _unfurl_minimal() -> dict:
             "users": USERS, "unfurl_of": f"{b}/q3-plan-internal"}
 
 
+# ── Email ─────────────────────────────────────────────────────────────────────
+
+
+def _m():
+    from app.services import mailer
+
+    return mailer
+
+
+def _mail(sender: str, mail: dict) -> dict:
+    return {**mail, "from": _m()._sender(sender)}
+
+
+@entry("email-login", "email", "Email · account", "Sign-in code", "Someone asks to sign in (login@)")
+def _e_login() -> dict:
+    return _mail("login", _m().compose_login("482913", f"{_base()}/auth/verify?t=preview"))
+
+
+@entry("email-welcome", "email", "Email · account", "Welcome", "Once, on sign-up")
+def _e_welcome() -> dict:
+    return _mail("welcome", _m().compose_welcome("Riya"))
+
+
+@entry("email-invite", "email", "Email · account", "Workspace invitation", "An admin invites someone to a workspace")
+def _e_invite() -> dict:
+    return _mail("share", _m().compose_invite("Senseloaf", "Riya Sharma", "member", f"{_base()}/invite/preview"))
+
+
+@entry("email-share", "email", "Email · sharing", "Shared with you", "Someone shares a page with you (Notify people)")
+def _e_share() -> dict:
+    return _mail("share", _m().compose_share(document_title="Q3 launch plan", url=f"{_base()}/q3-launch-plan",
+                                             sharer_name="Riya Sharma", role="editor", encrypted=False,
+                                             message="Can you check the pricing section before Friday?", noun="page"))
+
+
+@entry("email-share-encrypted", "email", "Email · sharing", "Shared with you: an encrypted document",
+       "The same, for an end-to-end encrypted document")
+def _e_share_enc() -> dict:
+    return _mail("share", _m().compose_share(document_title="Board memo", url=f"{_base()}/board-memo",
+                                             sharer_name="Riya Sharma", role="viewer", encrypted=True, message=None))
+
+
+@entry("email-access-request", "email", "Email · sharing", "Access request", "Someone asks to open your document")
+def _e_access_request() -> dict:
+    return _mail("share", _m().compose_access_request(
+        requester_name="Jordan Park", requester_email="jordan@northwind.com", document_title="Q3 launch plan",
+        message="I'm preparing the partner review and need the numbers.", request_id="6aecc9488c77e564c2be2796",
+        workspace_name="Senseloaf"))
+
+
+@entry("email-edit-request", "email", "Email · sharing", "Edit access request (to the workspace's admins)",
+       "A reader asks to edit a page whose owner can't be reached")
+def _e_edit_request() -> dict:
+    return _mail("share", _m().compose_edit_request(
+        requester_name="Jordan Park", requester_email="jordan@northwind.com", document_title="Q3 launch plan",
+        message="I need to add our partner numbers.", request_id="6aecc9488c77e564c2be2796", as_admin=True,
+        workspace_name="Senseloaf"))
+
+
+@entry("email-access-approved", "email", "Email · sharing", "Access approved", "The owner said yes")
+def _e_approved() -> dict:
+    return _mail("share", _m().compose_access_decision(owner_name="Riya Sharma", document_title="Q3 launch plan",
+                                                       url=f"{_base()}/q3-launch-plan", approved=True, role="viewer"))
+
+
+@entry("email-access-declined", "email", "Email · sharing", "Access declined", "The owner said no")
+def _e_declined() -> dict:
+    return _mail("share", _m().compose_access_decision(owner_name="Riya Sharma", document_title="Q3 launch plan",
+                                                       url=f"{_base()}/q3-launch-plan", approved=False, role=None))
+
+
+def _items():
+    return [{"kind": "mention", "actor": "Alex Chen", "block": "b-1a2b3c4d",
+             "excerpt": "@Riya Sharma can you check the migration steps before we publish?", "label": None},
+            {"kind": "signoff_requested", "actor": "Sam Lee", "block": "b-2b3c4d5e", "excerpt": None, "label": "Go live"},
+            {"kind": "mention", "actor": "Maya Patel", "block": "b-3c4d5e6f",
+             "excerpt": "Pricing numbers are in, @Riya Sharma please confirm the EU tiers.", "label": None}]
+
+
+def _less() -> str:
+    from app.services import notifications as n
+
+    return n.less_url(UID, {"mention": "hourly"}) or ""
+
+
+@entry("email-mention", "email", "Email · notifications", "Mention (instant)", "Someone @mentions you; Instant setting")
+def _e_mention() -> dict:
+    from app.services import notifications as n
+
+    return _mail("share", n.compose_email(user_id=UID, title="Release notes 2.4", page_url=f"{_base()}/release-notes-2-4",
+                                          items=_items()[:1], why=n.WHY["instant"], less=_less()))
+
+
+@entry("email-signoff", "email", "Email · notifications", "Sign-off request (instant)", "Someone asks for your sign-off")
+def _e_signoff() -> dict:
+    from app.services import notifications as n
+
+    return _mail("share", n.compose_email(user_id=UID, title="Q3 launch plan", page_url=f"{_base()}/q3-launch-plan",
+                                          items=_items()[1:2], why=n.WHY["instant"], less=_less()))
+
+
+@entry("email-mentions-page", "email", "Email · notifications", "Several updates on one page", "Batched for one page")
+def _e_mentions_page() -> dict:
+    from app.services import notifications as n
+
+    return _mail("share", n.compose_email(user_id=UID, title="Q3 launch plan", page_url=f"{_base()}/q3-launch-plan",
+                                          items=_items(), more=2, why=n.WHY["hourly"], less=_less()))
+
+
+def _pages():
+    b = _base()
+    it = _items()
+    return [{"title": "Q3 launch plan", "url": f"{b}/q3-launch-plan", "items": it[:2], "more": 0, "more_signoffs": 0},
+            {"title": "Release notes 2.4", "url": f"{b}/release-notes-2-4", "items": it[2:], "more": 2, "more_signoffs": 0}]
+
+
+@entry("email-hourly", "email", "Email · notifications", "Hourly bundle", "Mentions' default: at most one an hour")
+def _e_hourly() -> dict:
+    from app.services import notifications as n
+
+    return _mail("share", n.compose_digest(user_id=UID, pages=_pages(), mode="hourly", less=_less()))
+
+
+@entry("email-daily", "email", "Email · notifications", "Daily digest", "08:00 in the person's timezone")
+def _e_daily() -> dict:
+    from app.services import notifications as n
+
+    return _mail("share", n.compose_digest(user_id=UID, pages=_pages(), mode="daily", more_pages=1, less=_less()))
+
+
+@entry("email-catchup", "email", "Email · notifications", "Morning catch-up", "What waited past the daily cap of 3")
+def _e_catchup() -> dict:
+    from app.services import notifications as n
+
+    return _mail("share", n.compose_digest(user_id=UID, pages=_pages(), mode="catchup", catchup=True))
+
+
+@entry("email-team-weekly", "email", "Email · digests", "This week in Senseloaf (Team's weekly summary)",
+       "Monday 9:00 to the workspace's admins, and Team › Send now")
+def _e_team_weekly() -> dict:
+    from app.services import team_extras
+
+    return _mail("share", team_extras.compose_email(_ws(), weekly_summary()))
+
+
+@entry("email-analytics-weekly", "email", "Email · digests", "Your week (analytics)", "Monday, when your links had views")
+def _e_analytics() -> dict:
+    from app.services import analytics_digest as ad
+
+    b = _base()
+    head, sub = "Your week: 1,284 views, up 18%", "Oct 27 – Nov 2 · your own views aren't counted"
+    args = (head, sub, [("People", "642"), ("Watch time", "3 h 12 min"), ("Read to the end", "38%")],
+            [{"slug": "q3-launch-plan", "title": "Q3 launch plan", "views": 640, "pct": 100, "note": "Most from LinkedIn"},
+             {"slug": "release-notes-2-4", "title": "Release notes 2.4", "views": 312, "pct": 49, "note": None},
+             {"slug": "onboarding-video", "title": "Onboarding video", "views": 148, "pct": 23, "note": "Watched 61% on average"}],
+            [{"title": "Readers stop at the pricing table", "body": "Half of readers leave at Pricing; a summary above "
+              "it may help.", "doc": "Q3 launch plan"}],
+            f"{b}/dashboard/analytics", "https://api.markdrop.in/api/v1/me/digest/off?t=preview",
+            {"headline": "LinkedIn drove the jump", "bullets": [
+                {"text": "Q3 launch plan doubled after Tuesday's LinkedIn post.", "href": "/dashboard/analytics/q3-launch-plan"},
+                {"text": "Release notes 2.4 kept a steady 40 views a day.", "href": ""}]})
+    e = ad._email(*args)
+    return {"subject": "Your Markdrop week: 1,284 views, up 18%", "preheader": f"{head}. {sub}.", "html": e.html,
+            "text": e.text, "from": _m()._sender("welcome")}
+
+
+@entry("email-guide-domain-live", "email", "Email · Guides", "A guide's domain is live", "Its certificate is issued")
+def _e_domain_live() -> dict:
+    return _mail("share", _m().compose_guide_domain(host="docs.acme.com", guide_name="Acme Docs", live=True,
+                                                    settings_url=f"{_base()}/guides", message=None))
+
+
+@entry("email-guide-domain-failed", "email", "Email · Guides", "A guide's domain isn't live", "Checks gave up after 3 days")
+def _e_domain_failed() -> dict:
+    return _mail("share", _m().compose_guide_domain(host="docs.acme.com", guide_name="Acme Docs", live=False,
+                                                    settings_url=f"{_base()}/guides", message="No CNAME record found for docs.acme.com."))
+
+
+@entry("email-guide-signin", "email", "Email · Guides", "Guide sign-in link", "A reader signs in to a gated guide")
+def _e_guide_signin() -> dict:
+    return _mail("login", _m().compose_guide_signin(to="jordan@northwind.com", guide="Acme Docs",
+                                                    url="https://docs.acme.com/_signin?t=preview"))
+
+
+@entry("email-guide-access-request", "email", "Email · Guides", "Guide access request", "To the guide's admins")
+def _e_guide_req() -> dict:
+    return _mail("share", _m().compose_guide_access_request(guide="Acme Docs", email="jordan@northwind.com",
+                                                            rule_name="Partners", note="Our team needs the API pages.",
+                                                            url=f"{_base()}/guides"))
+
+
+@entry("email-guide-access-approved", "email", "Email · Guides", "Guide access approved", "To the reader")
+def _e_guide_ok() -> dict:
+    return _mail("share", _m().compose_guide_access_decision(guide="Acme Docs", approved=True, url="https://docs.acme.com"))
+
+
+@entry("page-unsubscribed", "page", "Pages an email links to", "Unsubscribed", "After the unsubscribe link")
+def _p_unsub() -> dict:
+    return {"subject": None, "html": _m().unsubscribe_page_html(True), "text": None}
+
+
 # ── Rendering ─────────────────────────────────────────────────────────────────
 
 

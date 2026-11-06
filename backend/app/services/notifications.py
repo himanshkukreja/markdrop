@@ -831,24 +831,17 @@ def _e(s: Any) -> str:
     return html.escape(str(s), quote=True)
 
 
-def _item_html(i: dict, page_url: str) -> str:
-    from app.services import mailer
+def _item_part(i: dict, page_url: str, *, last: bool = False):
+    """One mention / sign-off request as a row: who, what, the line it's on, a link to the block."""
+    from app.services import email_kit as K
 
-    S, INK, BODY, LINE = mailer._SANS, mailer._INK, mailer._BODY, mailer._LINE
     if i["kind"] == "signoff_requested":
-        what = f"asked you to sign off on {mailer._strong(_e(i.get('label') or 'a sign-off'))}"
+        what = [K.strong(i["actor"]), " asked you to sign off on ", K.strong(i.get("label") or "a sign-off")]
     else:
-        what = "mentioned you"
-    quote = (f'<div style="font-family:{S};font-size:14px;line-height:1.55;color:{BODY};margin-top:4px">'
-             f"{_e(i['excerpt'])}</div>") if i.get("excerpt") else ""
+        what = [K.strong(i["actor"]), " mentioned you"]
     link = f"{page_url}#{i['block']}" if i.get("block") else page_url
-    return ('<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" '
-            f'style="margin:0 0 10px"><tr><td style="border:1px solid {LINE};border-radius:8px;padding:12px 14px">'
-            f'<div style="font-family:{S};font-size:14px;line-height:20px;color:{INK}">'
-            f"{mailer._strong(_e(i['actor']))} {what}</div>{quote}"
-            f'<div style="font-family:{S};font-size:12px;line-height:18px;margin-top:6px">'
-            f'<a href="{_e(link)}" style="color:{mailer._ACCENT};text-decoration:none;font-weight:600">'
-            "Go to the block</a></div></td></tr></table>")
+    return K.item(what, who=i["actor"], quote_=i.get("excerpt") or None, href=link,
+                  action="Go to the block" if i.get("block") else "Open the page", last=last)
 
 
 def _item_text(i: dict) -> str:
@@ -867,24 +860,20 @@ WHY = {
 }
 
 
-def _footer(user_id: str, why: str, less: str | None) -> tuple[str, list[str]]:
-    from app.services import mailer
+def _footer(user_id: str, why: str, less: str | None):
+    """The footer: why it came, Email me less (one step down), the turn-off link, the settings."""
+    from app.services import email_kit as K, mailer
 
-    off = off_url(user_id)
-    links = []
-    if less:
-        links.append(mailer._footer_link(_e(less), "Email me less"))
-    links += [mailer._footer_link(_e(off), "Turn off these emails"),
-              mailer._footer_link(_e(mailer._base() + "/settings/account#email"), "Email settings")]
-    text = ([f"Email me less: {less}"] if less else []) + [f"Turn off these emails: {off}"]
-    return f"{_e(why)}. " + " &middot; ".join(links), text
+    links = ([("Email me less", less)] if less else []) + [
+        ("Turn off these emails", off_url(user_id)), ("Email settings", mailer._base() + "/settings/account#email")]
+    return K.Footer(why=f"{why}.", links=links)
 
 
 def compose_email(*, user_id: str, title: str, page_url: str, items: list[dict], more: int = 0,
                   why: str | None = None, less: str | None = None) -> dict:
-    """``{subject, html, text}`` for one person about one page. ``items``:
+    """``{subject, preheader, html, text}`` for one person about one page. ``items``:
     ``[{kind, actor, block, excerpt, label}]`` (oldest first). ``less``: the "Email me less" link."""
-    from app.services import mailer
+    from app.services import email_kit as K, mailer
 
     n = len(items) + more
     first = items[0]
@@ -894,26 +883,26 @@ def compose_email(*, user_id: str, title: str, page_url: str, items: list[dict],
         eyebrow = "Sign-off requested"
     elif n == 1:
         head = f"{first['actor']} mentioned you in “{title}”"
-        eyebrow = "Mentioned"
+        eyebrow = "Mention"
     elif kinds == {"mention"}:
         head = f"You were mentioned {n} times in “{title}”"
         eyebrow = "Mentions"
     else:
         head = f"{n} updates for you in “{title}”"
-        eyebrow = "Mentions"
+        eyebrow = "Mentions and sign-offs"
     subject = mailer._one_line(head, 150)
     target = f"{page_url}#{first['block']}" if (n == 1 and first.get("block")) else page_url
-    more_html = mailer._p(f"And {more} more on this page.", size=13, color=mailer._MUTED) if more else ""
-    content = (mailer._eyebrow(eyebrow) + mailer._heading(_e(head))
-               + "".join(_item_html(i, page_url) for i in items) + more_html
-               + mailer._button(_e(target), "Open the page", margin="14px 0 20px"))
-    footer, foot_text = _footer(user_id, why or WHY["instant"], less)
-    html_out = mailer._shell(title=_e(head), preheader=_e(head + "."), content=content, footer=footer)
-    text = [head, ""] + [_item_text(i) for i in items]
-    if more:
-        text.append(f"And {more} more on this page.")
-    text += ["", f"Open the page: {target}", ""] + foot_text
-    return {"subject": subject, "html": html_out, "text": "\n".join(text)}
+    pre = (first.get("excerpt") or "") if n == 1 else f"{n} updates for you in “{title}”."
+    rows = [_item_part(i, page_url, last=k == len(items) - 1) for k, i in enumerate(items)]
+    e = K.layout(title_=head, preheader=pre or head, base=mailer._base(), body=[
+        K.eyebrow(eyebrow),
+        K.title(head),
+        K.p(["In ", K.link(page_url, title)], muted=True, size=14, margin="0 0 8px"),
+        K.rows(rows, margin="0 0 8px"),
+        K.small(f"And {more} more on this page.") if more else None,
+        K.button(target, "Open the page", margin="12px 0 24px"),
+    ], footer=_footer(user_id, why or WHY["instant"], less))
+    return {"subject": subject, "preheader": pre or head, "html": e.html, "text": e.text}
 
 
 def _plural(n: int, one: str, many: str | None = None) -> str:
@@ -936,10 +925,10 @@ def digest_head(pages: list[dict]) -> str:
 
 def compose_digest(*, user_id: str, pages: list[dict], mode: str, more_pages: int = 0,
                    catchup: bool = False, less: str | None = None) -> dict:
-    """``{subject, html, text}``: the hourly bundle, the daily digest or the morning catch-up for one
-    person. ``pages``: ``[{title, url, items, more}]`` (oldest first; ``items`` as
+    """``{subject, preheader, html, text}``: the hourly bundle, the daily digest or the morning catch-up
+    for one person. ``pages``: ``[{title, url, items, more}]`` (oldest first; ``items`` as
     :func:`compose_email`'s); ``mode``: hourly | daily | catchup."""
-    from app.services import mailer
+    from app.services import email_kit as K, mailer
 
     head = digest_head(pages)
     if more_pages:
@@ -947,35 +936,31 @@ def compose_digest(*, user_id: str, pages: list[dict], mode: str, more_pages: in
     lead = {"hourly": "", "daily": "Daily digest: ", "catchup": "Catching up: "}[mode]
     subject = mailer._one_line(lead + (head[0].lower() + head[1:] if lead and head.startswith("You ") else head), 150)
     eyebrow = {"hourly": "This past hour", "daily": "Daily digest", "catchup": "Catching up"}[mode]
-    S, INK, LINE = mailer._SANS, mailer._INK, mailer._LINE
-    intro = ""
+    n_mentions = sum(1 for p in pages for i in p["items"] if i["kind"] == "mention") + \
+        sum(max(0, p.get("more", 0) - p.get("more_signoffs", 0)) for p in pages)
+    n_signoffs = sum(1 for p in pages for i in p["items"] if i["kind"] == "signoff_requested") + \
+        sum(p.get("more_signoffs", 0) for p in pages)
+    body = [K.eyebrow(eyebrow), K.title(head)]
     if mode == "catchup" or catchup:
-        intro = mailer._p(f"You'd had {DAILY_CAP} notification emails that day, so these waited for this morning.",
-                          size=14)
-    parts = []
-    text = [head, ""]
+        body.append(K.p(f"You'd had {DAILY_CAP} notification emails that day, so these waited for this morning.",
+                        size=14))
+    tiles = [("Pages", str(len(pages) + more_pages))] + ([("Mentions", str(n_mentions))] if n_mentions else []) + \
+        ([("Sign-offs", str(n_signoffs))] if n_signoffs else [])
+    if len(pages) + more_pages > 1:
+        body.append(K.stats(tiles, margin="4px 0 8px"))
     for p in pages:
-        title_html = (f'<a href="{_e(p["url"])}" style="color:{INK};text-decoration:none">{_e(p["title"])}</a>')
-        parts.append(f'<div style="font-family:{S};font-size:16px;line-height:24px;font-weight:700;color:{INK};'
-                     f'margin:18px 0 8px;padding-top:14px;border-top:1px solid {LINE}">{title_html}</div>')
-        parts += [_item_html(i, p["url"]) for i in p["items"]]
+        body.append(K.heading(K.link(p["url"], p["title"]), count=_plural(len(p["items"]) + p.get("more", 0), "update"),
+                              top=20))
+        body.append(K.rows([_item_part(i, p["url"], last=k == len(p["items"]) - 1) for k, i in enumerate(p["items"])],
+                           margin="0 0 4px"))
         if p.get("more"):
-            parts.append(mailer._p(f"And {p['more']} more on this page.", size=13, color=mailer._MUTED,
-                                   margin="0 0 8px"))
-        text.append(f"{p['title']} — {p['url']}")
-        text += [_item_text(i) for i in p["items"]]
-        if p.get("more"):
-            text.append(f"And {p['more']} more on this page.")
-        text.append("")
+            body.append(K.small(f"And {p['more']} more on this page.", margin="0 0 8px"))
     if more_pages:
-        parts.append(mailer._p(f"And {_plural(more_pages, 'more page')}: see them under the bell in Markdrop.",
-                               size=13, color=mailer._MUTED))
-        text += [f"And {_plural(more_pages, 'more page')}: see them under the bell in Markdrop.", ""]
-    content = (mailer._eyebrow(eyebrow) + mailer._heading(_e(head)) + intro + "".join(parts)
-               + mailer._button(_e(mailer._base() + "/dashboard"), "Open Markdrop", margin="18px 0 20px"))
-    footer, foot_text = _footer(user_id, WHY[mode], less)
-    html_out = mailer._shell(title=_e(head), preheader=_e(head + "."), content=content, footer=footer)
-    return {"subject": subject, "html": html_out, "text": "\n".join(text + foot_text)}
+        body.append(K.small(f"And {_plural(more_pages, 'more page')}: see them under the bell in Markdrop."))
+    body.append(K.button(mailer._base() + "/dashboard", "Open Markdrop", margin="18px 0 24px"))
+    e = K.layout(title_=head, preheader=head + ".", base=mailer._base(), body=body,
+                 footer=_footer(user_id, WHY[mode], less))
+    return {"subject": subject, "preheader": head + ".", "html": e.html, "text": e.text}
 
 
 async def _send(user_row: dict, mail: dict, *, kind: str = "mention", ref: str | None = None) -> None:
