@@ -127,6 +127,32 @@ async def list_templates(_: dict = Depends(require_admin)):
     })
 
 
+# ── Message gallery: every email and Slack message Markdrop sends, from fixtures ─
+
+
+@router.get("/gallery")
+async def gallery(_: dict = Depends(require_admin)):
+    """What the gallery lists: each message's id, kind, group, name and when it's sent."""
+    from app.services import message_gallery
+
+    return ok({"entries": [{"id": e.id, "kind": e.kind, "group": e.group, "name": e.name, "note": e.note}
+                           for e in message_gallery.ENTRIES]})
+
+
+@router.get("/gallery/{entry_id}")
+async def gallery_entry(entry_id: str, _: dict = Depends(require_admin)):
+    """One message rendered by its real builder from fixtures (nothing is sent): an email's subject,
+    preheader, HTML and text, or a Slack message's Block Kit and its light / dark preview."""
+    from fastapi import HTTPException
+
+    from app.services import message_gallery
+
+    e = message_gallery.get(entry_id)
+    if e is None:
+        raise HTTPException(status_code=404, detail="No such message.")
+    return ok(message_gallery.render(e))
+
+
 # ── Preview, test, audience ────────────────────────────────────────────────────
 
 async def _as(db: AsyncIOMotorDatabase, as_email: str | None) -> tuple[dict[str, str], dict[str, Any]]:

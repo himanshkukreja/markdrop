@@ -14,6 +14,7 @@ import Home from "./Home";
  *   ?tab=email&et=senders              home, senders and suppressions
  *   ?tab=email&et=usage                home, every email: provider usage vs daily limits, 14 days, kinds
  *   ?tab=email&et=sent                 home, every email: the send log (one row per recipient)
+ *   ?tab=email&et=templates            home, the message gallery: every email and Slack message, from fixtures
  *   ?tab=email&campaign=new&template=… a new draft from a template
  *   ?tab=email&campaign=<id>&ct=…      a campaign; ct = compose|audience|preview|send|report|content
  */
@@ -94,7 +95,7 @@ export default function EmailSection({ token }: { token: string }) {
   return (
     <Home
       token={token}
-      tab={view.et === "senders" || view.et === "usage" || view.et === "sent" ? view.et : "campaigns"}
+      tab={view.et === "senders" || view.et === "usage" || view.et === "sent" || view.et === "templates" ? view.et : "campaigns"}
       info={info}
       infoError={infoError}
       meta={meta}
