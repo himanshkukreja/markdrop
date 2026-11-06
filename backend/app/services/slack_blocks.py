@@ -68,9 +68,11 @@ def header(text: str) -> dict:
     return {"type": "header", "text": {"type": "plain_text", "text": cut(text, 150) or " ", "emoji": False}}
 
 
-def meta(*parts: str | None) -> dict:
-    """Facts in one quiet line: "Fri, Nov 7 · 10:00  ·  32 min  ·  6 people"."""
-    return context(SEP.join(p for p in parts if p))
+def meta(*parts: str | None) -> dict | None:
+    """Facts in one quiet line: "Fri, Nov 7 · 10:00  ·  32 min  ·  6 people" (None when there are none:
+    Slack refuses an empty context)."""
+    parts_ = [p for p in parts if p]
+    return context(SEP.join(parts_)) if parts_ else None
 
 
 def eyebrow(kind: str, where: str | None = None) -> dict:
@@ -139,8 +141,8 @@ def row(text: str, *, done_button: dict | None = None) -> dict:
     return section(text, accessory=done_button) if done_button else section(text)
 
 
-def footer(*parts: str | None) -> dict:
-    return context(SEP.join(p for p in parts if p))
+def footer(*parts: str | None) -> dict | None:
+    return meta(*parts)
 
 
 def message(blocks: list[dict | None], text: str) -> dict:
@@ -438,9 +440,10 @@ def dm_access_request(team_id: str, requester: str, email: str | None, title: st
     verb = "edit" if edit else "open"
     blocks: list[dict | None] = [
         eyebrow("Edit access request" if edit else "Access request", "as a workspace admin" if as_admin else None),
-        section(f"*{esc(requester)}* asked to {verb} *{link(url, cut(title, 120))}*" + _quote(message_)),
+        section(f"*{esc(requester)}* asked to {verb} *{link(url, cut(title, 120))}*"),
         meta(esc(email) if email and email != requester else None,
              "Its owner can't approve it, so it came to the workspace's admins" if as_admin else None),
+        section(_quote(message_).lstrip("\n")) if message_ else None,
     ]
     if done:
         blocks.append(context(f"{DONE_MARK}  {done}"))

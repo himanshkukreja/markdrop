@@ -159,7 +159,8 @@ class EverySlackMessage(unittest.TestCase):
                         self.assertTrue(b["action_id"].startswith("md_"))
                         self.assertTrue(b.get("url") or b.get("value"))
                     if t == "context":
-                        self.assertLessEqual(len(b["elements"]), 10)
+                        self.assertTrue(1 <= len(b["elements"]) <= 10)
+                        self.assertTrue(all(el.get("text") for el in b["elements"] if el["type"] == "mrkdwn"))
                 # One primary button at most.
                 self.assertLessEqual(sum(1 for b in self.walk(msg) if b.get("style") == "primary"), 1)
                 # Our own words carry no emoji shortcodes.
