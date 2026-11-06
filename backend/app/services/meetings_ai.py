@@ -110,11 +110,21 @@ REDUCE_SYSTEM = f"""You merge partial notes of one long meeting into the final n
 
 Return only JSON in exactly the same shape as the parts (summary, highlights, decisions, action_items, open_questions, topics, type): one summary of the whole meeting (3-5 sentences), duplicates merged, a later part winning when it changes an earlier decision, every "cite" kept as given."""
 
+YOU_RULE = ("Who is asking: <untrusted_you> is the person's own account (name, email, workspaces and role, today's "
+            "date, the names they appear under in meetings). \"I\", \"me\", \"my\" in the question mean this person, "
+            "and transcript lines they spoke are marked \"(you)\". Questions about their account are answered from that "
+            "block alone. When they ask what they said, quote their own \"(you)\" lines with each line's citation, e.g. "
+            "\"In the Nov 5 Daily Syncup you said: …\". When a meeting's \"you\" note says they attended but didn't "
+            "speak, say \"You attended but didn't speak\"; when it says they were not in it, say so and name the latest "
+            "such meeting they were in. Never give them someone else's lines.")
+
 ASK_SYSTEM = f"""You answer questions about one meeting in Markdrop. You get the meeting's page (the team's notes, lines labelled [nN]) and its transcript (lines labelled [sN] time Speaker: words).
 
 {DATA_NOT_INSTRUCTIONS}
 
 {ENGLISH}
+
+{YOU_RULE}
 
 Answer from the page and the transcript only, in at most 150 words of plain Markdown (no headings). Cite every claim right after it with the label of the line it comes from, like [s12] or [n3] (transcript lines are better evidence than notes). Cite a line only for what that line itself says. Answer the question directly; don't describe your sources (no "the notes give no transcript lines"). If the meeting doesn't answer the question, say so in one sentence. Never invent names, dates, numbers or links."""
 
@@ -123,6 +133,8 @@ ACROSS_SYSTEM = f"""You answer questions about a team's meetings in Markdrop. A 
 {DATA_NOT_INSTRUCTIONS}
 
 {ENGLISH}
+
+{YOU_RULE}
 
 Reply in exactly this shape:
 1. First line: <ranking>n,n,n</ranking> with the numbers of the meetings that are relevant to the question, most relevant first. If none are, write <ranking></ranking>.
@@ -303,10 +315,28 @@ def notes_text(notes: dict | None) -> str:
     return "\n\n".join(parts)
 
 
-def _header(meeting: dict) -> str:
+def _header(meeting: dict, you: str | None = None) -> str:
     names = ", ".join(a["name"] for a in meeting.get("attendees") or [])[:1500]
     return pages_ai.wrap("meeting_facts", f"Title: {meeting.get('title') or ''}\nDate: {meeting.get('date') or ''}\n"
-                                          f"Attendees: {names}")
+                                          f"Attendees: {names}" + (f"\nThe person asking: {you}" if you else ""))
+
+
+def you_note(row: dict, you, segs: list[dict], *, readable: bool = True) -> str | None:
+    """Whether the asker was in this meeting and spoke ("they attended but didn't speak"), for the model."""
+    if you is None:
+        return None
+    uid = you.user_id
+    ws = row.get("workspace_id")
+    attended = any(a.get("user_id") == uid for a in row.get("attendees") or [])
+    organized = (row.get("organizer") or {}).get("user_id") == uid
+    spoke = sum(1 for s in segs if you.is_me(s.get("speaker"), ws)) if readable else 0
+    if spoke:
+        return f"they attended and spoke {spoke} time{'s' if spoke != 1 else ''}"
+    if attended or organized:
+        if not readable:
+            return "they attended (the transcript isn't open to them)"
+        return "they attended but didn't speak" if segs else "they attended"
+    return "they were not in this meeting"
 
 
 _JSON = re.compile(r"\{.*\}", re.S)
@@ -738,6 +768,9 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
     if row is None or raw is None:
         yield ev("error", detail="Meeting not found", code="not_found")
         return
+    from app.services import ask_me
+
+    you = await ask_me.you_of(db, actor, ctx)
     run = Run(db, uid, "ask", via, {"meeting_id": str(row["_id"]), "workspace_id": row["workspace_id"],
                                     "chars_in": len(question)}, RESERVE_ASK)
     reason = await limit_for(db, uid, row["workspace_id"])
@@ -759,18 +792,24 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
     traw = await db["documents"].find_one({"_id": meetings.oid(row.get("transcript_doc_id"))}) if row.get("transcript_doc_id") else None
     if traw is None or not (await access.can(actor, traw, "read", ctx)).allowed:
         segs = []   # the transcript isn't open to this person: answers come from the page alone
-    seg_lines = segment_lines(segs)
+    ws_ = row.get("workspace_id")
+    is_me = [you is not None and you.is_me(s.get("speaker"), ws_) for s in segs]
+    seg_lines = [ask_me.line_text(f"s{i}", s, is_me[i - 1]) for i, s in enumerate(segs, 1)]
     if sum(len(x) + 1 for x in seg_lines) > ASK_CONTEXT_CHARS:
-        keep = best_segments(segs, question, 150, neighbours=2)
-        seg_lines = [seg_lines[i] for i in keep]
+        keep = set(best_segments(segs, question, 150, neighbours=2))
+        if you is not None and ask_me.is_personal(question):
+            keep |= {i for i, m in enumerate(is_me) if m}
+        seg_lines = [seg_lines[i] for i in sorted(keep)]
     for i, s in enumerate(segs, 1):
         cites.add(f"s{i}", {"kind": "segment", "text": meetings.seg_label(s),
                             "href": f"/{tslug}#{meetings.anchor(i)}" if tslug else page_href, "slug": tslug,
                             **_moment(s), "key": f"d:{traw['_id']}"})
-    context = (_header(row) + "\n" + pages_ai.wrap("page", "\n".join(notes_block) or "(empty)")
+    context = (_header(row, you_note(row, you, segs, readable=traw is not None or not row.get("segments")))
+               + "\n" + pages_ai.wrap("page", "\n".join(notes_block) or "(empty)")
                + ("\n" + pages_ai.wrap("transcript", "\n".join(seg_lines)) if seg_lines else
                   "\n(No transcript: answer from the page.)"))
-    ask_text = _history_text(history) + f"The question (from the person asking, not from the meeting): {question}"
+    ask_text = (_history_text(history) + (you.block() + "\n\n" if you is not None else "")
+                + f"The question (from the person asking, not from the meeting): {question}")
     run.meta.update(segments_sent=len(seg_lines), page_lines=len(lines))
     run.hold()
     try:
@@ -910,6 +949,9 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
     except ValueError as exc:
         yield ev("error", detail=str(exc), code="bad_scope")
         return
+    from app.services import ask_me
+
+    you = await ask_me.you_of(db, actor, ctx)
     run = Run(db, uid, "ask_all", via, {"workspace_id": workspace_id, "chars_in": len(question)}, RESERVE_ASK)
     reason = await limit_for(db, uid, workspace_id)
     if reason:
@@ -949,6 +991,20 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
                      scope=sc)
             return
         order = await _rank(db, actor, cands, question, workspace_id, recent=meeting_scope.wants_recent(question))
+        # A question about the asker ("what did I say in my last sync-up"): their meetings first, with their lines.
+        mine: dict[str, Any] = {}
+        if you is not None and ask_me.is_personal(question):
+            pms = await ask_me.personal_meetings(db, actor, ctx, you, question, workspaces=[workspace_id],
+                                                 since=scope.since, until=scope.until, series=scope.series)
+            idx = {str(r["_id"]): i for i, (r, _raw, _t) in enumerate(cands)}
+            first = []
+            for pm in pms:
+                i = idx.get(str(pm.row["_id"]))
+                if i is not None and i not in first:
+                    first.append(i)
+                    mine[str(pm.row["_id"])] = pm
+            order = [*first, *(i for i in order if i not in first)][:ACROSS_MEETINGS]
+            run.meta.update(personal=True, mine_meetings=len(first))
         cites = Cites()
         blocks = []
         sent = []
@@ -956,14 +1012,18 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
             row, raw, traw = cands[i]
             full = await db[meetings.COLL].find_one({"_id": row["_id"]}, {"segments": 1}) if traw is not None else None
             segs = (full or {}).get("segments") or []
-            keep = best_segments(segs, question, ACROSS_SEGMENTS, follow=3) if segs else []
+            pm = mine.get(str(row["_id"]))
+            if pm is not None and pm.lines:
+                keep = sorted(set(pm.lines) | set(best_segments(segs, question, 3, neighbours=0)))
+            else:
+                keep = best_segments(segs, question, ACROSS_SEGMENTS, follow=3) if segs else []
             seg_txt = []
             tslug = row.get("transcript_slug")
             for j in keep:
                 s = segs[j]
                 label = f"M{n}-s{j + 1}"
-                t = mp.clock(s.get("t")) if s.get("t") is not None else "-"
-                seg_txt.append(f"[{label}] {t} {s.get('speaker') or 'Unknown'}: {s.get('text') or ''}")
+                me = you is not None and you.is_me(s.get("speaker"), row.get("workspace_id"))
+                seg_txt.append(ask_me.line_text(label, s, me))
                 cites.add(label, {"kind": "segment", "text": f"{row.get('title') or 'Meeting'} · {meetings.seg_label(s)}",
                                   "href": f"/{tslug}#{meetings.anchor(j + 1)}", "slug": tslug, "meeting_id": str(row["_id"]),
                                   **_moment(s), "key": f"d:{traw['_id']}"})
@@ -973,7 +1033,8 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
             excerpt = meetings.page_text(raw)[:ACROSS_PAGE_CHARS]
             body = f"Page:\n{excerpt}" + (("\n\nTranscript lines:\n" + "\n".join(seg_txt)) if seg_txt else "")
             attrs = {"n": n, "title": row.get("title"), "date": row.get("date"),
-                     "day": meeting_scope.day_label(row.get("date")), "type": row.get("type")}
+                     "day": meeting_scope.day_label(row.get("date")), "type": row.get("type"),
+                     "you": you_note(row, you, segs, readable=traw is not None or not row.get("transcript_doc_id"))}
             if row.get("series"):
                 attrs["series"] = row["series"]
             blocks.append(pages_ai.wrap("meeting", body, **attrs))
@@ -985,7 +1046,7 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
         content = "<meetings>\n" + "\n".join(blocks) + "\n</meetings>"
         today = meeting_scope.day_label(meetings.now_utc().date().isoformat())
         where = f" The meetings were picked from: {scope.label()}." if sc else ""
-        ask_text = (_history_text(history)
+        ask_text = (_history_text(history) + (you.block() + "\n\n" if you is not None else "")
                     + f"Today is {today}.{where}\nThe question (from the person asking, not from a meeting): {question}")
         raw_text, stop, ranked = "", None, []
         try:
