@@ -344,9 +344,9 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
                 <Button size="sm" variant="secondary" onClick={() => { setFilter(""); setSeriesFilter(null); }}>Clear the filters</Button>
               </div>
             )}
-            {months.map((g) => (
+            {months.map((g, gi) => (
               <section key={g.key} className="mt-monthgroup" aria-label={g.key === "all" ? undefined : g.key === "none" ? "No date" : monthLabel(g.key)}>
-                {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)} <small>{g.items.length}</small></h3>}
+                {g.key !== "all" && <h3 className="mt-month" data-testid="month-header">{g.key === "none" ? "No date" : monthLabel(g.key)}{/* the last month may go on in the next page */}{(gi < months.length - 1 || !list.next) && <small> {g.items.length}</small>}</h3>}
                 <ul className="mt-list">
                   {g.items.map((m) => <MeetingCardItem key={m.id} m={m} onDelete={m.can_delete ? () => setDeleting(m.id) : undefined} />)}
                 </ul>
