@@ -128,7 +128,8 @@ def markdown_text(md: str | None) -> str:
     t = _BLOCK_ATTRS.sub("", t)
     t = _IMG.sub(lambda m: m.group(1), t)
     t = _LINK.sub(lambda m: m.group(1), t)
-    t = _INLINE_DIR.sub(lambda m: m.group(2), t)
+    # A mention reads "@Priya Sharma" (whose to-do it is, for Ask Markdrop); other directives their label.
+    t = _INLINE_DIR.sub(lambda m: ("@" + m.group(2)) if m.group(1) == "person" and m.group(2) else m.group(2), t)
     t = _LEAF_DIR.sub("", t)
     t = _TAG.sub(" ", t)
     t = _TABLE_RULE.sub("", t)

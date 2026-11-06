@@ -77,6 +77,16 @@ you your up get got give gave quote quotes exactly word words line lines please 
 """.split())
 
 
+# Hindi typed in Latin letters, mixed with English ("export ke liye limit kitna hai?").
+_HINGLISH = re.compile(r"\b(hai|hain|kya|kitna|kitni|kaun|kab|kaise|mein|ke liye|ka|ki|ke|wala|wale|tha|thi|hua|hui|"
+                       r"bola|boli|kaha|baare|batao|bata|nahi|haan|aur|bhi|mera|meri|maine|mujhe)\b", re.I)
+
+
+def is_hinglish(question: str) -> bool:
+    """Two or more Hindi words in Latin letters: answer in English all the same (owner decision)."""
+    return len(_HINGLISH.findall(question or "")) >= 2
+
+
 def is_personal(question: str) -> bool:
     return bool(_ME.search(question or ""))
 

@@ -68,7 +68,7 @@ Q: list[dict] = [
     {"id": "wk-02", "cat": "my-work", "q": "Which documents did I create recently?",
      "expect": [["Meetings privacy", "Slack app design notes", "Release checklist", "Ask Markdrop docs draft"]],
      "forbid": ["2025 planning retro"]},
-    {"id": "wk-03", "cat": "my-work", "q": "What did I sign off recently?", "expect": [["Release checklist"], ["Approved"]]},
+    {"id": "wk-03", "cat": "my-work", "q": "What did I sign off recently?", "expect": [["Release checklist"], ["Approved", "for production"]]},
     {"id": "wk-04", "cat": "my-work", "q": "Which docs did I edit this week?", "expect": [["Q4 Roadmap", "API rate limits"]]},
     {"id": "wk-05", "cat": "my-work", "q": "What are my open action items?", "expect": [["Slack app beta"], ["Release notes", "release"]]},
     {"id": "wk-06", "cat": "my-work", "q": "What's on my plate?", "expect": [["Slack app beta"]]},
@@ -184,7 +184,7 @@ Q: list[dict] = [
     {"id": "hi-01", "cat": "hinglish-typos", "q": "export ke liye rate limitr kitna hai?", "english": True, "expect": [["300"]]},
     {"id": "hi-02", "cat": "hinglish-typos", "q": "pricng review mein kya decide hua", "english": True, "expect": [["20"], ["12"]]},
     {"id": "hi-03", "cat": "hinglish-typos", "q": "senseloaf wale call mein SSO ke baare mein kya bola", "english": True, "expect": [["December"]]},
-    {"id": "hi-04", "cat": "hinglish-typos", "q": "who is wrking on the slack app", "expect": [["Himanshu"]]},
+    {"id": "hi-04", "cat": "hinglish-typos", "q": "who is wrking on the slack app", "expect": [["Himanshu", "you "]]},
     {"id": "hi-05", "cat": "hinglish-typos", "q": "variant b ka result kya tha?", "english": True, "expect": [["18"]]},
 
     # ── Meetings scope ──

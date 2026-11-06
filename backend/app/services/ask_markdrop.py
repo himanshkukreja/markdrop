@@ -99,7 +99,8 @@ YOU_RULE = ("Who is asking: <untrusted_you> is the person's own account (name, e
             "citation, e.g. \"In the Nov 5 Daily Syncup you said: …\". When a meeting's \"you\" note says they "
             "attended but didn't speak, say \"You attended but didn't speak\"; when it says they were not in it, "
             "say so and name the latest such meeting they were in. Never give them someone else's lines. Say these things "
-            "plainly, as facts; never mention the notes, the \"(you)\" markers or how items are labelled.")
+            "plainly, as facts; never mention the notes, the \"(you)\" markers or how items are labelled. A to-do or action "
+            "item belongs to the person @mentioned on it, not to whoever wrote the page.")
 
 EXPAND_SYSTEM = """You help a keyword search engine inside Markdrop, a workspace app with meetings, documents, pages, files and guides. A person asked a question; when it follows earlier questions in a conversation, those come first for context.
 
@@ -1214,7 +1215,8 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         by_n = {s.n: s for s in sources}
         asked = ((you.block() + "\n\n" if you is not None else "")
                  + f"The question (from the person asking, not from a document): {question}"
-                 + (f"\n(As a standalone question: {standalone})" if standalone != question else ""))
+                 + (f"\n(As a standalone question: {standalone})" if standalone != question else "")
+                 + ("\nThe question mixes Hindi and English: write the answer in English." if ask_me.is_hinglish(question) else ""))
         if intent == "page":
             asked = (f"The page is item [1], titled: {page_raw.get('title') or '(untitled)'}\n"
                      + where_in_page(context) + asked)
