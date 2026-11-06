@@ -799,9 +799,36 @@ async def _ask_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
                        terms: list[str], scope: str | None, keep=None) -> tuple[list[Source], int, int]:
     q = search.Query(q=standalone, scope=scope, snippets=True)
     cands, w = await search_ai.retrieve(db, actor, ctx, q, [standalone, *terms], keep=keep)
+    # ── Team memory hook (feat/workspace-memory: services/workspace_memory.py) ─────────────────────
+    # "What is Abhishek working on?", "status of the checkout project": the meetings / pages Team memory
+    # read that about (each readable by the asker), first, with those facts as their excerpt.
+    mem = await _team_memory(db, actor, ctx, standalone, scope, keep)
+    if mem:
+        cands = [c for c, _t in mem] + [c for c in cands if c.key not in {c.key for c, _t in mem}]
+    # ── end Team memory hook ──────────────────────────────────────────────────────────────────────
     cands = cands[:MAX_CANDIDATES]
     kept, withheld = await _ai_off(db, cands)
-    return await _sources_from(db, actor, ctx, w, kept, standalone), len(cands), withheld
+    sources = await _sources_from(db, actor, ctx, w, kept, standalone)
+    _team_memory_text(sources, mem)
+    return sources, len(cands), withheld
+
+
+async def _team_memory(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, question: str,
+                       scope: str | None, keep=None) -> list[tuple[search.Cand, str]]:
+    """Team memory hook: [(source doc candidate, "Team memory …" excerpt)] (services/workspace_memory.py)."""
+    from app.services import workspace_memory
+
+    got = await workspace_memory.assistant_sources(db, actor, ctx, question, scope)
+    return [(c, t) for c, t in got if keep is None or keep(c)]
+
+
+def _team_memory_text(sources: list[Source], mem: list[tuple[search.Cand, str]]) -> None:
+    """Team memory hook: the facts become the start of their source's excerpt."""
+    texts = {c.key: t for c, t in mem}
+    for src in sources:
+        t = texts.get(src.key)
+        if t:
+            src.text = t + ("\n\n" + src.text if src.text else "")
 
 
 async def _page_sources(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, raw: dict, standalone: str,
