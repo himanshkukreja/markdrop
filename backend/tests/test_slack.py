@@ -56,6 +56,8 @@ class FakeSlack:
         self.fail: dict[str, str] = {}
         # users.lookupByEmail: email -> Slack user (profile.email set the way Slack returns it).
         self.directory: dict[str, dict] = {}
+        # users.list: the team's people (name matching), besides everyone in the directory.
+        self.members: list[dict] = []
 
     async def handler(self, request: httpx.Request) -> httpx.Response:
         if self.delay:
@@ -93,6 +95,10 @@ class FakeSlack:
             if u is None:
                 return httpx.Response(200, json={"ok": False, "error": "users_not_found"})
             return httpx.Response(200, json={"ok": True, "user": u})
+        if method == "users.list":
+            seen = {u["id"] for u in self.members}
+            return httpx.Response(200, json={"ok": True, "members": self.members + [
+                u for u in self.directory.values() if u["id"] not in seen], "response_metadata": {"next_cursor": ""}})
         if method == "conversations.info":
             return httpx.Response(200, json={"ok": True, "channel": {**self.channel_info, "id": data.get("channel")}})
         if method == "conversations.list":

@@ -5,6 +5,8 @@
   account is linked (and how: found by email, Sign in with Slack), and whether they turned Slack
   notifications on (off by default) with their per-kind choices. The settings card's GET /slack/status, for
   any member; never a token.
+  Also whether each attendee gets their own action items as a direct message after every meeting
+  (``action_item_dms``, services/slack_action_items.py) and the user's own switch for it.
 * ``post_meeting_to_slack``: post a meeting's summary, decisions and action items (with Done
   buttons) to the workspace's meetings channel, again or for the first time (a past meeting brought
   in by Import past meetings is never posted on its own). POST /slack/meetings/{id}/post: who can
@@ -66,8 +68,10 @@ async def slack_status(ctx: Context, args: dict) -> tuple[str, dict]:
         "connected_at": None,
         "linked_people": None,
         "needs_reconnect": False,
+        "action_item_dms": None,
         "me": {"linked": bool(me["linked"]), "slack_name": me.get("slack_name"), "found_by": me.get("match"),
-               "notifications_on": bool(me.get("on")), "direct_messages": me["prefs"]},
+               "notifications_on": bool(me.get("on")), "direct_messages": me["prefs"],
+               "action_items": bool(me.get("action_items", True))},
     }
     if not st["configured"]:
         return ("Markdrop for Slack isn't available on this Markdrop server yet (the Slack app isn't set up), "
@@ -85,6 +89,7 @@ async def slack_status(ctx: Context, args: dict) -> tuple[str, dict]:
         "connected_at": _iso(inst.get("installed_at")),
         "linked_people": inst.get("linked_people"),
         "needs_reconnect": not inst.get("token_ok", True),
+        "action_item_dms": bool(inst.get("action_item_dms", True)),
     })
     lines = [f"{name} is connected to the Slack workspace {inst.get('team_name') or '(unnamed)'}"
              + (f" (by {inst['installed_by']})" if inst.get("installed_by") else "") + "."]
@@ -96,6 +101,12 @@ async def slack_status(ctx: Context, args: dict) -> tuple[str, dict]:
         lines.append(f"No meetings channel is chosen, so meetings aren't posted ({_SETUP}).")
     if out["needs_reconnect"]:
         lines.append(f"Slack's connection broke: a workspace admin reconnects it in {_SETUP}.")
+    if out["action_item_dms"]:
+        lines.append("After each meeting, every attendee Markdrop finds in Slack (members or not) gets a direct message "
+                     "with their own action items (not opt-in; each message has Stop these"
+                     + (", and yours are off in Settings › Account" if not out["me"]["action_items"] else "") + ").")
+    else:
+        lines.append(f"Direct messages with each person's own action items after meetings are off ({_SETUP}).")
     lines.append(f"{inst.get('linked_people') or 0} people have linked their Slack account.")
     if not inst.get("can_find_by_email", True):
         lines.append("The Slack app needs an update (new permissions to find people by email): a workspace admin "
@@ -147,7 +158,9 @@ SLACK_TOOLS: list[Tool] = [
                      "the connection needs reconnecting, how many people linked their Slack account, whether the user's own "
                      "account is linked, and whether they turned Slack notifications on (me.notifications_on: off by "
                      "default; once on, which direct messages they get: mentions, sign-off requests, shares, access "
-                     "requests). Any member can ask. Read-only: connecting Slack, choosing the channel and linking an "
+                     "requests), and whether each attendee gets their own action items as a direct message after "
+                     "every meeting (action_item_dms: on unless a workspace admin turned it off; not opt-in; "
+                     "me.action_items: the user's own switch). Any member can ask. Read-only: connecting Slack, choosing the channel and linking an "
                      "account are done on the website (Workspace settings › Integrations › Slack), and Slack "
                      "notifications are turned on in Settings › Account."),
         scope=READ,
@@ -158,6 +171,7 @@ SLACK_TOOLS: list[Tool] = [
             "meetings_channel": {"type": ["object", "null"]}, "post_meetings": {"type": ["boolean", "null"]},
             "connected_by": {"type": ["string", "null"]}, "connected_at": {"type": ["string", "null"]},
             "linked_people": {"type": ["integer", "null"]}, "needs_reconnect": {"type": "boolean"},
+            "action_item_dms": {"type": ["boolean", "null"]},
             "me": {"type": "object"}}, ["workspace_id", "available", "connected"]),
         annotations=_ann(True, False, True),
         handler=slack_status,

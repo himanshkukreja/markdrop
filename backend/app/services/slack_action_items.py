@@ -183,7 +183,7 @@ def page_items(md: str) -> list[Item]:
                 em = _EMAIL.fullmatch(it.who_name.strip()) or re.search(r"<([\w.+-]+@[\w-]+(?:\.[\w-]+)+)>", it.who_name)
                 if em:
                     it.who_email = em.group(1).lower()
-        it.text = _plain(rest)
+        it.text = _tidy(_plain(rest)) if it.who_name else _plain(rest)
         out.append(it)
     return out
 
@@ -649,7 +649,7 @@ async def preview(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
             if reach == "name" and row.get("restricted"):
                 reach = "none"
             out["people"].append({"name": p.name, "member": bool(p.user_id), "reach": reach, "items": len(p.items)})
-        first = people[0]
+        first = max(people, key=lambda p: len(p.items))      # the fullest message as the example
         member = bool(first.user_id)
         out["message"] = {
             "to": first.name, "title": row.get("title") or "Meeting", "when": _short_day(row.get("date")),
