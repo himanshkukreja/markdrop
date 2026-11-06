@@ -151,6 +151,7 @@ def selected(only: str | None) -> list[dict]:
 
 class EvalWorld(AccessWorld, AIEnv):
     mode = "fake"
+    noise: bool | None = None          # None: ASK_EVAL_NOISE (default on)
 
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -180,7 +181,8 @@ class EvalWorld(AccessWorld, AIEnv):
         p = mock.patch.object(docs_agent, "get_client", lambda: self.rec)
         p.start()
         self.addCleanup(p.stop)
-        self.ids = await W.seed(self, noise=os.environ.get("ASK_EVAL_NOISE", "1") != "0")
+        noise = self.noise if self.noise is not None else os.environ.get("ASK_EVAL_NOISE", "1") != "0"
+        self.ids = await W.seed(self, noise=noise)
 
     async def asyncTearDown(self):
         for t in list(meetings._bg):
