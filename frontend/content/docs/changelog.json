@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "meeting-names-and-tablet-bar",
+      "date": "2026-11-06",
+      "title": "Clean attendee names, and a page bar that fits tablets and phones",
+      "kind": "fixed",
+      "area": "Meetings",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "People imported from Google Docs person chips no longer show as \"[I\" or \"[Ishaan Gupta](mailto:…)\": every attendee and organizer name is cleaned, and the address in a chip matches the right workspace member. Avatar initials use letters only, in any script. The page bar no longer runs its title, Ask, From meetings, Edit and Share into each other on tablets and small screens.",
+      "body": "- **Names.** Markdown links, brackets, quotes and escapes around a name are removed, \"Name <email>\" keeps the address, and people listed one after another without commas are split. The same person is listed once. Meetings imported earlier are cleaned in the background; the Attendees property is updated only where Markdrop wrote it, and who can open a meeting doesn't change.\n- **Initials.** Avatars take the first letter of the first and last word, skipping punctuation and emoji, then the email address, then \"?\".\n- **Page bar.** Under 1024 px the bar's buttons are icons (with their names as labels and tooltips) and the pages above fold into \"…\", so the title keeps its room. On phones Share and Ask are in the ⋯ menu. Touch targets are 44 px."
+    },
+    {
       "id": "ask-knows-you",
       "date": "2026-11-06",
       "title": "Ask knows who is asking",
