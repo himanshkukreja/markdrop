@@ -55,7 +55,17 @@ SOURCE = "google-meet-script"
 MAX_BODY_BYTES = 6_000_000          # a long call's text, UTF-8 (nginx allows 12 MB)
 MAX_TEXT_CHARS = meetings.MAX_PASTE_CHARS
 PROCESSING_STALE = timedelta(minutes=5)
-DONE = ("imported", "attached", "duplicate", "ignored")
+DONE = ("imported", "attached", "duplicate", "ignored", "updated")
+# A Doc with no notes or transcript in it yet (Gemini makes its notes Doc when note-taking starts and
+# fills it in when the call ends): "not_ready" (the script sends it again once Google changes it) for
+# this long after Google made it; after that it is ignored for good.
+NOT_READY_FOR = timedelta(hours=12)
+# What Gemini writes in its notes Doc before the call ends (and other placeholders): not notes yet.
+_PLACEHOLDER = re.compile(
+    r"gemini (?:is|will be) taking notes|taking notes (?:for|in) (?:you|this|the) |notes (?:will|are going to) be "
+    r"(?:shared|available|ready|added|generated|written|sent)|notes (?:will )?appear (?:here )?(?:after|when|once)|"
+    r"(?:being|been) (?:generated|written|prepared)|will be (?:available|ready|shared) (?:after|when|once)|"
+    r"after the (?:meeting|call) (?:ends|is over)|in progress", re.I)
 _DIR = Path(__file__).parent / "meeting_script"
 _FILE_ID = re.compile(r"^[A-Za-z0-9_-]{10,200}$")
 _PROJECT = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
@@ -174,7 +184,8 @@ async def view(db: AsyncIOMotorDatabase, rec: dict | None, *, viewer_id: str | N
         "last_received_at": _iso(st.get("last_received_at")), "last_imported_at": _iso(st.get("last_imported_at")),
         "received": int(st.get("received") or 0), "imported": int(st.get("imported") or 0),
         "attached": int(st.get("attached") or 0), "duplicates": int(st.get("duplicates") or 0),
-        "ignored": int(st.get("ignored") or 0), "last_error": st.get("last_error"),
+        "ignored": int(st.get("ignored") or 0), "updated": int(st.get("updated") or 0),
+        "not_ready": int(st.get("not_ready") or 0), "last_error": st.get("last_error"),
         "prefix": rec.get("prefix"),
         "include_shared": rec.get("include_shared"),
         # How the script's runs go (v2+ reports each run; v1 never does) and whether to get the new one.
@@ -227,8 +238,8 @@ async def for_workspace(db: AsyncIOMotorDatabase, workspace_id: str) -> list[dic
 
 # ── The script's runs ─────────────────────────────────────────────────────────
 
-_SKIPS = ("already_sent", "too_old", "not_yours", "title", "writing")
-_RESULTS = ("imported", "attached", "duplicate", "ignored")
+_SKIPS = ("already_sent", "too_old", "not_yours", "title", "writing", "not_ready")
+_RESULTS = ("imported", "attached", "duplicate", "ignored", "updated", "not_ready")
 
 
 def _count(v: Any) -> int:
@@ -374,6 +385,7 @@ async def _call_script(client: httpx.AsyncClient, rec: dict) -> dict:
     sk = data.get("skipped") if isinstance(data.get("skipped"), dict) else {}
     return {"ok": True, "found": _count(data.get("found")), "sent": _count(data.get("sent")),
             "imported": _count(res.get("imported")), "attached": _count(res.get("attached")),
+            "updated": _count(res.get("updated")), "not_ready": _count(res.get("not_ready")) + _count(sk.get("not_ready")),
             "writing": _count(sk.get("writing")), "remaining": _count(data.get("remaining")),
             "errors": _count(data.get("errors"))}
 
@@ -391,6 +403,11 @@ def check_message(out: dict) -> str:
     parts = [f"Found {_plural(out['imported'], 'new meeting')}." if out["imported"]
              else f"Added {_plural(out['attached'], 'Doc')} to meetings already here." if new
              else "No new meetings."]
+    if out["updated"]:
+        parts.append(f"Updated {_plural(out['updated'], 'meeting')} with Google's latest notes or transcript.")
+    if out["not_ready"]:
+        parts.append(f"{_plural(out['not_ready'], 'Doc')} Google hasn't filled in yet (Gemini writes its notes when the call "
+                     "ends): it's sent as soon as Google does.")
     if out["writing"]:
         parts.append(f"{_plural(out['writing'], 'Doc')} Google is still writing: check again in a couple of minutes.")
     if out["remaining"]:
@@ -438,10 +455,11 @@ async def check_now(db: AsyncIOMotorDatabase, user, workspace_id: str) -> dict:
                      "mine": rec["user_id"] == user.id, **a})
         await db["api_tokens"].update_one({"_id": rec["_id"]}, {"$set": {
             "check_now.last_at": now_utc(),
-            "check_now.last": {k: a.get(k) for k in ("ok", "error", "imported", "attached", "writing") if k in a}}})
+            "check_now.last": {k: a.get(k) for k in ("ok", "error", "imported", "attached", "updated", "writing") if k in a}}})
     ok = [r for r in rows if r["ok"]]
     out = {"ok": bool(ok), "checked": len(rows), "failed": len(rows) - len(ok),
            "imported": sum(r["imported"] for r in ok), "attached": sum(r["attached"] for r in ok),
+           "updated": sum(r["updated"] for r in ok), "not_ready": sum(r["not_ready"] for r in ok),
            "writing": sum(r["writing"] for r in ok), "remaining": sum(r["remaining"] for r in ok),
            "not_set_up": len(conns) - len(ready), "connections": rows}
     out["message"] = check_message(out)
@@ -518,9 +536,38 @@ def _doc_url(value: str | None, file_id: str) -> str:
     return f"https://docs.google.com/document/d/{file_id}/edit"
 
 
+class NotReadyOld(HTTPException):
+    """Not ready, told to a script older than v4 (it marks any 2xx as sent for good): a 409 it retries."""
+
+    def __init__(self) -> None:
+        super().__init__(status_code=409, detail="Google hasn't written this meeting's notes or transcript yet: it's "
+                                                 "sent again on the next run.")
+
+
+def usable(src: mp.Source) -> bool:
+    """Does a parsed Doc hold a meeting yet: spoken lines, or Gemini's notes with something in them (not
+    only empty sections, not only "Gemini is taking notes… notes will be shared after the meeting")?"""
+    if any(seg.get("speaker") for seg in src.segments):
+        return True
+    n = src.notes or {}
+    if n.get("details") or n.get("next_steps"):
+        return True
+    summary = (n.get("summary") or "").strip()
+    return bool(summary) and not (len(summary) < 400 and _PLACEHOLDER.search(summary))
+
+
+def text_hash(text: str) -> str:
+    return hashlib.sha256((text or "").encode()).hexdigest()[:32]
+
+
 async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
-    """One Doc from the script → {status: imported | attached | duplicate | ignored, meeting_id?, url?}.
-    Raises HTTPException (403: no longer a member; 409: being imported right now; 422…)."""
+    """One Doc from the script → {status: imported | attached | updated | duplicate | ignored | not_ready,
+    meeting_id?, url?}. Raises HTTPException (403: no longer a member; 409: being imported right now, or
+    — to a script older than v4, which would never send it again — not ready yet; 422…).
+
+    A Doc sent again (v4 sends a Doc again when Google changed it): unchanged → duplicate; it was ignored
+    or not ready before → imported now; its meeting is here → the meeting takes the new content
+    (``meetings.refresh_sources``: "updated"). A meeting someone deleted isn't made again."""
     from app.services import urls, user as user_service, workspace as ws_service
 
     ws_id = rec["workspace_id"]
@@ -544,15 +591,18 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
     now = now_utc()
     await _stats(db, rec, {"received": 1}, {"last_received_at": now})
     title = " ".join(str(item.get("title") or "").split())[:200] or "Google Doc"
+    digest = text_hash(text)
     key = {"workspace_id": ws_id, "file_id": file_id}
     claim = {**key, "user_id": user.id, "token_id": str(rec["_id"]), "state": "processing", "at": now,
              "title": title, "kind_hint": item.get("kind_hint"), "created": item.get("created"), "attempts": 1,
              "owner": _owner(item.get("owner")), "requested": bool(item.get("requested")), "version": item.get("version")}
+    before: dict = {}
     try:
         await db[COLL].insert_one(claim)
     except DuplicateKeyError:
         ex = await db[COLL].find_one(key) or {}
-        if ex.get("state") in DONE:
+        state = ex.get("state")
+        if state in DONE and (ex.get("text_hash") == digest or (state != "ignored" and not ex.get("meeting_id"))):
             await _stats(db, rec, {"duplicates": 1}, {})
             if item.get("requested"):
                 from app.services import meeting_links
@@ -562,42 +612,75 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         at = ex.get("at")
         if at is not None and at.tzinfo is None:
             at = at.replace(tzinfo=timezone.utc)
-        if ex.get("state") == "processing" and at is not None and now - at < PROCESSING_STALE:
+        if state == "processing" and at is not None and now - at < PROCESSING_STALE:
             raise HTTPException(status_code=409, detail="That Doc is being imported right now.")
-        got = await db[COLL].update_one({"_id": ex.get("_id"), "state": ex.get("state"), "at": ex.get("at")},
+        got = await db[COLL].update_one({"_id": ex.get("_id"), "state": state, "at": ex.get("at")},
                                         {"$set": {"state": "processing", "at": now, "user_id": user.id,
                                                   "token_id": str(rec["_id"]), "title": title},
                                          "$inc": {"attempts": 1}})
         if not got.modified_count:
             raise HTTPException(status_code=409, detail="That Doc is being imported right now.")
+        # Its meeting is here (and the Doc changed): that meeting takes the new content.
+        if state in ("imported", "attached", "duplicate", "updated") and ex.get("meeting_id"):
+            before = ex
 
     async def finish(state: str, **extra) -> None:
-        await db[COLL].update_one(key, {"$set": {"state": state, "done_at": now_utc(), **extra}})
+        await db[COLL].update_one(key, {"$set": {"state": state, "done_at": now_utc(), "text_hash": digest, **extra}})
+
+    async def link_done(meeting_id: str | None, status: str) -> None:
+        if item.get("requested"):
+            from app.services import meeting_links
+
+            await meeting_links.mark_sent(db, rec, file_id, meeting_id=meeting_id, status=status)
 
     try:
         src = mp.parse_source(title, text)
-        # The script only sends Docs titled like Meet's; a Doc that is neither Google's notes nor a transcript
-        # with speakers (a shopping list called "… - Notes") is handled once and left alone.
-        spoken = any(seg.get("speaker") for seg in src.segments)
-        if not text.strip() or (not spoken and not src.notes):
+        # The script only sends Docs titled like Meet's. One without a meeting in it yet (Gemini's notes Doc
+        # while the call is on) is "not ready": sent again when Google changes it, for NOT_READY_FOR. After
+        # that (a shopping list called "… - Notes"), it's handled once and left alone.
+        if not text.strip() or not usable(src):
+            if before:
+                # Its meeting stays as it is (the Doc was emptied, or holds less than the meeting has).
+                await finish(before.get("state") or "imported")
+                await _stats(db, rec, {"duplicates": 1}, {})
+                return {"status": "duplicate", "meeting_id": before.get("meeting_id")}
+            if _recent(item.get("created"), hours=int(NOT_READY_FOR.total_seconds() // 3600)):
+                await finish("not_ready")
+                await _stats(db, rec, {"not_ready": 1}, {})
+                if int(item.get("version") or 1) < 4:
+                    # v3 and older mark a 2xx as sent for good: an error makes them try again next run.
+                    raise NotReadyOld()
+                return {"status": "not_ready", "reason": "Google hasn't written the notes or transcript in it yet."}
             await finish("ignored", reason="no_meeting")
-            if item.get("requested"):
-                from app.services import meeting_links
-
-                await meeting_links.mark_sent(db, rec, file_id, meeting_id=None, status="ignored")
+            await link_done(None, "ignored")
             await _stats(db, rec, {"ignored": 1}, {})
             return {"status": "ignored", "reason": "No transcript or meeting notes found in it."}
-        # The meeting's own date: from Google's title when it has one, else when the Doc was made.
-        date_ = None if src.date else meeting_date(item.get("created"), rec.get("tz"))
         inc = meetings.Incoming(name=title, text=text, origin="google", file_id=file_id,
                                 url=_doc_url(item.get("doc_url"), file_id), owner=_owner(item.get("owner")))
-        # A past meeting sent by the script's backfill is history: nobody is notified about it. A Doc asked
-        # for by link is a manual import: notified as usual unless the call is more than a day old.
-        notify = not item.get("backfill")
-        if item.get("requested"):
-            notify = _recent(item.get("created"))
-        rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_, restricted=True if rec.get("restricted") else None,
-                                              via="inbox", dedupe="all", notify=notify)
+        if before:
+            row = await db[meetings.COLL].find_one({"_id": ObjectId(before["meeting_id"])}) \
+                if ObjectId.is_valid(str(before["meeting_id"])) else None
+            if row is None:
+                # Someone deleted the meeting: it isn't made again.
+                await finish(before.get("state") or "imported")
+                await _stats(db, rec, {"duplicates": 1}, {})
+                return {"status": "duplicate", "meeting_id": None}
+            src._incoming = inc  # type: ignore[attr-defined]
+            row = await meetings.refresh_sources(db, user, row, [src])
+            rows = [row]
+        else:
+            # The meeting's own date: from Google's title when it has one, else when the Doc was made.
+            date_ = None if src.date else meeting_date(item.get("created"), rec.get("tz"))
+            # A past meeting sent by the script's backfill is history: nobody is notified about it. A Doc asked
+            # for by link is a manual import: notified as usual unless the call is more than a day old.
+            notify = not item.get("backfill")
+            if item.get("requested"):
+                notify = _recent(item.get("created"))
+            rows = await meetings.import_meetings(db, user, ws_id, [inc], date_=date_,
+                                                  restricted=True if rec.get("restricted") else None,
+                                                  via="inbox", dedupe="all", notify=notify)
+    except NotReadyOld:
+        raise
     except HTTPException as exc:
         await finish("failed", error=str(exc.detail)[:300])
         await _stats(db, rec, {}, {"last_error": str(exc.detail)[:300]})
@@ -608,16 +691,13 @@ async def receive(db: AsyncIOMotorDatabase, rec: dict, item: dict) -> dict:
         raise
     row = rows[0]
     status = row.get("_status") or "imported"
-    await finish(status, meeting_id=str(row["_id"]))
-    counter = {"imported": "imported", "attached": "attached", "duplicate": "duplicates"}[status]
+    await finish(status if not before or status == "updated" else before.get("state") or status, meeting_id=str(row["_id"]))
+    counter = {"imported": "imported", "attached": "attached", "duplicate": "duplicates", "updated": "updated"}[status]
     sets: dict[str, Any] = {"last_error": None}
     if status != "duplicate":
         sets.update(last_imported_at=now_utc(), last_meeting_id=str(row["_id"]), last_title=row.get("title"))
     await _stats(db, rec, {counter: 1}, sets)
-    if item.get("requested"):
-        from app.services import meeting_links
-
-        await meeting_links.mark_sent(db, rec, file_id, meeting_id=str(row["_id"]), status=status)
+    await link_done(str(row["_id"]), status)
     out: dict[str, Any] = {"status": status, "meeting_id": str(row["_id"])}
     if status != "duplicate" and row.get("slug"):
         out["url"] = urls.markdrop_url(row["slug"])

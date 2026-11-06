@@ -104,7 +104,7 @@ class CheckNow(AutoWorld):
         self.assertNotIn(key, r.text)
         c = (await self.http.get("/api/v1/meetings/connection", headers=self.session("owner"))).json()["connection"]
         self.assertTrue(c["check_now"]["last_at"])
-        self.assertEqual(c["check_now"]["last"], {"ok": True, "imported": 1, "attached": 0, "writing": 0})
+        self.assertEqual(c["check_now"]["last"], {"ok": True, "imported": 1, "attached": 0, "updated": 0, "writing": 0})
         # Once a minute per workspace (whoever asks).
         r = await self.check("owner")
         self.assertEqual(r.status_code, 429)

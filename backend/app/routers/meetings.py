@@ -424,7 +424,7 @@ async def inbox(request: Request, db: AsyncIOMotorDatabase = Depends(get_db)):
 
 @router.post("/inbox/status", openapi_extra={"x-markdrop": {"auth": "token"}})
 @limiter.limit("30/minute", key_func=_inbox_key)
-@limiter.limit("600/day", key_func=_inbox_key)
+@limiter.limit("2000/day", key_func=_inbox_key)   # v4 runs every 5 minutes: two calls a run (576 a day), + Check now
 async def inbox_status(request: Request, body: StatusBody, db: AsyncIOMotorDatabase = Depends(get_db)):
     """How a run of the Google Meet script went (Bearer: its ``meetings:import`` token): 'start' →
     {queue: the Docs asked for by link, to fetch first; latest_version}; 'done' → counts (found, sent,
