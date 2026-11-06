@@ -178,6 +178,50 @@
   .dot, .bell, .tab { transition: none; }
 }
 
+/* "Get these on this device → Turn on" (PushNudge): one line under the head. */
+.nudge {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--accent-soft) 60%, transparent);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-secondary);
+}
+.nudgeIcon { flex: none; color: var(--accent-text); }
+.nudgeText { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nudgeOn {
+  flex: none;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nudgeOn:hover:not(:disabled) { background: var(--accent-hover); }
+.nudgeOn:disabled { opacity: .7; cursor: default; }
+.nudgeX {
+  display: inline-grid;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.nudgeX:hover:not(:disabled) { background: var(--surface-hover); color: var(--text); }
+.nudgeOn:focus-visible, .nudgeX:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.sheet .nudge { padding-left: 16px; padding-right: 12px; }
+
 /* Touch screens: 44 px targets without growing the header row (hit areas around the small controls). */
 @media (pointer: coarse) {
   .bell { width: 44px; height: 44px; flex: none; }
@@ -185,4 +229,8 @@
   .markAll { height: 44px; }
   .foot a { display: inline-flex; align-items: center; min-height: 44px; padding-inline: 4px; margin-block: -12px; }
   .more { height: 44px; }
+  .nudge { padding-block: 0; }
+  .nudgeOn { height: 36px; padding: 0 14px; margin-block: 4px; position: relative; }
+  .nudgeOn::after { content: ""; position: absolute; inset: -4px -2px; }
+  .nudgeX { width: 44px; height: 44px; }
 }

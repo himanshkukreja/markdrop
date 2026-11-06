@@ -1,0 +1,39 @@
+/* Home's "turn on notifications" card (PushPromptCard.tsx). Tokens only: light and dark follow the
+   theme. Phones: icon + text, then the two buttons sharing a row; ≥ 640 px the buttons sit beside the
+   text. 44 px targets on touch screens. */
+
+.md-pushcard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-xl);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-soft) 75%, transparent), transparent 70%), var(--surface);
+}
+.md-pushcard__icon {
+  display: inline-grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: var(--radius-full);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+.md-pushcard__text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.md-pushcard__title { margin: 0; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.md-pushcard__desc { margin: 0; font-size: 13px; line-height: 18px; color: var(--text-muted); }
+.md-pushcard__actions { display: flex; min-width: 0; grid-column: 1 / -1; gap: 8px; }
+.md-pushcard__actions > .md-btn { flex: 1 1 0; }
+
+@media (min-width: 640px) {
+  .md-pushcard { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .md-pushcard__actions { grid-column: auto; }
+  .md-pushcard__actions > .md-btn { flex: none; }
+}
+
+@media (pointer: coarse) {
+  .md-pushcard__actions > .md-btn { min-height: 44px; }
+}

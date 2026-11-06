@@ -8,7 +8,9 @@
  * server again (`POST /notifications/{id}/open`: access is re-checked) and opens the page at the
  * block (`#b-…`), which the page scrolls to and flashes (components/pages/anchors.ts).
  *
- * A push notification arriving on this device (lib/push.ts) refreshes the badge at once.
+ * A push notification arriving on this device (lib/push.ts) refreshes the badge at once. While this
+ * device doesn't get them and the list has a mention or a sign-off request, a one-line row on top
+ * offers to turn them on here (PushNudge: the same flow as Settings; "Not now" remembered per device).
  *
  * Desktop: a popover under the bell. Phones (< 640px): a bottom sheet. Not on workspace domains
  * (their header is TenantHeader) and only when signed in.
@@ -22,6 +24,8 @@ import {
   type AppNotification,
 } from "@/lib/notifications";
 import { openInApp } from "@/lib/push";
+import { wantsBellNudge } from "@/lib/pushPrompt";
+import { usePushPrompt } from "@/components/push/usePushPrompt";
 import s from "./NotificationBell.module.css";
 
 const POLL_MS = 60_000;
@@ -143,6 +147,24 @@ function Row({ n, busy, onOpen, index }: { n: AppNotification; busy: boolean; on
   );
 }
 
+/** "Get these on this device → Turn on" (components/push/usePushPrompt). */
+function PushNudge({ active }: { active: boolean }) {
+  const { show, busy, turnOn, dismiss } = usePushPrompt("bell", active);
+  if (!show) return null;
+  return (
+    <div className={s.nudge} data-testid="push-prompt-bell">
+      <Icon name="bell" size={14} className={s.nudgeIcon} aria-hidden />
+      <span className={s.nudgeText}>Get these on this device</span>
+      <button type="button" className={s.nudgeOn} onClick={() => void turnOn()} disabled={busy} aria-busy={busy || undefined}>
+        {busy ? "Turning on…" : "Turn on"}
+      </button>
+      <button type="button" className={s.nudgeX} onClick={dismiss} disabled={busy} aria-label="Not now" title="Not now">
+        <Icon name="x" size={14} />
+      </button>
+    </div>
+  );
+}
+
 function Panel({ phone, unread, onUnread, onDone }: {
   phone: boolean; unread: number; onUnread: (n: number) => void; onDone: () => void;
 }) {
@@ -154,6 +176,11 @@ function Panel({ phone, unread, onUnread, onDone }: {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [loadingMore, setLoadingMore] = useState(false);
+  // Once the list has shown a mention or a sign-off request, the nudge may look at this device.
+  const [personal, setPersonal] = useState(false);
+  useEffect(() => {
+    if (!personal && items && wantsBellNudge(items.map((n) => n.kind))) setPersonal(true);
+  }, [items, personal]);
 
   const load = useCallback(async (which: "all" | "unread") => {
     setError("");
@@ -227,6 +254,7 @@ function Panel({ phone, unread, onUnread, onDone }: {
   return (
     <div className={cx(phone && s.sheet)}>
       <div className={phone ? s.sheetHead : s.head}>{head}</div>
+      <PushNudge active={personal} />
       {items === null ? (
         <ul className={s.list} aria-busy="true" aria-label="Loading notifications">
           {[0, 1, 2].map((i) => (

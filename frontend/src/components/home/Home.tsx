@@ -5,6 +5,7 @@
  * (.work/home/SPEC.md):
  *
  *   Greeting + Ask bar     ask anything (opens the one assistant, components/assistant), ⌘J anywhere
+ *   (Turn on notifications) one tap to get mentions / sign-offs on this device (components/push), until "Not now"
  *   Continue               what you opened last, with real previews (lib/cardPreviews, ANYWHERE)
  *   Today | Action items   what needs you now  |  open to-dos that mention you (tick them here)
  *   Meetings               the latest calls across your workspaces; import, connect, ask, open the hub
@@ -22,6 +23,7 @@ import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
 import { openNotifications } from "@/components/shell/NotificationBell";
 import { WorkspaceTile } from "@/components/shell/SideNav";
 import NameCard from "@/components/dashboard/NameCard";
+import { PushPromptCard } from "@/components/push/PushPromptCard";
 import { relativeTime } from "@/components/dashboard/format";
 import { PERSIST_KEY, openAssistant, setAssistantThread, useAssistantHere } from "@/components/assistant/store";
 import { forgetChat } from "@/components/chat/useChat";
@@ -201,6 +203,7 @@ export default function Home() {
       <AskBar onAsk={ask} onAskMeetings={data?.meetings.items[0] ? () => askMeetings(data.meetings.items[0]!.workspace_id) : null} />
 
       <NameCard />
+      <PushPromptCard />
 
       {failed && !data && (
         <div className="hm-error" role="alert">
