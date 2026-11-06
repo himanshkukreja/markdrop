@@ -7,7 +7,7 @@ import { Button } from "@/components/ui";
  * Chart primitives for the admin analytics, drawn in plain SVG.
  *
  * Colours are the design-system `chart-*` tokens, read from CSS variables at render (style values,
- * so they resolve inside the admin's dark ThemeScope). One hue for single series, a 2px line, a
+ * so they follow the theme, light or dark). One hue for single series, a 2px line, a
  * wash, hairline grid, an X crosshair that snaps to the nearest bucket with a tooltip on hover
  * *and* keyboard focus, and a mandatory "Show table" so no value is reachable only by hovering.
  */
