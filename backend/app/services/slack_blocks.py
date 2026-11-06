@@ -148,7 +148,8 @@ def message(blocks: list[dict | None], text: str) -> dict:
     out = [b for b in blocks if b]
     if len(out) > MAX_BLOCKS:
         out = out[: MAX_BLOCKS - 1] + [out[-1]]
-    return {"blocks": out, "text": cut(text, 300) or "Markdrop"}
+    # The fallback is mrkdwn too (notifications show it): user text in it is escaped like everywhere else.
+    return {"blocks": out, "text": esc(cut(text, 300)) or "Markdrop"}
 
 
 def md_bold(text: str) -> str:
@@ -497,7 +498,7 @@ def dm_action_items(team_id: str, row_id: str, meetings: list[dict], *, stop_val
         "Stop these", action_id="md_ai_stop", value=stop_value)))
     text = (f"Your action items from {cut(meetings[0]['title'], 100)}" if one else
             f"Your action items from {len(meetings)} meetings") + f" ({n_items})"
-    return {"blocks": blocks, "text": text}
+    return {"blocks": blocks, "text": esc(text)}
 
 
 def action_items_stopped(start_value: str) -> dict:
