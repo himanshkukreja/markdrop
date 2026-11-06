@@ -488,6 +488,8 @@ textarea.pb-title { field-sizing: content; min-height: 0; }
 .pb-phonebar__btn:disabled { opacity: 0.35; }
 .pb-phonebar__glyph { font: 600 20px/1 var(--font-mono); }
 .pb-phonebar__sep { flex: none; width: 1px; height: 24px; background: var(--border); }
+.pb-phonebar__mm { position: relative; display: grid; place-items: center; }
+.pb-phonebar__count { position: absolute; top: -8px; left: calc(100% - 8px); min-width: 18px; height: 18px; padding: 0 4px; display: inline-grid; place-items: center; border-radius: var(--radius-full); background: var(--accent-soft); color: var(--accent-text); font: 600 12px/1 var(--font-sans); font-variant-numeric: tabular-nums; }
 
 .pb-sheet-layer { position: fixed; inset: 0; z-index: var(--z-overlay); }
 .pb-sheet__scrim { position: absolute; inset: 0; background: var(--overlay, rgb(0 0 0 / 0.4)); animation: pb-fade 200ms var(--ease-out); }

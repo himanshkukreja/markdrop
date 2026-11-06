@@ -10,6 +10,8 @@
  *   ☑        select this block (then the selection bar's actions)
  *   Aa       format: bold, italic, underline, strike, code, link, and Turn into (a bottom sheet)
  *   ✦        Ask AI: on the selection (a bottom sheet), or the "/ai" prompt at the caret
+ *   🎙       From meetings (memory/MeetingMemory's panel, a bottom sheet), when the workspace has
+ *            meetings: the pill above Ask steps aside while this toolbar is up
  *   ↶ ↷      undo, redo
  *   ⌄        done: put the keyboard away
  *
@@ -21,6 +23,7 @@ import { Icon, cx } from "@/components/ui";
 import { PageSheet } from "./PageChrome";
 import { openSlashAt } from "@/components/docs-editor/menus/slash";
 import { aiHooks } from "@/components/docs-editor/menus/aiKeys";
+import { MEETINGS_BUTTON_EVENT, services } from "@/components/docs-editor/menus/mediaUpload";
 
 type Cmds = Record<string, ((...a: unknown[]) => boolean) | undefined>;
 const has = (ed: Editor, name: string) => typeof (ed.commands as unknown as Cmds)[name] === "function";
@@ -103,7 +106,9 @@ export function PagePhoneBar({ editor, readOnly, ai = false }: { editor: Editor 
     editor.on("blur", blur);
     editor.on("transaction", tick);
     if (editor.isFocused) setFocused(true);
+    window.addEventListener(MEETINGS_BUTTON_EVENT, tick);
     return () => {
+      window.removeEventListener(MEETINGS_BUTTON_EVENT, tick);
       editor.off("focus", focus);
       editor.off("blur", blur);
       editor.off("transaction", tick);
@@ -144,11 +149,13 @@ export function PagePhoneBar({ editor, readOnly, ai = false }: { editor: Editor 
     if (api && pos !== null) api.open(pos);
   };
   const can = editor.can();
-  const btn = (label: string, body: React.ReactNode, onClick: () => void, opts: { disabled?: boolean; pressed?: boolean; wide?: boolean } = {}) => (
+  const meetings = services(editor).meetingsButton;
+  const btn = (label: string, body: React.ReactNode, onClick: () => void, opts: { disabled?: boolean; pressed?: boolean; wide?: boolean; testId?: string } = {}) => (
     <button
       type="button"
       className={cx("pb-phonebar__btn", opts.wide && "pb-phonebar__btn--wide")}
       aria-label={label}
+      data-testid={opts.testId}
       aria-pressed={opts.pressed}
       disabled={opts.disabled}
       onPointerDown={keep}
@@ -181,6 +188,12 @@ export function PagePhoneBar({ editor, readOnly, ai = false }: { editor: Editor 
           if (from !== to && editor.state.doc.textBetween(from, to, " ").trim()) h.menu();
           else h.prompt();
         })}
+        {meetings && btn(meetings.count ? `From meetings (${meetings.count} related)` : "From meetings", (
+          <span className="pb-phonebar__mm" aria-hidden>
+            <Icon name="mic" size={20} />
+            {meetings.count > 0 && <span className="pb-phonebar__count">{meetings.count}</span>}
+          </span>
+        ), meetings.open, { testId: "mm-phonebar" })}
         <span className="pb-phonebar__sep" aria-hidden />
         {btn("Undo", <Icon name="undo" size={20} aria-hidden />, () => run(editor, "undo"), { disabled: !(can as unknown as Cmds).undo?.() })}
         {btn("Redo", <Icon name="redo" size={20} aria-hidden />, () => run(editor, "redo"), { disabled: !(can as unknown as Cmds).redo?.() })}
