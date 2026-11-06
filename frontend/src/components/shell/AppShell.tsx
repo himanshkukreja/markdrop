@@ -110,6 +110,8 @@ const HOME = /^\/dashboard\/?$/;
 const ASK = /^\/ask\/?$/;
 /** Analytics pages use the analytics boards' 1180px column. */
 const ANALYTICS = /^\/dashboard\/(analytics(\/|$)|live$)/;
+/** Team (board, people, projects): uses the width — cards and the "This week" columns fill it (1480px cap). */
+const TEAM = /^\/team\//;
 
 /**
  * The account shell for /dashboard, /w/*, /shared, /recent and /settings/* (simpler UI, Main
@@ -190,7 +192,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           className={cx(
             "mx-auto w-full min-w-0 flex-1 px-4 py-6 outline-none sm:px-6",
             ASK.test(pathname) ? "max-w-none !p-0" : HOME.test(pathname) ? "max-w-[1160px] pt-5 lg:px-8 lg:pt-7 lg:pb-12"
-              : ANALYTICS.test(pathname) ? "max-w-[1180px] lg:px-8 lg:py-7 lg:pb-12" : WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
+              : ANALYTICS.test(pathname) ? "max-w-[1180px] lg:px-8 lg:py-7 lg:pb-12"
+              : TEAM.test(pathname) ? "max-w-[1480px] lg:px-8 lg:py-7 lg:pb-12" : WIDE.test(pathname) ? "max-w-[1024px] lg:px-8 lg:pb-10" : "max-w-app lg:py-8",
           )}
         >
           {children}
