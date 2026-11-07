@@ -204,6 +204,8 @@ class Run:
         self.meter = ai_usage.Meter(MODEL)
         self.watch = ai_usage.Stopwatch()
         self.held = False
+        self.log: dict = {}   # readable content for the AI request log (services/ai_log.write)
+        self.job: str | None = None   # a background job's name (an auto-import's summary)
 
     def hold(self) -> None:
         if not self.held:
@@ -220,7 +222,8 @@ class Run:
             await ai_usage.record(
                 self.db, feature=FEATURE, meter=self.meter, request_id=self.request_id, outcome=outcome,
                 latency_ms=self.watch.elapsed_ms, ttft_ms=self.watch.ttft_ms, user_id=self.user_id,
-                visitor=f"u:{self.user_id}", meta={"via": self.via, "kind": self.kind, **self.meta, **extra})
+                visitor=f"u:{self.user_id}", meta={"via": self.via, "kind": self.kind, **self.meta, **extra},
+                log=self.log, job=self.job)
         except Exception as exc:
             log.warning("meetings ai: recording %s failed: %s", self.request_id, type(exc).__name__)
 
@@ -462,9 +465,44 @@ async def _slack_ready(db: AsyncIOMotorDatabase, row: dict) -> None:
     await slack_notify.meeting_ready(db, str(row["_id"]))
 
 
+#: How a meeting got here (its row's ``via``) → the background job that summarised it, for the AI
+#: request log (services/ai_log.py). Any other way in is a person's own import.
+SUMMARY_JOBS = {"inbox": "Meeting summary (auto-import)", "backfill": "Meeting summary (past-meetings import)"}
+
+
+def summary_markdown(gen: dict | None) -> str:
+    """The generated sections as the page shows them, for the AI request log."""
+    if not gen:
+        return ""
+    out: list[str] = []
+    if gen.get("summary"):
+        out += ["## Summary", "", gen["summary"], ""]
+    if gen.get("highlights"):
+        out += ["## Highlights", "", *(f"- {h}" for h in gen["highlights"]), ""]
+    for key, head in (("decisions", "Decisions"), ("open_questions", "Open questions")):
+        if gen.get(key):
+            out += [f"## {head}", "", *(f"- {d.get('text')}" for d in gen[key]), ""]
+    if gen.get("action_items"):
+        out += ["## Action items", ""]
+        for a in gen["action_items"]:
+            extra = " · ".join(x for x in (a.get("owner"), f"due {a['due']}" if a.get("due") else None) if x)
+            out.append(f"- [ ] {a.get('text')}" + (f" ({extra})" if extra else ""))
+        out.append("")
+    if gen.get("topics"):
+        out += ["## Topics", "", *(f"- **{t.get('title')}**" + (f": {t['gist']}" if t.get("gist") else "")
+                                  for t in gen["topics"]), ""]
+    return "\n".join(out).strip()
+
+
 async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict:
     run = Run(db, user.id, "generate", via, {"meeting_id": str(row["_id"]), "workspace_id": row["workspace_id"],
                                              "segments": len(row.get("segments") or [])}, RESERVE_GENERATE)
+    title = row.get("title") or "Meeting"
+    run.job = SUMMARY_JOBS.get(str(row.get("via") or ""))
+    run.log.update(subject=title, output_format="markdown",
+                   description=f"Summarised the meeting '{title}' ({len(row.get('segments') or [])} transcript lines)",
+                   context=[{"kind": "meeting", "title": title, "id": str(row["_id"]),
+                             "url": f"/{row['slug']}" if row.get("slug") else None}])
     reason = await limit_for(db, user.id, row["workspace_id"], reserve=RESERVE_GENERATE)
     if reason:
         if reason not in ("off", "not_configured"):
@@ -500,6 +538,9 @@ async def _generate(db: AsyncIOMotorDatabase, row: dict, user, via: str) -> dict
             row["ai"] = ai
             await meetings.write_generated(db, row, None, user)
             return ai
+        run.log.update(output=summary_markdown(gen), results={
+            "decisions": len(gen["decisions"]), "action items": len(gen["action_items"]),
+            "open questions": len(gen.get("open_questions") or []), "chunks": chunks})
         await run.record("ok", chunks=chunks, decisions=len(gen["decisions"]), actions=len(gen["action_items"]))
         n_actions = len((row.get("notes") or {}).get("next_steps") or []) + len(gen["action_items"])
         sets: dict[str, Any] = {
@@ -774,6 +815,10 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
     you = await ask_me.you_of(db, actor, ctx)
     run = Run(db, uid, "ask", via, {"meeting_id": str(row["_id"]), "workspace_id": row["workspace_id"],
                                     "chars_in": len(question)}, RESERVE_ASK)
+    run.log.update(input=question, subject=row.get("title") or "Meeting",
+                   scope_label=f"This meeting: {row.get('title') or 'Meeting'}",
+                   context=[{"kind": "meeting", "title": row.get("title") or "Meeting", "id": str(row["_id"]),
+                             "url": f"/{raw['slug']}"}])
     reason = await limit_for(db, uid, row["workspace_id"])
     if reason:
         if reason not in ("off", "not_configured"):
@@ -835,6 +880,7 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         if not answer and stop == "max_tokens":
             answer = CUT_SHORT
         used = cites.used(answer)
+        run.log.update(output=answer, citations=used)
         await run.record("ok", stop_reason=stop, chars_out=len(answer), cited=len(used))
         yield ev("done", request_id=run.request_id, usage=run.usage(), answer=answer, citations=used,
                  truncated=stop == "max_tokens")
@@ -954,6 +1000,7 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
 
     you = await ask_me.you_of(db, actor, ctx)
     run = Run(db, uid, "ask_all", via, {"workspace_id": workspace_id, "chars_in": len(question)}, RESERVE_ASK)
+    run.log.update(input=question)
     reason = await limit_for(db, uid, workspace_id)
     if reason:
         if reason not in ("off", "not_configured"):
@@ -984,10 +1031,11 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
         sc = None if scope.empty else scope.as_dict()
         run.meta.update(scoped=bool(sc), scope_detected=bool(sc and scope.detected))
         if not cands:
-            await run.record("ok", stop_reason="no_candidates")
-            yield ev("results", items=[], scope=sc)
             answer = (f"There are no meetings you can open in {scope.label()}." if sc
                       else "There are no meetings here that you can open yet.")
+            run.log["output"] = answer
+            await run.record("ok", stop_reason="no_candidates")
+            yield ev("results", items=[], scope=sc)
             yield ev("done", request_id=run.request_id, usage=run.usage(), citations=[], ranked=[], answer=answer,
                      scope=sc)
             return
@@ -1080,6 +1128,10 @@ async def ask_meetings(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
                 if await meetings.readable(db, r, actor, ctx) is not None:
                     ok_ids.add(mid)
         used = [c for c in used if c.get("meeting_id") in ok_ids]
+        run.log.update(output=answer, citations=used, scope_label=f"Meetings · {scope.label()}" if sc else None,
+                       context=[{"kind": "meeting", "title": row.get("title") or "Meeting", "id": str(row["_id"]),
+                                 "url": f"/{raw['slug']}", "subtitle": meetings.fmt_date(row.get("date"))}
+                                for _n, row, raw in sent])
         await run.record("ok", stop_reason=stop, chars_out=len(answer), cited=len(used), ranked=len(ranked))
         yield ev("done", request_id=run.request_id, usage=run.usage(), answer=answer, citations=used,
                  ranked=[items_by_n[k] for k in ranked], truncated=stop == "max_tokens", scope=sc)

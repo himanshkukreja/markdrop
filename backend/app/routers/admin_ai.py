@@ -32,7 +32,7 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 from app.routers.admin import get_db, require_admin
-from app.services import ai_usage, docs_agent, docs_sites
+from app.services import ai_log, ai_usage, docs_agent, docs_sites
 
 router = APIRouter(prefix="/api/v1/admin/ai", tags=["admin"])
 
@@ -442,6 +442,10 @@ def _row_summary(r: dict, emails: dict[str, str]) -> dict:
         "tools": len(r.get("tools") or []),
         "feedback": {"helpful": fb.get("helpful"), "comment": fb.get("comment")} if fb else None,
         "model": r.get("model"),
+        "actor": r.get("actor"),
+        "job": r.get("job"),
+        "app": r.get("app"),
+        "test": bool(r.get("test")),
     }
 
 
@@ -556,9 +560,19 @@ async def page_feedback(
 # Signed-out usage is one "Anonymous visitors" row (user id "anonymous").
 
 ANON = "anonymous"
+SYSTEM = "system"     # background jobs with no person behind them (services/ai_log.py)
+
+
+def _who_key(r: dict) -> str:
+    """The Users table's row for a ledger row: the account, else "system" (a background job), else
+    "anonymous" (signed-out visitors)."""
+    if r.get("user_id"):
+        return r["user_id"]
+    return SYSTEM if (r.get("actor_kind") or r.get("actor")) == "system" else ANON
 _USAGE_FIELDS = {k: 1 for k in ("feature", "ts", "usage", "cost_usd", "outcome", "user_id", "visitor", "limit_reason",
                                 "action", "kind", "site", "slug", "page_path", "page_id", "workspace_id", "latency_ms",
-                                "error_code", "model", "request_id", "conversation_id", "language")}
+                                "error_code", "model", "request_id", "conversation_id", "language", "actor",
+                                "actor_kind", "test", "job", "app")}
 _USER_SORTS = ("cost", "requests", "tokens", "last_used", "email", "errors")
 _TOK = ("input", "output", "cache_read", "cache_write")
 
@@ -631,9 +645,34 @@ class _Agg:
                 "cache_hit_pct": self.cache_hit_pct()}
 
 
-async def _usage_rows(db, since: datetime, until: datetime, extra: dict | None = None) -> list[dict]:
+async def _usage_rows(db, since: datetime, until: datetime, extra: dict | None = None,
+                      audience: str | None = None) -> list[dict]:
+    """The window's ledger rows. ``audience`` (services/ai_log.audience_query; None: all of them)."""
     q = {"ts": {"$gte": since, "$lt": until}, **(extra or {})}
+    aq = ai_log.audience_query(audience) if audience else {}
+    if aq:
+        q = {"$and": [q, aq]}
     return await db[ai_usage.REQUESTS].find(q, _USAGE_FIELDS).sort("ts", -1).to_list(length=ROW_CAP)
+
+
+def _audience(a: str | None) -> str:
+    """The dashboards' filter: everything but test traffic unless asked."""
+    return a if a in ai_log.AUDIENCES else "live"
+
+
+async def _left_out(db, since: datetime, until: datetime, audience: str, extra: dict | None = None) -> dict:
+    """What the filter left out of the window: {calls, test, cost_usd} (for "excluding N test calls")."""
+    if audience == "all":
+        return {"calls": 0, "test": 0, "cost_usd": 0.0}
+    q = {"ts": {"$gte": since, "$lt": until}, **(extra or {})}
+    aq = ai_log.audience_query(audience)
+    calls = test = 0
+    cost = 0.0
+    async for r in db[ai_usage.REQUESTS].find({"$and": [q, {"$nor": [aq]}]}, {"test": 1, "cost_usd": 1}):
+        calls += 1
+        test += bool(r.get("test"))
+        cost += float(r.get("cost_usd") or 0)
+    return {"calls": calls, "test": test, "cost_usd": round(cost, 6)}
 
 
 def _feature_keys(rows: list[dict]) -> list[str]:
@@ -695,26 +734,33 @@ async def _spend_today_by_user(db) -> dict[str, float]:
 async def usage_overview(
     range_: str = Query("30d", alias="range"),
     tz: str = "UTC",
+    audience: str = Query("live", max_length=20),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
     """Every AI feature: spend today and this month against the caps, the window's requests,
-    tokens, cache hit rate, errors and limits, and a per-day series by feature."""
+    tokens, cache hit rate, errors and limits, and a per-day series by feature. ``audience``
+    (default: everything but test traffic) filters the window's numbers; the spend meters are
+    what the caps see, all traffic."""
     since, until, key = _window(range_)
     zone = _tz(tz)
-    rows = await _usage_rows(db, since, until)
+    audience = _audience(audience)
+    rows = await _usage_rows(db, since, until, audience=audience)
     features = _feature_keys(rows)
     total, by_feature = _Agg(), defaultdict(_Agg)
     users: set[str] = set()
-    anon = 0
+    anon = system = 0
     limit_reasons: Counter = Counter()
     for r in rows:
         total.add(r)
         by_feature[r.get("feature") or "?"].add(r)
-        if r.get("user_id"):
-            users.add(r["user_id"])
-        else:
+        k = _who_key(r)
+        if k == ANON:
             anon += 1
+        elif k == SYSTEM:
+            system += 1
+        else:
+            users.add(r["user_id"])
         if r.get("outcome") == "limit":
             limit_reasons[(r.get("feature") or "?", r.get("limit_reason") or "unknown")] += 1
     out_features = []
@@ -734,11 +780,13 @@ async def usage_overview(
     gd, gm = await ai_usage.caps(db, ai_usage.ALL)
     return {
         "range": key,
+        "audience": audience,
+        "left_out": await _left_out(db, since, until, audience),
         "configured": docs_agent.configured(),
         "global": {"today_usd": round(await ai_usage.spend_today(db), 6),
                    "month_usd": round(await ai_usage.spend_month(db), 6),
                    "daily_cap_usd": _cap(gd), "monthly_cap_usd": _cap(gm)},
-        "kpis": {**total.out(), "users": len(users), "anonymous_requests": anon},
+        "kpis": {**total.out(), "users": len(users), "anonymous_requests": anon, "system_requests": system},
         "features": out_features,
         "limit_reasons": [{"feature": f, "reason": k, "n": n} for (f, k), n in limit_reasons.most_common()],
         "series": _series(rows, since, until, zone, features),
@@ -749,24 +797,26 @@ async def usage_overview(
 # ── Users ──
 
 
-async def _user_table(db, since: datetime, until: datetime, *, feature: str | None, q: str | None) -> list[dict]:
+async def _user_table(db, since: datetime, until: datetime, *, feature: str | None, q: str | None,
+                      audience: str = "all") -> list[dict]:
     extra = {"feature": feature} if feature else None
-    rows = await _usage_rows(db, since, until, extra)
+    rows = await _usage_rows(db, since, until, extra, audience=audience)
     per: dict[str, _Agg] = defaultdict(_Agg)
     for r in rows:
-        per[r.get("user_id") or ANON].add(r)
+        per[_who_key(r)].add(r)
     overrides = await _user_overrides(db)
     if not feature:
         for uid in overrides:  # blocked or capped people stay listed, used or not
             per.setdefault(uid, _Agg())
-    info = await _users_info(db, {u for u in per if u != ANON})
+    info = await _users_info(db, {u for u in per if u not in (ANON, SYSTEM)})
     today = await _spend_today_by_user(db)
     default_cap = await ai_usage.default_user_daily(db)
     needle = (q or "").strip().lower()
     out = []
     for uid, a in per.items():
-        if uid == ANON:
-            row = {"user_id": ANON, "anonymous": True, "email": "", "name": "Anonymous visitors",
+        if uid in (ANON, SYSTEM):
+            row = {"user_id": uid, "anonymous": True, "system": uid == SYSTEM, "email": "",
+                   "name": "System jobs" if uid == SYSTEM else "Anonymous visitors",
                    "visitors": len(a.visitors), "blocked": False, "daily_cap_usd": None, "effective_daily_cap_usd": None,
                    "today_usd": None}
         else:
@@ -802,6 +852,7 @@ async def usage_users(
     feature: str | None = Query(None, max_length=40),
     page: int = Query(1, ge=1, le=10_000),
     limit: int = Query(50, ge=1, le=200),
+    audience: str = Query("live", max_length=20),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
@@ -809,10 +860,14 @@ async def usage_users(
     since, until, key = _window(range_)
     sort = sort if sort in _USER_SORTS else "cost"
     order = "asc" if order == "asc" else "desc"
-    items = _sort_users(await _user_table(db, since, until, feature=feature or None, q=q), sort, order)
+    audience = _audience(audience)
+    items = _sort_users(await _user_table(db, since, until, feature=feature or None, q=q, audience=audience),
+                        sort, order)
     total = len(items)
     start = (page - 1) * limit
-    return {"range": key, "sort": sort, "order": order, "page": page, "pages": max(1, -(-total // limit)),
+    return {"range": key, "audience": audience,
+            "left_out": await _left_out(db, since, until, audience, {"feature": feature} if feature else None),
+            "sort": sort, "order": order, "page": page, "pages": max(1, -(-total // limit)),
             "total": total, "default_daily_cap_usd": await ai_usage.default_user_daily(db),
             "items": items[start:start + limit]}
 
@@ -845,16 +900,21 @@ async def usage_user(
     range_: str = Query("30d", alias="range"),
     tz: str = "UTC",
     limit: int = Query(50, ge=1, le=200),
+    audience: str = Query("all", max_length=20),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
-    """One person (or "anonymous"): per-feature and per-day breakdowns, and recent requests."""
-    anonymous = user_id == ANON
+    """One person (or "anonymous", or "system"): per-feature and per-day breakdowns, and recent requests.
+    ``audience`` defaults to all: a person's own page shows everything they did."""
+    system = user_id == SYSTEM
+    anonymous = user_id == ANON or system
     if not anonymous and not ObjectId.is_valid(user_id):
         raise HTTPException(404, "User not found")
     since, until, key = _window(range_)
     zone = _tz(tz)
-    rows = await _usage_rows(db, since, until, {"user_id": None if anonymous else user_id})
+    who = ({"user_id": None, "actor_kind": "system"} if system
+           else {"user_id": None, "actor_kind": {"$ne": "system"}} if anonymous else {"user_id": user_id})
+    rows = await _usage_rows(db, since, until, who, audience=_audience(audience))
     info = {} if anonymous else (await _users_info(db, {user_id})).get(user_id)
     if not anonymous and info is None and not rows and not await db[ai_usage.SETTINGS].find_one({"_id": f"user:{user_id}"}):
         raise HTTPException(404, "User not found")
@@ -877,9 +937,9 @@ async def usage_user(
                         "burst": dict(zip(("per_minute", "per_day"), await ai_usage.burst_limits(db)))}
     return {
         "range": key,
-        "user": {"user_id": user_id, "anonymous": anonymous,
+        "user": {"user_id": user_id, "anonymous": anonymous, "system": system,
                  "email": (info or {}).get("email") or "", "name": (info or {}).get("name") or (
-                     "Anonymous visitors" if anonymous else ""),
+                     "System jobs" if system else "Anonymous visitors" if anonymous else ""),
                  "created_at": (info or {}).get("created_at"), "deleted": not anonymous and info is None},
         "settings": settings_out,
         "kpis": {**total.out(), "last_used": _iso(total.last), "visitors": len(total.visitors) if anonymous else None},
@@ -906,6 +966,7 @@ async def usage_export(
     kind: str = Query("users"),
     range_: str = Query("30d", alias="range"),
     feature: str | None = Query(None, max_length=40),
+    audience: str = Query("live", max_length=20),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
@@ -923,17 +984,19 @@ async def usage_export(
         w.writerow(["user_id", "email", "name", "requests", "ok", "errors", "limited", "input_tokens",
                     "output_tokens", "cache_read_tokens", "cache_write_tokens", "cost_usd", "features", "last_used",
                     "blocked", "daily_cap_usd"])
-        for r in _sort_users(await _user_table(db, since, until, feature=feature or None, q=None), "cost", "desc"):
+        for r in _sort_users(await _user_table(db, since, until, feature=feature or None, q=None,
+                                               audience=_audience(audience)), "cost", "desc"):
             w.writerow([_csv_cell(x) for x in (
                 r["user_id"], r["email"], r["name"], r["requests"], r["ok"], r["errors"], r["limited"],
                 r["tokens"]["input"], r["tokens"]["output"], r["tokens"]["cache_read"], r["tokens"]["cache_write"],
                 f"{r['cost_usd']:.6f}", " ".join(r["features"]), r["last_used"], r["blocked"], r["daily_cap_usd"])])
     else:
-        rows = await _usage_rows(db, since, until, {"feature": feature} if feature else None)
+        rows = await _usage_rows(db, since, until, {"feature": feature} if feature else None,
+                                 audience=_audience(audience))
         emails = await _emails(db, {r["user_id"] for r in rows if r.get("user_id")})
         w.writerow(["ts", "feature", "action", "user_id", "email", "site", "slug", "page", "outcome", "limit_reason",
                     "error_code", "model", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
-                    "cost_usd", "latency_ms", "request_id"])
+                    "cost_usd", "latency_ms", "request_id", "actor", "test"])
         for r in rows:
             x = _request_row(r)
             uid = r.get("user_id")
@@ -941,7 +1004,7 @@ async def usage_export(
                 x["ts"], x["feature"], x["action"], uid or ANON, emails.get(uid, "") if uid else "", x["site"],
                 x["slug"], x["page"], x["outcome"], x["limit_reason"], x["error_code"], x["model"],
                 x["tokens"]["input"], x["tokens"]["output"], x["tokens"]["cache_read"], x["tokens"]["cache_write"],
-                f"{x['cost_usd']:.6f}", x["latency_ms"], x["request_id"])])
+                f"{x['cost_usd']:.6f}", x["latency_ms"], x["request_id"], r.get("actor") or "", bool(r.get("test")))])
     name = f"markdrop-ai-{kind}-{key}{'-' + re.sub(r'[^a-z0-9_]', '', feature) if feature else ''}.csv"
     return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})

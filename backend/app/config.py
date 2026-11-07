@@ -585,6 +585,10 @@ class Settings(BaseSettings):
     ai_burst_per_day: int = 300
     # A per-person daily spend cap in USD across all AI features. None: no per-person cap.
     ai_user_daily_usd: float | None = None
+    # The readable AI request log (services/ai_log.py, Admin → AI → Requests). Our own servers'
+    # addresses (comma-separated): a request from one of them (a script run on the box) is test
+    # traffic, like one from localhost. The admin panel can add more and turn content capture off.
+    ai_log_internal_ips: str = ""
     # AI in pages (Page AI, ledger feature "pages_ai"): kill switch and spend caps.
     pages_ai_enabled: bool = True
     pages_ai_daily_usd: float = 5.0

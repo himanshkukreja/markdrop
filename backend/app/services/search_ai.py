@@ -129,6 +129,7 @@ class Run:
         self.meter = ai_usage.Meter(MODEL)
         self.watch = ai_usage.Stopwatch()
         self.held = False
+        self.log: dict = {}   # readable content for the AI request log (services/ai_log.write)
 
     def hold(self) -> None:
         if not self.held:
@@ -145,7 +146,7 @@ class Run:
             await ai_usage.record(
                 self.db, feature=FEATURE, meter=self.meter, request_id=self.request_id, outcome=outcome,
                 latency_ms=self.watch.elapsed_ms, ttft_ms=self.watch.ttft_ms, user_id=self.user_id,
-                visitor=f"u:{self.user_id}", meta={"via": self.via, **self.meta, **extra})
+                visitor=f"u:{self.user_id}", meta={"via": self.via, **self.meta, **extra}, log=self.log)
         except Exception as exc:
             log.warning("search ai: recording %s failed: %s", self.request_id, type(exc).__name__)
 
@@ -391,6 +392,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         yield ev("error", detail="Type a question first.", code="empty_question")
         return
     run = Run(db, uid, via, {"scope": "workspace" if scope else "all", "chars_in": len(question)})
+    run.log.update(input=question, workspace_id=scope, scope_label=None if scope else "Everything")
     reason = await limit_for(db, uid, scope)
     if reason:
         if reason not in ("off", "not_configured"):
@@ -418,10 +420,11 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
         sent = [c for c in cands if not (c.ws_id and c.ws_id in off)]
         run.meta.update(candidates=len(sent), terms=len(terms), withheld=len(cands) - len(sent))
         if not sent:
-            await run.record("ok", stop_reason="no_candidates")
-            yield ev("results", items=[])
             msg = "Nothing you can open matches that." if not cands else \
                 "The items that match are in a workspace with AI turned off."
+            run.log["output"] = msg
+            await run.record("ok", stop_reason="no_candidates")
+            yield ev("results", items=[])
             yield ev("done", request_id=run.request_id, usage=run.usage(), answer=msg, citations=[], ranked=[])
             return
         rows = {}
@@ -511,6 +514,9 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
             if 1 <= k <= len(sent) and k not in cited:
                 cited.append(k)
         citations = [{"n": k, **_cite(sent[k - 1], shaped)} for k in cited]
+        run.log.update(output=answer, citations=citations,
+                       context=[{"kind": c.kind, "title": (shaped.get(c.key) or {}).get("title") or c.title, "id": c.key,
+                                 "url": (shaped.get(c.key) or {}).get("url")} for c in sent])
         await run.record("ok", stop_reason=stop, chars_out=len(answer), cited=len(citations), ranked=len(ranked))
         yield ev("done", request_id=run.request_id, usage=run.usage(), answer=answer, citations=citations,
                  ranked=[_cite(sent[k - 1], shaped) | {"n": k} for k in ranked],

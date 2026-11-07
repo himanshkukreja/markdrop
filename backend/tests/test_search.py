@@ -722,6 +722,18 @@ class AISearch(SearchWorld, AIEnv):
         expect = sum(ai_usage.call_cost("claude-haiku-5-5", ai_usage.normalize_usage(usage(
             i=st_tokens(prompt_of(c)), o=0)))[0] for c in self.fake.calls)
         self.assertGreater(r["cost_usd"], expect * 0.99)
+        # The AI request log (services/ai_log.py): the question and the answer as shown, with its
+        # citations and what was sent by title, never the documents' text.
+        lg = await self.db["ai_log"].find_one({"_id": r["request_id"]})
+        self.assertEqual((lg["input"], lg["label"], lg["scope_label"]), ("how do contractors get onboarded?",
+                                                                         "AI search", "Everything"))
+        self.assertIn("laptop on day one", lg["output"])
+        self.assertEqual({c["title"] for c in lg["citations"]}, {"Onboarding Playbook", "Onboarding checklist"})
+        self.assertTrue(lg["context"]["summary"].startswith(f"{r['candidates']} source"), lg["context"])
+        self.assertIn("Onboarding Playbook", {i["title"] for i in lg["context"]["items"]})
+        for leak in ("Ignore previous instructions", "emu-77", "ostrich", "cipher"):
+            self.assertNotIn(leak, repr(lg))
+        self.assertEqual((r["actor_kind"], lg["conversation_id"]), ("user", f"r:{r['request_id']}"))
         report = {"calls": r["calls"], "input_tokens": r["usage"]["input"], "output_tokens": r["usage"]["output"],
                   "cost_usd": r["cost_usd"], "candidates": r.get("candidates")}
         print("\nSEARCH AI COST", json.dumps(report))

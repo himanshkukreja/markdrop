@@ -132,7 +132,7 @@ async function ensureStack() {
 }
 
 async function sandbox(p, body = {}) {
-  const res = await fetch(`${API}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch(`${API}${p}`, { method: "POST", headers: { "content-type": "application/json", "x-markdrop-test": "1" }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`sandbox ${p} → ${res.status} ${await res.text()}`);
   return res.json();
 }
@@ -651,6 +651,8 @@ async function runShot(browser, shot, theme, fx, manifest, videosJson) {
     const studio = u.hostname.endsWith(SITES_SUFFIX) && u.port === String(PORTS.sites);
     // *.localhost is always this machine (a guide served at <slug>.guides.localhost, a secure context for its reader sign-in).
     const loopback = LOCAL_HOSTS.has(u.hostname) || u.hostname.endsWith(".localhost");
+    // Our API's calls are test traffic (the AI request log, backend services/ai_log.py).
+    if (u.origin === API) return route.continue({ headers: { ...route.request().headers(), "x-markdrop-test": "1" } });
     if (!/^https?:$/.test(u.protocol) || loopback || studio || CDN.test(u.hostname)) return route.continue();
     return route.abort("blockedbyclient");
   });

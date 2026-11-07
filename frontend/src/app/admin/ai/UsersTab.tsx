@@ -7,30 +7,36 @@ import {
 } from "@/components/ui";
 import { Card, CardError, Eyebrow } from "../analytics/ui";
 import { LoadingBlock, fmtDate, fmtDateTime, plural } from "../shared";
+import { AudienceSelect, LeftOutNote, type LeftOut, type UsageAudience } from "./audience";
 import { DailyByFeature, FeatureBars, type DayRow, type Metric } from "./charts";
 import {
-  LIMIT_LABEL, OUTCOME_LABEL, OUTCOME_TONE, RANGE_OPTIONS, ago, capText, featureColor, n0, pct, secs, tokensShort, usd,
+  FEATURE_LABEL, LIMIT_LABEL, OUTCOME_LABEL, OUTCOME_TONE, RANGE_OPTIONS, ago, capText, featureColor, n0, pct, secs, tokensShort, usd,
   useAiDownload, useAiFetch, useAiSend, useLoad, type RangeKey,
 } from "./common";
 
 /** Admin → AI → Users: everyone who used AI, with a drill-down, Block and a per-person daily cap.
- *  Never shows what anyone asked or got back (the Docs Ask AI tab keeps its own conversations). */
+ *  Never shows what anyone asked or got back (that is the Requests tab). System jobs are one row
+ *  (user_id "system"); test & internal traffic is left out unless the audience filter asks for it. */
 
 type Tok = { input: number; output: number; cache_read: number; cache_write: number };
 interface Agg { requests: number; ok: number; errors: number; limited: number; cost_usd: number; tokens: Tok; total_tokens: number; cache_hit_pct: number | null }
 interface UserRow extends Agg {
-  user_id: string; anonymous: boolean; email: string; name: string; deleted?: boolean; visitors?: number;
+  user_id: string; anonymous: boolean; system?: boolean; email: string; name: string; deleted?: boolean; visitors?: number;
   blocked: boolean; daily_cap_usd: number | null; effective_daily_cap_usd: number | null; today_usd: number | null;
   features: string[]; last_used: string | null;
 }
-interface UsersRes { total: number; pages: number; page: number; items: UserRow[]; default_daily_cap_usd: number | null }
+interface UsersRes {
+  total: number; pages: number; page: number; items: UserRow[]; default_daily_cap_usd: number | null;
+  audience?: UsageAudience; left_out?: LeftOut;
+}
 interface RequestRow {
   request_id: string; ts: string; feature: string; action: string | null; site: string | null; slug: string | null; page: string | null;
   workspace_id: string | null; conversation_id: string | null; outcome: string; limit_reason: string | null; error_code: string | null;
   tokens: Tok; cost_usd: number; latency_ms: number | null; model: string | null;
+  actor?: string | null; job?: string | null; app?: string | null; test?: boolean;
 }
 interface UserDetail {
-  user: { user_id: string; anonymous: boolean; email: string; name: string; created_at: string | null; deleted: boolean };
+  user: { user_id: string; anonymous: boolean; system?: boolean; email: string; name: string; created_at: string | null; deleted: boolean };
   settings: null | {
     blocked: boolean; daily_cap_usd: number | null; effective_daily_cap_usd: number | null; default_daily_cap_usd: number | null;
     today_usd: number; burst: { per_minute: number; per_day: number };
@@ -43,7 +49,6 @@ interface UserDetail {
 }
 
 type Sort = "cost" | "requests" | "tokens" | "last_used" | "email" | "errors";
-const FEATURE_LABEL: Record<string, string> = { docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI", search_ai: "AI search", analytics_ai: "Analytics AI", meetings_ai: "Meetings AI" };
 const fLabel = (k: string) => FEATURE_LABEL[k] ?? k;
 const ORDER = Object.keys(FEATURE_LABEL);
 /** Features in the registry's fixed order (colour follows the feature, never its rank). */
@@ -61,7 +66,15 @@ function SortHeader({ label, k, sort, order, onSort, align }: { label: string; k
   );
 }
 
-function Who({ u }: { u: Pick<UserRow, "anonymous" | "email" | "name" | "deleted" | "visitors"> }) {
+function Who({ u }: { u: Pick<UserRow, "anonymous" | "system" | "email" | "name" | "deleted" | "visitors"> }) {
+  if (u.system) {
+    return (
+      <span className="flex min-w-0 flex-col">
+        <span className="truncate text-text">System jobs</span>
+        <span className="truncate text-micro text-text-muted">Background and scheduled AI work</span>
+      </span>
+    );
+  }
   if (u.anonymous) {
     return (
       <span className="flex min-w-0 flex-col">
@@ -84,6 +97,7 @@ export function UsersTab({ token, openId, onOpen }: { token: string; openId: str
   const toast = useToast();
   const [range, setRange] = useState<RangeKey>("30d");
   const [feature, setFeature] = useState("");
+  const [audience, setAudience] = useState<UsageAudience>("live");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState<Sort>("cost");
@@ -91,8 +105,8 @@ export function UsersTab({ token, openId, onOpen }: { token: string; openId: str
   const [page, setPage] = useState(1);
   const [bump, setBump] = useState(0);
   const [exporting, setExporting] = useState<string | null>(null);
-  const list = useLoad(() => get<UsersRes>("usage/users", { range, feature, q: query, sort, order, page, limit: 25 }),
-    [get, range, feature, query, sort, order, page, bump]);
+  const list = useLoad(() => get<UsersRes>("usage/users", { range, feature, q: query, sort, order, page, limit: 25, audience }),
+    [get, range, feature, query, sort, order, page, audience, bump]);
 
   // Search as you type, a beat after the last key.
   useEffect(() => {
@@ -126,7 +140,7 @@ export function UsersTab({ token, openId, onOpen }: { token: string; openId: str
     ) },
     { key: "tokens", header: sh("Tokens in / out", "tokens", "right"), align: "right", render: (u) => `${tokensShort(u.tokens.input + u.tokens.cache_read + u.tokens.cache_write)} / ${tokensShort(u.tokens.output)}` },
     { key: "cost", header: sh("Cost", "cost", "right"), align: "right", render: (u) => <span className="font-medium">{usd(u.cost_usd)}</span> },
-    { key: "cap", header: "Today / cap", align: "right", render: (u) => (u.anonymous ? <span className="text-text-muted">—</span> : (
+    { key: "cap", header: "Today / cap", align: "right", render: (u) => (u.anonymous || u.system ? <span className="text-text-muted">—</span> : (
       <span className={u.daily_cap_usd !== null ? "text-text" : "text-text-secondary"}>{usd(u.today_usd)} / {capText(u.effective_daily_cap_usd)}</span>
     )) },
     { key: "last", header: sh("Last used", "last_used"), render: (u) => <span className="whitespace-nowrap">{ago(u.last_used)}</span> },
@@ -135,7 +149,7 @@ export function UsersTab({ token, openId, onOpen }: { token: string; openId: str
   async function exportCsv(kind: "users" | "requests") {
     setExporting(kind);
     try {
-      await download("usage/export.csv", { kind, range, feature }, `markdrop-ai-${kind}.csv`);
+      await download("usage/export.csv", { kind, range, feature, audience }, `markdrop-ai-${kind}.csv`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't export.");
     } finally {
@@ -151,6 +165,7 @@ export function UsersTab({ token, openId, onOpen }: { token: string; openId: str
           <Input aria-label="Search people" placeholder="Search email or name" iconPrefix="search" value={q} onChange={(e) => setQ(e.target.value)} wrapClassName="w-64" />
           <Select aria-label="Feature" value={feature} onChange={(e) => { setFeature(e.target.value); setPage(1); }}
             options={[{ value: "", label: "All features" }, ...Object.entries(FEATURE_LABEL).map(([value, label]) => ({ value, label }))]} />
+          <AudienceSelect value={audience} onChange={(v) => { setAudience(v); setPage(1); }} />
         </form>
         <div className="flex flex-wrap items-center gap-2">
           <SegmentedControl<RangeKey> size="sm" aria-label="Date range" value={range} onChange={(v) => { setRange(v); setPage(1); }} options={RANGE_OPTIONS} />
@@ -166,6 +181,7 @@ export function UsersTab({ token, openId, onOpen }: { token: string; openId: str
               <p className="mb-3 text-caption text-text-secondary">
                 {plural(d.total, "row")} · default per-person daily cap {capText(d.default_daily_cap_usd)}. Open a row for the breakdown, recent requests, Block and a daily cap.
               </p>
+              <div className="-mt-2 mb-3"><LeftOutNote audience={audience} leftOut={d.left_out} /></div>
               <Table compact columns={cols} rows={d.items} rowKey={(u) => u.user_id} caption="People using AI"
                 onRowClick={(u) => onOpen(u.user_id)} selected={(u) => u.user_id === openId}
                 empty={query ? "Nobody matches that search." : "No AI use in this range."} />
@@ -202,10 +218,10 @@ function UserDrawer({ token, id, range, onClose, onChanged }: { token: string; i
     return () => { live = false; };
   }, [get, id, range, tz, bump]);
   const d = state.data && state.data.user.user_id === id ? state.data : undefined;
-  const title = d ? (d.user.anonymous ? "Anonymous visitors" : d.user.email || "Deleted account") : "AI usage";
+  const title = d ? (d.user.system ? "System jobs" : d.user.anonymous ? "Anonymous visitors" : d.user.email || "Deleted account") : "AI usage";
   return (
     <Drawer open={!!id} onClose={onClose} width={760} title={title}
-      description={d ? (d.user.anonymous ? "Everyone signed out, together" : `${d.user.name ? `${d.user.name} · ` : ""}joined ${fmtDate(d.user.created_at)}`) : undefined}
+      description={d ? (d.user.system ? "Background and scheduled AI work (team memory, summaries, cover art)" : d.user.anonymous ? "Everyone signed out, together" : `${d.user.name ? `${d.user.name} · ` : ""}joined ${fmtDate(d.user.created_at)}`) : undefined}
       bodyClassName="flex flex-col gap-5">
       {state.error ? <Alert tone="danger">{state.error}</Alert> : !d ? <LoadingBlock label="Loading usage" minHeight={280} /> : (
         <>
@@ -261,7 +277,7 @@ function UserDrawer({ token, id, range, onClose, onChanged }: { token: string; i
           <section aria-labelledby="ud-recent">
             <Eyebrow><span id="ud-recent">Recent requests</span></Eyebrow>
             <RecentTable rows={d.recent} />
-            <p className="mt-2 text-micro text-text-muted">What was asked and answered is never shown here. Docs Ask AI conversations are in the Docs Ask AI tab.</p>
+            <p className="mt-2 text-micro text-text-muted">What was asked and answered is never shown here: the Requests tab has every conversation.</p>
           </section>
         </>
       )}
@@ -277,6 +293,7 @@ function RecentTable({ rows }: { rows: RequestRow[] }) {
         <span className="inline-flex items-center gap-1.5 text-text">
           <span aria-hidden className="size-2 shrink-0 rounded-xs" style={{ background: featureColor(r.feature) }} />
           <span className="truncate">{fLabel(r.feature)}{r.action ? ` · ${r.action}` : ""}</span>
+          <ActorTag r={r} />
         </span>
         <span className="max-w-[16rem] truncate text-micro text-text-muted" title={[r.slug, r.site, r.page].filter(Boolean).join(" · ")}>
           {[r.slug && `/${r.slug}`, r.site && `site ${r.site.length > 12 ? `${r.site.slice(0, 8)}…` : r.site}`, r.page].filter(Boolean).join(" · ") || "—"}
@@ -293,6 +310,15 @@ function RecentTable({ rows }: { rows: RequestRow[] }) {
     { key: "time", header: "Time", align: "right", render: (r) => <span className="whitespace-nowrap">{secs(r.latency_ms)}</span> },
   ];
   return <Table compact hover={false} columns={cols} rows={rows} rowKey={(r) => r.request_id} caption="Recent requests" empty="No requests in this range." />;
+}
+
+/** Who made a recent call, when it isn't the person themselves: a test, a job, or an AI app. */
+function ActorTag({ r }: { r: RequestRow }) {
+  if (r.test) return <Badge size="sm" tone="warning" title="Test & internal traffic">Test</Badge>;
+  if (r.actor === "system") return <Badge size="sm" tone="neutral" icon="server" title="System job">{r.job || "System"}</Badge>;
+  if (r.actor === "api") return <Badge size="sm" tone="info" title="Through an AI app">{r.app ? `via ${r.app}` : "AI app"}</Badge>;
+  if (r.actor === "public") return <Badge size="sm" tone="neutral" title="A public visitor">Public</Badge>;
+  return null;
 }
 
 // ── Block and cap ────────────────────────────────────────────────────────────

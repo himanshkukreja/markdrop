@@ -346,11 +346,15 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
     meta = {"kind": "fix", "action": f"fix_{it['type']}", "chars_in": len(turn), "chars_out": 0,
             "page_id": str(page["_id"]) if page else None}
 
+    log_in: dict = {"kind": "fix", "input": f"Draft a fix: {it['type'].replace('_', ' ')}",
+                    "subject": (page or {}).get("title"),
+                    **({"selection": sec["markdown"]} if kind != "new_page" and (sec or {}).get("markdown") else {})}
+
     async def record(outcome: str, **extra) -> None:
         try:
             await ai_usage.record(db, feature=editor_ai.FEATURE, meter=meter, request_id=request_id, outcome=outcome,
                                   latency_ms=watch.elapsed_ms, user_id=user.id, visitor=editor_ai._visitor(user),
-                                  site=site, meta={**meta, **extra})
+                                  site=site, meta={**meta, **extra}, log=log_in)
         except Exception as exc:
             log.warning("fix draft: recording request %s failed: %s", request_id, type(exc).__name__)
 
@@ -400,6 +404,7 @@ async def draft(db: AsyncIOMotorDatabase, site_row: dict, user: User, item_id: s
         if not out["markdown"]:
             await record("error", stop_reason=stop, error_code="empty_output")
             raise _error(502, "upstream", "The draft came back empty. Try again.")
+        log_in["output"] = out["markdown"]
         await record("ok", stop_reason=stop, chars_out=len(out["markdown"]))
     finally:
         editor_ai._inflight = max(0, editor_ai._inflight - 1)

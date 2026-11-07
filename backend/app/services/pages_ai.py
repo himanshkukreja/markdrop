@@ -829,7 +829,8 @@ class Job:
     reserve: float = 0.01
     held: bool = False
     site: dict | None = None      # Guides: the site row
-    source: str = ""              # the selection (to keep a code fence the writer selected); never recorded
+    source: str = ""              # the selection (to keep a code fence the writer selected); never in the ledger
+    log: dict = field(default_factory=dict)   # readable content for the AI request log (services/ai_log.write)
 
     @property
     def guide(self) -> bool:
@@ -855,9 +856,20 @@ class Job:
                 self.db, feature=self.feature, meter=self.meter, request_id=self.request_id, outcome=outcome,
                 latency_ms=self.watch.elapsed_ms, ttft_ms=self.watch.ttft_ms, user_id=self.user.id,
                 visitor=f"u:{self.user.id}", site=str(self.site["_id"]) if self.guide else None,
-                meta={**self.base_meta(), **extra})
+                meta={**self.base_meta(), **extra}, log=self.log_entry())
         except Exception as exc:
             log.warning("pages ai: recording request %s failed: %s", self.request_id, type(exc).__name__)
+
+    def log_entry(self) -> dict:
+        """What the AI request log shows (services/ai_log.write): the page, then what each feature set."""
+        t = self.target
+        out: dict = {}
+        if t is not None and t.title:
+            out.update(subject=t.title[:120], page_title=t.title[:200],
+                       scope_label=f"{'Guide page' if self.guide else 'This page'}: {t.title[:120]}")
+        if t is not None and t.slug:
+            out["slug"] = t.slug
+        return {**out, **self.log}
 
     async def limit(self) -> Limit | None:
         if self.guide:
@@ -1053,6 +1065,7 @@ async def stream_suggestion(job: Job, prompt: Prompt, *, trimmed: bool = False,
         final = f"{prefix}{body}{suffix}"
         if final != "".join(shown):
             yield ev("delta", text=final, reset=True)
+        job.log.setdefault("output", final)
         await job.record("ok", stop_reason=stop, chars_out=len(final), trimmed=trimmed)
         yield ev("done", request_id=job.request_id, usage=job.usage(), trimmed=trimmed,
                  truncated=stop == "max_tokens", markdown=final)
@@ -1090,6 +1103,8 @@ async def run_json(job: Job, prompt: Prompt, parse: Callable[[str], Any], *, tri
         except AIError as exc:
             await job.record("error", stop_reason=stop, error_code=exc.code)
             raise
+        job.log.setdefault("output", out if isinstance(out, str) else raw)
+        job.log.setdefault("output_format", "text" if isinstance(out, str) else "json")
         await job.record("ok", stop_reason=stop, trimmed=trimmed)
         return out
     finally:
@@ -1124,6 +1139,8 @@ async def transform(job: Job, *, action: str, text: str, tone: str | None = None
     prompt, trimmed = transform_prompt(job.target, action=action, text=text, tone=tone, lang=lang,
                                        before=before, after=after)
     job.meta.update(transform=action, chars_in=len(text), tone=tone, language=lang)
+    job.log.update(selection=text, input=" ".join(x for x in (
+        {"tone": f"Change the tone to {tone}", "translate": f"Translate to {lang}"}.get(action) or action.capitalize(),) if x))
     job.source = text
     job.reserve = RESERVE["transform"]
     return stream_suggestion(job, prompt, trimmed=trimmed)
@@ -1135,6 +1152,7 @@ async def write(job: Job, *, prompt: str, before: str | None = None, after: str 
     after = _bounded(after, MAX_AROUND, "The text after")
     p, trimmed = write_prompt(job.target, prompt=prompt.strip(), before=before, after=after)
     job.meta.update(chars_in=len(prompt))
+    job.log["input"] = prompt.strip()
     job.reserve = RESERVE["write"]
     return stream_suggestion(job, p, trimmed=trimmed)
 
@@ -1151,6 +1169,8 @@ async def notes(job: Job, *, notes_text: str, title: str | None, template_id: st
             raise AIError(400, "bad_template", "Unknown template. See GET /api/v1/page-templates.")
     p = notes_prompt(notes=text, title=title, template=tpl)
     job.meta.update(chars_in=len(text), template=tpl["id"] if tpl else "auto")
+    job.log.update(input=f"Turn my notes into a page{(' titled ' + repr(title)) if title else ''}"
+                   f" (template: {tpl['id'] if tpl else 'auto'})", selection=text)
     job.reserve = RESERVE["notes"]
     return stream_suggestion(job, p)
 
@@ -1185,6 +1205,8 @@ async def action_items(job: Job, *, text: str | None = None):
                                      today=now_utc().strftime("%Y-%m-%d (%A)"))
     ids = {m["id"] for m in members}
     job.meta.update(chars_in=len(text or ""), members=len(members))
+    job.log.update(input="Find the action items" + (" in the selection" if text else " on this page"),
+                   **({"selection": text} if text else {}))
     job.reserve = RESERVE["action_items"]
 
     def finish(raw: str) -> str:
@@ -1201,6 +1223,7 @@ async def action_items(job: Job, *, text: str | None = None):
 async def summary(job: Job):
     p, trimmed = summary_prompt(job.target)
     job.meta.update(chars_in=len(job.target.body))
+    job.log["input"] = "Summarise this page"
     job.reserve = RESERVE["summary"]
     return stream_suggestion(job, p, trimmed=trimmed, prefix=SUMMARY_OPEN, suffix=SUMMARY_CLOSE,
                              finish=summary_body)
@@ -1225,6 +1248,12 @@ async def ask(job: Job, *, question: str, history: list | None = None):
     allowed = {h.id for h in heading_ids.extract(job.target.body)}
     context = p.context or ""
     job.meta.update(chars_in=len(question), turns=len(hist), embeds=len(job.target.embeds))
+    # One page's Ask AI keeps its history in the browser: follow-ups join the latest conversation there.
+    job.log.update(input=question, thread_key=f"{job.feature}:ask:{job.target.page_id or job.target.slug}",
+                   follow_up=bool(hist), context=[{"kind": "page", "title": job.target.title, "id": job.target.slug
+                                                    or job.target.page_id, "url": f"/{job.target.slug}" if job.target.slug else None},
+                                                   *({"kind": "page", "title": e.get("title"), "id": e.get("slug"),
+                                                      "url": f"/{e.get('slug')}"} for e in job.target.embeds)])
     job.reserve = RESERVE["ask"]
 
     def finish(raw: str) -> str:
@@ -1236,6 +1265,7 @@ async def ask(job: Job, *, question: str, history: list | None = None):
 async def meta(job: Job) -> dict:
     p, trimmed = meta_prompt(job.target)
     job.reserve = RESERVE["meta"]
+    job.log["input"] = "Suggest a title and description for this page"
     out = await run_json(job, p, parse_meta, trimmed=trimmed)
     return {**out, "trimmed": trimmed, "request_id": job.request_id}
 
@@ -1318,6 +1348,7 @@ async def alt_text(job: Job, data: bytes, mime: str) -> dict:
     p = alt_prompt(job.target, block)
     job.meta.update(image_bytes=len(data))
     job.reserve = RESERVE["alt_text"]
+    job.log["input"] = f"Write alt text for an image ({len(data) // 1024:,} KB, {mime})"
 
     def parse(raw: str) -> str:
         v = clean_alt(raw)
@@ -1694,6 +1725,9 @@ async def _translate_stream(job: Job, *, lang: str, content: str, parent_slug: s
             # The copy exists either way; its images just keep pointing at the original's.
             log.warning("pages ai: images for a translated copy weren't remapped: %s", type(exc).__name__)
         url = await urls.workspace_url(job.db, new) or urls.markdrop_url(new["slug"])
+        job.log.update(kind="translate_page", input=f"Translate this page to {lang}",
+                       description=f"Translated '{raw.get('title') or raw.get('slug')}' to {lang}: a new page '{title}'",
+                       output=f"[{title}]({url}) · {len(translated):,} characters", results={"new page": new["slug"]})
         await job.record("ok", chars_out=len(translated), new_slug=new["slug"])
         yield ev("done", slug=new["slug"], url=url, title=title, request_id=job.request_id, usage=job.usage(),
                  workspace_error=werr)

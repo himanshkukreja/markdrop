@@ -308,10 +308,11 @@ class Run:
         self.request_id = uuid.uuid4().hex
         self.meter = ai_usage.Meter(MODEL)
         self.watch = ai_usage.Stopwatch()
+        self.log: dict = {}   # readable content for the AI request log (services/ai_log.write)
 
     async def record(self, outcome: str, **extra) -> None:
         try:
-            await ai_usage.record(self.db, feature=FEATURE, meter=self.meter, request_id=self.request_id,
+            await ai_usage.record(self.db, feature=FEATURE, meter=self.meter, request_id=self.request_id, log=self.log,
                                   outcome=outcome, latency_ms=self.watch.elapsed_ms, ttft_ms=self.watch.ttft_ms,
                                   user_id=None, visitor="system",
                                   meta={"via": "background", "kind": self.kind, "workspace_id": self.workspace_id,
@@ -336,6 +337,12 @@ async def _call(run: Run, params: dict) -> tuple[str, str | None]:
         raise pages_ai._upstream(exc) from None
     run.meter.add(getattr(message, "usage", None))
     return pages_ai._text_of(message) or "".join(chunks), getattr(message, "stop_reason", None)
+
+
+def facts_markdown(facts: list[dict] | None) -> str:
+    """The facts a read found, one line each, for the AI request log."""
+    return "\n".join(f"- **{f.get('person') or '?'}** · {KIND_LABEL.get(f.get('kind'), f.get('kind') or 'note')}: {f.get('text')}"
+                     + (f" ({f['project']})" if f.get("project") else "") for f in facts or [])
 
 
 async def _extract_json(run: Run, blocks: list[str]) -> list[dict] | None:
@@ -704,6 +711,10 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
         if reason:
             return {"outcome": "limit", "reason": reason, "facts": 0}
         run = Run(db, ws.id, src_key, "meeting")
+        mtitle = clean(row.get("title"), 200) or "Meeting"
+        run.log.update(subject=f"read meeting '{mtitle}'",
+                       context=[{"kind": "meeting", "title": mtitle, "id": str(row["_id"]),
+                                 "url": f"/{row['slug']}" if row.get("slug") else None}])
         ai_usage.hold_request(FEATURE, RESERVE)
         try:
             from app.services import pages_ai
@@ -713,6 +724,11 @@ async def extract_meeting(db: AsyncIOMotorDatabase, ws: WsInfo, row: dict, membe
             except pages_ai.Upstream as exc:
                 await run.record("error", error_code=exc.code)
                 return {"outcome": "error", "facts": 0}
+            n_facts = len(got or [])
+            run.log.update(output=facts_markdown(got), results={"facts": n_facts},
+                           subject=f"{run.log.get('subject')} → {n_facts} fact{'s' if n_facts != 1 else ''}",
+                           description=f"Team memory {run.log.get('subject')}: {n_facts} fact{'s' if n_facts != 1 else ''}"
+                           if got is not None else f"Team memory {run.log.get('subject')}: the reply couldn't be read")
             await run.record("ok" if got is not None else "unparsed", chars_in=chars, facts=len(got or []))
             cost = run.meter.cost_usd
         finally:
@@ -858,6 +874,9 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
         if reason:
             return {"outcome": "limit", "reason": reason, "facts": 0}
         run = Run(db, ws.id, src_key, "page")
+        ptitle = clean(raw.get("title"), 200) or "Untitled"
+        run.log.update(subject=f"read page '{ptitle}'",
+                       context=[{"kind": "page", "title": ptitle, "id": str(raw["_id"]), "url": f"/{raw.get('slug')}"}])
         ai_usage.hold_request(FEATURE, RESERVE)
         try:
             from app.services import pages_ai
@@ -867,6 +886,11 @@ async def extract_page(db: AsyncIOMotorDatabase, ws: WsInfo, raw: dict, members:
             except pages_ai.Upstream as exc:
                 await run.record("error", error_code=exc.code)
                 return {"outcome": "error", "facts": 0}
+            n_facts = len(got or [])
+            run.log.update(output=facts_markdown(got), results={"facts": n_facts},
+                           subject=f"{run.log.get('subject')} → {n_facts} fact{'s' if n_facts != 1 else ''}",
+                           description=f"Team memory {run.log.get('subject')}: {n_facts} fact{'s' if n_facts != 1 else ''}"
+                           if got is not None else f"Team memory {run.log.get('subject')}: the reply couldn't be read")
             await run.record("ok" if got is not None else "unparsed", chars_in=chars, facts=len(got or []))
             cost = run.meter.cost_usd
         finally:

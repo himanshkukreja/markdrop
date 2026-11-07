@@ -35,6 +35,7 @@ from typing import Any
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 log = logging.getLogger("markdrop.ai_usage")
+log_ = log    # ``record`` takes a ``log`` argument
 
 REQUESTS = "ai_requests"
 SPEND = "ai_spend"
@@ -242,12 +243,25 @@ async def record(
     site: str | None = None,
     meta: dict | None = None,
     ts: datetime | None = None,
+    log: dict | None = None,
+    job: str | None = None,
 ) -> dict:
     """Write one ledger row and bump the spend counters. Returns the row.
 
     With `site`, the row carries it and the site's own counters are bumped too.
+
+    Every row says who made the call (``actor``, ``test``: services/ai_log.classify) and gets its
+    readable twin in ``ai_log``: ``log`` carries what the person and the model said (input, output,
+    citations, context, conversation…, see ai_log.write); ``job`` names a background job.
     """
+    from app.services import ai_log
+
     ts = ts or now_utc()
+    try:
+        who = await ai_log.classify(db, feature=feature, user_id=user_id, visitor=visitor, meta=meta, job=job)
+    except Exception as exc:
+        log_.warning("ai usage: classifying %s failed: %s", request_id, type(exc).__name__)
+        who = {}
     _p, known = pricing_for(meter.model)
     row = {
         "feature": feature,
@@ -269,10 +283,15 @@ async def record(
         "visitor": visitor,
         **({"site": site} if site else {}),
         **(meta or {}),
+        **{k: who[k] for k in ("actor", "actor_kind", "test", "test_reason", "job", "app") if k in who},
     }
     await db[REQUESTS].insert_one(dict(row))
     if meter.cost_usd > 0:
         await _bump(db, feature, ts, meter.cost_usd, site=site)
+    try:
+        await ai_log.write(db, row, who, log)
+    except Exception as exc:
+        log_.warning("ai usage: logging %s failed: %s", request_id, type(exc).__name__)
     return row
 
 

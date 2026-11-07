@@ -294,14 +294,17 @@ async def choose(db: AsyncIOMotorDatabase, *, title: str | None, markdown: str |
     job = pages_ai.Job(db=db, user=SimpleNamespace(id=user_id), action=ACTION, via=via,
                        meta={"workspace_id": workspace_id}, reserve=RESERVE)
     meta = {"action": ACTION, "via": via, "workspace_id": workspace_id, "slug": slug,
-            "chars_in": len(text) + len(title or "")}
+            "chars_in": len(text) + len(title or ""), **({"system": True} if system else {})}
+    log_in: dict = {"kind": "cover", "subject": (title or slug or "Untitled")[:120], "slug": slug,
+                    "description": f"Picked a cover image for '{(title or slug or 'Untitled')[:120]}'"}
 
     async def record(outcome: str, **extra) -> None:
         try:
             await ai_usage.record(
                 db, feature=FEATURE, meter=job.meter, request_id=job.request_id, outcome=outcome,
                 latency_ms=job.watch.elapsed_ms, user_id=user_id,
-                visitor=f"u:{user_id}" if user_id else None, meta={**meta, **extra})
+                visitor=f"u:{user_id}" if user_id else None, meta={**meta, **extra}, log=log_in,
+                job="Cover backfill" if system else None)
         except Exception as exc:
             log.warning("auto cover: recording %s failed: %s", job.request_id, type(exc).__name__)
 
@@ -319,6 +322,7 @@ async def choose(db: AsyncIOMotorDatabase, *, title: str | None, markdown: str |
         if cid is None:
             await record("error", stop_reason=stop, error_code="bad_output")
             return fallback(title, text), "fallback:bad_output"
+        log_in.update(output=f"Cover: {cid}", output_format="text", results={"cover": cid})
         await record("ok", stop_reason=stop, cover=cid)
         return cid, "ai"
     finally:

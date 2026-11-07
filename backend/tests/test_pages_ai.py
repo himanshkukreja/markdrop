@@ -637,6 +637,20 @@ class Ledger(PagesAIWorld):
             blob = repr(r)
             for needle in ("Intro text", "When does it ship", "It ships soon", OPEN_TEXT, "Launch plan"):
                 self.assertNotIn(needle, blob)
+        # The content is in the admins' AI request log instead (services/ai_log.py), 30 days: the
+        # question and answer, the selection and its rewrite, the page by title, never its body.
+        ask_row, tr_row = (await self.rows())[-2:]
+        lg = await self.db["ai_log"].find_one({"_id": ask_row["request_id"]})
+        self.assertEqual((lg["input"], lg["output"], lg["kind"], lg["slug"]), ("When does it ship?", "It ships soon.",
+                                                                              "ask", "launch-page"))
+        self.assertTrue(lg["label"].startswith("Ask this page · "), lg["label"])
+        self.assertTrue(lg["scope_label"].startswith("This page: "), lg["scope_label"])
+        self.assertEqual(lg["context"]["items"][0]["id"], "launch-page")
+        self.assertNotIn(OPEN_TEXT, repr(lg))
+        lg = await self.db["ai_log"].find_one({"_id": tr_row["request_id"]})
+        self.assertEqual((lg["kind"], lg["input"], lg["selection"]), ("improve", "Improve", "Intro text about the launch."))
+        self.assertTrue(lg["label"].startswith("Improve · "), lg["label"])
+        self.assertEqual(lg["output"], "It ships soon.")
 
 
 # ── Thinking shares max_tokens ────────────────────────────────────────────────

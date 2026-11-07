@@ -17,6 +17,13 @@ import argparse
 import asyncio
 
 
+async def _run() -> None:
+    from app import database
+
+    await database.connect()
+    await main()
+
+
 async def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--send", action="store_true", help="really send (default: list only)")
@@ -45,4 +52,4 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(_run())

@@ -793,13 +793,14 @@ class Run:
         self.request_id = uuid.uuid4().hex
         self.meter = ai_usage.Meter(MODEL)
         self.watch = ai_usage.Stopwatch()
+        self.log: dict = {}   # readable content for the AI request log (services/ai_log.write)
 
     async def record(self, outcome: str, **extra) -> None:
         try:
             await ai_usage.record(
                 self.db, feature=FEATURE, meter=self.meter, request_id=self.request_id, outcome=outcome,
                 latency_ms=self.watch.elapsed_ms, ttft_ms=self.watch.ttft_ms, user_id=self.user_id,
-                visitor=f"u:{self.user_id}", meta={**self.meta, **extra})
+                visitor=f"u:{self.user_id}", meta={**self.meta, **extra}, log=self.log)
         except Exception as exc:
             log.warning("analytics ai: recording %s failed: %s", self.request_id, type(exc).__name__)
 
@@ -952,6 +953,14 @@ async def analysis(db: AsyncIOMotorDatabase, raw: dict, kind: str, *, range_key:
             except BadOutput as exc:
                 await r.record("error", error_code="bad_output", why=str(exc)[:80], stop_reason=stop)
                 raise pages_ai.AIError(502, "bad_output", "AI's answer didn't hold up. Try Re-analyse.") from None
+            title = raw.get("title") or raw.get("original_filename") or raw.get("slug") or "Untitled"
+            r.log.update(subject=title[:120], slug=raw.get("slug"), page_title=title[:200],
+                         input=f"Analyse how people read '{title[:120]}' ({kind}, {range_key})",
+                         output="\n".join([*([result["summary"]] if result.get("summary") else []), "",
+                                           *(f"- **{f.get('severity')}** · {f.get('title')}: {f.get('why')}"
+                                             + (f" → {f['suggestion']}" if f.get("suggestion") else "")
+                                             for f in result["findings"])]).strip(),
+                         results={"findings": len(result["findings"])})
             await r.record("ok", stop_reason=stop, findings=len(result["findings"]))
         finally:
             ai_usage.release_request(FEATURE, RESERVE)

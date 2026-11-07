@@ -135,7 +135,7 @@ export function CoversTab({ token }: { token: string }) {
                 caption={`${plural(state.batches ?? 0, "batch", "batches")} of ${scan?.batch ?? 20}${(state.failed ?? 0) > 0 ? ` · ${n0(state.failed)} failed` : ""}`} />
             </section>
             {state.budget_short && (
-              <Alert tone="info" title="Half the Pages AI budget is used">The backfill leaves the rest to people's Page AI, so the remaining pages are matched by keywords. Each still gets a cover that fits its title.</Alert>
+              <Alert tone="info" title="Half the Pages AI budget is used">The backfill leaves the rest to people&apos;s Page AI, so the remaining pages are matched by keywords. Each still gets a cover that fits its title.</Alert>
             )}
             {scan && (
               <details className="text-caption text-text-secondary">

@@ -658,6 +658,11 @@ async def check(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
         return {"results": [r for r in hit.get("results") or [] if r["id"] in ids], "cached": True}
     run = meetings_ai.Run(db, uid, "check", via, {"workspace_id": ws, "facts": len(facts), "chars_in": len(section)},
                           RESERVE_CHECK)
+    title = page.get("title") or "Untitled"
+    run.log.update(subject=title, scope_label=f"This page: {title}", selection=section,
+                   description=f"Checked a section of '{title}'" + (f" ({heading})" if heading else "")
+                   + f" against {len(facts)} recorded decision{'s' if len(facts) != 1 else ''}",
+                   context=[{"kind": "fact", "title": f.get("text"), "id": str(f["_id"])} for f in facts])
     reason = await meetings_ai.limit_for(db, uid, ws, reserve=RESERVE_CHECK)
     if reason:
         if reason not in ("off", "not_configured"):
@@ -679,6 +684,11 @@ async def check(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
             await run.record("error", error_code=exc.code)
             return {"results": [], "cached": False, "reason": "upstream", "message": exc.detail}
         results = parse_check(raw, labels)
+        texts = {str(f["_id"]): f.get("text") for f in facts}
+        run.log.update(output_format="markdown", output="\n".join(
+            f"- **{r['verdict']}**: {texts.get(r['id']) or r['id']}" + (f" — {r['note']}" if r.get("note") else "")
+            for r in results) or "No conflicts found.",
+            results={v: sum(1 for r in results if r["verdict"] == v) for v in ("contradicts", "omits", "consistent")})
         await run.record("ok", stop_reason=stop, results=len(results))
     finally:
         run.release()

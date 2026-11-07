@@ -104,6 +104,12 @@ class Sources(SugWorld):
         rows = await self.db[ai_usage.REQUESTS].find({"feature": "ask_suggestions"}).to_list(length=10)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["outcome"], "ok")
+        # A system job in the AI request log, with what it suggested; never the titles it read.
+        self.assertEqual((rows[0]["actor"], rows[0]["job"]), ("system", "Ask suggestions"))
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        self.assertIn("Who owns the pricing page rewrite?", lg["output"])
+        self.assertTrue(lg["description"].startswith("Suggested 3 questions"), lg["description"])
+        self.assertNotIn("Vendors shortlist", repr(lg))
 
     async def test_restricting_a_meeting_later_takes_it_out(self):
         m = await self.import_meeting()

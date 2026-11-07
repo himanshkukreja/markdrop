@@ -386,7 +386,10 @@ class EditorAI(DocsSitesCase):
             await self.edit(action="translate", language="German")
             self.fake.stop = "refusal"
             await self.edit(expect=422)
-        self.assertNotIn("secret-phrase", "\n".join(logs.output))
+        # The admins' AI request log stores the text on purpose (services/ai_log.py); the driver's own
+        # DEBUG command log echoes that write, which production never turns on. Every other log: none.
+        ours = [r.getMessage() for r in logs.records if not r.name.startswith("pymongo")]
+        self.assertNotIn("secret-phrase", "\n".join(ours))
 
     # ── status ──
 

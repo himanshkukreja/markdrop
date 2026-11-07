@@ -160,6 +160,7 @@ class Run:
         self.meter = ai_usage.Meter(MODEL)
         self.watch = ai_usage.Stopwatch()
         self.held = False
+        self.log: dict = {}   # readable content for the AI request log (services/ai_log.write)
 
     def hold(self) -> None:
         if not self.held:
@@ -176,7 +177,8 @@ class Run:
             await ai_usage.record(
                 self.db, feature=FEATURE, meter=self.meter, request_id=self.request_id, outcome=outcome,
                 latency_ms=self.watch.elapsed_ms, ttft_ms=self.watch.ttft_ms, user_id=self.user_id,
-                visitor=f"u:{self.user_id}", meta={"kind": self.kind, "via": self.via, **self.meta, **extra})
+                visitor=f"u:{self.user_id}", meta={"kind": self.kind, "via": self.via, **self.meta, **extra},
+                log=self.log)
         except Exception as exc:
             log.warning("analytics ai: recording %s failed: %s", self.request_id, type(exc).__name__)
 
@@ -599,6 +601,9 @@ async def _generate_story(db, user_id: str, facts: dict, refs: dict, *, via: str
         except (ValueError, json.JSONDecodeError):
             await run.record("error", error_code="bad_output")
             return {"status": "error", "message": "AI couldn't write a summary this time. Try Refresh."}
+        run.log.update(input=f"Tell my analytics story ({range_key})", output="\n".join(
+            [f"**{story['headline']}**", "", *(f"- {b['text']}" for b in story["bullets"])]),
+            results={"bullets": len(story["bullets"])})
         await run.record("ok", bullets=len(story["bullets"]))
         return {"status": "ok", **story, "request_id": run.request_id, "usage": run.usage()}
     finally:
@@ -967,6 +972,9 @@ async def ask(db: AsyncIOMotorDatabase, user_id: str | None, question: str, *, r
         yield ev("done", answer=answer, links=[], request_id=None, usage=None, cached=False, thin=True)
         return
     run = Run(db, user_id, "ask", via, {"chars_in": len(question), "range": range_key or "auto"})
+    # The analytics home's Ask keeps no thread: a question within FOLLOW_UP_WINDOW of the last joins it.
+    run.log.update(input=question, thread_key="analytics_ai:ask", follow_up=True,
+                   scope_label=f"My analytics · {range_key}" if range_key else "My analytics")
     reason = await limit_for(db, user_id)
     if reason:
         if reason not in ("off", "not_configured"):
@@ -1077,6 +1085,12 @@ async def ask(db: AsyncIOMotorDatabase, user_id: str | None, question: str, *, r
             answer = ai_output.finish(answer, stop)
         elif not answer:
             answer = "I couldn't answer that from your analytics. Try asking about views, people, referrers or a document."
+        run.log.update(output=answer, citations=[{"label": str(i), "title": (lk.get("title") if isinstance(lk, dict) else None),
+                                                  "url": (lk.get("href") or lk.get("url")) if isinstance(lk, dict) else str(lk)}
+                                                 for i, lk in enumerate(links, 1)],
+                       context={"summary": f"{len(tools_log)} analytics quer{'ies' if len(tools_log) != 1 else 'y'}"
+                                           + (": " + ", ".join(dict.fromkeys(str(t.get('name') or t.get('tool') or '?') for t in tools_log))
+                                              if tools_log else ""), "items": []})
         await run.record("ok", stop_reason=stop, rounds=rounds, tools=tools_log, chars_out=len(answer),
                          links=len(links), retried=retried)
         done = {"answer": answer, "links": links, "request_id": run.request_id}
@@ -1324,6 +1338,9 @@ async def gaps(db: AsyncIOMotorDatabase, user_id: str, scope: str, *, fresh: boo
             await run.record("error", error_code="bad_output")
             return {**base, "status": "error", "message": "AI couldn't group these this time. Try Refresh.",
                     "gaps": [], "cached": False}
+        run.log.update(input="Find content gaps in what people searched for and asked", output="\n".join(
+            f"- **{g['topic']}** ({g['count']} signals){': ' + g['why'] if g.get('why') else ''}" for g in found),
+            results={"gaps": len(found), "signals": total})
         await run.record("ok", gaps=len(found))
         usage = run.usage()
     finally:

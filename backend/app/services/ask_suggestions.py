@@ -324,6 +324,7 @@ async def _generate(db: AsyncIOMotorDatabase, ws_id: str, text: str, ws_name: st
         "output_config": {"effort": "low", "format": {"type": "json_schema", "schema": SCHEMA}},
     }
     outcome, stop, n = "error", None, 0
+    out: list[dict] = []
     ai_usage.hold_request(FEATURE, RESERVE)
     try:
         try:
@@ -360,7 +361,12 @@ async def _generate(db: AsyncIOMotorDatabase, ws_id: str, text: str, ws_name: st
                                   latency_ms=watch.elapsed_ms, ttft_ms=watch.ttft_ms, user_id=user_id,
                                   visitor=f"u:{user_id}" if user_id else None,
                                   meta={"kind": "workspace", "via": "ask", "workspace_id": ws_id,
-                                        "questions": n, "stop_reason": stop})
+                                        "questions": n, "stop_reason": stop},
+                                  log={"description": f"Suggested {n} question{'s' if n != 1 else ''} for the Ask box "
+                                                      f"from {len(text):,} characters of workspace titles and topics",
+                                       "output": "\n".join(f"- {q['question']}" + (f" _({q['topic']})_" if q.get("topic") else "")
+                                                           for q in out),
+                                       "results": {"questions": n}})
         except Exception:
             log.warning("ask suggestions: recording %s failed", request_id)
 

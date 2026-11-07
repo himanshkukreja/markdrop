@@ -126,6 +126,14 @@ export function ago(iso: string | null | undefined) {
 
 // ── Features ─────────────────────────────────────────────────────────────────
 
+/** The registry's labels (services/ai_usage.FEATURES), for filters and rows that carry only a key. */
+export const FEATURE_LABEL: Record<string, string> = {
+  docs_ask: "Docs Ask AI", docs_editor: "Guides editor AI", pages_ai: "Pages AI", search_ai: "AI search",
+  analytics_ai: "Analytics AI", meetings_ai: "Meetings AI", ask_suggestions: "Ask suggestions",
+  workspace_memory: "Team memory", jira_ai: "Jira drafts",
+};
+export const featureLabel = (k: string | null | undefined) => (k ? FEATURE_LABEL[k] ?? k : "—");
+
 /** Categorical colours in a fixed order (the backend's FEATURES order), never by rank. A feature
  *  the registry doesn't know yet is "other". */
 const FEATURE_ORDER = ["docs_ask", "docs_editor", "pages_ai", "search_ai", "analytics_ai", "meetings_ai"];

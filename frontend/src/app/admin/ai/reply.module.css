@@ -1,0 +1,45 @@
+/* Admin → AI → Requests: a reply rendered as the person saw it (GFM, citation chips). */
+
+.md { font-size: 14px; line-height: 1.6; color: var(--text); overflow-wrap: anywhere; min-width: 0; }
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 10px; }
+.md h1, .md h2, .md h3, .md h4, .md h5, .md h6 { margin: 14px 0 6px; font-weight: 700; line-height: 1.3; color: var(--text); }
+.md h1 { font-size: 18px; }
+.md h2 { font-size: 16px; }
+.md h3 { font-size: 15px; }
+.md h4, .md h5, .md h6 { font-size: 14px; }
+.md ul, .md ol { margin: 0 0 10px; padding-left: 22px; }
+.md ul { list-style: disc; }
+.md ol { list-style: decimal; }
+.md li { margin: 3px 0; padding-left: 2px; }
+.md li::marker { color: var(--text-muted); }
+.md li > p { margin: 0 0 4px; }
+.md strong { font-weight: 650; }
+.md em { font-style: italic; }
+.md del { text-decoration: line-through; color: var(--text-secondary); }
+.md code { padding: 1px 5px; border-radius: var(--radius-sm); background: var(--surface-inset); font: 500 12.5px/1.5 var(--font-mono); }
+.md pre { margin: 0 0 10px; padding: 10px 12px; border-radius: var(--radius-md); background: var(--surface-inset); overflow-x: auto; max-width: 100%; }
+.md pre code { padding: 0; background: none; white-space: pre; }
+.md blockquote { margin: 0 0 10px; padding-left: 12px; border-left: 2px solid var(--border-strong); color: var(--text-secondary); }
+.md a { color: var(--accent-text); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent); text-underline-offset: 2px; }
+.md a:hover { text-decoration-color: currentColor; }
+.md hr { margin: 12px 0; border: 0; border-top: 1px solid var(--border); }
+.md input[type="checkbox"] { margin-right: 6px; vertical-align: -1px; }
+.table { margin: 0 0 10px; max-width: 100%; overflow-x: auto; }
+.md table { border-collapse: collapse; font-size: 13px; }
+.md th, .md td { padding: 4px 8px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.md th { background: var(--surface-inset); font-weight: 600; }
+.img { color: var(--text-muted); font-style: italic; }
+
+.md a.cite, .cite {
+  position: relative; display: inline-grid; place-items: center; min-width: 19px; height: 18px; margin: 0 1px 0 2px; padding: 0 5px;
+  border-radius: 6px; background: var(--accent-soft); color: var(--accent-text); text-decoration: none;
+  font: 700 11px/18px var(--font-sans); font-variant-numeric: tabular-nums; vertical-align: 2px;
+}
+.md a.cite:hover { background: var(--accent); color: var(--on-accent, #fff); }
+.md a.cite:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 1px; }
+.cite[data-nolink] { background: var(--surface-inset); color: var(--text-secondary); }
+
+.plain { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; color: var(--text); }
+.json { margin: 0; padding: 10px 12px; max-height: 420px; overflow: auto; border-radius: var(--radius-md); background: var(--surface-inset); font: 500 12px/1.5 var(--font-mono); color: var(--text); white-space: pre; }

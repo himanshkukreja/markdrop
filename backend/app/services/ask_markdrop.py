@@ -50,7 +50,7 @@ from typing import Any, AsyncIterator
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import (access, ai_usage, docs_agent, meetings, pages_ai, search, search_ai, search_chunks,
+from app.services import (access, ai_log, ai_usage, docs_agent, meetings, pages_ai, search, search_ai, search_chunks,
                           search_index, urls)
 from app.services import search_text as st
 from app.services import ai_output
@@ -839,6 +839,15 @@ async def clear_threads(db: AsyncIOMotorDatabase, user_id: str) -> int:
 
 async def _save_turn(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None, turn: dict, via: str,
                      extra: dict | None = None) -> str:
+    tid = await _save_turn_row(db, user_id, thread, turn, via, extra)
+    # The AI request log groups the call with the rest of this conversation (services/ai_log.py).
+    await ai_log.link(db, turn.get("request_id"), thread_id=tid, scope_label=(turn.get("scope") or {}).get("label"),
+                      citations=turn.get("citations"))
+    return tid
+
+
+async def _save_turn_row(db: AsyncIOMotorDatabase, user_id: str, thread: dict | None, turn: dict, via: str,
+                         extra: dict | None = None) -> str:
     now = now_utc()
     turn = {**turn, "at": now}
     if thread is not None:
@@ -1326,6 +1335,11 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     history = _history_text(turns)
     run = search_ai.Run(db, uid, via, {"ask": intent, "scope": "workspace" if scope else "all",
                                        "chars_in": len(question), "follow_up": bool(turns)})
+    # The AI request log: the question, the answer as shown, what was sent (services/ai_log.py).
+    run.log.update(input=question or EMPTY_Q.get(intent) or "", workspace_id=scope,
+                   conversation_id=f"t:{thread_id}" if thread is not None else None,
+                   scope_label=(f"This page: {page_raw.get('title') or 'Untitled'}" if page_raw is not None
+                                else "My files" if mine else None if scope else "Everything"))
 
     async def finish(answer: str, citations: list[dict], ranked: list[dict], *, stop: str | None, record: bool,
                      outcome: str = "ok", **extra) -> tuple[str, dict]:
@@ -1335,6 +1349,9 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
                                                      "citations": citations, "request_id": run.request_id,
                                                      **(turn_extra or {})}, via)
         if record:
+            run.log.update(output=answer, citations=citations)
+            if tid and not run.log.get("conversation_id"):
+                run.log["conversation_id"] = f"t:{tid}"
             await run.record(outcome, stop_reason=stop, chars_out=len(answer), cited=len(citations), **extra)
         return ev("done", request_id=run.request_id, thread_id=tid, intent=intent, answer=answer,
                   citations=citations, ranked=ranked, usage=run.usage(), truncated=stop == "max_tokens")
@@ -1410,6 +1427,9 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
 
         yield ev("status", stage="answering")
         by_n = {s.n: s for s in sources}
+        run.log["context"] = [{"kind": s.item.get("kind"), "title": s.item.get("title") or s.attrs.get("title"),
+                               "id": s.item.get("key"), "url": s.item.get("web_url") or s.item.get("url")}
+                              for s in sources]
         asked = ((you.block() + "\n\n" if you is not None else "")
                  + f"The question (from the person asking, not from a document): {question}"
                  + (f"\n(As a standalone question: {standalone})" if standalone != question else "")
