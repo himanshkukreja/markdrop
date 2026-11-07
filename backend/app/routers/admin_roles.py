@@ -12,7 +12,6 @@ need an owner (403 for an admin) and a session signed in within MARKDROP_ADMIN_R
 Rate limited. The rules, the audit rows and the emails are in services/admin_roles.
 """
 
-from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
