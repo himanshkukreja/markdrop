@@ -260,6 +260,22 @@ await step("stranger", async () => {
   if (await chips(p).count()) fail("chips on an empty Shared with me");
 });
 
+// DOC_SHOTS=<dir>: the docs' My files picture (get-started/tour my-files[.dark].webp is 2760×1400:
+// the app below its header, at 2×). Off in CI.
+if (process.env.DOC_SHOTS) {
+  await step("docshot", async () => {
+    for (const theme of ["light", "dark"]) {
+      const c = await browser.newContext({ viewport: { width: 1380, height: 756 }, deviceScaleFactor: 2, colorScheme: theme });
+      await c.addInitScript(([t, th]) => { localStorage.setItem("markdrop_token", t); localStorage.setItem("md_theme", th); localStorage.setItem("md_consent", "denied"); }, [T.owner, theme]);
+      const p = await c.newPage();
+      await p.goto(`${APP}/dashboard/files`);
+      await chip(p, "Videos").waitFor();
+      await p.waitForTimeout(800);
+      await p.screenshot({ path: path.join(process.env.DOC_SHOTS, `my-files${theme === "dark" ? ".dark" : ""}.png`), clip: { x: 0, y: 56, width: 1380, height: 700 } });
+    }
+  });
+}
+
 await browser.close();
 const failed = results.filter((r) => r[1] !== "ok");
 console.log(`\n${BROWSER}: ${results.length - failed.length}/${results.length} passed`);
