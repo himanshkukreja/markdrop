@@ -24,6 +24,25 @@
   "next": [],
   "entries": [
     {
+      "id": "viewer-analytics",
+      "date": "2026-11-07",
+      "title": "See who viewed your links, and what each view did",
+      "kind": "new",
+      "area": "Analytics",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "A new Viewers tab lists every view of a document or file: who it was (signed-in viewers by name, everyone else as an anonymous visitor), when, how long and how far, where they opened it from and on what, with a timeline of what they did in it.",
+      "body": "- **Every view.** Signed-in viewers show with their name and email address. Everyone else is an anonymous **Visitor** with a short code from their browser, so a return visit shows as one. Never an IP address; location is city level at most.\n- **Where from and on what.** City, region, country and timezone; phone, tablet or computer; the operating system and browser with versions, or the app it was opened in (Slack, LinkedIn, WhatsApp…); screen size and language; the installed app or an embedding page; and the source, like Slack, email, Google or a Markdrop workspace page.\n- **A timeline per view.** Sections and pages read with the time in each, jumps, slides and spreadsheet tabs, video watched, paused and skipped, scroll depth, links opened, code copied, downloads, prints, questions asked with Ask AI and sign-offs.\n- **Filter and export.** Signed in or anonymous, completion, and breakdowns by country, city, device, OS, browser and source that filter the list. **By person** rolls views up per person. **CSV** exports every view.\n- **Who sees it.** The owner, and for a workspace item its admins and editors. Its viewers see the number of views only. Your own views are hidden unless you turn off **Hide my own views**.\n- **Kept 180 days.** Each view's detail is deleted after 180 days; the numbers on the other tabs are kept as before. In **Settings → Account** you can take your name off the views you made of other people's items.\n- **For your assistant.** New MCP tools `get_document_viewers` and `get_view_timeline`.",
+      "docs": [
+        "/analytics/viewers",
+        "/analytics/what-gets-counted",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "meeting-attendees-not-next-steps",
       "date": "2026-11-06",
       "title": "Gemini's next steps are no longer attendees, and notes-only meetings list who the notes name",

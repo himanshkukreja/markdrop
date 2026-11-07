@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-06"
+    "x-markdrop-exported": "2026-11-07"
   },
   "paths": {
     "/api/v1/trash": {
@@ -7330,6 +7330,606 @@
           "auth": "token",
           "rateLimits": [
             "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Viewers",
+        "description": "Every view in the range, newest first: who (a signed-in viewer's name and email, or an\nanonymous \"Visitor\"), when, active time, how much they got through, where from and on what;\nplus totals and breakdowns (country, city, device, OS, browser, source). ``own=1`` includes\nthe owner's own views (hidden by default). A viewer of a workspace item gets ``totals`` only.",
+        "operationId": "analytics_viewers_api_v1_me_documents__slug__analytics_viewers_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|signed_in|anonymous)$",
+              "default": "all",
+              "title": "Who"
+            }
+          },
+          {
+            "name": "completion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(any|low|mid|high|done)$",
+              "default": "any",
+              "title": "Completion"
+            }
+          },
+          {
+            "name": "own",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Own"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Internal"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "device",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device"
+            }
+          },
+          {
+            "name": "os",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Os"
+            }
+          },
+          {
+            "name": "browser",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Browser"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers.csv": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Viewers Csv",
+        "operationId": "analytics_viewers_csv_api_v1_me_documents__slug__analytics_viewers_csv_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|signed_in|anonymous)$",
+              "default": "all",
+              "title": "Who"
+            }
+          },
+          {
+            "name": "completion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(any|low|mid|high|done)$",
+              "default": "any",
+              "title": "Completion"
+            }
+          },
+          {
+            "name": "own",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Own"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Internal"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "device",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device"
+            }
+          },
+          {
+            "name": "os",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Os"
+            }
+          },
+          {
+            "name": "browser",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Browser"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers/people": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Viewer People",
+        "description": "One row per person (or anonymous visitor): their views, total active time, best completion.",
+        "operationId": "analytics_viewer_people_api_v1_me_documents__slug__analytics_viewers_people_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|signed_in|anonymous)$",
+              "default": "all",
+              "title": "Who"
+            }
+          },
+          {
+            "name": "own",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Own"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Internal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers/{view_id}": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics View Timeline",
+        "description": "One view: its header (who, where from, on what, time, completion) and its activity\ntimeline as readable steps.",
+        "operationId": "analytics_view_timeline_api_v1_me_documents__slug__analytics_viewers__view_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "view_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "View Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/view-history": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "My View History",
+        "description": "The documents and files you viewed while signed in, as their owners see it (newest first).",
+        "operationId": "my_view_history_api_v1_me_view_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Forget My View History",
+        "description": "Take your name off every view you made: owners then see those views as anonymous ones.",
+        "operationId": "forget_my_view_history_api_v1_me_view_history_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
           ]
         }
       }

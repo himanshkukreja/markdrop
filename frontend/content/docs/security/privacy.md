@@ -1,8 +1,8 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-11-05
-keywords: [privacy, search log, content gaps, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
+updated: 2026-11-07
+keywords: [privacy, viewers, who viewed, view history, search log, content gaps, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 
 This page explains, in plain terms, what Markdrop keeps and why. The [privacy policy](https://markdrop.in/privacy) is the formal version.
@@ -23,9 +23,13 @@ There's no delete button in Settings yet. To delete your account and everything 
 
 ## What your readers' visits record
 
-When someone opens your link, Markdrop counts the view for your analytics. It stores a salted hash of their IP address, never the address itself, and the approximate location looked up from it. You see totals and countries, never who someone is. Your own views aren't counted.
+When someone opens your link, Markdrop counts the view for your analytics. It stores a salted hash of their IP address, never the address itself, and the approximate location looked up from it. Your own views aren't counted.
 
-Reading and watching sessions are deleted after 395 days. [What gets counted](/analytics/what-gets-counted) has the full list.
+The [Viewers](/analytics/viewers) tab also lists each view: a signed-in viewer by name and email address, everyone else as an anonymous **Visitor**, with where they opened it from (city, region and country), on what (device, operating system and browser with versions, the app, screen size and language), where they came from, and a timeline of what they did in it. Only the owner sees this, and for an item in a workspace its admins and editors; the workspace's viewers see the number of views only.
+
+When **you** open someone else's document or file while signed in, its owner sees your name with your view. In **Settings → Account → Your views of other people's items** you can take your name off all of them; they stay as anonymous views.
+
+Reading and watching sessions are deleted after 395 days, and each view's detail on the Viewers tab after 180 days. [What gets counted](/analytics/what-gets-counted) has the full list.
 
 ## What searching a workspace records
 
