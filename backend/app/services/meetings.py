@@ -899,11 +899,11 @@ def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool
 # ── Who was there (attendees_v 2, owner 2026-11-06) ───────────────────────────
 # attendees: who joined (a transcript's "Attendees" list and its speakers; else the speakers);
 # invited: the calendar invite (Gemini notes' "Invited"), kept apart: not counted, never "attendees".
-# attendees_v 3 (2026-11-06): Gemini's next steps ("Gautam Khurana Review Video: Gautam Khurana will …")
+# attendees_v 3 (2026-11-06): Gemini's next steps ("Nikhil Bansal Review Video: Nikhil Bansal will …")
 # are never speakers or attendees (meeting_parse.task_owner); repair_attendees fixes the old ones.
 # attendees_v 4 (2026-11-06): a meeting with only Gemini's notes lists the people the notes name as its
 # attendees ("notes", notes_attendees), not nobody.
-# attendees_v 5 (2026-11-07): bracketed owners ("[Gautam] Post Video"), Gemini's placeholders, the lines
+# attendees_v 5 (2026-11-07): bracketed owners ("[Nikhil] Post Video"), Gemini's placeholders, the lines
 # v4 dropped read back from the trashed Transcript page, chip lines as the invite.
 ATTENDEES_V = 5
 ATTENDEES_V2 = 2   # attendees told apart from the invite (recompute_people)
@@ -926,7 +926,7 @@ def person_rows(found: list[dict], people: People, *, limit: int = 100) -> list[
             uid = mem["id"] if mem else None
         name = p["name"] or (mem or {}).get("name") or ""
         if mem and mem.get("name") and mp.task_owner(name, None, [mem["name"]]):
-            name = mem["name"]      # "Gautam Khurana Review Video" (a next step's label) is the member
+            name = mem["name"]      # "Nikhil Bansal Review Video" (a next step's label) is the member
         if not name or not (mp.name_like(name) or uid or email):
             continue
         if any((uid and x.get("user_id") == uid) or (email and x.get("email") == email)
@@ -943,8 +943,8 @@ def notes_attendees(notes: dict | None, invited: list[dict], people: People,
     """Who Gemini's notes show joined a call that has nothing better (no transcript, no Attendees line):
     the invited people the notes name (a next step's owner, a full name, a first name only one of them
     has: meeting_parse.named_in_notes); then anyone the workspace knows (``universe``: members, every
-    invitee, the names Gemini's labels start with) who owns a next step ("Shreesha Joshi Audit Alerts:
-    …", "Rehan Establish Structure: …") or whom the notes name by full name. As meeting rows, once each."""
+    invitee, the names Gemini's labels start with) who owns a next step ("Lavanya Rao Audit Alerts:
+    …", "Imran Establish Structure: …") or whom the notes name by full name. As meeting rows, once each."""
     u = universe or mp.Universe([{"name": m.get("name"), "email": m.get("email"), "user_id": m["id"]}
                                  for m in people.members])
     notes = mp.clean_empty_notes(notes)
@@ -952,7 +952,7 @@ def notes_attendees(notes: dict | None, invited: list[dict], people: People,
     for step in (notes or {}).get("next_steps") or []:
         head = str(step).partition(":")[0]
         owners = mp.bracket_owners(head, u)
-        if owners:      # "[Mayuri Pillay, Rehan Islam] Prepare Presentation: …"
+        if owners:      # "[Nandini Pai, Imran Qureshi] Prepare Presentation: …"
             found.extend(dict(u.get(o) or {"name": o}) for o in owners if u.get(o))
             continue
         hit, _extra = u.owner(head)
@@ -994,7 +994,7 @@ def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
             out.append(a)       # an address (the invite) says who it is
             continue
         if len(name.split()) >= 4 and not a.get("email"):
-            # People chips run together ("Himanshu Kukreja Arunprakaash G Jason Chad"): each of them.
+            # People chips run together ("Siddharth Menon Balakrishnan R Oliver Grant"): each of them.
             glued = mp._split_glued(name, universe.names())
             if glued and len(glued) >= 2 and all(universe.get(g["name"]) for g in glued):
                 out.extend(dict(universe.get(g["name"])) for g in glued)
@@ -1016,8 +1016,8 @@ def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
 
 async def people_universe(db: AsyncIOMotorDatabase, workspace_id: str, people: People) -> mp.Universe:
     """Everyone the workspace knows (prod dry run, 2026-11-06): its members; every invitee and attendee
-    of its meetings with an address; the two-word names Gemini's labels keep starting with ("Shreesha
-    Joshi" from "Shreesha Joshi Audit Alerts" and "Shreesha Joshi Escalate Security"); and a clean 2-3
+    of its meetings with an address; the two-word names Gemini's labels keep starting with ("Lavanya
+    Rao" from "Lavanya Rao Audit Alerts" and "Lavanya Rao Escalate Security"); and a clean 2-3
     word name that is a whole speaker label in two or more meetings."""
     u = mp.Universe([{"name": m.get("name"), "email": m.get("email"), "user_id": m["id"]} for m in people.members])
     labels: list[str] = []
@@ -1691,8 +1691,8 @@ async def count_dirty_names(db: AsyncIOMotorDatabase, *, workspace_id: str | Non
 
 # ── Repair: attendees_v 2 and 3 (owner, 2026-11-06) ───────────────────────────
 # v2: attendees told apart from the invite (recompute_people). v3: Gemini's next steps
-# ("Gautam Khurana Review Video: Gautam Khurana will review the video …") had been read as transcript
-# turns, so "Gautam Khurana Review Video" was a speaker and an attendee (51 of Senseloaf's 166
+# ("Nikhil Bansal Review Video: Nikhil Bansal will review the video …") had been read as transcript
+# turns, so "Nikhil Bansal Review Video" was a speaker and an attendee (51 of a pilot workspace's 166
 # meetings). The fake turns came from the notes Doc: dropped (a meeting with Gemini notes and no real
 # transcript has no transcript any more); elsewhere the owner is the speaker. Attendees follow.
 

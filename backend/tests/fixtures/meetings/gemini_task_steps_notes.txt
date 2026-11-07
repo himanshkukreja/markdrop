@@ -1,7 +1,7 @@
 📝 Notes
 Nov 5, 2026
 # Release Review
-Invited Ada Lovelace <ada@acme.test> Bo Chen <bo@acme.test> Priya Sharma <priya@acme.test> Gautam Khurana <gautam@senseloaf.test> Palak Jain <palak@senseloaf.test> Shreesha Joshi <shreesha@senseloaf.test> S Guruprasad <guru@senseloaf.test> Himanshu Kukreja <himanshu@senseloaf.test>
+Invited Ada Lovelace <ada@acme.test> Bo Chen <bo@acme.test> Priya Sharma <priya@acme.test> Nikhil Bansal <nikhil@acme-hr.test> Meera Kapoor <meera@acme-hr.test> Lavanya Rao <lavanya@acme-hr.test> K Raghavan <raghavan@acme-hr.test> Siddharth Menon <siddharth@acme-hr.test>
 Attachments Release Review
 Meeting records
 Transcript
@@ -11,16 +11,16 @@ Recording
 The team reviewed the release video, the email bug and the security testing plan, and agreed to ship on Friday once the use cases pass on staging.
 
 ## Details
-- Release Video Review: Gautam Khurana walked through the release video and asked for a shorter intro. Bo Chen agreed to trim the first minute (00:02:10).
-- Email Bug: Palak Jain reported that the invite email still shows the old logo for some clients (00:06:45).
-- Security Testing: Shreesha Joshi shared the plan for the penetration test next week (00:11:30).
+- Release Video Review: Nikhil Bansal walked through the release video and asked for a shorter intro. Bo Chen agreed to trim the first minute (00:02:10).
+- Email Bug: Meera Kapoor reported that the invite email still shows the old logo for some clients (00:06:45).
+- Security Testing: Lavanya Rao shared the plan for the penetration test next week (00:11:30).
 
 ## Suggested next steps
-- Gautam Khurana Review Video: Gautam Khurana will review the video recording of the release and share feedback with the team.
-- Palak Jain Fix Email Bug: Palak Jain will fix the email bug where the invite shows the old logo.
-- Shreesha Joshi Security Testing: Shreesha Joshi will run the security testing on staging next week.
-- Himanshu Kukreja Update Prompts: Himanshu Kukreja will update the prompts for the summary model.
-- S Guruprasad Test Use Cases: S Guruprasad will test the use cases on staging before Friday.
+- Nikhil Bansal Review Video: Nikhil Bansal will review the video recording of the release and share feedback with the team.
+- Meera Kapoor Fix Email Bug: Meera Kapoor will fix the email bug where the invite shows the old logo.
+- Lavanya Rao Security Testing: Lavanya Rao will run the security testing on staging next week.
+- Siddharth Menon Update Prompts: Siddharth Menon will update the prompts for the summary model.
+- K Raghavan Test Use Cases: K Raghavan will test the use cases on staging before Friday.
 - Bo Chen Trim Intro: Bo Chen will trim the first minute of the release video.
 
 You should review Gemini's notes to make sure they're accurate. Get tips and learn how Gemini takes notes

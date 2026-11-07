@@ -421,7 +421,7 @@ def _strip_bullet(line: str) -> str:
 def notes_span(lines: list[str]) -> set[int]:
     """The indices of the lines that belong to a notes section (Summary / Details / Suggested next
     steps / Action items, their headings included), the way :func:`parse_notes` reads them: never a
-    transcript's turns (a Gemini next step "Gautam Khurana Review Video: Gautam Khurana will …" reads
+    transcript's turns (a Gemini next step "Nikhil Bansal Review Video: Nikhil Bansal will …" reads
     like a speaker's line, owner 2026-11-06)."""
     out: set[int] = set()
     sect: str | None = None
@@ -798,7 +798,7 @@ _ORGANIZER = re.compile(r"^(?:#+\s*)?(?:[-*]\s*)?(?:\*\*)?(?:meeting\s+)?(?:orga
 
 
 def organizer_in(text: str) -> dict | None:
-    """Who organized the call, where the text says so ("Organizer: Gautam Rao <gautam@…>",
+    """Who organized the call, where the text says so ("Organizer: Nikhil Rao <nikhil@…>",
     "Hosted by …"), in its first lines: {name, email} or None. Never guessed from anything else, and
     never a turn of someone called "Host" ("Host: Welcome, everyone.")."""
     lines = (text or "").split("\n")
@@ -860,8 +860,8 @@ def name_like(name: str | None) -> bool:
 
 
 # ── "<Owner Name> <Task Title>" (Gemini's next steps, owner 2026-11-06) ──────────
-# Gemini writes a next step as "Gautam Khurana Review Video: Gautam Khurana will review the video …".
-# Read as a speaker's turn it made "Gautam Khurana Review Video" an attendee (51 of 166 meetings). The
+# Gemini writes a next step as "Nikhil Bansal Review Video: Nikhil Bansal will review the video …".
+# Read as a speaker's turn it made "Nikhil Bansal Review Video" an attendee (51 of 166 meetings). The
 # label is a known person's name followed by a Title Case task, or the words after the colon start with
 # the label's first words (the owner, said again).
 _TASK_SMALL = frozenset("a an and as at by for from in into of on or per the to via vs with & + - / –".split())
@@ -885,7 +885,7 @@ def task_owner(label: str | None, text: str | None = None, known: list[str] | tu
     * the longest known person's name (2+ words; ``known``: the invite, the attendees, the members)
       that starts it, followed by a Title Case task;
     * else the longest start of it (1-3 words) that the words after the colon (``text``) start with,
-      followed by a Title Case task ("Palak Jain Fix Email Bug" / "Palak Jain will fix …"); the label
+      followed by a Title Case task ("Meera Kapoor Fix Email Bug" / "Meera Kapoor will fix …"); the label
       is 3+ words then, so "Bo Chen" saying "Bo, can you …" is never a task.
 
     Never fuzzy: "Mohd Arif Khan" is a task of "Mohd Arif" only when "Khan" reads as a task title."""
@@ -902,7 +902,7 @@ def task_owner(label: str | None, text: str | None = None, known: list[str] | tu
             best = kw
     def rest_ok(rest: list[str]) -> bool:
         # A task title: it starts with a verb ("Create navbar iteration"), or is Title Case words when
-        # the whole label can't be a name ("Shreesha Joshi Security Testing", never "Saurabh Kr. Singh").
+        # the whole label can't be a name ("Lavanya Rao Security Testing", never "Saurabh Kr. Singh").
         return bool(rest) and rest[0][:1].isupper() and \
             (_wkey(rest[0]) in _TASK_VERBS or (_task_words(rest) and not _person_shape(words)))
 
@@ -913,7 +913,7 @@ def task_owner(label: str | None, text: str | None = None, known: list[str] | tu
         for n in range(min(3, len(words) - 1), 0, -1):
             if keys[:n] != tkeys[:n]:
                 continue
-            # "Himanshu Kukreja Update Prompts: Himanshu will …": a first name said again, a full name in
+            # "Siddharth Menon Update Prompts: Siddharth will …": a first name said again, a full name in
             # the label (a task is rarely one word when the label is 4+).
             if n == 1 and len(words) >= 4 and name_like(" ".join(words[:2])) and \
                     _wkey(words[1]) not in _TASK_VERBS and rest_ok(words[2:]):
@@ -924,7 +924,7 @@ def task_owner(label: str | None, text: str | None = None, known: list[str] | tu
 
 
 def owner_of_step(step: str | None, known: list[str] | tuple = ()) -> str | None:
-    """A next step's owner: "Gautam Khurana Review Video: Gautam Khurana will …" → "Gautam Khurana" (a
+    """A next step's owner: "Nikhil Bansal Review Video: Nikhil Bansal will …" → "Nikhil Bansal" (a
     known person's name at its start, the label's owner, or the first 2-3 capitalised words followed by
     a Title Case task); None when it doesn't name one."""
     s = clean_name(step) if step and "](" in step else (step or "").strip()
@@ -1013,7 +1013,7 @@ def clean_task_speakers(segments: list[dict], known: list[str] | tuple = (), *,
 
 
 def resolve_speaker(name: str | None, known: list[str] | tuple = (), text: str | None = None) -> str | None:
-    """A speaker's name as a person: "Gautam Khurana Review Video" → "Gautam Khurana" (a known person
+    """A speaker's name as a person: "Nikhil Bansal Review Video" → "Nikhil Bansal" (a known person
     followed by a task), the name itself when it reads as one, None when it doesn't (not a person)."""
     n = clean_name(name)
     if not n:
@@ -1025,8 +1025,8 @@ def resolve_speaker(name: str | None, known: list[str] | tuple = (), text: str |
 
 
 # ── The people a workspace knows (prod dry run, 2026-11-06) ────────────────────
-# Gemini's next-step labels name people the meeting's invite often doesn't ("Shreesha Joshi Audit
-# Alerts", "Rehan Establish Structure", "Venkat Phanindra Add images"). A label is read against every
+# Gemini's next-step labels name people the meeting's invite often doesn't ("Lavanya Rao Audit
+# Alerts", "Imran Establish Structure", "Harsha Vardhan Add images"). A label is read against every
 # person the workspace knows (members, every invitee and attendee with an address, names that recur
 # as a whole speaker label, and the two-word names Gemini's labels keep starting with); a label that
 # starts with no one is not a person.
@@ -1041,7 +1041,7 @@ action items next steps open questions decisions decision topic topics overview 
 google slack zoom jira notion microsoft linkedin aws azure openai stripe knowledge transfer verification proctoring
 recording recordings transcript transcripts payment payments billing documentation docs
 """.split())
-# The verbs Gemini's next-step titles start with ("Rehan Establish Structure"): never a surname.
+# The verbs Gemini's next-step titles start with ("Imran Establish Structure"): never a surname.
 _TASK_VERBS = frozenset("""
 add adjust align analyze analyse ask assess audit automate book build call capture check clean collaborate compare
 conduct configure consolidate coordinate complete confirm connect contact create ensure get handle look post provide
@@ -1059,7 +1059,7 @@ _TOPIC_ENDS = (("ing", 9), ("tion", 7), ("tions", 8), ("ment", 9), ("ments", 9),
 
 def topicish(name: str | None) -> bool:
     """A heading, not a person: "Workflow Automation", "Standardizing Demo Flows", "AI Assessment
-    Endpoint Security Vulnerability", "Positioning Senso versus Competitors"."""
+    Endpoint Security Vulnerability", "Positioning Acme versus Competitors"."""
     words = clean_name(name).split()
     if not words:
         return True
@@ -1083,8 +1083,8 @@ class Universe:
     """Everyone a workspace (or one Doc) knows: {name, email, user_id} once each, by full name.
 
     :meth:`owner` reads a label: the longest known full name it starts with (any case), else a first
-    name only one known person has (or 4+ letters that start only one person's first name: "Arun" for
-    "Arunprakaash G"), with how many words follow it."""
+    name only one known person has (or 4+ letters that start only one person's first name: "Bala" for
+    "Balakrishnan R"), with how many words follow it."""
 
     def __init__(self, people: list[dict] | None = None):
         self.people: list[dict] = []
@@ -1139,15 +1139,15 @@ class Universe:
         if words and words[0][:1].isupper() and rest_task:
             hit = self._by_key.get((keys[0],)) or self._first(words[0])
             if hit is not None:
-                # "Shreya Research Visitor Emails" is Shreya; "Shreya Sharma" (a surname, not a task) is not
+                # "Tanvi Research Visitor Emails" is Shreya; "Tanvi Desai" (a surname, not a task) is not
                 # whoever else is called Shreya.
                 return hit, len(words) - 1
         return None, 0
 
 
 def mine_names(labels: list[str]) -> list[str]:
-    """Two-word names Gemini's labels keep starting with: "Shreesha Joshi" from "Shreesha Joshi Audit
-    Alerts" and "Shreesha Joshi Escalate Security" (two different continuations), never a heading's
+    """Two-word names Gemini's labels keep starting with: "Lavanya Rao" from "Lavanya Rao Audit
+    Alerts" and "Lavanya Rao Escalate Security" (two different continuations), never a heading's
     start ("Standardizing Demo")."""
     conts: dict[tuple, set[str]] = {}
     shown: dict[tuple, str] = {}
@@ -1168,8 +1168,8 @@ _BRACKET_OWNER = re.compile(r"^\W{0,4}\[([^\[\]]{2,120})\]\s*(\S.*)$")
 
 
 def bracket_owners(label: str | None, universe: Universe | None = None) -> list[str]:
-    """The owners Gemini's newer next steps put in brackets: "[Gautam] Post Video", "[Mayuri Pillay,
-    Rehan Islam] Prepare Presentation" → the people they are (a known person by full or first name,
+    """The owners Gemini's newer next steps put in brackets: "[Nikhil] Post Video", "[Nandini Pai,
+    Imran Qureshi] Prepare Presentation" → the people they are (a known person by full or first name,
     else the bracketed name when it reads as one). [] when the label isn't that shape."""
     m = _BRACKET_OWNER.match(str(label or ""))
     if not m:
@@ -1221,8 +1221,8 @@ def clean_empty_notes(notes: dict | None) -> dict | None:
 
 
 def chip_people(text: str | None, *, at_least: int = 3) -> list[dict]:
-    """People chips run along a line with no label ("### Daily Standup Gautam Khurana <gautam@…> Abhishek
-    Ganotra <abhishek@…> …", newer Gemini notes): each chip's name (the name words right before the
+    """People chips run along a line with no label ("### Daily Standup Nikhil Bansal <nikhil@…> Rohit
+    Batra <rohit@…> …", newer Gemini notes): each chip's name (the name words right before the
     address) and address; [] for fewer than ``at_least`` chips."""
     out: list[dict] = []
     for m in _ANGLE.finditer(text or ""):
@@ -1246,7 +1246,7 @@ def notes_text(notes: dict | None) -> str:
 def named_in_notes(notes: dict | None, people: list[dict], *, first_names: bool = True) -> list[dict]:
     """Those of ``people`` (the invite) that Gemini's notes name, in order: a next step's owner, the full
     name anywhere (any case), or, with ``first_names``, a first name only one of them has (written with
-    its capital: "Gautam said …", never "will"). Owner 2026-11-06: a sync-up with only Gemini's notes
+    its capital: "Nikhil said …", never "will"). Owner 2026-11-06: a sync-up with only Gemini's notes
     lists the people they name as its attendees ("notes"); the rest of the invite stays invited."""
     text = notes_text(notes)
     if not text or not people:
@@ -1416,7 +1416,7 @@ def _with_speakers(listed: list[dict], speakers: list[str], invited: list[dict])
     known = [p["name"] for p in [*listed, *invited] if p.get("name")] + \
         [clean_name(s) for s in speakers if 2 <= len(clean_name(s).split()) <= 3]
     for sp in speakers:
-        # "Gautam Khurana Review Video" (a next step read as a turn) is Gautam Khurana; not a name: nobody.
+        # "Nikhil Bansal Review Video" (a next step read as a turn) is Nikhil Bansal; not a name: nobody.
         sp = resolve_speaker(sp, known) or ""
         if not sp or any(_covers(sp, p["name"]) for p in out):
             continue

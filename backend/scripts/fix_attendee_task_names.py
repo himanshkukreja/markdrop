@@ -1,9 +1,9 @@
 """One-off: Gemini's next steps taken for speakers and attendees (2026-11-06, ``attendees_v`` 3), and
 meetings with only Gemini's notes listing the people the notes name as attendees (``attendees_v`` 4).
 
-Gemini writes a next step as "Gautam Khurana Review Video: Gautam Khurana will review the video …". The
-parser read those lines as transcript turns, so "Gautam Khurana Review Video" became a speaker, and an
-attendee (51 of Senseloaf's 166 meetings). meetings.repair_attendees fixes every meeting (all
+Gemini writes a next step as "Nikhil Bansal Review Video: Nikhil Bansal will review the video …". The
+parser read those lines as transcript turns, so "Nikhil Bansal Review Video" became a speaker, and an
+attendee (51 of a pilot workspace's 166 meetings). meetings.repair_attendees fixes every meeting (all
 workspaces): fake turns that came from the notes Doc dropped (no real transcript left: the meeting has
 none, its unedited Transcript page goes to the Trash), elsewhere the owner is the speaker; a meeting
 with nobody known to have joined and Gemini's notes gets the people the notes name ("notes"); attendees
