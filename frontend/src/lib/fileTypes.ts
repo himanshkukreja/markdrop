@@ -61,6 +61,12 @@ export function readTypeFilter(params: URLSearchParams): TypeFilter {
   return "all";
 }
 
+/** ?type= alone (Shared with me, Recent, folders: no older ?kind= meaning to honour). */
+export function readTypeParam(params: URLSearchParams): "all" | FileType {
+  const t = params.get("type");
+  return isFileType(t) ? t : "all";
+}
+
 /** What the list endpoint is asked for. */
 export function typeQuery(f: TypeFilter): { type?: FileType; kind?: "artifact" } {
   if (f === "all") return {};
@@ -103,15 +109,31 @@ export function visibleTypeChips(
   return out;
 }
 
+/**
+ * Whether a list whose own type filter isn't in use is worth a chip row at all: on Shared with me,
+ * Recent and a folder, a row reading "All 6 · Documents 6" is noise. Shown once the list holds two
+ * types or more, and always while a type is selected (so it can be cleared).
+ */
+export function typeChipsWorthShowing(
+  selected: TypeFilter,
+  byType: Partial<Record<FileType, number>> | null | "unknown",
+): boolean {
+  if (selected !== "all") return true;
+  if (!byType || byType === "unknown") return false;
+  return Object.values(byType).filter((n) => (n ?? 0) > 0).length >= 2;
+}
+
 /* ── Remembered per view (this device) ──────────────────────────────────── */
 
-export const TYPE_REMEMBER_KEY = "md:files:type";
+/** `view`: "files" (My files), "shared", "recent", or "folder:<workspace>:<folder|root>". */
+export const typeRememberKey = (view = "files") => `md:${view}:type`;
+export const TYPE_REMEMBER_KEY = typeRememberKey("files");
 
 type Store = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
-export function readRememberedType(store: Store | null | undefined): FileType | null {
+export function readRememberedType(store: Store | null | undefined, view = "files"): FileType | null {
   try {
-    const v = store?.getItem(TYPE_REMEMBER_KEY) ?? null;
+    const v = store?.getItem(typeRememberKey(view)) ?? null;
     return isFileType(v) ? v : null;
   } catch {
     return null;
@@ -119,19 +141,20 @@ export function readRememberedType(store: Store | null | undefined): FileType | 
 }
 
 /** Remembers a type; All (and the old "every file" link) forget it. */
-export function rememberType(store: Store | null | undefined, f: TypeFilter): void {
+export function rememberType(store: Store | null | undefined, f: TypeFilter, view = "files"): void {
   try {
-    if (isFileType(f)) store?.setItem(TYPE_REMEMBER_KEY, f);
-    else store?.removeItem(TYPE_REMEMBER_KEY);
+    if (isFileType(f)) store?.setItem(typeRememberKey(view), f);
+    else store?.removeItem(typeRememberKey(view));
   } catch {
     /* private mode, blocked storage: the filter just isn't remembered */
   }
 }
 
 /**
- * Whether opening My files at `params` should bring back the remembered type: only a bare visit
- * (no type, kind, search or page in the link), so a shared or bookmarked link always means what it says.
+ * Whether opening a list at `params` should bring back the remembered type: only a bare visit (no
+ * type, kind, search, page, view or preview in the link), so a shared or bookmarked link always
+ * means what it says.
  */
 export function shouldRestoreType(params: URLSearchParams): boolean {
-  return !["type", "kind", "q", "page"].some((k) => params.has(k));
+  return !["type", "kind", "q", "page", "view", "preview", "filter"].some((k) => params.has(k));
 }

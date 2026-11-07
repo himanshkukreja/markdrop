@@ -7,6 +7,7 @@
 import { isPrimaryHost } from "@/components/tenant/hosts";
 import { API_BASE, type MyDocListItem, type MyDocListResponse } from "@/lib/api";
 import { announce } from "@/lib/navBus";
+import type { FileType } from "@/lib/fileTypes";
 
 const TOKEN_KEY = "markdrop_token";
 
@@ -658,19 +659,22 @@ export interface ItemsPage {
   /** Admin-only placeholders for private documents they can't open (see RedactedItem). */
   redacted: RedactedItem[];
   next_cursor: string | null;
+  /** First page: the scope's readable items per file type (lib/fileTypes), whatever the filters. */
+  count_by_type?: Partial<Record<FileType, number>> | null;
 }
 
-/** `folder`: a folder id, "root" (filed at the top), "unfiled" or "all". */
+/** `folder`: a folder id, "root" (filed at the top), "unfiled" or "all". `type`: one file type. */
 export const listWorkspaceItems = async (
   id: string,
-  opts: { folder: string; q?: string; kind?: string; cursor?: string | null; limit?: number }
+  opts: { folder: string; q?: string; kind?: string; type?: FileType; cursor?: string | null; limit?: number }
 ): Promise<ItemsPage> => {
   const p = new URLSearchParams({ folder: opts.folder });
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
+  if (opts.type) p.set("type", opts.type);
   if (opts.cursor) p.set("cursor", opts.cursor);
   p.set("limit", String(opts.limit ?? 50));
-  const r = await request<{ items: Array<WorkspaceItem | RedactedItem>; next_cursor: string | null }>(
+  const r = await request<{ items: Array<WorkspaceItem | RedactedItem>; next_cursor: string | null; count_by_type?: Partial<Record<FileType, number>> | null }>(
     `/api/v1/workspaces/${encodeURIComponent(id)}/items?${p}`
   );
   const rows = r.items ?? [];
@@ -679,6 +683,7 @@ export const listWorkspaceItems = async (
     items: rows.filter((x): x is WorkspaceItem => !isRedacted(x)),
     redacted: rows.filter(isRedacted).filter((x) => !!x.id_token),
     next_cursor: r.next_cursor ?? null,
+    count_by_type: r.count_by_type ?? null,
   };
 };
 

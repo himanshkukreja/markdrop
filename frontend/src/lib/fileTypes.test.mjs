@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   FILE_TYPES, TYPE_META, TYPE_REMEMBER_KEY, countFor, readRememberedType, readTypeFilter, rememberType,
-  shouldRestoreType, typeQuery, typeUrlPatch, visibleTypeChips,
+  shouldRestoreType, typeChipsWorthShowing, typeQuery, typeRememberKey, typeUrlPatch, visibleTypeChips,
 } from "./fileTypes.ts";
 
 const P = (s) => new URLSearchParams(s);
@@ -81,5 +81,28 @@ test("remembered per view: a type is kept, All forgets, bad or blocked storage i
 test("only a bare visit restores the remembered type", () => {
   assert.equal(shouldRestoreType(P("")), true);
   assert.equal(shouldRestoreType(P("gdocs=connected")), true);
-  for (const s of ["type=pdf", "kind=artifact", "q=road", "page=2"]) assert.equal(shouldRestoreType(P(s)), false, s);
+  for (const s of ["type=pdf", "kind=artifact", "q=road", "page=2", "view=table", "preview=anyone", "filter=unfiled"]) assert.equal(shouldRestoreType(P(s)), false, s);
+});
+
+test("each view remembers its own type", () => {
+  const m = new Map();
+  const store = { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => m.set(k, v), removeItem: (k) => m.delete(k) };
+  assert.equal(TYPE_REMEMBER_KEY, "md:files:type");
+  rememberType(store, "video", "shared");
+  rememberType(store, "pdf", "folder:w1:f1");
+  assert.equal(readRememberedType(store, "shared"), "video");
+  assert.equal(readRememberedType(store, "folder:w1:f1"), "pdf");
+  assert.equal(readRememberedType(store, "recent"), null);
+  assert.equal(readRememberedType(store), null);
+  assert.ok(m.has(typeRememberKey("folder:w1:f1")));
+});
+
+test("Shared, Recent and folders show the chips only when there's a choice", () => {
+  assert.equal(typeChipsWorthShowing("all", null), false);
+  assert.equal(typeChipsWorthShowing("all", "unknown"), false);
+  assert.equal(typeChipsWorthShowing("all", { document: 6 }), false);
+  assert.equal(typeChipsWorthShowing("all", { document: 6, pdf: 0 }), false);
+  assert.equal(typeChipsWorthShowing("all", { document: 6, pdf: 1 }), true);
+  assert.equal(typeChipsWorthShowing("video", { document: 6 }), true);
+  assert.equal(typeChipsWorthShowing("video", null), true);
 });

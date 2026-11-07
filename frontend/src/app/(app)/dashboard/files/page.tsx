@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Alert, Anchor, Breadcrumb, Button, ConfirmDialog, EmptyState, Icon, Input, Kbd, MarkdropLoader,
-  Tabs, VSCodeIcon, copyText, cx, type MenuEntry,
+  VSCodeIcon, copyText, cx, type MenuEntry,
 } from "@/components/ui";
 import { useToast } from "@/components/Toast";
 import { PageHeader } from "@/components/shell/PageHeader";
@@ -16,9 +16,10 @@ import {
 } from "@/lib/api";
 import { recallKey, withKey } from "@/lib/e2e";
 import {
-  TYPE_META, countFor, readRememberedType, readTypeFilter, rememberType, shouldRestoreType, typeQuery, typeUrlPatch,
-  visibleTypeChips, type FileType, type TypeFilter,
+  TYPE_META, readRememberedType, readTypeFilter, rememberType, shouldRestoreType, typeQuery, typeUrlPatch,
+  type FileType, type TypeFilter,
 } from "@/lib/fileTypes";
+import { TypeChips } from "@/components/dashboard/TypeChips";
 import { can, listWorkspaces, type Workspace } from "@/lib/workspaces";
 import { ancestry, useDocumentsChanged, useWorkspaceTree, useWorkspaceTrees, workspaceChanged } from "@/lib/workspaceStore";
 import { track } from "@/lib/track";
@@ -418,14 +419,7 @@ export default function MyFilesPage() {
   const headerActions = <>{!phone && searchBox}</>;
 
   // An older backend sends no per-type counts: every type gets a chip, with no number on it.
-  const byType = counts ? counts.byType ?? "unknown" : null;
-  const tabItems = visibleTypeChips(scope.type, byType).map((t) => ({
-    value: t,
-    label: TYPE_META[t].chip,
-    count: byType === "unknown" && t !== "all" && t !== "files" && t !== "document"
-      ? undefined
-      : countFor(t, counts && { all: counts.all, artifact: counts.artifact, byType: counts.byType ?? { document: counts.document } }),
-  }));
+  const chipCounts = counts ? { all: counts.all, artifact: counts.artifact, byType: counts.byType ?? ("unknown" as const) } : null;
 
   /* ── Render ─────────────────────────────────────────────────────────── */
   if (authLoading || !user || inWorkspace) {
@@ -464,7 +458,7 @@ export default function MyFilesPage() {
         </Alert>
       )}
 
-      <TypeChips items={tabItems} value={scope.type} onChange={(v) => selectType(v as TypeFilter)} />
+      <TypeChips value={scope.type} counts={chipCounts} onChange={selectType} />
 
 
       {/* ── Your documents ── */}
@@ -666,41 +660,3 @@ function OtherWays() {
   );
 }
 
-/** The type filter (lib/fileTypes): pill chips with counts, in the URL. On a narrow screen the row
- *  scrolls sideways with a soft edge where there's more, and the selected chip is scrolled into view. */
-function TypeChips({ items, value, onChange }: { items: { value: string; label: string; count?: number }[]; value: string; onChange: (v: string) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [edge, setEdge] = useState({ start: false, end: false });
-  const measure = useCallback(() => {
-    const el = ref.current?.querySelector<HTMLElement>('[role="tablist"]');
-    if (!el) return;
-    const start = el.scrollLeft > 2;
-    const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
-    setEdge((e) => (e.start === start && e.end === end ? e : { start, end }));
-  }, []);
-  useEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>('[role="tablist"]');
-    if (!el) return;
-    measure();
-    el.addEventListener("scroll", measure, { passive: true });
-    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
-    ro?.observe(el);
-    return () => { el.removeEventListener("scroll", measure); ro?.disconnect(); };
-  }, [measure]);
-  useEffect(() => {
-    const el = ref.current?.querySelector<HTMLElement>('[role="tablist"]');
-    const on = el?.querySelector<HTMLElement>('[aria-selected="true"]');
-    if (!el || !on) { measure(); return; }
-    // Only the row scrolls (scrollIntoView would also move the page).
-    const left = on.offsetLeft - el.offsetLeft;
-    if (left < el.scrollLeft || left + on.offsetWidth > el.scrollLeft + el.clientWidth) {
-      el.scrollTo({ left: Math.max(0, left - 24), behavior: "auto" });
-    }
-    measure();
-  }, [value, items.length, measure]);
-  return (
-    <div ref={ref} className={styles.typeChips} data-more-start={edge.start || undefined} data-more-end={edge.end || undefined}>
-      <Tabs variant="pill" size="sm" aria-label="File type" items={items} value={value} onChange={onChange} className="max-w-full min-w-0" />
-    </div>
-  );
-}
