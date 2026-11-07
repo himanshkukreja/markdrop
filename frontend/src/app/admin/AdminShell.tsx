@@ -31,6 +31,7 @@ const GROUPS: { label: string; items: { id: Section; label: string; icon: string
   ] },
   { label: "People", items: [
     { id: "users", label: "Users", icon: "users" },
+    { id: "admins", label: "Admins", icon: "shieldCheck" },
     { id: "feedback", label: "Feedback", icon: "message" },
   ] },
   { label: "Outreach", items: [{ id: "email", label: "Email", icon: "mail" }] },
@@ -38,7 +39,7 @@ const GROUPS: { label: string; items: { id: Section; label: string; icon: string
 
 export const SECTION_LABEL: Record<Section, string> = {
   overview: "Overview", live: "Live", health: "Product health", journeys: "Journeys", ai: "AI", documents: "Documents", reports: "Reports",
-  users: "Users", feedback: "Feedback", email: "Email",
+  users: "Users", admins: "Admins", feedback: "Feedback", email: "Email",
 };
 
 const ITEM =
@@ -107,7 +108,7 @@ export function AdminShell({ section, counts, onSelect, admin, children }: {
         <div className="flex min-w-0 items-center gap-2.5 px-2.5 py-1.5" title={admin.email}>
           <Avatar name={admin.name || admin.email} src={admin.picture ?? undefined} size="sm" />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-caption text-text-muted">Signed in as</span>
+            <span className="block truncate text-caption text-text-muted">Signed in as{admin.role ? ` · ${admin.role === "owner" ? "Owner" : "Admin"}` : ""}</span>
             <span className="ph-sensitive block truncate text-caption text-text">{admin.email}</span>
           </span>
         </div>
