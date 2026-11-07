@@ -62,7 +62,12 @@ async def analytics_overview(
     user: User = Depends(require_user),
 ):
     raw = await _owned_doc(request, db, slug, user)
-    return await ca.overview(db, raw, ca.window(range), bool(internal))
+    out = await ca.overview(db, raw, ca.window(range), bool(internal))
+    # What the item collects (services/analytics_prefs.py): the tabs hide what's switched off.
+    from app.services import analytics_prefs
+
+    out["track"] = await analytics_prefs.effective(db, raw)
+    return out
 
 
 @router.get("/documents/{slug}/analytics/media")
@@ -273,6 +278,10 @@ async def analytics_viewers(
                           "anonymous": t["anonymous"]}, "retention_days": res["retention_days"]}
     res["doc"] = _doc_head(raw, level)
     res["access"] = level
+    # What the item collects (services/analytics_prefs.py): the tab hides what's switched off.
+    from app.services import analytics_prefs
+
+    res["track"] = await analytics_prefs.effective(db, raw)
     return res
 
 

@@ -183,6 +183,10 @@ class DocumentResponse(BaseModel):
     # Meetings (services/meetings.py): this page is a meeting ({id, role: page | transcript}); the
     # reader mounts the meeting panel, which asks GET /meetings/{id} (decided again there).
     meeting: dict | None = None
+    # Viewer analytics (services/analytics_prefs.py): which kinds of analytics this item collects
+    # ({counts, identity, location, device, source, activity, video, pages, downloads}: bool), so
+    # the reader's page sends only those. The server drops anything else anyway.
+    track: dict | None = None
 
     model_config = {"from_attributes": True}
 

@@ -441,9 +441,17 @@ def view_kind(raw_doc: dict) -> str:
 
 
 async def record(db: AsyncIOMotorDatabase, raw_doc: dict, msg: dict, *, ip: str | None, ua: str,
-                 headers=None, viewer_id: str | None, internal: bool, own: bool) -> str:
-    """Fold one engagement beacon into its view row. Returns stored | dup."""
+                 headers=None, viewer_id: str | None, internal: bool, own: bool,
+                 eff: dict | None = None) -> str:
+    """Fold one engagement beacon into its view row. Returns stored | dup.
+
+    ``eff``: the item's analytics settings (services/analytics_prefs.py; the caller has already
+    taken out what they don't collect from ``msg``): identity off stores the view as anonymous,
+    location off skips the lookup, device off the User-Agent, source off where it came from."""
+    eff = eff or {}
     doc_id = str(raw_doc["_id"])
+    if not eff.get("identity", True):
+        viewer_id = None
     encrypted = bool(raw_doc.get("encrypted"))
     now = _now()
     d = msg.get("d") or {}
@@ -515,26 +523,30 @@ async def record(db: AsyncIOMotorDatabase, raw_doc: dict, msg: dict, *, ip: str 
         on_insert["viewer_id"] = None
     if not internal:
         on_insert["internal"] = False
+    loc_ok, dev_ok, src_ok = eff.get("location", True), eff.get("device", True), eff.get("source", True)
+    no_system = {"device": None, "os": None, "os_ver": None, "browser": None, "browser_ver": None, "inapp": None}
+    no_place = {"country": None, "region": None, "city": None}
     if msg["seq"] == 1 or first:
         # First touch: where from and on what (also on a first beacon that arrives late).
-        system = ua_detail(ua, sysinfo)
+        system = ua_detail(ua, sysinfo) if dev_ok else no_system
         ref = analytics.clean_referrer(_str(first.get("ref"), 2048)) if isinstance(first, dict) else None
         utm = first.get("utm") if isinstance(first.get("utm"), dict) else {}
         usrc = _str(utm.get("source"), 100)
         umed = _str(utm.get("medium"), 100)
         ref_host = urlsplit(ref).hostname if ref else None
         on_insert.update({
-            **where(ip, headers), **system,
+            **(where(ip, headers) if loc_ok else no_place), **system,
             "sys": sysinfo, "ref": ref, "utm_source": usrc.lower() if usrc else None,
             "utm_medium": umed.lower() if umed else None, "utm_campaign": _str(utm.get("campaign"), 100),
-            "channel": traffic.channel_for(ref_host, usrc, umed),
-            "source": source_for(ref, usrc, system.get("inapp"), sysinfo),
+            "channel": traffic.channel_for(ref_host, usrc, umed) if src_ok else None,
+            "source": source_for(ref, usrc, system.get("inapp"), sysinfo) if src_ok else None,
         })
     else:
-        system = ua_detail(ua, {})
-        on_insert.update({**where(ip, headers), **system, "sys": {}, "ref": None, "utm_source": None,
-                          "utm_medium": None, "utm_campaign": None, "channel": "Direct",
-                          "source": source_for(None, None, system.get("inapp"), {})})
+        system = ua_detail(ua, {}) if dev_ok else no_system
+        on_insert.update({**(where(ip, headers) if loc_ok else no_place), **system, "sys": {}, "ref": None,
+                          "utm_source": None, "utm_medium": None, "utm_campaign": None,
+                          "channel": "Direct" if src_ok else None,
+                          "source": source_for(None, None, system.get("inapp"), {}) if src_ok else None})
     if sysinfo.get("pv") and msg["seq"] > 1:
         sets["sys.pv"] = sysinfo["pv"]
     for k in list(on_insert):
@@ -548,11 +560,15 @@ async def record(db: AsyncIOMotorDatabase, raw_doc: dict, msg: dict, *, ip: str 
         update["$max"] = mx
     if push:
         update["$push"] = push
+    filt = {"doc_id": doc_id, "sid": msg["sid"], "seq": {"$lt": msg["seq"]}}
     try:
-        await db[COLL].update_one({"doc_id": doc_id, "sid": msg["sid"], "seq": {"$lt": msg["seq"]}},
-                                  update, upsert=True)
+        await db[COLL].update_one(filt, update, upsert=True)
     except DuplicateKeyError:
-        return "dup"
+        # The row exists: either this beacon is stale (seq not newer), or another beacon of the
+        # same view created the row a moment ago. Without the insert, the second still applies.
+        update.pop("$setOnInsert", None)
+        res = await db[COLL].update_one(filt, update)
+        return "stored" if res.matched_count else "dup"
     return "stored"
 
 
@@ -575,12 +591,20 @@ async def note(db: AsyncIOMotorDatabase, doc_id: str, user_id: str | None, event
 
 
 async def note_for_slug(db: AsyncIOMotorDatabase, slug: str | None, user_id: str | None, event: dict) -> None:
-    """:func:`note` by the document's address; never raises (it rides along other requests)."""
+    """:func:`note` by the document's address, when the item records its activity timeline
+    (services/analytics_prefs.py); never raises (it rides along other requests)."""
     if not slug or not user_id:
         return
     try:
-        raw = await db["documents"].find_one({"slug": slug}, {"_id": 1})
+        from app.services import analytics_prefs
+
+        raw = await db["documents"].find_one({"slug": slug})
         if raw:
+            eff = await analytics_prefs.effective(db, raw)
+            if not (eff["counts"] and analytics_prefs.event_allowed(event["k"], eff)):
+                return
+            if not eff["identity"]:
+                return  # a view stored without the person can't be found by them
             await note(db, str(raw["_id"]), user_id, event)
     except Exception:  # pragma: no cover - analytics never breaks the request it rides on
         import logging
@@ -773,8 +797,8 @@ def summary(row: dict, people: dict[str, dict], visit_n: int | None = None) -> d
                    "embed_host": sysinfo.get("emb"), "viewport": _wxh(sysinfo.get("vw"), sysinfo.get("vh")),
                    "screen": _wxh(sysinfo.get("sw"), sysinfo.get("sh")), "language": sysinfo.get("lang"),
                    "label": system_line(row)},
-        "source": row.get("source") or "Direct",
-        "channel": row.get("channel") or "Direct",
+        "source": row.get("source"),
+        "channel": row.get("channel"),
         "referrer": row.get("ref"),
         "utm": {k: row.get(f"utm_{k}") for k in ("source", "medium", "campaign") if row.get(f"utm_{k}")} or None,
         "acts": {k: int((row.get("acts") or {}).get(k) or 0) for k in ACT_KINDS if (row.get("acts") or {}).get(k)},
@@ -869,7 +893,8 @@ def breakdowns(rows: list[dict]) -> dict:
         device[r.get("device") or "Unknown"] += 1
         os_c[r.get("os") or "Other"] += 1
         browser[r.get("inapp") or r.get("browser") or "Other"] += 1
-        source[r.get("source") or "Direct"] += 1
+        if r.get("source"):
+            source[r["source"]] += 1
         app[(r.get("sys") or {}).get("app") or "tab"] += 1
     return {"country": _top(country, 12), "city": _top(city, 12), "device": _top(device),
             "os": _top(os_c), "browser": _top(browser), "source": _top(source, 10), "app": _top(app, 3)}

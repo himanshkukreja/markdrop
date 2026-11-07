@@ -141,6 +141,20 @@ class Ingest(World):
         self.assertEqual(row["active_s"], 15 + dv.SEND_CAP_S)
         self.assertTrue(row["ended"])
 
+    async def test_racing_first_beacons_both_apply(self):
+        # Two beacons of a new view arrive together: both create-or-update; neither is lost.
+        import asyncio
+
+        d = await self.mkdoc("L", ws=None)
+        s = sid()
+        await asyncio.gather(
+            self.beacon(d["slug"], {"sid": s, "seq": 1, "d": {"active_s": 3}, "ev": [{"t": 1, "k": "depth", "v": 25}]}),
+            self.beacon(d["slug"], {"sid": s, "seq": 2, "d": {"active_s": 4}, "ev": [{"t": 2, "k": "depth", "v": 50}]}))
+        [row] = await self.views(d)
+        # Whatever the order, seq 2 is kept; seq 1 too when it came first.
+        self.assertEqual(row["seq"], 2)
+        self.assertIn(50, [e["v"] for e in row["tl"]])
+
     async def test_event_caps_and_body_limit(self):
         d = await self.mkdoc("L", ws=None)
         s = sid()

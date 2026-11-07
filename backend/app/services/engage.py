@@ -232,8 +232,12 @@ def _first_fields(first: dict | None) -> dict:
 
 
 def new_session(raw_doc: dict, msg: dict, *, now: datetime, ip: str | None, ua: str,
-                internal: bool) -> dict:
-    loc = geo.lookup(ip)
+                internal: bool, eff: dict | None = None) -> dict:
+    eff = eff or {}
+    # The item's analytics settings (services/analytics_prefs.py): no location lookup, no
+    # device parsing when those are off.
+    loc = geo.lookup(ip) if eff.get("location", True) else {"country": None, "region": None, "city": None}
+    ua_fields = traffic.parse_ua(ua) if eff.get("device", True) else {"device": None, "os": None, "browser": None}
     kind = kind_for(raw_doc)
     ver = None
     if kind != "doc":
@@ -253,7 +257,7 @@ def new_session(raw_doc: dict, msg: dict, *, now: datetime, ip: str | None, ua: 
         "country": loc["country"],
         "region": loc["region"],
         "city": loc["city"],
-        **traffic.parse_ua(ua),
+        **ua_fields,
         **_first_fields(msg.get("first")),
         "internal": bool(internal),
         "active_s": 0,
@@ -471,7 +475,7 @@ def clear_pending() -> None:
 
 
 async def ingest(db: AsyncIOMotorDatabase, raw_doc: dict, msg: dict, *, ip: str | None,
-                 ua: str, viewer_id: str | None, internal: bool) -> str:
+                 ua: str, viewer_id: str | None, internal: bool, eff: dict | None = None) -> str:
     """Record one admitted beacon. Returns what happened (for tests): owner,
     dup, pending or stored."""
     doc_id = str(raw_doc["_id"])
@@ -507,7 +511,7 @@ async def ingest(db: AsyncIOMotorDatabase, raw_doc: dict, msg: dict, *, ip: str 
             if internal:
                 state["internal"] = True
         else:
-            state = new_session(raw_doc, msg, now=now, ip=ip, ua=ua, internal=internal)
+            state = new_session(raw_doc, msg, now=now, ip=ip, ua=ua, internal=internal, eff=eff)
         apply(state, msg, now=now, encrypted=encrypted)
         _touch_presence(doc_id, msg, state, encrypted)
         if not qualifies(state):

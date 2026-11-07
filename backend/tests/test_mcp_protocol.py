@@ -117,7 +117,7 @@ class Transport(McpTestCase):
             # Who's viewing (live presence).
             "get_viewers", "set_presence",
             # Who viewed, and what each view did (services/doc_views.py).
-            "get_document_viewers", "get_view_timeline",
+            "get_document_viewers", "get_view_timeline", "get_analytics_settings", "set_analytics_settings",
             # Workspaces for agents (workspaces v2, P6).
             "list_workspaces", "list_folders", "list_workspace_items", "add_to_workspace",
             "remove_from_workspace", "create_folder", "move_to_folder", "list_workspace_members",
@@ -211,7 +211,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 106)
+        self.assertEqual(len(r.json()["result"]["tools"]), 108)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")

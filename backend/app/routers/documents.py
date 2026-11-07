@@ -245,6 +245,9 @@ async def get_document(
             headers={"X-Markdrop-Moved": current},
         )
     body = await _full_response(db, raw, actor, ctx)
+    from app.services import analytics_prefs
+
+    body["track"] = analytics_prefs.client_track(await analytics_prefs.effective(db, raw))
     if actor.user_id:
         # "Recent" (services/personal.py): a signed-in reader's successful
         # read. Re-checked with can() whenever the list is shown.
@@ -798,6 +801,13 @@ async def record_click(
         return {"status": "ignored"}
     raw = await _beacon_target(db, slug, data.ticket)
     if raw is not None:
+        from app.services import analytics_prefs
+
+        # What this item collects (services/analytics_prefs.py): nothing without counts; no
+        # export counts without downloads.
+        eff = await analytics_prefs.effective(db, raw)
+        if not eff["counts"] or (data.type == "export_pdf" and not eff["downloads"]):
+            return {"status": "ok"}
         user = await _beacon_user(request)
         is_owner, internal = await _viewer_flags(db, raw, user.id if user else None)
         if is_owner:
@@ -813,11 +823,12 @@ async def record_click(
             await analytics.record_event(
                 db, doc_id, owner_id, data.type,
                 ip=get_client_ip(request),
-                referrer=data.referrer,
-                user_agent=ua,
-                utm=utm,
+                referrer=data.referrer if eff["source"] else None,
+                user_agent=ua if eff["device"] else None,
+                utm=utm if eff["source"] else {},
                 ver=ver,
                 internal=internal,
+                geo_ok=eff["location"],
             )
     return {"status": "ok"}
 
@@ -853,6 +864,11 @@ async def record_read(
         return
     doc = await _beacon_target(db, slug, ticket)
     if not doc:
+        return
+    from app.services import analytics_prefs
+
+    eff = await analytics_prefs.effective(db, doc)
+    if not (eff["counts"] and eff["activity"]):
         return
     await analytics.record_read(
         db, str(doc["_id"]), doc.get("owner_id"), rid,
@@ -917,10 +933,17 @@ async def record_engagement(
         doc = await _beacon_target(db, slug, msg["t"])
         if not doc:
             return
+        from app.services import analytics_prefs
+
+        # The item's analytics settings decide what's kept (services/analytics_prefs.py).
+        eff = await analytics_prefs.effective(db, doc)
+        if not eff["counts"]:
+            return
+        msg = analytics_prefs.filter_beacon(msg, eff)
         viewer_id = await _engage_viewer(msg["u"]) if msg["u"] else None
         is_owner, internal = await _viewer_flags(db, doc, viewer_id)
         ip = get_client_ip(request)
-        await engage.ingest(db, doc, msg, ip=ip, ua=ua, viewer_id=viewer_id, internal=internal)
+        await engage.ingest(db, doc, msg, ip=ip, ua=ua, viewer_id=viewer_id, internal=internal, eff=eff)
         # Viewer analytics: this view's own row (who, where from, what they did), the owner's too.
         # A tenant token names its reader on its own workspace's documents here (never in the
         # aggregates above, where it can't drop or re-label sessions).
@@ -931,7 +954,7 @@ async def record_engagement(
             if viewer_id:
                 is_owner, internal = await _viewer_flags(db, doc, viewer_id)
         await doc_views.record(db, doc, msg, ip=ip, ua=ua, headers=request.headers, viewer_id=viewer_id,
-                               internal=internal, own=is_owner)
+                               internal=internal, own=is_owner, eff=eff)
     except Exception:  # pragma: no cover - a beacon never errors
         import logging
 
