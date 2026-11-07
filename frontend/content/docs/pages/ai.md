@@ -76,7 +76,7 @@ In a workspace page, **This page** answers from the page first, then what the wo
 
 If you can edit the page, **Insert** under an answer puts it into the page after the line where your cursor is, with its sources as links. In View mode, **Insert** switches the page to **Edit** with the answer at the end of the section you were reading. Nothing goes into the page unless you choose **Insert**.
 
-AI can be wrong, so check what matters on the page itself. Asking counts towards your **AI search** limit; see [AI limits](/workspaces/ask-markdrop#ai-limits).
+AI can be wrong, so check what matters on the page itself. Asking counts towards your AI limits; see [AI limits](/workspaces/ask-markdrop#ai-limits).
 
 **✦ Ask** works on a workspace's [own domain](/workspaces/custom-domain) too, once you're [signed in there](/workspaces/sign-in-on-your-domain). Visitors who aren't signed in don't see it.
 

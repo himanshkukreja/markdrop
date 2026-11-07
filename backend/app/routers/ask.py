@@ -116,7 +116,7 @@ async def ask_context(request: Request, page: Optional[str] = Query(None, max_le
                       db: AsyncIOMotorDatabase = Depends(get_db), user: User = Depends(require_user)):
     """What the assistant offers where you are: its scopes (This doc, Meetings, This folder, Workspace,
     Everything) for things you can open, the default one, the workspace's meeting series, whether you
-    can insert answers into the doc, and whether AI can answer now (AI search and Meetings AI)."""
+    can insert answers into the doc, and whether AI can answer now (for meetings and for everything else)."""
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await assistant.context_for(db, actor, ctx, page=page, workspace=workspace, folder=folder,
                                                         meeting=meeting))

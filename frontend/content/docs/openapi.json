@@ -18366,7 +18366,7 @@
           "ask"
         ],
         "summary": "Ask Context",
-        "description": "What the assistant offers where you are: its scopes (This doc, Meetings, This folder, Workspace,\nEverything) for things you can open, the default one, the workspace's meeting series, whether you\ncan insert answers into the doc, and whether AI can answer now (AI search and Meetings AI).",
+        "description": "What the assistant offers where you are: its scopes (This doc, Meetings, This folder, Workspace,\nEverything) for things you can open, the default one, the workspace's meeting series, whether you\ncan insert answers into the doc, and whether AI can answer now (for meetings and for everything else).",
         "operationId": "ask_context_api_v1_ask_context_get",
         "parameters": [
           {

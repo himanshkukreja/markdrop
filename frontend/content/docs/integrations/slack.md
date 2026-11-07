@@ -1,7 +1,7 @@
 ---
 title: Slack
 description: Meeting notes with Done buttons in a channel, each person's own action items after a meeting, search and ask from Slack, link previews, and Slack notifications.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [slack, slack app, integration, integrations tab, add to slack, not set up yet, connected, meetings channel, channel picker, don't post meetings, post new meetings automatically, post to slack, private channel, /invite @markdrop, /markdrop, slash command, /markdrop link, /markdrop unlink, /markdrop help, search, ask, ai answers, meeting notes, action items, done button, unfurl, link preview, direct messages, notifications, slack notifications, get notifications in slack, turn on, turn off, off by default, opt in, found by email, users:read.email, update permissions, update markdrop for slack, look again, mentions, sign-off, access requests, approve, decline, slack connect, disconnect slack, slack_status, post_meeting_to_slack, action items after meetings, your action items, direct message, stop these, turn back on, send each person their action items, daily syncup, not in markdrop, ask for access]
 ---
 
@@ -148,7 +148,7 @@ Every reply is visible **only to you**, even in a busy channel. Answers use only
 
 When you're a member of the Markdrop workspace this Slack is connected to, search and answers look in that workspace. Otherwise they look in everything you can open. `/markdrop meetings` needs you to be a member of that workspace.
 
-An answer quotes your question, then the answer with its **Sources** as links, and "Only you can see this answer. Markdrop AI can make mistakes; check the sources." Answers are written by Markdrop AI and count towards the same limits as [AI search](/workspaces/search#ask-ai) and [Meetings AI](/workspaces/meetings-privacy). An answer is never blank: when nothing you can open answers the question, it says so. A workspace with AI features off gets search but no answers.
+An answer quotes your question, then the answer with its **Sources** as links, and "Only you can see this answer. Markdrop AI can make mistakes; check the sources." Answers are written by Markdrop AI and count towards the same [AI limits](/workspaces/ask-markdrop#ai-limits) as Ask on the website. An answer is never blank: when nothing you can open answers the question, it says so. A workspace with AI features off gets search but no answers.
 
 If Slack isn't connected to a Markdrop workspace, `/markdrop` says so and that a workspace admin can connect it in **Workspace settings › Integrations › Slack**.
 

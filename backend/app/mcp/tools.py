@@ -3010,7 +3010,7 @@ TOOLS: list[Tool] = [
                      "in meetings), so pass questions about the user as they are: 'what did I say in my last "
                      "sync-up', 'my action items', 'what have I been working on', 'which workspaces am I in'. "
                      "Prefer ask_meetings for questions only about meetings. "
-                     "Counts towards the user's AI search limits."),
+                     "Counts towards the user's AI limits."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "question": {"type": "string", "maxLength": 500,
