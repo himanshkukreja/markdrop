@@ -27,7 +27,7 @@ from app.models.user import User
 from app.routers.auth import require_user
 from app.services import access
 from app.services import access_requests as requests_service
-from app.services import personal
+from app.services import file_types, personal
 from app.utils.net import get_client_ip
 
 router = APIRouter(tags=["personal"])
@@ -58,18 +58,22 @@ class AccessRequestDecision(BaseModel):
 async def shared_with_me(request: Request,
                          cursor: str | None = Query(None, max_length=300),
                          limit: int = Query(30, ge=1, le=personal.MAX_SHARED_PAGE),
+                         file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
                          db: AsyncIOMotorDatabase = Depends(get_db),
                          user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await personal.shared(db, actor, ctx, cursor=cursor, limit=limit))
+    return jsonable_encoder(await personal.shared(db, actor, ctx, cursor=cursor, limit=limit,
+                                                  file_type=file_type))
 
 
 @router.get("/api/v1/me/recent")
 @limiter.limit("120/minute")
-async def recent(request: Request, db: AsyncIOMotorDatabase = Depends(get_db),
+async def recent(request: Request,
+                 file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
+                 db: AsyncIOMotorDatabase = Depends(get_db),
                  user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await personal.recent(db, actor, ctx))
+    return jsonable_encoder(await personal.recent(db, actor, ctx, file_type=file_type))
 
 
 @router.get("/api/v1/search/quick")
