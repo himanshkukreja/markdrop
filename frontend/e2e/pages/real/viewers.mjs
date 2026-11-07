@@ -15,7 +15,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { chromium, webkit } from "@playwright/test";
-import { APP, BROWSER, here, log, fail, reseed, api, mcp, mcpToken, ctx, stepper, uploadFile } from "./lib.mjs";
+import { execFileSync } from "node:child_process";
+import { APP, BROWSER, STACK, here, log, fail, reseed, api, mcp, mcpToken, ctx, stepper, uploadFile } from "./lib.mjs";
 
 const ROOT = path.resolve(here, "../../../..").split("/.claude/worktrees/")[0].replace(/\/\.work\/wt\/[^/]+$/, "");
 const OUT = process.env.VIEWERS_SHOTS || path.join(ROOT, ".work", "viewer-analytics", "shots");
@@ -38,7 +39,20 @@ const MD = [
 const doc = await api("POST", "/api/v1/documents", ada, { title: "Field guide", custom_slug: "field-guide", expires_in: "never", content: MD, ...filing });
 if (doc.status >= 300) fail(`doc → ${doc.status} ${JSON.stringify(doc.body).slice(0, 200)}`);
 await uploadFile(ada, { bytes: fs.readFileSync(path.join(FIX, "q3-board-deck-v1.pdf")), filename: "board-deck.pdf", mime: "application/pdf", title: "Board deck", slug: "board-deck", ...filing });
-await uploadFile(ada, { bytes: fs.readFileSync(path.join(FIX, "product-demo-v1.mp4")), filename: "demo.mp4", mime: "video/mp4", title: "Product demo", slug: "demo-video", ...filing });
+// Playwright's Chromium on Linux has no H.264: there, the demo goes up as WebM (ffmpeg, cached).
+const probe = await browser.newPage();
+const mp4ok = await probe.evaluate(() => document.createElement("video").canPlayType('video/mp4; codecs="avc1.4d401f"') !== "");
+await probe.close();
+let video = { bytes: fs.readFileSync(path.join(FIX, "product-demo-v1.mp4")), filename: "demo.mp4", mime: "video/mp4" };
+if (!mp4ok) {
+  const webm = path.join(STACK, "viewers-demo.webm");
+  if (!fs.existsSync(webm)) {
+    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", path.join(FIX, "product-demo-v1.mp4"), "-t", "30", "-c:v", "libvpx-vp9", "-b:v", "400k", "-an", webm]);
+  }
+  video = { bytes: fs.readFileSync(webm), filename: "demo.webm", mime: "video/webm" };
+}
+log("video as", video.mime);
+await uploadFile(ada, { ...video, title: "Product demo", slug: "demo-video", ...filing });
 // A slide deck and a spreadsheet with two sheets (CSV has one; an .xlsx would need a builder).
 const { sampleDeck } = await import(pathToFileURL(path.resolve(here, "../../../../worker/test/pptx-fixture.mjs")).href);
 await uploadFile(ada, { bytes: sampleDeck(), filename: "Q3 review.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", title: "Q3 review", slug: "q3-deck", ...filing });
