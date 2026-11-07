@@ -206,7 +206,7 @@ function Asked({ t }: { t: Turn }) {
         {t.input ? (
           <p className="whitespace-pre-wrap break-words">{t.input}{t.input_truncated && <span className="text-micro text-text-muted"> (cut)</span>}</p>
         ) : (
-          <p className="text-caption italic text-text-muted">{t.content ? "No question text." : "Not captured."}</p>
+          <p className="text-caption italic text-text-muted">{t.content ? "No question text." : "Content capture was off."}</p>
         )}
       </div>
     </div>

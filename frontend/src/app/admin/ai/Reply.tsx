@@ -51,9 +51,10 @@ function safeHref(href: string): string | null {
 }
 
 /** remark plugin: [3-s2] in text → a link node the `a` renderer draws as a chip; unknown markers are
- *  dropped (as the chats drop them), and a run of the same marker collapses to one chip. */
+ *  dropped (as the chats drop them) when the reply has sources, and a run of the same marker collapses to one chip. */
 function remarkCitations(known: Set<string>) {
   return () => (tree: Root) => {
+    if (!known.size) return; // no sources: the text stays exactly as logged
     const visit = (node: { children?: RootContent[] | PhrasingContent[] }) => {
       if (!node.children) return;
       const out: RootContent[] = [];
