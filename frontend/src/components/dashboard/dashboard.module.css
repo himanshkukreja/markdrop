@@ -43,3 +43,13 @@
   .line { animation: none; stroke-dashoffset: 0; }
   .dot { transition: none; }
 }
+
+/* My files › type chips: a row that scrolls sideways on a narrow screen, with a soft edge on the side
+   that has more (never a cut-off chip with no hint). The row itself is the Tabs scroller. */
+.typeChips { max-width: 100%; min-width: 0; align-self: flex-start; }
+.typeChips > [role="tablist"] { max-width: 100%; scroll-padding-inline: 24px; }
+.typeChips[data-more-end] > [role="tablist"] { mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.typeChips[data-more-start] > [role="tablist"] { mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent); }
+.typeChips[data-more-start][data-more-end] > [role="tablist"] {
+  mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+}

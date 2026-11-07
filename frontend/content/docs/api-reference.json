@@ -295,9 +295,9 @@
     "GET /api/v1/me/documents": {
       "title": "List your documents",
       "group": "documents",
-      "description": "The documents and files you own, a page at a time, with counts of each kind.",
+      "description": "The documents and files you own, a page at a time, with counts of each kind and, in `count_by_type`, of each file type. The counts are for everything you own, whatever the filters.",
       "mcp": "list_documents",
-      "paramNotes": { "q": "Only titles or addresses containing this text.", "kind": "`document` (or `markdown`) for documents, `artifact` for files.", "per_page": "Same as `limit`, up to 50; wins when both are sent." }
+      "paramNotes": { "q": "Only titles or addresses containing this text.", "kind": "`document` (or `markdown`) for documents, `artifact` for files.", "type": "Only one file type: `document` (Markdown documents and pages), `pdf`, `video`, `image`, `sheet` (Excel, CSV), `slides` (PowerPoint), `word`, `html` (HTML pages and zipped sites) or `other`. Works with `q`, `kind` and paging.", "per_page": "Same as `limit`, up to 50; wins when both are sent." }
     },
     "GET /api/v1/og/{slug}.png": {
       "title": "Get the preview image",
@@ -1026,7 +1026,8 @@
     },
     "GET /api/v1/workspaces/{workspace_id}/items": {
       "title": "List workspace items",
-      "description": "The documents and folders in a workspace that you can see."
+      "description": "The documents and folders in a workspace that you can see. The first page also has `count_by_type`: how many items of each file type you can open in the folder (or, with `q`, the workspace), whatever the filters.",
+      "paramNotes": { "type": "Only one file type: `document` (Markdown documents and pages), `pdf`, `video`, `image`, `sheet` (Excel, CSV), `slides` (PowerPoint), `word`, `html` (HTML pages and zipped sites) or `other`. Admins' placeholders for private items are left out." }
     },
     "GET /api/v1/workspaces/{workspace_id}/nav": {
       "title": "Get the sidebar outline",
@@ -1301,11 +1302,12 @@
     "GET /api/v1/me/shared": {
       "title": "Shared with you",
       "description": "Documents other people shared with you, a page at a time.",
-      "paramNotes": { "cursor": "The `next_cursor` of the previous page." }
+      "paramNotes": { "cursor": "The `next_cursor` of the previous page.", "type": "Only one file type: `document` (Markdown documents and pages), `pdf`, `video`, `image`, `sheet` (Excel, CSV), `slides` (PowerPoint), `word`, `html` (HTML pages and zipped sites) or `other`.", "counts": "`true` adds `count_by_type` to the first page: what's shared with you per file type (`null` when more than 1,000 things are shared with you)." }
     },
     "GET /api/v1/me/recent": {
       "title": "Recently opened",
-      "description": "Documents you opened recently."
+      "description": "Documents you opened recently.",
+      "paramNotes": { "type": "Only one file type: `document` (Markdown documents and pages), `pdf`, `video`, `image`, `sheet` (Excel, CSV), `slides` (PowerPoint), `word`, `html` (HTML pages and zipped sites) or `other`.", "counts": "`true` adds `count_by_type`: what you opened recently, per file type." }
     },
     "GET /api/v1/search": {
       "title": "Search everything",

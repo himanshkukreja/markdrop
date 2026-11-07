@@ -62,6 +62,9 @@ import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow
 import { docHref } from "@/components/analytics/format";
 import { openingKindOf, rememberOpening } from "@/lib/opening";
 import { meetingsHref } from "@/lib/meetings";
+import { TYPE_META, readTypeParam, typeChipsWorthShowing, type TypeFilter } from "@/lib/fileTypes";
+import { TypeChips, type ByType } from "@/components/dashboard/TypeChips";
+import { track } from "@/lib/track";
 
 /** The Meetings folder's default view (backend services/meeting_series.py VIEW_ALL). */
 const MEETINGS_VIEW = "vmtgall";
@@ -85,6 +88,8 @@ function readQuery(search: string) {
   return {
     q: (p.get("q") || "").trim(),
     kind: (k === "markdown" || k === "artifact" ? k : "") as Kind,
+    // The type chips (lib/fileTypes): one file type, or "all".
+    type: readTypeParam(p),
     unfiled: p.get("filter") === "unfiled",
     preview: (pv === "anyone" || pv === "member" || pv === "email" ? pv : null) as PreviewAs | null,
     email: (p.get("email") || "").trim(),
@@ -296,7 +301,8 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   // this view's own, dropped whenever the first page changes.
   // A search looks across the whole workspace; otherwise the folder (or the top level).
   const scope = query.q ? "all" : folderId ?? "root";
-  const key = user && urlReady ? itemsKey(workspaceId, scope, query.q, query.kind) : null;
+  const typeParam = query.type === "all" ? "" : query.type;
+  const key = user && urlReady ? itemsKey(workspaceId, scope, query.q, query.kind, typeParam) : null;
   const [extra, setExtra] = useState<{ key: string; base: ItemsPage; items: WorkspaceItem[]; redacted: RedactedItem[]; cursor: string | null } | null>(null);
   // Renames elsewhere (another tab, someone else) show without a reload: the first page is polled
   // while it's on screen, unless "Load more" pages are open below it (a changed first page would
@@ -329,7 +335,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     if (!cursor || more || !key || !pageOne) return;
     setMore(true);
     try {
-      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, cursor, limit: ITEMS_PAGE });
+      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, type: typeParam || undefined, cursor, limit: ITEMS_PAGE });
       const prev = ext ?? { key, base: pageOne, items: [], redacted: [], cursor: null };
       const have = new Set(items.map((x) => x.slug));
       const hidden = new Set(redacted.map((x) => x.id_token));
@@ -348,7 +354,23 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   /* ── Selection (desktop) ──────────────────────────────────────────── */
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  useEffect(() => setSelected(new Set()), [workspaceId, folderId, query.q, query.kind]);
+  useEffect(() => setSelected(new Set()), [workspaceId, folderId, query.q, query.kind, query.type]);
+
+  /* ── Type chips ───────────────────────────────────────────────────── */
+  // Counts are the scope's (this folder, or the workspace while searching), whatever type is picked:
+  // the last ones seen for this scope stay while another type's rows load.
+  const countsScope = `${workspaceId}|${scope}`;
+  const [typeCounts, setTypeCounts] = useState<{ scope: string; byType: ByType } | null>(null);
+  const pageCounts = first.data?.count_by_type ?? null;
+  useEffect(() => {
+    if (pageCounts) setTypeCounts({ scope: countsScope, byType: pageCounts });
+  }, [pageCounts, countsScope]);
+  const byType = typeCounts && typeCounts.scope === countsScope ? typeCounts.byType : null;
+  const setType = useCallback((f: TypeFilter) => {
+    const t = f === "all" || f === "files" ? null : f;
+    track("files_type_filter", { type: t ?? "all", view: "folder" });
+    setQuery({ type: t });
+  }, [setQuery]);
   const movable = items.filter((i) => i.can.move);
   const selectedItems = items.filter((i) => selected.has(i.slug));
   const toggleSelect = (slug: string, on: boolean) =>
@@ -587,7 +609,8 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
   }
 
   const searching = !!query.q;
-  const filtered = searching || !!query.kind;
+  const typed = query.type !== "all";
+  const filtered = searching || !!query.kind || typed;
   // A table or board replaces the list (the views bar shows in every folder). A meeting folder inside
   // Meetings (Meetings/<series>, Other meetings) opens on its "All meetings" table (newest first, by
   // month: services/meeting_series.py); "list" = the List. Meetings itself opens on its folders.
@@ -604,7 +627,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     { label: "New items start as…", icon: "user", onClick: () => setDefaultFor(f) },
     { label: "Delete…", icon: "trash", danger: true, separated: true, onClick: () => setDeleteFor(f) },
   ] : null);
-  const listedFolders: FolderEntryProps[] = searching ? [] : subfolders.map((f) => ({
+  const listedFolders: FolderEntryProps[] = searching || typed ? [] : subfolders.map((f) => ({
     workspaceId, folder: f, href: folderHref(workspaceId, f.id),
     canDropItems: isMember, canDragFolders: isAdmin,
     blocked: isAdmin ? [...descendants(folders, f.id)] : [],
@@ -727,14 +750,14 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
         </div>
       )}
 
-      {/* ── Search / filter in the URL (from ⌘K or an old link) ── */}
-      {filtered && (
+      {/* ── Search / filter in the URL (from ⌘K or an old link); the type chips say their own ── */}
+      {(searching || !!query.kind) && (
         <div className="flex min-w-0 flex-wrap items-center gap-2 rounded-xl border border-border bg-surface px-3.5 py-2.5 text-[13px] text-text-secondary" role="status">
           <Icon name={searching ? "search" : "filter"} size={14} />
           <span className="min-w-0 flex-1">
             {searching ? <>Results for <strong className="ph-sensitive ph-mask text-text">“{query.q}”</strong> in <Masked>{wsName}</Masked></> : query.kind === "artifact" ? "Showing files only" : "Showing documents only"}
           </span>
-          <Button size="sm" variant="ghost" onClick={() => setQuery({ q: null, kind: null })}>{searching ? "Clear search" : "Show everything"}</Button>
+          <Button size="sm" variant="ghost" onClick={() => setQuery({ q: null, kind: null, type: null })}>{searching ? "Clear search" : "Show everything"}</Button>
         </div>
       )}
 
@@ -752,8 +775,14 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* ── Views: List · Table · Board · saved views ── */}
-      {folderId && tree && !filtered && (
-        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings_sub ? "list" : null) }, false)} member={isMember} phone={phone} />
+      {/* A type filter keeps the views bar (on List): picking a table or board shows every type again. */}
+      {folderId && tree && !searching && !query.kind && (
+        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={typed ? null : view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings_sub ? "list" : null), ...(v ? { type: null } : {}) }, false)} member={isMember} phone={phone} />
+      )}
+
+      {/* ── Type chips: once this folder holds two kinds of thing (or one is picked) ── */}
+      {!dbView && !rootEmpty && (state === "ok" || typed) && typeChipsWorthShowing(query.type, byType) && (
+        <TypeChips value={query.type} counts={byType ? { byType } : null} onChange={setType} />
       )}
 
       {/* ── Selection bar ── */}
@@ -820,9 +849,10 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
       {state === "ok" && items.length === 0 && filtered && (
         <EmptyState
-          icon="search"
-          title={searching ? <>Nothing matches <Masked>“{query.q}”</Masked></> : query.kind === "artifact" ? "No files here" : "No documents here"}
+          icon={searching ? "search" : typed ? TYPE_META[query.type].icon : "search"}
+          title={searching ? <>{typed ? `No ${TYPE_META[query.type].noun} match` : "Nothing matches"} <Masked>“{query.q}”</Masked></> : typed ? `No ${TYPE_META[query.type].noun} here` : query.kind === "artifact" ? "No files here" : "No documents here"}
           description={searching ? <>Search looks at titles and links across <Masked>{wsName}</Masked>, in what you can open.</> : undefined}
+          actions={typed ? <Button variant="secondary" onClick={() => setType("all")}>Show every type</Button> : undefined}
         />
       )}
 

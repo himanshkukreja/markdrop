@@ -372,6 +372,26 @@ def _e_declined() -> dict:
                                                        url=f"{_base()}/q3-launch-plan", approved=False, role=None))
 
 
+@entry("email-admin-added", "email", "Email · admin console", "Admin added (to owners)",
+       "An owner made someone an admin; every owner gets this")
+def _e_admin_added() -> dict:
+    return _mail("share", _m().compose_admin_change(actor="Riya Sharma", actor_email="riya@senseloaf.com",
+                                                    target="alex@senseloaf.com", added=True, note="Runs support"))
+
+
+@entry("email-admin-removed", "email", "Email · admin console", "Admin removed (to owners)",
+       "An owner removed an admin; every owner gets this")
+def _e_admin_removed() -> dict:
+    return _mail("share", _m().compose_admin_change(actor="Riya Sharma", actor_email="riya@senseloaf.com",
+                                                    target="alex@senseloaf.com", added=False, note=None))
+
+
+@entry("email-admin-granted", "email", "Email · admin console", "You're now an admin",
+       "To the person an owner just made an admin")
+def _e_admin_granted() -> dict:
+    return _mail("share", _m().compose_admin_granted(actor="Riya Sharma", has_account=True, name="Alex Chen"))
+
+
 def _items():
     return [{"kind": "mention", "actor": "Alex Chen", "block": "b-1a2b3c4d",
              "excerpt": "@Riya Sharma can you check the migration steps before we publish?", "label": None},

@@ -41,7 +41,8 @@ export function UserAvatar({ user, size = "md", className }: { user: MeUser; siz
 
 /**
  * Account menu (REVAMP_PLAN 4.2): an avatar trigger → WAI-ARIA menu with the identity header,
- * Dashboard, Guides (the Markdrop Guides studio, guides.markdrop.in), Workspaces & domains, API tokens, Connected apps, Account settings, Docs,
+ * Dashboard, Guides (the Markdrop Guides studio, guides.markdrop.in), Workspaces & domains, API tokens, Connected apps, Account settings,
+ * Admin (admins of the console only: the server's `admin` flag on /auth/me), Docs,
  * Install app (when this browser can install it: components/pwa), a Theme row (System / Light /
  * Dark), Send feedback, and Sign out (neutral: signing out isn't destructive). Sign-out uses
  * AuthContext.logout() (server revoke, then the local token is cleared).
@@ -54,6 +55,7 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // "Install app": only where this browser can install it and it isn't already (components/pwa).
   const pwa = usePwa();
+  const showAdmin = !!user.admin && !studio && typeof window !== "undefined" && !isStudioHost(window.location.hostname);
 
   const items: MenuEntry[] = [
     {
@@ -70,6 +72,9 @@ export function AccountMenu({ user, align = "right", studio }: { user: MeUser; a
     { label: "API tokens", href: appHref("/settings/tokens"), icon: "key" },
     { label: "Connected apps", href: appHref("/settings/connections"), icon: "sparkle" },
     { label: "Account settings", href: appHref("/settings/account"), icon: "settings" },
+    // Admins only: the server sets `admin` on /auth/me (backend services/admin_roles), never for the
+    // studio host's session; hidden there anyway.
+    ...(showAdmin ? [{ label: "Admin", href: appHref("/admin"), icon: "shieldCheck" }] : []),
     studio
       ? { label: "Guides docs", href: docsUrl(DOCS_PAGES.guidesOverview), icon: "doc", external: true }
       : { label: "Docs", href: DOCS_URL, icon: "doc" },

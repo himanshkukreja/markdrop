@@ -39,4 +39,5 @@ async def admin_headers(db, email: str | None = None) -> dict[str, str]:
 def admin_override() -> dict:
     """For `app.dependency_overrides[require_admin]` where a test has no database for the guard."""
     email = admin_email()
-    return {"sub": email, "email": email, "user_id": "0" * 24, "ip_hash": None, "name": "Site Admin", "picture": None}
+    return {"sub": email, "email": email, "user_id": "0" * 24, "ip_hash": None, "role": "owner",
+            "issued_at": datetime.now(timezone.utc), "name": "Site Admin", "picture": None}

@@ -800,9 +800,15 @@ async def list_user_documents(
     limit: int,
     q: str | None,
     kind: str | None = None,
+    file_type: str | None = None,
 ) -> tuple[list[Document], int]:
     """Return (documents, total) owned by the user, newest first. Expired
-    documents are gone (I11) even before the sweeper deletes them."""
+    documents are gone (I11) even before the sweeper deletes them.
+
+    ``file_type`` is one of ``file_types.FILE_TYPES`` (pdf, video, …); it
+    combines with ``kind`` and the search."""
+    from app.services import file_types
+
     query: dict = {"owner_id": user_id, "template": {"$ne": True}, "$and": [{"$or": [
         {"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}]}]}
     if kind in ("markdown", "document"):
@@ -810,6 +816,9 @@ async def list_user_documents(
         query["kind"] = {"$ne": "artifact"}
     elif kind == "artifact":
         query["kind"] = "artifact"
+    tc = file_types.type_clause(file_type)
+    if tc:
+        query["$and"].append(tc)
     search = search_clause(q)
     if search:
         query["$or"] = search
@@ -825,23 +834,31 @@ async def list_user_documents(
 
 
 async def count_user_documents(db: AsyncIOMotorDatabase, user_id: str) -> dict:
-    """How many documents and artifacts this user owns.
+    """How many documents and artifacts this user owns, in total, per kind and
+    per file type (``file_types.FILE_TYPES``).
 
-    One grouped aggregation rather than a query per kind: the dashboard sidebar
-    renders all three counts together, and they must not cost three round trips.
+    One grouped aggregation rather than a query per kind or type: the filter
+    chips render every count together, and they must not cost ten round trips.
+    Grouped by (kind, mime) — a few dozen rows at most, whatever the library's
+    size — and folded into types here, by the same table the type filter uses.
     """
+    from app.services import file_types
+
     rows = await db["documents"].aggregate([
         {"$match": {"owner_id": user_id, "template": {"$ne": True}, "$or": [
             {"expires_at": None}, {"expires_at": {"$gt": datetime.now(timezone.utc)}}]}},
-        {"$group": {"_id": {"$ifNull": ["$kind", "markdown"]}, "n": {"$sum": 1}}},
-    ]).to_list(length=10)
-    by_kind = {r["_id"]: r["n"] for r in rows}
-    markdown = sum(n for k, n in by_kind.items() if k != "artifact")
-    artifact = by_kind.get("artifact", 0)
+        {"$group": {"_id": {"kind": {"$ifNull": ["$kind", "markdown"]},
+                            "mime": {"$ifNull": ["$mime", None]}},
+                    "n": {"$sum": 1}}},
+    ]).to_list(length=None)
+    by_type = file_types.counts_from_groups(rows)
+    markdown = by_type["document"]
+    artifact = sum(n for t, n in by_type.items() if t != "document")
     return {
         "count_all": markdown + artifact,
         "count_markdown": markdown,
         "count_artifact": artifact,
+        "count_by_type": by_type,
     }
 
 

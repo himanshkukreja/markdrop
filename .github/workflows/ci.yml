@@ -400,6 +400,13 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node ${{ matrix.script }}.mjs
 
+      # Admin roles: the Admin link for admins only (account menu, sidebar, phone drawer), and an owner
+      # adding and removing an admin in Admin › Admins, ~40 s, on the real job.
+      - name: admin-roles.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node admin-roles.mjs
+
       # The edit lock goes as its editor leaves (sub-page, navigation, a closed or killed tab, the
       # workspace's domain): ~1.5 min, on the shorter bughunt job.
       - name: lockleave.mjs on ${{ matrix.browser }}
@@ -443,6 +450,13 @@ jobs:
         run: |
           PB_PUSH=1 zsh up.sh restart-api
           node push-prompts.mjs
+
+      # Filter by type (the chips on My files, Shared with me, Recent and folders; phones and tablets),
+      # ~40 s, on the bughunt job.
+      - name: files-types.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node files-types.mjs
 
       - name: Stack logs
         if: failure()
