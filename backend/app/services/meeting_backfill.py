@@ -658,7 +658,8 @@ async def background(db: AsyncIOMotorDatabase) -> None:
 
 
 async def estimate(db: AsyncIOMotorDatabase, job: dict) -> dict:
-    """The AI cost of the rows still to import, and whether today's Meetings AI budget covers it."""
+    """How many of the rows still to import get an AI summary, and whether today's fair-use limit
+    covers them all (``may_wait``). No amounts: the estimate and the limit stay server-side."""
     from app.services import ai_usage, meetings_ai
 
     todo = [r for r in job.get("rows") or [] if r.get("include") and r.get("state") in ("pending", "importing")]
@@ -673,8 +674,7 @@ async def estimate(db: AsyncIOMotorDatabase, job: dict) -> dict:
         left = mine_left if left is None else min(left, mine_left)
     reason = await meetings_ai.generate_reason(db, job["user_id"], job["workspace_id"])
     ai = reason is None or reason in WAIT_REASONS
-    return {"usd": usd, "meetings": len(todo), "left_today_usd": None if left is None else round(left, 4),
-            "may_wait": bool(ai and left is not None and usd > left), "ai": ai,
+    return {"meetings": len(todo), "may_wait": bool(ai and left is not None and usd > left), "ai": ai,
             "ai_message": None if ai else meetings_ai.message(reason)}
 
 
@@ -713,7 +713,7 @@ async def view(db: AsyncIOMotorDatabase, job: dict, *, with_estimate: bool = Tru
             "series_from": r.get("series_from"), "include": r["include"], "needs_date": bool(r.get("needs_date")),
             "dup": r["dup"], "state": r["state"], "error": r.get("error"), "meeting_id": r.get("meeting_id"),
             "slug": slugs.get(r.get("meeting_id") or ""), "segments": r.get("segments"), "attendees": r.get("attendees") or [],
-            "est_usd": r.get("est_usd"), "cost_usd": r.get("cost_usd"), "order": r.get("order"),
+            "order": r.get("order"),
             "past": is_past(r["date"], r.get("time")), "ai": r.get("ai"),
             "folder": r.get("folder") or r.get("series") or meeting_series.OTHER,
             "restricted": bool(r.get("restricted")), "restricted_from": r.get("restricted_from") or "auto",

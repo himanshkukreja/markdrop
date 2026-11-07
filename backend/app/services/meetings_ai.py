@@ -184,7 +184,7 @@ async def generate_reason(db: AsyncIOMotorDatabase, user_id: str, workspace_id: 
 
 async def status(db: AsyncIOMotorDatabase, user_id: str, workspace_id: str | None) -> dict:
     reason = await limit_for(db, user_id, workspace_id, count=False)
-    return {"enabled": reason is None, "reason": reason, "message": message(reason), "model": MODEL}
+    return {"enabled": reason is None, "reason": reason, "message": message(reason)}
 
 
 def limit_event(reason: str) -> tuple[str, dict]:
@@ -230,8 +230,7 @@ class Run:
     def usage(self) -> dict:
         tk = self.meter.tokens
         return {"input": tk["input"], "output": tk["output"], "cache_read": tk["cache_read"],
-                "cache_write": self.meter.cache_write, "calls": self.meter.calls,
-                "cost_usd": round(self.meter.cost_usd, 6)}
+                "cache_write": self.meter.cache_write, "calls": self.meter.calls}
 
 
 def _params(system: str, blocks: list[str], max_tokens: int, *, cache_first: bool = False) -> dict:

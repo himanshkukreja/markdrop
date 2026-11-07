@@ -5,7 +5,7 @@
          → {query, items, groups: [{key, label, items, more}], trash, next_cursor, total, took_ms,
             ai_suggested, log_id}
     POST /api/v1/search/click            {log_id}: a result was opened from that search
-    GET  /api/v1/search/ai-status?scope=        {enabled, reason, message, model}
+    GET  /api/v1/search/ai-status?scope=        {enabled, reason, message}
     POST /api/v1/search/ask              SSE   {question, scope?, current?}
          events: status {stage}, results {items}, delta {text},
                  done {request_id, usage, answer, citations, ranked}, limit {reason, message},

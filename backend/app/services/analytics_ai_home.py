@@ -185,8 +185,7 @@ class Run:
     def usage(self) -> dict:
         tk = self.meter.tokens
         return {"input": tk["input"], "output": tk["output"], "cache_read": tk["cache_read"],
-                "cache_write": self.meter.cache_write, "calls": self.meter.calls,
-                "cost_usd": round(self.meter.cost_usd, 6)}
+                "cache_write": self.meter.cache_write, "calls": self.meter.calls}
 
 
 async def _json_call(run: Run, system: str, content: str, schema: dict, max_tokens: int) -> dict:
@@ -613,12 +612,12 @@ async def _generate_story(db, user_id: str, facts: dict, refs: dict, *, via: str
 async def story(db: AsyncIOMotorDatabase, user_id: str, range_key: str = "7d", *, fresh: bool = False,
                 via: str = "web", now: datetime | None = None) -> dict:
     """The story for the home board: ``{status: ok|thin|limit|error, range, headline, bullets:
-    [{text, href, doc}], generated_at, cached, model}``."""
+    [{text, href, doc}], generated_at, cached}``."""
     if range_key not in STORY_RANGES:
         raise ValueError("range must be 7d, 30d or 90d")
     now = now or now_utc()
     key = f"{user_id}:story:{range_key}:{_day(now)}"
-    base = {"range": range_key, "model": MODEL}
+    base = {"range": range_key}
     if not fresh:
         hit = await cache_get(db, key)
         if hit:
@@ -1310,7 +1309,7 @@ async def gaps(db: AsyncIOMotorDatabase, user_id: str, scope: str, *, fresh: boo
     Raises Forbidden / ValueError."""
     now = now or now_utc()
     wid, label = await _scope_of(db, user_id, scope)
-    base = {"scope": scope, "label": label, "model": MODEL, "days": GAP_DAYS, "create": {"workspace": wid}}
+    base = {"scope": scope, "label": label, "days": GAP_DAYS, "create": {"workspace": wid}}
     key = f"{user_id}:gaps:{scope}:{_day(now)}"
     if not fresh:
         hit = await cache_get(db, key)
@@ -1356,5 +1355,5 @@ async def gaps(db: AsyncIOMotorDatabase, user_id: str, scope: str, *, fresh: boo
 async def status(db: AsyncIOMotorDatabase, user_id: str) -> dict:
     reason = await limit_for(db, user_id, count=False)
     return {"enabled": reason is None, "reason": reason,
-            "message": LIMIT_MESSAGES.get(reason) if reason else None, "model": MODEL,
+            "message": LIMIT_MESSAGES.get(reason) if reason else None,
             "gap_scopes": await gap_scopes(db, user_id)}

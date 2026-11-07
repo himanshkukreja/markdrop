@@ -1457,7 +1457,7 @@ def ai_view(row: dict) -> dict:
             state = "failed"
             ai["message"] = "The summary didn't finish. Try again."
     return {"state": state, "reason": ai.get("reason"), "message": ai.get("message"),
-            "cost_usd": round(float(ai.get("cost_usd") or 0), 6), "calls": ai.get("calls") or 0,
+            "calls": ai.get("calls") or 0,
             "chunks": ai.get("chunks"), "at": iso(ai.get("at"))}
 
 

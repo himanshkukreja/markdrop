@@ -22,6 +22,7 @@ from types import SimpleNamespace as NS
 from unittest import mock
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
+from tests._no_ai_internals import assert_clean
 from tests.test_pages_ai import AIEnv, parse_sse, usage
 from tests._thinking_fake import ThinkingModel
 
@@ -183,7 +184,7 @@ class Story(World):
     async def get(self, who: str = "owner", **params):
         r = await self.http.get("/api/v1/me/analytics/ai/story", params=params, headers=self.session(who))
         self.assertEqual(r.status_code, 200, r.text)
-        return r.json()
+        return assert_clean(self, r.json())
 
     async def test_story_bullets_validated_and_private(self):
         s = await self.get(range="7d")
@@ -343,7 +344,7 @@ class Ask(World):
         r = await self.http.post("/api/v1/me/analytics/ai/ask", json={"question": question, **body},
                                  headers=self.session(who))
         self.assertEqual(r.status_code, 200, r.text)
-        return parse_sse(r.text)
+        return assert_clean(self, parse_sse(r.text))
 
     async def test_fixed_tools_validated_and_links_filtered(self):
         def script(kw):
@@ -551,8 +552,11 @@ class Gaps(World):
         self.model.script = lambda kw: json.dumps(GAPS_REPLY)
 
     async def get(self, who: str, scope: str, **params):
-        return await self.http.get("/api/v1/me/analytics/ai/gaps", params={"scope": scope, **params},
-                                   headers=self.session(who))
+        r = await self.http.get("/api/v1/me/analytics/ai/gaps", params={"scope": scope, **params},
+                                headers=self.session(who))
+        if r.status_code == 200:
+            assert_clean(self, r.json())
+        return r
 
     async def test_owners_and_admins_only(self):
         scope = f"workspace:{self.ws['W1']}"
@@ -566,7 +570,7 @@ class Gaps(World):
         self.assertEqual(self.model.calls, [])
         st = (await self.http.get("/api/v1/me/analytics/ai/status", headers=self.session("wm"))).json()
         self.assertEqual(st["gap_scopes"], [])
-        st = (await self.http.get("/api/v1/me/analytics/ai/status", headers=self.session("wa"))).json()
+        st = assert_clean(self, (await self.http.get("/api/v1/me/analytics/ai/status", headers=self.session("wa"))).json())
         self.assertEqual({s["scope"] for s in st["gap_scopes"]},
                          {f"workspace:{self.ws['W1']}", f"workspace:{self.ws['WR']}"})
 

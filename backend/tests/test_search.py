@@ -22,6 +22,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
+from tests._no_ai_internals import assert_clean
 from tests.test_pages_ai import AIEnv, parse_sse, prompt_of, usage
 from tests._thinking_fake import ThinkingModel
 
@@ -677,7 +678,7 @@ class AISearch(SearchWorld, AIEnv):
     async def ask(self, who: str, question: str, **body) -> list[tuple[str, dict]]:
         r = await self.http.post("/api/v1/search/ask", json={"question": question, **body}, headers=self.session(who))
         self.assertEqual(r.status_code, 200, r.text)
-        return parse_sse(r.text)
+        return assert_clean(self, parse_sse(r.text))
 
     async def rows(self) -> list[dict]:
         return await self.db[ai_usage.REQUESTS].find({"feature": "search_ai"}).to_list(length=100)
@@ -806,7 +807,7 @@ class AISearch(SearchWorld, AIEnv):
         self.assertEqual(ai_usage.FEATURES["search_ai"], "AI search")
         self.assertEqual(await ai_usage.caps(self.db, "search_ai"), (2.0, 20.0))
         status = await self.http.get("/api/v1/search/ai-status", headers=self.session("owner"))
-        self.assertEqual(status.json()["enabled"], True)
+        self.assertEqual(assert_clean(self, status.json())["enabled"], True)
 
     async def test_upstream_error_is_recorded(self):
         import anthropic

@@ -114,7 +114,7 @@ def limit_event(reason: str) -> dict:
 async def status(db: AsyncIOMotorDatabase, user_id: str, scope: str | None) -> dict:
     reason = await limit_for(db, user_id, scope, count=False)
     return {"enabled": reason is None, "reason": reason,
-            "message": LIMIT_MESSAGES.get(reason) if reason else None, "model": MODEL}
+            "message": LIMIT_MESSAGES.get(reason) if reason else None}
 
 
 # ── Model calls ───────────────────────────────────────────────────────────────
@@ -153,8 +153,7 @@ class Run:
     def usage(self) -> dict:
         tk = self.meter.tokens
         return {"input": tk["input"], "output": tk["output"], "cache_read": tk["cache_read"],
-                "cache_write": self.meter.cache_write, "calls": self.meter.calls,
-                "cost_usd": round(self.meter.cost_usd, 6)}
+                "cache_write": self.meter.cache_write, "calls": self.meter.calls}
 
 
 def _params(system: str, content: str, max_tokens: int, *, thinking: bool = True) -> dict:

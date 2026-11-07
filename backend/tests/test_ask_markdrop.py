@@ -18,6 +18,7 @@ from datetime import timedelta
 from unittest import mock
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
+from tests._no_ai_internals import assert_clean
 from tests.test_meetings import fake_script as meetings_script
 from tests.test_meetings import fixture
 from tests.test_pages_ai import AIEnv, parse_sse, prompt_of
@@ -114,7 +115,7 @@ class AskWorld(AccessWorld, AIEnv):
     async def ask(self, who: str, question: str = "", **body) -> list[tuple[str, dict]]:
         r = await self.http.post("/api/v1/ask", json={"question": question, **body}, headers=self.session(who))
         self.assertEqual(r.status_code, 200, r.text)
-        return parse_sse(r.text)
+        return assert_clean(self, parse_sse(r.text))
 
     def done(self, events) -> dict:
         self.assertEqual(events[-1][0], "done", events[-1])

@@ -19,6 +19,7 @@ from datetime import date, datetime, timedelta, timezone
 from unittest import mock
 
 from tests.test_meetings import MeetingsWorld, fixture  # noqa: F401  (pins settings first)
+from tests._no_ai_internals import assert_clean
 from tests.test_pages_ai import parse_sse, prompt_of
 
 from fastapi import HTTPException
@@ -214,7 +215,7 @@ class BackfillWorld(MeetingsWorld):
         r = await self.http.post(f"/api/v1/meetings/backfill/{job['id']}/sources", headers=self.session(who),
                                  json={"sources": sources, **body})
         self.assertEqual(r.status_code, 200, r.text)
-        return r.json()
+        return assert_clean(self, r.json())
 
     async def call(self, method: str, path: str, who="owner", **kw):
         return await self.http.request(method, f"/api/v1/meetings/backfill{path}", headers=self.session(who), **kw)
@@ -271,7 +272,11 @@ class Review(BackfillWorld):
         # Undated rows come first so they're seen; then by date.
         self.assertIsNone(rows[0]["date"])
         self.assertEqual([r["date"] for r in rows[1:]], sorted(r["date"] for r in rows[1:]))
-        self.assertGreater(v["estimate"]["usd"], 0)
+        # The estimate says how many and whether today's fair-use limit covers them: never an amount.
+        self.assertEqual(set(v["estimate"]), {"meetings", "may_wait", "ai", "ai_message"})
+        self.assertFalse(any(k in r for r in rows for k in ("est_usd", "cost_usd")))
+        stored = await self.db[bf.JOBS].find_one({"_id": bf._oid(job["id"])}, {"rows": 1})
+        self.assertGreater(sum(r["est_usd"] for r in stored["rows"]), 0)
         # The same text again is skipped; the draft is the one the person had open.
         again = await self.new_job()
         self.assertEqual(again["id"], job["id"])
@@ -685,7 +690,7 @@ class AskScoped(BackfillWorld):
     async def ask(self, question: str, **scope) -> tuple[dict, str]:
         r = await self.http.post("/api/v1/meetings/ask", headers=self.session("wm"),
                                  json={"workspace": self.W, "question": question, **scope})
-        evs = parse_sse(r.text)
+        evs = assert_clean(self, parse_sse(r.text))
         self.assertEqual(evs[-1][0], "done", r.text)
         return evs[-1][1], prompt_of(self.fake.calls[-1]) if self.fake.calls else ""
 

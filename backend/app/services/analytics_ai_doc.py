@@ -807,8 +807,7 @@ class Run:
     def usage(self) -> dict:
         tk = self.meter.tokens
         return {"input": tk["input"], "output": tk["output"], "cache_read": tk["cache_read"],
-                "cache_write": self.meter.cache_write, "calls": self.meter.calls,
-                "cost_usd": round(self.meter.cost_usd, 6)}
+                "cache_write": self.meter.cache_write, "calls": self.meter.calls}
 
 
 async def call_model(run: Run, params: dict) -> tuple[str, str | None]:
@@ -862,7 +861,7 @@ def _shape(kind: str, state: str, *, kinds: list[str], row: dict | None = None, 
            apply: bool = False) -> dict:
     out = {"kind": kind, "state": state, "result": None, "stale": False, "generated_at": None,
            "sample": smp, "note": note, "limit": limit.event() if limit else None,
-           "can_apply": apply, "kinds": kinds, "model": MODEL}
+           "can_apply": apply, "kinds": kinds}
     if row is not None:
         out["result"] = row["result"]
         out["stale"] = bool(sig and row.get("sig") != sig)

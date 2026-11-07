@@ -1,6 +1,6 @@
 """Analytics AI on the analytics home (services/analytics_ai_home.py), under ``/api/v1/me``.
 
-    GET  /api/v1/me/analytics/ai/status                       {enabled, reason, message, model, gap_scopes}
+    GET  /api/v1/me/analytics/ai/status                       {enabled, reason, message, gap_scopes}
     GET  /api/v1/me/analytics/ai/story?range=7d|30d|90d&fresh= {status, headline, bullets: [{text, href, doc}], ...}
     POST /api/v1/me/analytics/ai/ask   (SSE)  {question, range?, fresh?}
          events: status {stage, label}, delta {text, reset?}, done {answer, links, request_id, usage, cached},

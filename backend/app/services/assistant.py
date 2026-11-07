@@ -325,9 +325,7 @@ async def member_workspaces(db: AsyncIOMotorDatabase, uid: str | None, *, first:
 async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, *, page: str | None = None,
                       workspace: str | None = None, folder: str | None = None, meeting: str | None = None) -> dict:
     """The scopes the assistant offers where the person is, the default one, and the AI status of
-    both budgets. Only what they can open is named; anything else is left out (never an error)."""
-    from app.services import search_ai
-
+    both features. Only what they can open is named; anything else is left out (never an error)."""
     uid = actor.user_id
     out: dict[str, Any] = {"scopes": [], "default": "everything", "page": None, "workspace": None, "folder": None,
                            "meeting": None, "series": [], "can_insert": False}
@@ -380,6 +378,5 @@ async def context_for(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
         "search": await ask_markdrop.status(db, uid),
         "meetings": await meetings_ai.status(db, uid, out["workspace"]["id"] if out["workspace"] else None)
         if out["workspace"] else None,
-        "model": search_ai.MODEL,
     }
     return out

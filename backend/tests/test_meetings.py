@@ -18,6 +18,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from tests._access_env import AccessWorld, now  # noqa: F401  (pins settings first)
+from tests._no_ai_internals import assert_clean
 from tests.test_pages_ai import AIEnv, parse_sse, prompt_of, usage
 
 from bson import ObjectId
@@ -460,7 +461,7 @@ class MeetingsWorld(AccessWorld, AIEnv):
     async def imported(self, **kw) -> dict:
         r = await self.do_import(**kw)
         self.assertEqual(r.status_code, 200, r.text)
-        return r.json()["meetings"][0]
+        return assert_clean(self, r.json())["meetings"][0]
 
 
 class Import(MeetingsWorld):
@@ -469,7 +470,15 @@ class Import(MeetingsWorld):
         self.assertEqual(m["title"], "Weekly product sync")
         self.assertEqual(m["date"], "2026-11-04")
         self.assertEqual(m["ai"]["state"], "done")
-        self.assertGreater(m["ai"]["cost_usd"], 0)
+        # What it cost stays server-side: on the meeting row and in the ledger, never in a response.
+        self.assertNotIn("cost_usd", m["ai"])
+        row = await self.db[meetings.COLL].find_one({"_id": ObjectId(m["id"])}, {"ai": 1})
+        self.assertGreater(row["ai"]["cost_usd"], 0)
+        for path in (f"/api/v1/meetings/{m['id']}", f"/api/v1/meetings?workspace={self.W}",
+                     f"/api/v1/meetings/status?workspace={self.W}"):
+            r = await self.http.get(path, headers=self.session("wm"))
+            self.assertEqual(r.status_code, 200, f"{path}: {r.text[:200]}")
+            assert_clean(self, r.json())
         self.assertEqual(m["type"], "Planning")       # "Other" from the title, the AI's pick
         self.assertEqual(m["action_items"], 3)
         page = await self.doc(m["slug"])

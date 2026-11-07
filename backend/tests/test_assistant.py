@@ -15,6 +15,7 @@ import re
 import unittest
 
 from tests.test_meeting_memory import MemoryWorld
+from tests._no_ai_internals import assert_clean
 from tests.test_pages_ai import parse_sse, prompt_of
 
 from app.services import ai_usage, assistant, folder as folder_service, search_index
@@ -268,7 +269,7 @@ class Context(AssistantWorld):
     async def ctx(self, who: str, **params) -> dict:
         r = await self.http.get("/api/v1/ask/context", headers=self.session(who), params=params)
         self.assertEqual(r.status_code, 200, r.text)
-        return r.json()
+        return assert_clean(self, r.json())
 
     async def test_in_a_page(self):
         prd = await self.prd()

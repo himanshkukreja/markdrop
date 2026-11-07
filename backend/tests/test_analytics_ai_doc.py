@@ -19,6 +19,7 @@ from datetime import timedelta
 from unittest import mock
 
 from tests._access_env import now
+from tests._no_ai_internals import assert_clean
 from tests.test_creator_analytics import World
 from tests.test_pages_ai import AIEnv, prompt_of
 from tests._thinking_fake import ThinkingModel
@@ -121,14 +122,14 @@ class AIWorld(World, AIEnv):
     async def get(self, d: dict, kind: str, who: str = "owner", expect: int = 200, **q) -> dict:
         r = await self.http.get(self.url(d, kind, **q), headers=self.session(who))
         self.assertEqual(r.status_code, expect, r.text)
-        return r.json()
+        return assert_clean(self, r.json())
 
     async def analyse(self, d: dict, kind: str, who: str = "owner", expect: int = 200, refresh: bool = False,
                   **q) -> dict:
         r = await self.http.post(self.url(d, kind, **q), headers=self.session(who),
                                  json={"refresh": True} if refresh else None)
         self.assertEqual(r.status_code, expect, r.text)
-        return r.json()
+        return assert_clean(self, r.json())
 
     async def markdown_doc(self, n: int = 30, content: str = DOC, **extra) -> dict:
         d = await self.mkdoc("L", ws=None, content=content, title="Getting started", **extra)

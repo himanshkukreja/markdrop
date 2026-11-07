@@ -5,8 +5,8 @@
 
 ``kind`` is content | media | pages | versions. Access is the analytics one exactly
 (``access.require(..., "view_stats")``, as routers/creator_analytics._owned_doc). Both answer
-``{kind, state, result, stale, generated_at, sample:{have, need}, note, limit, can_apply, kinds,
-model}`` with ``state`` ready | empty | thin | encrypted | unsupported. A limit is
+``{kind, state, result, stale, generated_at, sample:{have, need}, note, limit, can_apply, kinds}``
+with ``state`` ready | empty | thin | encrypted | unsupported. A limit is
 ``{detail, code: "limit", type: "limit", reason}`` (429 for the spend limits, 503 when AI is off
 or not set up, 403 when the workspace has AI off or the account is blocked); a failed or
 unusable answer is 502 ``{detail, code}``.

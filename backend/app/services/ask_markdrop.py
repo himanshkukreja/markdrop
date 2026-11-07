@@ -197,7 +197,7 @@ async def limit_for(db: AsyncIOMotorDatabase, user_id: str | None, *, scope: str
 
 async def status(db: AsyncIOMotorDatabase, user_id: str | None) -> dict:
     reason = await limit_for(db, user_id, count=False)
-    return {"enabled": reason is None, "reason": reason, "message": message(reason), "model": MODEL}
+    return {"enabled": reason is None, "reason": reason, "message": message(reason)}
 
 
 # ── Intents ───────────────────────────────────────────────────────────────────
