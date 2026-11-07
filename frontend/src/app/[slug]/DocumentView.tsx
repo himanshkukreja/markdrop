@@ -568,6 +568,7 @@ export default function DocumentView(props: DocumentViewProps) {
         captionsUrl={artifactDoc.captions_url ?? null}
         docRef={artifactDoc.ref ?? null}
         readTicket={artifactDoc.read_ticket ?? null}
+        track={artifactDoc.track ?? null}
         fileVersion={artifactDoc.file_version ?? null}
         workspaceId={artifactDoc.workspace_id ?? null}
         folderPath={artifactDoc.folder_path ?? []}

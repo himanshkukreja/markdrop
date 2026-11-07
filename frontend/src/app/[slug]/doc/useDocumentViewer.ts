@@ -62,6 +62,7 @@ export function useDocumentViewer({
   syncedWithVscode = false,
   encrypted: encryptedProp = false,
   readTicket: initialReadTicket = null,
+  track: trackSwitches = null,
   rev: initialRev = null,
   gate = null,
   page: initialPage = null,
@@ -866,7 +867,8 @@ export function useDocumentViewer({
   // How far readers get and how long they read (lib/readDepth.ts). Only while
   // the document is actually on screen: not locked, not being edited.
   const readRef = useRef<HTMLDivElement>(null);
-  useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked), readTicket);
+  useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked)
+    && trackSwitches?.counts !== false && trackSwitches?.activity !== false, readTicket);
 
   // Creator analytics (lib/engage.ts): sections read, copies, links, time. With a signed-in user it
   // waits until the ownership check has answered for them; the owner's own reading is sent too, and
@@ -876,7 +878,7 @@ export function useDocumentViewer({
     slug,
     readRef,
     readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked) && ownerKnown,
-    { encrypted, ticket: readTicket },
+    { encrypted, ticket: readTicket, track: trackSwitches },
   );
 
   // Fire a single view beacon from the browser so the real visitor IP (not
@@ -887,6 +889,7 @@ export function useDocumentViewer({
     if (viewBeaconSent.current || !authSettled) return;
     if (isPasswordProtected && pwdLocked) return; // wait until unlocked
     viewBeaconSent.current = true;
+    if (trackSwitches?.counts === false) return; // the item doesn't count views (its analytics settings)
     recordEvent(slug, "view", readTicket, { optOut: engagementOptedOut() });
   }, [pwdLocked, isPasswordProtected, slug, authSettled]); // eslint-disable-line react-hooks/exhaustive-deps
 

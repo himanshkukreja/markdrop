@@ -455,8 +455,11 @@ const EV_QUEUE_MAX = 600;
 export class Timeline {
   q: TlEvent[] = [];
   readonly t0: number;
-  constructor(t0: number = Date.now()) {
+  /** Which kinds of event this item collects (its analytics settings); everything when absent. */
+  readonly allow: ((k: string) => boolean) | null;
+  constructor(t0: number = Date.now(), allow: ((k: string) => boolean) | null = null) {
     this.t0 = t0;
+    this.allow = allow;
   }
 
   at(now: number): number {
@@ -464,7 +467,7 @@ export class Timeline {
   }
 
   mark(k: string, extra: Record<string, unknown> = {}, now: number = Date.now()): TlEvent | null {
-    if (this.q.length >= EV_QUEUE_MAX) return null;
+    if (this.q.length >= EV_QUEUE_MAX || (this.allow && !this.allow(k))) return null;
     const ev: TlEvent = { t: this.at(now), k, ...extra };
     this.q.push(ev);
     return ev;
@@ -577,4 +580,21 @@ export class MediaMarks {
     if (fin(m.rate) && m.rate > 0) this.rate = m.rate;
     if (t != null) this.lastT = t;
   }
+}
+
+/** The item's analytics settings (backend services/analytics_prefs.py), as its page gets them. */
+export type TrackSwitches = Partial<Record<"counts" | "identity" | "location" | "device" | "source" | "activity" | "video" | "pages" | "downloads", boolean>>;
+
+const ACTIVITY_EVENTS = new Set(["sec", "depth", "link", "copy", "find", "fs", "print"]);
+const VIDEO_EVENTS = new Set(["play", "pause", "seek", "end", "rate"]);
+const PAGE_EVENTS = new Set(["pg", "sl", "tab"]);
+
+/** Whether an event kind may be sent for an item with these switches (missing: on). */
+export function eventAllowed(k: string, t: TrackSwitches | null | undefined): boolean {
+  if (!t) return true;
+  if (ACTIVITY_EVENTS.has(k)) return t.activity !== false;
+  if (VIDEO_EVENTS.has(k)) return t.video !== false;
+  if (PAGE_EVENTS.has(k)) return t.pages !== false;
+  if (k === "dl") return t.downloads !== false;
+  return true;
 }

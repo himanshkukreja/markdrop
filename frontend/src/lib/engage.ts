@@ -41,7 +41,12 @@ import {
   type EngageDelta,
   type EngagePos,
   type TlEvent,
+  type TrackSwitches,
+  eventAllowed,
 } from "@/lib/engageCore";
+
+/** Which kinds of analytics an item collects (its document's `track`); missing means on. */
+export type EngageTrack = TrackSwitches;
 
 export type EngageKind = "doc" | "pdf" | "video" | "audio" | "other";
 
@@ -97,6 +102,13 @@ interface SessionOptions {
   collector: Collector;
   /** The session's activity timeline (viewer analytics); the collector marks into it too. */
   tl: Timeline;
+  /** The item's analytics settings: what isn't collected isn't sent. */
+  track?: EngageTrack | null;
+}
+
+/** A timeline for an item with these switches (events it doesn't collect are never queued). */
+export function timelineFor(track: EngageTrack | null | undefined): Timeline {
+  return new Timeline(Date.now(), track ? (k) => eventAllowed(k, track) : null);
 }
 
 /** Sessions running now: what lib/engage's `engageMark` adds an event to (a download, a print). */
@@ -113,7 +125,16 @@ export function engageMark(k: "dl" | "print", extra: Record<string, unknown> = {
  * the reader came from, a touch screen (an iPad asking for desktop pages), and the real OS version
  * where the browser tells it (User-Agent Client Hints). No fingerprinting extras.
  */
-export function systemInfo(app?: "tab" | "pwa" | "embed"): Record<string, unknown> {
+export function systemInfo(app?: "tab" | "pwa" | "embed", track?: EngageTrack | null): Record<string, unknown> {
+  const out = systemInfoAll(app);
+  // Only what the item collects: device and system, location (timezone), source (where from).
+  if (track?.device === false) for (const k of ["vw", "vh", "sw", "sh", "dpr", "lang", "app", "emb", "touch", "pv"]) delete out[k];
+  if (track?.location === false) delete out.tz;
+  if (track?.source === false) delete out.from;
+  return out;
+}
+
+function systemInfoAll(app?: "tab" | "pwa" | "embed"): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   try {
     out.vw = window.innerWidth;
@@ -161,7 +182,7 @@ interface Session {
   stop(): void;
 }
 
-function startSession({ slug, kind, ver, ticket, collector, tl }: SessionOptions): Session {
+function startSession({ slug, kind, ver, ticket, collector, tl, track }: SessionOptions): Session {
   const sid = randomId();
   const url = `${API}/api/v1/documents/${encodeURIComponent(slug)}/engage`;
   let seq = 0;
@@ -169,7 +190,7 @@ function startSession({ slug, kind, ver, ticket, collector, tl }: SessionOptions
   let lastActivity = Date.now();
   let lastPos = "";
   let closed = false; // the last send was final and nothing has happened since
-  const sys = systemInfo();
+  const sys = systemInfo(undefined, track);
   const anon = analyticsVisitorId();
   running.add(tl);
 
@@ -202,10 +223,12 @@ function startSession({ slug, kind, ver, ticket, collector, tl }: SessionOptions
     if (pos) body.pos = pos;
     if (seq === 1) {
       const first: Record<string, unknown> = { vw: window.innerWidth, sys };
-      const ref = landingReferrer();
-      if (ref) first.ref = ref.slice(0, 512);
-      const utm = landingUtm();
-      if (utm) first.utm = utm;
+      if (track?.source !== false) {
+        const ref = landingReferrer();
+        if (ref) first.ref = ref.slice(0, 512);
+        const utm = landingUtm();
+        if (utm) first.utm = utm;
+      }
       body.first = first;
     }
     let text = JSON.stringify(body);
@@ -244,7 +267,7 @@ function startSession({ slug, kind, ver, ticket, collector, tl }: SessionOptions
   let opened = false;
   const openSend = setTimeout(() => {
     void platformVersion().then((pv) => {
-      if (pv) sys.pv = pv;
+      if (pv && track?.device !== false) sys.pv = pv;
       if (!opened && seq === 0) send(false);
       opened = true;
     });
@@ -330,6 +353,8 @@ class DocCollector implements Collector {
     readonly el: () => HTMLElement | null,
     readonly encrypted: boolean,
     readonly tl: Timeline,
+    /** The item collects its activity timeline (sections, depth, links, copies). Off: time only. */
+    readonly activity: boolean = true,
   ) {}
 
   headings(): HTMLElement[] {
@@ -350,6 +375,7 @@ class DocCollector implements Collector {
   }
 
   second(active: boolean): void {
+    if (!this.activity) return;
     this.measure();
     if (this.encrypted) return;
     const node = this.el();
@@ -387,14 +413,14 @@ class DocCollector implements Collector {
   }
 
   copy(code: string, node: HTMLElement | null): void {
-    if (this.encrypted) return;
+    if (this.encrypted || !this.activity) return;
     const section = this.sectionOf(node);
     addTo(this.copies, copyKey(code, section));
     this.tl.mark("copy", section ? { h: section } : {});
   }
 
   click(e: MouseEvent): void {
-    if (this.encrypted || (e.type === "auxclick" && e.button !== 1)) return;
+    if (this.encrypted || !this.activity || (e.type === "auxclick" && e.button !== 1)) return;
     const node = this.el();
     const a = e.target instanceof Element ? e.target.closest("a[href]") : null;
     if (!node || !a || !node.contains(a) || !a.closest(".md-prose")) return;
@@ -408,11 +434,13 @@ class DocCollector implements Collector {
   }
 
   print(): void {
+    if (!this.activity) return;
     this.tl.mark("print");
     if (!this.encrypted) this.prints += 1;
   }
 
   drain(d: EngageDelta, now: number, final: boolean): void {
+    if (!this.activity) return;
     this.measure();
     this.visits.flush(this.tl, final, now);
     if (this.depth > this.depthSent) {
@@ -440,7 +468,7 @@ class DocCollector implements Collector {
   }
 
   pos(): EngagePos | undefined {
-    return !this.encrypted && this.active ? { h: this.active } : undefined;
+    return this.activity && !this.encrypted && this.active ? { h: this.active } : undefined;
   }
 }
 
@@ -453,18 +481,18 @@ export function useDocEngagement(
   slug: string,
   el: React.RefObject<HTMLElement | null>,
   enabled: boolean,
-  { encrypted, ticket }: { encrypted: boolean; ticket: string | null },
+  { encrypted, ticket, track = null }: { encrypted: boolean; ticket: string | null; track?: EngageTrack | null },
 ): (code: string, node: HTMLElement | null) => void {
   const ticketRef = useRef(ticket);
   ticketRef.current = ticket;
   const collectorRef = useRef<DocCollector | null>(null);
 
   useEffect(() => {
-    if (!enabled || engagementOptedOut()) return;
-    const tl = new Timeline();
-    const collector = new DocCollector(() => el.current, encrypted, tl);
+    if (!enabled || engagementOptedOut() || track?.counts === false) return;
+    const tl = timelineFor(track);
+    const collector = new DocCollector(() => el.current, encrypted, tl, track?.activity !== false);
     collectorRef.current = collector;
-    const session = startSession({ slug, kind: "doc", ver: null, ticket: () => ticketRef.current, collector, tl });
+    const session = startSession({ slug, kind: "doc", ver: null, ticket: () => ticketRef.current, collector, tl, track });
     const onClick = (e: MouseEvent) => collector.click(e);
     const onPrint = () => collector.print();
     document.addEventListener("click", onClick, { capture: true });
@@ -477,7 +505,8 @@ export function useDocEngagement(
       session.stop();
       collectorRef.current = null;
     };
-  }, [slug, el, enabled, encrypted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, el, enabled, encrypted, JSON.stringify(track ?? null)]);
 
   return useCallback((code: string, node: HTMLElement | null) => collectorRef.current?.copy(code, node), []);
 }
@@ -503,8 +532,11 @@ export function useArtifactEngagement(
     ticket,
     frame,
     origin,
+    track = null,
   }: {
     enabled: boolean;
+    /** The item's analytics settings (its document's `track`). */
+    track?: EngageTrack | null;
     kind: EngageKind;
     /** The file's renderer (pptx, sheet, …): what its frame reports beyond pdf and media. */
     renderer?: string | null;
@@ -518,13 +550,14 @@ export function useArtifactEngagement(
   ticketRef.current = ticket;
 
   useEffect(() => {
-    if (!enabled || engagementOptedOut()) return;
-    const tl = new Timeline();
-    const media = kind === "video" || kind === "audio" ? new MediaAgg() : null;
+    if (!enabled || engagementOptedOut() || track?.counts === false) return;
+    const tl = timelineFor(track);
+    const video = track?.video !== false, pages = track?.pages !== false;
+    const media = video && (kind === "video" || kind === "audio") ? new MediaAgg() : null;
     const marks = media ? new MediaMarks() : null;
-    const pdf = kind === "pdf" ? new PdfAgg() : null;
-    // The timeline's units: PDF pages, slides, spreadsheet tabs.
-    const visits = pdf ? new VisitTracker("pg", "p") : renderer === "pptx" ? new VisitTracker("sl", "n")
+    const pdf = pages && kind === "pdf" ? new PdfAgg() : null;
+    // The timeline's units: PDF pages, slides, spreadsheet tabs (when the item collects pages).
+    const visits = !pages ? null : pdf ? new VisitTracker("pg", "p") : renderer === "pptx" ? new VisitTracker("sl", "n")
       : renderer === "sheet" ? new VisitTracker("tab", "n") : null;
     const deck = { n: 0, nSent: 0, max: 0, maxSent: 0 };
     const sheet = { n: 0, nSent: 0, seen: new Set<number>(), sent: new Set<number>() };
@@ -562,7 +595,7 @@ export function useArtifactEngagement(
         return !!f && document.activeElement === f && now - lastActivity < FRAME_FOCUS_MS;
       },
     };
-    const session = startSession({ slug, kind, ver, ticket: () => ticketRef.current, collector, tl });
+    const session = startSession({ slug, kind, ver, ticket: () => ticketRef.current, collector, tl, track });
 
     const onMessage = (e: MessageEvent) => {
       const f = frame.current;
@@ -580,14 +613,14 @@ export function useArtifactEngagement(
         marks?.handle(tl, m, now);
         // A position report on its own isn't the reader doing anything.
         if (m.e !== "timeupdate") session.activity();
-      } else if (renderer === "pptx" && m.ev === "slide" && n != null && n >= 1) {
+      } else if (pages && renderer === "pptx" && m.ev === "slide" && n != null && n >= 1) {
         if (typeof m.of === "number" && m.of >= 1) deck.n = Math.floor(m.of);
         deck.max = Math.max(deck.max, n);
         visits?.enter(tl, n, now);
         session.activity();
-      } else if (renderer === "sheet" && m.ev === "sheet" && n != null && n >= 1) {
+      } else if (pages && renderer === "sheet" && m.ev === "sheet" && n != null && n >= 1) {
         sheet.n = n;
-      } else if (renderer === "sheet" && m.ev === "tab" && n != null && n >= 0) {
+      } else if (pages && renderer === "sheet" && m.ev === "tab" && n != null && n >= 0) {
         sheet.seen.add(n);
         const name = typeof m.name === "string" ? m.name.slice(0, 80) : "";
         visits?.enter(tl, n, now, name ? { name } : {});
@@ -607,7 +640,8 @@ export function useArtifactEngagement(
       window.removeEventListener("blur", onBlur);
       session.stop();
     };
-  }, [slug, enabled, kind, renderer, ver, origin, frame]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, enabled, kind, renderer, ver, origin, frame, JSON.stringify(track ?? null)]);
 }
 
 /**

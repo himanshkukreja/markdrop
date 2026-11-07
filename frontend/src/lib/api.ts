@@ -80,6 +80,9 @@ export interface DocumentCreateResponse {
 
 export interface DocumentResponse {
   slug: string;
+  /** Which kinds of analytics this item collects (backend services/analytics_prefs.py); the
+   *  page sends only those (lib/engage). Missing: everything. */
+  track?: Partial<Record<"counts" | "identity" | "location" | "device" | "source" | "activity" | "video" | "pages" | "downloads", boolean>> | null;
   /** v2: this was an old slug of a renamed document; `slug` is the current one. Redirect there. */
   moved?: boolean;
   /** v2: the document's address on its workspace's live primary domain, when it has one. */

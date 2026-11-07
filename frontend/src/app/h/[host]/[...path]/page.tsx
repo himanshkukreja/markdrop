@@ -270,6 +270,7 @@ export default async function TenantDocumentPage({ params }: Props) {
           posterUrl={doc.poster_url ?? null}
           captionsUrl={doc.captions_url ?? null}
           readTicket={doc.read_ticket ?? null}
+          track={doc.track ?? null}
           fileVersion={doc.file_version ?? null}
           workspaceId={doc.workspace_id ?? null}
           folderPath={doc.folder_path ?? []}
@@ -298,6 +299,7 @@ export default async function TenantDocumentPage({ params }: Props) {
         encrypted={doc?.encrypted ?? false}
         rev={doc?.rev ?? null}
         readTicket={doc?.read_ticket ?? null}
+        track={doc?.track ?? null}
         page={doc && !doc.encrypted ? pageFieldsOf(doc as unknown as Record<string, unknown>) : null}
         viewerChrome={viewerChrome}
       />

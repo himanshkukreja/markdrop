@@ -2,7 +2,7 @@
 // (Node >= 22.18 strips the types from engageCore.ts; it has no imports.)
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DepthMarks, EV_PER_SEND, MediaAgg, MediaMarks, PdfAgg, Timeline, VisitTracker, copyKey, fnv1a32, fromFrameOrigin, linkKey, mediaErr, spyIndex, utmFrom } from "./engageCore.ts";
+import { DepthMarks, EV_PER_SEND, eventAllowed, MediaAgg, MediaMarks, PdfAgg, Timeline, VisitTracker, copyKey, fnv1a32, fromFrameOrigin, linkKey, mediaErr, spyIndex, utmFrom } from "./engageCore.ts";
 
 test("fromFrameOrigin: the sandboxed frame's opaque origin, or the artifact origin itself", () => {
   const art = "https://markdrop-artifacts.markdrop-in.workers.dev";
@@ -283,4 +283,19 @@ test("MediaMarks: play, pause, one seek per scrub, end without its pause, speed"
   assert.deepEqual(tl.q.map(({ t, ...e }) => e), [
     { k: "play", s: 0 }, { k: "pause", s: 30 }, { k: "seek", f: 30, s: 60 }, { k: "rate", r: 1.5 }, { k: "end", s: 100 },
   ]);
+});
+
+test("an item's analytics settings: events it doesn't collect are never queued", () => {
+  const t = { activity: false, video: true, pages: false, downloads: false };
+  assert.equal(eventAllowed("sec", t), false);
+  assert.equal(eventAllowed("depth", t), false);
+  assert.equal(eventAllowed("play", t), true);
+  assert.equal(eventAllowed("pg", t), false);
+  assert.equal(eventAllowed("dl", t), false);
+  assert.equal(eventAllowed("dl", null), true);
+  const tl = new Timeline(0, (k) => eventAllowed(k, t));
+  tl.mark("depth", { v: 25 }, 1000);
+  tl.mark("play", { s: 0 }, 1000);
+  tl.mark("dl", {}, 1000);
+  assert.deepEqual(tl.q.map((e) => e.k), ["play"]);
 });
