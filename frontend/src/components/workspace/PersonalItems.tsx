@@ -8,7 +8,7 @@
  * Shared with me also carries the owner's side of "No dead ends": access requests waiting on the
  * caller, each opening /requests/<id>.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Anchor, Avatar, Badge, Button, ConfirmDialog, EmptyState, copyText, useToast, type MenuEntry } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
@@ -21,8 +21,11 @@ import ShareDialog from "@/components/access/ShareDialog";
 import { removePerson } from "@/lib/access";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  listAccessRequests, listRecent, listSharedWithMe, requestTitle, requesterName, type AccessRequest, type PersonalItem,
+  listAccessRequests, listRecentPage, listSharedWithMe, requestTitle, requesterName, type AccessRequest, type PersonalItem,
+  type TypeCounts,
 } from "@/lib/me";
+import { TYPE_META, typeChipsWorthShowing } from "@/lib/fileTypes";
+import { TypeChips, useTypeFilter, type ByType } from "@/components/dashboard/TypeChips";
 import { errorStatus, listWorkspaces, openHref } from "@/lib/workspaces";
 import { ItemRow } from "./folder/ItemRow";
 import { displayAddress, itemTitle, teamName } from "./folder/items";
@@ -64,24 +67,46 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [shareFor, setShareFor] = useState<PersonalItem | null>(null);
   const [leaving, setLeaving] = useState<PersonalItem | null>(null);
+  // The type chips (lib/fileTypes): ?type= in the URL, remembered for this list on this device.
+  const { type, setType, ready } = useTypeFilter(user ? mode : null);
+  /** Per-type counts of the whole list (not the filter); "unknown" from an older server. */
+  const [byType, setByType] = useState<ByType | "unknown" | null>(null);
+  const seq = useRef(0);
+  /** The type the rows on screen were loaded for. */
+  const [loadedType, setLoadedType] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (!ready) return;
+    const id = ++seq.current;
     setError("");
+    const t = type === "all" ? undefined : type;
+    const counted = (c: TypeCounts | undefined) => (c === undefined ? "unknown" as const : c);
     try {
       if (mode === "shared") {
-        const r = await listSharedWithMe();
+        const r = await listSharedWithMe(null, { type: t, counts: true });
+        if (id !== seq.current) return;
         setItems(r.items);
         setCursor(r.next_cursor);
+        // null: too many to count — keep the chips as they were, if any.
+        const c = counted(r.count_by_type);
+        if (c !== null) setByType(c);
       } else {
-        setItems(await listRecent());
+        const r = await listRecentPage(t);
+        if (id !== seq.current) return;
+        setItems(r.items);
         setCursor(null);
+        const c = counted(r.count_by_type);
+        if (c !== null) setByType(c);
       }
+      setLoadedType(type);
     } catch (e) {
+      if (id !== seq.current) return;
       const s = errorStatus(e);
       setItems([]);
+      setLoadedType(type);
       setError(s === 404 || s === 405 ? `${copy.title} isn't available on this server yet.` : e instanceof Error && e.message ? e.message : "Couldn't load this list.");
     }
-  }, [mode, copy.title]);
+  }, [mode, copy.title, ready, type]);
 
   useEffect(() => { if (user) void load(); }, [user, load]);
   // Team names ("Acme team") come from the workspaces' site names.
@@ -99,7 +124,7 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
     if (!cursor || more) return;
     setMore(true);
     try {
-      const r = await listSharedWithMe(cursor);
+      const r = await listSharedWithMe(cursor, { type: type === "all" ? undefined : type });
       setItems((xs) => [...(xs ?? []), ...r.items.filter((n) => !(xs ?? []).some((x) => x.slug === n.slug))]);
       setCursor(r.next_cursor);
     } catch {
@@ -152,8 +177,19 @@ export default function PersonalItems({ mode }: { mode: Mode }) {
 
       {error && <Alert tone={error.includes("isn't available") ? "info" : "danger"} actions={error.includes("isn't available") ? undefined : <Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => void load()}>Try again</Button>}>{error}</Alert>}
 
-      {items === null ? (
+      {typeChipsWorthShowing(type, byType) && (
+        <TypeChips value={type} counts={byType ? { byType } : null} onChange={setType} />
+      )}
+
+      {items === null || loadedType !== type ? (
         <ListSkeleton rows={4} label="Loading" />
+      ) : items.length === 0 && !error && type !== "all" ? (
+        <EmptyState
+          icon={TYPE_META[type].icon}
+          title={mode === "shared" ? `No ${TYPE_META[type].noun} shared with you` : `No ${TYPE_META[type].noun} opened lately`}
+          description={mode === "shared" ? "When someone adds you to one by email, it shows up here." : "The ones you open while signed in show up here."}
+          actions={<Button variant="secondary" onClick={() => setType("all")}>Show every type</Button>}
+        />
       ) : items.length === 0 && !error ? (
         <EmptyState
           icon={mode === "shared" ? "inbox" : "clock"}
