@@ -181,7 +181,6 @@ function Steps({ steps, started }: { steps: ViewStep[]; started: string }) {
               </span>
               <span className="text-micro text-text-muted tabular-nums">
                 {clockTime}{Number.isFinite(t0) && s.t > 0 ? ` · +${clock(s.t)}` : ""}
-                {s.jump ? " · jumped" : ""}
               </span>
             </span>
           </li>
@@ -228,7 +227,11 @@ function TimelineDrawer({ slug, viewId, onClose, onOpen }: { slug: string; viewI
             ))}
           </div>
           <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-            {v.location.label && <Fact icon="globe" label="Where">{flag(v.location.country)} {v.location.label}{v.location.timezone ? ` · ${v.location.timezone}` : ""}</Fact>}
+            {(v.location.label || v.location.timezone) && (
+              <Fact icon="globe" label="Where">
+                {v.location.label ? `${flag(v.location.country)} ${v.location.label}`.trim() : "Location unknown"}{v.location.timezone ? ` · ${v.location.timezone}` : ""}
+              </Fact>
+            )}
             {sys && <Fact icon={deviceIcon(sys.device)} label="Device">{deviceLabel(sys.device)} · {sys.label}{sys.viewport ? ` · ${sys.viewport}` : ""}{sys.language ? ` · ${sys.language}` : ""}</Fact>}
             {sys && sys.app !== "tab" && <Fact icon="monitor" label="App">{sys.app === "pwa" ? "Installed Markdrop app" : `Embedded${sys.embed_host ? ` on ${sys.embed_host}` : ""}`}</Fact>}
             <Fact icon="arrowUpRight" label="Source">{v.source === "Direct" ? "Direct or bookmarked" : `From ${v.source}`}{v.referrer ? <> · <span className="font-mono text-caption break-all">{v.referrer}</span></> : null}</Fact>
@@ -352,7 +355,7 @@ export default function ViewersTab({ slug, range, workspaceName }: { slug: strin
 
   const t = data.totals;
   const tiles = (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(128px,1fr))] max-sm:[&>*:last-child:nth-child(odd)]:col-span-2">
       <KpiTile range={range} kpi={{ key: "views", label: "Views", value: t.views, unit: "count" }} />
       <KpiTile range={range} kpi={{ key: "people", label: "People", value: t.people, unit: "count" }} />
       <KpiTile range={range} kpi={{ key: "signed_in", label: "Signed in", value: t.signed_in, unit: "count", note: `${num(t.anonymous)} anonymous` }} />
@@ -386,7 +389,7 @@ export default function ViewersTab({ slug, range, workspaceName }: { slug: strin
             options={COMPLETION} className="!w-auto min-w-[9.5rem]" />
         )}
         <span className="grow" />
-        <Button variant="secondary" size="sm" iconLeft="download" loading={csvBusy} onClick={csv}>CSV</Button>
+        <Button variant="secondary" size="sm" iconLeft="download" loading={csvBusy} onClick={csv}>Export views</Button>
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
         <Switch label="Hide my own views" checked={!own} onChange={(e) => setFilter({ own: e.target.checked ? null : "1" })} />
