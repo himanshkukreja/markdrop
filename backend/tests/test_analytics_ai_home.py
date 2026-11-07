@@ -393,6 +393,13 @@ class Ask(World):
         self.assertEqual(len(rows), 1)
         self.assertEqual([t["name"] for t in rows[0]["tools"]],
                          ["top_documents", "breakdown", "drop_database", "totals", "top_documents"])
+        # The AI request log: the question, the answer as shown with its kept link, the queries by name.
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        self.assertEqual((lg["input"], lg["output"], lg["label"]), ("Which link did best this month?", done["answer"],
+                                                                     "Ask analytics"))
+        self.assertEqual(lg["citations"], [{"label": "1", "title": "Launch notes", "url": "/dashboard/analytics/launch-notes"}])
+        self.assertIn("5 analytics queries: top_documents, breakdown, drop_database, totals", lg["context"]["summary"])
+        self.assertNotIn("Secret salaries", repr(lg))
         self.report("ask (2 rounds)")
         # Same question the same day: from the cache, no model call.
         again = await self.ask("owner", "which link did BEST this month?")

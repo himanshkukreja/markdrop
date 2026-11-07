@@ -135,6 +135,8 @@ class AskWorld(AccessWorld, AIEnv):
 
 import unittest  # noqa: E402
 
+from tests._admin_session import admin_headers  # noqa: E402
+
 
 class Helpers(unittest.TestCase):
     def test_detect_intent(self):
@@ -341,6 +343,17 @@ class Threads(AskWorld):
         t = (await self.http.get(f"/api/v1/ask/threads/{tid}", headers=self.session("wm"))).json()
         self.assertEqual([x["question"] for x in t["turns"]], ["What is our pricing for Europe?", "and the discount?"])
         self.assertEqual(sorted(r["follow_up"] for r in await self.ledger()), [False, True])
+        # The AI request log keeps both turns as one conversation: the questions, the answers as
+        # shown, their citations and a scope (services/ai_log.py).
+        log = await self.db["ai_log"].find({"conversation_id": f"t:{tid}"}).sort("ts", 1).to_list(10)
+        self.assertEqual([x["input"] for x in log], ["What is our pricing for Europe?", "and the discount?"])
+        self.assertEqual([x["output"] for x in log], [first["answer"], second["answer"]])
+        self.assertEqual([c["label"] for c in log[1]["citations"]], [c["label"] for c in second["citations"]])
+        self.assertTrue(all(x["label"].startswith("Ask") for x in log), [x["label"] for x in log])
+        self.assertEqual(log[0]["scope_label"], "Everything")
+        r = await self.http.get(f"/api/v1/admin/ai/log/conversations/t:{tid}", headers=await admin_headers(self.db))
+        self.assertEqual(r.status_code, 200, r.text)
+        self.assertEqual([t["input"] for t in r.json()["turns_list"]], ["What is our pricing for Europe?", "and the discount?"])
 
     async def test_turn_withheld_when_a_source_is_closed(self):
         await self.put("plan", "Launch plan", "# Launch plan\n\nThe launch is codename-heron on the 12th.")

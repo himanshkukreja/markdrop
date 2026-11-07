@@ -520,6 +520,15 @@ class Import(MeetingsWorld):
         rows = await self.db["ai_requests"].find({"feature": "meetings_ai"}).to_list(10)
         self.assertEqual([r["kind"] for r in rows], ["generate"])
         self.assertEqual(rows[0]["user_id"], self.uid["owner"])
+        # The AI request log: the summary as written, what it read (by title), the person's import
+        # (example.com: test traffic, services/ai_log.py).
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        self.assertEqual(lg["label"], "Meeting summary · Weekly product sync")
+        self.assertIn("## Action items", lg["output"])
+        self.assertGreater(lg["results"]["action items"], 0)
+        self.assertEqual(lg["context"]["items"][0]["title"], "Weekly product sync")
+        self.assertNotIn("Okay, let's get started", repr(lg))      # never the transcript
+        self.assertEqual((lg["actor"], lg["actor_kind"], lg["test_reason"]), ("test", "user", "test_domain"))
 
     async def test_mentions_notify_nobody(self):
         # Today's meeting: its action items @mention members, as links, and nobody is notified (owner,
@@ -870,6 +879,11 @@ class Asking(MeetingsWorld):
         self.assertIn("Always write in English", p)
         row = await self.db["ai_requests"].find_one({"feature": "meetings_ai", "kind": "ask"})
         self.assertEqual(row["user_id"], self.uid["wm"])
+        lg = await self.db["ai_log"].find_one({"_id": row["request_id"]})
+        self.assertEqual((lg["input"], lg["output"], lg["label"]), ("When do we ship?", done["answer"],
+                                                                     "Meeting chat · Weekly product sync"))
+        self.assertEqual({c["label"] for c in lg["citations"]}, {c["label"] for c in done["citations"]})
+        self.assertEqual(next(c for c in lg["citations"] if c["label"] == "s4")["url"], f"/{m['transcript_slug']}#b-t0004")
 
     async def test_ask_across_meetings(self):
         a = await self.imported()

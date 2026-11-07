@@ -109,6 +109,9 @@ class AdminAiUsage(unittest.IsolatedAsyncioTestCase):
         await self.rec("docs_ask", "cy", ago=timedelta(days=60))  # outside 30d
 
     async def get(self, path, expect=200, **params):
+        if path.startswith("/usage"):
+            # Its people are @example.com (test traffic, services/ai_log.py): count everyone here.
+            params.setdefault("audience", "all")
         r = await self.http.get(BASE + path, headers=self.h, params=params)
         self.assertEqual(r.status_code, expect, r.text)
         return r.json() if r.headers.get("content-type", "").startswith("application/json") else r

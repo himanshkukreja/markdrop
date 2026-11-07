@@ -317,6 +317,12 @@ class Create(JiraWorld):
         self.assertNotIn("Who signs off", prompt)
         rows = await self.db["ai_requests"].find({"feature": "jira_ai"}).to_list(10)
         self.assertEqual([r["outcome"] for r in rows], ["ok"])
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        self.assertEqual((lg["kind"], lg["output_format"]), ("draft", "json"))
+        self.assertTrue(lg["label"].startswith("Jira draft"), lg["label"])
+        self.assertIn("Migrate the billing webhooks to v2", lg["input"])
+        self.assertIn("Migrate billing webhooks to v2", lg["output"])
+        self.assertNotIn("Write the rollout runbook", repr(lg))
         # The decision's kind comes from its section; an open question without a block id by its offset.
         page = (await self.doc("standup"))["content"]
         body = page.split("---\n", 2)[2]

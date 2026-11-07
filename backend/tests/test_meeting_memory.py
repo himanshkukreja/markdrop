@@ -388,6 +388,11 @@ class Check(MemoryWorld):
         self.assertEqual(len(self.fake.calls), 1)
         rows = await self.db[ai_usage.REQUESTS].find({"feature": "meetings_ai", "kind": "check"}).to_list(10)
         self.assertEqual(len(rows), 1)
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        self.assertEqual((lg["label"], lg["selection"]), ("Meeting memory · Checkout PRD",
+                                                          "We will build our own card form with Adyen."))
+        self.assertIn("**contradicts**: Use Stripe Checkout", lg["output"])
+        self.assertEqual(lg["results"]["contradicts"], 1)
         # A viewer can't run it on a page they can't edit; AI off answers a reason, no call.
         r = await self.http.post("/api/v1/meeting-memory/check", headers=self.session("wv"), json=body)
         self.assertEqual(r.status_code, 403)

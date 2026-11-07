@@ -621,6 +621,14 @@ class AgentTests(DocsAIBase):
         self.assertIsNotNone(row["ttft_ms"])
         self.assertTrue(row["ip_hash"] and "203.0.113.7" not in json.dumps(row, default=str))
         self.assertAlmostEqual(await ai_usage.spend_today(self.db, "docs_ask"), expected, places=8)
+        # The AI request log: a public visitor's question and the answer, by conversation.
+        lg = await self.db["ai_log"].find_one({"_id": done["request_id"]})
+        self.assertEqual((lg["actor_kind"], lg["label"], lg["conversation_id"]),
+                         ("public", "Docs Ask (public)", f"d:{row['conversation_id']}"))
+        self.assertEqual(lg["output"], row["answer"])
+        self.assertEqual(lg["input"], row["question"])
+        self.assertEqual(lg["citations"][0]["label"], "1")
+        self.assertNotIn("203.0.113.7", json.dumps(lg, default=str))
 
     async def test_follow_up_turn_uses_clean_history(self):
         history = [{"role": "user", "content": "How do I add a domain?"},

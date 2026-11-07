@@ -301,6 +301,11 @@ class Cache(AIWorld):
         self.assertEqual([r["outcome"] for r in rows], ["ok", "ok"])
         self.assertEqual((rows[0]["kind"], rows[0]["via"], rows[0]["doc_kind"]), ("content", "web", "doc"))
         self.assertNotIn("Getting started", json.dumps(rows, default=str))
+        # The AI request log: the findings as shown, by document title (never its text).
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        self.assertEqual(lg["results"], {"findings": 3})
+        self.assertTrue(lg["label"].startswith("Doc coach · "), lg["label"])
+        self.assertEqual(lg["output"].count("\n- **"), 3)
 
     async def test_deleting_the_document_deletes_its_analyses(self):
         from app.services import lifecycle

@@ -270,6 +270,15 @@ class Extraction(TeamWorld):
         rows = await self.db[ai_usage.REQUESTS].find({"feature": "workspace_memory"}).to_list(10)
         self.assertEqual(len(rows), 1)
         self.assertEqual((rows[0]["user_id"], rows[0]["visitor"], rows[0]["kind"]), (None, "system", "meeting"))
+        # A system job in the AI request log: what it read and what it found, never the transcript.
+        self.assertEqual((rows[0]["actor"], rows[0]["job"]), ("system", "Team memory"))
+        lg = await self.db["ai_log"].find_one({"_id": rows[0]["request_id"]})
+        n = lg["results"]["facts"]
+        self.assertGreater(n, 0)
+        self.assertEqual(lg["label"], f"Team memory · read meeting '{m['title']}' → {n} facts")
+        self.assertIn("Ship the sourcing filters", lg["output"])
+        self.assertEqual((lg["actor"], lg["job"], lg["workspace_id"]), ("system", "Team memory", self.W))
+        self.assertEqual(lg["context"]["items"][0]["id"], m["id"])
         # Unchanged: no second call.
         await self.tick()
         self.assertEqual(len(self.extract_calls()), 1)
