@@ -290,6 +290,8 @@ async def _highlights(db: AsyncIOMotorDatabase, workspace_id: str, lines: list[d
         except pages_ai.Upstream as exc:
             await run.record("error", error_code=exc.code)
             return fallback
+        run.log.update(description=f"Weekly summary: highlights from {len(lines)} team memory line{'s' if len(lines) != 1 else ''}",
+                       output=raw, output_format="json", results={"lines": len(lines)})
         await run.record("ok", lines=len(lines))
     finally:
         ai_usage.release_request(wm.FEATURE, wm.RESERVE)

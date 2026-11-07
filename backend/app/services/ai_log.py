@@ -401,6 +401,10 @@ def _citations(cites: list | None) -> list[dict]:
             continue
         row = {k: c.get(k) for k in ("label", "n", "title", "url", "web_url", "kind", "slug", "subtitle", "moment",
                                       "quote", "page", "id") if c.get(k) not in (None, "")}
+        if "title" not in row and c.get("text"):
+            row["title"] = str(c["text"])[:200]
+        if "url" not in row and c.get("href"):
+            row["url"] = c["href"]
         if "quote" in row:
             row["quote"] = str(row["quote"])[:300]
         if "label" not in row and "n" in row:
@@ -417,7 +421,9 @@ KIND_LABELS: dict[str, dict[str, str]] = {
     "meetings_ai": {"generate": "Meeting summary", "ask": "Meeting chat", "ask_all": "Ask meetings",
                     "check": "Meeting memory"},
     "workspace_memory": {"meeting": "Team memory", "page": "Team memory", "weekly": "Weekly summary"},
-    "analytics_ai": {"story": "Analytics story", "ask": "Ask analytics", "gaps": "Content gaps"},
+    "analytics_ai": {"story": "Analytics story", "ask": "Ask analytics", "gaps": "Content gaps",
+                     "content": "Doc coach", "media": "Video coach", "pages": "PDF coach",
+                     "versions": "Version compare"},
     "pages_ai": {"improve": "Improve", "shorten": "Shorten", "fix": "Fix spelling", "tone": "Change tone",
                  "translate": "Translate", "checklist": "Make a checklist", "table": "Make a table",
                  "explain": "Explain", "transform": "Rewrite", "write": "Write", "notes": "Notes to page",
@@ -425,7 +431,8 @@ KIND_LABELS: dict[str, dict[str, str]] = {
                  "meta": "Title & description", "alt": "Alt text", "translate_page": "Translate page",
                  "cover": "Cover image"},
     "docs_ask": {"ask": "Docs Ask"},
-    "docs_editor": {},
+    "docs_editor": {"fix": "Guides fix draft", "improve": "Guides · Improve", "shorten": "Guides · Shorten",
+                    "fix_grammar": "Guides · Fix grammar", "translate": "Guides · Translate", "ask": "Guides · Ask"},
     "ask_suggestions": {"workspace": "Ask suggestions"},
     "jira_ai": {"draft": "Jira draft"},
 }
@@ -433,7 +440,7 @@ KIND_LABELS: dict[str, dict[str, str]] = {
 #: Features whose question and answer are kept whole (a conversation transcript).
 CHAT = {("search_ai", "ask"), ("search_ai", "page"), ("search_ai", "catch_up"), ("search_ai", "my_actions"),
         ("search_ai", "search"), ("meetings_ai", "ask"), ("meetings_ai", "ask_all"), ("pages_ai", "ask"),
-        ("docs_ask", "ask"), ("analytics_ai", "ask")}
+        ("docs_ask", "ask"), ("analytics_ai", "ask"), ("docs_editor", "ask")}
 
 
 def kind_of(feature: str, meta: dict) -> str:

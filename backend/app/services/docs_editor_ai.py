@@ -306,11 +306,14 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
     meta = {"kind": "editor", "action": action, "chars_in": len(text), "chars_out": 0, "language": language,
             "page_id": _page_meta(page_id)}
 
+    log_in: dict = {"input": action.replace("_", " ").capitalize() + (f" ({language})" if language else ""),
+                    "selection": text, "subject": site.get("name")}
+
     async def record(outcome: str, **extra) -> None:
         try:
             await ai_usage.record(db, feature=FEATURE, meter=meter, request_id=request_id, outcome=outcome,
                                   latency_ms=watch.elapsed_ms, user_id=user.id, visitor=_visitor(user),
-                                  site=site_id, meta={**meta, **extra})
+                                  site=site_id, meta={**meta, **extra}, log=log_in)
         except Exception as exc:
             log.warning("docs editor ai: recording request %s failed: %s", request_id, type(exc).__name__)
 
@@ -373,6 +376,7 @@ async def edit(db: AsyncIOMotorDatabase, site: dict, user: User, *, action: str,
         if not out:
             await record("error", stop_reason=stop_reason, error_code="empty_output")
             raise _error(502, "upstream", "AI help came back empty. Try again.")
+        log_in["output"] = out
         await record("ok", stop_reason=stop_reason, chars_out=len(out))
         return {"markdown": out, "request_id": request_id, "used_today": use.used_today + 1,
                 "limit_today": use.limit_today}

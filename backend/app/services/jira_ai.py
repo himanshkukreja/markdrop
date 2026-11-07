@@ -180,9 +180,11 @@ def plain(src: dict, meta: dict) -> dict:
             "issue_type": it, "priority": None, "assignee_name": None, "due": _iso_day(src.get("due")), "labels": []}
 
 
-async def _call(db: AsyncIOMotorDatabase, params: dict, user_id: str | None, meta_rec: dict) -> dict:
+async def _call(db: AsyncIOMotorDatabase, params: dict, user_id: str | None, meta_rec: dict,
+                log_in: dict | None = None) -> dict:
     from app.services import pages_ai
 
+    log_in = dict(log_in or {})
     meter = ai_usage.Meter(MODEL)
     watch = ai_usage.Stopwatch()
     request_id = uuid.uuid4().hex
@@ -210,6 +212,7 @@ async def _call(db: AsyncIOMotorDatabase, params: dict, user_id: str | None, met
         if stop == "refusal" or ai_output.was_cut(stop):
             raise ValueError(stop or "cut")
         raw = pages_ai._text_of(message) or ""
+        log_in.update(output=raw, output_format="json")
         try:
             data = json.loads(raw)
         except Exception:
@@ -224,7 +227,8 @@ async def _call(db: AsyncIOMotorDatabase, params: dict, user_id: str | None, met
         try:
             await ai_usage.record(db, feature=FEATURE, meter=meter, request_id=request_id, outcome=outcome,
                                   latency_ms=watch.elapsed_ms, ttft_ms=watch.ttft_ms, user_id=user_id,
-                                  visitor=f"u:{user_id}" if user_id else None, meta={**meta_rec, "stop_reason": stop})
+                                  visitor=f"u:{user_id}" if user_id else None, meta={**meta_rec, "stop_reason": stop},
+                                  log=log_in)
         except Exception:
             log.warning("jira draft: recording %s failed", request_id)
 
@@ -247,7 +251,9 @@ async def draft(db: AsyncIOMotorDatabase, user_id: str | None, workspace_id: str
                + "\n</untrusted_item>")
     try:
         data = await _call(db, _params(SYSTEM, content, SCHEMA, MAX_TOKENS), user_id,
-                           {"kind": "one", "workspace_id": workspace_id, "source": src.get("kind")})
+                           {"kind": "one", "workspace_id": workspace_id, "source": src.get("kind")},
+                           {"kind": "draft", "input": _line(src.get("text"), 2000),
+                            "description": f"Drafted a Jira issue from a {src.get('kind') or 'item'}"})
     except Exception:
         return {**plain(src, meta), "ai": False, "note": WHY_TEXT["error"]}
     return {**clean(data, meta, src), "ai": True, "note": None}
@@ -270,7 +276,9 @@ async def draft_many(db: AsyncIOMotorDatabase, user_id: str | None, workspace_id
     content = _user_block(meta) + "\n" + _context(srcs[0]) + "\n\n<untrusted_item>\n" + items + "\n</untrusted_item>"
     try:
         data = await _call(db, _params(BULK_SYSTEM, content, BULK_SCHEMA, MAX_TOKENS_BULK), user_id,
-                           {"kind": "bulk", "workspace_id": workspace_id, "items": len(srcs)})
+                           {"kind": "bulk", "workspace_id": workspace_id, "items": len(srcs)},
+                           {"kind": "draft", "input": items,
+                            "description": f"Drafted {len(srcs)} Jira issues from one {srcs[0].get('kind') or 'item'}"})
     except Exception:
         return [{**plain(s, meta), "ai": False, "note": WHY_TEXT["error"]} for s in srcs]
     by_n = {int(d.get("n") or 0): d for d in data.get("drafts") or [] if isinstance(d, dict)}
