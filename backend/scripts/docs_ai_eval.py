@@ -111,8 +111,9 @@ async def main() -> int:
 
     from app import database
     from app.config import get_settings
-    from app.services import ai_usage, docs_agent, docs_index
+    from app.services import ai_log, ai_usage, docs_agent, docs_index
 
+    ai_log.REQUEST.set(ai_log.RequestInfo(test=True))   # every call here is test traffic (the AI request log)
     s = get_settings()
     s.anthropic_api_key = KEY.strip()
     s.docs_ai_enabled = True

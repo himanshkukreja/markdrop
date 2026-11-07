@@ -21,6 +21,9 @@ export const TENANT = `http://acme.localhost:${NEXT_PORT}`;
 export const API = `http://127.0.0.1:${8180 + 10 * STACK_ID}`;
 export const WORKER = `http://127.0.0.1:${8787 + 10 * STACK_ID}`;
 export const ONLY = process.env.ONLY ? new Set(process.env.ONLY.split(",")) : null;
+// Every request these runs make is test traffic: the AI request log files it under "Test & internal"
+// (backend services/ai_log.py), away from real users' numbers.
+export const TEST_HEADERS = { "X-Markdrop-Test": "1" };
 const PY = path.join(ROOT, "backend", ".venv", "bin", "python");
 const ENV = { ...process.env, STACK_ID: String(STACK_ID), DOCS_MEDIA_DATA: path.join(STACK, "data"), PB_STACK: STACK };
 
@@ -44,7 +47,7 @@ export function mcpToken(email, read = false) {
 
 /** REST: api("GET", "/api/v1/documents/x", token) → {status, body}. */
 export async function api(method, p, token, body, headers = {}) {
-  const h = { ...headers };
+  const h = { ...TEST_HEADERS, ...headers };
   if (token) h.Authorization = `Bearer ${token}`;
   if (body !== undefined) h["Content-Type"] = "application/json";
   const r = await fetch(`${API}${p}`, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) });
@@ -63,7 +66,7 @@ let rpcId = 0;
 export async function mcp(token, name, args) {
   const send = () => fetch(`${API}/mcp`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}`, Accept: "application/json, text/event-stream", "Content-Type": "application/json" },
+    headers: { ...TEST_HEADERS, Authorization: `Bearer ${token}`, Accept: "application/json, text/event-stream", "Content-Type": "application/json" },
     body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method: "tools/call", params: { name, arguments: args } }),
   });
   let r;
@@ -111,6 +114,9 @@ export async function ctx(browser, { token = null, theme = "light", width = 1440
   const local = new RegExp(`^https://localhost:${NEXT_PORT}`);
   const tenant = new RegExp(`^https://acme\\.localhost(:${NEXT_PORT})?`);
   await c.route(new RegExp(`${local.source}/`), (r) => hop(r, local, APP));
+  // The browser's API calls carry the test header too (added on the wire: no CORS preflight changes).
+  await c.route(new RegExp(`^${API.replace(/[.]/g, "\\.")}/`), (r) =>
+    r.continue({ headers: { ...r.request().headers(), "x-markdrop-test": "1" } }));
   await c.route(new RegExp(`${tenant.source}/`), (r) => hop(r, tenant, TENANT));
   await c.addInitScript(
     ([t, th]) => {
