@@ -86,6 +86,12 @@ _GEMINI_BOILER = re.compile(
     r"^(you should review gemini'?s notes|please provide feedback about using gemini|get tips and learn how gemini"
     r"|this editable transcript was computer generated|people can also change the text|meeting records\b"
     r"|attachments\b|notes by gemini\s*$|📝|📖|transcript\s*$)", re.I)
+# Gemini's notes for a call it couldn't summarise ("not enough conversation in a supported language"):
+# placeholders, never a summary, a detail or a next step.
+GEMINI_EMPTY = re.compile(
+    r"^\W*(?:no suggested next steps were found|a summary wasn'?t produced|details weren'?t produced"
+    r"|if the meeting was transcribed, you can review|visit the help center|how is the quality of these specific notes"
+    r"|no details were found|no summary was produced)", re.I)
 
 
 @dataclass
@@ -451,7 +457,7 @@ def parse_notes(lines: list[str]) -> dict | None:
         if (_HEADING.match(line) and not k) or _is_transcript_heading(line):
             sect = None   # some other section (e.g. the transcript tab's heading)
             continue
-        if _GEMINI_BOILER.match(line.strip()) or _DATE_ONLY.match(line.strip()):
+        if _GEMINI_BOILER.match(line.strip()) or _DATE_ONLY.match(line.strip()) or GEMINI_EMPTY.match(line.strip()):
             continue    # Google's notices; the date line under Gemini's "📝 Notes" label
         buf[sect].append(line)
     if "summary" not in seen or not (seen & {"details", "next_steps"}):
@@ -1031,18 +1037,24 @@ workflow workflows automation assessment endpoint vulnerability positioning comp
 integration integrations testing deployment infra infrastructure api apis ai ml ui ux qa gtm crm prd mvp bug bugs issue
 issues feature features page pages website landing content strategy process flow flows dashboard report reports analytics
 email emails interview interviews candidate candidates hiring meeting meetings call calls agenda summary details notes
-action items next steps open questions decisions decision topic topics overview status
+action items next steps open questions decisions decision topic topics overview status video videos audio profile profiles
+google slack zoom jira notion microsoft linkedin aws azure openai stripe knowledge transfer verification proctoring
+recording recordings transcript transcripts payment payments billing documentation docs
 """.split())
 # The verbs Gemini's next-step titles start with ("Rehan Establish Structure"): never a surname.
 _TASK_VERBS = frozenset("""
-add adjust analyze analyse audit automate book build capture check clean coordinate complete confirm connect contact create
+add adjust align analyze analyse ask assess audit automate book build call capture check clean collaborate compare
+conduct configure consolidate coordinate complete confirm connect contact create ensure get handle look post provide
+reply upgrade
 debug define deploy design discuss document draft enable escalate establish evaluate explore finalize finalise finish fix
 follow gather implement improve integrate investigate launch list map merge migrate monitor move organize organise pair
 plan prepare present prioritize prioritise publish push record reach refine release remove report research resolve
 restructure retrain review run schedule send set setup share ship start submit sync test track train trim update upload
 validate verify write
 """.split())
-_TOPIC_SUFFIX = re.compile(r"(?:ing|tion|tions|ment|ments|ness|ity|ance|ence|ology|ics|ship)$", re.I)
+# Word endings of headings ("Standardizing", "Proctoring", "Verification", "Deployment"), long enough that
+# names like "Fleming", "Channing", "Clement", "Florence" are never read as one.
+_TOPIC_ENDS = (("ing", 9), ("tion", 7), ("tions", 8), ("ment", 9), ("ments", 9), ("ology", 7))
 
 
 def topicish(name: str | None) -> bool:
@@ -1054,7 +1066,8 @@ def topicish(name: str | None) -> bool:
     low = [_wkey(w) for w in words]
     if any(len(w) > 1 and (w in _TOPIC_WORDS or w in _STOP or w in _NOT_NAMES) for w in low):
         return True
-    return len(low[0]) >= 6 and _TOPIC_SUFFIX.search(low[0]) is not None    # "Standardizing", "Positioning"
+    # "Standardizing Demo", "Video Proctoring", "Profile Verification" ("Fleming", "Channing": short -ing)
+    return any(len(w) >= n and w.endswith(suf) for w in low for suf, n in _TOPIC_ENDS)
 
 
 def _person_shape(words: list[str]) -> bool:
@@ -1151,12 +1164,37 @@ def mine_names(labels: list[str]) -> list[str]:
     return [shown[k] for k, c in conts.items() if len(c) >= 2]
 
 
+_BRACKET_OWNER = re.compile(r"^\W{0,4}\[([^\[\]]{2,120})\]\s*(\S.*)$")
+
+
+def bracket_owners(label: str | None, universe: Universe | None = None) -> list[str]:
+    """The owners Gemini's newer next steps put in brackets: "[Gautam] Post Video", "[Mayuri Pillay,
+    Rehan Islam] Prepare Presentation" → the people they are (a known person by full or first name,
+    else the bracketed name when it reads as one). [] when the label isn't that shape."""
+    m = _BRACKET_OWNER.match(str(label or ""))
+    if not m:
+        return []
+    out: list[str] = []
+    for part in re.split(r",|\s+and\s+|\s*&\s*", m.group(1)):
+        part = clean_name(part)
+        if not part:
+            continue
+        hit, extra = universe.owner(part) if universe is not None else (None, 0)
+        name = hit["name"] if hit is not None and not extra else part if _person_shape(part.split()) else None
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
 def task_shaped(label: str | None, text: str | None, universe: Universe, known: list[str] | tuple = ()) -> str | None | bool:
     """What a speaker label is: the owner's name ("<Person> <task words>"), False for a person's name
     as it is, None for neither (a heading, a sentence, nobody known)."""
     n = clean_name(label)
     if not n:
         return None
+    owners = bracket_owners(label, universe)
+    if owners:
+        return owners[0]
     hit, extra = universe.owner(n)
     if hit is not None:
         return hit["name"] if extra else False
@@ -1167,6 +1205,34 @@ def task_shaped(label: str | None, text: str | None, universe: Universe, known: 
     if len(words) > TASK_MAX_WORDS or topicish(n):
         return None
     return False if _person_shape(words) else None
+
+
+def clean_empty_notes(notes: dict | None) -> dict | None:
+    """Gemini's notes without its placeholders for a call it couldn't summarise ("No suggested next
+    steps were found for this meeting.", "A summary wasn't produced …"): they're not anyone's words."""
+    if not notes or not any(GEMINI_EMPTY.match(str(x).strip()) for x in [
+            *str(notes.get("summary") or "").split("\n\n"), *(notes.get("details") or []), *(notes.get("next_steps") or [])]):
+        return notes
+    paras = [p for p in str(notes.get("summary") or "").split("\n\n") if p.strip() and not GEMINI_EMPTY.match(p.strip())]
+    out = {**notes, "summary": "\n\n".join(paras),
+           "details": [d for d in notes.get("details") or [] if not GEMINI_EMPTY.match(str(d).strip())],
+           "next_steps": [x for x in notes.get("next_steps") or [] if not GEMINI_EMPTY.match(str(x).strip())]}
+    return out
+
+
+def chip_people(text: str | None, *, at_least: int = 3) -> list[dict]:
+    """People chips run along a line with no label ("### Daily Standup Gautam Khurana <gautam@…> Abhishek
+    Ganotra <abhishek@…> …", newer Gemini notes): each chip's name (the name words right before the
+    address) and address; [] for fewer than ``at_least`` chips."""
+    out: list[dict] = []
+    for m in _ANGLE.finditer(text or ""):
+        words = clean_name(m.group(1)).split()
+        name = next((" ".join(words[-k:]) for k in range(min(4, len(words)), 0, -1)
+                     if _person_shape(words[-k:])), "")
+        if name:
+            out.append({"name": name, "email": m.group(2).lower()})
+    out = dedupe_people(out)
+    return out if len(out) >= at_least else []
 
 
 def notes_text(notes: dict | None) -> str:
@@ -1511,6 +1577,9 @@ def parse_source(name: str, text: str) -> Source:
         j, inv = people_lists(ls, speakers)
         listed = listed or j
         invited = invited or inv
+    if not listed and not invited:
+        # No "Invited" label: a line of people chips (Gemini's newer notes put them after the title).
+        invited = next((got for got in (chip_people(_clean_line(x)) for x in all_lines[:80]) if got), [])
     src.listed, src.invited = listed, invited
     if src.segments:
         # "<Owner Name> <Task Title>: …" is a next step, never a speaker (owner 2026-11-06).

@@ -903,7 +903,9 @@ def auto_restricts(attendees: list[dict], organizer: dict | None = None) -> bool
 # are never speakers or attendees (meeting_parse.task_owner); repair_attendees fixes the old ones.
 # attendees_v 4 (2026-11-06): a meeting with only Gemini's notes lists the people the notes name as its
 # attendees ("notes", notes_attendees), not nobody.
-ATTENDEES_V = 4
+# attendees_v 5 (2026-11-07): bracketed owners ("[Gautam] Post Video"), Gemini's placeholders, the lines
+# v4 dropped read back from the trashed Transcript page, chip lines as the invite.
+ATTENDEES_V = 5
 ATTENDEES_V2 = 2   # attendees told apart from the invite (recompute_people)
 
 
@@ -945,9 +947,14 @@ def notes_attendees(notes: dict | None, invited: list[dict], people: People,
     …", "Rehan Establish Structure: …") or whom the notes name by full name. As meeting rows, once each."""
     u = universe or mp.Universe([{"name": m.get("name"), "email": m.get("email"), "user_id": m["id"]}
                                  for m in people.members])
+    notes = mp.clean_empty_notes(notes)
     found = list(mp.named_in_notes(notes, invited))
     for step in (notes or {}).get("next_steps") or []:
         head = str(step).partition(":")[0]
+        owners = mp.bracket_owners(head, u)
+        if owners:      # "[Mayuri Pillay, Rehan Islam] Prepare Presentation: …"
+            found.extend(dict(u.get(o) or {"name": o}) for o in owners if u.get(o))
+            continue
         hit, _extra = u.owner(head)
         if hit is None:
             owner = mp.owner_of_step(step, u.names())
@@ -979,7 +986,7 @@ def tidy_people(entries: list[dict], universe: mp.Universe, people: People,
     """Meeting people with no task words and no headings: "<Person> <task words>" is that person (with
     their address and account when known), a heading or a label that is no one goes, each once.
     Someone with an address is who the address says."""
-    labels = labels or {}
+    labels = {**{mp.clean_name(k): v for k, v in (labels or {}).items()}, **(labels or {})}
     out: list[dict] = []
     for a in entries:
         name = a.get("name") or ""
@@ -1747,16 +1754,52 @@ def fix_task_segments(row: dict, universe: mp.Universe) -> dict | None:
            {**s, "speaker": None} if s.get("speaker") in labels and len(mp.clean_name(s["speaker"]).split()) > mp.TASK_MAX_WORDS
            else s for s in out]
     notes_only = not out and bool(segs)
-    built = None
-    if notes_only and not (row.get("notes") or {}).get("next_steps") and not (row.get("notes") or {}).get("summary"):
-        steps = [f"{mp.clean_name(s['speaker'])}: {(s.get('text') or '').strip()}" for s in segs
-                 if s.get("speaker") in labels and labels[s["speaker"]]]
-        details = [f"{mp.clean_name(s['speaker'])}: {(s.get('text') or '').strip()}" if s.get("speaker")
-                   else (s.get("text") or "").strip() for s in segs
-                   if not (s.get("speaker") in labels and labels[s["speaker"]])]
-        built = {"summary": "", "details": [d for d in details if d][:80], "next_steps": steps[:80]}
     return {"segments": out, "labels": labels, "dropped": len(segs) - len(out), "notes_only": notes_only,
-            "notes": built, "whole": got["whole"]}
+            "lines": note_lines(segs, labels) if notes_only else None, "whole": got["whole"]}
+
+
+def note_lines(segs: list[dict], labels: dict[str, str | None]) -> dict:
+    """Lines of Gemini's notes that were read as turns, back as notes: {next_steps, details}."""
+    steps = [f"{s['speaker']}: {(s.get('text') or '').strip()}" for s in segs
+             if s.get("speaker") in labels and labels[s["speaker"]]]
+    details = [f"{mp.clean_name(s['speaker'])}: {(s.get('text') or '').strip()}" if s.get("speaker")
+               else (s.get("text") or "").strip() for s in segs
+               if not (s.get("speaker") in labels and labels[s["speaker"]])]
+    return {"next_steps": [x for x in steps if x][:80], "details": [d for d in details if d][:80]}
+
+
+def with_lines(notes: dict | None, lines: dict | None) -> dict | None:
+    """``notes`` (placeholders gone) with the recovered lines where it has none of its own."""
+    n = mp.clean_empty_notes(notes) if notes else None
+    if not lines or not (lines.get("next_steps") or lines.get("details")):
+        return n
+    n = dict(n or {"summary": "", "details": [], "next_steps": []})
+    if not n.get("next_steps"):
+        n["next_steps"] = list(lines.get("next_steps") or [])
+    if not n.get("details"):
+        n["details"] = list(lines.get("details") or [])
+    return n
+
+
+_T_LINE = re.compile(r"^\*\*(.+?)\*\*\s(.*?)\s*\{#b-t\d+\}\s*$")
+
+
+async def recovered_lines(db: AsyncIOMotorDatabase, row: dict) -> list[dict]:
+    """The "turns" the v4 repair dropped (Gemini's notes read as a transcript), read back from the
+    Transcript page it moved to the Trash: [{speaker, t, text}] ([] when there is none)."""
+    t = await db["trash"].find_one({"doc.meeting_id": str(row["_id"]), "doc.meeting_role": "transcript"},
+                                   {"doc.content": 1}, sort=[("deleted_at", -1)])
+    out: list[dict] = []
+    for line in ((t or {}).get("doc") or {}).get("content", "").split("\n"):
+        m = _T_LINE.match(line.strip())
+        if not m:
+            continue
+        head = [h.strip() for h in m.group(1).split(" · ")]
+        if head and re.fullmatch(r"\d{1,2}:\d{2}(?::\d{2})?", head[0]):
+            head = head[1:]
+        who = re.sub(r"\\(.)", r"\1", head[-1]) if head else None
+        out.append({"speaker": who or None, "t": None, "text": re.sub(r"\\(.)", r"\1", m.group(2)).strip()})
+    return out
 
 
 def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, people: People,
@@ -1779,8 +1822,7 @@ def fix_task_people(view: dict, att: list[dict], inv: list[dict], how: str, peop
     invited = tidy_people(inv, u, people, labels, limit=200)
     if how == "speakers" and not out:
         how = "invited" if invited else "none"
-    notes = view.get("notes") or (fixed or {}).get("notes")
-    out, how = with_notes_people(out, invited, how, notes, people, u)
+    out, how = with_notes_people(out, invited, how, view.get("notes"), people, u)
     return out, invited, how
 
 
@@ -1798,21 +1840,33 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
 
     u = row_universe(row, people, universe)
     fixed = fix_task_segments(row, u)
-    view = {**row, "segments": fixed["segments"]} if fixed else row
-    if fixed and fixed.get("notes"):
-        view["notes"] = fixed["notes"]
+    lines = (fixed or {}).get("lines")
+    if not row.get("segments") and not lines and (row.get("attendees_from") or "none") in ("invited", "none", "notes"):
+        # v4 dropped Gemini's notes read as turns, keeping notes that say nothing: read them back.
+        rec = await recovered_lines(db, row)
+        if rec:
+            got = mp.read_turns(rec, u, u.names())
+            lines = note_lines(rec, got["labels"]) if got["labels"] else None
+    notes = with_lines(row.get("notes"), lines)
+    view = {**row, "segments": fixed["segments"] if fixed else row.get("segments") or [], "notes": notes}
+    if not row.get("invited") and notes:
+        # No invite kept: a line of people chips in the notes (Gemini's newer header) is the invite.
+        chips = next((c for c in (mp.chip_people(x) for x in [notes.get("summary") or "", *(notes.get("details") or [])]) if c), [])
+        if chips:
+            view["invited"] = person_rows(chips, people, limit=200)
     if int(row.get("attendees_v") or 0) < ATTENDEES_V2:
         att, inv, how = recompute_people(view, people)
     else:
-        att, inv, how = list(row.get("attendees") or []), list(row.get("invited") or []), row.get("attendees_from") or "none"
+        att, inv, how = list(row.get("attendees") or []), list(view.get("invited") or []), row.get("attendees_from") or "none"
     if fixed and fixed["notes_only"] and how == "speakers":
         att, how = [], "invited"    # every "speaker" was a line of the notes: who joined comes from the notes
     att, inv, how = fix_task_people(view, att, inv, how, people, fixed, u)
     before = row.get("attendees") or []
     seg_changed = fixed is not None and fixed["segments"] != (row.get("segments") or [])
+    notes_changed = (notes or None) != (row.get("notes") or None)
     changed = [(a.get("name"), a.get("user_id")) for a in before] != [(a["name"], a["user_id"]) for a in att] \
         or [a["name"] for a in inv] != [a.get("name") for a in row.get("invited") or []] or seg_changed \
-        or how != row.get("attendees_from")
+        or how != row.get("attendees_from") or notes_changed
     out = {"changed": changed, "from": how, "before": len(before), "after": len(att), "invited": len(inv),
            "page": "none", "segments": "same", "transcript": "none",
            "before_names": [a.get("name") for a in before], "after_names": [a["name"] for a in att]}
@@ -1844,6 +1898,15 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
             traw = None
     if not apply:
         return out
+    # One writer per meeting (the background loop and the script's --apply run side by side).
+    now = now_utc()
+    claim = await db[COLL].find_one_and_update(
+        {"_id": row["_id"], "attendees_v": {"$not": {"$gte": ATTENDEES_V}},
+         "$or": [{"attendees_lock": {"$exists": False}}, {"attendees_lock": {"$lt": now - timedelta(minutes=2)}}]},
+        {"$set": {"attendees_lock": now}}, projection={"_id": 1})
+    if claim is None:
+        out["page"] = "busy"
+        return out
     user = None
     if out["page"] in ("rewritten", "attendees") or out["transcript"] in ("rewritten", "trashed"):
         user = await user_service.get_user_by_id(db, row.get("created_by"))
@@ -1860,12 +1923,13 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
         if fixed["notes_only"]:
             sets["sources"] = [{**s, "kind": "notes", "format": "gemini_notes"} if s.get("kind") in ("both", "transcript") else s
                                for s in row.get("sources") or []]
-            if fixed.get("notes"):
-                sets["notes"] = fixed["notes"]
-                sets["action_items"] = int(row.get("action_items") or 0) + len(fixed["notes"]["next_steps"])
             if out["transcript"] == "trashed":
                 sets.update(transcript_doc_id=None, transcript_slug=None)
-    await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets})
+    if notes_changed:
+        old_n = len((row.get("notes") or {}).get("next_steps") or [])
+        sets["notes"] = notes
+        sets["action_items"] = max(0, int(row.get("action_items") or 0) - old_n + len((notes or {}).get("next_steps") or []))
+    await db[COLL].update_one({"_id": row["_id"]}, {"$set": sets, "$unset": {"attendees_lock": ""}})
     if seg_changed:
         from app.services import meeting_memory
 
@@ -1886,11 +1950,11 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
         return out
     # The whole row (the tick reads it without Google's notes): the page is written from all of it.
     fresh = {**(await db[COLL].find_one({"_id": row["_id"]}) or row), **sets}
-    page = await page_of(db, row) or page
-    if out["page"] == "rewritten":
-        content = await full_markdown(db, fresh, fresh.get("generated"), people)
-        after = await _save(db, page, content, actor, ctx, base_rev=int(page.get("rev") or 1))
-    else:
+
+    async def write(page: dict, mode: str) -> dict | None:
+        if mode == "rewritten":
+            content = await full_markdown(db, fresh, fresh.get("generated"), people)
+            return await _save(db, page, content, actor, ctx, base_rev=int(page.get("rev") or 1))
         content = page.get("content") or ""
         if page_db.read_values(content).get("attendees") == old_text:
             content = page_db.write_values(content, {"attendees": attendees_text(fresh)})
@@ -1901,7 +1965,20 @@ async def repair_attendees(db: AsyncIOMotorDatabase, row: dict, people: People, 
         if out["transcript"] == "trashed" and row.get("transcript_slug"):
             embed = f'::page{{src="{row["transcript_slug"]}"}}'
             content = content.replace(embed + "\n\n", "", 1).replace(embed, "", 1)
-        after = await _save(db, page, content, actor, ctx) if content != (page.get("content") or "") else None
+        return await _save(db, page, content, actor, ctx) if content != (page.get("content") or "") else None
+
+    page = await page_of(db, row) or page
+    try:
+        after = await write(page, out["page"])
+    except HTTPException as exc:
+        if exc.status_code != 409:
+            raise
+        # Saved meanwhile (another writer): once more on the page as it is now.
+        page = await page_of(db, row) or page
+        if out["page"] == "rewritten" and int(page.get("rev") or 1) != int(row.get("base_rev") or 0):
+            out["page"] = "attendees"
+            untouched = False
+        after = await write(page, out["page"])
     if after is not None and untouched:
         await db[COLL].update_one({"_id": row["_id"]}, {"$set": {"base_rev": int(after.get("rev") or 1)}})
     return out
