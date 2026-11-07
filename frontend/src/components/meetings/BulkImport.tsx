@@ -294,7 +294,9 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
           {est.ai ? (
             <span>
               AI summaries for <b>{est.meetings} meeting{est.meetings === 1 ? "" : "s"}</b>.
-              {est.may_wait ? " That's more than AI can write today (fair-use limit), so the rest waits until tomorrow — the import picks up by itself." : " They're written one after another, oldest first."}
+              {est.may_wait
+                ? " More than AI can write today — the rest will be summarized tomorrow. The import picks up by itself."
+                : " Within today's fair-use limit. They're written one after another, oldest first."}
             </span>
           ) : <span>{est.ai_message || "AI is off"} The meetings are imported without AI summaries.</span>}
         </p>

@@ -33,7 +33,6 @@ export interface MeetingAi {
   state: "pending" | "done" | "skipped" | "failed";
   reason?: string | null;
   message?: string | null;
-  cost_usd?: number;
   calls?: number;
   chunks?: number | null;
   at?: string | null;
@@ -213,7 +212,7 @@ export function checkMeetingsNow(workspace: string) {
 export interface HiddenMeeting { id: string; date: string | null; restricted: true; redacted: true; can_delete: true }
 
 export interface MeetingsStatus {
-  ai: { enabled: boolean; reason: string | null; message: string | null; model: string };
+  ai: { enabled: boolean; reason: string | null; message: string | null };
   google: { configured: boolean; connected: boolean };
   folder_id: string | null;
   can_import: boolean;
@@ -462,8 +461,6 @@ export interface BackfillRow {
   slug: string | null;
   segments: number;
   attendees: string[];
-  est_usd: number;
-  cost_usd?: number | null;
   order?: number | null;
   /** Older than a day: never posted to Slack, whatever the switch says. */
   past: boolean;
@@ -487,7 +484,8 @@ export interface BackfillJob {
   counts: { rows: number; included: number; done: number; imported: number; attached: number; duplicate: number; skipped: number; failed: number; pending: number; needs_date: number };
   problems: Array<{ name: string; error: string; kind?: string }>;
   rows: BackfillRow[];
-  estimate?: { usd: number; meetings: number; left_today_usd: number | null; may_wait: boolean; ai: boolean; ai_message: string | null };
+  /** How many get an AI summary, and whether that's more than today's fair-use limit (`may_wait`). Never an amount. */
+  estimate?: { meetings: number; may_wait: boolean; ai: boolean; ai_message: string | null };
 }
 
 export interface BackfillSource extends SourceIn { created?: string }

@@ -300,7 +300,12 @@ class AccessWorld(unittest.IsolatedAsyncioTestCase):
                                           "Accept": "application/json, text/event-stream"})
         if r.status_code != 200:
             return r.status_code, None
-        return 200, r.json()["result"]
+        res = r.json()["result"]
+        # No tool tells the person what AI cost, the budgets, or which model (tests/_no_ai_internals).
+        from tests._no_ai_internals import assert_clean
+
+        assert_clean(self, (res or {}).get("structuredContent"))
+        return 200, res
 
     async def get(self, slug: str, headers: dict | None = None, **kw) -> httpx.Response:
         return await self.http.get(f"/api/v1/documents/{slug}", headers=headers or {}, **kw)

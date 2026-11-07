@@ -22,7 +22,6 @@ export interface AnalyticsAiStatus {
   enabled: boolean;
   reason: AiStatusReason | null;
   message: string | null;
-  model: string;
   gap_scopes: GapScope[];
 }
 

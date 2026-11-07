@@ -65,8 +65,8 @@ def _summary(v: dict, rows: list[dict]) -> str:
     est = v.get("estimate")
     if est and est.get("meetings"):
         lines.append(f"AI summaries for what's left: {est['meetings']} meeting{'' if est['meetings'] == 1 else 's'}" +
-                     (" — more than AI can write today (fair-use limit), so the rest waits for tomorrow."
-                      if est.get("may_wait") else "."))
+                     (" — more than AI can write today, so the rest will be summarized tomorrow."
+                      if est.get("may_wait") else ", within today's fair-use limit."))
     for r in rows:
         when = r["date"] or "no date"
         extra = f" · {r['series']}" if r["series"] else ""
