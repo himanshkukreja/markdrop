@@ -264,7 +264,7 @@ class EngageIngest(World):
         d = await self.mkdoc("L", ws=None)
         for body in (b"not json", b"[1,2]", json.dumps({"sid": "short", "seq": 1}),
                      json.dumps({"sid": sid(), "seq": 0, "d": {"active_s": 9}}),
-                     json.dumps({"sid": sid(), "seq": 1, "d": {"active_s": 9, "pad": "x" * 9000}}),
+                     json.dumps({"sid": sid(), "seq": 1, "d": {"active_s": 9, "pad": "x" * 17000}}),
                      json.dumps({"sid": sid(), "seq": 1, "d": "nope"})):
             r = await self.engage(d["slug"], body)
             self.assertEqual(r.status_code, 204)

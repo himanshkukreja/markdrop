@@ -863,10 +863,10 @@ async def record_read(
 
 async def _engage_viewer(token: str, doc: dict | None = None) -> str | None:
     """The user behind an engagement beacon's ``u``: a session JWT or an API
-    token. A tenant token counts only for a document of the workspace it was
-    minted for (a body field carries no Origin to hold it to its domain, so it
-    names its reader on that workspace's documents and is anonymous anywhere
-    else)."""
+    token. A tenant token is anonymous here (a body field carries no Origin to
+    hold it to the domain it was minted for), except with ``doc``: viewer
+    analytics names its reader on a document of the workspace it was minted
+    for, and only there."""
     from app.routers.auth import _user_id_from_token
     from app.services import api_token as api_token_service
 
@@ -897,7 +897,7 @@ async def record_engagement(
     """The engagement beacon (creator analytics, build spec §1b): deltas of
     what a reader did since the previous beacon of the same page load.
 
-    A raw ``text/plain`` body (≤ 8 KB) so ``navigator.sendBeacon`` can send it
+    A raw ``text/plain`` body (≤ 16 KB) so ``navigator.sendBeacon`` can send it
     without a CORS preflight while the page unloads. Admission is the read
     beacon's (``_beacon_target``: anonymous-readable, or a valid read ticket in
     ``"t"``). ``"u"`` may carry the viewer's Markdrop token: the owner's own
@@ -917,13 +917,19 @@ async def record_engagement(
         doc = await _beacon_target(db, slug, msg["t"])
         if not doc:
             return
-        viewer_id = await _engage_viewer(msg["u"], doc) if msg["u"] else None
+        viewer_id = await _engage_viewer(msg["u"]) if msg["u"] else None
         is_owner, internal = await _viewer_flags(db, doc, viewer_id)
         ip = get_client_ip(request)
         await engage.ingest(db, doc, msg, ip=ip, ua=ua, viewer_id=viewer_id, internal=internal)
         # Viewer analytics: this view's own row (who, where from, what they did), the owner's too.
+        # A tenant token names its reader on its own workspace's documents here (never in the
+        # aggregates above, where it can't drop or re-label sessions).
         from app.services import doc_views
 
+        if msg["u"] and viewer_id is None:
+            viewer_id = await _engage_viewer(msg["u"], doc)
+            if viewer_id:
+                is_owner, internal = await _viewer_flags(db, doc, viewer_id)
         await doc_views.record(db, doc, msg, ip=ip, ua=ua, headers=request.headers, viewer_id=viewer_id,
                                internal=internal, own=is_owner)
     except Exception:  # pragma: no cover - a beacon never errors
