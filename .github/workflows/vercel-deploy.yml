@@ -1,31 +1,51 @@
 name: Deploy frontend to Vercel (prebuilt)
 
 # Builds the frontend here (free for a public repo) and uploads the result with
-# `vercel deploy --prebuilt`, so Vercel serves traffic but never builds: no build minutes.
+# `vercel deploy --prebuilt --archive=tgz`: Vercel serves traffic but never builds, and the build
+# goes up as one archive (not file by file), so a deploy no longer spends thousands of the team's
+# 40000 uploads a day ("Upload aborted" / api-upload-paid). Each deploy still costs ~1.3 Vercel
+# build-CPU minutes on the team plan shared with the portfolio, so deploys are BATCHED:
 #
-# Off until the repository variable VERCEL_PREBUILT is "on". One-time setup (repo Settings ›
-# Secrets and variables › Actions):
+#   * three times a day — 05:30, 10:30, 16:30 UTC (11:00, 16:00, 22:00 IST): main is deployed
+#     only when frontend/** or this workflow changed since the commit production serves now (its
+#     meta.githubCommitSha on Vercel); otherwise the run stops after that check;
+#   * "deploy now", no admin rights needed: push a commit to the branch deploy/now and exactly that
+#     commit is deployed, e.g.  git push <remote> main:refs/heads/deploy/now --force
+#     (the next scheduled run deploys main again if main differs from it);
+#   * by hand: Actions › this workflow › Run workflow (main; "only_if_changed" to apply the check).
+#
+# A push to main deploys nothing by itself. Vercel's own Git builds are off (frontend/vercel.json
+# "git": {"deploymentEnabled": false}), so this workflow is the only routine way production changes.
+# If it can't run, vercel-git-deploy.yml (manual, emergency only) asks Vercel to build instead.
+# Old deployments are pruned weekly by vercel-prune.yml (Function Storage).
+#
+# Setup (repo Settings › Secrets and variables › Actions):
 #   secret   VERCEL_TOKEN       a Vercel token scoped to the team, with an expiry
 #   variable VERCEL_ORG_ID      the team id
 #   variable VERCEL_PROJECT_ID  the markdrop project id
-#   variable VERCEL_PREBUILT    on
-# Then run this workflow once by hand, check the deployment, and only after that turn off
-# Vercel's own Git builds (frontend/vercel.json "git": {"deploymentEnabled": false}), in a later
-# push than the first verified Actions deploy, never the same one.
-# Rollback: set VERCEL_PREBUILT to off and remove that vercel.json line.
+#   variable VERCEL_PREBUILT    on   (off stops every run of this workflow)
 #
 # Runtime secrets (MARKDROP_INTERNAL_SECRET) stay in the Vercel project's settings: the build
 # doesn't read them, and deployed functions get them from there.
 
 on:
+  schedule:
+    - cron: "30 5 * * *"
+    - cron: "30 10 * * *"
+    - cron: "30 16 * * *"
   push:
-    branches: [main]
-    paths: ["frontend/**", ".github/workflows/vercel-deploy.yml"]
+    branches: [deploy/now]
   workflow_dispatch:
+    inputs:
+      only_if_changed:
+        description: "Skip when frontend/** hasn't changed since the deployed commit"
+        type: boolean
+        default: false
 
+# Queued, never cancelled: a deploy that's uploading finishes.
 concurrency:
   group: vercel-production
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -41,14 +61,48 @@ jobs:
       NEXT_TELEMETRY_DISABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Scheduled runs (and "only_if_changed"): deploy only when the frontend changed since the
+      # commit production serves now. deploy/now and plain manual runs always deploy.
+      - name: Anything new to deploy?
+        id: decide
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CHECK: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.only_if_changed) }}
+        run: |
+          set -uo pipefail
+          if [ "$CHECK" != "true" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"; echo "Deploying $GITHUB_SHA ($GITHUB_EVENT_NAME)." >> "$GITHUB_STEP_SUMMARY"; exit 0
+          fi
+          api=https://api.vercel.com
+          cur=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "$api/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" | jq -r '.targets.production.id // empty')
+          deployed=""
+          if [ -n "$cur" ]; then
+            deployed=$(curl -fsS -H "Authorization: Bearer $VERCEL_TOKEN" "$api/v13/deployments/$cur?teamId=$VERCEL_ORG_ID" | jq -r '.meta.githubCommitSha // empty')
+          fi
+          if [ -z "$deployed" ] || ! git cat-file -e "$deployed^{commit}" 2>/dev/null; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Production's commit is unknown (${deployed:-none}): deploying $GITHUB_SHA." >> "$GITHUB_STEP_SUMMARY"
+          elif git diff --quiet "$deployed" "$GITHUB_SHA" -- frontend .github/workflows/vercel-deploy.yml; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Nothing to deploy: frontend unchanged since ${deployed:0:8} (production)." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Deploying $GITHUB_SHA: frontend changed since ${deployed:0:8} (production):" >> "$GITHUB_STEP_SUMMARY"
+            git log --oneline "$deployed..$GITHUB_SHA" -- frontend .github/workflows/vercel-deploy.yml | head -40 | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - uses: actions/setup-node@v4
+        if: steps.decide.outputs.deploy == 'true'
         with:
           node-version: 24
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
       - name: Next.js build cache
+        if: steps.decide.outputs.deploy == 'true'
         uses: actions/cache@v4
         with:
           path: frontend/.next/cache
@@ -56,19 +110,23 @@ jobs:
           restore-keys: next-${{ hashFiles('frontend/package-lock.json') }}-
 
       - name: Pull the project settings and production env
+        if: steps.decide.outputs.deploy == 'true'
         run: npx --yes vercel@latest pull --yes --environment=production --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Build
+        if: steps.decide.outputs.deploy == 'true'
         run: npx --yes vercel@latest build --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
-      # CLI deploys carry no commit by themselves; the meta lets deployments be looked up by commit.
+      # CLI deploys carry no commit by themselves; the meta lets deployments be looked up by commit
+      # (and the scheduled check above reads githubCommitSha back).
       - name: Deploy the build to production
+        if: steps.decide.outputs.deploy == 'true'
         run: |
-          url=$(npx --yes vercel@latest deploy --prebuilt --prod --token="$VERCEL_TOKEN" \
+          url=$(npx --yes vercel@latest deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN" \
             --meta githubCommitSha="$GITHUB_SHA" --meta githubCommitRef="$GITHUB_REF_NAME" --meta source=actions)
           echo "Deployed: $url" >> "$GITHUB_STEP_SUMMARY"
         env:

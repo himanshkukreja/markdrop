@@ -1,0 +1,122 @@
+name: Prune old Vercel deployments
+
+# Deletes Markdrop's production and preview deployments older than 14 days (Vercel keeps every
+# deployment's functions, which is what the team's Function Storage bills). Always kept: the
+# deployment production serves now, the newest 5, and anything still building.
+#
+# Weekly (Monday 03:17 UTC) it deletes; run by hand it is a dry run unless "dry_run" is unticked.
+# The summary lists every deployment it deleted (or would delete) and the bytes freed where the
+# Vercel API reports a size (it often doesn't: then check Usage › Function Storage a day later).
+# Uses the secret VERCEL_TOKEN and the variables VERCEL_ORG_ID / VERCEL_PROJECT_ID (as vercel-deploy.yml).
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: list what would be deleted, delete nothing"
+        type: boolean
+        default: true
+      days:
+        description: "Delete deployments older than this many days"
+        default: "14"
+      keep:
+        description: "Always keep this many newest deployments"
+        default: "5"
+
+concurrency:
+  group: vercel-prune
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      # The cron has no inputs: it deletes (dry run false) with the defaults.
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+      DAYS: ${{ inputs.days || '14' }}
+      KEEP: ${{ inputs.keep || '5' }}
+    steps:
+      - name: Delete old deployments
+        run: |
+          set -euo pipefail
+          api=https://api.vercel.com
+          auth=(-H "Authorization: Bearer $VERCEL_TOKEN")
+          [ -n "$VERCEL_TOKEN" ] && [ -n "$VERCEL_ORG_ID" ] && [ -n "$VERCEL_PROJECT_ID" ] || { echo "Missing VERCEL_TOKEN / VERCEL_ORG_ID / VERCEL_PROJECT_ID"; exit 1; }
+          [[ "$DAYS" =~ ^[0-9]+$ && "$KEEP" =~ ^[0-9]+$ ]] || { echo "days and keep must be whole numbers"; exit 1; }
+          cutoff=$(( ($(date +%s) - DAYS * 86400) * 1000 ))
+
+          # The deployment production serves now: never deleted.
+          current=$(curl -fsS "${auth[@]}" "$api/v9/projects/$VERCEL_PROJECT_ID?teamId=$VERCEL_ORG_ID" | jq -r '.targets.production.id // empty')
+          [ -n "$current" ] || { echo "Couldn't find the current production deployment; stopping."; exit 1; }
+
+          # Every deployment of the project (production and preview), newest first, page by page.
+          all=$(mktemp); : > "$all"
+          until=""
+          for page in $(seq 1 200); do
+            res=$(curl -fsS "${auth[@]}" "$api/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=100${until:+&until=$until}")
+            echo "$res" | jq -c '.deployments[] | {uid, created, target: (.target // "preview"), state: (.state // .readyState), url}' >> "$all"
+            until=$(echo "$res" | jq -r '.pagination.next // empty')
+            [ -n "$until" ] || break
+          done
+          total=$(wc -l < "$all" | tr -d ' ')
+
+          # Candidates: older than the cutoff, not the current production one, not among the newest
+          # $KEEP, and finished (READY / ERROR / CANCELED).
+          doomed=$(jq -sc --arg cur "$current" --argjson cutoff "$cutoff" --argjson keep "$KEEP" '
+            sort_by(-.created) | to_entries
+            | map(select(.key >= $keep) | .value
+                  | select(.uid != $cur and .created < $cutoff and (.state | IN("READY","ERROR","CANCELED"))))' "$all")
+          n=$(echo "$doomed" | jq length)
+          mode=$([ "$DRY_RUN" = "true" ] && echo "DRY RUN" || echo "DELETE")
+
+          {
+            echo "## Vercel prune — $mode"
+            echo "Deployments listed: $total · current production: \`$current\` · older than $DAYS days, beyond the newest $KEEP: **$n**"
+            echo
+            echo "| deployment | target | state | created | size |"
+            echo "|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          deleted=0; failed=0; bytes=0; sized=0
+          while IFS= read -r row; do
+            [ -n "$row" ] || continue
+            uid=$(echo "$row" | jq -r .uid)
+            # Size, when the API reports one (any numeric "size" in the deployment's details).
+            details=$(curl -fsS "${auth[@]}" "$api/v13/deployments/$uid?teamId=$VERCEL_ORG_ID" 2>/dev/null || true)
+            size=$(echo "$details" | jq '[.. | objects | .size? | numbers] | add // 0 | floor' 2>/dev/null || true)
+            [[ "$size" =~ ^[0-9]+$ ]] || size=0
+            if [ "$size" -gt 0 ]; then sized=$((sized + 1)); fi
+            day=$(date -u -d "@$(( $(echo "$row" | jq .created) / 1000 ))" +%F)
+            echo "| \`$uid\` | $(echo "$row" | jq -r .target) | $(echo "$row" | jq -r .state) | $day | $([ "$size" -gt 0 ] && numfmt --to=iec "$size" || echo "—") |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$DRY_RUN" = "true" ]; then
+              bytes=$((bytes + size)); continue
+            fi
+            if curl -fsS -X DELETE "${auth[@]}" "$api/v13/deployments/$uid?teamId=$VERCEL_ORG_ID" > /dev/null; then
+              deleted=$((deleted + 1)); bytes=$((bytes + size))
+            else
+              failed=$((failed + 1)); echo "Couldn't delete $uid"
+            fi
+            sleep 0.3
+          done < <(echo "$doomed" | jq -c '.[]')
+
+          freed=$([ "$bytes" -gt 0 ] && numfmt --to=iec "$bytes" || echo "not reported by the API")
+          {
+            echo
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "**Would delete $n** deployments; bytes that would be freed: $freed ($sized of $n report a size)."
+            else
+              echo "**Deleted $deleted** of $n deployments ($failed failed); bytes freed: $freed ($sized of $n report a size)."
+            fi
+            echo "Storage the API doesn't size shows up in Vercel › Usage › Function Storage a day later."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "$mode: $n candidates, deleted $deleted, failed $failed, bytes $bytes"
+          [ "$failed" -eq 0 ]
