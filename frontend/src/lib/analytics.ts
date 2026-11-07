@@ -378,6 +378,8 @@ export interface ViewSummary {
 export interface ViewersBreakdownRow { key: string; views: number }
 export interface ViewersResponse {
   access: ViewersAccess;
+  /** What the item collects (switched-off kinds are hidden). */
+  track?: Track;
   doc: { slug: string; title: string; kind: string; track_kind: TrackKind; mime: string | null; renderer: string | null; encrypted: boolean; workspace_id: string | null; access: ViewersAccess };
   totals: { views: number; people: number; signed_in: number; anonymous: number; avg_active_s?: number; avg_completion?: number | null; own_hidden?: number };
   retention_days: number;
@@ -467,6 +469,64 @@ export async function forgetMyViewHistory(): Promise<number> {
   if (!res.ok) throw new AnalyticsError(`Request failed (${res.status})`, res.status);
   return ((await res.json()) as { forgotten: number }).forgotten;
 }
+
+// ── What's tracked (backend services/analytics_prefs.py) ──────────────────────
+
+export const TRACK_KEYS = ["counts", "identity", "location", "device", "source", "activity", "video", "pages", "downloads"] as const;
+export type TrackKey = (typeof TRACK_KEYS)[number];
+export type Track = Record<TrackKey, boolean>;
+export type TrackPartial = Partial<Record<TrackKey, boolean>>;
+
+export interface ItemTrackType { key: TrackKey; label: string; on: boolean; source: string; from: string; locked: boolean }
+export interface ItemTrackSettings {
+  slug: string;
+  types: ItemTrackType[];
+  effective: Track;
+  custom: boolean;
+  item: TrackPartial | null;
+  summary: string;
+  can_change?: boolean;
+  deleted?: Record<string, number>;
+}
+export interface LevelTrackSettings {
+  settings: TrackPartial;
+  enforce?: boolean;
+  types: { key: TrackKey; label: string; on: boolean | null; set: boolean }[];
+  deleted?: Record<string, number>;
+}
+
+async function sendJson<T>(method: "PUT" | "POST", path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1${path}`, {
+      method, headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body),
+    });
+  } catch {
+    throw new AnalyticsError("Couldn't reach Markdrop. Check your connection and try again.", 0);
+  }
+  if (!res.ok) {
+    const b = (await res.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AnalyticsError(typeof b?.detail === "string" ? b.detail : `Request failed (${res.status})`, res.status);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const getMyTrack = () => getJson<{ settings: Track; summary: string }>(`/me/analytics-settings`);
+export const putMyTrack = (settings: TrackPartial, del: TrackKey[] = []) =>
+  sendJson<{ settings: Track; summary: string; deleted: Record<string, number> }>("PUT", `/me/analytics-settings`, { settings, delete: del });
+export const getItemTrack = (slug: string) => getJson<ItemTrackSettings>(`${doc(slug)}/analytics/settings`);
+export const putItemTrack = (slug: string, settings: TrackPartial | null, del: TrackKey[] = []) =>
+  sendJson<ItemTrackSettings>("PUT", `${doc(slug)}/analytics/settings`, { settings, delete: del });
+export const putItemsTrack = (slugs: string[], settings: TrackPartial | null, del: TrackKey[] = []) =>
+  sendJson<{ updated: string[]; skipped: string[] }>("POST", `/me/analytics-settings/items`,
+    settings === null ? { slugs, use_defaults: true, delete: del } : { slugs, settings, delete: del });
+export const getWorkspaceTrack = (ws: string) => getJson<LevelTrackSettings>(`/workspaces/${encodeURIComponent(ws)}/analytics-settings`);
+export const putWorkspaceTrack = (ws: string, settings: TrackPartial, enforce: boolean, del: TrackKey[] = []) =>
+  sendJson<LevelTrackSettings>("PUT", `/workspaces/${encodeURIComponent(ws)}/analytics-settings`, { settings, enforce, delete: del });
+export const getFolderTrack = (ws: string, folder: string) =>
+  getJson<LevelTrackSettings>(`/workspaces/${encodeURIComponent(ws)}/folders/${encodeURIComponent(folder)}/analytics-settings`);
+export const putFolderTrack = (ws: string, folder: string, settings: TrackPartial | null, del: TrackKey[] = []) =>
+  sendJson<LevelTrackSettings>("PUT", `/workspaces/${encodeURIComponent(ws)}/folders/${encodeURIComponent(folder)}/analytics-settings`, { settings, delete: del });
 
 // ── Analytics AI per document (services/analytics_ai_doc.py) ─────────────────
 
