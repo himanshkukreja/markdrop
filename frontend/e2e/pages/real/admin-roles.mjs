@@ -27,6 +27,8 @@ const owner = await mk(OWNER, "Site Owner");
 const other = await mk(`cy.${Date.now().toString(36)}@else.test`, "Cy Stranger");
 const dee = await mk(NEW_ADMIN, "Dee Admin");
 
+/** The sidebar's Admin link that is on screen (the full sidebar and the collapsed rail both render one). */
+const railAdmin = (p) => p.locator('[data-testid="rail-admin"]:visible').first();
 const me = async (token) => (await api("GET", "/api/v1/auth/me", token)).body;
 const browser = await launch();
 const { step, results } = stepper(browser);
@@ -46,13 +48,13 @@ await step("link", async () => {
 
   const { p } = await ctx(browser, { token: owner.token });
   await p.goto(`${APP}/dashboard`);
-  await p.getByTestId("rail-admin").first().waitFor({ timeout: 30000 });
+  await railAdmin(p).waitFor({ timeout: 30000 });
   const menu = await accountMenu(p);
   const item = menu.getByRole("menuitem", { name: "Admin" });
   if (!(await item.isVisible())) fail("owner: no Admin in the account menu");
   await shot(p, "admin-roles-account-menu");
   await p.keyboard.press("Escape");
-  await p.getByTestId("rail-admin").first().click();
+  await railAdmin(p).click();
   await p.waitForURL(/\/admin/, { timeout: 20000 });
   await p.getByRole("heading", { level: 1 }).first().waitFor({ timeout: 30000 });
   if (!/Admin console/.test(await p.title())) fail("the sidebar's Admin link didn't open the console");
@@ -116,7 +118,7 @@ await step("add", async () => {
 
   const d = await ctx(browser, { token: dee.token });
   await d.p.goto(`${APP}/dashboard`);
-  await d.p.getByTestId("rail-admin").first().click({ timeout: 30000 });
+  await railAdmin(d.p).click({ timeout: 30000 });
   await d.p.waitForURL(/\/admin/, { timeout: 20000 });
   await d.p.goto(`${APP}/admin?tab=admins`);
   await d.p.getByRole("heading", { level: 1, name: "Admins" }).waitFor({ timeout: 30000 });

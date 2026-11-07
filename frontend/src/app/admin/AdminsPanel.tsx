@@ -253,7 +253,9 @@ export function AdminsPanel({ token }: { token: string }) {
         ) : (
           <ul className="flex flex-col divide-y divide-border rounded-xl border border-border bg-surface" data-testid="admins-list">
             {rows.map((r) => (
-              <li key={r.email} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 p-3 sm:p-4 md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] md:items-center" data-email={r.email}>
+              <li key={r.email} className={cx("grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 p-3 sm:p-4 md:items-center",
+                // A fixed actions column, so every row's middle column lines up (owners have no Remove).
+                manage ? "md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_6rem]" : "md:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_0]")} data-email={r.email}>
                 <span className="flex min-w-0 flex-col gap-1.5">
                   <Who p={r} you={r.email === data.you} />
                   <span className="md:hidden"><RoleBadges r={r} /></span>
