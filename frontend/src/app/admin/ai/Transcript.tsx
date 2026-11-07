@@ -74,7 +74,7 @@ export function TranscriptDrawer({ token, id, onClose, onPerson, onWorkspace }: 
 
   return (
     <Drawer open={!!id} onClose={onClose} width={820} title={d?.title ?? "Conversation"}
-      description={d ? [d.label, d.workspace_name].filter(Boolean).join(" · ") || undefined : undefined}
+      description={d ? [d.label, d.workspace_name && !(d.label || "").includes(d.workspace_name) ? d.workspace_name : null].filter(Boolean).join(" · ") || undefined : undefined}
       bodyClassName="flex flex-col gap-5">
       {state.error ? (
         <Alert tone="danger" actions={<Button size="sm" variant="secondary" onClick={() => setBump((b) => b + 1)}>Try again</Button>}>{state.error}</Alert>
