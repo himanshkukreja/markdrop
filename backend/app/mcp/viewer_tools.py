@@ -225,8 +225,8 @@ async def set_analytics_settings(ctx: Context, args: dict) -> tuple[str, dict]:
     enforce = args.get("enforce")
     if enforce is not None and not isinstance(enforce, bool):
         raise ToolError("enforce is true or false.")
-    await ap.set_workspace(ctx.db, ws_id, None if use_defaults and settings is None else (settings if settings is not None else None),
-                           enforce)
+    # use_defaults clears the workspace's defaults (each owner decides again); settings replaces them.
+    await ap.set_workspace(ctx.db, ws_id, {} if use_defaults else settings, enforce)
     deleted = await rs._delete_for(ctx.db, docs, delete) if delete else {}
     w = await ctx.db["workspaces"].find_one({"_id": ObjectId(ws_id)})
     p = ap.clean((w or {}).get("analytics_prefs"))
