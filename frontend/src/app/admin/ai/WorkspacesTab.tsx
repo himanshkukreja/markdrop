@@ -157,7 +157,7 @@ function ActorSplit({ a }: { a: Record<Actor, Small> }) {
 }
 
 /** The cap this workspace is closest to (its share of a global feature cap), all of them on hover. */
-function CapCell({ caps }: { caps: CapRow[] }) {
+function CapCell({ caps, wide = false }: { caps: CapRow[]; wide?: boolean }) {
   const capped = caps.filter((c) => c.month_pct !== null || c.today_pct !== null);
   if (!capped.length) return <span className="text-text-muted">{caps.length ? "No cap" : "—"}</span>;
   const top = capped[0];
@@ -167,7 +167,7 @@ function CapCell({ caps }: { caps: CapRow[] }) {
     <Tooltip focusable content={<span className="flex flex-col gap-0.5">{capped.map((c) => (
       <span key={c.feature}>{c.label}: today {usd(c.today_usd)} of {capText(c.daily_cap_usd)}, month {usd(c.month_usd)} of {capText(c.monthly_cap_usd)}</span>
     ))}</span>}>
-      <span className="flex w-28 flex-col gap-1" aria-label={`${top.label}: ${p}% of its cap`}>
+      <span className={`flex ${wide ? "w-32" : "w-24"} flex-col gap-1`} aria-label={`${top.label}: ${p}% of its cap`}>
         <span className="flex justify-between gap-2 text-micro"><span className="truncate text-text-secondary">{top.label}</span><span className="tabular-nums text-text">{p}%</span></span>
         <span className="h-1 w-full rounded-full" style={{ background: "var(--chart-track)" }}>
           <span className="block h-full rounded-full" style={{ width: `${Math.min(100, p)}%`, background: p >= 80 ? "var(--warning)" : "var(--chart-1)" }} />
@@ -181,10 +181,10 @@ function WsName({ w }: { w: WsMeta }) {
   return (
     <span className="flex min-w-0 flex-col">
       <span className="inline-flex min-w-0 items-center gap-1.5">
-        <span className={`max-w-[16rem] truncate ${w.none ? "italic text-text-secondary" : "text-text"}`} title={w.name}>{w.name}</span>
+        <span className={`max-w-[14rem] truncate ${w.none ? "italic text-text-secondary" : "text-text"}`} title={w.name}>{w.name}</span>
         {w.deleted && !w.none && <Badge size="sm" tone="neutral">Deleted</Badge>}
       </span>
-      <span className="max-w-[16rem] truncate text-micro text-text-muted">
+      <span className="max-w-[14rem] truncate text-micro text-text-muted">
         {w.none ? "Personal pages, public visitors" : [w.owner?.email, w.members !== null ? plural(w.members, "member") : null].filter(Boolean).join(" · ") || "—"}
       </span>
     </span>
@@ -224,24 +224,32 @@ export function WorkspacesTab({ token, openId, onOpen, onOpenUser, onRequests }:
 
   const cols: Column<WsRow>[] = [
     { key: "ws", header: sh("Workspace", "name"), primary: true, render: (w) => <WsName w={w} /> },
-    { key: "cost", header: sh("Cost", "cost", "right"), align: "right", render: (w) => <span className="font-medium text-text">{usd(w.cost_usd)}</span> },
-    { key: "calls", header: sh("Calls", "requests", "right"), align: "right", render: (w) => n0(w.requests) },
-    ...(wide ? [{ key: "tokens", header: sh("Tokens in / out", "tokens", "right"), align: "right" as const,
-      render: (w: WsRow) => <span className="whitespace-nowrap">{tokensShort(w.tokens_in)} / {tokensShort(w.tokens_out)}</span> }] : []),
+    { key: "cost", header: sh("Cost", "cost", "right"), align: "right", render: (w) => (
+      <span className="flex flex-col items-end">
+        <span className="font-medium text-text">{usd(w.cost_usd)}</span>
+        {!wide && <span className="whitespace-nowrap text-micro text-text-muted">{plural(w.requests, "call")}</span>}
+      </span>
+    ) },
+    ...(wide ? [{ key: "calls", header: sh("Calls", "requests", "right"), align: "right" as const, render: (w: WsRow) => (
+      <span className="flex flex-col items-end">
+        <span>{n0(w.requests)}</span>
+        <span className="whitespace-nowrap text-micro text-text-muted" title="Tokens in / out">{tokensShort(w.tokens_in)} / {tokensShort(w.tokens_out)} tok</span>
+      </span>
+    ) }] : []),
     { key: "who", header: "By whom", render: (w) => <ActorSplit a={w.by_actor} /> },
-    { key: "features", header: "Features", render: (w) => <FeatureStack features={w.features} width={wide ? 132 : 96} /> },
+    { key: "features", header: "Features", render: (w) => <FeatureStack features={w.features} width={wide ? 120 : 84} /> },
     ...(wide ? [{ key: "trend", header: "Trend", render: (w: WsRow) => <CostSpark values={w.spark} /> }] : []),
     ...(wide ? [{ key: "top", header: "Top people", render: (w: WsRow) => (w.top_users.length === 0 ? <span className="text-text-muted">—</span> : (
-      <span className="flex flex-col text-micro leading-4">
-        {w.top_users.map((u) => (
-          <span key={u.user_id} className="flex justify-between gap-2">
-            <span className="max-w-[10rem] truncate text-text-secondary" title={u.email}>{u.email || u.name || "Deleted account"}</span>
-            <span className="tabular-nums text-text-muted">{usd(u.cost_usd)}</span>
-          </span>
-        ))}
-      </span>
+      <Tooltip focusable content={<span className="flex flex-col gap-0.5">{w.top_users.map((u) => (
+        <span key={u.user_id} className="flex justify-between gap-3"><span>{u.email || u.name || "Deleted account"}</span><b className="tabular-nums">{usd(u.cost_usd)}</b></span>
+      ))}</span>}>
+        <span className="flex min-w-0 flex-col text-micro leading-4" aria-label={`Top people: ${w.top_users.map((u) => `${u.email || u.name} ${usd(u.cost_usd)}`).join(", ")}`}>
+          <span className="max-w-[9.5rem] truncate text-text-secondary">{w.top_users[0].email || w.top_users[0].name || "Deleted account"}</span>
+          <span className="text-text-muted">{usd(w.top_users[0].cost_usd)}{w.top_users.length > 1 ? ` · +${w.top_users.length - 1} more` : ""}</span>
+        </span>
+      </Tooltip>
     )) }] : []),
-    { key: "caps", header: "Closest cap", render: (w) => <CapCell caps={w.caps} /> },
+    { key: "caps", header: "Closest cap", render: (w) => <CapCell caps={w.caps} wide={wide} /> },
   ];
 
   async function exportCsv() {
@@ -493,7 +501,7 @@ function WorkspaceDrawer({ token, id, range, audience, tz, onClose, onOpenUser, 
                       <span className="inline-flex items-center gap-1.5 text-text">
                         {c.feature !== "*" && <span aria-hidden className="size-2.5 rounded-xs" style={{ background: wsFeatureColor(wsFeatureKey(c.feature)) }} />}{c.label}
                       </span>
-                      <span className="text-micro text-text-muted">whole feature today {usd(c.feature_today_usd)}</span>
+                      <span className="text-micro text-text-muted">all workspaces: {usd(c.feature_today_usd)} today · {usd(c.feature_month_usd)} this month</span>
                     </p>
                     <CapMeter label="Today" value={c.today_usd} cap={c.daily_cap_usd} pct={c.today_pct} />
                     <CapMeter label="This month" value={c.month_usd} cap={c.monthly_cap_usd} pct={c.month_pct} />
@@ -503,7 +511,7 @@ function WorkspaceDrawer({ token, id, range, audience, tz, onClose, onOpenUser, 
             )}
             <p className="mt-2 text-micro text-text-muted">
               No workspace has a cap of its own: these are the global per-feature caps (Budgets), and the meters show this workspace&apos;s share.
-              They count all traffic, test calls included. Days are UTC.
+              They count all traffic, test calls included, and today and this month are UTC, as the caps count them.
             </p>
           </section>
           <p className="text-micro text-text-muted">
