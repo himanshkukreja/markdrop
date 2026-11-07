@@ -204,5 +204,109 @@ class McpListByType(World):
             self.assertEqual({r["slug"] for r in self.items(res)}, {"ws-pdf"}, scope)
 
 
+class SharedRecentFoldersByType(World):
+    """The same chips on Shared with me, Recent and workspace folders: filtered server-side,
+    counted per type, and never counting (or listing) what the caller can't open."""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        from app.services import personal
+
+        await personal.ensure_indexes(self.db)
+
+    async def get_json(self, path: str, who: str, **params) -> dict:
+        r = await self.http.get(path, params=params, headers=self.session(who))
+        self.assertEqual(r.status_code, 200, r.text)
+        return r.json()
+
+    async def shared_art(self, mime_key: str, slug: str, *, state: str = "UP") -> dict:
+        # mkdoc with grants: gv (viewer) and ge (editor) are named on it.
+        d = await self.mkdoc(state, kind="artifact", slug=slug)
+        await self.db["documents"].update_one({"_id": d["_id"]}, {"$set": {"mime": MIME[mime_key]}})
+        return d
+
+    async def test_shared_with_me(self):
+        await self.shared_art("pdf", "s-pdf")
+        await self.shared_art("video", "s-video")
+        await self.shared_art("video", "s-video2")
+        await self.mkdoc("UP", slug="s-doc")
+        gone = await self.shared_art("pdf", "s-gone")
+        await self.db["documents"].update_one({"_id": gone["_id"]}, {"$set": {"expires_at": now_minus()}})
+        body = await self.get_json("/api/v1/me/shared", "gv")
+        c = body["count_by_type"]
+        self.assertEqual((c["pdf"], c["video"], c["document"], sum(c.values())), (1, 2, 1, 4))
+        body = await self.get_json("/api/v1/me/shared", "gv", type="video")
+        self.assertEqual({i["slug"] for i in body["items"]}, {"s-video", "s-video2"})
+        self.assertEqual(body["count_by_type"], c)
+        # Paging within a type: the cursor continues the filtered list; later pages carry no counts.
+        p1 = await self.get_json("/api/v1/me/shared", "gv", type="video", limit=1)
+        self.assertEqual(len(p1["items"]), 1)
+        self.assertTrue(p1["next_cursor"])
+        self.assertEqual(p1["count_by_type"], c)
+        p2 = await self.get_json("/api/v1/me/shared", "gv", type="video", limit=1, cursor=p1["next_cursor"])
+        self.assertEqual({p1["items"][0]["slug"], p2["items"][0]["slug"]}, {"s-video", "s-video2"})
+        self.assertIsNone(p2["next_cursor"])
+        self.assertIsNone(p2["count_by_type"])
+        # Someone not named on anything: nothing, counts all zero.
+        self.assertEqual(sum((await self.get_json("/api/v1/me/shared", "stranger"))["count_by_type"].values()), 0)
+        r = await self.http.get("/api/v1/me/shared", params={"type": "movies"}, headers=self.session("gv"))
+        self.assertEqual(r.status_code, 422)
+
+    async def test_recent(self):
+        from app.services import personal
+
+        mine = await self.art("pdf", owner="wm", slug="r-pdf")
+        vid = await self.art("video", owner="wm", slug="r-video")
+        page = await self.mkdoc("UL", owner="wm", grants=False, slug="r-page", editor="blocks")
+        secret = await self.art("video", owner="owner", state="UP", slug="r-secret")  # wm can't open it
+        for d in (mine, vid, page, secret):
+            await personal.record_view(self.db, self.uid["wm"], d["_id"])
+        body = await self.get_json("/api/v1/me/recent", "wm")
+        c = body["count_by_type"]
+        self.assertEqual((c["pdf"], c["video"], c["document"], sum(c.values())), (1, 1, 1, 3))
+        self.assertNotIn("r-secret", {i["slug"] for i in body["items"]})
+        body = await self.get_json("/api/v1/me/recent", "wm", type="video")
+        self.assertEqual([i["slug"] for i in body["items"]], ["r-video"])
+        body = await self.get_json("/api/v1/me/recent", "wm", type="document")
+        self.assertEqual([i["slug"] for i in body["items"]], ["r-page"])
+
+    async def test_workspace_folder_items(self):
+        W = self.ws["W1"]
+        await self.art("pdf", ws="W1", state="W", slug="w-pdf")
+        await self.art("video", ws="W1", state="W", slug="w-video")
+        await self.mkdoc("W", grants=False, slug="w-doc")
+        await self.art("video", ws="W1", state="P", slug="w-private-video")  # owner's, private
+        url = f"/api/v1/workspaces/{W}/items"
+        body = await self.get_json(url, "wm", folder="root")
+        c = body["count_by_type"]
+        self.assertEqual((c["pdf"], c["video"], c["document"], sum(c.values())), (1, 1, 1, 3))
+        body = await self.get_json(url, "wm", folder="root", type="video")
+        self.assertEqual([i["slug"] for i in body["items"] if i.get("slug")], ["w-video"])
+        self.assertEqual(body["count_by_type"], c)
+        # An admin sees a placeholder for the private item in the plain list, never under a type.
+        plain = await self.get_json(url, "wa", folder="root")
+        self.assertTrue(any(i.get("redacted") for i in plain["items"]))
+        self.assertEqual(plain["count_by_type"]["video"], 1)  # counts are what they can open
+        typed = await self.get_json(url, "wa", folder="root", type="video")
+        self.assertFalse(any(i.get("redacted") for i in typed["items"]))
+        # The owner can open their private video: counted and listed for them.
+        own = await self.get_json(url, "owner", folder="root", type="video")
+        self.assertEqual({i["slug"] for i in own["items"]}, {"w-video", "w-private-video"})
+        self.assertEqual(own["count_by_type"]["video"], 2)
+        # Not a member: no listing at all.
+        r = await self.http.get(url, params={"folder": "root", "type": "pdf"}, headers=self.session("stranger"))
+        self.assertIn(r.status_code, (403, 404))
+        r = await self.http.get(url, params={"folder": "root", "type": "x"}, headers=self.session("wm"))
+        self.assertEqual(r.status_code, 422)
+
+
+def now_minus():
+    from datetime import timedelta
+
+    from tests._access_env import now
+
+    return now() - timedelta(seconds=5)
+
+
 if __name__ == "__main__":
     unittest.main()
