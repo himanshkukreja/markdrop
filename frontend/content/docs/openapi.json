@@ -8075,6 +8075,445 @@
         }
       }
     },
+    "/api/v1/me/analytics-settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get My Settings",
+        "description": "Your defaults for the items you own (each type on unless you turned it off).",
+        "operationId": "get_my_settings_api_v1_me_analytics_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put My Settings",
+        "description": "Change your defaults. ``delete``: also delete what was already collected for those types on\nyour items where they're now off (an item with its own setting turned on keeps its data).",
+        "operationId": "put_my_settings_api_v1_me_analytics_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get Item Settings",
+        "description": "What this item collects, each type with where its value comes from (this item, a folder,\nthe workspace, your defaults) and whether the workspace enforces it.",
+        "operationId": "get_item_settings_api_v1_me_documents__slug__analytics_settings_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Item Settings",
+        "description": "This item's own settings (``settings: null``: use the defaults). A type the workspace\nenforces off stays off. ``delete``: also delete its already collected data for those types.",
+        "operationId": "put_item_settings_api_v1_me_documents__slug__analytics_settings_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/analytics-settings/items": {
+      "post": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Many Items",
+        "description": "The same settings for several items at once (My files, a folder). Items you can't change\nare skipped and listed.",
+        "operationId": "put_many_items_api_v1_me_analytics_settings_items_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/analytics-settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get Workspace Settings",
+        "description": "The workspace's defaults (types it doesn't set fall through to each owner's) and whether\nthey're enforced (a type it has off is off for every item in it).",
+        "operationId": "get_workspace_settings_api_v1_workspaces__workspace_id__analytics_settings_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Workspace Settings",
+        "description": "Owners and admins. ``settings`` replaces the workspace's defaults (omit a type to leave it\nto each owner); ``enforce`` locks the types it has off. ``delete``: also delete already\ncollected data of those types on the workspace's items where they're now off.",
+        "operationId": "put_workspace_settings_api_v1_workspaces__workspace_id__analytics_settings_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/folders/{folder_id}/analytics-settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get Folder Settings",
+        "operationId": "get_folder_settings_api_v1_workspaces__workspace_id__folders__folder_id__analytics_settings_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Folder Settings",
+        "description": "Owners and admins: defaults for the items in this folder and the folders inside it (an item's\nown settings still win; the workspace's enforced ones win over both). ``settings: null`` clears.",
+        "operationId": "put_folder_settings_api_v1_workspaces__workspace_id__folders__folder_id__analytics_settings_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/me/analytics/ai/status": {
       "get": {
         "tags": [
@@ -21182,6 +21621,51 @@
         ],
         "title": "BulkItem"
       },
+      "BulkSettings": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          },
+          "delete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 9,
+            "title": "Delete"
+          },
+          "slugs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Slugs"
+          },
+          "use_defaults": {
+            "type": "boolean",
+            "title": "Use Defaults",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "slugs"
+        ],
+        "title": "BulkSettings"
+      },
       "CaptionsRequest": {
         "properties": {
           "file_name": {
@@ -22308,6 +22792,18 @@
             ],
             "title": "Meeting"
           },
+          "track": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
+          },
           "edit_secret": {
             "type": "string",
             "title": "Edit Secret"
@@ -22841,6 +23337,18 @@
               }
             ],
             "title": "Meeting"
+          },
+          "track": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
           }
         },
         "type": "object",
@@ -26701,6 +27209,35 @@
         "type": "object",
         "title": "ScopeBody"
       },
+      "Settings": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          },
+          "delete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 9,
+            "title": "Delete"
+          }
+        },
+        "type": "object",
+        "title": "Settings",
+        "description": "Per-type switches; types left out fall through to the level below. ``null`` (item, folder)\ngoes back to inheriting everything."
+      },
       "SettingsIn": {
         "properties": {
           "workspace_id": {
@@ -28343,6 +28880,45 @@
           "role"
         ],
         "title": "WorkspaceResponse"
+      },
+      "WorkspaceSettings": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          },
+          "delete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 9,
+            "title": "Delete"
+          },
+          "enforce": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enforce"
+          }
+        },
+        "type": "object",
+        "title": "WorkspaceSettings"
       },
       "WorkspaceUpdate": {
         "properties": {

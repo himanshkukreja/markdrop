@@ -4,7 +4,7 @@ nav: Viewers
 description: See every view of a document or file, who it was, where they opened it from and on what, and a timeline of what they did in it.
 updated: 2026-11-07
 prerequisites: [/analytics/overview]
-keywords: [viewers, who viewed, view history, per view, timeline, activity, signed in, anonymous, visitor, location, city, device, browser, os, source, csv, get_document_viewers, get_view_timeline]
+keywords: [choose what's tracked, analytics settings, tracking, enforce, turn off tracking, delete analytics, get_analytics_settings, set_analytics_settings, viewers, who viewed, view history, per view, timeline, activity, signed in, anonymous, visitor, location, city, device, browser, os, source, csv, get_document_viewers, get_view_timeline]
 ---
 
 The **Viewers** tab lists every view of a link: who opened it, when, for how long, how far they got, where they were and on what. Choose a view to see a timeline of what they did, like "Read Intro · 1m 20s, jumped to Pricing, watched 0:00–3:10, downloaded it as PDF, asked: what's the price?".
@@ -64,6 +64,44 @@ Below the timeline, **Their other views** lists the same person's or visitor's o
 - Someone who can only **view** a workspace item sees how many views there were and how many were signed in, not who.
 
 Nobody else, and never the people who viewed it.
+
+## Choose what's tracked
+
+Each kind of analytics can be on or off, for one item, a folder, a workspace or all your items:
+
+| Kind | What it covers |
+| --- | --- |
+| **View counts and totals** | Views, people and time. Off: nothing at all is recorded for the item. |
+| **Viewer identity** | Names and emails of signed-in viewers. Off: their views are kept as anonymous visitors. |
+| **Location** | Country, region, city and timezone. Off: no location is looked up. |
+| **Device and system** | Device, operating system and browser with versions, screen, language, the app. |
+| **Source and referrer** | Where people came from, and campaign tags. |
+| **Activity timeline** | Sections read, scroll depth, links opened, code copied, prints, Ask questions and sign-offs. |
+| **Video watching** | What was watched, paused and skipped, speed and playback quality. |
+| **PDF pages and slides** | PDF pages, slides and spreadsheet tabs viewed. |
+| **Downloads** | Downloads and PDF exports. |
+
+Everything is on until you turn it off. Where to change it:
+
+- **Your defaults**, for every item you own: **Settings → Account → Analytics**.
+- **One item**: the item's **⋯** menu → **Analytics settings…**, the **Share** dialog's **Analytics** row, or the tracking chip at the top of the item's analytics page (like **Tracking: counts, location · identity off**). Choose **Use my defaults**, or **Custom** and set each kind.
+- **Several items**: in **My files**, choose **Analytics settings…** and pick the items. In a workspace folder, select items, then **Analytics settings…** in the selection bar.
+- **A folder** (workspace owners and admins): the folder's **⋯** menu → **Analytics settings…**. It applies to the items in it and the folders inside it.
+- **A workspace** (owners and admins): **Workspace settings → Advanced → Analytics**. Turn on **Enforce for every item** to lock what it turns off: members can't turn it back on for their items.
+
+When levels disagree, the first that sets a kind wins:
+
+1. The workspace's settings, when they're **enforced** and turn the kind off.
+2. The item's own settings (**Custom**).
+3. Its folder, then the folders above it.
+4. The workspace's defaults.
+5. The owner's defaults.
+
+Each kind in an item's settings says where its value comes from, like **Folder Reports** or **Enforced by Acme**.
+
+A change applies from then on. When you turn a kind off, you can also choose **Also delete what was already collected**: Markdrop deletes that kind of data from the views already recorded, for the items where it's now off. This can't be undone. What isn't collected isn't shown: the Viewers and Audience tabs leave it out and say so.
+
+Your assistant can do the same with `get_analytics_settings` and `set_analytics_settings`.
 
 ## How long it's kept
 
