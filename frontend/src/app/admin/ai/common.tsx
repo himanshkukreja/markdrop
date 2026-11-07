@@ -143,6 +143,18 @@ export function featureColor(key: string) {
   return i >= 0 ? SLOTS[i] : "var(--chart-other)";
 }
 
+/** The Workspaces view's own fixed order: the features that run for a workspace (Team memory, Ask
+ *  suggestions, Jira drafts) take the slots the docs features have on Overview, and Pages AI,
+ *  Analytics AI and Meetings AI keep theirs. Anything else (docs Ask AI, Guides editor, AI search)
+ *  folds into "Other". */
+export const WS_FEATURE_ORDER = ["workspace_memory", "ask_suggestions", "pages_ai", "jira_ai", "analytics_ai", "meetings_ai"];
+export const WS_OTHER = "other";
+export const wsFeatureKey = (key: string) => (WS_FEATURE_ORDER.includes(key) ? key : WS_OTHER);
+export function wsFeatureColor(key: string) {
+  const i = WS_FEATURE_ORDER.indexOf(key);
+  return i >= 0 ? SLOTS[i] : "var(--chart-other)";
+}
+
 export const OUTCOME_TONE: Record<string, "success" | "warning" | "danger" | "neutral" | "info"> = {
   ok: "success", answered: "success", no_answer: "warning", off_topic: "neutral", refused: "danger", limit: "info", error: "danger",
 };
