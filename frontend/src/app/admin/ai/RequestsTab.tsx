@@ -47,19 +47,26 @@ function rangeOf(preset: Preset, from: string, to: string): { since?: string; un
   return {};
 }
 
-export function RequestsTab({ token, openId, onOpen }: { token: string; openId: string | null; onOpen: (id: string | null) => void }) {
+/** Filters to open with (Admin → AI → Workspaces links a workspace's conversations). */
+export interface RequestsFilter { workspace: Labeled; preset?: string | null; audience?: string | null }
+const isPreset = (v: string | null | undefined): v is Preset => PRESETS.some((p) => p.value === v);
+const isLogAudience = (v: string | null | undefined): v is LogAudience => LOG_AUDIENCES.some((a) => a.value === v);
+
+export function RequestsTab({ token, openId, onOpen, initial }: {
+  token: string; openId: string | null; onOpen: (id: string | null) => void; initial?: RequestsFilter | null;
+}) {
   const get = useAiFetch(token);
-  const [audience, setAudience] = useState<LogAudience>("real");
+  const [audience, setAudience] = useState<LogAudience>(isLogAudience(initial?.audience) ? initial.audience : "real");
   const [feature, setFeature] = useState("");
   const [outcome, setOutcome] = useState<OutcomeKind | "">("");
-  const [preset, setPreset] = useState<Preset>("30d");
+  const [preset, setPreset] = useState<Preset>(isPreset(initial?.preset) ? initial.preset : "30d");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [q, setQ] = useState("");
   const [query, setQuery] = useState("");
   const [personText, setPersonText] = useState("");
   const [person, setPerson] = useState<PersonFilter | null>(null);
-  const [workspace, setWorkspace] = useState<Labeled | null>(null);
+  const [workspace, setWorkspace] = useState<Labeled | null>(initial?.workspace ?? null);
   const [page, setPage] = useState(1);
   const [bump, setBump] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);

@@ -967,9 +967,12 @@ async def usage_export(
     range_: str = Query("30d", alias="range"),
     feature: str | None = Query(None, max_length=40),
     audience: str = Query("live", max_length=20),
+    workspace: str | None = Query(None, max_length=40),
     db: AsyncIOMotorDatabase = Depends(get_db),
     _: dict = Depends(require_admin),
 ):
+    """``kind`` users or requests; ``workspace`` (requests only): one workspace's id, or ``none``
+    for calls with no workspace (Admin → AI → Workspaces)."""
     import csv
     import io
 
@@ -991,12 +994,14 @@ async def usage_export(
                 r["tokens"]["input"], r["tokens"]["output"], r["tokens"]["cache_read"], r["tokens"]["cache_write"],
                 f"{r['cost_usd']:.6f}", " ".join(r["features"]), r["last_used"], r["blocked"], r["daily_cap_usd"])])
     else:
-        rows = await _usage_rows(db, since, until, {"feature": feature} if feature else None,
-                                 audience=_audience(audience))
+        extra: dict = {"feature": feature} if feature else {}
+        if workspace:
+            extra["workspace_id"] = {"$in": [None, ""]} if workspace == "none" else workspace
+        rows = await _usage_rows(db, since, until, extra or None, audience=_audience(audience))
         emails = await _emails(db, {r["user_id"] for r in rows if r.get("user_id")})
         w.writerow(["ts", "feature", "action", "user_id", "email", "site", "slug", "page", "outcome", "limit_reason",
                     "error_code", "model", "input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens",
-                    "cost_usd", "latency_ms", "request_id", "actor", "test"])
+                    "cost_usd", "latency_ms", "request_id", "actor", "test", "workspace_id", "job"])
         for r in rows:
             x = _request_row(r)
             uid = r.get("user_id")
@@ -1004,8 +1009,10 @@ async def usage_export(
                 x["ts"], x["feature"], x["action"], uid or ANON, emails.get(uid, "") if uid else "", x["site"],
                 x["slug"], x["page"], x["outcome"], x["limit_reason"], x["error_code"], x["model"],
                 x["tokens"]["input"], x["tokens"]["output"], x["tokens"]["cache_read"], x["tokens"]["cache_write"],
-                f"{x['cost_usd']:.6f}", x["latency_ms"], x["request_id"], r.get("actor") or "", bool(r.get("test")))])
-    name = f"markdrop-ai-{kind}-{key}{'-' + re.sub(r'[^a-z0-9_]', '', feature) if feature else ''}.csv"
+                f"{x['cost_usd']:.6f}", x["latency_ms"], x["request_id"], r.get("actor") or "", bool(r.get("test")),
+                x["workspace_id"] or "", r.get("job") or "")])
+    name = (f"markdrop-ai-{kind}-{key}{'-' + re.sub(r'[^a-z0-9_]', '', feature) if feature else ''}"
+            f"{'-' + re.sub(r'[^a-z0-9]', '', workspace) if workspace and kind == 'requests' else ''}.csv")
     return Response(buf.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{name}"', "Cache-Control": "no-store"})
 
