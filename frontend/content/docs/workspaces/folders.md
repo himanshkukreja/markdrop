@@ -1,9 +1,9 @@
 ---
 title: Folders
 description: File a workspace's documents into folders. On your own domain, a folder becomes part of each link, like docs.acme.com/guides/setup.
-updated: 2026-11-05
+updated: 2026-11-07
 prerequisites: [/workspaces/create]
-keywords: [folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, card view, previews, default view, owner, create_folder, rename_folder, move_folder, delete_folder, move_to_parent, idempotency_key]
+keywords: [filter by type, type filter, videos, pdfs, folder, subfolder, move, rename, delete folder, organize, redirect, on_conflict, path, address, list view, grid view, cards, card view, previews, default view, owner, create_folder, rename_folder, move_folder, delete_folder, move_to_parent, idempotency_key]
 ---
 
 Folders keep a workspace tidy, and on your own domain they shape the address. A document filed under **Guides › Setup** is served at `docs.acme.com/guides/setup/<document>`.
@@ -51,6 +51,14 @@ A live HTML preview runs the file the same way its own page does: on Markdrop's 
 **Who owns what.** Every item shows its owner's photo (or first initial) and name, and **You** for your own. A folder shows the people whose items are inside it. The item's menu on a phone shows its owner too. Only members of the workspace see the workspace's list, so only they see who owns what. Someone who opens an item from a public link never sees names.
 
 On a phone, **List** shows the name with the owner and date under it, **Grid** has two tiles a row and **Cards** one card a row. Tap **⋯** for the item's actions.
+
+### Filter by type
+
+When a folder holds more than one kind of item, chips above the list filter it by type: **All**, **Documents** (Markdown documents and pages), **PDFs**, **Videos**, **Images**, **Sheets**, **Slides**, **Word**, **HTML & sites** and **Other**. Each shows how many of that type you can open here. A type with none in the folder has no chip.
+
+Pick one to see only that type in this folder; subfolders are hidden until you choose **All** again. Private items you can't open never count, and admins' placeholders for them don't show while a type is picked. While you search, the type applies to the results across the whole workspace.
+
+The type is part of the address (`?type=pdf`), so **Back** works and you can share the filtered view. Opening another folder shows everything again. The same chips are in [My files, Shared with me and Recent](/get-started/tour#filter-by-type).
 
 ## Make a folder
 
