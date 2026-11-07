@@ -74,7 +74,7 @@ Markdrop AI drafts the issue from the item: a short **Summary**, a **Description
 
 The issue's description gets your text, the item quoted, and a link back: "From *Checkout launch sync* · Nov 6, 2026 at 12:34", which opens the meeting at that moment of the transcript (or the page at that block). The item then shows a **chip**: the issue's key, status and assignee.
 
-When AI can't run (it's off for the workspace, or today's AI budget is used up), the draft is the item as written, and the dialog says why. Creating the issue never depends on AI.
+When AI can't run (it's off for the workspace, or AI is paused for now under its fair-use limit), the draft is the item as written, and the dialog says why. Creating the issue never depends on AI.
 
 ### All of a meeting's action items at once
 
@@ -149,9 +149,9 @@ With the [hosted MCP server](/ai/hosted-mcp), an AI app can check the connection
 - Markdrop keeps a short-lived copy of the issues it shows (key, summary, status, assignee, due date) to keep pages fast.
 - Disconnecting your account deletes your tokens. Disconnecting the site stops Team, chips and status sync for the workspace.
 
-## AI and cost
+## AI
 
-Drafts use Claude Haiku. Each draft is one short request; "Jira issues" for a whole meeting is one request. Markdrop caps what Jira drafts can cost per day and per month across the server; when the cap is reached, drafts are the item as written until the next day or month. AI follows your workspace's AI setting: with AI off for the workspace, drafts are the item as written.
+Drafts use Markdrop's AI; see [AI and your data](/security/ai-and-your-data). Each draft is one short request; "Jira issues" for a whole meeting is one request. Jira drafts have fair-use limits: when one is reached, drafts are the item as written for now, and creating the issue still works. AI follows your workspace's AI setting: with AI off for the workspace, drafts are the item as written.
 
 ## Set up the Atlassian app (server owners)
 

@@ -76,7 +76,7 @@ Files go straight from your device to the other person's and are never stored on
 - MongoDB Atlas (database) and Cloudflare (file storage, the file viewer and the peer-to-peer relay).
 - Resend (sign-in and notification email).
 - PostHog and Google (analytics, as above).
-- Anthropic (the AI in pages, search, Ask, meetings, analytics and Markdrop Guides): only the text a request needs, when someone uses AI. For analytics that's totals and your own titles, never who visited. Markdrop keeps usage counts, not the text sent; the one exception is your own [Ask conversations](#what-ask-keeps), kept for you to return to. See [AI in pages](/pages/ai#whats-sent-to-anthropic).
+- Anthropic (the Claude models behind the AI in pages, search, Ask, meetings, Team, analytics, Jira drafts and Markdrop Guides): only the text a request needs, when someone uses AI. For analytics that's totals and your own titles, never who visited. Markdrop keeps usage counts, not the text sent; the one exception is your own [Ask conversations](#what-ask-keeps), kept for you to return to. Nothing sent is used to train models. See [AI and your data](/security/ai-and-your-data).
 
 Markdrop doesn't sell personal data, and doesn't use it for advertising.
 

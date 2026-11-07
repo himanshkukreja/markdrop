@@ -2,7 +2,7 @@
 title: Ask
 description: "One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources."
 updated: 2026-11-06
-keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, meetings ai, phone, app, side panel]
+keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, phone, app, side panel]
 ---
 
 **Ask** is one assistant, everywhere in Markdrop. Ask a question in plain words and it answers from what you can open, citing where each part came from, so you can check it in one tap. The conversation follows you from screen to screen.
@@ -205,21 +205,12 @@ Ask finds items with the same search as [Search](/workspaces/search), so it sees
 - **AI off means off.** Nothing is read from a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off.
 
 :::note[What is sent to AI]
-Ask uses Claude Haiku 5.5 from Anthropic. It sends your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, your own name, email, workspaces and the names you appear under in meetings, and short excerpts of the matching items you can open. Transcripts are sent only to answer you. For a workspace's suggestions, it sends the meeting topics, decisions and action items and the page titles and headings that every member can open. Nothing is used to train models. See the [privacy policy](https://markdrop.in/privacy#processors).
+Ask sends your question, earlier questions in the same conversation, the heading of the section you're in and any text you selected, your own name, email, workspaces and the names you appear under in meetings, and short excerpts of the matching items you can open. Transcripts are sent only to answer you. For a workspace's suggestions, it sends the meeting topics, decisions and action items and the page titles and headings that every member can open. Nothing is used to train models. See [AI and your data](/security/ai-and-your-data).
 :::
 
 ## AI limits
 
-Which limit a question counts towards depends on the chip:
-
-| Chip | Limit |
-| --- | --- |
-| **This page**, **This folder**, a workspace, **My files**, **Everything** | **AI search**, shared with [Search](/workspaces/search#ask-ai): $2 a day and $20 a month across Markdrop |
-| **Meetings** | **Meetings AI**, shared with meeting summaries: $5 a day and $50 a month across Markdrop |
-
-A workspace's suggestions are written once for everyone, under their own small limit (**Ask suggestions**: $0.50 a day and $5 a month across Markdrop), and don't count towards yours. When it's reached, the last suggestions stay.
-
-Your own AI limits apply too. A question costs about a tenth of a cent. When a limit is reached, the panel says so and when AI will be back; you can switch chips, and your conversations still open.
+Ask has fair-use limits, like every AI feature. When a limit is reached, the panel says so and when AI will be back; you can switch chips, and your conversations still open. A workspace's suggestions are written once for everyone and don't count towards your limits; if they can't be refreshed for a while, the last suggestions stay.
 
 ## On your phone
 

@@ -3,10 +3,10 @@ title: AI insights for one link
 description: Ask AI why readers stop, where viewers drop or skip, which PDF pages lose people and which file version works better.
 updated: 2026-11-05
 prerequisites: [/analytics/overview]
-keywords: [ai insights, analytics ai, why did they stop, drop-off, rewrite, video coach, chapters, pdf, versions, verdict, confidence, haiku, analyze_document_engagement]
+keywords: [ai insights, analytics ai, why did they stop, drop-off, rewrite, video coach, chapters, pdf, versions, verdict, confidence, analyze_document_engagement]
 ---
 
-Numbers say *where* people stop. **✦ Insights** says *why*, and what to change. It sits at the top of a link's **Content**, **Pages**, **Video** or **Listening** and **Versions** tabs, and it reads that tab's numbers (and, where it helps, your own content) with Claude Haiku 5.5.
+Numbers say *where* people stop. **✦ Insights** says *why*, and what to change. It sits at the top of a link's **Content**, **Pages**, **Video** or **Listening** and **Versions** tabs, and it reads that tab's numbers (and, where it helps, your own content) with AI.
 
 Choose **Analyse**. In a few seconds you get a one-line summary and three to five findings, the most important first. Each finding says what the numbers show, why it matters, and what to try, and points at the exact section, moment, page or version.
 
@@ -38,7 +38,7 @@ Only the tab's totals and percentages, and your own content: section text, PDF p
 
 End-to-end encrypted links never send content. For an encrypted document there is no **Content** analysis (its sections aren't tracked); an encrypted PDF, video or audio file is analysed from the numbers only.
 
-The text you get back is AI-written: check it before you use it.
+The text you get back is AI-written: check it before you use it. See [AI and your data](/security/ai-and-your-data).
 
 ## Limits
 

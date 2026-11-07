@@ -22,7 +22,7 @@ From the last 30 days:
 - Questions people asked a guide's Ask AI that it couldn't answer, for the workspace's guides (or your own guides).
 - Searches in a guide that found nothing.
 
-Claude Haiku 5.5 groups these into up to 5 topics, the most asked first. Each topic shows:
+AI groups these into up to 5 topics, the most asked first. Each topic shows:
 
 - A page title, and how many times people looked for it (searches and questions).
 - Why it matters, in one line, and a few of the things people typed.

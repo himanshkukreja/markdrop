@@ -300,7 +300,8 @@
       "tab": "platform",
       "pages": [
         "/security/how-files-are-served",
-        "/security/privacy"
+        "/security/privacy",
+        "/security/ai-and-your-data"
       ]
     },
     {

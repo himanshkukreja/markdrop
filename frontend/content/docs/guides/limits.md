@@ -3,7 +3,7 @@ title: Markdrop Guides limits
 nav: Limits
 description: "The limits while Markdrop Guides is in beta: guides, pages, publishes, files and storage, AI answers, imports and syncs, domains and private pages."
 updated: 2026-11-02
-keywords: [limits, quota, beta, how many guides, pages, publishes per day, storage, file size, ask ai answers, ai budget, editor ai, imports, github sync, domains, redirects, private rules, templates]
+keywords: [limits, quota, beta, how many guides, pages, publishes per day, storage, file size, ask ai answers, ai allowance, editor ai, imports, github sync, domains, redirects, private rules, templates]
 ---
 
 Markdrop Guides is free while it's in beta, with every feature on every guide. These limits keep it fair for everyone. When you reach one, the screen you're on says which. Daily limits reset at midnight UTC, monthly ones on the 1st (UTC).

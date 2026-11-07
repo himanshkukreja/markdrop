@@ -3,7 +3,7 @@ title: "Team: your workspace memory"
 nav: Team
 description: Who is doing what in your workspace, from its meetings and pages. Status, focus, targets, blockers and projects, each line linked to its source.
 updated: 2026-11-06
-keywords: [team, jira, jira tickets, create jira issue, team memory, set_my_status, set_focus_note, hide_team_line, correct_team_line, mark_team_item_done, list_team_groups, save_team_group, delete_team_group, send_weekly_summary_now, timezone, weekly summary timezone, send now, mark done, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, claude haiku, cost, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
+keywords: [team, jira, jira tickets, create jira issue, team memory, set_my_status, set_focus_note, hide_team_line, correct_team_line, mark_team_item_done, list_team_groups, save_team_group, delete_team_group, send_weekly_summary_now, timezone, weekly summary timezone, send now, mark done, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
 ---
 
 **Team** answers "what is Abhishek working on?" and "where are we on the sourcing beta?" without anyone writing a status report. Markdrop reads your workspace's meetings and pages in the background and keeps short, dated lines about each person: what they're working on, what they finished, what they committed to and by when, and what's blocking them. Every line links to the meeting or page it came from.
@@ -142,9 +142,11 @@ Only the person a line is about can mark it done, hide it or correct it. A proje
 
 AI apps connected to Markdrop can read Team with `list_team`, `get_person_profile`, `get_project_status` and `list_team_groups`. With write access they can also set your status (`set_my_status`) and focus (`set_focus_note`), and mark done, hide or correct lines about you (`mark_team_item_done`, `hide_team_line`, `correct_team_line`), with the same rule as on the website: only your own lines. Admins' apps can make groups (`save_team_group`, `delete_team_group`) and send the weekly summary now (`send_weekly_summary_now`). See [MCP tools](/ai/tools#team).
 
-## AI and cost
+## AI
 
-Team memory uses Claude Haiku 5.5, in the background, once per changed meeting or page. A meeting costs about a fifth of a cent and a page less. The weekly summary's highlights are one more call per workspace a week. It has its own budget, **Team memory**, of $3 a day and $30 a month across Markdrop, which the Markdrop admin can change. When it runs out, updates pause until the next day and admins see a note on Team; nothing is lost. What's sent is never used to train models.
+Team memory reads changed meetings and pages with AI in the background, and the weekly summary's highlights are written with AI too. What's sent is never used to train models; see [AI and your data](/security/ai-and-your-data).
+
+Team memory has fair-use limits. If a limit is reached, updates pause for now and admins see a note on Team; Team picks up again by itself, and nothing is lost.
 
 ## Related
 

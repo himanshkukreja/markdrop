@@ -66,7 +66,7 @@ The summary is written once a day and kept (the card says **from earlier today**
 
 Under it, type a question in the box that says "Ask your analytics…" and choose **Ask**, or pick a suggestion: **What changed this week?**, **Which link did best this month?** or **Where do my readers come from?**. The answer streams in and links to the analytics pages it used. If your question isn't something Markdrop measures, it says so. A question already asked today answers from then (**from earlier today**); choose **Ask again** for a fresh answer. An answer is never blank: if it stops early, it says "The answer stopped early. Try again."
 
-Both use Claude Haiku 5.5. What it gets:
+Both use AI ([AI and your data](/security/ai-and-your-data)). What it gets:
 
 - Totals and changes for your own links: views, people, read to the end, watch time.
 - Your links' titles and kinds, the sites that sent people (the site name only, never the full address), channels, devices, versions of your files, and countries with at least 5 people (smaller ones are grouped as Other).

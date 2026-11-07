@@ -11,7 +11,7 @@ Pages have AI built in. If you can edit a page, you can rewrite a passage, draft
 
 Pages open in [View mode](/pages/overview#view-and-edit), so the writing tools are in the editor: choose **Edit** (or press **E**) first. **✦ Ask** works in both modes.
 
-Markdrop's AI uses Anthropic's Claude. Pages are in beta, and so is AI in pages.
+Pages are in beta, and so is AI in pages. What powers it and what's sent: [AI and your data](/security/ai-and-your-data).
 
 ## What you can do
 
@@ -125,9 +125,9 @@ On Windows and Linux, use **Ctrl** where this page says **⌘**. All of the page
 
 AI is on for every workspace by default. Admins can turn it off on the **Advanced** tab of the workspace's settings, with **AI features**. When it's off, the workspace's pages have no AI at all: the AI options are gone or say "AI is off for this workspace", and readers don't see **Ask**. Turn it on again at any time.
 
-## What's sent to Anthropic
+## What's sent
 
-When you use AI, Markdrop sends Anthropic only what that request needs:
+When you use AI, Markdrop sends the AI only what that request needs:
 
 - the text you selected, or the page's text (for a long page, only the sections nearest what you're doing), and your prompt or question;
 - the text of Markdrop items the page embeds, but only items the person asking can open;
@@ -135,7 +135,7 @@ When you use AI, Markdrop sends Anthropic only what that request needs:
 - for a page's cover, its title and its first 1,500 characters or so, with the list of Markdrop's covers. The answer is just the cover's name.
 - for [AI search](/workspaces/search#ask-ai), your question and short excerpts of the matching items you can open (never an encrypted item, and only the title of a password-protected one).
 
-Markdrop keeps a usage record for each request (who, which feature, the number of tokens and the cost), never the page's text, your prompt, the question or the answer. Anthropic doesn't use data sent through its commercial API to train its models by default; see [Anthropic's commercial terms](https://www.anthropic.com/legal/commercial-terms). The [privacy page](/security/privacy) has the rest of what Markdrop keeps.
+Markdrop keeps a usage record for each request, never the page's text, your prompt, the question or the answer, and nothing sent is used to train models. See [AI and your data](/security/ai-and-your-data) for which AI this is and what else is kept.
 
 AI treats the page's text as content to work on, never as instructions, so a page can't tell AI to do something else.
 
@@ -145,13 +145,13 @@ AI in pages is free during the beta, with fair-use limits:
 
 - Each person can make 30 AI requests a minute and 300 a day.
 - A question can be up to 2,000 characters, a selection up to 12,000 and notes up to 40,000.
-- Markdrop has a daily limit on AI across everyone during the beta. If it's reached, AI pauses with "AI limit reached for today. Try again tomorrow." until the next day (UTC).
+- AI also has fair-use limits across everyone during the beta. If one is reached, AI pauses with "AI limit reached for today. Try again tomorrow." until the next day (UTC).
 
 When you hit a limit, AI says so and which one. The rest of the page works as usual.
 
 ## In Markdrop Guides
 
-The Guides page editor has the same writing tools: **Ask AI** on a selection (and **⌘ J**), and an **AI** menu in the status bar with **Ask AI to write…**, **Summarize page**, **Find action items** and **Suggest title & description**. They count toward the guide's AI budget. Readers of a guide have their own [Ask AI](/guides/ask-ai). See [The page editor](/guides/editor#ask-ai).
+The Guides page editor has the same writing tools: **Ask AI** on a selection (and **⌘ J**), and an **AI** menu in the status bar with **Ask AI to write…**, **Summarize page**, **Find action items** and **Suggest title & description**. They count toward the guide's monthly AI allowance. Readers of a guide have their own [Ask AI](/guides/ask-ai). See [The page editor](/guides/editor#ask-ai).
 
 ## From your AI app
 

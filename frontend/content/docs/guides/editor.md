@@ -66,15 +66,15 @@ The answer appears under the text as a suggestion, and the passage it would repl
 
 AI help keeps links, code, Markdown and blocks like callouts as they are, and it never follows instructions written in your text. Still, read a suggestion before you accept it.
 
-The editor has the rest of the writing tools from Markdrop pages too: **⌘ J** opens **Ask AI** on the selection, or drafts at the caret when nothing is selected, and the **AI** menu in the status bar has **Ask AI to write…**, **Summarize page**, **Find action items** and **Suggest title & description**. Images you add get suggested alt text. They all work as described in [AI in pages](/pages/ai), and every use counts toward the guide's AI budget below.
+The editor has the rest of the writing tools from Markdrop pages too: **⌘ J** opens **Ask AI** on the selection, or drafts at the caret when nothing is selected, and the **AI** menu in the status bar has **Ask AI to write…**, **Summarize page**, **Find action items** and **Suggest title & description**. Images you add get suggested alt text. They all work as described in [AI in pages](/pages/ai), and every use counts toward the guide's monthly AI allowance below.
 
 Limits:
 
 - A selection can be up to 6,000 characters.
 - Each person can use AI help 50 times a day (UTC).
-- AI help shares the guide's AI budget with its readers' [Ask AI](/guides/ask-ai): every use counts towards the same monthly allowance. When it's used up, AI help says "This guide's AI budget for the month is used up" until the 1st (UTC).
+- AI help shares the guide's monthly AI allowance with its readers' [Ask AI](/guides/ask-ai): every use counts towards the same allowance. When it's used up, AI help says "This guide's monthly AI allowance is used up" until the 1st (UTC).
 
-Only the selection and the action are sent to the model, and nothing of either is kept: Markdrop records that AI help was used (which action, how long the text was, the cost), never the text or the answer.
+Only the selection and the action are sent to the model, and nothing of either is kept: Markdrop records that AI help was used (which action and how long the text was), never the text or the answer. See [AI and your data](/security/ai-and-your-data).
 
 ## Find and replace
 

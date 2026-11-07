@@ -47,7 +47,7 @@ These suggestions appear only in Edit mode, while you write. When the section yo
 
 Markdrop only suggests clear matches: a decision about what the section's heading or the page's title is about, whose words are mostly missing from the section. Nothing in the page ever changes unless you choose **Include**.
 
-When [AI is on](/pages/ai#who-can-use-ai) for the workspace, Claude Haiku 5.5 also reads a section of 25 words or more after you stop typing, and tells you when it seems to say something different from a decision ("The section says monthly billing; on Nov 3 the team decided annual"). This happens at most a few times per visit, once per version of the section, and counts towards the **Meetings AI** limit.
+When [AI is on](/pages/ai#who-can-use-ai) for the workspace, AI also reads a section of 25 words or more after you stop typing, and tells you when it seems to say something different from a decision ("The section says monthly billing; on Nov 3 the team decided annual"). This happens at most a few times per visit, once per version of the section, and counts towards your AI limits.
 
 ## Turn it off
 
@@ -67,7 +67,7 @@ Both are on by default and are yours alone: they follow you to every page and ev
 - **Ask about this** on an item in **From meetings** asks Ask about that decision, action item or question: why it was decided and whether it changed, its status, whether it was answered.
 - Switch to **Meetings** to ask only the meetings, with a series or a period.
 
-Asking on **This page** counts towards your **AI search** limit; on **Meetings**, towards **Meetings AI**. See [AI limits](/workspaces/ask-markdrop#ai-limits).
+Asking counts towards your AI limits. See [AI limits](/workspaces/ask-markdrop#ai-limits).
 
 ## Privacy
 
@@ -89,4 +89,4 @@ The panel needs no extra AI: Markdrop records each meeting's decisions, action i
 - [Meetings](/workspaces/meetings)
 - [Ask your meetings](/workspaces/meetings-ask)
 - [AI in pages](/pages/ai)
-- [Meetings privacy and cost](/workspaces/meetings-privacy)
+- [Meetings privacy and AI](/workspaces/meetings-privacy)

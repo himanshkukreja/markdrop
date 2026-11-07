@@ -3,7 +3,7 @@ title: Import a meeting manually
 nav: Import manually
 description: Paste a transcript, upload a caption or Word file, paste a Google Drive link, or pick Google Meet's transcript and Gemini notes from your Drive.
 updated: 2026-11-06
-keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, attendees, invited, who joined, people count, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, don't post to slack, slack, pause, resume, retry, waiting for the ai budget]
+keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, attendees, invited, who joined, people count, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, don't post to slack, slack, pause, resume, retry, ai paused, fair-use limit]
 ---
 
 Import a call when it's over. It works for any call: Google Meet, Zoom, Microsoft Teams, or a transcript from anywhere else. To have Google Meet calls show up by themselves, see [Import meetings automatically](/workspaces/meetings-auto-import). You can use both.
@@ -17,7 +17,7 @@ Import a call when it's over. It works for any call: Google Meet, Zoom, Microsof
    - **Drive link**: paste links to the Google Docs. See [Paste a Google Drive link](#paste-a-google-drive-link).
    - **Google Docs**: pick the Docs Google saved in your Drive, up to 6. See [From Google Drive](#from-google-drive).
 3. For pasted text and files, check what Markdrop found: the meeting's name, its date and length, how many transcript lines, whether Google's notes are in it, and who spoke. Change the **Title**, **Date** or **Type** if you need to. **Type** starts on **Guess from the title**.
-4. Check **Only the people who were there**. It starts on for a 1:1 or a two-person call, and off for three or more people. For picked Google Docs, leave it alone and Markdrop decides the same way when it reads them, or switch it to choose yourself. See [Privacy and cost](/workspaces/meetings-privacy).
+4. Check **Only the people who were there**. It starts on for a 1:1 or a two-person call, and off for three or more people. For picked Google Docs, leave it alone and Markdrop decides the same way when it reads them, or switch it to choose yourself. See [Privacy and AI](/workspaces/meetings-privacy).
 5. Select **Import meeting** (or **Import N meetings** when the files hold several calls). The page opens straight away, ready to edit, and the summary fills in a few seconds later. A call that's already here opens the meeting you have instead (**Already imported**), and the other half of a call you have is added to it.
 
 ![The Import a meeting dialog on the Paste tab: a pasted Google Meet transcript, the preview of what Markdrop found (title, date, lines and people), the title, date and type, the Only the people who were there switch, and Import meeting.](/docs-assets/workspaces/meetings-import/import-paste.webp)
@@ -121,9 +121,9 @@ The import runs in the background, **oldest first**, and keeps going if you clos
 
 Action items in past meetings still @mention their owners, as links, but nobody gets a bell, an email or a Slack message about them. That's true of every meeting Markdrop imports (see [Mentions in meeting notes](/workspaces/meetings#what-the-meeting-page-holds)). **Don't post to Slack** is on by default, so they aren't posted to your [Slack meetings channel](/integrations/slack) either. With it off, meetings from the last day are posted; older ones never are.
 
-### Many meetings and the AI budget
+### Many meetings and AI limits
 
-Each meeting gets its AI summary as it's imported, from the workspace's **Meetings AI** budget. The review shows roughly what the summaries cost; an hour-long call is about a fifth of a cent. If a big backlog runs past today's budget, the import shows **Waiting for the AI budget** and carries on by itself when the budget resets, the next day (UTC). **Try now** checks again straight away. See [Privacy and cost](/workspaces/meetings-privacy).
+Each meeting gets its AI summary as it's imported. AI has fair-use limits, so a big backlog may not all be summarized in one day: the review says so, and the import shows **AI paused for now (fair-use limit)** and carries on by itself the next day (UTC). **Try now** checks again straight away. See [Privacy and AI](/workspaces/meetings-privacy).
 
 ### From an AI app
 

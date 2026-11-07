@@ -63,7 +63,7 @@ Type a question, like `how do we onboard contractors?`, or select **Ask AI ✦**
 The answer streams in above the results, with its sources listed under it. AI can be wrong, so check the sources. An answer is never blank: if it runs long, you get what was written and a note that it was cut short.
 
 :::note[What is sent to AI]
-AI search uses Claude Haiku 5.5 from Anthropic. Only the matching excerpts of items you can open are sent, never anything else. Encrypted items are never sent, a password-protected item is sent by its title only, and nothing is sent from a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off. Markdrop keeps the usage counts, not the text. See the [privacy policy](https://markdrop.in/privacy#processors).
+Only the matching excerpts of items you can open are sent, never anything else. Encrypted items are never sent, a password-protected item is sent by its title only, and nothing is sent from a workspace whose admin turned [AI features](/pages/ai#turn-ai-off-for-a-workspace) off. Markdrop keeps the usage counts, not the text. See [AI and your data](/security/ai-and-your-data).
 :::
 
 AI search needs an account and counts towards your AI limits. When a limit is reached, search still works and the card says when AI will be back.

@@ -74,7 +74,7 @@ Nothing is deleted, every link keeps working, and a series someone set by hand s
 
 AI apps can do the same with the `organize_meetings` tool. It waits up to about 50 seconds; for a big workspace it returns the progress so far, and calling it again follows the same run.
 
-**Who can open a meeting** depends on who was there. A 1:1 or a two-person call starts restricted to its attendees. A call with three or more people is open to the workspace's team. You can change it for any meeting; see [Privacy and cost](/workspaces/meetings-privacy).
+**Who can open a meeting** depends on who was there. A 1:1 or a two-person call starts restricted to its attendees. A call with three or more people is open to the workspace's team. You can change it for any meeting; see [Privacy and AI](/workspaces/meetings-privacy).
 
 ## The Meetings page
 
@@ -149,7 +149,7 @@ Ask one meeting or all of them. Answers link to the moment it was said.
 :::card[Meeting memory while writing]{href="/pages/meeting-memory" icon="lines"}
 See what was decided in meetings while you write a page, and insert it as a cited line.
 :::
-:::card[Privacy and cost]{href="/workspaces/meetings-privacy" icon="lock"}
-Who can open a meeting, restricted meetings, how long transcripts are kept, and the AI budget.
+:::card[Privacy and AI]{href="/workspaces/meetings-privacy" icon="lock"}
+Who can open a meeting, restricted meetings, how long transcripts are kept, and what AI does with them.
 :::
 ::::

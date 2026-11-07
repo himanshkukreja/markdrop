@@ -42,7 +42,7 @@ Zoom, Teams and other calls come in by [importing them manually](/workspaces/mee
 Each call becomes one page in **Meetings › its series** (or **Other meetings**), with the notes and the transcript of one call put together. It holds the summary, decisions, action items with their owners @mentioned (nobody is notified), open questions, topics and the transcript, each point linked to the moment it was said. See [Meetings](/workspaces/meetings).
 
 - **Attendees** are the people who joined. Gemini's notes list everyone on the invite, joined or not: Markdrop keeps them apart as **Invited**. See [Attendees and invited](/workspaces/meetings-import#attendees-and-invited).
-- A 1:1 or a two-person call is **restricted to its attendees**; three or more people are open to the workspace's team. You can change it per meeting. See [Privacy and cost](/workspaces/meetings-privacy).
+- A 1:1 or a two-person call is **restricted to its attendees**; three or more people are open to the workspace's team. You can change it per meeting. See [Privacy and AI](/workspaces/meetings-privacy).
 
 ## 4. Team memory reads it, if it's on
 
@@ -80,9 +80,9 @@ Every step keeps the meeting's own access:
 - The weekly summary uses only meetings and pages **everyone in the workspace** can open.
 - Action-item messages in Slack carry only that person's own items. People who aren't in your Markdrop workspace get the item text, not the notes.
 
-## What it costs
+## AI limits
 
-Meetings and Team memory use Claude Haiku 5.5 and have their own budgets: **Meetings AI** for summaries and questions, **Team memory** for reading meetings and pages.
+Meetings and Team memory have fair-use limits, like every AI feature. What's sent to the AI is in [AI and your data](/security/ai-and-your-data).
 
-- When the Meetings AI budget runs out, meetings still import, with their transcript and Google's notes but without the AI sections; **Write it again** adds them later. See [Privacy and cost](/workspaces/meetings-privacy).
-- When the Team memory budget runs out, Team stops updating until the next day; nothing is lost. See [Team › AI and cost](/workspaces/team#ai-and-cost).
+- When a limit is reached, meetings still import, with their transcript and Google's notes but without the AI sections; **Write it again** adds them later. See [Privacy and AI](/workspaces/meetings-privacy#ai).
+- Team stops updating for a while and picks up again by itself; nothing is lost. See [Team › AI](/workspaces/team#ai).

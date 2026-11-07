@@ -186,5 +186,5 @@ Each script works until its token is replaced or revoked. Make a new script with
 - [Meetings and Team: how it fits together](/workspaces/meetings-and-team)
 - [Meetings](/workspaces/meetings)
 - [Import a meeting manually](/workspaces/meetings-import)
-- [Privacy and cost](/workspaces/meetings-privacy)
+- [Privacy and AI](/workspaces/meetings-privacy)
 - [MCP tools](/ai/tools#meetings): `meetings_connection` tells an AI app whether automatic import is on, how the script's last run went and how many meetings wait for Gemini's notes, and `check_meetings_now` checks for new meetings now.

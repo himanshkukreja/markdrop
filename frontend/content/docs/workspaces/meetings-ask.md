@@ -51,7 +51,7 @@ In the question box, pick a series (such as **Daily Standup**) and a period (**T
 
 You can also say it in the question: "What came up in the Daily Standups last month?" asks only that series, in that month. The answer starts with what it looked at, such as **From your question: Daily Standup · October 2026**. Names Markdrop doesn't know as a series are ignored, so the question still gets an answer from all your meetings.
 
-Answers always use only the meetings you can open. See [Privacy and cost](/workspaces/meetings-privacy).
+Answers always use only the meetings you can open. See [Privacy and AI](/workspaces/meetings-privacy).
 
 ### Keyboard
 
@@ -64,11 +64,11 @@ The conversation is one with the rest of Ask: it's kept, it follows you to other
 
 To ask across meetings and everything else at once, pick **Everything**, or use the box at the top of your home. It cites meeting moments the same way, and **What are my open action items?** lists the action items assigned to you across meetings.
 
-Meeting questions count towards the **Meetings AI** limit; see [AI limits](/workspaces/ask-markdrop#ai-limits).
+Meeting questions count towards your AI limits; see [AI limits](/workspaces/ask-markdrop#ai-limits).
 
 ## From an AI app
 
-`ask_meetings` asks one meeting or a whole workspace from an AI app connected to the [hosted MCP server](/ai/hosted-mcp), optionally only one `series` or dates (`since`, `until`). It counts towards the same **Meetings AI** limit. See [MCP tools](/ai/tools#meetings).
+`ask_meetings` asks one meeting or a whole workspace from an AI app connected to the [hosted MCP server](/ai/hosted-mcp), optionally only one `series` or dates (`since`, `until`). It counts towards the same AI limits. See [MCP tools](/ai/tools#meetings).
 
 While you write a page, [Meeting memory](/pages/meeting-memory) shows what was decided about it, and **Ask this page** answers from your meetings too.
 
@@ -80,4 +80,4 @@ While you write a page, [Meeting memory](/pages/meeting-memory) shows what was d
 - [Ask](/workspaces/ask-markdrop)
 - [Meetings](/workspaces/meetings)
 - [Search](/workspaces/search)
-- [Privacy and cost](/workspaces/meetings-privacy)
+- [Privacy and AI](/workspaces/meetings-privacy)

@@ -1,9 +1,9 @@
 ---
-title: Meetings privacy and cost
-nav: Privacy and cost
-description: Who can open a meeting, restricting meetings to their attendees, how long transcripts are kept, the language of the AI sections, and the Meetings AI budget.
+title: Meetings privacy and AI
+nav: Privacy and AI
+description: Who can open a meeting, restricting meetings to their attendees, how long transcripts are kept, the language of the AI sections, and AI limits.
 updated: 2026-11-06
-keywords: [meetings privacy, restrict to attendees, attendees only, restricted meetings, only the people who were there, who can see a meeting, slack, quiet, past meetings, notifications, delete meeting, retention, transcript storage, english, hindi, language, meetings ai, ai limits, cost, budget, claude haiku]
+keywords: [meetings privacy, restrict to attendees, attendees only, restricted meetings, only the people who were there, who can see a meeting, slack, quiet, past meetings, notifications, delete meeting, retention, transcript storage, english, hindi, language, ai limits, fair use]
 ---
 
 ## Who can see a meeting
@@ -35,13 +35,11 @@ Disconnecting Google Meet doesn't delete meetings it already imported. Markdrop 
 
 Everything AI writes is in **English**, even when the call mixes Hindi and English or another language. The transcript stays as it was spoken, and Google's notes are kept as written.
 
-## AI and cost
+## AI
 
-Transcripts are sent only to the AI model, Claude Haiku 5.5, and only to answer you or to write the meeting's sections. They are never used to train models.
+Transcripts are sent to the AI only to answer you or to write the meeting's sections, and are never used to train models. See [AI and your data](/security/ai-and-your-data).
 
-Meetings uses its own budget, **Meetings AI**: $5 a day and $50 a month across Markdrop. A summary costs about a fifth of a cent for an hour-long call, and a question costs less. Automatic imports count towards the same budget.
-
-When a limit is reached, imports still work, manual and automatic, but without the AI sections. Select **Write it again** later. [Import past meetings](/workspaces/meetings-import#import-past-meetings) is the exception: it waits for the budget to reset and then carries on, so every past meeting gets its summary. Meetings AI is also off in a workspace whose AI features are turned off. In that case meetings import with their transcript and Google's notes only.
+Meeting summaries and questions have fair-use limits. When a limit is reached, imports still work, manual and automatic, with the transcript and Google's notes but without the AI sections. Select **Write it again** later to add them. [Import past meetings](/workspaces/meetings-import#import-past-meetings) is the exception: it waits until AI is available again and then carries on by itself, so every past meeting gets its summary. AI is also off in a workspace whose AI features are turned off. In that case meetings import with their transcript and Google's notes only.
 
 ## Related
 
