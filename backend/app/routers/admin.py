@@ -8,10 +8,11 @@ signed-in route takes) and opens the console when:
 
 - it is a full session signed in on markdrop.in: not an API token (mdk_…), not a custom domain's
   tenant token, not the copy handed to Markdrop Guides' studio host (`via: "studio"`);
-- the account's email is in MARKDROP_ADMIN_EMAILS (comma-separated, case-insensitive, exact;
-  default kukreja.him@gmail.com) and the account isn't disabled. Accounts exist only through a
-  verified sign-in (Google with a verified address, or an emailed code/link), so the address is
-  the verified one;
+- the account's email is an admin's (services/admin_roles, case-insensitive, exact): an OWNER, listed
+  in MARKDROP_ADMIN_EMAILS (default kukreja.him@gmail.com), or an admin an owner added in
+  Admin › Admins (the `admins` collection); and the account isn't disabled. Accounts exist only
+  through a verified sign-in (Google with a verified address, or an emailed code/link), so the
+  address is the verified one. Only owners change who is an admin (routers/admin_roles);
 - it was signed in within MARKDROP_ADMIN_SESSION_MAX_AGE_DAYS (default 7, of the session's 30).
   An older one gets 401 and the console sends the owner through sign-in again.
 
@@ -53,7 +54,7 @@ from app.schemas.auth import (
     RenderedSample,
 )
 from app.schemas.document import MAX_CONTENT
-from app.services import ai_usage, api_token, artifact, campaign, mailer, oauth_server
+from app.services import admin_roles, ai_usage, api_token, artifact, campaign, mailer, oauth_server
 from app.services import feedback as feedback_service
 
 settings = get_settings()
@@ -67,6 +68,8 @@ BASE_URL = "https://markdrop.in"
 
 class AdminSessionResponse(BaseModel):
     email: str
+    # "owner" (MARKDROP_ADMIN_EMAILS: may add and remove admins) or "admin".
+    role: str = "owner"
     name: str | None = None
     picture: str | None = None
 
@@ -234,10 +237,7 @@ ACCESS_LOG = "admin_access_log"
 _NOT_FOUND = HTTPException(status_code=404, detail="Not Found")
 
 
-def _is_disabled(raw: dict) -> bool:
-    """A disabled account. Markdrop has no switch for this yet; a `disabled` flag or `disabled_at` /
-    `deleted_at` stamp set on the user row by hand closes the console to it at once."""
-    return bool(raw.get("disabled") or raw.get("disabled_at") or raw.get("deleted_at"))
+_is_disabled = admin_roles.is_disabled
 
 
 async def _log_access(db: AsyncIOMotorDatabase, email: str, user_id: str, ip_hash: str | None,
@@ -289,7 +289,8 @@ async def require_admin(request: Request, db: AsyncIOMotorDatabase = Depends(get
     email = str(raw.get("email") or "").strip().lower()
     ip_hash = ai_usage.hash_ip(get_client_ip(request))
     path = request.url.path
-    if not email or email not in settings.admin_email_set or _is_disabled(raw):
+    role = await admin_roles.role_of(db, email) if email and not _is_disabled(raw) else None
+    if role is None:
         await _log_access(db, email, uid, ip_hash, "denied", path)
         raise _NOT_FOUND
     max_age = settings.admin_session_max_age_days
@@ -299,8 +300,8 @@ async def require_admin(request: Request, db: AsyncIOMotorDatabase = Depends(get
         raise HTTPException(status_code=401, detail="Sign in again to open the admin console.",
                             headers={"X-Admin-Reauth": "1"})
     await _log_access(db, email, uid, ip_hash, "ok", path)
-    return {"sub": email, "email": email, "user_id": uid, "ip_hash": ip_hash,
-            "name": raw.get("name"), "picture": raw.get("picture")}
+    return {"sub": email, "email": email, "user_id": uid, "ip_hash": ip_hash, "role": role,
+            "issued_at": issued, "name": raw.get("name"), "picture": raw.get("picture")}
 
 
 def _to_list_item(raw: dict, owner_email: str | None = None) -> AdminDocListItem:
@@ -376,7 +377,8 @@ def _to_doc_response(raw: dict) -> dict:
 async def admin_session(request: Request, admin: dict = Depends(require_admin)):
     """Who the console is open for. /admin calls this first: 200 opens it, 404 shows a plain
     not-found page, 401 sends the person to sign in (again)."""
-    return AdminSessionResponse(email=admin["email"], name=admin.get("name"), picture=admin.get("picture"))
+    return AdminSessionResponse(email=admin["email"], role=admin.get("role") or "owner", name=admin.get("name"),
+                                picture=admin.get("picture"))
 
 
 # How the admin document list can be ordered. Each maps to (sort key, direction); the computed

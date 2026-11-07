@@ -452,6 +452,12 @@ async def connect() -> None:
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] admin access log indexes skipped: {exc}")
 
+    # Admins an owner added (services/admin_roles): one row per lowercase email.
+    try:
+        await db["admins"].create_index("email", unique=True)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] admins index skipped: {exc}")
+
 
 async def disconnect() -> None:
     global _client

@@ -24,6 +24,7 @@ from app.routers.admin_ai_log import router as admin_ai_log_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_email import router as admin_email_router
 from app.routers.admin_journeys import router as admin_journeys_router
+from app.routers.admin_roles import router as admin_roles_router
 from app.routers.beat import router as beat_router
 from app.routers.artifacts import router as artifacts_router
 from app.routers.auth import router as auth_router
@@ -260,6 +261,7 @@ app.include_router(admin_ai_router, include_in_schema=False)
 app.include_router(admin_ai_log_router, include_in_schema=False)
 app.include_router(admin_journeys_router, include_in_schema=False)
 app.include_router(admin_email_router, include_in_schema=False)
+app.include_router(admin_roles_router, include_in_schema=False)
 app.include_router(email_public_router, include_in_schema=False)
 app.include_router(beat_router, include_in_schema=False)
 app.include_router(auth_router)

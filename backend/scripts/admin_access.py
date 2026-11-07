@@ -19,8 +19,18 @@ normal way (Google or an emailed code), someone with shell access to the API ser
         recent admin access: allowed, refused (signed in but not an admin), asked to sign in again,
         break-glass sessions, and moderation reads/edits/deletes
 
-To give someone else the console, or to take it away: edit MARKDROP_ADMIN_EMAILS in backend/.env
-and restart the API (deploy.sh). An address not on that list can't be minted a session here either.
+    cd backend && .venv/bin/python -m scripts.admin_access list
+        the owners and the admins (added in Admin › Admins or with `grant`), pending or not
+
+    cd backend && .venv/bin/python -m scripts.admin_access grant you@example.com [--note "why"]
+    cd backend && .venv/bin/python -m scripts.admin_access revoke you@example.com
+        add or remove an ADMIN (not an owner) without the web console, e.g. when no owner can sign
+        in. Audited as an admin_add / admin_remove by "server (break-glass)" and emailed to every
+        owner, like a change made in the console.
+
+Two kinds of admin (services/admin_roles): OWNERS are MARKDROP_ADMIN_EMAILS (edit backend/.env and
+restart the API with deploy.sh to change them; only owners add or remove admins in the console), and
+ADMINS are rows an owner added. `session` mints only for an owner.
 
 Uses the app's settings (backend/.env on the server).
 """
@@ -34,8 +44,10 @@ from datetime import datetime, timedelta, timezone
 import jwt
 
 from app.config import get_settings
+from app.services import admin_roles
 
 settings = get_settings()
+OPERATOR = {"email": None, "name": "The server operator (break-glass script)"}
 ACCESS_LOG = "admin_access_log"
 MAX_HOURS = 24
 
@@ -70,7 +82,7 @@ async def mint_session(db, email: str, *, hours: float = 1, create: bool = False
 
 
 async def status(db) -> list[str]:
-    out = [f"MARKDROP_ADMIN_EMAILS: {', '.join(sorted(settings.admin_email_set)) or '(none: nobody can open the console)'}",
+    out = [f"MARKDROP_ADMIN_EMAILS: {', '.join(sorted(settings.admin_email_set)) or '(none: no owner, only added admins can open the console)'}",
            f"Session must be signed in within: {settings.admin_session_max_age_days or 'any'} day(s)"]
     for email in sorted(settings.admin_email_set):
         raw = await db["users"].find_one({"email": email})
@@ -79,6 +91,21 @@ async def status(db) -> list[str]:
         else:
             off = raw.get("disabled") or raw.get("disabled_at") or raw.get("deleted_at")
             out.append(f"  {email}: account {raw['_id']}{' DISABLED' if off else ''}, last sign-in {raw.get('last_login_at') or 'never'}")
+    n = await db[admin_roles.COLLECTION].count_documents({})
+    out.append(f"Admins added by an owner: {n} (`list` shows them)")
+    return out
+
+
+async def admins(db) -> list[str]:
+    data = await admin_roles.listing(db)
+    out = [f"Owners (MARKDROP_ADMIN_EMAILS): {len(data['owners'])}"]
+    for p in data["owners"]:
+        out.append(f"  {p['email']}{'' if p['has_account'] else ' (no account yet)'}")
+    out.append(f"Admins: {len(data['admins'])}")
+    for p in data["admins"]:
+        state = "pending: no account yet" if not p["has_account"] else ("DISABLED" if p["disabled"] else "active")
+        out.append(f"  {p['email']}  {state}, added by {p['added_by'] or 'server'} {p['added_at']:%Y-%m-%d}"
+                   + (f"  ({p['note']})" if p.get("note") else ""))
     return out
 
 
@@ -92,8 +119,8 @@ async def recent(db, days: int) -> list[str]:
             out.append(f"{r.get('day')}  {r.get('outcome'):7}  {r.get('email') or '-':32} x{r.get('count', 1):<4} "
                        f"ip {str(r.get('ip_hash') or '-')[:10]}  last {r.get('last_path')}")
         else:
-            out.append(f"{r.get('ts'):%Y-%m-%d %H:%M}  {r.get('action'):11}  {r.get('admin') or r.get('email') or '-':32} "
-                       f"{r.get('slug') or ''}")
+            out.append(f"{r.get('ts'):%Y-%m-%d %H:%M}  {r.get('action'):12}  {r.get('admin') or r.get('email') or 'server':32} "
+                       f"{r.get('slug') or r.get('target') or ''}")
     return out or [f"No admin access in the last {days} day(s)."]
 
 
@@ -107,6 +134,22 @@ async def _main(args) -> int:
             print("\n".join(await status(db)))
         elif args.cmd == "log":
             print("\n".join(await recent(db, args.days)))
+        elif args.cmd == "list":
+            print("\n".join(await admins(db)))
+        elif args.cmd in ("grant", "revoke"):
+            from app import database
+
+            database._client = client  # the owners' emails go through the app's send path
+            try:
+                if args.cmd == "grant":
+                    r = await admin_roles.grant(db, OPERATOR, args.email, args.note, via="break_glass")
+                    print(f"{r['email']} is now an admin{' (pending: no account yet)' if r['pending'] else ''}.")
+                else:
+                    await admin_roles.revoke(db, OPERATOR, args.email, via="break_glass")
+                    print(f"{admin_roles.norm(args.email)} is no longer an admin.")
+            except admin_roles.RoleError as e:
+                print(f"refused: {e.message}")
+                return 1
         else:
             try:
                 token, exp = await mint_session(db, args.email, hours=args.hours, create=args.create)
@@ -129,6 +172,12 @@ def main() -> int:
     s.add_argument("email")
     s.add_argument("--hours", type=float, default=1)
     s.add_argument("--create", action="store_true", help="make the account if it doesn't exist")
+    sub.add_parser("list", help="owners and admins")
+    g = sub.add_parser("grant", help="make an address an admin (not an owner)")
+    g.add_argument("email")
+    g.add_argument("--note", default=None)
+    rv = sub.add_parser("revoke", help="take admin away from an address")
+    rv.add_argument("email")
     lg = sub.add_parser("log", help="recent admin access")
     lg.add_argument("--days", type=int, default=7)
     return asyncio.run(_main(p.parse_args()))
