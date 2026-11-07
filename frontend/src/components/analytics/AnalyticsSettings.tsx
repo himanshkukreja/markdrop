@@ -7,7 +7,7 @@
  * already collected. Shared by Settings › Account, the workspace's Advanced tab, a folder's menu,
  * an item's menu, the share dialog, the analytics page header and My files' bulk actions.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Badge, Button, Card, Checkbox, Dialog, Drawer, Icon, SegmentedControl, Select, Skeleton, Switch, cx, useToast } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
 import { usePhone } from "@/components/dashboard/hooks";
@@ -89,6 +89,7 @@ function SwitchList({ value, onChange, locked, from, disabled }: {
   value: Partial<Track>; onChange: (k: TrackKey, on: boolean) => void;
   locked?: Partial<Record<TrackKey, boolean>>; from?: Partial<Record<TrackKey, string>>; disabled?: boolean;
 }) {
+  const uid = useId();
   return (
     <ul className="m-0 flex list-none flex-col p-0">
       {TRACK_KEYS.map((k) => {
@@ -96,13 +97,13 @@ function SwitchList({ value, onChange, locked, from, disabled }: {
         return (
           <li key={k} className="flex min-h-11 items-start justify-between gap-4 border-t border-border py-2.5 first:border-t-0">
             <div className="min-w-0">
-              <p id={`trk-${k}`} className={cx("m-0 text-body-strong", off ? "text-text-muted" : "text-text")}>
+              <label htmlFor={`${uid}-${k}`} id={`${uid}-l-${k}`} className={cx("m-0 block text-body-strong", off ? "text-text-muted" : "text-text")}>
                 {TRACK_LABEL[k]}
                 {locked?.[k] && <Badge size="sm" tone="neutral" className="ml-2" icon="lock">Locked</Badge>}
-              </p>
+              </label>
               <p className="m-0 mt-0.5 text-caption text-text-muted">{TRACK_HELP[k]}{from?.[k] ? <span className="block text-micro">From: {from[k]}</span> : null}</p>
             </div>
-            <Switch className="mt-0.5 shrink-0" checked={value[k] !== false} aria-labelledby={`trk-${k}`}
+            <Switch className="mt-0.5 shrink-0" id={`${uid}-${k}`} checked={value[k] !== false} aria-label={TRACK_LABEL[k]}
               disabled={disabled || !!locked?.[k]} onChange={(e) => onChange(k, e.target.checked)} />
           </li>
         );
@@ -116,16 +117,17 @@ const INHERIT = "inherit";
 function TriList({ value, onChange, disabled, inheritWord }: {
   value: TrackPartial; onChange: (k: TrackKey, v: boolean | null) => void; disabled?: boolean; inheritWord: string;
 }) {
+  const uid = useId();
   return (
     <ul className="m-0 flex list-none flex-col p-0">
       {TRACK_KEYS.map((k) => (
         <li key={k} className="flex min-h-11 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border py-2.5 first:border-t-0">
           <div className="min-w-0 flex-1 basis-56">
-            <p id={`tri-${k}`} className="m-0 text-body-strong text-text">{TRACK_LABEL[k]}</p>
+            <label htmlFor={`${uid}-${k}`} className="m-0 block text-body-strong text-text">{TRACK_LABEL[k]}</label>
             <p className="m-0 mt-0.5 text-caption text-text-muted">{TRACK_HELP[k]}</p>
           </div>
           <div className="w-full sm:w-44">
-            <Select aria-labelledby={`tri-${k}`} disabled={disabled} value={value[k] === undefined ? INHERIT : value[k] ? "on" : "off"}
+            <Select id={`${uid}-${k}`} disabled={disabled} value={value[k] === undefined ? INHERIT : value[k] ? "on" : "off"}
               onChange={(e) => onChange(k, e.target.value === INHERIT ? null : e.target.value === "on")}
               options={[{ value: INHERIT, label: inheritWord }, { value: "on", label: "On" }, { value: "off", label: "Off" }]} />
           </div>
@@ -349,10 +351,10 @@ function LevelEditor({ load, put, canEdit, withEnforce, scope, inheritWord }: {
       {withEnforce && (
         <div className="flex min-h-11 items-start justify-between gap-4 border-t border-border pt-3">
           <div className="min-w-0">
-            <p id="trk-enforce" className="m-0 text-body-strong text-text">Enforce for every item</p>
+            <label htmlFor="trk-enforce" className="m-0 block text-body-strong text-text">Enforce for every item</label>
             <p className="m-0 mt-0.5 text-caption text-text-muted">A kind set to Off here is off for every item in the workspace; members can&apos;t turn it back on for theirs.</p>
           </div>
-          <Switch className="mt-0.5 shrink-0" aria-labelledby="trk-enforce" checked={enforce} disabled={!canEdit} onChange={(e) => setEnforce(e.target.checked)} />
+          <Switch className="mt-0.5 shrink-0" id="trk-enforce" checked={enforce} disabled={!canEdit} onChange={(e) => setEnforce(e.target.checked)} />
         </div>
       )}
       {canEdit ? (

@@ -265,6 +265,97 @@ await step("mcp", async () => {
   log("mcp timeline:", tl.text.split("\n").slice(0, 4).join(" | "));
 });
 
+await step("settings-item", async () => {
+  // The owner turns location and identity off for the PDF from its analytics page (the tracking chip),
+  // and deletes what was collected; the Viewers tab then shows no names and no places.
+  const p = await viewersTab(ada, "board-deck");
+  await p.getByRole("button", { name: /Analytics settings: Tracking everything/ }).click();
+  const drawer = p.getByRole("dialog");
+  await drawer.getByText("Use my defaults").waitFor({ timeout: 15000 });
+  await drawer.getByText("Custom", { exact: true }).click();
+  for (const label of ["Location", "Viewer identity"]) {
+    await drawer.getByText(label, { exact: true }).click();
+  }
+  await shot(p, "settings-item-drawer-light-1440");
+  await drawer.getByRole("button", { name: "Save" }).click();
+  const confirm = p.getByRole("dialog").filter({ hasText: "Also delete what was already collected" });
+  await confirm.waitFor({ timeout: 10000 });
+  await confirm.getByText("Also delete what was already collected").click();
+  await confirm.getByRole("button", { name: "Turn off and delete" }).click();
+  await p.getByRole("button", { name: /Analytics settings: Tracking: .*identity, location off/ }).waitFor({ timeout: 15000 });
+  await p.getByText(/Not collected for this item: viewer identity, location/).waitFor({ timeout: 15000 });
+  if (await p.getByText("Cy Stranger").count()) fail("a name is still shown after identity was turned off and deleted");
+  if (await p.getByRole("heading", { name: "Countries" }).count()) fail("the Countries breakdown still shows");
+  await shot(p, "settings-item-after-light-1440");
+  await p.context().close();
+  // A new view is stored without them.
+  await viewAs("board-deck", cy, turnPages);
+  const r = await api("GET", `/api/v1/me/documents/board-deck/analytics/viewers?range=7d`, ada);
+  if (r.body.views.some((v) => v.viewer.type === "user" || v.location.country)) fail("identity or location collected after they were turned off");
+  // The page was told: its document says what's collected.
+  const d = await api("GET", "/api/v1/documents/board-deck", null);
+  if (d.body.track.location !== false || d.body.track.identity !== false) fail(`track: ${JSON.stringify(d.body.track)}`);
+});
+
+await step("settings-workspace-enforce", async () => {
+  // Wes (an admin) enforces "source off" for Acme; an item that asks for source keeps it off, locked.
+  const { p } = await ctx(browser, { token: S.users.admin.token });
+  await p.goto(`${APP}/settings/workspaces/${S.ws}?tab=advanced`);
+  const card = p.locator("#analytics");
+  await card.waitFor({ timeout: 20000 });
+  await card.getByLabel("Source and referrer").selectOption("off");
+  await card.getByText("Enforce for every item").click();
+  await card.scrollIntoViewIfNeeded();
+  await shot(p, "settings-workspace-light-1440");
+  await card.getByRole("button", { name: "Save" }).click();
+  await p.getByRole("dialog").getByRole("button", { name: "Turn off", exact: true }).click();
+  await p.waitForTimeout(800);
+  await p.context().close();
+  await api("PUT", "/api/v1/me/documents/field-guide/analytics/settings", ada, { settings: { source: true } });
+  const s2 = await api("GET", "/api/v1/me/documents/field-guide/analytics/settings", ada);
+  const src = s2.body.types.find((t) => t.key === "source");
+  if (src.on || !src.locked || !/Enforced by Acme/.test(src.from)) fail(`source: ${JSON.stringify(src)}`);
+  const q = await viewersTab(ada, "field-guide");
+  await q.getByRole("button", { name: /Analytics settings:/ }).click();
+  await q.getByRole("dialog").getByText("Locked").first().waitFor({ timeout: 15000 });
+  await shot(q, "settings-item-locked-light-1440");
+  await q.context().close();
+  // Lift it again for the steps after.
+  await api("PUT", `/api/v1/workspaces/${S.ws}/analytics-settings`, S.users.admin.token, { settings: {}, enforce: false });
+});
+
+await step("settings-account-and-bulk", async () => {
+  const { p } = await ctx(browser, { token: ada });
+  await p.goto(`${APP}/settings/account#analytics`);
+  const card = p.locator("#analytics");
+  await card.getByText("View counts and totals").waitFor({ timeout: 20000 });
+  await card.scrollIntoViewIfNeeded();
+  await shot(p, "settings-account-light-1440");
+  // My files: several items at once.
+  await p.goto(`${APP}/dashboard/files`);
+  await p.getByRole("button", { name: "Analytics settings…" }).first().click();
+  const picker = p.getByRole("dialog");
+  await picker.getByText("Select all on this page").click();
+  await picker.getByRole("button", { name: /Continue with/ }).click();
+  const drawer = p.getByRole("dialog").filter({ hasText: "Analytics settings for" });
+  await drawer.getByText("Downloads", { exact: true }).click();
+  await shot(p, "settings-bulk-light-1440");
+  await drawer.getByRole("button", { name: "Save" }).click();
+  await p.getByRole("dialog").getByRole("button", { name: "Turn off", exact: true }).click();
+  await p.waitForTimeout(1200);
+  await p.context().close();
+  const s3 = await api("GET", "/api/v1/me/documents/demo-video/analytics/settings", ada);
+  if (s3.body.effective.downloads !== false || !s3.body.custom) fail(`bulk didn't apply: ${JSON.stringify(s3.body.effective)}`);
+  // The share dialog shows the item's tracking chip.
+  const { p: q } = await ctx(browser, { token: ada });
+  await q.goto(`${APP}/dashboard/files`);
+  await q.getByRole("button", { name: /Actions for Product demo/ }).first().click();
+  await q.getByRole("menuitem", { name: /Share/ }).click();
+  await q.getByRole("button", { name: /Analytics settings: Tracking: .*downloads off/ }).waitFor({ timeout: 15000 });
+  await shot(q, "settings-share-dialog-light-1440");
+  await q.context().close();
+});
+
 await step("forget-me", async () => {
   // Cy takes his name off his views (Settings → Account); the owner then sees them as anonymous.
   const { p } = await ctx(browser, { token: cy });
