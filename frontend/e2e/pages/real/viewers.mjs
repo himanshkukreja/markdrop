@@ -44,7 +44,7 @@ const probe = await browser.newPage();
 const mp4ok = await probe.evaluate(() => document.createElement("video").canPlayType('video/mp4; codecs="avc1.4d401f"') !== "");
 await probe.close();
 let video = { bytes: fs.readFileSync(path.join(FIX, "product-demo-v1.mp4")), filename: "demo.mp4", mime: "video/mp4" };
-if (!mp4ok) {
+if (!mp4ok || process.env.VIEWERS_WEBM) {
   const webm = path.join(STACK, "viewers-demo.webm");
   if (!fs.existsSync(webm)) {
     execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", path.join(FIX, "product-demo-v1.mp4"), "-t", "30", "-c:v", "libvpx-vp9", "-b:v", "400k", "-an", webm]);
@@ -263,6 +263,23 @@ await step("mcp", async () => {
   const tl = await mcp(tok, "get_view_timeline", { document: "field-guide", view_id: id });
   if (tl.isError || !tl.data.steps.length) fail(`MCP timeline: ${tl.text.slice(0, 300)}`);
   log("mcp timeline:", tl.text.split("\n").slice(0, 4).join(" | "));
+});
+
+await step("forget-me", async () => {
+  // Cy takes his name off his views (Settings → Account); the owner then sees them as anonymous.
+  const { p } = await ctx(browser, { token: cy });
+  await p.goto(`${APP}/settings/account#views`);
+  const card = p.locator("#views");
+  await card.getByText(/views? with your name/).waitFor({ timeout: 20000 });
+  await card.scrollIntoViewIfNeeded();
+  await shot(p, "settings-views-light-1440");
+  await card.getByRole("button", { name: "Take my name off them" }).click();
+  await p.getByRole("dialog").getByRole("button", { name: "Take my name off" }).click();
+  await card.getByText("No views with your name").waitFor({ timeout: 15000 });
+  await p.context().close();
+  const r = await api("GET", `/api/v1/me/documents/field-guide/analytics/viewers?range=7d`, ada);
+  if (r.body.views.some((v) => v.viewer.name === "Cy Stranger")) fail("Cy is still named");
+  if (r.body.totals.signed_in !== 0) fail(`signed_in ${r.body.totals.signed_in}`);
 });
 
 await browser.close();
