@@ -21,6 +21,7 @@ from app.routers.admin import router as admin_router
 from app.routers.trash import router as trash_router
 from app.routers.admin_ai import router as admin_ai_router
 from app.routers.admin_ai_log import router as admin_ai_log_router
+from app.routers.admin_ai_workspaces import router as admin_ai_workspaces_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_email import router as admin_email_router
 from app.routers.admin_journeys import router as admin_journeys_router
@@ -258,6 +259,7 @@ app.include_router(admin_router, include_in_schema=False)
 app.include_router(admin_analytics_router, include_in_schema=False)
 app.include_router(admin_ai_router, include_in_schema=False)
 app.include_router(admin_ai_log_router, include_in_schema=False)
+app.include_router(admin_ai_workspaces_router, include_in_schema=False)
 app.include_router(admin_journeys_router, include_in_schema=False)
 app.include_router(admin_email_router, include_in_schema=False)
 app.include_router(email_public_router, include_in_schema=False)
