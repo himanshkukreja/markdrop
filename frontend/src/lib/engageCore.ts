@@ -37,6 +37,11 @@ export interface EngageDelta {
   pmax?: number;
   rv?: Record<string, number>;
   media?: MediaDelta;
+  /** Slides: how many, and the furthest reached. Sheets: how many tabs, and the ones shown. */
+  nsl?: number;
+  smax?: number;
+  ntab?: number;
+  tabs?: number[];
 }
 
 export type EngagePos = { s: number } | { h: string } | { p: number };
@@ -44,8 +49,11 @@ export type EngagePos = { s: number } | { h: string } | { p: number };
 /** One message from the Worker viewer frame (§1c), already origin- and source-checked. */
 export interface BridgeMessage {
   md: 1;
-  ev: "pdf" | "page" | "media";
+  /** slide: a deck's current slide (`n`, of `of`); sheet: a workbook's tab count (`n`); tab: the tab shown (`n`, `name`). */
+  ev: "pdf" | "page" | "media" | "slide" | "sheet" | "tab";
   n?: number;
+  of?: number;
+  name?: string;
   p?: number;
   e?: string;
   t?: number;
@@ -424,4 +432,149 @@ export class PdfAgg {
 /** True when a delta carries nothing. */
 export function emptyDelta(d: EngageDelta): boolean {
   return Object.keys(d).length === 0;
+}
+
+// ── Viewer analytics: the per-view activity timeline (backend services/doc_views.py) ──────────
+
+/** One timeline event: `t` seconds since the session began, `k` its kind, then its own fields. */
+export interface TlEvent {
+  t: number;
+  k: string;
+  [field: string]: unknown;
+}
+
+/** Most events one send carries (the server takes 60), and most waiting at once. */
+export const EV_PER_SEND = 60;
+const EV_QUEUE_MAX = 600;
+
+/**
+ * The ordered events of one session, waiting to be sent: opened sections, pages and slides with
+ * their active time, playback, depth milestones, links, copies, downloads. Never text the reader
+ * typed or copied.
+ */
+export class Timeline {
+  q: TlEvent[] = [];
+  readonly t0: number;
+  constructor(t0: number = Date.now()) {
+    this.t0 = t0;
+  }
+
+  at(now: number): number {
+    return r1(Math.max(0, (now - this.t0) / 1000));
+  }
+
+  mark(k: string, extra: Record<string, unknown> = {}, now: number = Date.now()): TlEvent | null {
+    if (this.q.length >= EV_QUEUE_MAX) return null;
+    const ev: TlEvent = { t: this.at(now), k, ...extra };
+    this.q.push(ev);
+    return ev;
+  }
+
+  take(n: number = EV_PER_SEND): TlEvent[] {
+    return this.q.splice(0, n);
+  }
+
+  /** Puts events back at the front (a send that had to leave them out). */
+  giveBack(evs: TlEvent[]): void {
+    this.q.unshift(...evs);
+  }
+
+  last(): TlEvent | undefined {
+    return this.q[this.q.length - 1];
+  }
+}
+
+/**
+ * Visits to one kind of unit — a markdown section (`sec`, field `h`), a PDF page (`pg`, `p`), a
+ * slide (`sl`, `n`) or a spreadsheet tab (`tab`, `n`) — each reported with the active seconds
+ * spent in it. A long visit is reported in pieces (every 30 s, and on every final send) so the
+ * owner's timeline keeps up; the server joins consecutive pieces of one visit.
+ */
+export class VisitTracker {
+  cur: { key: string | number; t: number; a: number; extra: Record<string, unknown> } | null = null;
+
+  readonly kind: "sec" | "pg" | "sl" | "tab";
+  readonly field: "h" | "p" | "n";
+  readonly flushAt: number;
+  constructor(kind: "sec" | "pg" | "sl" | "tab", field: "h" | "p" | "n", flushAt = 30) {
+    this.kind = kind;
+    this.field = field;
+    this.flushAt = flushAt;
+  }
+
+  enter(tl: Timeline, key: string | number | null, now: number, extra: Record<string, unknown> = {}): void {
+    if (key == null || key === "") {
+      this.close(tl);
+      this.cur = null;
+      return;
+    }
+    if (this.cur && this.cur.key === key) return;
+    this.close(tl);
+    this.cur = { key, t: tl.at(now), a: 0, extra };
+  }
+
+  /** One active second in the current unit. */
+  second(): void {
+    if (this.cur) this.cur.a += 1;
+  }
+
+  close(tl: Timeline): void {
+    const c = this.cur;
+    if (c && c.a >= 1) tl.q.push({ t: c.t, k: this.kind, [this.field]: c.key, a: c.a, ...c.extra });
+    if (c) c.a = 0;
+  }
+
+  /** Before a send: report a long or final visit so far, and keep counting it. */
+  flush(tl: Timeline, final: boolean, now: number): void {
+    const c = this.cur;
+    if (!c || c.a < 1 || (!final && c.a < this.flushAt)) return;
+    this.close(tl);
+    c.t = tl.at(now);
+  }
+}
+
+/** Scroll-depth milestones (25 / 50 / 75 / 100 %), each once per session. */
+export class DepthMarks {
+  done = 0;
+  update(tl: Timeline, depth: number, now: number = Date.now()): void {
+    for (const m of [25, 50, 75, 100]) {
+      if (depth >= m && this.done < m) {
+        this.done = m;
+        tl.mark("depth", { v: m }, now);
+      }
+    }
+  }
+}
+
+/**
+ * Video / audio playback as timeline events, from the same bridge messages MediaAgg reads: play,
+ * pause (not the one that comes with reaching the end), seek (one per scrub, from where to where),
+ * end, and speed changes. Full screen is the page's own (the frame going full screen is the
+ * page's `fullscreenchange`).
+ */
+export class MediaMarks {
+  rate = 1;
+  lastT = 0;
+  dur = 0;
+  seekAt = -Infinity;
+  seekEv: TlEvent | null = null;
+
+  handle(tl: Timeline, m: BridgeMessage, now: number = Date.now()): void {
+    const e = m.e ?? "";
+    const t = fin(m.t) && m.t >= 0 ? r1(m.t) : null;
+    if (fin(m.dur) && m.dur > 0) this.dur = m.dur;
+    if (e === "play" && t != null) tl.mark("play", { s: t }, now);
+    else if (e === "pause" && t != null && !(this.dur && t >= this.dur - 0.5)) tl.mark("pause", { s: t }, now);
+    else if (e === "ended") tl.mark("end", { s: t ?? r1(this.dur) }, now);
+    else if (e === "seeking" && t != null) {
+      // One scrub fires a burst of seeks: it is one, from where it started to where it stopped.
+      if (this.seekEv && now - this.seekAt < 1500 && tl.last() === this.seekEv) this.seekEv.s = t;
+      else this.seekEv = tl.mark("seek", fin(m.pt) ? { f: r1(m.pt), s: t } : { s: t }, now);
+      this.seekAt = now;
+    } else if (e === "ratechange" && fin(m.rate) && m.rate > 0 && m.rate !== this.rate) {
+      tl.mark("rate", { r: r2(m.rate) }, now);
+    }
+    if (fin(m.rate) && m.rate > 0) this.rate = m.rate;
+    if (t != null) this.lastT = t;
+  }
 }

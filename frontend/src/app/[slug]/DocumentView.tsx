@@ -17,6 +17,7 @@ import { PresenceMargin } from "@/components/presence/PresenceMargin";
 import { sectionMarkers, viewerColor } from "@/lib/presence";
 import { removePerson } from "@/lib/access";
 import { recordEvent } from "@/lib/api";
+import { engageMark } from "@/lib/engage";
 import { track } from "@/lib/track";
 import { singleKeyAllowed } from "@/lib/shortcuts";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
@@ -697,6 +698,7 @@ export default function DocumentView(props: DocumentViewProps) {
   }
   function exportPdf() {
     recordEvent(slug, "export_pdf", readTicket);
+    engageMark("dl", { f: "pdf" });
     track("doc_export_pdf");
     window.print();
   }

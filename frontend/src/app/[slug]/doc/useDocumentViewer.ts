@@ -868,13 +868,14 @@ export function useDocumentViewer({
   const readRef = useRef<HTMLDivElement>(null);
   useReadDepth(slug, readRef, readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked), readTicket);
 
-  // Creator analytics (lib/engage.ts): sections read, copies, links, time. Never for the owner:
-  // with a signed-in user it waits until the ownership check has answered for them.
+  // Creator analytics (lib/engage.ts): sections read, copies, links, time. With a signed-in user it
+  // waits until the ownership check has answered for them; the owner's own reading is sent too, and
+  // the server keeps it out of the numbers (viewer analytics files it under "your own views").
   const ownerKnown = !authLoading && (!user || ownerCheckedFor === user.id);
   const onCodeCopy = useDocEngagement(
     slug,
     readRef,
-    readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked) && ownerKnown && !isOwner,
+    readable && !editing && !artifactDoc && !(isPasswordProtected && pwdLocked) && ownerKnown,
     { encrypted, ticket: readTicket },
   );
 

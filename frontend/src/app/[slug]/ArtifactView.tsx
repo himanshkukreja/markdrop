@@ -53,7 +53,7 @@ import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, shortDate, startFromHash, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
-import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
+import { engageKindFor, engageMark, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
 import { fromFrameOrigin, type BridgeMessage } from "@/lib/engageCore";
 import { usePresenceChannel } from "@/lib/presence";
 import { DocPresence } from "@/components/presence/DocPresence";
@@ -586,6 +586,7 @@ export default function ArtifactView({
     // sheets and docs, so downloading it would save the HTML wrapper.
     const src = downloadUrl || artifactUrl;
     if (!src) return;
+    engageMark("dl");
     if (tenant) {
       // On a workspace's own domain the artifact origin's CORS doesn't list
       // this origin, so the fetch below would fail (after downloading the whole
@@ -661,9 +662,11 @@ export default function ArtifactView({
   } catch {
     /* not a URL: no bridge */
   }
+  // The owner's own views are sent too: the server keeps them out of the numbers (viewer analytics).
   useArtifactEngagement(slug, {
-    enabled: !locked && !!artifactUrl && !authLoading && (!user || ownerCheckedFor === user.id) && !isOwner,
+    enabled: !locked && !!artifactUrl && !authLoading && (!user || ownerCheckedFor === user.id),
     kind: engageKindFor(renderer),
+    renderer,
     ver: fileVersion,
     ticket: readTicket,
     frame: frameRef,

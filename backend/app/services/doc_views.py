@@ -393,7 +393,8 @@ _SOURCES = (
 _FROM_WORDS = (
     ("/w/", "Markdrop workspace"), ("/f/", "Markdrop folder link"), ("/dashboard", "Markdrop dashboard"),
     ("/shared", "Markdrop shared with me"), ("/recent", "Markdrop recents"), ("/guides", "Markdrop Guides"),
-    ("/[slug]", "Another Markdrop link"), ("/h/", "Markdrop workspace"), ("/", "Markdrop"),
+    ("/[slug]", "Another Markdrop link"), ("/h/", "Markdrop workspace"),
+    ("/[workspace-doc]", "Markdrop workspace"), ("/", "Markdrop"),
 )
 
 

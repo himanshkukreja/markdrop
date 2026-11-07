@@ -1144,12 +1144,16 @@ function escapedSheet(ws) {
 (async () => {
   const $ = (id) => document.getElementById(id);
   const out = $('out'), tabsEl = $('tabs'), status = $('status'), scroller = $('scroller'), live = $('live');
+  // Analytics bridge (viewer analytics): the app that framed this hears how many sheets there are
+  // and which one is shown (its index and tab name). Nothing from the cells.
+  const mdPost = (msg) => { try { if (window.parent !== window) window.parent.postMessage(Object.assign({ md: 1 }, msg), '*'); } catch (_) {} };
   try {
     const res = await fetch(${JSON.stringify(src)});
     if (res.status === 403 || res.status === 404) return showUnavailable();
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const wb = XLSX.read(await res.arrayBuffer(), { type: 'array' });
     const names = wb.SheetNames, tabs = [];
+    mdPost({ ev: 'sheet', n: names.length });
     const plural = (n, one, many) => n.toLocaleString() + ' ' + (n === 1 ? one : many);
 
     const render = (i) => {
@@ -1200,6 +1204,7 @@ function escapedSheet(ws) {
       });
       if (tabs[i]) out.setAttribute('aria-labelledby', tabs[i].id);
       scroller.scrollTo(0, 0);
+      mdPost({ ev: 'tab', n: i, name: String(names[i] || '').slice(0, 80) });
       return summary;
     };
 

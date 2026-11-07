@@ -29,6 +29,8 @@ type Item =
 let queue: Item[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let currentPath: string | null = null;
+// The in-app route before the current one (viewer analytics: "came from a Markdrop workspace page").
+let previousPath: string | null = null;
 let visibleSince = 0;
 let engagedMs = 0;
 let pendingEntry: Record<string, string> | null = null;
@@ -71,6 +73,21 @@ export function setTrackingDisabled(off: boolean) {
   const ls = store("local");
   if (off) ls?.setItem(OPT_OUT, "1");
   else ls?.removeItem(OPT_OUT);
+}
+
+/** The browser's random analytics id (the per-view anonymous key on the server); null without storage. */
+export function analyticsVisitorId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return visitorId().vid;
+  } catch {
+    return null;
+  }
+}
+
+/** The route shape (lib/analyticsPath) of the in-app page before this one, if there was one. */
+export function previousRoute(): string | null {
+  return previousPath;
 }
 
 function visitorId(): { vid: string; eph: boolean } {
@@ -203,6 +220,7 @@ export function trackPageview(pathname: string) {
   const p = shape(pathname);
   if (p === currentPath) return;
   closePage(false);
+  previousPath = currentPath;
   currentPath = p;
   visibleSince = document.visibilityState === "visible" ? Date.now() : 0;
   enqueue({ k: "pv", p });
