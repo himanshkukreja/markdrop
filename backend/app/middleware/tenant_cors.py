@@ -98,7 +98,7 @@ async def _is_verified_origin(origin: str) -> bool:
 # sign-in silently failed everywhere but Chrome's older behaviour.
 ALLOW_HEADERS = ", ".join((
     "Authorization", "Content-Type", "Accept", "Accept-Language", "Content-Language",
-    "X-Read-Password", "X-Edit-Secret", "X-Markdrop-Workspace",
+    "X-Read-Password", "X-Edit-Secret", "X-Markdrop-Workspace", "X-Markdrop-Test",
 ))
 ALLOW_METHODS = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
 # Readable by the page's JavaScript: the gate kind of a 401, a renamed slug's

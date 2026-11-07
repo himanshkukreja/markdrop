@@ -365,6 +365,11 @@ async def connect() -> None:
         from app.services import ai_usage as _ai_usage
 
         await _ai_usage.ensure_indexes(db)
+        # The readable request log (services/ai_log.py; 30-day TTL) and actors on older ledger rows.
+        from app.services import ai_log as _ai_log
+
+        await _ai_log.ensure_indexes(db)
+        await _ai_log.backfill(db)
         await db["docs_feedback"].create_index("ts", expireAfterSeconds=365 * 24 * 3600)
         await db["docs_feedback"].create_index([("path", 1), ("ts", -1)])
     except Exception as exc:  # pragma: no cover - startup must not depend on it

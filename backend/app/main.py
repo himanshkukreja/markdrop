@@ -20,6 +20,7 @@ from app.middleware.tenant_cors import TenantCORSMiddleware
 from app.routers.admin import router as admin_router
 from app.routers.trash import router as trash_router
 from app.routers.admin_ai import router as admin_ai_router
+from app.routers.admin_ai_log import router as admin_ai_log_router
 from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_email import router as admin_email_router
 from app.routers.admin_journeys import router as admin_journeys_router
@@ -228,6 +229,11 @@ app.add_middleware(SlowAPIMiddleware)
 # Outside SlowAPIMiddleware (added after it, so it runs first): a request signed
 # by the frontend's own server is exempt from per-IP limits (middleware/internal.py).
 app.add_middleware(InternalRequestMiddleware)
+# Who is asking (a test harness's X-Markdrop-Test header, the address, the User-Agent, an API
+# token), for the AI request log's actor and test tagging (services/ai_log.py). Pure ASGI.
+from app.services.ai_log import RequestContextMiddleware  # noqa: E402
+
+app.add_middleware(RequestContextMiddleware)
 
 # Routers
 app.include_router(trash_router)  # before documents: /documents/{slug}/delete-preview
@@ -251,6 +257,7 @@ app.include_router(google_router)
 app.include_router(admin_router, include_in_schema=False)
 app.include_router(admin_analytics_router, include_in_schema=False)
 app.include_router(admin_ai_router, include_in_schema=False)
+app.include_router(admin_ai_log_router, include_in_schema=False)
 app.include_router(admin_journeys_router, include_in_schema=False)
 app.include_router(admin_email_router, include_in_schema=False)
 app.include_router(email_public_router, include_in_schema=False)
