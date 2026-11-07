@@ -43,7 +43,7 @@ export interface Kpi {
   note?: string | null;
 }
 
-export type InsightTab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "versions";
+export type InsightTab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "versions" | "viewers";
 export interface Insight {
   key: string;
   title: string;
@@ -327,6 +327,135 @@ export const downloadDocCsv = (slug: string, range: AnalyticsRange) =>
   downloadCsv(`${doc(slug)}/analytics.csv${q({ range })}`, `${slug}-analytics-${range}.csv`);
 export const downloadHomeCsv = (range: AnalyticsRange) =>
   downloadCsv(`/me/analytics.csv${q({ range })}`, `markdrop-analytics-${range}.csv`);
+
+// ── Viewers: every view, who and what they did (backend services/doc_views.py) ─
+
+export type ViewerWho = "all" | "signed_in" | "anonymous";
+export type ViewCompletion = "any" | "low" | "mid" | "high" | "done";
+export type ViewersAccess = "full" | "counts";
+
+export interface ViewViewer {
+  type: "user" | "anonymous";
+  /** Account id, or the anonymous key (stable for one browser on this owner's links). */
+  id: string | null;
+  /** The person's name, or "Visitor 3F2A". */
+  name: string | null;
+  email: string | null;
+  avatar?: string | null;
+  deleted?: boolean;
+}
+
+export interface ViewSummary {
+  id: string;
+  viewer: ViewViewer;
+  own: boolean;
+  internal: boolean;
+  kind: string;
+  ver?: number | null;
+  started_at: string;
+  last_at: string;
+  open_s: number;
+  active_s: number;
+  /** 0..100: read depth, PDF pages, slides, tabs or video watched; null when there's no measure. */
+  completion: number | null;
+  ended: boolean;
+  visit_n: number | null;
+  watched_s?: number;
+  duration_s?: number;
+  location: { country: string | null; region: string | null; city: string | null; timezone: string | null; label: string | null };
+  system: {
+    device: string | null; os: string | null; os_version: string | null; browser: string | null;
+    browser_version: string | null; in_app: string | null; app: "tab" | "pwa" | "embed"; embed_host: string | null;
+    viewport: string | null; screen: string | null; language: string | null; label: string;
+  };
+  source: string;
+  channel: string;
+  referrer: string | null;
+  utm: { source?: string; medium?: string; campaign?: string } | null;
+  acts: Partial<Record<"link" | "copy" | "dl" | "print" | "ask" | "signoff" | "fs", number>>;
+}
+
+export interface ViewersBreakdownRow { key: string; views: number }
+export interface ViewersResponse {
+  access: ViewersAccess;
+  doc: { slug: string; title: string; kind: string; track_kind: TrackKind; mime: string | null; renderer: string | null; encrypted: boolean; workspace_id: string | null; access: ViewersAccess };
+  totals: { views: number; people: number; signed_in: number; anonymous: number; avg_active_s?: number; avg_completion?: number | null; own_hidden?: number };
+  retention_days: number;
+  /** Absent for "counts" access. */
+  views?: ViewSummary[];
+  total?: number;
+  offset?: number;
+  next?: number | null;
+  sampled?: boolean;
+  breakdowns?: Record<"country" | "city" | "device" | "os" | "browser" | "source" | "app", ViewersBreakdownRow[]>;
+}
+
+export interface ViewStep {
+  t: number;
+  at: string;
+  kind: string;
+  text: string;
+  label?: string;
+  active_s?: number;
+  jump?: boolean;
+  url?: string;
+  question?: string;
+  start?: number;
+  end?: number;
+}
+
+export interface ViewTimeline extends ViewSummary {
+  steps: ViewStep[];
+  other_views: { id: string; started_at: string; active_s: number }[];
+  truncated: boolean;
+  text: string;
+}
+
+export interface ViewerPerson {
+  key: string;
+  viewer: ViewViewer;
+  views: number;
+  active_s: number;
+  best_completion: number | null;
+  first_at: string;
+  last_at: string;
+  last_view: string;
+  place: string | null;
+  system: string;
+  internal: boolean;
+  own: boolean;
+}
+
+export interface ViewersQuery {
+  range: AnalyticsRange;
+  who?: ViewerWho;
+  completion?: ViewCompletion;
+  own?: boolean;
+  internal?: boolean;
+  country?: string | null;
+  device?: string | null;
+  os?: string | null;
+  browser?: string | null;
+  source?: string | null;
+}
+
+const viewersQ = (v: ViewersQuery, extra: Record<string, string | number | null | undefined> = {}) =>
+  q({
+    range: v.range, who: v.who && v.who !== "all" ? v.who : null,
+    completion: v.completion && v.completion !== "any" ? v.completion : null,
+    own: v.own ? 1 : null, internal: v.internal === false ? 0 : null,
+    country: v.country, device: v.device, os: v.os, browser: v.browser, source: v.source, ...extra,
+  });
+
+export const getViewers = (slug: string, v: ViewersQuery, offset = 0, limit = 50) =>
+  getJson<ViewersResponse>(`${doc(slug)}/analytics/viewers${viewersQ(v, { offset: offset || null, limit })}`);
+export const getViewerPeople = (slug: string, v: ViewersQuery) =>
+  getJson<{ people: ViewerPerson[]; total: number; sampled: boolean }>(
+    `${doc(slug)}/analytics/viewers/people${q({ range: v.range, who: v.who && v.who !== "all" ? v.who : null, own: v.own ? 1 : null, internal: v.internal === false ? 0 : null })}`);
+export const getViewTimeline = (slug: string, viewId: string) =>
+  getJson<ViewTimeline>(`${doc(slug)}/analytics/viewers/${encodeURIComponent(viewId)}`);
+export const downloadViewersCsv = (slug: string, v: ViewersQuery) =>
+  downloadCsv(`${doc(slug)}/analytics/viewers.csv${viewersQ(v)}`, `${slug}-viewers-${v.range}.csv`);
 
 // ── Analytics AI per document (services/analytics_ai_doc.py) ─────────────────
 

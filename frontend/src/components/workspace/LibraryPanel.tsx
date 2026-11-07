@@ -194,6 +194,9 @@ export default function LibraryPanel({
       items.push(onAnalytics
         ? { label: "Analytics", icon: "chart", onClick: () => onAnalytics({ doc: d, title: t, address, copyText: copy?.text ?? null }) }
         : { label: "Analytics", icon: "chart", href: docHref(d.slug) });
+    } else {
+      // Someone else's item in the workspace: its viewers (admins and editors see who; viewers the counts).
+      items.push({ label: "Viewers", icon: "eye", href: docHref(d.slug, "viewers") });
     }
     const second: MenuEntry[] = [];
     if (d.is_mine) second.push({ label: "Share…", icon: "user", onClick: () => setShareFor(d) });

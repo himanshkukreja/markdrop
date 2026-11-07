@@ -408,6 +408,8 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     if (!it.encrypted) out.push({ label: "Copy link", icon: "copy", onClick: () => copyLink(it) });
     if (it.can.share) out.push({ label: "Who can open it…", icon: ACCESS_ICON[it.access], onClick: () => setShareFor(it), description: accessLabel(it.access, team) });
     if (it.owner?.is_you) out.push({ label: "Analytics", icon: "chart", href: docHref(it.slug) });
+    // Someone else's item in the workspace: its viewers (admins and editors see who; viewers the counts).
+    else out.push({ label: "Viewers", icon: "eye", href: docHref(it.slug, "viewers") });
     if (it.can.move) out.push({ label: "Move to…", icon: "folder", onClick: () => moveOne(it) });
     if (it.can.edit && !it.encrypted) out.push({ label: "Rename", icon: "edit", onClick: () => setRenameItem({ slug: it.slug, kind: it.kind, title: itemTitle(it) }) });
     if (it.can.unshare) out.push({ label: "Remove from workspace", icon: "x", separated: true, onClick: () => setRemoveFor([it]) });
