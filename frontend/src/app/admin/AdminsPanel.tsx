@@ -292,8 +292,7 @@ export function AdminsPanel({ token }: { token: string }) {
         <AddDialog token={token} open={adding} onClose={() => setAdding(false)} onReauth={askReauth} existing={existing}
           onAdded={(email, pending) => {
             setAdding(false);
-            setMsg(pending ? `${email} is an admin as soon as they first sign in with that address. We've emailed them.` : `${email} is now an admin. We've emailed them and every owner.`);
-            void load();
+            void load().then(() => setMsg(pending ? `${email} is an admin as soon as they first sign in with that address. We've emailed them.` : `${email} is now an admin. We've emailed them and every owner.`));
           }} />
       )}
       <ConfirmDialog
@@ -310,9 +309,10 @@ export function AdminsPanel({ token }: { token: string }) {
             if (isUnauthorized(e)) { askReauth(); return; }
             throw e;
           }
-          setMsg(`${removing.email} is no longer an admin.`);
+          const gone = removing.email;
+          await load();  // the list is current before the confirmation shows
+          setMsg(`${gone} is no longer an admin.`);
           setRemoving(null);
-          void load();
         }}
       />
       <Dialog open={reauth} onClose={() => setReauth(false)} title="Sign in again to change admins"

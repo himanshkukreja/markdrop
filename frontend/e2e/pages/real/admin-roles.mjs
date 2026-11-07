@@ -136,7 +136,7 @@ await step("remove", async () => {
   await shot(p, "admin-roles-remove-confirm");
   await p.getByRole("dialog").getByRole("button", { name: "Remove admin" }).click();
   await p.getByText(`${NEW_ADMIN} is no longer an admin.`).waitFor({ timeout: 15000 });
-  if (await p.locator(`[data-email="${NEW_ADMIN}"]`).count()) fail("still listed after removal");
+  await p.locator(`[data-email="${NEW_ADMIN}"]`).waitFor({ state: "detached", timeout: 10000 }).catch(() => fail("still listed after removal"));
   if ("admin" in (await me(dee.token))) fail("removed admin: /auth/me still has the flag");
 
   const d = await ctx(browser, { token: dee.token });
