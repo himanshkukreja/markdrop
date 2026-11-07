@@ -5,7 +5,7 @@ import { Anchor, Dropdown, FileIcon, Icon, Skeleton, Tooltip, copyText, cx, useT
 import { usePwa } from "@/components/pwa/PwaProvider";
 import { openNotifications, useUnreadCount } from "./NotificationBell";
 import { DOCS_URL } from "./links";
-import { studioUrl } from "@/lib/studioHost";
+import { isStudioHost, studioUrl } from "@/lib/studioHost";
 import { TreeView, shareNodes, type TreeNode } from "@/components/workspace/FolderTree";
 import { useUploads } from "@/components/workspace/uploads/UploadProvider";
 import { can, type NavItem, type TreeFolder, type Workspace, type WorkspaceNav } from "@/lib/workspaces";
@@ -454,6 +454,8 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
   const { user, loading: authLoading } = useAuth();
   const viewer = user?.id ?? null;
   const activeWs = workspaceOfKey(active);
+  // The Admin link: the server decides (only admins get `admin` on /auth/me, never on the studio host).
+  const showAdmin = !!user?.admin && mounted && !isStudioHost(window.location.hostname);
 
   const openWs = useMemo(
     () => (data.workspaces ?? []).filter((w) => expanded.has(wsRootKey(w.id))).map((w) => w.id),
@@ -533,7 +535,7 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
     return (
       <CollapsedRail
         container={container} pill={pill} data={data} active={active} unread={unread} fresh={fresh}
-        onExpand={onExpand} onFeedback={onFeedback} canInstall={!!pwa.installPath} onInstall={pwa.install}
+        onExpand={onExpand} onFeedback={onFeedback} canInstall={!!pwa.installPath} onInstall={pwa.install} admin={showAdmin}
       />
     );
   }
@@ -625,6 +627,12 @@ export function SideNav({ data, active, expanded, onToggle, onNavigate, onFeedba
         <RailLink k="settings" href="/settings/account" active={active} onNavigate={onNavigate}>
           <Icon name="settings" size={16} /> <span className="truncate">Settings</span>
         </RailLink>
+        {showAdmin && (
+          // Admins only: the server sets `admin` on /auth/me (backend services/admin_roles).
+          <RailLink k="admin" href="/admin" active={active} onNavigate={onNavigate} testId="rail-admin">
+            <Icon name="shieldCheck" size={16} /> <span className="truncate">Admin</span>
+          </RailLink>
+        )}
         <RailLink k="docs" href={DOCS_URL} active={active} onNavigate={onNavigate}>
           <Icon name="doc" size={16} /> <span className="truncate">Help &amp; docs</span>
         </RailLink>
@@ -666,9 +674,9 @@ function RailIcon({ k, href, label, icon, active, onClick, badge, testId }: {
  * tooltip; workspaces as their tiles; Meetings opens a workspace's hub (a menu when there are several).
  * "Expand" brings the full sidebar back (tablets: as a drawer over the page).
  */
-function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand, onFeedback, canInstall, onInstall }: {
+function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand, onFeedback, canInstall, onInstall, admin }: {
   container: React.RefObject<HTMLElement | null>; pill: React.RefObject<HTMLSpanElement | null>; data: RailData; active: string | null;
-  unread: number; fresh: number; onExpand?: () => void; onFeedback: () => void; canInstall: boolean; onInstall: () => void;
+  unread: number; fresh: number; onExpand?: () => void; onFeedback: () => void; canInstall: boolean; onInstall: () => void; admin?: boolean;
 }) {
   const wss = data.workspaces ?? [];
   const activeWs = workspaceOfKey(active);
@@ -720,6 +728,7 @@ function CollapsedRail({ container, pill, data, active, unread, fresh, onExpand,
       <div className="mt-auto flex flex-col items-center gap-1 border-t border-border pt-3">
         {canInstall && <RailIcon label="Install app" icon={<Icon name="download" size={18} />} active={active} onClick={onInstall} />}
         <RailIcon k="settings" href="/settings/account" label="Settings" icon={<Icon name="settings" size={18} />} active={active} />
+        {admin && <RailIcon k="admin" href="/admin" label="Admin" icon={<Icon name="shieldCheck" size={18} />} active={active} testId="rail-admin" />}
         <RailIcon k="docs" href={DOCS_URL} label="Help & docs" icon={<Icon name="doc" size={18} />} active={active} />
         <RailIcon label="Send feedback" icon={<Icon name="message" size={18} />} active={active} onClick={onFeedback} />
       </div>

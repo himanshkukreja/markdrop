@@ -31,6 +31,7 @@ const GROUPS: { label: string; items: { id: Section; label: string; icon: string
   ] },
   { label: "People", items: [
     { id: "users", label: "Users", icon: "users" },
+    { id: "admins", label: "Admins", icon: "shieldCheck" },
     { id: "feedback", label: "Feedback", icon: "message" },
   ] },
   { label: "Outreach", items: [{ id: "email", label: "Email", icon: "mail" }] },
@@ -38,7 +39,7 @@ const GROUPS: { label: string; items: { id: Section; label: string; icon: string
 
 export const SECTION_LABEL: Record<Section, string> = {
   overview: "Overview", live: "Live", health: "Product health", journeys: "Journeys", ai: "AI", documents: "Documents", reports: "Reports",
-  users: "Users", feedback: "Feedback", email: "Email",
+  users: "Users", admins: "Admins", feedback: "Feedback", email: "Email",
 };
 
 const ITEM =

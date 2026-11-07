@@ -641,6 +641,12 @@ export interface MeUser {
   mention_emails?: boolean;
   /** How often notification email comes, per kind (Settings → Account → Email). */
   email_notify?: EmailNotify;
+  /**
+   * Present only for an admin of the console on markdrop.in itself (never on a workspace's domain,
+   * the Guides studio host or an API token): "owner" or "admin". The server decides (backend
+   * services/admin_roles); everyone else gets no key at all. Shows the Admin link.
+   */
+  admin?: "owner" | "admin";
 }
 
 /** Instant, Hourly bundle, Daily digest (08:00 your time) or Off. */
@@ -939,9 +945,82 @@ export async function exportToGoogleDocs(docId: string): Promise<GoogleExportRes
 
 export interface AdminSession {
   email: string;
+  /** "owner" (MARKDROP_ADMIN_EMAILS: may add and remove admins) or "admin" (added by an owner). */
+  role?: AdminRole;
   name: string | null;
   picture: string | null;
 }
+
+export type AdminRole = "owner" | "admin";
+
+// ── Admin › Admins (backend routers/admin_roles) ──────────────────────────────
+
+export interface AdminPerson {
+  email: string;
+  name: string | null;
+  picture: string | null;
+  /** False: nobody has signed in with this address yet (a pending admin). */
+  has_account: boolean;
+  disabled: boolean;
+  last_visit_at: string | null;
+}
+export interface AddedAdmin extends AdminPerson {
+  note: string | null;
+  added_by: string | null;
+  added_at: string | null;
+}
+export interface AdminChange {
+  id: string;
+  at: string;
+  action: "add" | "remove";
+  actor: string | null;
+  target: string | null;
+  note: string | null;
+  via: "console" | "break_glass" | string;
+}
+export interface AdminsList {
+  you: string;
+  role: AdminRole;
+  can_manage: boolean;
+  owners: AdminPerson[];
+  admins: AddedAdmin[];
+  history: AdminChange[];
+}
+export interface AdminCandidate {
+  email: string;
+  name: string | null;
+  picture: string | null;
+  role: AdminRole | null;
+}
+
+async function adminRolesFetch<T>(token: string, path: string, init: RequestInit, fallback: string): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1/admin/admins${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, ...(init.body ? { "Content-Type": "application/json" } : {}) },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError("NETWORK_ERROR", 0);
+  }
+  // 401: the session ended, or (for a change) is more than a day old: the caller asks for a fresh sign-in.
+  if (res.status === 401) throw new ApiError("UNAUTHORIZED", 401);
+  if (!res.ok) throw await apiError(res, fallback);
+  return (res.status === 204 ? undefined : await res.json()) as T;
+}
+
+export const adminListAdmins = (token: string) =>
+  adminRolesFetch<AdminsList>(token, "", {}, "Couldn't load the admins");
+
+export const adminAdminCandidates = (token: string, q: string) =>
+  adminRolesFetch<AdminCandidate[]>(token, `/candidates?q=${encodeURIComponent(q)}`, {}, "Couldn't search accounts");
+
+export const adminAddAdmin = (token: string, email: string, note?: string) =>
+  adminRolesFetch<{ email: string; pending: boolean }>(token, "", { method: "POST", body: JSON.stringify({ email, note: note || null }) }, "Couldn't add the admin");
+
+export const adminRemoveAdmin = (token: string, email: string) =>
+  adminRolesFetch<void>(token, `/${encodeURIComponent(email)}`, { method: "DELETE" }, "Couldn't remove the admin");
 
 /**
  * Who the admin console is open for. Resolves "ok" with the admin, "not-found" for anyone signed in
