@@ -21,7 +21,7 @@ call that is already there is added to it.
 
 Same rules as the website: members import, everything is decided on the meeting page with
 ``access.can`` (a meeting restricted to its attendees doesn't exist for anyone else), and the AI
-counts towards the user's limits under "Meetings AI".
+counts towards the user's AI limits.
 """
 
 from __future__ import annotations
@@ -398,7 +398,7 @@ MEETING_TOOLS: list[Tool] = [
                      "date and start time) is returned with status 'duplicate', and Google's notes for a call whose "
                      "transcript is already there (or the other way round) are added to it (status 'attached'). "
                      "Waits for the summary (a few seconds); counts towards the "
-                     "user's 'Meetings AI' limit. Or pass drive_url, a Google Docs/Drive link: Markdrop reads a Doc "
+                     "user's AI limits. Or pass drive_url, a Google Docs/Drive link: Markdrop reads a Doc "
                      "shared with 'anyone with the link' itself; otherwise, when the user's Google Meet script is "
                      "connected to this workspace, it is queued for that script (status 'queued', imported within "
                      "15 minutes), else the answer says how to give access. Always give the user the returned url."),
@@ -470,14 +470,14 @@ MEETING_TOOLS: list[Tool] = [
         name="ask_meetings",
         title="Ask meetings",
         description=("Ask a question about one meeting (meeting) or every meeting in a workspace the user can open "
-                     "(workspace). Claude Haiku answers in English from the meetings only, says when and in which "
+                     "(workspace). Markdrop's AI answers in English from the meetings only, says when and in which "
                      "meeting each point was made, and cites the moments ([s12] a transcript line, [M2-s14] a line of "
                      "the 2nd meeting, [M2] its page); citations carry links. Across meetings, scope it with series "
                      "and/or since/until (otherwise a series or period named in the question is used, e.g. 'in Daily "
                      "Standups last month'); questions about the latest state prefer recent meetings. It knows who "
                      "is asking (the signed-in user and the names they appear under in transcripts), so 'what did I "
                      "say in the last standup' quotes the user's own lines, or says they attended but didn't speak. "
-                     "Counts towards the user's 'Meetings AI' limit."),
+                     "Counts towards the user's AI limits."),
         scope=READ,
         input_schema={"type": "object", "properties": {
             "question": {"type": "string", "minLength": 1, "maxLength": meetings_ai.MAX_QUESTION},

@@ -2,7 +2,7 @@
 
 /**
  * The progress of an "Import past meetings" on the hub: "12 of 40", oldest first, Pause / Resume,
- * the wait for the AI budget, failed meetings with Retry, Stop, and Dismiss once it's done. The
+ * the wait for AI (fair-use limit), failed meetings with Retry, Stop, and Dismiss once it's done. The
  * import runs on the server; this only watches it (every 2.5 s while it runs), so closing the page
  * changes nothing. Watching also wakes a stopped server's import (the API picks it up).
  */
@@ -54,7 +54,7 @@ export function BackfillProgress({ job, onChange, onProgress }: BackfillProgress
   const current = job.rows.find((r) => r.state === "importing");
   const title = {
     running: "Importing past meetings",
-    waiting: "Waiting for the AI budget",
+    waiting: "AI paused for now (fair-use limit)",
     paused: "Import paused",
     done: c.failed ? "Past meetings imported, with problems" : "Past meetings imported",
     cancelled: "Import stopped",

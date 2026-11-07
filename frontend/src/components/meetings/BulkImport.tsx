@@ -293,8 +293,8 @@ export function BulkImport({ open, onClose, workspaceId, status, seriesNames, on
           <Icon name="sparkle" />
           {est.ai ? (
             <span>
-              AI summaries for {est.meetings} meeting{est.meetings === 1 ? "" : "s"}: about <b>${est.usd < 0.01 ? est.usd.toFixed(3) : est.usd.toFixed(2)}</b> of Meetings AI.
-              {est.may_wait ? " That's more than today's AI budget, so the rest waits until it resets (tomorrow) — the import picks up by itself." : " They're written one after another, oldest first."}
+              AI summaries for <b>{est.meetings} meeting{est.meetings === 1 ? "" : "s"}</b>.
+              {est.may_wait ? " That's more than AI can write today (fair-use limit), so the rest waits until tomorrow — the import picks up by itself." : " They're written one after another, oldest first."}
             </span>
           ) : <span>{est.ai_message || "AI is off"} The meetings are imported without AI summaries.</span>}
         </p>

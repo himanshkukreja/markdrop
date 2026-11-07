@@ -1174,7 +1174,7 @@
     },
     "GET /api/v1/me/analytics/ai/story": {
       "title": "What changed (AI)",
-      "description": "Insights for the analytics home: a `headline` and 3 to 5 `bullets`, each a sentence on what changed against the period before and the likely cause, with an `href` to the analytics page to look at (and `doc` when it's about one of your links). Claude Haiku 5.5 writes it from totals and your own titles only. Kept for the day (`cached: true`); `fresh=1` writes it again. `status` is `thin` when there are fewer than 20 views to go on, `limit` when an AI limit stops it (with `reason` and `message`), or `error`. Counts towards your AI limits.",
+      "description": "Insights for the analytics home: a `headline` and 3 to 5 `bullets`, each a sentence on what changed against the period before and the likely cause, with an `href` to the analytics page to look at (and `doc` when it's about one of your links). AI writes it from totals and your own titles only. Kept for the day (`cached: true`); `fresh=1` writes it again. `status` is `thin` when there are fewer than 20 views to go on, `limit` when an AI limit stops it (with `reason` and `message`), or `error`. Counts towards your AI limits.",
       "params": { "range": "7d" },
       "paramNotes": { "range": "`7d` (the default), `30d` or `90d`.", "fresh": "`1` writes it again instead of using today's copy." },
       "mcp": "analytics_story",
@@ -1182,7 +1182,7 @@
     },
     "POST /api/v1/me/analytics/ai/ask": {
       "title": "Ask your analytics (AI)",
-      "description": "Answers a question about your own analytics with Claude Haiku 5.5, which picks from a fixed set of queries that Markdrop runs on the documents you own (totals, top links, a link's numbers, referrers, channels, devices, countries, views by day, period comparisons, file versions). Streams server-sent events: `status` (what it's checking), `delta` (answer text; `reset: true` clears what was shown), then `done` with `answer` and `links` (only analytics pages the queries returned); or `limit`, or `error`. The same question the same day is answered from the copy kept (`cached: true`) unless `fresh` is `true`. Counts towards your AI limits.",
+      "description": "Answers a question about your own analytics with AI, which picks from a fixed set of queries that Markdrop runs on the documents you own (totals, top links, a link's numbers, referrers, channels, devices, countries, views by day, period comparisons, file versions). Streams server-sent events: `status` (what it's checking), `delta` (answer text; `reset: true` clears what was shown), then `done` with `answer` and `links` (only analytics pages the queries returned); or `limit`, or `error`. The same question the same day is answered from the copy kept (`cached: true`) unless `fresh` is `true`. Counts towards your AI limits.",
       "returns": "text/event-stream",
       "example": { "question": "Which link did best this month?", "range": "30d" },
       "mcp": "ask_analytics",
@@ -1190,7 +1190,7 @@
     },
     "GET /api/v1/me/analytics/ai/gaps": {
       "title": "What people couldn't find (AI)",
-      "description": "Content gaps for a workspace you own or admin (`scope=workspace:<id>`, else `403`) or your own Guides (`scope=personal`): searches that found nothing or that nobody opened, and guide questions Ask AI couldn't answer, over the last 30 days, grouped by Claude Haiku 5.5 into up to 5 `gaps`. Each has `topic`, `count` (counted by Markdrop), `why`, `outline`, `examples` and `markdown` ready to create a page in `create.workspace`. `status` is `thin` under 5 searches and questions. Counts towards your AI limits.",
+      "description": "Content gaps for a workspace you own or admin (`scope=workspace:<id>`, else `403`) or your own Guides (`scope=personal`): searches that found nothing or that nobody opened, and guide questions Ask AI couldn't answer, over the last 30 days, grouped by AI into up to 5 `gaps`. Each has `topic`, `count` (counted by Markdrop), `why`, `outline`, `examples` and `markdown` ready to create a page in `create.workspace`. `status` is `thin` under 5 searches and questions. Counts towards your AI limits.",
       "paramNotes": { "scope": "`workspace:<workspace id>` or `personal`.", "fresh": "`1` groups them again instead of using today's copy." },
       "mcp": "content_gaps",
       "guide": { "label": "What people couldn't find", "href": "/analytics/content-gaps" }
@@ -1250,7 +1250,7 @@
     },
     "POST /api/v1/me/documents/{slug}/analytics/ai/{kind}": {
       "title": "Analyse with AI",
-      "description": "Claude Haiku 5.5 reads the numbers (and your own content) and returns 3 to 5 findings that point at a section, timestamp, page or version, with rewrites (`content`), chapters (`media`) and a verdict with a confidence Markdrop computes (`versions`). Returns the saved analysis when there is one; send `{\"refresh\": true}` to analyse again. Below 20 sessions the model isn't called (`state: thin`). Counts towards your AI limits: `429` with `code: limit` and a `reason` when one is reached.",
+      "description": "AI reads the numbers (and your own content) and returns 3 to 5 findings that point at a section, timestamp, page or version, with rewrites (`content`), chapters (`media`) and a verdict with a confidence Markdrop computes (`versions`). Returns the saved analysis when there is one; send `{\"refresh\": true}` to analyse again. Below 20 sessions the model isn't called (`state: thin`). Counts towards your AI limits: `429` with `code: limit` and a `reason` when one is reached.",
       "params": { "kind": "content", "range": "30d" },
       "example": { "refresh": true },
       "mcp": "analyze_document_engagement",
@@ -1334,7 +1334,7 @@
     },
     "POST /api/v1/search/ask": {
       "title": "Ask AI about your items",
-      "description": "Answers a question from the items you can open, with Claude Haiku 5.5: AI turns the question into search terms, search finds up to 40 matching items, and AI picks the relevant ones and writes a short answer that cites them as [n]. Only text you can open is sent, never an encrypted item. Streams server-sent events: `status` (the stage), `results` (the matching items), `delta` (answer text as it's written), then `done` with `answer`, `citations` and `ranked`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI limits.",
+      "description": "Answers a question from the items you can open, with AI: AI turns the question into search terms, search finds up to 40 matching items, and AI picks the relevant ones and writes a short answer that cites them as [n]. Only text you can open is sent, never an encrypted item. Streams server-sent events: `status` (the stage), `results` (the matching items), `delta` (answer text as it's written), then `done` with `answer`, `citations` and `ranked`; or `limit` when an AI limit stops it, or `error`. Counts towards your AI limits.",
       "returns": "text/event-stream",
       "example": { "question": "How do we onboard contractors?" },
       "mcp": "ask_documents",
@@ -1347,7 +1347,7 @@
     },
     "POST /api/v1/ask": {
       "title": "Ask",
-      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with Claude Haiku 5.5, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Pass `scope` to say what to answer from, as the in-app assistant does: `{\"kind\": \"doc\", \"page\": slug}` (that document or page first, then its workspace's meetings and documents), `{\"kind\": \"meetings\", \"workspace\": id}` (the workspace's meetings, optionally one `meeting`, a `series`, `since` and `until`), `{\"kind\": \"folder\", \"workspace\": id, \"folder\": id}`, `{\"kind\": \"workspace\", \"workspace\": id}` (Ask <Workspace>), `{\"kind\": \"mine\"}` (Ask my files: your own items outside any workspace) or `{\"kind\": \"everything\"}`; with `doc`, `context` (`heading`, `selection`) says where the reader is. One conversation (`thread_id`) can switch scopes. `page` alone (a slug) is the older way to ask a page. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations` (each with `title`, `url`, `subtitle`, `quote` and, for a meeting line, `moment`), `ranked`, `thread_id` and `scope` (`kind`, `label`); or `limit` when an AI limit stops it, or `error`. The `meetings` scope counts towards your Meetings AI limits, the others towards AI search.",
+      "description": "Answers a question from everything you can open (meetings and their transcripts, documents, pages, files and Guides) with AI, citing sources as [n] and meeting transcript moments as [n-sK]. Pass `thread_id` to ask a follow-up in a conversation, and `intent` `catch_up` (the last 7 days) or `my_actions` (your open tasks) for the ready-made questions; `question` may be empty with an intent. Pass `scope` to say what to answer from, as the in-app assistant does: `{\"kind\": \"doc\", \"page\": slug}` (that document or page first, then its workspace's meetings and documents), `{\"kind\": \"meetings\", \"workspace\": id}` (the workspace's meetings, optionally one `meeting`, a `series`, `since` and `until`), `{\"kind\": \"folder\", \"workspace\": id, \"folder\": id}`, `{\"kind\": \"workspace\", \"workspace\": id}` (Ask <Workspace>), `{\"kind\": \"mine\"}` (Ask my files: your own items outside any workspace) or `{\"kind\": \"everything\"}`; with `doc`, `context` (`heading`, `selection`) says where the reader is. One conversation (`thread_id`) can switch scopes. `page` alone (a slug) is the older way to ask a page. Every cited item is checked against your access again before it's returned. Streams server-sent events: `status` (the stage), `results` (the relevant items), `delta` (answer text as it's written), then `done` with `answer`, `citations` (each with `title`, `url`, `subtitle`, `quote` and, for a meeting line, `moment`), `ranked`, `thread_id` and `scope` (`kind`, `label`); or `limit` when an AI limit stops it, or `error`. Counts towards your AI limits.",
       "returns": "text/event-stream",
       "example": { "question": "When did we decide on Stripe Checkout?", "scope": { "kind": "doc", "page": "checkout-prd" }, "context": { "heading": "Payments" } },
       "mcp": "ask_documents",
@@ -1355,12 +1355,12 @@
     },
     "GET /api/v1/ask/context": {
       "title": "Get what Ask offers here",
-      "description": "The scopes the assistant offers for a place (`page`, `workspace`, `folder` and `meeting` query parameters): `scopes` (each `kind`, `label` and `sub`, only for things you can open), the `default` one, the `page`, `workspace`, `folder` and `meeting` they refer to, the workspace's meeting `series`, `workspaces` (every workspace you're in, for a chip each), `can_insert` (you can edit the page, so answers can be inserted into it) and `status` (whether AI can answer now, for AI search and Meetings AI). Something you can't open is left out, never an error.",
+      "description": "The scopes the assistant offers for a place (`page`, `workspace`, `folder` and `meeting` query parameters): `scopes` (each `kind`, `label` and `sub`, only for things you can open), the `default` one, the `page`, `workspace`, `folder` and `meeting` they refer to, the workspace's meeting `series`, `workspaces` (every workspace you're in, for a chip each), `can_insert` (you can edit the page, so answers can be inserted into it) and `status` (whether AI can answer now, for meetings and for everything else). Something you can't open is left out, never an error.",
       "guide": { "label": "Ask", "href": "/workspaces/ask-markdrop" }
     },
     "GET /api/v1/ask/suggestions": {
       "title": "Get suggested questions",
-      "description": "What to ask right now. With `workspace` (an id): `team`, the workspace's live questions (each `topic`, `question` and `label`), written by Claude Haiku 5.5 from the last 7 days of meetings and pages that every member can open (never a restricted meeting or a private page) and the same for every member, with `updated_at`; `refreshing` is true while the first list is being written (ask again in a few seconds). And `personal`, your own (`label`, `question`, `intent`): your action items, your latest meeting. Without `workspace`, only `personal`. `ai_off` is true in a workspace with AI turned off. Reading the list never calls the model and doesn't count towards your limits. `404` when you aren't a member of the workspace.",
+      "description": "What to ask right now. With `workspace` (an id): `team`, the workspace's live questions (each `topic`, `question` and `label`), written by AI from the last 7 days of meetings and pages that every member can open (never a restricted meeting or a private page) and the same for every member, with `updated_at`; `refreshing` is true while the first list is being written (ask again in a few seconds). And `personal`, your own (`label`, `question`, `intent`): your action items, your latest meeting. Without `workspace`, only `personal`. `ai_off` is true in a workspace with AI turned off. Reading the list never calls the model and doesn't count towards your limits. `404` when you aren't a member of the workspace.",
       "mcp": "ask_suggestions",
       "guide": { "label": "Suggested questions", "href": "/workspaces/ask-markdrop#suggested-questions" }
     },
@@ -1413,7 +1413,7 @@
     },
     "POST /api/v1/meeting-memory/check": {
       "title": "Check a section against decisions",
-      "description": "Asks Claude Haiku 5.5 whether a page's section contradicts, leaves out or agrees with recorded decisions (`facts`: ids from Related meeting facts, at most a few). Returns a `verdict` (`contradicts`, `omits` or `consistent`) and a short `note` for each. For editors of the page. The same section and decisions are answered from a cache for 30 days (`cached`). Counts towards Meetings AI; when a limit is reached or the workspace's AI features are off, `reason` and `message` say why instead of results.",
+      "description": "Asks AI whether a page's section contradicts, leaves out or agrees with recorded decisions (`facts`: ids from Related meeting facts, at most a few). Returns a `verdict` (`contradicts`, `omits` or `consistent`) and a short `note` for each. For editors of the page. The same section and decisions are answered from a cache for 30 days (`cached`). Counts towards your AI limits; when a limit is reached or the workspace's AI features are off, `reason` and `message` say why instead of results.",
       "example": { "page": "checkout-prd", "heading": "Billing", "section": "Customers pay monthly by card.", "facts": ["FACT_ID"] },
       "guide": { "label": "Meeting memory while writing", "href": "/pages/meeting-memory#missed-decisions" }
     },
@@ -1446,7 +1446,7 @@
     "POST /api/v1/team/{workspace_id}/weekly/send": {"title": "Send the weekly summary now", "description": "Admins: puts this week's summary together and sends it now (it goes out on its own on Mondays at 9 am, workspace time): emailed to the admins and owner, posted to the Slack meetings channel when Slack is connected, and kept as Team's This week card. Only lines from meetings and pages everyone in the workspace can open. Returns the `week` and what was delivered.", "guide": {"label": "Team: your workspace memory", "href": "/workspaces/team#the-weekly-summary"}},
     "GET /api/v1/meetings/status": {
       "title": "Meetings status",
-      "description": "What the Meetings page of a workspace needs: whether Meetings AI can run for you (`ai.enabled`, and `ai.reason` / `ai.message` when it can't), whether the Google Docs picker is set up and connected (`google`), the Meetings folder's id (`folder_id`, null before the first import), whether you can import (`can_import`: members and up) and the meeting `types`.",
+      "description": "What the Meetings page of a workspace needs: whether meeting AI can run for you (`ai.enabled`, and `ai.reason` / `ai.message` when it can't), whether the Google Docs picker is set up and connected (`google`), the Meetings folder's id (`folder_id`, null before the first import), whether you can import (`can_import`: members and up) and the meeting `types`.",
       "paramNotes": {"workspace": "The workspace's id."},
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
@@ -1532,7 +1532,7 @@
     },
     "POST /api/v1/meetings/ask": {
       "title": "Ask across meetings",
-      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first, and the `scope`), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. `series`, `since` and `until` ask only those meetings; without them, a series or period named in the question is used (\"in Daily Standups last month\"), and `scope` says so (`detected: true`, with a `label`). Answers say when and in which meeting each point was made, and questions about the latest state prefer recent meetings. Claude Haiku 5.5 answers in English; each cited meeting is checked against your access again. Counts towards Meetings AI.",
+      "description": "Asks a question about every meeting in a workspace you can open, as Server-Sent Events: `status`, `results` (the meetings used, best first, and the `scope`), `delta` (the answer as it's written), then `done` with the `answer` and its `citations` (`label`, `kind`: `segment` or `page`, `text` like \"Ada Lovelace, 12:34\", and `href`), or `limit` / `error`. `series`, `since` and `until` ask only those meetings; without them, a series or period named in the question is used (\"in Daily Standups last month\"), and `scope` says so (`detected: true`, with a `label`). Answers say when and in which meeting each point was made, and questions about the latest state prefer recent meetings. AI answers in English; each cited meeting is checked against your access again. Counts towards your AI limits.",
       "returns": "text/event-stream",
       "example": {"workspace": "665f1c2ab3e4d5f6a7b8c9d0", "question": "What did we decide about pricing?", "series": "Daily Standup", "since": "2026-10-01"},
       "mcp": "ask_meetings",
@@ -1556,12 +1556,12 @@
     },
     "POST /api/v1/meetings/{meeting_id}/regenerate": {
       "title": "Write the summary again",
-      "description": "Writes the meeting's AI sections again (summary, decisions, action items, open questions, topics) and waits for them. When nobody has edited the page since, it's rewritten; otherwise the new sections are added at the end. Anyone who can edit the page. Counts towards Meetings AI.",
+      "description": "Writes the meeting's AI sections again (summary, decisions, action items, open questions, topics) and waits for them. When nobody has edited the page since, it's rewritten; otherwise the new sections are added at the end. Anyone who can edit the page. Counts towards your AI limits.",
       "guide": {"label": "Meetings", "href": "/workspaces/meetings"}
     },
     "POST /api/v1/meetings/{meeting_id}/ask": {
       "title": "Ask a meeting",
-      "description": "Asks one meeting, as Server-Sent Events (`delta`, then `done` with the `answer` and its `citations`, or `limit` / `error`). The answer comes from the meeting's transcript (when you can open it) and its page, including edits, in English; citations open the transcript at that moment. `history` carries the last turns of the conversation (`{question, answer}`, up to 6). Counts towards Meetings AI.",
+      "description": "Asks one meeting, as Server-Sent Events (`delta`, then `done` with the `answer` and its `citations`, or `limit` / `error`). The answer comes from the meeting's transcript (when you can open it) and its page, including edits, in English; citations open the transcript at that moment. `history` carries the last turns of the conversation (`{question, answer}`, up to 6). Counts towards your AI limits.",
       "returns": "text/event-stream",
       "example": {"question": "What did we decide?"},
       "mcp": "ask_meetings",
@@ -1569,7 +1569,7 @@
     },
     "GET /api/v1/meetings/backfill": {
       "title": "List your past-meeting imports",
-      "description": "Your imports of past meetings into `workspace` that are open or finished and not dismissed, newest first. Looking at a running import also picks it up again after a server restart. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: the Meetings AI budget), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (the AI cost of what's left, and whether today's budget covers it) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
+      "description": "Your imports of past meetings into `workspace` that are open or finished and not dismissed, newest first. Looking at a running import also picks it up again after a server restart. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: AI is paused for now under its fair-use limit), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (how many meetings are left to summarize, and whether AI can write them all today: `may_wait`) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
       "paramNotes": {"workspace": "The workspace's id."},
       "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
     },
@@ -1581,7 +1581,7 @@
     },
     "GET /api/v1/meetings/backfill/{job_id}": {
       "title": "Get a past-meeting import",
-      "description": "One of your imports: the review before it starts, its progress after. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: the Meetings AI budget), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (the AI cost of what's left, and whether today's budget covers it) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
+      "description": "One of your imports: the review before it starts, its progress after. An import is returned with its `state` (`draft`, `running`, `paused`, `waiting`, `done` or `cancelled`), `quiet`, `restricted`, `wait` (why and until when it waits: AI is paused for now under its fair-use limit), `counts` (`included`, `done`, `imported`, `attached`, `duplicate`, `failed`, `needs_date`…), `problems` (files that were skipped, and why), `estimate` (how many meetings are left to summarize, and whether AI can write them all today: `may_wait`) and `rows`: one per meeting found, with its `date` and where it came from (`date_from`: `title`, `created`, `content` or `user`), `title`, `series`, `kinds` (`notes`, `transcript`), `include`, `needs_date`, `dup` (`new`, `duplicate` or `attach`, with the meeting already here) and, once started, its `state`, `error` and `meeting_id`.",
       "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
     },
     "PATCH /api/v1/meetings/backfill/{job_id}": {
@@ -1608,7 +1608,7 @@
     },
     "POST /api/v1/meetings/backfill/{job_id}/start": {
       "title": "Run the import",
-      "description": "Starts importing the included rows in the background, oldest first, one at a time, each with its AI summary (Meetings AI). Every included row needs a date (422 otherwise). It keeps going when the page is closed. When today's (or the month's) Meetings AI budget runs out it waits (`state: waiting`) and carries on by itself when the budget resets.",
+      "description": "Starts importing the included rows in the background, oldest first, one at a time, each with its AI summary. Every included row needs a date (422 otherwise). It keeps going when the page is closed. When AI reaches its fair-use limit it waits (`state: waiting`) and carries on by itself when AI is available again.",
       "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
     },
     "POST /api/v1/meetings/backfill/{job_id}/pause": {
@@ -1618,7 +1618,7 @@
     },
     "POST /api/v1/meetings/backfill/{job_id}/resume": {
       "title": "Resume an import",
-      "description": "Carries on with a paused import, or one waiting for the AI budget (it waits again if the budget is still used up).",
+      "description": "Carries on with a paused import, or one waiting for AI (it waits again if AI is still paused).",
       "guide": {"label": "Import past meetings", "href": "/workspaces/meetings-import#import-past-meetings"}
     },
     "POST /api/v1/meetings/backfill/{job_id}/rows/{row_id}/retry": {

@@ -161,7 +161,7 @@ LIMIT_MESSAGES = {
     "burst": "You're using AI very fast. Wait a minute and try again.",
     "user_daily": "You've reached your AI limit for today. Try again tomorrow.",
     "blocked": "AI isn't available on your account.",
-    "guide_budget": "This guide's AI budget for the month is used up. It resets on the 1st (UTC).",
+    "guide_budget": "This guide's monthly AI allowance is used up. It resets on the 1st (UTC).",
     "busy": "AI is busy right now. Try again in a moment.",
 }
 # For the JSON endpoints (meta, alt text, translate without SSE): the HTTP status of each limit.

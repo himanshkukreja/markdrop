@@ -2844,14 +2844,14 @@ TOOLS: list[Tool] = [
     Tool(
         name="analyze_document_engagement",
         title="Analyse a document's engagement (AI)",
-        description=("Claude Haiku 5.5 reads the analytics of one of the user's own documents or files and says "
+        description=("Markdrop's AI reads the analytics of one of the user's own documents or files and says "
                      "what to change, with 3 to 5 findings that point at the exact place. kind: content (a "
                      "Markdown document or page: why readers stop, section by section, with rewrites), media "
                      "(a video or audio file: drops, skips and rewatches with timestamps, chapter suggestions), "
                      "pages (a PDF: where readers stop and linger, page by page) or versions (a file with several "
                      "versions: which works better, with a confidence Markdrop computes). Defaults to the "
-                     "document's own kind. Only the numbers and the owner's own content are sent to the model "
-                     "(to Anthropic), never anything about individual viewers; an end-to-end encrypted "
+                     "document's own kind. Only the numbers and the owner's own content are sent to the AI, "
+                     "never anything about individual viewers; an end-to-end encrypted "
                      "document's content is never sent. Needs at least 20 sessions; results are cached and "
                      "shared with the dashboard (refresh re-analyses). Counts towards the user's AI limits."),
         scope=READ,
@@ -2981,12 +2981,12 @@ TOOLS: list[Tool] = [
         name="ask_documents",
         title="Ask (AI)",
         description=("Ask, the in-app assistant (\"Ask <Workspace>\", \"Ask my files\", \"Ask this page\"). "
-                     "Ask a question in plain words; Claude Haiku 5.5 searches everything the user can open "
+                     "Ask a question in plain words; Markdrop's AI searches everything the user can open "
                      "(meetings and their transcripts, documents, pages, files, Guides) and answers briefly, "
                      "citing the items it used as [n] (a meeting's transcript moment as [n-sK]) with their links. "
                      "Pass the returned thread_id to ask a follow-up in the same conversation. intent: ask "
                      "(default), catch_up (what changed in the last 7 days) or my_actions (open tasks that "
-                     "@mention the user). Only text the user can read is sent to the model (to Anthropic); "
+                     "@mention the user). Only text the user can read is sent to the AI; "
                      "workspaces with AI turned off are left out. scope: all (default), workspace:<id> (Ask "
                      "<Workspace>) or mine (Ask my files: the user's own items outside any workspace); folder: "
                      "only that folder of the workspace (and its sub-folders); page: ask about that document or page "
@@ -3032,7 +3032,7 @@ TOOLS: list[Tool] = [
         title="Ask: suggested questions",
         description=("What to ask about right now. With workspace (an id from list_workspaces): that workspace's "
                      "live team questions, each with its topic (\"Sourcing: What did we decide this week?\"), "
-                     "written by Claude Haiku 5.5 from the last 7 days of meetings and pages every member can read "
+                     "written by Markdrop's AI from the last 7 days of meetings and pages every member can read "
                      "(never a restricted meeting or a private page), refreshed as they change, the same list for "
                      "every member; and the user's own (their action items, their latest meeting). Without "
                      "workspace: the user's own only. Reading the list never calls the model."),

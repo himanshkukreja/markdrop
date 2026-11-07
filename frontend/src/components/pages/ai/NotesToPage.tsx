@@ -169,7 +169,7 @@ export function NotesToPage({ title, workspace, onDraft, disabled }: { title: st
             {phase === "ready" || phase === "error" ? "Draft again" : "Draft the page"}
           </Button>
         )}
-        <span className="pb-notes__hint">{busy ? <span className="pb-notes__writing">Writing</span> : phase === "ready" ? "Check the draft, then create the page. You can edit everything after." : "Your notes go to Anthropic's Claude to draft the page."}</span>
+        <span className="pb-notes__hint">{busy ? <span className="pb-notes__writing">Writing</span> : phase === "ready" ? "Check the draft, then create the page. You can edit everything after." : "Your notes are sent to AI to draft the page."}</span>
       </div>
       {error && <Alert tone="warning">{error}</Alert>}
       {(busy || phase === "ready") && (

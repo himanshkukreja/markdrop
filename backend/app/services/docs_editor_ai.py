@@ -198,8 +198,8 @@ def _limit_message(reason: str, n: int = 0) -> str:
         "disabled": "AI help is turned off right now.",
         "not_configured": "AI help isn't set up on this server.",
         "user_daily": f"You've used AI help {n:,} times today. It resets at midnight UTC.",
-        "budget": "AI help has reached its spending limit for now. Try again later.",
-        "guide_budget": (f"This guide's AI budget for the month is used up ({n:,} uses, shared by AI help and "
+        "budget": "AI help is paused for now (fair-use limit). Try again later.",
+        "guide_budget": (f"This guide's monthly AI allowance is used up ({n:,} uses, shared by AI help and "
                          "Ask AI). It resets on the 1st (UTC)."),
         "busy": "AI help is busy right now. Try again in a moment.",
         "blocked": "AI help isn't available for your account.",

@@ -81,7 +81,7 @@ async def analytics_ai_run(
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
-    """Analyse (Claude Haiku 5.5) unless a cached analysis exists; ``{"refresh": true}`` in the
+    """Analyse with AI unless a cached analysis exists; ``{"refresh": true}`` in the
     body re-analyses. Below 20 sessions with data the model isn't called (``state: thin``)."""
     raw = await _owned_doc(request, db, slug, user)
     refresh = False

@@ -312,7 +312,7 @@ function Details({ m, onChange, onDeleted, top }: { m: Meeting; onChange: (m: Me
       <div>
         <p className="pa-sources__label" style={{ margin: "0 0 6px" }}>AI summary</p>
         <p className="mt-cost" style={{ margin: "0 0 8px" }}>
-          {m.ai.state === "done" ? `Written by Claude Haiku${m.ai.cost_usd ? ` · $${m.ai.cost_usd.toFixed(4)}` : ""}` : m.ai.state === "pending" ? "Being written…" : m.ai.message || "None yet."}
+          {m.ai.state === "done" ? "Written by AI" : m.ai.state === "pending" ? "Being written…" : m.ai.message || "None yet."}
         </p>
         {m.can_regenerate && (
           <Button size="sm" variant="secondary" iconLeft="refresh" loading={busy === "regen"} disabled={!!busy || m.ai.state === "pending"}

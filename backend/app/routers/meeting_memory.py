@@ -107,7 +107,7 @@ async def related(request: Request, body: RelatedBody, db: AsyncIOMotorDatabase 
 @limiter.limit("30/minute")
 async def check(request: Request, body: CheckBody, db: AsyncIOMotorDatabase = Depends(get_db),
                 user: User = Depends(require_user)):
-    """Claude Haiku's verdict on the section against these decisions: ``contradicts`` / ``omits`` /
+    """AI's verdict on the section against these decisions: ``contradicts`` / ``omits`` /
     ``consistent`` with a one-line note. Never edits the page."""
     actor, ctx = _ac(request, db, user)
     raw = await _page(db, body.page, actor, ctx, "edit_content")

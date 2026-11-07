@@ -86,7 +86,7 @@ ANALYTICS_AI_TOOLS: list[Tool] = [
         title="What changed in my analytics (AI)",
         description=("The analytics home's Insights story: 3-5 sentences on what changed in the user's views "
                      "over the range and the likely cause (a document, a referrer, a new version, a device or "
-                     "country shift), each with a link to look closer. Claude Haiku 5.5 writes it from "
+                     "country shift), each with a link to look closer. Markdrop's AI writes it from "
                      "aggregate numbers only (no visitor data). Cached for the day; refresh=true writes it "
                      "again. Counts towards the user's AI limits."),
         scope=READ,
@@ -106,7 +106,7 @@ ANALYTICS_AI_TOOLS: list[Tool] = [
         name="ask_analytics",
         title="Ask about my analytics (AI)",
         description=("Ask a question about the user's own analytics in plain words (\"which PDF did people "
-                     "read most last month?\", \"where did the spike on Tuesday come from?\"). Claude Haiku 5.5 "
+                     "read most last month?\", \"where did the spike on Tuesday come from?\"). Markdrop's AI "
                      "picks from a fixed set of server-side queries over the user's own documents and answers "
                      "briefly with links to their analytics pages. Counts towards the user's AI limits. For "
                      "raw numbers on one document, get_document_analytics is cheaper."),
@@ -125,7 +125,7 @@ ANALYTICS_AI_TOOLS: list[Tool] = [
         title="What people couldn't find (AI)",
         description=("Content gaps: what people searched for in a workspace (no results, or results nobody "
                      "opened) and asked a guide's AI assistant without an answer, over the last 30 days, "
-                     "grouped by Claude Haiku 5.5 into pages worth writing, each with a count, why, an "
+                     "grouped by Markdrop's AI into pages worth writing, each with a count, why, an "
                      "outline and ready-to-use markdown for create_page. Workspace owners and admins only "
                      "(scope workspace:<id>), or the user's own personal Guides (scope personal). Only "
                      "anonymous query text is used. Counts towards the user's AI limits."),

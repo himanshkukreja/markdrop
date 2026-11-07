@@ -152,7 +152,7 @@ export const PLANNED_PLANS: Plan[] = [
       "Your own domain",
       "3 editors",
       "Insights and the Fix list",
-      "Ask AI with a monthly cap",
+      "Ask AI with a monthly allowance",
       "Basic private pages",
     ],
   },
@@ -164,7 +164,7 @@ export const PLANNED_PLANS: Plan[] = [
     note: "Flat price, whatever the size of your team.",
     points: [
       "Unlimited editors",
-      "More Ask AI and AI-drafted fixes, with a cap you set",
+      "More Ask AI and AI-drafted fixes, with an allowance you set",
       "Private pages for email domains and each customer",
       "Everything in Free",
     ],

@@ -64,8 +64,9 @@ def _summary(v: dict, rows: list[dict]) -> str:
         lines.append(f"Waiting: {v['wait'].get('message') or v['wait'].get('reason')} (until {v['wait'].get('until')}).")
     est = v.get("estimate")
     if est and est.get("meetings"):
-        lines.append(f"AI summaries for what's left: about ${est['usd']:.3f}" +
-                     (" — more than today's Meetings AI budget, so the rest waits for tomorrow." if est.get("may_wait") else "."))
+        lines.append(f"AI summaries for what's left: {est['meetings']} meeting{'' if est['meetings'] == 1 else 's'}" +
+                     (" — more than AI can write today (fair-use limit), so the rest waits for tomorrow."
+                      if est.get("may_wait") else ".")
     for r in rows:
         when = r["date"] or "no date"
         extra = f" · {r['series']}" if r["series"] else ""
@@ -210,8 +211,8 @@ BACKFILL_TOOLS: list[Tool] = [
                      "one call are paired into one meeting, recurring meetings get a series ('Daily Standup'), and "
                      "meetings already in the workspace are skipped (status 'duplicate'). Items without a date come back "
                      "as 'needs_date' and aren't imported. dry_run=true only reviews. Otherwise the rest imports in the "
-                     "background, oldest first, with AI summaries (the user's 'Meetings AI' limit; a big backlog may wait "
-                     "for tomorrow's budget). Nobody is notified about their @mentions (no meeting import notifies); "
+                     "background, oldest first, with AI summaries (AI has fair-use limits; a big backlog may wait "
+                     "until tomorrow). Nobody is notified about their @mentions (no meeting import notifies); "
                      "notify=true lets meetings from the last day be posted to the Slack meetings channel. Returns a job id: call again with job to see progress."),
         scope=WRITE,
         writes=True,

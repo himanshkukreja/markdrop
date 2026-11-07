@@ -103,7 +103,7 @@ function TeamOff({ board, onOn }: { board: BoardOff; onOn: () => void }) {
         <ul className="tm-off__points">
           <li><Icon name="lock" />Restricted meetings and private pages never show to anyone else. Encrypted and password-protected pages are never read.</li>
           <li><Icon name="edit" />People set their own status and focus, and fix or hide any line about them.</li>
-          <li><Icon name="zap" />Uses Claude Haiku within Markdrop&apos;s AI budget. Turning it off deletes what it gathered.</li>
+          <li><Icon name="zap" />Uses Markdrop&apos;s AI, within fair-use limits. Turning it off deletes what it gathered.</li>
         </ul>
         {board.can_enable ? (
           <Button iconLeft="sparkle" loading={busy} onClick={turnOn} data-testid="team-enable">Turn on Team memory</Button>
@@ -167,7 +167,7 @@ function TeamOn(p: {
       {board.paused && (
         <Alert tone="warning" className="tm-alert">
           {board.paused.reason === "daily" || board.paused.reason === "monthly"
-            ? `Updates are paused: Team memory's AI budget for the ${board.paused.reason === "daily" ? "day" : "month"} is spent. It picks up again ${board.paused.until ? fmtDay(board.paused.until) : "soon"}.`
+            ? `Updates are paused for now: AI reached its fair-use limit. It picks up again ${board.paused.until ? fmtDay(board.paused.until) : "soon"}, and nothing is lost.`
             : "Updates are paused for now. What's here stays."}
         </Alert>
       )}

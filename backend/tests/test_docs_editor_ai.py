@@ -245,7 +245,7 @@ class EditorAI(DocsSitesCase):
         self.assertEqual((await docs_site_store.ai_answers(self.db, [self.sid]))[self.sid], 5)
         r = await self.edit(expect=429)
         self.assertEqual(r["code"], "guide_budget")
-        self.assertTrue(r["detail"].startswith("This guide's AI budget for the month is used up"), r["detail"])
+        self.assertTrue(r["detail"].startswith("This guide's monthly AI allowance is used up"), r["detail"])
         # Errors and limits don't use it up.
         rows = await self.db[ai_usage.REQUESTS].find({"feature": "docs_editor", "outcome": "limit"}).to_list(10)
         self.assertEqual(rows[0]["limit_reason"], "guide_budget")

@@ -1397,7 +1397,7 @@ PAGE_TOOLS: list[Tool] = [
                      "and so on: same blocks, embeds, images and properties, in the same place (a sub-page stays "
                      "inside the same parent and inherits its access). Only the text is translated; the "
                      "structure is checked block by block before the page is created. The original page is not "
-                     "changed. Uses Markdrop's AI (Claude Haiku), which counts towards the user's AI limits. "
+                     "changed. Uses Markdrop's AI, which counts towards the user's AI limits. "
                      "Give the user the returned url."),
         scope=WRITE,
         writes=True,
