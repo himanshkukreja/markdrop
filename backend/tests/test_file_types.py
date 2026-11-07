@@ -232,23 +232,25 @@ class SharedRecentFoldersByType(World):
         await self.mkdoc("UP", slug="s-doc")
         gone = await self.shared_art("pdf", "s-gone")
         await self.db["documents"].update_one({"_id": gone["_id"]}, {"$set": {"expires_at": now_minus()}})
-        body = await self.get_json("/api/v1/me/shared", "gv")
+        body = await self.get_json("/api/v1/me/shared", "gv", counts="true")
         c = body["count_by_type"]
         self.assertEqual((c["pdf"], c["video"], c["document"], sum(c.values())), (1, 2, 1, 4))
-        body = await self.get_json("/api/v1/me/shared", "gv", type="video")
+        body = await self.get_json("/api/v1/me/shared", "gv", type="video", counts="true")
         self.assertEqual({i["slug"] for i in body["items"]}, {"s-video", "s-video2"})
         self.assertEqual(body["count_by_type"], c)
         # Paging within a type: the cursor continues the filtered list; later pages carry no counts.
-        p1 = await self.get_json("/api/v1/me/shared", "gv", type="video", limit=1)
+        p1 = await self.get_json("/api/v1/me/shared", "gv", type="video", limit=1, counts="true")
         self.assertEqual(len(p1["items"]), 1)
         self.assertTrue(p1["next_cursor"])
         self.assertEqual(p1["count_by_type"], c)
-        p2 = await self.get_json("/api/v1/me/shared", "gv", type="video", limit=1, cursor=p1["next_cursor"])
+        p2 = await self.get_json("/api/v1/me/shared", "gv", type="video", limit=1, cursor=p1["next_cursor"], counts="true")
         self.assertEqual({p1["items"][0]["slug"], p2["items"][0]["slug"]}, {"s-video", "s-video2"})
         self.assertIsNone(p2["next_cursor"])
         self.assertIsNone(p2["count_by_type"])
+        # The sidebar's badge call doesn't ask for counts (and doesn't pay for them).
+        self.assertNotIn("count_by_type", await self.get_json("/api/v1/me/shared", "gv"))
         # Someone not named on anything: nothing, counts all zero.
-        self.assertEqual(sum((await self.get_json("/api/v1/me/shared", "stranger"))["count_by_type"].values()), 0)
+        self.assertEqual(sum((await self.get_json("/api/v1/me/shared", "stranger", counts="true"))["count_by_type"].values()), 0)
         r = await self.http.get("/api/v1/me/shared", params={"type": "movies"}, headers=self.session("gv"))
         self.assertEqual(r.status_code, 422)
 
@@ -261,7 +263,8 @@ class SharedRecentFoldersByType(World):
         secret = await self.art("video", owner="owner", state="UP", slug="r-secret")  # wm can't open it
         for d in (mine, vid, page, secret):
             await personal.record_view(self.db, self.uid["wm"], d["_id"])
-        body = await self.get_json("/api/v1/me/recent", "wm")
+        self.assertNotIn("count_by_type", await self.get_json("/api/v1/me/recent", "wm"))  # Home, ⌘K
+        body = await self.get_json("/api/v1/me/recent", "wm", counts="true")
         c = body["count_by_type"]
         self.assertEqual((c["pdf"], c["video"], c["document"], sum(c.values())), (1, 1, 1, 3))
         self.assertNotIn("r-secret", {i["slug"] for i in body["items"]})

@@ -672,11 +672,8 @@ class SharedWithMe(World):
     async def test_auth(self):
         self.assertEqual((await self.http.get("/api/v1/me/shared")).status_code, 401)
         self.assertEqual((await self.http.get("/api/v1/me/shared", headers=self.tenant("gv", "W1"))).status_code, 401)
-        from app.services import file_types
-
         self.assertEqual((await self.body("GET", "/api/v1/me/shared", "stranger")).json(),
-                         {"items": [], "next_cursor": None, "new_count": 0,
-                          "count_by_type": file_types.empty_counts()})
+                         {"items": [], "next_cursor": None, "new_count": 0})
 
 
 # ── 6. Recent ─────────────────────────────────────────────────────────────────

@@ -59,21 +59,26 @@ async def shared_with_me(request: Request,
                          cursor: str | None = Query(None, max_length=300),
                          limit: int = Query(30, ge=1, le=personal.MAX_SHARED_PAGE),
                          file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
+                         # Add count_by_type (per file type) on the first page: the page's chips.
+                         counts: bool = Query(False),
                          db: AsyncIOMotorDatabase = Depends(get_db),
                          user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await personal.shared(db, actor, ctx, cursor=cursor, limit=limit,
-                                                  file_type=file_type))
+                                                  file_type=file_type, with_counts=counts))
 
 
 @router.get("/api/v1/me/recent")
 @limiter.limit("120/minute")
 async def recent(request: Request,
                  file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
+                 # Add count_by_type (per file type): the Recent page's chips.
+                 counts: bool = Query(False),
                  db: AsyncIOMotorDatabase = Depends(get_db),
                  user: User = Depends(require_user)):
     actor, ctx = _ac(request, db, user)
-    return jsonable_encoder(await personal.recent(db, actor, ctx, file_type=file_type))
+    return jsonable_encoder(await personal.recent(db, actor, ctx, file_type=file_type,
+                                                  with_counts=counts))
 
 
 @router.get("/api/v1/search/quick")
