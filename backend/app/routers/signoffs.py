@@ -71,4 +71,10 @@ async def sign_off(
     actor = access.actor_from_request(request, user)
     ctx = _ctx(db, request)
     raw = await db["documents"].find_one({"slug": slug})
-    return await signoffs.sign(db, raw, block, data.option, actor, ctx)
+    out = await signoffs.sign(db, raw, block, data.option, actor, ctx)
+    # Viewer analytics: the sign-off joins this person's view of the page (services/doc_views.py).
+    from app.services import doc_views
+
+    await doc_views.note_for_slug(db, slug, user.id, {"k": "signoff", "o": (data.option or None) and
+                                                      str(data.option)[:80]})
+    return out

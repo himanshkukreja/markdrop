@@ -2,6 +2,8 @@ import type { PagePropertiesInfo } from "@/components/pages/props/api";
 /** DocumentView's props. The contract `page.tsx` and the tenant route render with — unchanged. */
 export interface DocumentViewProps {
   slug: string;
+  /** Which kinds of analytics this item collects (lib/engage sends only those). */
+  track?: import("@/lib/engage").EngageTrack | null;
   title: string | null;
   content: string;
   url: string;

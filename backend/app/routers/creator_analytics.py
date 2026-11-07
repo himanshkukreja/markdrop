@@ -29,6 +29,7 @@ from app.schemas.auth import PreferencesUpdate
 from app.services import access, mailer
 from app.services import analytics_digest as digest
 from app.services import creator_analytics as ca
+from app.services import doc_views as dv
 
 router = APIRouter(prefix="/api/v1/me", tags=["creator-analytics"])
 
@@ -61,7 +62,12 @@ async def analytics_overview(
     user: User = Depends(require_user),
 ):
     raw = await _owned_doc(request, db, slug, user)
-    return await ca.overview(db, raw, ca.window(range), bool(internal))
+    out = await ca.overview(db, raw, ca.window(range), bool(internal))
+    # What the item collects (services/analytics_prefs.py): the tabs hide what's switched off.
+    from app.services import analytics_prefs
+
+    out["track"] = await analytics_prefs.effective(db, raw)
+    return out
 
 
 @router.get("/documents/{slug}/analytics/media")
@@ -197,6 +203,170 @@ async def analytics_home_csv(
 ):
     body = await ca.home_csv(db, user.id, ca.window(range), bool(internal))
     return _csv(body, f"markdrop-analytics-{range}.csv")
+
+
+# ── Viewers: every view, who and what they did (services/doc_views.py) ────────
+
+WHO = "^(all|signed_in|anonymous)$"
+COMPLETION = "^(any|low|mid|high|done)$"
+
+
+async def _viewers_doc(request: Request, db: AsyncIOMotorDatabase, slug: str, user: User,
+                       *, full: bool = False) -> tuple[dict, str]:
+    """The document and what the caller may see of its viewers (doc_views.access_level): the
+    owner, and for a workspace item its admins and editors, see everything; a viewer of a
+    workspace item sees counts. Everyone else gets the analytics' own answer (401 / 403 / 404)."""
+    if is_tenant_request(request):
+        raise HTTPException(status_code=403, detail="Open analytics on markdrop.in.")
+    raw = await db["documents"].find_one({"slug": slug})
+    actor = access.actor_from_request(request, user)
+    level = await dv.access_level(db, actor, raw)
+    if level is None or (full and level != "full"):
+        if level == "counts":
+            raise HTTPException(status_code=403, detail="You can see how many people viewed this, not who.")
+        # Not theirs to see: the same answer as the other analytics endpoints.
+        await access.require(actor, raw, "view_stats", access.Ctx(db))
+        raise HTTPException(status_code=403, detail="Only the document's owner can do that.")
+    return raw, level
+
+
+def _filters(country: str | None, device: str | None, os: str | None, browser: str | None,
+             source: str | None) -> dict:
+    return {k: v for k, v in (("country", country), ("device", device), ("os", os), ("browser", browser),
+                              ("source", source)) if v}
+
+
+def _doc_head(raw: dict, level: str) -> dict:
+    from app.services import engage, md_outline
+
+    return {"slug": raw["slug"], "title": md_outline.display_title(raw), "kind": dv.view_kind(raw),
+            "track_kind": engage.kind_for(raw), "mime": raw.get("mime"), "renderer": ca.renderer_of(raw),
+            "encrypted": bool(raw.get("encrypted")), "workspace_id": raw.get("workspace_id"), "access": level}
+
+
+@router.get("/documents/{slug}/analytics/viewers")
+@limiter.limit("120/minute")
+async def analytics_viewers(
+    request: Request, slug: str,
+    range: str = Query("30d", pattern=RANGE),
+    who: str = Query("all", pattern=WHO),
+    completion: str = Query("any", pattern=COMPLETION),
+    own: int = Query(0, ge=0, le=1),
+    internal: int = Query(1, ge=0, le=1),
+    country: str | None = Query(None, max_length=2),
+    device: str | None = Query(None, max_length=20),
+    os: str | None = Query(None, max_length=40),
+    browser: str | None = Query(None, max_length=40),
+    source: str | None = Query(None, max_length=120),
+    offset: int = Query(0, ge=0, le=dv.LIST_CAP),
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Every view in the range, newest first: who (a signed-in viewer's name and email, or an
+    anonymous "Visitor"), when, active time, how much they got through, where from and on what;
+    plus totals and breakdowns (country, city, device, OS, browser, source). ``own=1`` includes
+    the owner's own views (hidden by default). A viewer of a workspace item gets ``totals`` only."""
+    raw, level = await _viewers_doc(request, db, slug, user)
+    w = ca.window(range)
+    res = await dv.listing(db, raw, w.start, w.end, who=who, completion_f=completion, own=bool(own),
+                           internal=bool(internal), filters=_filters(country, device, os, browser, source),
+                           offset=offset, limit=limit)
+    if level != "full":
+        t = res["totals"]
+        res = {"totals": {"views": t["views"], "people": t["people"], "signed_in": t["signed_in"],
+                          "anonymous": t["anonymous"]}, "retention_days": res["retention_days"]}
+    res["doc"] = _doc_head(raw, level)
+    res["access"] = level
+    # What the item collects (services/analytics_prefs.py): the tab hides what's switched off.
+    from app.services import analytics_prefs
+
+    res["track"] = await analytics_prefs.effective(db, raw)
+    return res
+
+
+@router.get("/documents/{slug}/analytics/viewers.csv")
+@limiter.limit("30/minute")
+async def analytics_viewers_csv(
+    request: Request, slug: str,
+    range: str = Query("30d", pattern=RANGE),
+    who: str = Query("all", pattern=WHO),
+    completion: str = Query("any", pattern=COMPLETION),
+    own: int = Query(0, ge=0, le=1),
+    internal: int = Query(1, ge=0, le=1),
+    country: str | None = Query(None, max_length=2),
+    device: str | None = Query(None, max_length=20),
+    os: str | None = Query(None, max_length=40),
+    browser: str | None = Query(None, max_length=40),
+    source: str | None = Query(None, max_length=120),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    raw, _level = await _viewers_doc(request, db, slug, user, full=True)
+    w = ca.window(range)
+    body = await dv.views_csv(db, raw, w.start, w.end, who=who, completion_f=completion, own=bool(own),
+                              internal=bool(internal), filters=_filters(country, device, os, browser, source))
+    return _csv(body, f"{raw['slug']}-viewers-{range}.csv")
+
+
+@router.get("/documents/{slug}/analytics/viewers/people")
+@limiter.limit("120/minute")
+async def analytics_viewer_people(
+    request: Request, slug: str,
+    range: str = Query("30d", pattern=RANGE),
+    who: str = Query("all", pattern=WHO),
+    own: int = Query(0, ge=0, le=1),
+    internal: int = Query(1, ge=0, le=1),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """One row per person (or anonymous visitor): their views, total active time, best completion."""
+    raw, _level = await _viewers_doc(request, db, slug, user, full=True)
+    w = ca.window(range)
+    return await dv.people_rollup(db, raw, w.start, w.end, who=who, own=bool(own), internal=bool(internal))
+
+
+@router.get("/documents/{slug}/analytics/viewers/{view_id}")
+@limiter.limit("240/minute")
+async def analytics_view_timeline(
+    request: Request, slug: str, view_id: str,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """One view: its header (who, where from, on what, time, completion) and its activity
+    timeline as readable steps."""
+    raw, _level = await _viewers_doc(request, db, slug, user, full=True)
+    out = await dv.timeline(db, raw, view_id)
+    if out is None:
+        raise HTTPException(status_code=404, detail="That view isn't here (views are kept "
+                            f"{dv.detail_days()} days).")
+    return out
+
+
+@router.get("/view-history")
+@limiter.limit("60/minute")
+async def my_view_history(
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """The documents and files you viewed while signed in, as their owners see it (newest first)."""
+    if is_tenant_request(request):
+        raise HTTPException(status_code=403, detail="Change this on markdrop.in.")
+    return await dv.my_history(db, user.id)
+
+
+@router.delete("/view-history")
+@limiter.limit("10/minute")
+async def forget_my_view_history(
+    request: Request,
+    db: AsyncIOMotorDatabase = Depends(get_db),
+    user: User = Depends(require_user),
+):
+    """Take your name off every view you made: owners then see those views as anonymous ones."""
+    if is_tenant_request(request):
+        raise HTTPException(status_code=403, detail="Change this on markdrop.in.")
+    return {"forgotten": await dv.forget_user(db, user.id)}
 
 
 # ── Weekly digest preferences (build spec §6) ────────────────────────────────

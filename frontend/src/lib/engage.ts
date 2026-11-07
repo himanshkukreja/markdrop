@@ -9,18 +9,28 @@
  * or unmounted. Active time follows lib/readDepth.ts: a second counts only while the tab is visible
  * and the reader did something in the last minute (or media is playing).
  *
+ * Each send also carries the view's activity timeline (`ev`: sections, pages, slides and tabs with
+ * their active seconds, playback, depth milestones, links, copies, downloads), the browser's
+ * anonymous analytics id (`a`) and, first, where and on what it was opened (`first.sys`): the
+ * owner's Viewers tab (backend services/doc_views.py). The first send goes out about a second in.
+ *
  * What is never sent: copied text (only a hash of a copied code block), link queries or fragments,
- * anything typed, anything from an encrypted document beyond time and depth. Nothing here reaches
- * PostHog or GA. Opted-out browsers (the admin "don't count me" flag, Global Privacy Control) and
- * the document's owner send nothing at all.
+ * anything typed, anything from an encrypted document beyond time, depth and page numbers. Nothing
+ * here reaches PostHog or GA. Opted-out browsers (the admin "don't count me" flag, Global Privacy
+ * Control) send nothing at all. The owner's own sessions are sent and kept apart on the server.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getToken, landingReferrer, landingUtm } from "@/lib/api";
-import { trackingDisabled } from "@/lib/track";
+import { analyticsVisitorId, previousRoute, trackingDisabled } from "@/lib/track";
 import {
+  DepthMarks,
+  EV_PER_SEND,
   MediaAgg,
+  MediaMarks,
   PdfAgg,
+  Timeline,
+  VisitTracker,
   addTo,
   copyKey,
   emptyDelta,
@@ -30,7 +40,13 @@ import {
   type BridgeMessage,
   type EngageDelta,
   type EngagePos,
+  type TlEvent,
+  type TrackSwitches,
+  eventAllowed,
 } from "@/lib/engageCore";
+
+/** Which kinds of analytics an item collects (its document's `track`); missing means on. */
+export type EngageTrack = TrackSwitches;
 
 export type EngageKind = "doc" | "pdf" | "video" | "audio" | "other";
 
@@ -41,7 +57,9 @@ const REPORT_EVERY_MS = 15_000;
 const HEARTBEAT_IDLE_MS = 5 * 60_000;
 /** Focus inside the artifact frame stands in for input we can't see, for this long. */
 const FRAME_FOCUS_MS = 5 * 60_000;
-const MAX_BODY = 8192;
+const MAX_BODY = 16384;
+/** The first send goes out this soon, so the view is on the owner's list while it happens. */
+const OPEN_SEND_MS = 1200;
 /** Heading ids per send (a long document reached at once goes over a few sends). */
 const REACHED_CHARS = 3000;
 
@@ -67,8 +85,8 @@ export function engageKindFor(renderer: string | null | undefined): EngageKind {
 interface Collector {
   /** Once a second while the tab is visible; `active` says whether it counted as reading. */
   second?(active: boolean): void;
-  /** Moves what has accumulated since the last send into `d`. */
-  drain(d: EngageDelta, now: number): void;
+  /** Moves what has accumulated since the last send into `d` (`final`: the last send for now). */
+  drain(d: EngageDelta, now: number, final: boolean): void;
   pos?(): EngagePos | undefined;
   /** Counts as active without input (media playing). */
   busy?(): boolean;
@@ -82,6 +100,80 @@ interface SessionOptions {
   ver: number | null;
   ticket: () => string | null;
   collector: Collector;
+  /** The session's activity timeline (viewer analytics); the collector marks into it too. */
+  tl: Timeline;
+  /** The item's analytics settings: what isn't collected isn't sent. */
+  track?: EngageTrack | null;
+}
+
+/** A timeline for an item with these switches (events it doesn't collect are never queued). */
+export function timelineFor(track: EngageTrack | null | undefined): Timeline {
+  return new Timeline(Date.now(), track ? (k) => eventAllowed(k, track) : null);
+}
+
+/** Sessions running now: what lib/engage's `engageMark` adds an event to (a download, a print). */
+const running = new Set<Timeline>();
+
+/** Adds a timeline event to every engagement session on this page (downloads, exports). */
+export function engageMark(k: "dl" | "print", extra: Record<string, unknown> = {}): void {
+  for (const tl of running) tl.mark(k, extra);
+}
+
+/**
+ * What the owner's Viewers tab says about where and on what this was opened: screen, language,
+ * timezone, installed app vs browser tab vs embedded (and the embedding site), the Markdrop page
+ * the reader came from, a touch screen (an iPad asking for desktop pages), and the real OS version
+ * where the browser tells it (User-Agent Client Hints). No fingerprinting extras.
+ */
+export function systemInfo(app?: "tab" | "pwa" | "embed", track?: EngageTrack | null): Record<string, unknown> {
+  const out = systemInfoAll(app);
+  // Only what the item collects: device and system, location (timezone), source (where from).
+  if (track?.device === false) for (const k of ["vw", "vh", "sw", "sh", "dpr", "lang", "app", "emb", "touch", "pv"]) delete out[k];
+  if (track?.location === false) delete out.tz;
+  if (track?.source === false) delete out.from;
+  return out;
+}
+
+function systemInfoAll(app?: "tab" | "pwa" | "embed"): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  try {
+    out.vw = window.innerWidth;
+    out.vh = window.innerHeight;
+    out.sw = window.screen?.width;
+    out.sh = window.screen?.height;
+    out.dpr = Math.round((window.devicePixelRatio || 1) * 100) / 100;
+    out.lang = navigator.language;
+    out.tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let embedded = false;
+    try {
+      embedded = window.top !== window.self;
+    } catch {
+      embedded = true;
+    }
+    const nav = navigator as Navigator & { standalone?: boolean };
+    out.app = app ?? (embedded ? "embed" : window.matchMedia?.("(display-mode: standalone)").matches || nav.standalone ? "pwa" : "tab");
+    if (out.app === "embed") {
+      const anc = (location as Location & { ancestorOrigins?: DOMStringList }).ancestorOrigins;
+      const host = anc && anc.length ? anc[anc.length - 1] : document.referrer;
+      if (host) out.emb = new URL(host).host;
+    }
+    const from = previousRoute();
+    if (from) out.from = from;
+    if ((navigator.maxTouchPoints ?? 0) > 1) out.touch = true;
+  } catch {
+    /* whatever we couldn't read stays unsaid */
+  }
+  return out;
+}
+
+/** The real OS version, from Client Hints (Chromium only); resolves quickly or not at all. */
+function platformVersion(): Promise<string | null> {
+  const uad = (navigator as Navigator & { userAgentData?: { getHighEntropyValues?(h: string[]): Promise<{ platformVersion?: string }> } }).userAgentData;
+  if (!uad?.getHighEntropyValues) return Promise.resolve(null);
+  return Promise.race([
+    uad.getHighEntropyValues(["platformVersion"]).then((v) => v.platformVersion || null).catch(() => null),
+    new Promise<null>((r) => setTimeout(() => r(null), 400)),
+  ]);
 }
 
 interface Session {
@@ -90,7 +182,7 @@ interface Session {
   stop(): void;
 }
 
-function startSession({ slug, kind, ver, ticket, collector }: SessionOptions): Session {
+function startSession({ slug, kind, ver, ticket, collector, tl, track }: SessionOptions): Session {
   const sid = randomId();
   const url = `${API}/api/v1/documents/${encodeURIComponent(slug)}/engage`;
   let seq = 0;
@@ -98,6 +190,9 @@ function startSession({ slug, kind, ver, ticket, collector }: SessionOptions): S
   let lastActivity = Date.now();
   let lastPos = "";
   let closed = false; // the last send was final and nothing has happened since
+  const sys = systemInfo(undefined, track);
+  const anon = analyticsVisitorId();
+  running.add(tl);
 
   const visible = () => document.visibilityState === "visible";
 
@@ -105,17 +200,21 @@ function startSession({ slug, kind, ver, ticket, collector }: SessionOptions): S
     const now = Date.now();
     const d: EngageDelta = {};
     if (activeS > 0) d.active_s = Math.min(120, activeS);
-    collector.drain(d, now);
+    collector.drain(d, now, final);
     const pos = collector.pos?.();
     const posKey = pos ? JSON.stringify(pos) : "";
     // Periodic sends also keep the reader's live presence (45 s on the server) while they're here.
     const present = visible() && (now - lastActivity < HEARTBEAT_IDLE_MS || !!collector.busy?.());
-    if (emptyDelta(d) && !(final ? seq > 0 && !closed : present || posKey !== lastPos)) return;
+    const hasEv = tl.q.length > 0;
+    if (emptyDelta(d) && !hasEv && !(final ? seq > 0 && !closed : present || posKey !== lastPos || seq === 0)) return;
     closed = final;
     activeS -= d.active_s ?? 0;
     lastPos = posKey;
     seq += 1;
+    const ev: TlEvent[] = tl.take(EV_PER_SEND);
     const body: Record<string, unknown> = { v: 1, sid, k: kind, seq, final, d };
+    if (ev.length) body.ev = ev;
+    if (anon) body.a = anon;
     const t = ticket();
     if (t) body.t = t;
     const u = getToken();
@@ -123,17 +222,27 @@ function startSession({ slug, kind, ver, ticket, collector }: SessionOptions): S
     if (ver != null) body.ver = ver;
     if (pos) body.pos = pos;
     if (seq === 1) {
-      const first: Record<string, unknown> = { vw: window.innerWidth };
-      const ref = landingReferrer();
-      if (ref) first.ref = ref.slice(0, 512);
-      const utm = landingUtm();
-      if (utm) first.utm = utm;
+      const first: Record<string, unknown> = { vw: window.innerWidth, sys };
+      if (track?.source !== false) {
+        const ref = landingReferrer();
+        if (ref) first.ref = ref.slice(0, 512);
+        const utm = landingUtm();
+        if (utm) first.utm = utm;
+      }
       body.first = first;
     }
     let text = JSON.stringify(body);
     // Over the server's limit (only a very long heading list can do it): lose the list, not the send.
     if (new Blob([text]).size > MAX_BODY && d.reached) {
       delete d.reached;
+      text = JSON.stringify(body);
+    }
+    // Still over: the events wait for the next send.
+    while (new Blob([text]).size > MAX_BODY && ev.length) {
+      if (ev.length > 1) tl.giveBack(ev.splice(Math.ceil(ev.length / 2)));
+      else ev.length = 0; // one event too big to send at all: dropped
+      if (ev.length) body.ev = ev;
+      else delete body.ev;
       text = JSON.stringify(body);
     }
     try {
@@ -154,6 +263,16 @@ function startSession({ slug, kind, ver, ticket, collector }: SessionOptions): S
     collector.second?.(active);
   }, 1000);
   const periodic = setInterval(() => send(false), REPORT_EVERY_MS);
+  // The view is on the owner's list right away (the real OS version first, where it's quick).
+  let opened = false;
+  const openSend = setTimeout(() => {
+    void platformVersion().then((pv) => {
+      if (pv && track?.device !== false) sys.pv = pv;
+      if (!opened && seq === 0) send(false);
+      opened = true;
+    });
+  }, OPEN_SEND_MS);
+  const onFullscreen = () => tl.mark("fs", { on: !!document.fullscreenElement });
 
   const onActivity = () => {
     lastActivity = Date.now();
@@ -173,11 +292,15 @@ function startSession({ slug, kind, ver, ticket, collector }: SessionOptions): S
   window.addEventListener("resize", onActivity);
   document.addEventListener("visibilitychange", onVisibility);
   window.addEventListener("pagehide", onPageHide);
+  document.addEventListener("fullscreenchange", onFullscreen);
 
   return {
     activity: onActivity,
     stop() {
       send(true); // client-side navigation away, or the session ends (owner found, version changed)
+      running.delete(tl);
+      clearTimeout(openSend);
+      document.removeEventListener("fullscreenchange", onFullscreen);
       clearInterval(tick);
       clearInterval(periodic);
       document.removeEventListener("scroll", onActivity, { capture: true });
@@ -223,10 +346,15 @@ class DocCollector implements Collector {
   copies: Record<string, number> = {};
   links: Record<string, number> = {};
   prints = 0;
+  visits = new VisitTracker("sec", "h");
+  depthMarks = new DepthMarks();
 
   constructor(
     readonly el: () => HTMLElement | null,
     readonly encrypted: boolean,
+    readonly tl: Timeline,
+    /** The item collects its activity timeline (sections, depth, links, copies). Off: time only. */
+    readonly activity: boolean = true,
   ) {}
 
   headings(): HTMLElement[] {
@@ -243,9 +371,11 @@ class DocCollector implements Collector {
     if (r.height <= 0) return;
     const seen = (window.innerHeight - r.top) / r.height;
     this.depth = Math.max(this.depth, Math.max(0, Math.min(100, Math.round(seen * 100))));
+    this.depthMarks.update(this.tl, this.depth);
   }
 
   second(active: boolean): void {
+    if (!this.activity) return;
     this.measure();
     if (this.encrypted) return;
     const node = this.el();
@@ -266,6 +396,9 @@ class DocCollector implements Collector {
       this.maxIdx = upTo;
     }
     if (active && this.active) addTo(this.sec, this.active);
+    // The timeline: a visit per section, with the active seconds spent in it.
+    this.visits.enter(this.tl, this.active, Date.now());
+    if (active) this.visits.second();
   }
 
   /** The section a node sits in: the last heading before it, or '' above the first. */
@@ -280,25 +413,36 @@ class DocCollector implements Collector {
   }
 
   copy(code: string, node: HTMLElement | null): void {
-    if (this.encrypted) return;
-    addTo(this.copies, copyKey(code, this.sectionOf(node)));
+    if (this.encrypted || !this.activity) return;
+    const section = this.sectionOf(node);
+    addTo(this.copies, copyKey(code, section));
+    this.tl.mark("copy", section ? { h: section } : {});
   }
 
   click(e: MouseEvent): void {
-    if (this.encrypted || (e.type === "auxclick" && e.button !== 1)) return;
+    if (this.encrypted || !this.activity || (e.type === "auxclick" && e.button !== 1)) return;
     const node = this.el();
     const a = e.target instanceof Element ? e.target.closest("a[href]") : null;
     if (!node || !a || !node.contains(a) || !a.closest(".md-prose")) return;
-    const key = linkKey(a.getAttribute("href") ?? "", window.location.href, this.sectionOf(a));
-    if (key) addTo(this.links, key);
+    const section = this.sectionOf(a);
+    const key = linkKey(a.getAttribute("href") ?? "", window.location.href, section);
+    if (key) {
+      addTo(this.links, key);
+      const where = key.slice(0, key.lastIndexOf("|"));
+      this.tl.mark("link", section ? { u: where, h: section } : { u: where });
+    }
   }
 
   print(): void {
+    if (!this.activity) return;
+    this.tl.mark("print");
     if (!this.encrypted) this.prints += 1;
   }
 
-  drain(d: EngageDelta): void {
+  drain(d: EngageDelta, now: number, final: boolean): void {
+    if (!this.activity) return;
     this.measure();
+    this.visits.flush(this.tl, final, now);
     if (this.depth > this.depthSent) {
       d.depth = this.depth;
       this.depthSent = this.depth;
@@ -324,30 +468,31 @@ class DocCollector implements Collector {
   }
 
   pos(): EngagePos | undefined {
-    return !this.encrypted && this.active ? { h: this.active } : undefined;
+    return this.activity && !this.encrypted && this.active ? { h: this.active } : undefined;
   }
 }
 
 /**
- * Engagement for a markdown document. `enabled` must already exclude the owner, a locked or
- * unreadable document and the editor; opt-out is checked here. Returns the code-copy callback for
+ * Engagement for a markdown document. `enabled` must already exclude a locked or unreadable
+ * document and the editor; opt-out is checked here. Returns the code-copy callback for
  * MarkdownPreview's `onCodeCopy` (a no-op while no session runs).
  */
 export function useDocEngagement(
   slug: string,
   el: React.RefObject<HTMLElement | null>,
   enabled: boolean,
-  { encrypted, ticket }: { encrypted: boolean; ticket: string | null },
+  { encrypted, ticket, track = null }: { encrypted: boolean; ticket: string | null; track?: EngageTrack | null },
 ): (code: string, node: HTMLElement | null) => void {
   const ticketRef = useRef(ticket);
   ticketRef.current = ticket;
   const collectorRef = useRef<DocCollector | null>(null);
 
   useEffect(() => {
-    if (!enabled || engagementOptedOut()) return;
-    const collector = new DocCollector(() => el.current, encrypted);
+    if (!enabled || engagementOptedOut() || track?.counts === false) return;
+    const tl = timelineFor(track);
+    const collector = new DocCollector(() => el.current, encrypted, tl, track?.activity !== false);
     collectorRef.current = collector;
-    const session = startSession({ slug, kind: "doc", ver: null, ticket: () => ticketRef.current, collector });
+    const session = startSession({ slug, kind: "doc", ver: null, ticket: () => ticketRef.current, collector, tl, track });
     const onClick = (e: MouseEvent) => collector.click(e);
     const onPrint = () => collector.print();
     document.addEventListener("click", onClick, { capture: true });
@@ -360,7 +505,8 @@ export function useDocEngagement(
       session.stop();
       collectorRef.current = null;
     };
-  }, [slug, el, enabled, encrypted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, el, enabled, encrypted, JSON.stringify(track ?? null)]);
 
   return useCallback((code: string, node: HTMLElement | null) => collectorRef.current?.copy(code, node), []);
 }
@@ -371,21 +517,29 @@ export function useDocEngagement(
  * Engagement for an artifact. pdf / video / audio listen to the Worker viewer's bridge (§1c):
  * a message is taken only from the frame we mounted (`source`), from its opaque origin ("null": the
  * frame is sandboxed without allow-same-origin) or the origin we pointed it at.
- * Every other kind reports active time only. Opt-out is checked here; `enabled` must already
- * exclude the owner and a locked file.
+ * A deck reports its slides and a spreadsheet its tabs (the Worker's `slide`, `sheet` and `tab`
+ * messages); every other kind reports active time only. Opt-out is checked here; `enabled` must
+ * already exclude a locked file. The owner's own session runs too: the server keeps it out of the
+ * numbers and files it under "your own views" (backend services/doc_views.py).
  */
 export function useArtifactEngagement(
   slug: string,
   {
     enabled,
     kind,
+    renderer,
     ver,
     ticket,
     frame,
     origin,
+    track = null,
   }: {
     enabled: boolean;
+    /** The item's analytics settings (its document's `track`). */
+    track?: EngageTrack | null;
     kind: EngageKind;
+    /** The file's renderer (pptx, sheet, …): what its frame reports beyond pdf and media. */
+    renderer?: string | null;
     ver: number | null;
     ticket: string | null;
     frame: React.RefObject<HTMLIFrameElement | null>;
@@ -396,17 +550,37 @@ export function useArtifactEngagement(
   ticketRef.current = ticket;
 
   useEffect(() => {
-    if (!enabled || engagementOptedOut()) return;
-    const media = kind === "video" || kind === "audio" ? new MediaAgg() : null;
-    const pdf = kind === "pdf" ? new PdfAgg() : null;
+    if (!enabled || engagementOptedOut() || track?.counts === false) return;
+    const tl = timelineFor(track);
+    const video = track?.video !== false, pages = track?.pages !== false;
+    const media = video && (kind === "video" || kind === "audio") ? new MediaAgg() : null;
+    const marks = media ? new MediaMarks() : null;
+    const pdf = pages && kind === "pdf" ? new PdfAgg() : null;
+    // The timeline's units: PDF pages, slides, spreadsheet tabs (when the item collects pages).
+    const visits = !pages ? null : pdf ? new VisitTracker("pg", "p") : renderer === "pptx" ? new VisitTracker("sl", "n")
+      : renderer === "sheet" ? new VisitTracker("tab", "n") : null;
+    const deck = { n: 0, nSent: 0, max: 0, maxSent: 0 };
+    const sheet = { n: 0, nSent: 0, seen: new Set<number>(), sent: new Set<number>() };
     const collector: Collector = {
       second(active) {
-        if (active) pdf?.second();
+        if (active) {
+          pdf?.second();
+          visits?.second();
+        }
       },
-      drain(d, now) {
+      drain(d, now, final) {
         pdf?.drain(d);
         const m = media?.drain(now);
         if (m) d.media = m;
+        visits?.flush(tl, final, now);
+        if (deck.n && deck.n !== deck.nSent) d.nsl = deck.nSent = deck.n;
+        if (deck.max > deck.maxSent) d.smax = deck.maxSent = deck.max;
+        if (sheet.n && sheet.n !== sheet.nSent) d.ntab = sheet.nSent = sheet.n;
+        const fresh = [...sheet.seen].filter((n) => !sheet.sent.has(n));
+        if (fresh.length) {
+          d.tabs = fresh;
+          fresh.forEach((n) => sheet.sent.add(n));
+        }
       },
       pos() {
         if (media && media.pos != null) return { s: Math.round(media.pos * 10) / 10 };
@@ -421,20 +595,36 @@ export function useArtifactEngagement(
         return !!f && document.activeElement === f && now - lastActivity < FRAME_FOCUS_MS;
       },
     };
-    const session = startSession({ slug, kind, ver, ticket: () => ticketRef.current, collector });
+    const session = startSession({ slug, kind, ver, ticket: () => ticketRef.current, collector, tl, track });
 
     const onMessage = (e: MessageEvent) => {
       const f = frame.current;
       if (!f || !origin || e.source !== f.contentWindow || !fromFrameOrigin(e.origin, origin)) return;
       const m = e.data as BridgeMessage | null;
       if (!m || typeof m !== "object" || m.md !== 1) return;
+      const now = Date.now();
+      const n = typeof m.n === "number" && Number.isFinite(m.n) ? Math.floor(m.n) : null;
       if (pdf && (m.ev === "pdf" || m.ev === "page")) {
         pdf.handle(m);
+        if (m.ev === "page" && pdf.cur) visits?.enter(tl, pdf.cur, now);
         session.activity();
       } else if (media && m.ev === "media") {
-        media.handle(m, Date.now());
+        media.handle(m, now);
+        marks?.handle(tl, m, now);
         // A position report on its own isn't the reader doing anything.
         if (m.e !== "timeupdate") session.activity();
+      } else if (pages && renderer === "pptx" && m.ev === "slide" && n != null && n >= 1) {
+        if (typeof m.of === "number" && m.of >= 1) deck.n = Math.floor(m.of);
+        deck.max = Math.max(deck.max, n);
+        visits?.enter(tl, n, now);
+        session.activity();
+      } else if (pages && renderer === "sheet" && m.ev === "sheet" && n != null && n >= 1) {
+        sheet.n = n;
+      } else if (pages && renderer === "sheet" && m.ev === "tab" && n != null && n >= 0) {
+        sheet.seen.add(n);
+        const name = typeof m.name === "string" ? m.name.slice(0, 80) : "";
+        visits?.enter(tl, n, now, name ? { name } : {});
+        session.activity();
       }
     };
     const onBlur = () => {
@@ -450,7 +640,8 @@ export function useArtifactEngagement(
       window.removeEventListener("blur", onBlur);
       session.stop();
     };
-  }, [slug, enabled, kind, ver, origin, frame]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slug, enabled, kind, renderer, ver, origin, frame, JSON.stringify(track ?? null)]);
 }
 
 /**

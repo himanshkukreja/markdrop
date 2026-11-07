@@ -27,6 +27,7 @@ import ShareDialog from "@/components/access/ShareDialog";
 import { MoveToDialog } from "@/components/workspace/folder/FolderDialogs";
 import { teamName } from "@/components/workspace/folder/items";
 import { docHref } from "@/components/analytics/format";
+import { BulkTrackPicker, ItemTrackDrawer } from "@/components/analytics/AnalyticsSettings";
 import NameCard from "@/components/dashboard/NameCard";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
@@ -288,6 +289,8 @@ export default function MyFilesPage() {
 
   /* ── Dialog state ───────────────────────────────────────────────────── */
   const [shareFor, setShareFor] = useState<MyDocListItem | null>(null);
+  const [trackFor, setTrackFor] = useState<string | null>(null);
+  const [bulkTrackOpen, setBulkTrack] = useState(false);
   const [renameFor, setRenameFor] = useState<MyDocListItem | null>(null);
   const [deleteFor, setDeleteFor] = useState<MyDocListItem | null>(null);
   const [moveFor, setMoveFor] = useState<MyDocListItem | null>(null);
@@ -354,6 +357,7 @@ export default function MyFilesPage() {
       }
     }
     items.push({ label: "Analytics", icon: "chart", href: docHref(d.slug) });
+    items.push({ label: "Analytics settings…", icon: "eye", onClick: () => setTrackFor(d.slug) });
 
     // Google actions: product actions stay on the dashboard (D7); they need a connected account.
     if (gStatus?.configured && !isArtifact && !d.encrypted) {
@@ -416,7 +420,11 @@ export default function MyFilesPage() {
     </div>
   );
 
-  const headerActions = <>{!phone && searchBox}</>;
+  // Analytics settings for several items at once (AnalyticsSettings: pick, then choose).
+  const bulkTrack = docs.length > 0 && (
+    <Button variant="secondary" size="sm" iconLeft="eye" onClick={() => setBulkTrack(true)}>Analytics settings…</Button>
+  );
+  const headerActions = <>{!phone && bulkTrack}{!phone && searchBox}</>;
 
   // An older backend sends no per-type counts: every type gets a chip, with no number on it.
   const chipCounts = counts ? { all: counts.all, artifact: counts.artifact, byType: counts.byType ?? ("unknown" as const) } : null;
@@ -444,6 +452,7 @@ export default function MyFilesPage() {
       />
 
       {phone && searchBox}
+      {phone && bulkTrack && <div className="-mt-2">{bulkTrack}</div>}
 
       <NameCard />
 
@@ -559,6 +568,8 @@ export default function MyFilesPage() {
       )}
 
       {/* ── Overlays ── */}
+      <ItemTrackDrawer slug={trackFor} open={!!trackFor} onClose={() => setTrackFor(null)} />
+      <BulkTrackPicker open={bulkTrackOpen} onClose={() => setBulkTrack(false)} items={docs.map((d) => ({ slug: d.slug, title: displayTitle(d) }))} />
       {shareFor && (
         <ShareDialog
           slug={shareFor.slug}

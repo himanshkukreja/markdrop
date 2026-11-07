@@ -881,8 +881,9 @@ export function pptxUi(lib, cfg) {
       else thumbs.scrollTop = Math.max(0, tb.button.offsetTop - 12);
     }
     if (fromUser && fromUser !== "init") live.textContent = label + (s.title ? ": " + s.title : "");
-    // The frame's host may follow along (the slide in its own address); nothing else is sent.
-    try { if (window.parent !== window) window.parent.postMessage({ md: 1, ev: "slide", n: s.n }, "*"); } catch (_) { /* ignore */ }
+    // The frame's host may follow along (the slide in its own address, the owner's viewer analytics:
+    // which slide of how many); nothing else is sent.
+    try { if (window.parent !== window) window.parent.postMessage({ md: 1, ev: "slide", n: s.n, of: deck.slides.length }, "*"); } catch (_) { /* ignore */ }
   }
 
   prev.onclick = function () { go(cur - 1, true); };

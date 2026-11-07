@@ -458,6 +458,15 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node files-types.mjs
 
+      # Viewer analytics (who viewed, every view's timeline: a doc, a page, a PDF, a video, slides and a
+      # sheet, signed in and anonymous; who may see it; MCP), ~3 min, on the bughunt job.
+      - name: viewers.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          zsh up.sh restart-api
+          node viewers.mjs
+
       - name: Stack logs
         if: failure()
         run: for f in api worker web; do echo "== $f"; tail -n 80 "$PB_WORK/stack/$f.log" 2>/dev/null; done

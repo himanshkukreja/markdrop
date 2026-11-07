@@ -1,5 +1,6 @@
 "use client";
 
+import { ShareTrackRow } from "@/components/analytics/AnalyticsSettings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -571,6 +572,8 @@ export default function ShareDialog({
                   }
                 />
               )}
+              {/* What it collects about its viewers (components/analytics/AnalyticsSettings). */}
+              {canManage && !peopleOnly && <ShareTrackRow slug={slug} />}
             </div>
           </>
         )}

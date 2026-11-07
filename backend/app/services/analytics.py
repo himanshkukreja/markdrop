@@ -64,13 +64,15 @@ async def record_event(
     utm: dict | None = None,
     ver: int | None = None,
     internal: bool = False,
+    geo_ok: bool = True,
 ) -> None:
     """One view / click row. Creator analytics (build spec §1a) adds coarse
     device / OS / browser, the marketing channel, the landing URL's campaign
     tags, the file version viewed and whether a workspace member viewed it."""
     from app.services import traffic
 
-    location = geo.lookup(ip)
+    # Location off for this item (services/analytics_prefs.py): no lookup at all.
+    location = geo.lookup(ip) if geo_ok else {"country": None, "region": None, "city": None}
     ref = clean_referrer(referrer)
     utm = utm or {}
 

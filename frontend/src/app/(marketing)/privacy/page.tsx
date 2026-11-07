@@ -22,7 +22,8 @@ const link = "md-focus rounded-sm font-semibold text-accent-text underline under
 
 /**
  * The privacy policy. Static. Keep it in step with what the code does: lib/track (first-party),
- * lib/thirdPartyAnalytics (PostHog, Google Analytics), lib/consent, backend services/traffic.
+ * lib/thirdPartyAnalytics (PostHog, Google Analytics), lib/consent, backend services/traffic, and
+ * viewer analytics (lib/engage, backend services/doc_views).
  */
 export default function PrivacyPage() {
   return (
@@ -41,6 +42,22 @@ export default function PrivacyPage() {
         <Li>Encrypted documents are encrypted in your browser. Our servers store only the encrypted text and never receive the key — the part of the link after <code className="font-mono text-code">#</code>. Anyone with the full link can read it, and we can&rsquo;t recover it. We still see the link name, the size of the encrypted text, dates and view counts, and the page code that does the encrypting is served by us.</Li>
         <Li>Documents you set to expire are deleted when they expire. You can delete anything you own from your dashboard.</Li>
         <Li>Who&rsquo;s viewing a document is shown live to the others on it and never stored. You appear by name only on documents you have access to (you own it, it&rsquo;s in your workspace, or it was shared with you); everywhere else you&rsquo;re an anonymous animal.</Li>
+      </ul>
+
+      <H2 id="views">When you open someone&rsquo;s document or file</H2>
+      <P>
+        Each time a document or file is opened, its owner can see that view in their analytics: when it was opened,
+        how long it was actively read or watched, and what happened in it (sections and pages read, slides and
+        spreadsheet tabs shown, video played, paused and skipped, how far down the page, links opened, code copied
+        (never the text), downloads, prints, questions asked with Ask AI and sign-offs). For an item in a workspace,
+        the workspace&rsquo;s admins and editors see the same; its viewers see only how many views there were.
+      </P>
+      <ul className="mb-4 list-disc pl-5">
+        <Li><strong className="text-text">Where from and on what.</strong> An approximate location (country, region and city, looked up from your IP address, which is not stored) and timezone; your device type, operating system and browser with their versions (or the app you opened it in, like Slack or LinkedIn); screen size and language; whether you used the installed app or a page that embeds it; and where you came from (another site, an email, a Markdrop page).</Li>
+        <Li><strong className="text-text">Signed in:</strong> the owner sees your name and email address with your view.</Li>
+        <Li><strong className="text-text">Not signed in:</strong> you&rsquo;re an anonymous visitor, recognised only by a random id in your browser&rsquo;s storage (so a second visit shows as a return), never by name, email or IP address.</Li>
+        <Li>Each view&rsquo;s detail is kept for 180 days; totals are kept longer. In Settings → Account you can see how many views carry your name and take your name off all of them; deleting your account removes your name from every view.</Li>
+        <Li>If your browser sends Global Privacy Control, none of this is recorded: the view is counted, nothing more.</Li>
       </ul>
 
       <H2 id="account">Your account</H2>

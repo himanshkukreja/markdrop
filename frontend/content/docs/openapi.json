@@ -7351,6 +7351,606 @@
         }
       }
     },
+    "/api/v1/me/documents/{slug}/analytics/viewers": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Viewers",
+        "description": "Every view in the range, newest first: who (a signed-in viewer's name and email, or an\nanonymous \"Visitor\"), when, active time, how much they got through, where from and on what;\nplus totals and breakdowns (country, city, device, OS, browser, source). ``own=1`` includes\nthe owner's own views (hidden by default). A viewer of a workspace item gets ``totals`` only.",
+        "operationId": "analytics_viewers_api_v1_me_documents__slug__analytics_viewers_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|signed_in|anonymous)$",
+              "default": "all",
+              "title": "Who"
+            }
+          },
+          {
+            "name": "completion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(any|low|mid|high|done)$",
+              "default": "any",
+              "title": "Completion"
+            }
+          },
+          {
+            "name": "own",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Own"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Internal"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "device",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device"
+            }
+          },
+          {
+            "name": "os",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Os"
+            }
+          },
+          {
+            "name": "browser",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Browser"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers.csv": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Viewers Csv",
+        "operationId": "analytics_viewers_csv_api_v1_me_documents__slug__analytics_viewers_csv_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|signed_in|anonymous)$",
+              "default": "all",
+              "title": "Who"
+            }
+          },
+          {
+            "name": "completion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(any|low|mid|high|done)$",
+              "default": "any",
+              "title": "Completion"
+            }
+          },
+          {
+            "name": "own",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Own"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Internal"
+            }
+          },
+          {
+            "name": "country",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 2
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Country"
+            }
+          },
+          {
+            "name": "device",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Device"
+            }
+          },
+          {
+            "name": "os",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Os"
+            }
+          },
+          {
+            "name": "browser",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Browser"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers/people": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics Viewer People",
+        "description": "One row per person (or anonymous visitor): their views, total active time, best completion.",
+        "operationId": "analytics_viewer_people_api_v1_me_documents__slug__analytics_viewers_people_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(7d|30d|90d|all)$",
+              "default": "30d",
+              "title": "Range"
+            }
+          },
+          {
+            "name": "who",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(all|signed_in|anonymous)$",
+              "default": "all",
+              "title": "Who"
+            }
+          },
+          {
+            "name": "own",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 0,
+              "title": "Own"
+            }
+          },
+          {
+            "name": "internal",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1,
+              "minimum": 0,
+              "default": 1,
+              "title": "Internal"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/viewers/{view_id}": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Analytics View Timeline",
+        "description": "One view: its header (who, where from, on what, time, completion) and its activity\ntimeline as readable steps.",
+        "operationId": "analytics_view_timeline_api_v1_me_documents__slug__analytics_viewers__view_id__get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "view_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "View Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/view-history": {
+      "get": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "My View History",
+        "description": "The documents and files you viewed while signed in, as their owners see it (newest first).",
+        "operationId": "my_view_history_api_v1_me_view_history_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "creator-analytics"
+        ],
+        "summary": "Forget My View History",
+        "description": "Take your name off every view you made: owners then see those views as anonymous ones.",
+        "operationId": "forget_my_view_history_api_v1_me_view_history_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "10/minute"
+          ]
+        }
+      }
+    },
     "/api/v1/me/preferences": {
       "patch": {
         "tags": [
@@ -7488,6 +8088,445 @@
           "auth": "none",
           "rateLimits": [
             "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/analytics-settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get My Settings",
+        "description": "Your defaults for the items you own (each type on unless you turned it off).",
+        "operationId": "get_my_settings_api_v1_me_analytics_settings_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put My Settings",
+        "description": "Change your defaults. ``delete``: also delete what was already collected for those types on\nyour items where they're now off (an item with its own setting turned on keeps its data).",
+        "operationId": "put_my_settings_api_v1_me_analytics_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/documents/{slug}/analytics/settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get Item Settings",
+        "description": "What this item collects, each type with where its value comes from (this item, a folder,\nthe workspace, your defaults) and whether the workspace enforces it.",
+        "operationId": "get_item_settings_api_v1_me_documents__slug__analytics_settings_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Item Settings",
+        "description": "This item's own settings (``settings: null``: use the defaults). A type the workspace\nenforces off stays off. ``delete``: also delete its already collected data for those types.",
+        "operationId": "put_item_settings_api_v1_me_documents__slug__analytics_settings_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/me/analytics-settings/items": {
+      "post": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Many Items",
+        "description": "The same settings for several items at once (My files, a folder). Items you can't change\nare skipped and listed.",
+        "operationId": "put_many_items_api_v1_me_analytics_settings_items_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/analytics-settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get Workspace Settings",
+        "description": "The workspace's defaults (types it doesn't set fall through to each owner's) and whether\nthey're enforced (a type it has off is off for every item in it).",
+        "operationId": "get_workspace_settings_api_v1_workspaces__workspace_id__analytics_settings_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Workspace Settings",
+        "description": "Owners and admins. ``settings`` replaces the workspace's defaults (omit a type to leave it\nto each owner); ``enforce`` locks the types it has off. ``delete``: also delete already\ncollected data of those types on the workspace's items where they're now off.",
+        "operationId": "put_workspace_settings_api_v1_workspaces__workspace_id__analytics_settings_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceSettings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/workspaces/{workspace_id}/folders/{folder_id}/analytics-settings": {
+      "get": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Get Folder Settings",
+        "operationId": "get_folder_settings_api_v1_workspaces__workspace_id__folders__folder_id__analytics_settings_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "analytics-settings"
+        ],
+        "summary": "Put Folder Settings",
+        "description": "Owners and admins: defaults for the items in this folder and the folders inside it (an item's\nown settings still win; the workspace's enforced ones win over both). ``settings: null`` clears.",
+        "operationId": "put_folder_settings_api_v1_workspaces__workspace_id__folders__folder_id__analytics_settings_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "folder_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Folder Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
           ]
         }
       }
@@ -20682,6 +21721,51 @@
         ],
         "title": "BulkItem"
       },
+      "BulkSettings": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          },
+          "delete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 9,
+            "title": "Delete"
+          },
+          "slugs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Slugs"
+          },
+          "use_defaults": {
+            "type": "boolean",
+            "title": "Use Defaults",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "slugs"
+        ],
+        "title": "BulkSettings"
+      },
       "CaptionsRequest": {
         "properties": {
           "file_name": {
@@ -21808,6 +22892,18 @@
             ],
             "title": "Meeting"
           },
+          "track": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
+          },
           "edit_secret": {
             "type": "string",
             "title": "Edit Secret"
@@ -22341,6 +23437,18 @@
               }
             ],
             "title": "Meeting"
+          },
+          "track": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Track"
           }
         },
         "type": "object",
@@ -26208,6 +27316,35 @@
         "type": "object",
         "title": "ScopeBody"
       },
+      "Settings": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          },
+          "delete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 9,
+            "title": "Delete"
+          }
+        },
+        "type": "object",
+        "title": "Settings",
+        "description": "Per-type switches; types left out fall through to the level below. ``null`` (item, folder)\ngoes back to inheriting everything."
+      },
       "SettingsIn": {
         "properties": {
           "workspace_id": {
@@ -27850,6 +28987,45 @@
           "role"
         ],
         "title": "WorkspaceResponse"
+      },
+      "WorkspaceSettings": {
+        "properties": {
+          "settings": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Settings"
+          },
+          "delete": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 9,
+            "title": "Delete"
+          },
+          "enforce": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enforce"
+          }
+        },
+        "type": "object",
+        "title": "WorkspaceSettings"
       },
       "WorkspaceUpdate": {
         "properties": {

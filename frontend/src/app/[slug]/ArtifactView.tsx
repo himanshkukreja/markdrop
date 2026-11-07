@@ -53,7 +53,7 @@ import { FrameCover } from "./artifact/FrameCover";
 import { ReportDialog } from "./artifact/ReportDialog";
 import { basePathOf, isPaper, linkPrefixOf, shortDate, startFromHash, themedFrameSrc } from "./artifact/frame";
 import { useAnalyticsDoc } from "@/lib/useAnalyticsDoc";
-import { engageKindFor, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
+import { engageKindFor, engageMark, engagementOptedOut, useArtifactEngagement, useAuthSettled } from "@/lib/engage";
 import { fromFrameOrigin, type BridgeMessage } from "@/lib/engageCore";
 import { usePresenceChannel } from "@/lib/presence";
 import { DocPresence } from "@/components/presence/DocPresence";
@@ -111,6 +111,8 @@ interface Props {
   viewerChrome?: "full" | "minimal" | "none";
   /** The document's `read_ticket` (beacons + live socket, access policy §2.7). */
   readTicket?: string | null;
+  /** Which kinds of analytics this file collects (its document's `track`; lib/engage). */
+  track?: import("@/lib/engage").EngageTrack | null;
   /** The live file version (API `file_version`), sent as `ver` with the analytics beacons. */
   fileVersion?: number | null;
   /** The workspace it's filed in and its folders: they lead the bar's title for members. */
@@ -147,6 +149,7 @@ export default function ArtifactView({
   docRef = null,
   viewerChrome = "full",
   readTicket: initialReadTicket = null,
+  track: initialTrack = null,
   fileVersion: initialFileVersion = null,
   workspaceId: initialWorkspaceId = null,
   folderPath: initialFolderPath = [],
@@ -173,6 +176,7 @@ export default function ArtifactView({
   // `#t=754` / `#page=3` (an Ask answer's "at 12:34" / "page 3"): where the player or PDF starts.
   const [startAt, setStartAt] = useState<number | null>(null);
   const [renderer, setRenderer] = useState(initialRenderer);
+  const [track, setTrack] = useState(initialTrack);
   const [typeLabel, setTypeLabel] = useState(initialTypeLabel);
   const [sizeBytes, setSizeBytes] = useState(initialSize);
   const [views, setViews] = useState(initialViews);
@@ -358,6 +362,7 @@ export default function ArtifactView({
     setPosterUrl(doc.poster_url ?? null);
     setCaptionsUrl(doc.captions_url ?? null);
     if (doc.renderer) setRenderer(doc.renderer);
+    if (doc.track) setTrack(doc.track);
     if (doc.type_label) setTypeLabel(doc.type_label);
     if (doc.size_bytes) setSizeBytes(doc.size_bytes);
     setViews(doc.views);
@@ -372,6 +377,8 @@ export default function ArtifactView({
   useEffect(() => {
     if (beaconSent.current || locked || !authSettled) return;
     beaconSent.current = true;
+    // An item that doesn't count views gets no beacon at all (its analytics settings).
+    if (track?.counts === false) return;
     recordEvent(slug, "view", readTicket, { ver: fileVersion, optOut: engagementOptedOut() });
   }, [slug, locked, authSettled]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -586,6 +593,7 @@ export default function ArtifactView({
     // sheets and docs, so downloading it would save the HTML wrapper.
     const src = downloadUrl || artifactUrl;
     if (!src) return;
+    engageMark("dl");
     if (tenant) {
       // On a workspace's own domain the artifact origin's CORS doesn't list
       // this origin, so the fetch below would fail (after downloading the whole
@@ -661,9 +669,12 @@ export default function ArtifactView({
   } catch {
     /* not a URL: no bridge */
   }
+  // The owner's own views are sent too: the server keeps them out of the numbers (viewer analytics).
   useArtifactEngagement(slug, {
-    enabled: !locked && !!artifactUrl && !authLoading && (!user || ownerCheckedFor === user.id) && !isOwner,
+    enabled: !locked && !!artifactUrl && !authLoading && (!user || ownerCheckedFor === user.id),
     kind: engageKindFor(renderer),
+    renderer,
+    track,
     ver: fileVersion,
     ticket: readTicket,
     frame: frameRef,

@@ -60,6 +60,7 @@ import { DropArea, SetupChecklist, useChecklistHidden } from "./SetupChecklist";
 import { shouldShowSetup } from "./setupRule";
 import { ACCESS_ICON, accessLabel, displayAddress, itemTitle, teamName, toDocRow } from "./items";
 import { docHref } from "@/components/analytics/format";
+import { FolderTrackDrawer, ItemTrackDrawer } from "@/components/analytics/AnalyticsSettings";
 import { openingKindOf, rememberOpening } from "@/lib/opening";
 import { meetingsHref } from "@/lib/meetings";
 import { TYPE_META, readTypeParam, typeChipsWorthShowing, type TypeFilter } from "@/lib/fileTypes";
@@ -354,6 +355,10 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
 
   /* ── Selection (desktop) ──────────────────────────────────────────── */
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Analytics settings (components/analytics/AnalyticsSettings): one item, several, or a folder's.
+  const [trackItem, setTrackItem] = useState<string | null>(null);
+  const [trackItems, setTrackItems] = useState<string[] | null>(null);
+  const [trackFolder, setTrackFolder] = useState<{ id: string; name: string } | null>(null);
   useEffect(() => setSelected(new Set()), [workspaceId, folderId, query.q, query.kind, query.type]);
 
   /* ── Type chips ───────────────────────────────────────────────────── */
@@ -430,6 +435,10 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     if (!it.encrypted) out.push({ label: "Copy link", icon: "copy", onClick: () => copyLink(it) });
     if (it.can.share) out.push({ label: "Who can open it…", icon: ACCESS_ICON[it.access], onClick: () => setShareFor(it), description: accessLabel(it.access, team) });
     if (it.owner?.is_you) out.push({ label: "Analytics", icon: "chart", href: docHref(it.slug) });
+    // Someone else's item in the workspace: its viewers (admins and editors see who; viewers the counts).
+    else out.push({ label: "Viewers", icon: "eye", href: docHref(it.slug, "viewers") });
+    // What it collects: its owner, and the workspace's admins (AnalyticsSettings).
+    if (it.owner?.is_you || isAdmin) out.push({ label: "Analytics settings…", icon: "eyeOff", onClick: () => setTrackItem(it.slug) });
     if (it.can.move) out.push({ label: "Move to…", icon: "folder", onClick: () => moveOne(it) });
     if (it.can.edit && !it.encrypted) out.push({ label: "Rename", icon: "edit", onClick: () => setRenameItem({ slug: it.slug, kind: it.kind, title: itemTitle(it) }) });
     if (it.can.unshare) out.push({ label: "Remove from workspace", icon: "x", separated: true, onClick: () => setRemoveFor([it]) });
@@ -483,6 +492,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     moreMenu.push({ label: "Rename folder…", icon: "edit", onClick: () => setRenameFor(folder) });
     moreMenu.push({ label: "Move folder to…", icon: "folder", onClick: () => setMoveTarget({ kind: "folder", folder }) });
     moreMenu.push({ label: "New items start as…", icon: "user", onClick: () => setDefaultFor(folder) });
+    moreMenu.push({ label: "Analytics settings…", icon: "eye", onClick: () => setTrackFolder({ id: folder.id, name: folder.name }) });
   }
   if (address) {
     moreMenu.push({ label: <>Copy <Masked>{host}</Masked> address</>, icon: "copy", separated: moreMenu.length > 0, onClick: () => { void copyText(`https://${address}`).then((ok) => (ok ? toast.success("Address copied") : toast.error("Couldn't copy"))); } });
@@ -625,6 +635,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     { label: "Rename…", icon: "edit", separated: true, onClick: () => setRenameFor(f) },
     { label: "Move to…", icon: "folder", onClick: () => setMoveTarget({ kind: "folder", folder: f }) },
     { label: "New items start as…", icon: "user", onClick: () => setDefaultFor(f) },
+    { label: "Analytics settings…", icon: "eye", onClick: () => setTrackFolder({ id: f.id, name: f.name }) },
     { label: "Delete…", icon: "trash", danger: true, separated: true, onClick: () => setDeleteFor(f) },
   ] : null);
   const listedFolders: FolderEntryProps[] = searching || typed ? [] : subfolders.map((f) => ({
@@ -799,6 +810,9 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
           {selectedItems.some((i) => i.can.unshare) && (
             <Button size="sm" variant="ghost" iconLeft="x" onClick={() => setRemoveFor(selectedItems.filter((i) => i.can.unshare))}>Remove from workspace</Button>
           )}
+          {selectedItems.some((i) => i.owner?.is_you || isAdmin) && (
+            <Button size="sm" variant="ghost" iconLeft="eye" onClick={() => setTrackItems(selectedItems.filter((i) => i.owner?.is_you || isAdmin).map((i) => i.slug))}>Analytics settings…</Button>
+          )}
           <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>Clear</Button>
         </div>
       )}
@@ -909,6 +923,10 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* ── Overlays ── */}
+      <ItemTrackDrawer slug={trackItem} open={!!trackItem} onClose={() => setTrackItem(null)} />
+      <ItemTrackDrawer slugs={trackItems ?? []} open={!!trackItems?.length} onClose={() => setTrackItems(null)} />
+      <FolderTrackDrawer wsId={workspaceId} folderId={trackFolder?.id ?? null} folderName={trackFolder?.name ?? ""}
+        open={!!trackFolder} onClose={() => setTrackFolder(null)} canEdit={isAdmin} />
       <ConfirmDialog
         open={!!removeHidden}
         onClose={() => setRemoveHidden(null)}

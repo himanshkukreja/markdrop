@@ -12,7 +12,7 @@ import type { DocsTopic } from "@/lib/docsLinks";
 import { usePhone } from "@/components/dashboard/hooks";
 import { extractHeadings, type Heading } from "@/components/reading/slug";
 import {
-  downloadDocCsv, fencedBlocks, getDocMarkdown, getOverview, isRange,
+  downloadDocCsv, fencedBlocks, getDocMarkdown, getOverview, getViewers, isNotYours, isRange,
   type AnalyticsDoc, type AnalyticsRange, type Insight, type TrackKind,
 } from "@/lib/analytics";
 import AudienceTab from "./AudienceTab";
@@ -21,21 +21,25 @@ import MediaTab from "./MediaTab";
 import OverviewTab from "./OverviewTab";
 import PagesTab from "./PagesTab";
 import VersionsTab from "./VersionsTab";
+import ViewersTab from "./ViewersTab";
+import { ItemTrackDrawer, TrackingChip, trackSummary } from "./AnalyticsSettings";
 import { KIND_WORD, clock, day, num, pagesLabel, prettyHeadingId } from "./format";
 import { KpiGrid, LoadError, PanelSkeleton, RangePicker, useAnalyticsGate, useLoad, useParams } from "./parts";
 
-type Tab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "versions";
+type Tab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "viewers" | "versions";
 
 export function tabsFor(kind: TrackKind, fileVersion: number): TabItem[] {
   const v: TabItem[] = fileVersion > 1 ? [{ value: "versions", label: "Versions", count: fileVersion }] : [];
   const o: TabItem = { value: "overview", label: "Overview" };
   const a: TabItem = { value: "audience", label: "Audience" };
+  // Every view, who and what they did (ViewersTab): every kind.
+  const w: TabItem = { value: "viewers", label: "Viewers" };
   switch (kind) {
-    case "doc": return [o, { value: "content", label: "Content" }, a];
-    case "pdf": return [o, { value: "pages", label: "Pages" }, a, ...v];
-    case "video": return [o, { value: "video", label: "Video" }, a, ...v];
-    case "audio": return [o, { value: "listening", label: "Listening" }, a, ...v];
-    default: return [o, a, ...v];
+    case "doc": return [o, { value: "content", label: "Content" }, a, w];
+    case "pdf": return [o, { value: "pages", label: "Pages" }, a, w, ...v];
+    case "video": return [o, { value: "video", label: "Video" }, a, w, ...v];
+    case "audio": return [o, { value: "listening", label: "Listening" }, a, w, ...v];
+    default: return [o, a, w, ...v];
   }
 }
 
@@ -78,6 +82,8 @@ export default function DocAnalytics({ slug }: { slug: string }) {
   const range: AnalyticsRange = isRange(params.get("range")) ? (params.get("range") as AnalyticsRange) : "30d";
   const internal = params.get("internal") === "1";
   const [csvBusy, setCsvBusy] = useState(false);
+  // The item's analytics settings changed (ItemTrackDrawer): the tabs reload.
+  const [trackVersion, setTrackVersion] = useState(0);
 
   const ovRes = useLoad(ready ? `ov:${slug}:${range}:${internal}` : null, () => getOverview(slug, { range, internal }));
   const ov = ovRes.data;
@@ -124,6 +130,12 @@ export default function DocAnalytics({ slug }: { slug: string }) {
     }
   }
 
+  if (ovRes.error && !ov && isNotYours(ovRes.error)) {
+    // Not the owner: a workspace item's admins and editors still see its viewers (and its
+    // viewers the counts), on a page of its own.
+    return <ViewersOnly slug={slug} range={range} onRange={(r) => setParams({ range: r === "30d" ? null : r })} fallback={<LoadError error={ovRes.error} retry={ovRes.retry} />} />;
+  }
+
   if (ovRes.error && !ov) {
     return (
       <div className="flex flex-col gap-5">
@@ -151,8 +163,10 @@ export default function DocAnalytics({ slug }: { slug: string }) {
     );
   }
 
+  const track = ov.track ? trackSummary(ov.track) : null;
   const controls = (
     <div className="flex flex-wrap items-center gap-2">
+      {track && <TrackingChip summary={track} onClick={() => setParams({ settings: "1" })} />}
       {!phone && ov.live > 0 && <Badge tone="success" live>{num(ov.live)} {LIVE_WORD[doc.kind]}</Badge>}
       <RangePicker value={range} onChange={(r) => setParams({ range: r === "30d" ? null : r })} />
       <Button variant="secondary" size="sm" iconLeft="download" loading={csvBusy} onClick={csv}>CSV</Button>
@@ -200,9 +214,52 @@ export default function DocAnalytics({ slug }: { slug: string }) {
         {tab === "content" && <ContentTab slug={slug} ov={ov} range={range} internal={internal} headings={headings} blocks={blocks} titleFor={titleFor} />}
         {tab === "pages" && <PagesTab slug={slug} ov={ov} range={range} internal={internal} />}
         {tab === "audience" && <AudienceTab slug={slug} ov={ov} range={range} internal={internal} onInternal={(v) => setParams({ internal: v ? "1" : null })} />}
+        {tab === "viewers" && <ViewersTab slug={slug} range={range} workspaceName={doc.workspace?.name ?? null} version={trackVersion} />}
         {tab === "versions" && <VersionsTab slug={slug} ov={ov} range={range} internal={internal} />}
       </div>
+      <ItemTrackDrawer slug={slug} open={params.get("settings") === "1"} onClose={() => setParams({ settings: null })}
+        onSaved={() => { ovRes.retry(); setTrackVersion((n) => n + 1); }} />
     </div>
   );
 }
 
+
+/**
+ * The analytics page for someone who isn't the owner: only the Viewers tab, when the backend lets
+ * them see it (a workspace item's admins and editors in full, its viewers the counts).
+ */
+function ViewersOnly({ slug, range, onRange, fallback }: { slug: string; range: AnalyticsRange; onRange: (r: AnalyticsRange) => void; fallback: React.ReactNode }) {
+  const probe = useLoad(`vwo:${slug}:${range}`, () => getViewers(slug, { range }, 0, 1));
+  const [params, setParams] = useParams();
+  const open = params.get("settings") === "1";
+  const [version, setVersion] = useState(0);
+  const setOpen = (on: boolean) => setParams({ settings: on ? "1" : null });
+  const title = probe.data?.doc.title ?? null;
+  useEffect(() => {
+    if (title) document.title = `${title} · Viewers · Markdrop`;
+  }, [title]);
+  if (probe.error) return <div className="flex flex-col gap-5">{fallback}</div>;
+  if (!probe.data) return <PanelSkeleton height={220} />;
+  const d = probe.data.doc;
+  return (
+    <div className="flex min-w-0 flex-col gap-4 sm:gap-5">
+      <div className="flex flex-wrap items-start gap-4">
+        <span className="grid size-11 shrink-0 place-items-center rounded-lg bg-accent-soft">
+          {d.kind === "doc" || d.kind === "page"
+            ? <Icon name="lines" size={22} className="text-cat-document" />
+            : <FileIcon name={d.title} mime={d.mime || ""} renderer={(d.renderer as never) || null} size={22} />}
+        </span>
+        <div className="min-w-0 flex-[1_1_320px]">
+          <h1 className="ph-sensitive ph-mask m-0 text-h1 text-text break-words" dir="auto">{d.title}</h1>
+          <p className="mt-1 mb-0 text-[13px] text-text-muted">Viewers · <Anchor href={`/${encodeURIComponent(slug)}`}>Open it</Anchor></p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {probe.data.access === "full" && probe.data.track && <TrackingChip summary={trackSummary(probe.data.track)} onClick={() => setOpen(true)} />}
+          <RangePicker value={range} onChange={onRange} />
+        </div>
+      </div>
+      <ViewersTab slug={slug} range={range} version={version} />
+      <ItemTrackDrawer slug={slug} open={open} onClose={() => setOpen(false)} onSaved={() => { probe.retry(); setVersion((n) => n + 1); }} />
+    </div>
+  );
+}

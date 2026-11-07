@@ -1,12 +1,12 @@
 ---
 title: What gets counted
-description: What a view is, whose views are left out, how visitors are kept anonymous, and how long reading and watching data is kept.
-updated: 2026-10-30
+description: What a view is, whose views are left out, who is shown by name and who stays anonymous, and how long reading and watching data is kept.
+updated: 2026-11-07
 prerequisites: [/analytics/overview]
-keywords: [privacy, views, people, unique visitors, owner views, members, bots, global privacy control, gpc, retention, ip address, k-anonymity]
+keywords: [privacy, views, people, unique visitors, owner views, members, bots, global privacy control, gpc, retention, ip address, k-anonymity, viewers, signed in, anonymous, location]
 ---
 
-Analytics is built to answer "is this working?" without watching anyone. This page lists exactly what is counted, what is left out, and what is never stored.
+Analytics answers "is this working?" and, on the [Viewers](/analytics/viewers) tab, "who opened it and what did they do?". This page lists exactly what is counted, who is shown by name, what is left out, and what is never stored.
 
 ## Views and people
 
@@ -20,7 +20,7 @@ Each open also starts a reading or watching session, which records how far peopl
 
 ## Whose views are left out
 
-- **Yours.** When you're signed in, your own views of your own links aren't counted at all. If you open your link while signed out, Markdrop can't tell it's you, and the view counts.
+- **Yours.** When you're signed in, your own views of your own links aren't counted in any number. They're kept apart on the **Viewers** tab, hidden until you turn off **Hide my own views**. If you open your link while signed out, Markdrop can't tell it's you, and the view counts.
 - **Your workspace's members.** For an item in a workspace, views from its members are recorded as internal and hidden by default. On the item's **Audience** tab, turn off **Hide views from Acme members** to include them. The home board, live view and CSV downloads always leave them out.
 - **Bots and crawlers.** Requests that identify as bots, crawlers or scripts aren't counted.
 - **Link previews.** When Slack, LinkedIn, WhatsApp or another app fetches your link to show a preview, it's counted under **Share signals**, not as a view.
@@ -33,11 +33,19 @@ If a visitor's browser sends [Global Privacy Control](https://globalprivacycontr
 
 ## What you see, and what you don't
 
-You see totals and patterns. You never see who someone is, their IP address, or a list of individual visitors.
+The **Overview**, **Audience** and other tabs show totals and patterns:
 
 - **Countries** with fewer than 5 people are grouped as **Other**. **Campaigns** are grouped the same way.
 - Live view shows only countries and device types, never who someone is.
 - Devices are coarse, like "phone" and the browser's name.
+
+The [Viewers](/analytics/viewers) tab lists each view:
+
+- **Signed-in viewers** by name and email address, with what they did.
+- **Everyone else** as an anonymous **Visitor** with a short code from a random id in their browser. Never their name, email or IP address. Their location is shown to city level at most.
+- Each view's city, device, operating system and browser with versions, and source.
+
+Only the owner sees this, and for an item in a workspace its admins and editors. The workspace's viewers see the number of views only.
 
 ## What is never stored
 
@@ -46,13 +54,14 @@ You see totals and patterns. You never see who someone is, their IP address, or 
 - **Anything typed**, and the query strings or fragments of links people click. For clicked links, only the host and path are kept.
 - **Content of encrypted documents.** For an [end-to-end encrypted](/sharing/end-to-end-encryption) document, only time and how far people scrolled are recorded.
 
-Markdrop looks up an approximate location from the IP address when a view comes in. It stores the country, region and city with the view, and shows you countries only.
+Markdrop looks up an approximate location from the IP address when a view comes in. It stores the country, region and city with the view. The Audience tab shows countries; the Viewers tab shows each view's city, region and country.
 
 ## How long it's kept
 
 | Data | Kept for |
 | --- | --- |
 | Reading and watching sessions (time, depth, sections, pages, playback) | 395 days, then deleted |
+| Each view's detail on the Viewers tab (who, where from, on what, the timeline) | 180 days, then deleted |
 | Live presence | About 45 seconds after a visitor's last signal; never saved |
 | View records | No fixed deletion date |
 

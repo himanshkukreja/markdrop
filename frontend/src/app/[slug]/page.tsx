@@ -144,6 +144,7 @@ export default async function SlugPage({ params }: Props) {
         captionsUrl={doc.captions_url ?? null}
         docRef={doc.ref ?? null}
         readTicket={doc.read_ticket ?? null}
+        track={doc.track ?? null}
         fileVersion={doc.file_version ?? null}
         workspaceId={doc.workspace_id ?? null}
         folderPath={doc.folder_path ?? []}
@@ -181,6 +182,7 @@ export default async function SlugPage({ params }: Props) {
       rev={doc?.rev ?? null}
       docRef={doc?.ref ?? null}
       readTicket={doc?.read_ticket ?? null}
+      track={doc?.track ?? null}
       page={doc && !doc.encrypted ? pageFieldsOf(doc as unknown as Record<string, unknown>) : null}
     />
     </Suspense>

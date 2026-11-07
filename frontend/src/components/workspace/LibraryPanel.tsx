@@ -7,6 +7,7 @@ import {
 import { useToast } from "@/components/Toast";
 import ShareDialog from "@/components/access/ShareDialog";
 import { docHref } from "@/components/analytics/format";
+import { ItemTrackDrawer } from "@/components/analytics/AnalyticsSettings";
 import { DocRow, rowStatuses } from "@/components/dashboard/DocRow";
 import { ListFooter, ListSkeleton } from "@/components/dashboard/ListParts";
 import { MoveFolderDialog, folderOptions } from "@/components/dashboard/DocDialogs";
@@ -112,6 +113,7 @@ export default function LibraryPanel({
   const [dataKey, setDataKey] = useState("");
   const firstPaint = useRef(true);
   const [shareFor, setShareFor] = useState<MyDocListItem | null>(null);
+  const [trackFor, setTrackFor] = useState<string | null>(null);
   const [moveFor, setMoveFor] = useState<MyDocListItem | null>(null);
   const [unshareFor, setUnshareFor] = useState<MyDocListItem | null>(null);
   const seq = useRef(0);
@@ -194,6 +196,10 @@ export default function LibraryPanel({
       items.push(onAnalytics
         ? { label: "Analytics", icon: "chart", onClick: () => onAnalytics({ doc: d, title: t, address, copyText: copy?.text ?? null }) }
         : { label: "Analytics", icon: "chart", href: docHref(d.slug) });
+      items.push({ label: "Analytics settings…", icon: "eyeOff", onClick: () => setTrackFor(d.slug) });
+    } else {
+      // Someone else's item in the workspace: its viewers (admins and editors see who; viewers the counts).
+      items.push({ label: "Viewers", icon: "eye", href: docHref(d.slug, "viewers") });
     }
     const second: MenuEntry[] = [];
     if (d.is_mine) second.push({ label: "Share…", icon: "user", onClick: () => setShareFor(d) });
@@ -247,6 +253,7 @@ export default function LibraryPanel({
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
+      <ItemTrackDrawer slug={trackFor} open={!!trackFor} onClose={() => setTrackFor(null)} />
       {!controlled && (
         <div className="flex min-w-0 flex-col gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">

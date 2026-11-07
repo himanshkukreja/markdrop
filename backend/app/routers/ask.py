@@ -100,11 +100,26 @@ async def ask(request: Request, body: AskBody, db: AsyncIOMotorDatabase = Depend
             scope = assistant.parse_scope(body.scope.model_dump())
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc))
+        if scope.kind == "doc":
+            await _note_ask(db, scope.page, user.id, body.question, body.thread_id)
         intent = body.intent if body.intent in ("ask", "catch_up", "my_actions") else None
         return sse(assistant.ask(db, actor, ctx, body.question, scope=scope, thread_id=body.thread_id, intent=intent,
                                  context=body.context.model_dump() if body.context else None))
+    if body.page:
+        await _note_ask(db, body.page, user.id, body.question, body.thread_id)
     return sse(ask_markdrop.ask(db, actor, ctx, body.question, thread_id=body.thread_id, intent=body.intent,
                                 via="home", page=body.page))
+
+
+async def _note_ask(db: AsyncIOMotorDatabase, slug: str | None, user_id: str, question: str,
+                    thread_id: str | None) -> None:
+    """Viewer analytics: a question asked about a document joins the asker's view of it
+    (services/doc_views.py), emails and phone numbers taken out."""
+    from app.services import ai_log, doc_views
+
+    q = ai_log.redact((question or "").strip())[:200]
+    if q:
+        await doc_views.note_for_slug(db, slug, user_id, {"k": "ask", "q": q, "thread": thread_id or None})
 
 
 @router.get("/context")

@@ -15,6 +15,8 @@ import { SettingsLoader, SwitchRow, useRequireUser } from "../settings-shared";
 import { PushCard } from "./PushCard";
 import { SlackCard } from "./SlackCard";
 import { JiraCard } from "./JiraCard";
+import { ViewHistoryCard } from "./ViewHistoryCard";
+import { AccountTrackCard } from "@/components/analytics/AnalyticsSettings";
 
 const NAME_MAX = 80;
 
@@ -261,6 +263,10 @@ export default function AccountClient() {
           onChange={setDigest}
         />
       </Card>
+
+      <AccountTrackCard />
+
+      <ViewHistoryCard />
 
       <Card title="Sign out" description="Ends your session in this browser. Your documents stay as they are.">
         <Button variant="secondary" iconLeft="logOut" loading={signingOut} onClick={signOut}>

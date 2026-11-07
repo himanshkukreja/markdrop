@@ -57,6 +57,7 @@ export const DOCS_PAGES = {
   liveViewers: "/analytics/live",
   weeklyEmail: "/analytics/weekly-email",
   whatGetsCounted: "/analytics/what-gets-counted",
+  viewers: "/analytics/viewers",
   // AI apps, CLI, VS Code
   aiOverview: "/ai/overview",
   connectAiApp: "/ai/hosted-mcp",

@@ -43,7 +43,7 @@ export interface Kpi {
   note?: string | null;
 }
 
-export type InsightTab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "versions";
+export type InsightTab = "overview" | "video" | "listening" | "content" | "pages" | "audience" | "versions" | "viewers";
 export interface Insight {
   key: string;
   title: string;
@@ -77,6 +77,8 @@ export interface DailyPoint { date: string; views: number; people: number }
 
 export interface Overview {
   doc: AnalyticsDoc;
+  /** What the item collects (backend services/analytics_prefs.py); tabs hide what's off. */
+  track?: Track;
   range: AnalyticsRange;
   has_engagement: boolean;
   tracking_since: string | null;
@@ -327,6 +329,206 @@ export const downloadDocCsv = (slug: string, range: AnalyticsRange) =>
   downloadCsv(`${doc(slug)}/analytics.csv${q({ range })}`, `${slug}-analytics-${range}.csv`);
 export const downloadHomeCsv = (range: AnalyticsRange) =>
   downloadCsv(`/me/analytics.csv${q({ range })}`, `markdrop-analytics-${range}.csv`);
+
+// ── Viewers: every view, who and what they did (backend services/doc_views.py) ─
+
+export type ViewerWho = "all" | "signed_in" | "anonymous";
+export type ViewCompletion = "any" | "low" | "mid" | "high" | "done";
+export type ViewersAccess = "full" | "counts";
+
+export interface ViewViewer {
+  type: "user" | "anonymous";
+  /** Account id, or the anonymous key (stable for one browser on this owner's links). */
+  id: string | null;
+  /** The person's name, or "Visitor 3F2A". */
+  name: string | null;
+  email: string | null;
+  avatar?: string | null;
+  deleted?: boolean;
+}
+
+export interface ViewSummary {
+  id: string;
+  viewer: ViewViewer;
+  own: boolean;
+  internal: boolean;
+  kind: string;
+  ver?: number | null;
+  started_at: string;
+  last_at: string;
+  open_s: number;
+  active_s: number;
+  /** 0..100: read depth, PDF pages, slides, tabs or video watched; null when there's no measure. */
+  completion: number | null;
+  ended: boolean;
+  visit_n: number | null;
+  watched_s?: number;
+  duration_s?: number;
+  location: { country: string | null; region: string | null; city: string | null; timezone: string | null; label: string | null };
+  system: {
+    device: string | null; os: string | null; os_version: string | null; browser: string | null;
+    browser_version: string | null; in_app: string | null; app: "tab" | "pwa" | "embed"; embed_host: string | null;
+    viewport: string | null; screen: string | null; language: string | null; label: string;
+  };
+  source: string;
+  channel: string;
+  referrer: string | null;
+  utm: { source?: string; medium?: string; campaign?: string } | null;
+  acts: Partial<Record<"link" | "copy" | "dl" | "print" | "ask" | "signoff" | "fs", number>>;
+}
+
+export interface ViewersBreakdownRow { key: string; views: number }
+export interface ViewersResponse {
+  access: ViewersAccess;
+  /** What the item collects (switched-off kinds are hidden). */
+  track?: Track;
+  doc: { slug: string; title: string; kind: string; track_kind: TrackKind; mime: string | null; renderer: string | null; encrypted: boolean; workspace_id: string | null; access: ViewersAccess };
+  totals: { views: number; people: number; signed_in: number; anonymous: number; avg_active_s?: number; avg_completion?: number | null; own_hidden?: number };
+  retention_days: number;
+  /** Absent for "counts" access. */
+  views?: ViewSummary[];
+  total?: number;
+  offset?: number;
+  next?: number | null;
+  sampled?: boolean;
+  breakdowns?: Record<"country" | "city" | "device" | "os" | "browser" | "source" | "app", ViewersBreakdownRow[]>;
+}
+
+export interface ViewStep {
+  t: number;
+  at: string;
+  kind: string;
+  text: string;
+  label?: string;
+  active_s?: number;
+  jump?: boolean;
+  url?: string;
+  question?: string;
+  start?: number;
+  end?: number;
+}
+
+export interface ViewTimeline extends ViewSummary {
+  steps: ViewStep[];
+  other_views: { id: string; started_at: string; active_s: number }[];
+  truncated: boolean;
+  text: string;
+}
+
+export interface ViewerPerson {
+  key: string;
+  viewer: ViewViewer;
+  views: number;
+  active_s: number;
+  best_completion: number | null;
+  first_at: string;
+  last_at: string;
+  last_view: string;
+  place: string | null;
+  system: string;
+  internal: boolean;
+  own: boolean;
+}
+
+export interface ViewersQuery {
+  range: AnalyticsRange;
+  who?: ViewerWho;
+  completion?: ViewCompletion;
+  own?: boolean;
+  internal?: boolean;
+  country?: string | null;
+  device?: string | null;
+  os?: string | null;
+  browser?: string | null;
+  source?: string | null;
+}
+
+const viewersQ = (v: ViewersQuery, extra: Record<string, string | number | null | undefined> = {}) =>
+  q({
+    range: v.range, who: v.who && v.who !== "all" ? v.who : null,
+    completion: v.completion && v.completion !== "any" ? v.completion : null,
+    own: v.own ? 1 : null, internal: v.internal === false ? 0 : null,
+    country: v.country, device: v.device, os: v.os, browser: v.browser, source: v.source, ...extra,
+  });
+
+export const getViewers = (slug: string, v: ViewersQuery, offset = 0, limit = 50) =>
+  getJson<ViewersResponse>(`${doc(slug)}/analytics/viewers${viewersQ(v, { offset: offset || null, limit })}`);
+export const getViewerPeople = (slug: string, v: ViewersQuery) =>
+  getJson<{ people: ViewerPerson[]; total: number; sampled: boolean }>(
+    `${doc(slug)}/analytics/viewers/people${q({ range: v.range, who: v.who && v.who !== "all" ? v.who : null, own: v.own ? 1 : null, internal: v.internal === false ? 0 : null })}`);
+export const getViewTimeline = (slug: string, viewId: string) =>
+  getJson<ViewTimeline>(`${doc(slug)}/analytics/viewers/${encodeURIComponent(viewId)}`);
+export const downloadViewersCsv = (slug: string, v: ViewersQuery) =>
+  downloadCsv(`${doc(slug)}/analytics/viewers.csv${viewersQ(v)}`, `${slug}-viewers-${v.range}.csv`);
+
+/** The views you made while signed in (what owners see with your name), newest first. */
+export const getMyViewHistory = () =>
+  getJson<{ views: { started_at: string; active_s: number; kind: string; slug: string | null; title: string }[]; total: number; retention_days: number }>(`/me/view-history`);
+
+/** Takes your name off every view you made; returns how many. */
+export async function forgetMyViewHistory(): Promise<number> {
+  const res = await fetch(`${API_BASE}/api/v1/me/view-history`, { method: "DELETE", headers: { ...authHeaders() } });
+  if (!res.ok) throw new AnalyticsError(`Request failed (${res.status})`, res.status);
+  return ((await res.json()) as { forgotten: number }).forgotten;
+}
+
+// ── What's tracked (backend services/analytics_prefs.py) ──────────────────────
+
+export const TRACK_KEYS = ["counts", "identity", "location", "device", "source", "activity", "video", "pages", "downloads"] as const;
+export type TrackKey = (typeof TRACK_KEYS)[number];
+export type Track = Record<TrackKey, boolean>;
+export type TrackPartial = Partial<Record<TrackKey, boolean>>;
+
+export interface ItemTrackType { key: TrackKey; label: string; on: boolean; source: string; from: string; locked: boolean }
+export interface ItemTrackSettings {
+  slug: string;
+  types: ItemTrackType[];
+  effective: Track;
+  custom: boolean;
+  item: TrackPartial | null;
+  summary: string;
+  can_change?: boolean;
+  deleted?: Record<string, number>;
+}
+export interface LevelTrackSettings {
+  settings: TrackPartial;
+  enforce?: boolean;
+  types: { key: TrackKey; label: string; on: boolean | null; set: boolean }[];
+  deleted?: Record<string, number>;
+}
+
+async function sendJson<T>(method: "PUT" | "POST", path: string, body: unknown): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api/v1${path}`, {
+      method, headers: { "Content-Type": "application/json", ...authHeaders() }, body: JSON.stringify(body),
+    });
+  } catch {
+    throw new AnalyticsError("Couldn't reach Markdrop. Check your connection and try again.", 0);
+  }
+  if (!res.ok) {
+    const b = (await res.json().catch(() => null)) as { detail?: unknown } | null;
+    throw new AnalyticsError(typeof b?.detail === "string" ? b.detail : `Request failed (${res.status})`, res.status);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const getMyTrack = () => getJson<{ settings: Track; summary: string }>(`/me/analytics-settings`);
+export const putMyTrack = (settings: TrackPartial, del: TrackKey[] = []) =>
+  sendJson<{ settings: Track; summary: string; deleted: Record<string, number> }>("PUT", `/me/analytics-settings`, { settings, delete: del });
+export const getItemTrack = (slug: string) => getJson<ItemTrackSettings>(`${doc(slug)}/analytics/settings`);
+export const putItemTrack = (slug: string, settings: TrackPartial | null, del: TrackKey[] = []) =>
+  sendJson<ItemTrackSettings>("PUT", `${doc(slug)}/analytics/settings`, { settings, delete: del });
+export const putItemsTrack = (slugs: string[], settings: TrackPartial | null, del: TrackKey[] = []) =>
+  sendJson<{ updated: string[]; skipped: string[] }>("POST", `/me/analytics-settings/items`,
+    settings === null ? { slugs, use_defaults: true, delete: del } : { slugs, settings, delete: del });
+export const getWorkspaceTrack = (ws: string) => getJson<LevelTrackSettings>(`/workspaces/${encodeURIComponent(ws)}/analytics-settings`);
+export const putWorkspaceTrack = (ws: string, settings: TrackPartial, enforce: boolean, del: TrackKey[] = []) =>
+  sendJson<LevelTrackSettings>("PUT", `/workspaces/${encodeURIComponent(ws)}/analytics-settings`, { settings, enforce, delete: del });
+export const getFolderTrack = (ws: string, folder: string) =>
+  getJson<LevelTrackSettings>(`/workspaces/${encodeURIComponent(ws)}/folders/${encodeURIComponent(folder)}/analytics-settings`);
+export const putFolderTrack = (ws: string, folder: string, settings: TrackPartial | null, del: TrackKey[] = []) =>
+  sendJson<LevelTrackSettings>("PUT", `/workspaces/${encodeURIComponent(ws)}/folders/${encodeURIComponent(folder)}/analytics-settings`, { settings, delete: del });
 
 // ── Analytics AI per document (services/analytics_ai_doc.py) ─────────────────
 

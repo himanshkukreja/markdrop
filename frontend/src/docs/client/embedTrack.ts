@@ -135,7 +135,17 @@ export function startEmbedSession(cfg: EmbedTrackConfig, slug: string, kind: Emb
     if (media && media.pos != null) pos = { s: Math.round(media.pos * 10) / 10 };
     else if (pdf && pdf.cur) pos = { p: pdf.cur };
     if (pos) body.pos = pos;
-    if (seq === 1) body.first = { vw: window.innerWidth, utm: { source: "markdrop-guides", medium: "embed", campaign: cfg.guide.slice(0, 100) } };
+    if (seq === 1) {
+      // The owner's Viewers tab (backend services/doc_views.py): seen embedded in this guide.
+      let tz: string | undefined;
+      try {
+        tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      } catch {
+        tz = undefined;
+      }
+      const sys = { vw: window.innerWidth, vh: window.innerHeight, lang: navigator.language, tz, app: "embed", emb: location.host };
+      body.first = { vw: window.innerWidth, sys, utm: { source: "markdrop-guides", medium: "embed", campaign: cfg.guide.slice(0, 100) } };
+    }
     const text = JSON.stringify(body);
     if (new Blob([text]).size > MAX_BODY) return;
     post(url, body, final);

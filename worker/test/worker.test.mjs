@@ -316,3 +316,14 @@ test("video player: captions only from a captions key (as text, never HTML), and
   const js = page.slice(page.indexOf("<script>") + 8, page.indexOf("</script>"));
   assert.doesNotThrow(() => new vm.Script(js));
 });
+
+test("the sheet and deck viewers tell their host which tab / slide is shown (viewer analytics)", async () => {
+  const sheet = await (await get("/v/sheet/art/u1/doc.pdf")).text();
+  // How many sheets, then each one shown: its index and tab name, never a cell.
+  assert.match(sheet, /mdPost\(\{ ev: 'sheet', n: names\.length \}\)/);
+  assert.match(sheet, /mdPost\(\{ ev: 'tab', n: i, name: String\(names\[i\] \|\| ''\)\.slice\(0, 80\) \}\)/);
+  assert.match(sheet, /window\.parent\.postMessage\(Object\.assign\(\{ md: 1 \}, msg\), '\*'\)/);
+  // The deck viewer: the slide shown and how many there are.
+  const { pptxUi } = await import("../src/pptx.js");
+  assert.match(pptxUi.toString(), /postMessage\(\{ md: 1, ev: "slide", n: s\.n, of: deck\.slides\.length \}, "\*"\)/);
+});

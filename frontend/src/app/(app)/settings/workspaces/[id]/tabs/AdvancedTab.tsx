@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, ConfirmDialog, Field, Select, useToast } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
+import { WorkspaceTrackCard } from "@/components/analytics/AnalyticsSettings";
 import { teamName } from "@/components/workspace/folder/items";
 import { deleteWorkspace, removeMember, updateWorkspace, type ItemAccess, type WorkspaceSettings } from "@/lib/workspaces";
 import { SwitchRow } from "../../../settings-shared";
@@ -153,6 +154,9 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
           </p>
         </section>
       )}
+
+      {/* What items in the workspace collect (AnalyticsSettings; backend services/analytics_prefs.py). */}
+      <WorkspaceTrackCard wsId={id} canEdit={isAdmin} />
 
       {!isOwner && (
         <section aria-labelledby="ws-leave-h" className="flex min-w-0 flex-wrap items-center gap-3 rounded-xl border border-border bg-surface p-5">

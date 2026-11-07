@@ -373,6 +373,9 @@ async def ask(request: Request, slug: str, body: AskBody, db: AsyncIOMotorDataba
     person = access.actor_from_request(request, user)
     target.embeds = await pages_ai.readable_embeds(db, target.body, person, _ctx(db, request, x_markdrop_workspace))
     job = _job(db, user, "ask", target)
+    from app.routers.ask import _note_ask
+
+    await _note_ask(db, raw.get("slug"), user.id, body.question, None)
     return sse(await pages_ai.ask(job, question=body.question, history=body.history))
 
 

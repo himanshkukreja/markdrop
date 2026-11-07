@@ -2,7 +2,7 @@
 // (Node >= 22.18 strips the types from engageCore.ts; it has no imports.)
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MediaAgg, PdfAgg, copyKey, fnv1a32, fromFrameOrigin, linkKey, mediaErr, spyIndex, utmFrom } from "./engageCore.ts";
+import { DepthMarks, EV_PER_SEND, eventAllowed, MediaAgg, MediaMarks, PdfAgg, Timeline, VisitTracker, copyKey, fnv1a32, fromFrameOrigin, linkKey, mediaErr, spyIndex, utmFrom } from "./engageCore.ts";
 
 test("fromFrameOrigin: the sandboxed frame's opaque origin, or the artifact origin itself", () => {
   const art = "https://markdrop-artifacts.markdrop-in.workers.dev";
@@ -209,4 +209,93 @@ test("a seek credits what played after the last report (pt)", () => {
   b.handle(msg("timeupdate", 5), 5000);
   b.handle(msg("seeking", 30, { pt: 20 }), 5500);
   assert.deepEqual(b.drain(6000).segs, [[0, 5]]);
+});
+
+// ── Viewer analytics: the activity timeline ────────────────────────────────────
+
+test("Timeline: events in order, seconds since the start, sent in batches and put back", () => {
+  const tl = new Timeline(1000);
+  tl.mark("depth", { v: 25 }, 3500);
+  tl.mark("dl", {}, 4000);
+  assert.deepEqual(tl.q, [{ t: 2.5, k: "depth", v: 25 }, { t: 3, k: "dl" }]);
+  const a = tl.take(1);
+  assert.deepEqual(a, [{ t: 2.5, k: "depth", v: 25 }]);
+  tl.giveBack(a);
+  assert.equal(tl.q[0].k, "depth");
+  for (let i = 0; i < 700; i++) tl.mark("dl", {}, 5000);
+  assert.equal(tl.q.length, 600);
+  assert.equal(tl.take().length, EV_PER_SEND);
+});
+
+test("VisitTracker: one event per visit with its active seconds; long visits in pieces", () => {
+  const tl = new Timeline(0);
+  const v = new VisitTracker("sec", "h", 3);
+  v.enter(tl, "intro", 1000);
+  v.second();
+  v.second();
+  v.enter(tl, "intro", 2000); // still there
+  v.enter(tl, "setup", 5000);
+  assert.deepEqual(tl.q, [{ t: 1, k: "sec", h: "intro", a: 2 }]);
+  // A visit with no active second is not an event.
+  v.enter(tl, "usage", 6000);
+  assert.equal(tl.q.length, 1);
+  v.second(); v.second(); v.second();
+  v.flush(tl, false, 9000); // 3 s: reported, and counting goes on from here
+  v.second();
+  v.flush(tl, false, 10000); // 1 s: waits
+  v.flush(tl, true, 11000); // final: reported
+  assert.deepEqual(tl.q.slice(1), [{ t: 6, k: "sec", h: "usage", a: 3 }, { t: 9, k: "sec", h: "usage", a: 1 }]);
+  v.enter(tl, null, 12000);
+  assert.equal(v.cur, null);
+});
+
+test("VisitTracker carries extra fields (a sheet's tab name)", () => {
+  const tl = new Timeline(0);
+  const v = new VisitTracker("tab", "n");
+  v.enter(tl, 2, 0, { name: "Q3" });
+  v.second();
+  v.close(tl);
+  assert.deepEqual(tl.q, [{ t: 0, k: "tab", n: 2, a: 1, name: "Q3" }]);
+});
+
+test("DepthMarks: each milestone once, in order", () => {
+  const tl = new Timeline(0);
+  const d = new DepthMarks();
+  d.update(tl, 30, 1000);
+  d.update(tl, 20, 2000);
+  d.update(tl, 100, 3000);
+  assert.deepEqual(tl.q.map((e) => e.v), [25, 50, 75, 100]);
+});
+
+test("MediaMarks: play, pause, one seek per scrub, end without its pause, speed", () => {
+  const tl = new Timeline(0);
+  const m = new MediaMarks();
+  const msg = (e, t, extra = {}) => ({ md: 1, ev: "media", e, t, dur: 100, rate: 1, ...extra });
+  m.handle(tl, msg("play", 0), 1000);
+  m.handle(tl, msg("pause", 30), 31000);
+  m.handle(tl, msg("seeking", 40, { pt: 30 }), 32000);
+  m.handle(tl, msg("seeking", 55, { pt: 40 }), 32500);
+  m.handle(tl, msg("seeking", 60, { pt: 55 }), 33000);
+  m.handle(tl, msg("ratechange", 60, { rate: 1.5 }), 34000);
+  m.handle(tl, msg("ratechange", 60, { rate: 1.5 }), 34100);
+  m.handle(tl, msg("pause", 100, { rate: 1.5 }), 70000);
+  m.handle(tl, msg("ended", 100, { rate: 1.5 }), 70001);
+  assert.deepEqual(tl.q.map(({ t, ...e }) => e), [
+    { k: "play", s: 0 }, { k: "pause", s: 30 }, { k: "seek", f: 30, s: 60 }, { k: "rate", r: 1.5 }, { k: "end", s: 100 },
+  ]);
+});
+
+test("an item's analytics settings: events it doesn't collect are never queued", () => {
+  const t = { activity: false, video: true, pages: false, downloads: false };
+  assert.equal(eventAllowed("sec", t), false);
+  assert.equal(eventAllowed("depth", t), false);
+  assert.equal(eventAllowed("play", t), true);
+  assert.equal(eventAllowed("pg", t), false);
+  assert.equal(eventAllowed("dl", t), false);
+  assert.equal(eventAllowed("dl", null), true);
+  const tl = new Timeline(0, (k) => eventAllowed(k, t));
+  tl.mark("depth", { v: 25 }, 1000);
+  tl.mark("play", { s: 0 }, 1000);
+  tl.mark("dl", {}, 1000);
+  assert.deepEqual(tl.q.map((e) => e.k), ["play"]);
 });

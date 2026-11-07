@@ -3549,6 +3549,10 @@ TOOLS += ACCESS_REQUEST_TOOLS
 from app.mcp.analytics_ai_tools import ANALYTICS_AI_TOOLS  # noqa: E402
 
 TOOLS += ANALYTICS_AI_TOOLS
+# Viewer analytics (get_document_viewers, get_view_timeline): app/mcp/viewer_tools.py.
+from app.mcp.viewer_tools import VIEWER_TOOLS  # noqa: E402
+
+TOOLS += VIEWER_TOOLS
 # Meetings (import a call, list / read meetings, ask them): app/mcp/meeting_tools.py.
 from app.mcp.meeting_tools import MEETING_TOOLS  # noqa: E402
 
