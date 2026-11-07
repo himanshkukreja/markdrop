@@ -5,6 +5,7 @@ import { StatTile } from "@/components/kit/StatTile";
 import { Alert, Badge, Button, Meter, Progress, SegmentedControl, Table, type Column } from "@/components/ui";
 import { Card, CardError, CardSkeleton, CardTitle } from "../analytics/ui";
 import { plural } from "../shared";
+import { AudienceSelect, LeftOutNote, type LeftOut, type UsageAudience } from "./audience";
 import { DailyByFeature, type DayRow, type Metric } from "./charts";
 import {
   LIMIT_LABEL, RANGE_OPTIONS, capText, featureColor, n0, pct, tokensShort, usd, useAiFetch, useLoad, type RangeKey,
@@ -19,9 +20,9 @@ export interface FeatureRow extends Agg {
   today_usd: number; month_usd: number; daily_cap_usd: number | null; monthly_cap_usd: number | null; users: number;
 }
 interface Overview {
-  range: RangeKey; configured: boolean; truncated: boolean;
+  range: RangeKey; configured: boolean; truncated: boolean; audience?: UsageAudience; left_out?: LeftOut;
   global: { today_usd: number; month_usd: number; daily_cap_usd: number | null; monthly_cap_usd: number | null };
-  kpis: Agg & { users: number; anonymous_requests: number };
+  kpis: Agg & { users: number; anonymous_requests: number; system_requests?: number };
   features: FeatureRow[];
   limit_reasons: { feature: string; reason: string; n: number }[];
   series: (DayRow & { t: string; requests: number; cost_usd: number; tokens: number })[];
@@ -50,11 +51,12 @@ export function OverviewTab({ token, onOpenUser, onGo }: { token: string; onOpen
   const get = useAiFetch(token);
   const tz = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC", []);
   const [range, setRange] = useState<RangeKey>("30d");
+  const [audience, setAudience] = useState<UsageAudience>("live");
   const [bump, setBump] = useState(0);
   const [metric, setMetric] = useState<Metric>("cost");
-  const ov = useLoad(() => get<Overview>("usage/overview", { range, tz }), [get, range, tz, bump]);
-  const top = useLoad(() => get<{ items: { user_id: string; email: string; name: string; cost_usd: number; requests: number; anonymous: boolean }[] }>(
-    "usage/users", { range, sort: "cost", limit: 5 }), [get, range, bump]);
+  const ov = useLoad(() => get<Overview>("usage/overview", { range, tz, audience }), [get, range, tz, audience, bump]);
+  const top = useLoad(() => get<{ items: { user_id: string; email: string; name: string; cost_usd: number; requests: number; anonymous: boolean; system?: boolean }[] }>(
+    "usage/users", { range, sort: "cost", limit: 5, audience }), [get, range, audience, bump]);
   const o = ov.data;
   const k = o?.kpis;
   const used = o ? o.features.filter((f) => f.registered || f.requests > 0) : [];
@@ -62,8 +64,12 @@ export function OverviewTab({ token, onOpenUser, onGo }: { token: string; onOpen
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-body text-text-secondary">Spend comes from each request&apos;s real usage (cache and long-context pricing included). Days and months are UTC.</p>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <p className="text-body text-text-secondary">Spend comes from each request&apos;s real usage (cache and long-context pricing included). Days and months are UTC.</p>
+          <LeftOutNote audience={audience} leftOut={o?.left_out} />
+        </div>
         <div className="flex flex-wrap items-center gap-2">
+          <AudienceSelect value={audience} onChange={setAudience} />
           <SegmentedControl<RangeKey> size="sm" aria-label="Date range" value={range} onChange={setRange} options={RANGE_OPTIONS} />
           <Button size="sm" variant="secondary" iconLeft="refresh" onClick={() => setBump((b) => b + 1)}>Refresh</Button>
         </div>
@@ -109,7 +115,7 @@ export function OverviewTab({ token, onOpenUser, onGo }: { token: string; onOpen
             <StatTile size="md" icon="chart" loading={!k} label="Cost" value={k ? usd(k.cost_usd) : ""}
               caption={k ? `${usd(k.requests ? k.cost_usd / k.requests : null)} per request` : undefined} />
             <StatTile size="md" icon="message" loading={!k} label="Requests" value={k ? n0(k.requests) : ""}
-              caption={k ? `${plural(k.users, "person", "people")} signed in · ${n0(k.anonymous_requests)} anonymous` : undefined} />
+              caption={k ? `${plural(k.users, "person", "people")} signed in · ${n0(k.anonymous_requests)} anonymous${k.system_requests ? ` · ${n0(k.system_requests)} system` : ""}` : undefined} />
             <StatTile size="md" icon="hash" loading={!k} label="Tokens" value={k ? tokensShort(k.total_tokens) : ""}
               caption={k ? `${tokensShort(k.tokens.input + k.tokens.cache_read + k.tokens.cache_write)} in (cache included) · ${tokensShort(k.tokens.output)} out` : undefined} />
             <StatTile size="md" icon="layers" loading={!k} label="Cache hit rate" value={k ? pct(k.cache_hit_pct) : ""}
@@ -136,7 +142,7 @@ export function OverviewTab({ token, onOpenUser, onGo }: { token: string; onOpen
                     <li key={u.user_id}>
                       <button type="button" className="md-focus flex w-full min-w-0 items-center justify-between gap-3 rounded-sm py-2 text-left" onClick={() => onOpenUser(u.user_id)}>
                         <span className="min-w-0">
-                          <span className="block truncate text-body text-text">{u.anonymous ? "Anonymous visitors" : u.email || u.name || "Deleted account"}</span>
+                          <span className="block truncate text-body text-text">{u.system ? "System jobs" : u.anonymous ? "Anonymous visitors" : u.email || u.name || "Deleted account"}</span>
                           <span className="block text-micro text-text-muted">{plural(u.requests, "request")}</span>
                         </span>
                         <span className="shrink-0 text-body-strong tabular-nums text-text">{usd(u.cost_usd)}</span>
