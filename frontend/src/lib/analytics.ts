@@ -457,6 +457,17 @@ export const getViewTimeline = (slug: string, viewId: string) =>
 export const downloadViewersCsv = (slug: string, v: ViewersQuery) =>
   downloadCsv(`${doc(slug)}/analytics/viewers.csv${viewersQ(v)}`, `${slug}-viewers-${v.range}.csv`);
 
+/** The views you made while signed in (what owners see with your name), newest first. */
+export const getMyViewHistory = () =>
+  getJson<{ views: { started_at: string; active_s: number; kind: string; slug: string | null; title: string }[]; total: number; retention_days: number }>(`/me/view-history`);
+
+/** Takes your name off every view you made; returns how many. */
+export async function forgetMyViewHistory(): Promise<number> {
+  const res = await fetch(`${API_BASE}/api/v1/me/view-history`, { method: "DELETE", headers: { ...authHeaders() } });
+  if (!res.ok) throw new AnalyticsError(`Request failed (${res.status})`, res.status);
+  return ((await res.json()) as { forgotten: number }).forgotten;
+}
+
 // ── Analytics AI per document (services/analytics_ai_doc.py) ─────────────────
 
 /** content (Markdown), media (video/audio), pages (PDF), versions (files with versions). */
