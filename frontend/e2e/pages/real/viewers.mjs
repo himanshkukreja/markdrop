@@ -13,6 +13,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { chromium, webkit } from "@playwright/test";
 import { APP, BROWSER, here, log, fail, reseed, api, mcp, mcpToken, ctx, stepper, uploadFile } from "./lib.mjs";
 
@@ -38,7 +39,16 @@ const doc = await api("POST", "/api/v1/documents", ada, { title: "Field guide", 
 if (doc.status >= 300) fail(`doc → ${doc.status} ${JSON.stringify(doc.body).slice(0, 200)}`);
 await uploadFile(ada, { bytes: fs.readFileSync(path.join(FIX, "q3-board-deck-v1.pdf")), filename: "board-deck.pdf", mime: "application/pdf", title: "Board deck", slug: "board-deck", ...filing });
 await uploadFile(ada, { bytes: fs.readFileSync(path.join(FIX, "product-demo-v1.mp4")), filename: "demo.mp4", mime: "video/mp4", title: "Product demo", slug: "demo-video", ...filing });
-log("seeded field-guide, board-deck, demo-video");
+// A slide deck and a spreadsheet with two sheets (CSV has one; an .xlsx would need a builder).
+const { sampleDeck } = await import(pathToFileURL(path.resolve(here, "../../../../worker/test/pptx-fixture.mjs")).href);
+await uploadFile(ada, { bytes: sampleDeck(), filename: "Q3 review.pptx", mime: "application/vnd.openxmlformats-officedocument.presentationml.presentation", title: "Q3 review", slug: "q3-deck", ...filing });
+await uploadFile(ada, { bytes: Buffer.from("region,revenue\nNorth,120\nSouth,98\n"), filename: "revenue.csv", mime: "text/csv", title: "Revenue", slug: "revenue-sheet", ...filing });
+// A page (the block editor's), opened to anyone with the link.
+const page = await api("POST", "/api/v1/pages", ada, { title: "Team page", workspace: S.ws, slug: "team-page", auto_cover: false, content: MD.replace("# Field guide", "# Team page") });
+if (page.status >= 300) fail(`page → ${page.status} ${JSON.stringify(page.body).slice(0, 200)}`);
+const pageAccess = await mcp(mcpToken("ada@acme.test"), "set_access", { document: "team-page", access: "link" });
+if (pageAccess.isError) fail(`set_access: ${pageAccess.text}`);
+log("seeded field-guide, board-deck, demo-video, team-page");
 
 const frame = (p) => p.frameLocator("iframe").first();
 
@@ -100,7 +110,28 @@ async function watch(p) {
   await v.evaluate((el) => el.pause());
 }
 
-const ITEMS = { doc: ["field-guide", readDoc, /Read |Scrolled to/], pdf: ["board-deck", turnPages, /page \d/i], video: ["demo-video", watch, /Watched \d/] };
+async function flipSlides(p) {
+  const f = frame(p);
+  await f.locator("button").first().waitFor({ timeout: 30000 });
+  await p.locator("iframe").first().click({ position: { x: 400, y: 300 } }).catch(() => {});
+  for (let i = 0; i < 3; i++) {
+    await p.keyboard.press("ArrowRight");
+    await p.mouse.move(500 + i, 300);
+    await p.waitForTimeout(1300);
+  }
+}
+
+async function lookAtSheet(p) {
+  await frame(p).locator("table.grid").waitFor({ timeout: 30000 });
+  await p.locator("iframe").first().click({ position: { x: 300, y: 300 } }).catch(() => {});
+  for (let i = 0; i < 3; i++) {
+    await p.mouse.move(300 + i, 300);
+    await p.waitForTimeout(900);
+  }
+}
+
+const ITEMS = { doc: ["field-guide", readDoc, /Read |Scrolled to/], page: ["team-page", readDoc, /Read |Scrolled to/], pdf: ["board-deck", turnPages, /page \d/i], video: ["demo-video", watch, /Watched \d/],
+  slides: ["q3-deck", flipSlides, /slide \d/], sheet: ["revenue-sheet", lookAtSheet, /sheet/] };
 
 async function viewersTab(token, slug, { theme = "light", width = 1440, height = 1000, mobile = false } = {}) {
   const { p } = await ctx(browser, { token, theme, width, height, mobile });
