@@ -444,6 +444,13 @@ jobs:
           PB_PUSH=1 zsh up.sh restart-api
           node push-prompts.mjs
 
+      # Filter by type (the chips on My files, Shared with me, Recent and folders; phones and tablets),
+      # ~40 s, on the bughunt job.
+      - name: files-types.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'bughunt' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node files-types.mjs
+
       - name: Stack logs
         if: failure()
         run: for f in api worker web; do echo "== $f"; tail -n 80 "$PB_WORK/stack/$f.log" 2>/dev/null; done

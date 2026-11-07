@@ -38,6 +38,25 @@
       "body": "- **Bracketed owners.** Gemini's newer next steps put the owner in brackets, like \"[Nikhil] Post Video\" or \"[Nandini Pai, Imran Qureshi] Prepare Presentation\". Each person named in the brackets is the owner, and none of these lines becomes a speaker or an attendee.\n- **Empty notes.** When Gemini couldn't summarise a call (\"not enough conversation in a supported language\"), its placeholder text is no longer shown as a summary, a detail or an action item.\n- **Headings aren't people.** Labels such as \"Video Proctoring\" or \"Profile Verification\" are never listed as attendees.\n- **The invite from the notes' header.** When Gemini lists the invitees as people chips under the title with no \"Invited\" label, they're kept as the meeting's **Invited** list.\n- **Earlier meetings.** Next steps that an earlier repair removed from a meeting's Transcript page are read back from the Trash, so those meetings list their attendees and action items again."
     },
     {
+      "id": "filter-files-by-type",
+      "date": "2026-11-07",
+      "title": "Filter My files, Shared with me, Recent and folders by type",
+      "kind": "new",
+      "area": "Files",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Videos, PDFs, documents and everything else no longer share one long list. Chips above My files, Shared with me, Recent and every workspace folder filter by type, with a count on each.",
+      "body": "- **Ten chips.** **All**, **Documents** (Markdown documents and pages), **PDFs**, **Videos**, **Images**, **Sheets** (Excel and CSV), **Slides** (PowerPoint), **Word**, **HTML & sites** and **Other**. Each shows how many there are.\n- **Only the chips you need.** My files shows a type once you have one of it. Shared with me, Recent and folders show the chips once they hold more than one kind of item.\n- **Works with search and paging.** Pick **Videos** and search for a word to find that video. Filtering happens on the server, so every page of a long list is the right type.\n- **In the address, and remembered.** The type is in the link (`?type=video`), so **Back** works and a filtered list can be bookmarked or shared. My files, Shared with me and Recent open on the type you picked last on this device.\n- **An empty type says so.** \"No videos yet\" with **Upload a video**, or **Show every type**.\n- **Phones and tablets.** The chips scroll sideways at finger size, and the selected one stays in view.\n- **Only what you can open.** Counts and lists never include an item you can't open, and admins' placeholders for private items don't show under a type.\n- **For tools.** The MCP tool `list_documents` takes a `type`, and each item it lists says its type. The API's `GET /me/documents` takes `type=` and returns `count_by_type`.",
+      "docs": [
+        "/get-started/tour#filter-by-type",
+        "/workspaces/folders#filter-by-type",
+        "/ai/tools"
+      ]
+    },
+    {
       "id": "meeting-attendees-not-next-steps",
       "date": "2026-11-06",
       "title": "Gemini's next steps are no longer attendees, and notes-only meetings list who the notes name",

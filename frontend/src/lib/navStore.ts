@@ -27,6 +27,7 @@
  */
 import { useEffect, useSyncExternalStore } from "react";
 import { getWorkspaceNav, listWorkspaceItems, type ItemsPage, type WorkspaceNav } from "@/lib/workspaces";
+import type { FileType } from "@/lib/fileTypes";
 import { setFolderWarmer } from "@/lib/folderNav";
 import { listChildren, PagesApiError, type ChildPage } from "@/lib/pages";
 import { getToken } from "@/lib/api";
@@ -194,13 +195,13 @@ const kidsCache = new Cache<ChildPage[]>((key) =>
 export const ITEMS_PAGE = 50;
 const PART = "\u0001";
 const itemsCache = new Cache<ItemsPage>((key) => {
-  const [ws, folder, q, kind] = idOf(key).split(PART);
-  return listWorkspaceItems(ws!, { folder: folder!, q: q || undefined, kind: kind || undefined, limit: ITEMS_PAGE });
+  const [ws, folder, q, kind, type] = idOf(key).split(PART);
+  return listWorkspaceItems(ws!, { folder: folder!, q: q || undefined, kind: kind || undefined, type: (type || undefined) as FileType | undefined, limit: ITEMS_PAGE });
 }, 80);
 const itemsWs = (key: string) => idOf(key).split(PART)[0];
 
 /** The cache key of a folder view's first page: `folder` is a folder id, "root" or "all". */
-export const itemsKey = (ws: string, folder: string, q = "", kind = "") => keyOf([ws, folder, q, kind].join(PART));
+export const itemsKey = (ws: string, folder: string, q = "", kind = "", type = "") => keyOf([ws, folder, q, kind, type].join(PART));
 
 let wired = false;
 function wire() {

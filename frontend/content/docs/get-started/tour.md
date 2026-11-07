@@ -1,9 +1,9 @@
 ---
 title: A tour of the app
 description: Your home, the sidebar, where your files, meetings, analytics, workspaces and settings live, and what each button on a document or file page does.
-updated: 2026-11-06
+updated: 2026-11-07
 prerequisites: [/get-started/accounts]
-keywords: [dashboard, view mode, edit, done, ask markdrop, ✦ ask, cmd j, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch, home, continue, today, action items, to-dos, meetings, workspaces, get started, collapse sidebar, icon rail, inbox]
+keywords: [filter by type, type filter, videos, pdfs, images, sheets, slides, file types, dashboard, view mode, edit, done, ask markdrop, ✦ ask, cmd j, my files, sidebar, navigation, shortcuts, command palette, trash, top bar, hide sidebar, phone, tablet, iPad, mobile, touch, home, continue, today, action items, to-dos, meetings, workspaces, get started, collapse sidebar, icon rail, inbox]
 ---
 
 Once you sign in, Markdrop opens on your **home**: what needs you today, what you were working on, your meetings and your workspaces. This page walks through the home, the sidebar, the **Create** menu, and the bar on top of every document and file.
@@ -53,9 +53,9 @@ Your own documents and files are in **My files** in the sidebar.
 | **Search** | [Search](/workspaces/search) everything you can open. |
 | **Ask** | Opens [Ask](/workspaces/ask-markdrop) (**⌘ J**). |
 | **Inbox** | Your notifications: mentions, sign-off requests and shares, with how many are unread. |
-| **My files** | Everything you own. Filter by **All**, **Documents** or **Artifacts**, and search by title or link. |
-| **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. |
-| **Recent** | What you opened lately, signed in. |
+| **My files** | Everything you own. [Filter it by type](#filter-by-type) (PDFs, videos, images and more), and search by title or link. |
+| **Shared with me** | Documents and files people added you to by email, and **Access requests** waiting for your answer. A row's menu has **Remove me** to take yourself off. [Filter by type](#filter-by-type) once there's more than one kind. |
+| **Recent** | What you opened lately, signed in. [Filter by type](#filter-by-type) once there's more than one kind. |
 | **Analytics** | Views and engagement across everything you own. See [Analytics](/analytics/overview). |
 | **Trash** | What you deleted in the last 30 days, to restore or delete forever. See [Trash and restoring](/documents/trash). |
 | **Workspaces** | Each workspace you belong to. Open one for **Meetings** (its [Meetings](/workspaces/meetings) page) and its folders, pages, documents and files. Pages show their emoji, and what you have open is highlighted and scrolled into view. Point at a row for **+** (add a page inside) and **⋯**. Drop files onto a folder to upload them there. **New workspace** creates one. |
@@ -69,7 +69,35 @@ Your own documents and files are in **My files** in the sidebar.
 
 Each row in **My files** has a **Copy link** button and a menu with **Open**, **Edit** (documents only), **Analytics**, **Share…**, **Change URL** and **Delete**, plus **Move to folder…** or **Add to a workspace…** where they apply. On a phone, **Copy link** is in the menu instead.
 
-![My files with the All, Documents and Artifacts filters, and rows showing each title, its folder, its link, views, who can open it and Copy link.](/docs-assets/get-started/tour/my-files.webp)
+![My files with the type chips (All, Documents, PDFs, Videos, Images, Sheets, Slides, Word, HTML & sites and Other, each with its count), and rows showing each title, its folder, its link, views, who can open it and Copy link.](/docs-assets/get-started/tour/my-files.webp)
+
+### Filter by type
+
+A row of chips above the list filters it by what each item is. Each chip shows how many there are.
+
+| Chip | What's in it |
+| --- | --- |
+| **All** | Everything |
+| **Documents** | Markdown documents and [pages](/pages/overview) |
+| **PDFs** | PDF files |
+| **Videos** | MP4, MOV, WebM and Ogg videos |
+| **Images** | PNG, JPG, GIF, WebP and SVG images |
+| **Sheets** | Excel spreadsheets (.xlsx, .xls) and CSV files |
+| **Slides** | PowerPoint decks (.pptx) |
+| **Word** | Word documents (.docx) |
+| **HTML & sites** | HTML pages and [zipped websites](/files/websites) |
+| **Other** | Everything else: text, JSON and audio files |
+
+The chips are in **My files**, **Shared with me**, **Recent** and every [workspace folder](/workspaces/folders#filter-by-type).
+
+- **My files** always shows **All** and **Documents**, plus a chip for each type you have. **Shared with me**, **Recent** and folders show the chips once they hold more than one kind of item.
+- The counts are for the whole list, so they don't change while you search. A search and a type work together: pick **Videos** and type a word to find that video.
+- The type is part of the address (for example `markdrop.in/dashboard/files?type=video`), so **Back** works and you can bookmark a filtered list.
+- **My files**, **Shared with me** and **Recent** remember the last type you picked on this device and open on it next time. Choose **All** to go back to everything.
+- When a type has nothing in it, the list says so and offers to upload one, or to **Show every type**.
+- On a phone, the chips scroll sideways; the selected one stays in view.
+
+Tools that use the [MCP server](/ai/tools) can filter the same way: `list_documents` takes a `type`.
 
 ## On a document
 

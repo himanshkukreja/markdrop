@@ -29,6 +29,7 @@ from app.config import get_settings
 from app.models.folder import Folder
 from app.services import access, artifact as art_service, publicity, urls
 from app.services import folder as folder_service
+from app.services import file_types
 from app.services.library import kind_clause, search_filter
 
 settings = get_settings()
@@ -414,17 +415,26 @@ async def nav(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, wo
 
 async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, workspace_id: str,
                 *, folder: str = "all", q: str | None = None, kind: str | None = None,
-                cursor: str | None = None, limit: int = 50) -> dict:
+                cursor: str | None = None, limit: int = 50, file_type: str | None = None) -> dict:
+    """A page of the folder's (or the top level's, or with ``q`` the workspace's) readable
+    items, optionally of one file type (services/file_types). The first page also carries
+    ``count_by_type``: the scope's readable items per type, whatever the search, type and kind
+    filters (a search's scope is the whole workspace)."""
     limit = max(1, min(MAX_ITEMS_PAGE, int(limit or 50)))
     rf = await access.readable_filter(actor, workspace_id, ctx)
-    extra: list[dict | None] = [kind_clause(kind), search_filter(q), decode_cursor(cursor), NOT_HIDDEN]
+    scope: list[dict] = [NOT_HIDDEN]
     if folder in ("root", "unfiled"):
-        extra.append({"folder_id": None})
+        scope.append({"folder_id": None})
     elif folder and folder != "all":
         await folder_service._get_owned(db, workspace_id, folder)
-        extra.append({"folder_id": folder})
+        scope.append({"folder_id": folder})
+    sf = search_filter(q)
+    extra: list[dict | None] = [kind_clause(kind), file_types.type_clause(file_type), sf,
+                                decode_cursor(cursor), *scope]
     clauses = [e for e in extra if e]
-    redacted_q = rf.redacted if (rf.redacted is not None and not q) else None
+    # Admins' placeholders for private items say nothing of what they are, so a search or a type
+    # filter never lists them (it would say what they match).
+    redacted_q = rf.redacted if (rf.redacted is not None and not q and not file_type) else None
     who = {"$or": [rf.readable, redacted_q]} if redacted_q is not None else rf.readable
     query = {"$and": [*rf.base, who, *clauses]}
     # Without the body (a document's content can be large and nothing here reads it). The sort is
@@ -444,7 +454,17 @@ async def items(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, 
         elif redacted_q is not None:
             out.append(redacted_item(raw, workspace_id, names=names, folders=folders))
     next_cursor = encode_cursor(rows[-1].get("updated_at"), rows[-1]["_id"]) if more and rows else None
-    return {"items": out, "next_cursor": next_cursor}
+    page = {"items": out, "next_cursor": next_cursor}
+    if cursor is None:
+        # One grouped count of what the caller can read in this scope (A1: the readable filter,
+        # never the redacted rows), by (kind, mime), folded into types.
+        groups = await db["documents"].aggregate([
+            {"$match": {"$and": [*rf.base, rf.readable, *scope]}},
+            {"$group": {"_id": {"kind": {"$ifNull": ["$kind", "markdown"]},
+                                "mime": {"$ifNull": ["$mime", None]}}, "n": {"$sum": 1}}},
+        ]).to_list(length=None)
+        page["count_by_type"] = file_types.counts_from_groups(groups)
+    return page
 
 
 async def items_by_slug(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,

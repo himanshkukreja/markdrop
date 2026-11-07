@@ -1,5 +1,6 @@
 import { utmFrom } from "@/lib/engageCore";
 import { moveRememberedKey } from "@/lib/e2e";
+import type { FileType } from "@/lib/fileTypes";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.markdrop.in";
 
@@ -813,16 +814,23 @@ export interface MyDocListResponse {
   count_all?: number;
   count_markdown?: number;
   count_artifact?: number;
+  /** Totals per file type, also regardless of the active filter (absent on an older backend). */
+  count_by_type?: Partial<Record<FileType, number>>;
 }
+
+/** What a file is — the My files type filter (backend services/file_types.py). */
+export type { FileType };
 
 export async function listMyDocuments(
   page = 1,
   q?: string,
-  kind?: DocKind
+  kind?: DocKind,
+  type?: FileType
 ): Promise<MyDocListResponse> {
   const params = new URLSearchParams({ page: String(page), limit: "20" });
   if (q) params.set("q", q);
   if (kind) params.set("kind", kind);
+  if (type) params.set("type", type);
   const res = await fetch(`${API_BASE}/api/v1/me/documents?${params}`, {
     headers: { ...authHeaders() },
     cache: "no-store",

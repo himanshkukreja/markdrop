@@ -21,7 +21,7 @@ from app.schemas.auth import (
 )
 from app.schemas.access import ContactItem, ContactListResponse
 from app.schemas.document import MyDocListItem, MyDocListResponse
-from app.services import analytics, api_token, artifact as art_service, document as doc_service
+from app.services import analytics, api_token, artifact as art_service, document as doc_service, file_types
 
 router = APIRouter(prefix="/api/v1/me", tags=["me"])
 
@@ -78,12 +78,15 @@ async def list_my_documents(
     q: str | None = Query(None),
     # "document" is the new name for "markdown"; both mean "not an artifact".
     kind: str | None = Query(None, pattern="^(markdown|document|artifact)$"),
+    # What it is: document (markdown and pages), pdf, video, image, sheet,
+    # slides, word, html (pages and sites) or other. Combines with kind and q.
+    file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
     db: AsyncIOMotorDatabase = Depends(get_db),
     user: User = Depends(require_user),
 ):
     if per_page is not None:
         limit = per_page
-    docs, total = await doc_service.list_user_documents(db, user.id, page, limit, q, kind)
+    docs, total = await doc_service.list_user_documents(db, user.id, page, limit, q, kind, file_type)
     items = [_to_list_item(d) for d in docs]
     # One grouped count for the whole page rather than a query per row.
     if items:
