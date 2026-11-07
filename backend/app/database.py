@@ -327,6 +327,13 @@ async def connect() -> None:
         await _engage.ensure_indexes(db)
     except Exception as exc:  # pragma: no cover - startup must not depend on it
         print(f"[startup] engagement indexes skipped: {exc}")
+    # Viewer analytics (services/doc_views.py): every view's detail, 180-day TTL by default.
+    try:
+        from app.services import doc_views as _doc_views
+
+        await _doc_views.ensure_indexes(db)
+    except Exception as exc:  # pragma: no cover - startup must not depend on it
+        print(f"[startup] viewer indexes skipped: {exc}")
     # Analytics AI per document (services/analytics_ai_doc.py): cached analyses, 90-day TTL.
     try:
         from app.services import analytics_ai_doc as _analytics_ai_doc

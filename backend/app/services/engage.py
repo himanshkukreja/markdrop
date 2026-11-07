@@ -45,7 +45,8 @@ from app.services import analytics, geo, presence, traffic
 
 COLL = "engage_sessions"
 KINDS = ("doc", "pdf", "video", "audio", "other")
-MAX_BODY = 8192
+# 16 KB: the per-view activity events (services/doc_views.py) ride on the same beacon.
+MAX_BODY = 16384
 TTL_DAYS = 395
 SESSION_CAP_S = 4 * 3600
 SEND_CAP_S = 120
@@ -201,6 +202,10 @@ def parse(raw_body: bytes) -> dict | None:
         "first": first,
         "pos": pos,
         "d": d,
+        # Viewer analytics (services/doc_views.py): the browser's anonymous id, the ordered
+        # activity events. Validated there.
+        "a": body.get("a") if isinstance(body.get("a"), str) and len(body["a"]) <= 64 else None,
+        "ev": body.get("ev") if isinstance(body.get("ev"), list) else None,
     }
 
 

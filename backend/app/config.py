@@ -681,6 +681,9 @@ class Settings(BaseSettings):
     # Analytics geo-IP (Phase 4) — MaxMind GeoLite2 City DB
     geoip_db_path: str = ""  # e.g. /opt/markdrop/geoip/GeoLite2-City.mmdb
     ip_hash_salt: str = "change-this-ip-hash-salt-in-production"
+    # Viewer analytics (services/doc_views.py): how long each view's detail (who, where from, the
+    # activity timeline) is kept. The aggregate numbers are kept on their own schedule.
+    view_detail_days: int = 180
 
     # Docs Studio job pipeline (services/docs_jobs.DocsJobsSettings reads these). Declared here too
     # because this model forbids unknown MARKDROP_ keys in .env (tests/test_config_docs_jobs.py

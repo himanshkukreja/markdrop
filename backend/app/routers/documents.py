@@ -861,10 +861,12 @@ async def record_read(
     )
 
 
-async def _engage_viewer(token: str) -> str | None:
+async def _engage_viewer(token: str, doc: dict | None = None) -> str | None:
     """The user behind an engagement beacon's ``u``: a session JWT or an API
-    token. A tenant token is treated as anonymous here — a body field carries
-    no Origin to hold it to the domain it was minted for."""
+    token. A tenant token counts only for a document of the workspace it was
+    minted for (a body field carries no Origin to hold it to its domain, so it
+    names its reader on that workspace's documents and is anonymous anywhere
+    else)."""
     from app.routers.auth import _user_id_from_token
     from app.services import api_token as api_token_service
 
@@ -874,10 +876,14 @@ async def _engage_viewer(token: str) -> str | None:
         from app.utils.auth import decode_access_token
 
         try:
-            if decode_access_token(token).get("typ") == "tenant":
-                return None
+            payload = decode_access_token(token)
         except pyjwt.InvalidTokenError:
             return None
+        if payload.get("typ") == "tenant":
+            ws = payload.get("ws")
+            if doc is None or not ws or doc.get("workspace_id") != ws:
+                return None
+            return payload.get("sub") if isinstance(payload.get("sub"), str) else None
     return await _user_id_from_token(token)
 
 
@@ -911,10 +917,15 @@ async def record_engagement(
         doc = await _beacon_target(db, slug, msg["t"])
         if not doc:
             return
-        viewer_id = await _engage_viewer(msg["u"]) if msg["u"] else None
+        viewer_id = await _engage_viewer(msg["u"], doc) if msg["u"] else None
         is_owner, internal = await _viewer_flags(db, doc, viewer_id)
-        await engage.ingest(db, doc, msg, ip=get_client_ip(request), ua=ua,
-                            viewer_id=viewer_id, internal=internal)
+        ip = get_client_ip(request)
+        await engage.ingest(db, doc, msg, ip=ip, ua=ua, viewer_id=viewer_id, internal=internal)
+        # Viewer analytics: this view's own row (who, where from, what they did), the owner's too.
+        from app.services import doc_views
+
+        await doc_views.record(db, doc, msg, ip=ip, ua=ua, headers=request.headers, viewer_id=viewer_id,
+                               internal=internal, own=is_owner)
     except Exception:  # pragma: no cover - a beacon never errors
         import logging
 
