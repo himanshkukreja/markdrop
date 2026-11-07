@@ -16,6 +16,7 @@ import { PushCard } from "./PushCard";
 import { SlackCard } from "./SlackCard";
 import { JiraCard } from "./JiraCard";
 import { ViewHistoryCard } from "./ViewHistoryCard";
+import { AccountTrackCard } from "@/components/analytics/AnalyticsSettings";
 
 const NAME_MAX = 80;
 
@@ -262,6 +263,8 @@ export default function AccountClient() {
           onChange={setDigest}
         />
       </Card>
+
+      <AccountTrackCard />
 
       <ViewHistoryCard />
 

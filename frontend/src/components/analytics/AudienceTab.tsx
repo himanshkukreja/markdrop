@@ -87,29 +87,29 @@ export default function AudienceTab({ slug, ov, range, internal, onInternal }: {
           ) : <Quiet>No viewers in this period.</Quiet>}
         </Panel>
 
-        <Panel id="au-dev" title="Devices">
+        {ov.track?.device !== false && <Panel id="au-dev" title="Devices">
           {a.devices.length
             ? <BarList labelWidth={64} rows={a.devices.map((d) => ({ key: d.device, label: deviceLabel(d.device), value: d.pct, display: pct(d.pct) }))} />
             : <Quiet>No device data yet.</Quiet>}
           {deviceNote && <Quiet>{deviceNote}</Quiet>}
-        </Panel>
+        </Panel>}
 
-        <Panel id="au-geo" title="Countries">
+        {ov.track?.location !== false && <Panel id="au-geo" title="Countries">
           {a.countries.length ? (
             <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
               {a.countries.map((c) => <Row key={c.country} label={c.country === "Other" ? "Other" : countryName(c.country)} extra={eng(c.engaged_pct)} value={num(c.people)} />)}
             </ul>
           ) : <Quiet>No location data yet.</Quiet>}
           <Quiet>Places with fewer than 5 viewers are grouped as Other.</Quiet>
-        </Panel>
+        </Panel>}
 
-        <Panel id="au-ch" title="Channels">
+        {ov.track?.source !== false && <Panel id="au-ch" title="Channels">
           {a.channels.length ? (
             <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
               {a.channels.map((c) => <Row key={c.channel} label={channelLabel(c.channel)} extra={eng(c.engaged_pct)} value={num(c.views)} />)}
             </ul>
           ) : <Quiet>No views in this period.</Quiet>}
-        </Panel>
+        </Panel>}
 
         <Panel id="au-sig" title={<>Share signals <Badge tone="info" size="sm" upper>New</Badge></>}>
           <p className="m-0 text-[13px] text-text-secondary">Times an app showed a preview of your link, which usually means someone shared it there.</p>
@@ -121,7 +121,7 @@ export default function AudienceTab({ slug, ov, range, internal, onInternal }: {
           <p className="m-0 text-micro text-text-muted">Approximate: apps cache previews. No people are tracked.</p>
         </Panel>
 
-        <Panel id="au-utm" title="Campaigns">
+        {ov.track?.source !== false && <Panel id="au-utm" title="Campaigns">
           {a.campaigns.length ? (
             // ph-no-capture: the person's own utm source / medium / campaign names.
             <ul className="ph-no-capture m-0 flex list-none flex-col gap-2.5 p-0">
@@ -132,7 +132,7 @@ export default function AudienceTab({ slug, ov, range, internal, onInternal }: {
             </ul>
           ) : <Quiet>No tagged visits in this period.</Quiet>}
           <Quiet>From <code className="font-mono">utm_</code> tags on your links.</Quiet>
-        </Panel>
+        </Panel>}
       </div>
     </div>
   );

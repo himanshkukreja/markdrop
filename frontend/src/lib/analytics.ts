@@ -77,6 +77,8 @@ export interface DailyPoint { date: string; views: number; people: number }
 
 export interface Overview {
   doc: AnalyticsDoc;
+  /** What the item collects (backend services/analytics_prefs.py); tabs hide what's off. */
+  track?: Track;
   range: AnalyticsRange;
   has_engagement: boolean;
   tracking_since: string | null;

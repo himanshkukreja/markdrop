@@ -13,9 +13,10 @@ import { usePhone } from "@/components/dashboard/hooks";
 import {
   downloadViewersCsv, getViewTimeline, getViewerPeople, getViewers,
   type AnalyticsRange, type ViewCompletion, type ViewStep, type ViewSummary, type ViewerPerson, type ViewerWho,
-  type ViewersQuery, type ViewersResponse,
+  type ViewersQuery, type ViewersResponse, TRACK_KEYS, type Track,
 } from "@/lib/analytics";
 import { BarList } from "./charts";
+import { TRACK_LABEL } from "./AnalyticsSettings";
 import { clock, countryName, deviceLabel, num, pct, secs } from "./format";
 import { KpiTile, LoadError, Panel, PanelSkeleton, Quiet, useLoad, useParams } from "./parts";
 
@@ -84,16 +85,16 @@ function Completion({ value, className }: { value: number | null; className?: st
   );
 }
 
-function ViewRow({ v, onOpen }: { v: ViewSummary; onOpen: () => void }) {
+function ViewRow({ v, onOpen, track }: { v: ViewSummary; onOpen: () => void; track: Partial<Track> }) {
   const anon = v.viewer.type === "anonymous";
-  const place = placeShort(v);
+  const place = track.location === false ? null : placeShort(v);
   const acts = Object.entries(v.acts).filter(([, n]) => (n ?? 0) > 0);
   return (
     <li className="border-t border-border first:border-t-0">
       <button type="button" onClick={onOpen}
         className="flex w-full min-w-0 items-center gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-(--border-focus) pointer-coarse:min-h-14">
         {anon
-          ? <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-inset text-text-muted" aria-hidden><Icon name={deviceIcon(v.system.device)} size={18} /></span>
+          ? <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-inset text-text-muted" aria-hidden><Icon name={track.device === false ? "user" : deviceIcon(v.system.device)} size={18} /></span>
           : <Avatar name={whoLine(v)} src={v.viewer.avatar ?? undefined} size="md" className="ph-mask" />}
         <span className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -105,10 +106,9 @@ function ViewRow({ v, onOpen }: { v: ViewSummary; onOpen: () => void }) {
           </span>
           <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 text-caption text-text-muted">
             <span>{when(v.started_at)}</span>
-            <span aria-hidden>·</span>
-            <span className="truncate">{v.system.label}</span>
+            {track.device !== false && <><span aria-hidden>·</span><span className="truncate">{v.system.label}</span></>}
             {place && <><span aria-hidden>·</span><span className="truncate">{flag(v.location.country)} {place}</span></>}
-            {v.source !== "Direct" && <><span aria-hidden>·</span><span className="truncate">via {v.source}</span></>}
+            {track.source !== false && v.source && v.source !== "Direct" && <><span aria-hidden>·</span><span className="truncate">via {v.source}</span></>}
           </span>
         </span>
         <span className="flex shrink-0 flex-col items-end gap-1 text-[13px] text-text">
@@ -199,7 +199,7 @@ function Fact({ icon, children, label }: { icon: string; children: React.ReactNo
   );
 }
 
-function TimelineDrawer({ slug, viewId, onClose, onOpen }: { slug: string; viewId: string | null; onClose: () => void; onOpen: (id: string) => void }) {
+function TimelineDrawer({ slug, viewId, onClose, onOpen, track }: { slug: string; viewId: string | null; onClose: () => void; onOpen: (id: string) => void; track: Partial<Track> }) {
   const phone = usePhone();
   const tl = useLoad(viewId ? `view:${slug}:${viewId}` : null, () => getViewTimeline(slug, viewId!));
   const v = viewId && tl.data?.id === viewId ? tl.data : null;
@@ -227,14 +227,14 @@ function TimelineDrawer({ slug, viewId, onClose, onOpen }: { slug: string; viewI
             ))}
           </div>
           <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-            {(v.location.label || v.location.timezone) && (
+            {track.location !== false && (v.location.label || v.location.timezone) && (
               <Fact icon="globe" label="Where">
                 {v.location.label ? `${flag(v.location.country)} ${v.location.label}`.trim() : "Location unknown"}{v.location.timezone ? ` · ${v.location.timezone}` : ""}
               </Fact>
             )}
-            {sys && <Fact icon={deviceIcon(sys.device)} label="Device">{deviceLabel(sys.device)} · {sys.label}{sys.viewport ? ` · ${sys.viewport}` : ""}{sys.language ? ` · ${sys.language}` : ""}</Fact>}
-            {sys && sys.app !== "tab" && <Fact icon="monitor" label="App">{sys.app === "pwa" ? "Installed Markdrop app" : `Embedded${sys.embed_host ? ` on ${sys.embed_host}` : ""}`}</Fact>}
-            <Fact icon="arrowUpRight" label="Source">{v.source === "Direct" ? "Direct or bookmarked" : `From ${v.source}`}{v.referrer ? <> · <span className="font-mono text-caption break-all">{v.referrer}</span></> : null}</Fact>
+            {sys && track.device !== false && <Fact icon={deviceIcon(sys.device)} label="Device">{deviceLabel(sys.device)} · {sys.label}{sys.viewport ? ` · ${sys.viewport}` : ""}{sys.language ? ` · ${sys.language}` : ""}</Fact>}
+            {sys && track.device !== false && sys.app !== "tab" && <Fact icon="monitor" label="App">{sys.app === "pwa" ? "Installed Markdrop app" : `Embedded${sys.embed_host ? ` on ${sys.embed_host}` : ""}`}</Fact>}
+            {track.source !== false && v.source && <Fact icon="arrowUpRight" label="Source">{v.source === "Direct" ? "Direct or bookmarked" : `From ${v.source}`}{v.referrer ? <> · <span className="font-mono text-caption break-all">{v.referrer}</span></> : null}</Fact>}
             {v.utm && <Fact icon="hash" label="Campaign"><span className="font-mono text-caption">{[v.utm.source, v.utm.medium, v.utm.campaign].filter(Boolean).join(" / ")}</span></Fact>}
             {(v.visit_n ?? 1) > 1 && <Fact icon="refresh" label="Visit">{ordinal(v.visit_n!)} visit</Fact>}
           </ul>
@@ -265,7 +265,7 @@ function TimelineDrawer({ slug, viewId, onClose, onOpen }: { slug: string; viewI
   );
 }
 
-function Breakdowns({ data, onPick }: { data: NonNullable<ViewersResponse["breakdowns"]>; onPick: (dim: Dim, key: string) => void }) {
+function Breakdowns({ data, onPick, track }: { data: NonNullable<ViewersResponse["breakdowns"]>; onPick: (dim: Dim, key: string) => void; track: Partial<Track> }) {
   const total = Math.max(1, data.device.reduce((a, r) => a + r.views, 0));
   const panels: { id: string; title: string; dim: Dim | null; rows: { key: string; label: React.ReactNode; views: number }[] }[] = [
     { id: "vw-country", title: "Countries", dim: "country", rows: data.country.map((r) => ({ key: r.key, label: r.key === "Unknown" ? "Unknown" : `${flag(r.key)} ${countryName(r.key)}`, views: r.views })) },
@@ -275,9 +275,16 @@ function Breakdowns({ data, onPick }: { data: NonNullable<ViewersResponse["break
     { id: "vw-browser", title: "Browsers and apps", dim: "browser", rows: data.browser.map((r) => ({ key: r.key, label: r.key, views: r.views })) },
     { id: "vw-source", title: "Sources", dim: "source", rows: data.source.map((r) => ({ key: r.key, label: r.key === "Direct" ? "Direct or bookmarked" : r.key, views: r.views })) },
   ];
+  // What the item doesn't collect isn't shown (backend services/analytics_prefs.py).
+  const hidden = new Set<string>([
+    ...(track.location === false ? ["vw-country", "vw-city"] : []),
+    ...(track.device === false ? ["vw-device", "vw-os", "vw-browser"] : []),
+    ...(track.source === false ? ["vw-source"] : []),
+  ]);
+  if (panels.every((p) => hidden.has(p.id))) return null;
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {panels.map((p) => (
+      {panels.filter((p) => !hidden.has(p.id)).map((p) => (
         <Panel key={p.id} id={p.id} title={p.title}>
           {p.rows.length ? (
             p.dim ? (
@@ -374,6 +381,8 @@ export default function ViewersTab({ slug, range, workspaceName }: { slug: strin
   }
 
   const views = data.views ?? [];
+  const track: Partial<Track> = data.track ?? {};
+  const notCollected = TRACK_KEYS.filter((k) => k !== "counts" && track[k] === false);
   const activeDims = DIMS.filter((d) => dims[d]);
   const filtered = who !== "all" || completion !== "any" || activeDims.length > 0;
 
@@ -424,7 +433,7 @@ export default function ViewersTab({ slug, range, workspaceName }: { slug: strin
   ) : views.length ? (
     <>
       <ul className="m-0 flex list-none flex-col p-0">
-        {views.map((v) => <ViewRow key={v.id} v={v} onOpen={() => openView(v.id)} />)}
+        {views.map((v) => <ViewRow key={v.id} v={v} track={track} onOpen={() => openView(v.id)} />)}
       </ul>
       {data.next != null && (
         <Button variant="secondary" size="sm" className="self-center" loading={res.loading} onClick={() => setShown((n) => n + PAGE)}>
@@ -443,13 +452,19 @@ export default function ViewersTab({ slug, range, workspaceName }: { slug: strin
       <Panel id="vw-list" title={mode === "person" ? "People" : "Every view"} aside={mode === "view" ? `${num(data.total ?? 0)} in this period` : people.data ? `${num(people.data.total)} people` : undefined}>
         {controls}
         <div className={cx("flex min-w-0 flex-col gap-3 transition-opacity", res.loading && "opacity-60")}>{list}</div>
+        {notCollected.length > 0 && (
+          <Quiet>
+            Not collected for this item: {notCollected.map((k) => TRACK_LABEL[k].toLowerCase()).join(", ")}.{" "}
+            <button type="button" className="font-semibold text-accent-text underline underline-offset-2" onClick={() => setParams({ settings: "1" })}>Analytics settings</button>
+          </Quiet>
+        )}
         <Quiet>
           Signed-in viewers are shown by name; everyone else is an anonymous visitor (their city at most, never an IP address).
           Each view&apos;s detail is kept for {num(data.retention_days)} days.
         </Quiet>
       </Panel>
-      {data.breakdowns && views.length > 0 && <Breakdowns data={data.breakdowns} onPick={(d, k) => setFilter({ [d]: k })} />}
-      <TimelineDrawer slug={slug} viewId={viewId} onClose={() => setParams({ view: null })} onOpen={openView} />
+      {data.breakdowns && views.length > 0 && <Breakdowns data={data.breakdowns} track={track} onPick={(d, k) => setFilter({ [d]: k })} />}
+      <TimelineDrawer slug={slug} viewId={viewId} track={track} onClose={() => setParams({ view: null })} onOpen={openView} />
     </div>
   );
 }

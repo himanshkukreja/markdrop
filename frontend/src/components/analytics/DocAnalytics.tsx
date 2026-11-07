@@ -22,6 +22,7 @@ import OverviewTab from "./OverviewTab";
 import PagesTab from "./PagesTab";
 import VersionsTab from "./VersionsTab";
 import ViewersTab from "./ViewersTab";
+import { ItemTrackDrawer, TrackingChip, trackSummary } from "./AnalyticsSettings";
 import { KIND_WORD, clock, day, num, pagesLabel, prettyHeadingId } from "./format";
 import { KpiGrid, LoadError, PanelSkeleton, RangePicker, useAnalyticsGate, useLoad, useParams } from "./parts";
 
@@ -160,8 +161,10 @@ export default function DocAnalytics({ slug }: { slug: string }) {
     );
   }
 
+  const track = ov.track ? trackSummary(ov.track) : null;
   const controls = (
     <div className="flex flex-wrap items-center gap-2">
+      {track && <TrackingChip summary={track} onClick={() => setParams({ settings: "1" })} />}
       {!phone && ov.live > 0 && <Badge tone="success" live>{num(ov.live)} {LIVE_WORD[doc.kind]}</Badge>}
       <RangePicker value={range} onChange={(r) => setParams({ range: r === "30d" ? null : r })} />
       <Button variant="secondary" size="sm" iconLeft="download" loading={csvBusy} onClick={csv}>CSV</Button>
@@ -212,6 +215,8 @@ export default function DocAnalytics({ slug }: { slug: string }) {
         {tab === "viewers" && <ViewersTab slug={slug} range={range} workspaceName={doc.workspace?.name ?? null} />}
         {tab === "versions" && <VersionsTab slug={slug} ov={ov} range={range} internal={internal} />}
       </div>
+      <ItemTrackDrawer slug={slug} open={params.get("settings") === "1"} onClose={() => setParams({ settings: null })}
+        onSaved={() => ovRes.retry()} />
     </div>
   );
 }
@@ -223,6 +228,9 @@ export default function DocAnalytics({ slug }: { slug: string }) {
  */
 function ViewersOnly({ slug, range, onRange, fallback }: { slug: string; range: AnalyticsRange; onRange: (r: AnalyticsRange) => void; fallback: React.ReactNode }) {
   const probe = useLoad(`vwo:${slug}:${range}`, () => getViewers(slug, { range }, 0, 1));
+  const [params, setParams] = useParams();
+  const open = params.get("settings") === "1";
+  const setOpen = (on: boolean) => setParams({ settings: on ? "1" : null });
   const title = probe.data?.doc.title ?? null;
   useEffect(() => {
     if (title) document.title = `${title} · Viewers · Markdrop`;
@@ -242,9 +250,13 @@ function ViewersOnly({ slug, range, onRange, fallback }: { slug: string; range: 
           <h1 className="ph-sensitive ph-mask m-0 text-h1 text-text break-words" dir="auto">{d.title}</h1>
           <p className="mt-1 mb-0 text-[13px] text-text-muted">Viewers · <Anchor href={`/${encodeURIComponent(slug)}`}>Open it</Anchor></p>
         </div>
-        <RangePicker value={range} onChange={onRange} />
+        <div className="flex flex-wrap items-center gap-2">
+          {probe.data.access === "full" && probe.data.track && <TrackingChip summary={trackSummary(probe.data.track)} onClick={() => setOpen(true)} />}
+          <RangePicker value={range} onChange={onRange} />
+        </div>
       </div>
       <ViewersTab slug={slug} range={range} />
+      <ItemTrackDrawer slug={slug} open={open} onClose={() => setOpen(false)} onSaved={() => probe.retry()} />
     </div>
   );
 }
