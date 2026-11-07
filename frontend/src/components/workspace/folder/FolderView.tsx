@@ -775,8 +775,9 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
       )}
 
       {/* ── Views: List · Table · Board · saved views ── */}
-      {folderId && tree && !filtered && (
-        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings_sub ? "list" : null) }, false)} member={isMember} phone={phone} />
+      {/* A type filter keeps the views bar (on List): picking a table or board shows every type again. */}
+      {folderId && tree && !searching && !query.kind && (
+        <FolderDatabase workspaceId={workspaceId} folderId={folderId} view={typed ? null : view_} onView={(v) => setQuery({ view: v ?? (folder?.meetings_sub ? "list" : null), ...(v ? { type: null } : {}) }, false)} member={isMember} phone={phone} />
       )}
 
       {/* ── Type chips: once this folder holds two kinds of thing (or one is picked) ── */}
