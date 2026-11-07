@@ -24,6 +24,23 @@
   "next": [],
   "entries": [
     {
+      "id": "ai-and-your-data",
+      "date": "2026-11-07",
+      "title": "AI and your data, in one place",
+      "kind": "improved",
+      "area": "Privacy",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "A new docs page says which AI powers Markdrop's AI features, what is sent to it and what never is, and what Markdrop keeps. AI features describe their limits as fair-use limits.",
+      "body": "- **AI and your data.** Markdrop's AI features are powered by Anthropic's Claude models. Only the excerpts a request needs are sent; encrypted items never are, a password-protected item only by its title, and nothing sent is used to train models.\n- **Fair-use limits.** When an AI limit is reached, the feature keeps working without the AI part: meetings still import with their transcript and Google's notes and **Write it again** adds the AI sections later, Jira drafts are the item as written, and Team picks up again by itself.",
+      "docs": [
+        "/security/ai-and-your-data"
+      ]
+    },
+    {
       "id": "meeting-attendees-more-gemini-shapes",
       "date": "2026-11-07",
       "title": "More of Gemini's note formats read right: bracketed owners and empty notes",

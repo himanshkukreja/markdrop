@@ -604,7 +604,7 @@ class Drafts(FixCase):
                                                      "request_id": "x" * 32})
         got = await self.call("POST", f"/{self.sid}/fixes/{drop['_id']}/draft", "editor", 429)
         self.assertEqual(got["code"], "guide_budget")
-        self.assertIn("AI budget", got["detail"])
+        self.assertIn("monthly AI allowance", got["detail"])
         self.assertEqual(self.fake.calls, [])
         settings.docs_ai_answers_per_month = 1000
         settings.docs_editor_ai_per_user_day = 0

@@ -2,7 +2,7 @@
 title: Write in the editor
 nav: The editor
 description: "The page editor: blocks and the slash menu, drag and drop, Markdrop files and private sections, AI help, find and replace, checks, comments and locks."
-updated: 2026-11-04
+updated: 2026-11-07
 prerequisites: [/guides/create-a-site]
 keywords: [editor, mermaid, diagram, visual editor, markdown, slash menu, blocks, drag and drop, reorder cards, markdrop file, embed, private section, video, callout, steps, tabs, cards, code block, image, dark mode image, ai, ask ai, rewrite, translate, find and replace, checks, broken links, alt text, comments, review, shortcuts, autosave, lock, conflict, preview]
 ---

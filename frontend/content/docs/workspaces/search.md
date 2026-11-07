@@ -1,7 +1,7 @@
 ---
 title: Search
 description: Find anything you can open with ⌘K. Search reads titles, headings, text and file contents, forgives typos, and answers questions with AI.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [search, find, command k, cmd k, ctrl k, fuzzy, typo, global search, ask ai, ai search, question, trash, filters, workspace search, search this workspace, only this workspace, recent searches, recently opened, meetings, transcript, whole transcript, pdf text, html text, word, docx, excel, xlsx, csv, captions, video captions, page number, slack, /markdrop search, search log]
 ---
 

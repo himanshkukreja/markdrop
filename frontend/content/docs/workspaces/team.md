@@ -2,7 +2,7 @@
 title: "Team: your workspace memory"
 nav: Team
 description: Who is doing what in your workspace, from its meetings and pages. Status, focus, targets, blockers and projects, each line linked to its source.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [team, jira, jira tickets, create jira issue, team memory, set_my_status, set_focus_note, hide_team_line, correct_team_line, mark_team_item_done, list_team_groups, save_team_group, delete_team_group, send_weekly_summary_now, timezone, weekly summary timezone, send now, mark done, groups, weekly summary, this week, monday summary, workspace memory, who is doing what, status, what is someone working on, standup, sync-up, targets, due dates, commitments, blockers, waiting on, quiet lately, on track, focus, set status, on leave, projects, swimlanes, hide a line, this is wrong, correct, privacy, restricted meetings, ai, turn on, turn off, list_team, get_person_profile, get_project_status, mcp]
 ---
 

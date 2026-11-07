@@ -2,7 +2,7 @@
 title: What people couldn't find
 nav: Write this next
 description: See what people searched for in your workspace or asked your guides and didn't find, grouped into pages worth writing, and start one from its outline.
-updated: 2026-11-05
+updated: 2026-11-07
 prerequisites: [/analytics/overview]
 keywords: [content gaps, write this next, failed searches, unanswered questions, search log, ai, outline, create page]
 ---

@@ -1,7 +1,7 @@
 ---
 title: Ask
 description: "One assistant, named after what it asks: your workspace, your own files or the page you are on. Its own page, live suggestions and cited sources."
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [ask, what ask can read, whole transcript, long meetings, word, docx, powerpoint, pptx, slides, excel, xlsx, csv, pdf pages, video captions, about me, about yourself, who am i, what did i say, my last standup, my last sync-up, my meetings, my documents, what have i been working on, my email, my workspaces, my role, ask your workspace, ask any page, ask my files, ask this page, ask page, full page, suggestions, live suggestions, suggested questions, what's happening, updated, topics, history, conversations, ask markdrop, never empty, cut short, slack, /markdrop ask, ask, assistant, ai, question, answer, cmd j, ctrl j, ⌘j, keyboard, shortcut, this doc, this page, meetings, this meeting, this folder, workspace, everything, scope, insert, insert into doc, view mode, edit mode, home, dashboard, catch me up, this week, action items, my tasks, to-dos, follow-up, conversation, recent questions, sources, citations, transcript, moment, ai search, phone, app, side panel]
 ---
 

@@ -2,7 +2,7 @@
 title: Markdrop Guides limits
 nav: Limits
 description: "The limits while Markdrop Guides is in beta: guides, pages, publishes, files and storage, AI answers, imports and syncs, domains and private pages."
-updated: 2026-11-02
+updated: 2026-11-07
 keywords: [limits, quota, beta, how many guides, pages, publishes per day, storage, file size, ask ai answers, ai allowance, editor ai, imports, github sync, domains, redirects, private rules, templates]
 ---
 

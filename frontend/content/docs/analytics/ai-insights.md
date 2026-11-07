@@ -1,7 +1,7 @@
 ---
 title: AI insights for one link
 description: Ask AI why readers stop, where viewers drop or skip, which PDF pages lose people and which file version works better.
-updated: 2026-11-05
+updated: 2026-11-07
 prerequisites: [/analytics/overview]
 keywords: [ai insights, analytics ai, why did they stop, drop-off, rewrite, video coach, chapters, pdf, versions, verdict, confidence, analyze_document_engagement]
 ---

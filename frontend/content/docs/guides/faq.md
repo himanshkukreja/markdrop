@@ -2,7 +2,7 @@
 title: Markdrop Guides FAQ and troubleshooting
 nav: FAQ and troubleshooting
 description: Markdrop Guides pricing, the studio address, private pages, embeds, GitHub sync and Fix list privacy, and what to do when a publish or import fails.
-updated: 2026-11-02
+updated: 2026-11-07
 keywords: [faq, pricing, cost, free, beta, plans, troubleshooting, publish failed, build failed, import failed, not public, can't edit, read only, no access, guides.markdrop.in, markdrop guides help]
 ---
 

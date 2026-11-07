@@ -1,7 +1,7 @@
 ---
 title: Privacy at Markdrop
 description: What Markdrop keeps about you and your readers, what it measures, what it never records, and how to opt out.
-updated: 2026-11-05
+updated: 2026-11-07
 keywords: [privacy, search log, content gaps, gdpr, cookies, consent, analytics, posthog, google analytics, global privacy control, delete account, data]
 ---
 

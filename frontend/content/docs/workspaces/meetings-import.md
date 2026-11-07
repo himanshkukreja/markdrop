@@ -2,7 +2,7 @@
 title: Import a meeting manually
 nav: Import manually
 description: Paste a transcript, upload a caption or Word file, paste a Google Drive link, or pick Google Meet's transcript and Gemini notes from your Drive.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [import meeting, paste transcript, upload transcript, vtt, srt, sbv, docx, zoom, microsoft teams, otter, google meet, gemini notes, notes by gemini, transcript, google drive, google picker, connect google docs, duplicates, import past meetings, bulk import, backfill, many meetings, old meetings, history, meeting dates, series, drive link, google docs link, paste a link, shared doc, anyone with the link, organizer, imported by, attendees, invited, who joined, people count, import a meeting dialog, import from link, queued, only the people who were there, restrict to attendees, already imported, review table, needs a date, quiet, notify nobody, don't post to slack, slack, pause, resume, retry, ai paused, fair-use limit]
 ---
 

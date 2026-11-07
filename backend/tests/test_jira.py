@@ -352,7 +352,7 @@ class Create(JiraWorld):
         d = (await self.http.post("/api/v1/jira/draft", json={"slug": "standup", "block": "b-act1"},
                                   headers=self.session("wm"))).json()
         self.assertFalse(d["ai"])
-        self.assertIn("budget", d["note"])
+        self.assertIn("fair-use limit", d["note"])
         self.assertTrue(d["draft"]["summary"].startswith("WM Migrate the billing webhooks"))
         self.assertEqual(self.fake.calls, [])
 

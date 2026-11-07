@@ -2,7 +2,7 @@
 title: Ask your meetings
 nav: Ask meetings
 description: Ask one meeting or every meeting in a workspace with Ask. Answers are in English and link to the moment it was said.
-updated: 2026-11-05
+updated: 2026-11-07
 keywords: [ask markdrop, cmd j, ask meetings button, meetings chat, meeting chat, meeting bar, organized by, meeting details, post to slack, all meetings, this meeting, any series, any time, ask this meeting, ask across meetings, ask meetings, meeting questions, what did we decide, action items, citations, sources, transcript moment, jump to the moment, follow-ups, new chat, stop, conversation, details, write it again, series, last month, date range, latest, keyboard]
 ---
 

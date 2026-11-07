@@ -1,7 +1,7 @@
 ---
 title: Meetings
 description: Turn every team call into a page with an AI summary, decisions and action items, keep the transcript, and ask questions across all your meetings.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [meetings, mentions in meetings, meeting notifications, no notifications, meetings page, all meetings, meeting cards, search meetings, sort meetings, meeting date, one-offs, meeting folders, subfolders, other meetings, organize meetings, organize into folders, organize progress, organise meetings, meeting notes, transcript, google meet, gemini, gemini notes, take notes for me, notes by gemini, meeting page, meeting cover, series cover, summary, decisions, action items, open questions, topics, team memory, meetings folder, auto import, import meetings automatically, series, recurring meetings, daily standup, by month, by series, delete meeting, organize_meetings, meeting memory, /meetings]
 ---
 

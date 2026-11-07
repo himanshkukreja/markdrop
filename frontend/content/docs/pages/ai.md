@@ -2,7 +2,7 @@
 title: AI in pages
 nav: AI in pages
 description: Rewrite, draft, summarize and translate pages with AI, turn notes into a page, and let readers ask a page questions. Who can use it, what's sent, the limits.
-updated: 2026-11-05
+updated: 2026-11-07
 prerequisites: [/pages/overview]
 keywords: [ai, claude, view mode, edit mode, ✦ ask, insert, anthropic, ask ai, ask this page, summarize, summary, translate, translation, action items, to-do, notes, alt text, title, icon, /ai, cmd j, ctrl j, workspace ai, privacy, training, limits, cover, auto cover, automatic cover]
 ---

@@ -1,7 +1,7 @@
 ---
 title: Analytics overview
 description: See how people read, watch and share what you publish. Every link you own, in one place, with your own views left out.
-updated: 2026-11-05
+updated: 2026-11-07
 keywords: [analytics, stats, views, dashboard, insights, csv, metrics, ai insights, ask your analytics, what changed, analytics ai, refresh, look]
 ---
 

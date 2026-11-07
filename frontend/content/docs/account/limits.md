@@ -1,7 +1,7 @@
 ---
 title: Limits
 description: Every limit in one place - document size, file sizes, storage, versions, sharing, workspaces, domains and request rates.
-updated: 2026-11-05
+updated: 2026-11-07
 keywords: [limits, quota, storage, max size, file size, rate limit, how many, maximum, ai limits, fair use, ai search, analytics ai, ask markdrop, conversations, 90 days]
 ---
 

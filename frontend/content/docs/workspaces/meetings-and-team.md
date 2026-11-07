@@ -2,7 +2,7 @@
 title: "Meetings and Team: how it fits together"
 nav: How it fits together
 description: How a Google Meet call becomes a meeting page, then Team memory, then answers in Ask and messages in Slack, and who sees what at each step.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [overview, video, watch, your workspace remembers, how it works, how it fits together, pipeline, google meet, gemini, gemini notes, transcript, apps script, connect google meet, check now, meeting page, team memory, team, this week, weekly summary, ask, ask acme, slack, action items, meetings channel, mcp, set up, owner setup, admin setup, checklist, who sees what, privacy, restricted meetings, cost]
 ---
 

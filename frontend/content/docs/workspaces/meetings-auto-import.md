@@ -2,7 +2,7 @@
 title: Import meetings automatically
 nav: Import automatically
 description: Connect Google Meet once, and every call's transcript and Gemini notes become a meeting page by themselves, with a small script in your own Google account.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [shared meetings, meetings shared with me, organizer, nothing imported, check, script status, update script, new script, shared drives, auto import, backfill, past meetings, import old meetings, automatic import, connect google meet, google meet, apps script, google apps script, gemini notes, notes by gemini, transcript, meet transcript, script.google.com, unverified app, trigger, every 5 minutes, every 15 minutes, disconnect, meetings token, include_shared, script version 3, script version 4, check now, check for new meetings, turn on check now, web app, web app url, deploy, new deployment, manage deployments, new version, refresh, not imported, missing meeting, waiting for gemini, gemini notes empty, notes not ready, updated, edited notes, syncmeetings, max_per_run, backfill_days, last 30 days, drive api, script ran, also importing here, get the new script, slack, quiet import]
 ---
 

@@ -2,7 +2,7 @@
 title: Meetings privacy and AI
 nav: Privacy and AI
 description: Who can open a meeting, restricting meetings to their attendees, how long transcripts are kept, the language of the AI sections, and AI limits.
-updated: 2026-11-06
+updated: 2026-11-07
 keywords: [meetings privacy, restrict to attendees, attendees only, restricted meetings, only the people who were there, who can see a meeting, slack, quiet, past meetings, notifications, delete meeting, retention, transcript storage, english, hindi, language, ai limits, fair use]
 ---
 

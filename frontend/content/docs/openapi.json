@@ -3,7 +3,7 @@
   "info": {
     "title": "Markdrop",
     "version": "0.1.0",
-    "x-markdrop-exported": "2026-11-06"
+    "x-markdrop-exported": "2026-11-07"
   },
   "paths": {
     "/api/v1/trash": {
@@ -7771,7 +7771,7 @@
           "creator-analytics"
         ],
         "summary": "Analytics Ai Run",
-        "description": "Analyse (Claude Haiku 5.5) unless a cached analysis exists; ``{\"refresh\": true}`` in the\nbody re-analyses. Below 20 sessions with data the model isn't called (``state: thin``).",
+        "description": "Analyse with AI unless a cached analysis exists; ``{\"refresh\": true}`` in the\nbody re-analyses. Below 20 sessions with data the model isn't called (``state: thin``).",
         "operationId": "analytics_ai_run_api_v1_me_documents__slug__analytics_ai__kind__post",
         "parameters": [
           {
@@ -15558,7 +15558,7 @@
           "meeting-memory"
         ],
         "summary": "Check",
-        "description": "Claude Haiku's verdict on the section against these decisions: ``contradicts`` / ``omits`` /\n``consistent`` with a one-line note. Never edits the page.",
+        "description": "AI's verdict on the section against these decisions: ``contradicts`` / ``omits`` /\n``consistent`` with a one-line note. Never edits the page.",
         "operationId": "check_api_v1_meeting_memory_check_post",
         "requestBody": {
           "content": {
