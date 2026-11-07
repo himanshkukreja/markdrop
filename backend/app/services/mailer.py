@@ -626,6 +626,60 @@ def compose_guide_access_decision(*, guide: str, approved: bool, url: str) -> di
     return _mail(f"Your access request for {_one_line(guide, 80)}", "", e)
 
 
+# ── Admin console: who is an admin (services/admin_roles.py) ───────────────────
+
+
+def compose_admin_change(*, actor: str, actor_email: str, target: str, added: bool, note: str | None) -> dict:
+    """To every owner when an admin is added or removed: who, whom, and where to check."""
+    who = actor if not actor_email or actor == actor_email else f"{actor} ({actor_email})"
+    if added:
+        subject = f"{_one_line(target, 120)} is now a Markdrop admin"
+        lines = [K.p([K.strong(who), " made ", K.strong(target), " an admin. They can see every user, document, "
+                      "analytics, email and AI log in the admin console, but can't change who is an admin."])]
+    else:
+        subject = f"{_one_line(target, 120)} is no longer a Markdrop admin"
+        lines = [K.p([K.strong(who), " removed ", K.strong(target), " from the admins. Their next admin request is refused."])]
+    body = [K.eyebrow("Admin console"), K.title(subject), *lines,
+            K.quote(note) if note else None,
+            K.button(f"{_base()}/admin?tab=admins", "Review admins", margin="4px 0 24px"),
+            K.small("Didn't expect this? Remove the admin in the console, and check backend/scripts/admin_access.py log "
+                    "on the server.")]
+    e = K.layout(title_=subject, preheader=subject, base=_base(), label_="Admin console", body=body,
+                 footer=Footer(why="You're getting this because you're an owner of this Markdrop's admin console. "
+                                   "Every change to its admins is sent to every owner."))
+    return _mail(subject, subject, e)
+
+
+async def send_admin_change_email(*, to_email: str, actor: str, actor_email: str, target: str, added: bool,
+                                  note: str | None = None) -> None:
+    mail = compose_admin_change(actor=actor, actor_email=actor_email, target=target, added=added, note=note)
+    await _send(to_email, mail, purpose="share", kind="admin_change", ref=target)
+
+
+def compose_admin_granted(*, actor: str, has_account: bool, name: str | None = None) -> dict:
+    """To a new admin: what they can do now, and how to get in."""
+    subject = "You're now an admin of Markdrop"
+    hello = f"Hi {name}," if name else "Hi,"
+    body = [K.eyebrow("Admin console"), K.title(subject),
+            K.p(hello),
+            K.p([K.strong(actor), " gave you access to Markdrop's admin console: users, documents, analytics, "
+                 "email and AI logs. Treat what you see there as private."]),
+            K.button(f"{_base()}/admin", "Open the admin console", margin="4px 0 24px"),
+            K.small(["Sign in to Markdrop with ", K.strong("this email address"), " to open it"
+                     + ("." if has_account else "; signing in the first time creates your account.")
+                     + " Signed in already? You'll find Admin in your account menu."])]
+    e = K.layout(title_=subject, preheader="You can open Markdrop's admin console now.", base=_base(),
+                 label_="Admin console", body=body,
+                 footer=Footer(why="You're getting this because an owner made you an admin of Markdrop. Didn't "
+                                   "expect it? Reply to this email."))
+    return _mail(subject, "You can open Markdrop's admin console now.", e)
+
+
+async def send_admin_granted_email(*, to_email: str, actor: str, has_account: bool, name: str | None = None) -> None:
+    await _send(to_email, compose_admin_granted(actor=actor, has_account=has_account, name=name),
+                purpose="share", kind="admin_change", ref=to_email)
+
+
 # ── Web pages in the email layout ──────────────────────────────────────────────
 
 

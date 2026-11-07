@@ -28,7 +28,7 @@ from app.models.user import User
 from app.models.workspace import role_allows
 from app.routers.auth import require_user
 from app.schemas.folder import ON_CONFLICT_HELP
-from app.services import access, card_preview, revalidate
+from app.services import access, card_preview, file_types, revalidate
 from app.services import library as lib_service
 from app.services import folder as folder_service
 from app.services import workspace as ws_service
@@ -118,6 +118,8 @@ async def workspace_items(
     folder: str = Query("all", max_length=64),
     q: str | None = Query(None, max_length=200),
     kind: str | None = Query(None, pattern="^(markdown|document|artifact)$"),
+    # document, pdf, video, image, sheet, slides, word, html or other (services/file_types).
+    file_type: str | None = Query(None, alias="type", pattern=file_types.TYPE_PATTERN),
     cursor: str | None = Query(None, max_length=200),
     limit: int = Query(50, ge=1, le=100),
     db: AsyncIOMotorDatabase = Depends(get_db),
@@ -126,7 +128,8 @@ async def workspace_items(
     await ws_service.require_role(db, workspace_id, user.id, "viewer")
     actor, ctx = _ac(request, db, user)
     return jsonable_encoder(await items_service.items(
-        db, actor, ctx, workspace_id, folder=folder, q=q, kind=kind, cursor=cursor, limit=limit))
+        db, actor, ctx, workspace_id, folder=folder, q=q, kind=kind, cursor=cursor, limit=limit,
+        file_type=file_type))
 
 
 @router.post("/{workspace_id}/items/previews")

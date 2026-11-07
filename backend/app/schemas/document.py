@@ -343,6 +343,9 @@ class MyDocListResponse(BaseModel):
     count_all: int = 0
     count_markdown: int = 0
     count_artifact: int = 0
+    # Totals per file type (document, pdf, video, image, sheet, slides, word,
+    # html, other), also regardless of the active filter: the type chips.
+    count_by_type: dict[str, int] = Field(default_factory=dict)
 
 
 

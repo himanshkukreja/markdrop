@@ -45,13 +45,18 @@ class Settings(BaseSettings):
     # Public URL of this backend API — used to build the email magic-link.
     api_base_url: str = "http://localhost:8080"
 
-    # Admin console (/admin, routers/admin.require_admin). Who may open it: the signed-in Markdrop
-    # accounts whose email is listed here (comma-separated, case-insensitive, exact match). There is
-    # no admin username or password: the owner's own Markdrop session is the credential (2026-11-06).
+    # Admin console (/admin, routers/admin.require_admin). Who may open it: the OWNERS, the signed-in
+    # Markdrop accounts whose email is listed here (comma-separated, case-insensitive, exact match),
+    # plus the admins an owner adds in Admin › Admins (the `admins` collection, services/admin_roles).
+    # Only owners add or remove admins; owners themselves change only here. There is no admin
+    # username or password: the person's own Markdrop session is the credential (2026-11-06).
     admin_emails: str = "kukreja.him@gmail.com"
     # An admin request needs a session signed in within this many days (the app's sessions last
     # 30); an older one is asked to sign in again. 0 turns the check off.
     admin_session_max_age_days: int = 7
+    # Adding or removing an admin needs a session signed in within this many hours (else sign in
+    # again first). 0 turns the check off.
+    admin_role_change_max_age_hours: int = 24
     # Retired with the admin password form (2026-11-06). Kept only so an existing .env that still
     # sets MARKDROP_ADMIN_USERNAME / _PASSWORD / _SECRET keeps loading; nothing reads them.
     admin_username: str = ""
@@ -376,7 +381,7 @@ class Settings(BaseSettings):
 
     @property
     def admin_email_set(self) -> frozenset[str]:
-        """MARKDROP_ADMIN_EMAILS as lowercase addresses (blank entries dropped)."""
+        """MARKDROP_ADMIN_EMAILS (the owners) as lowercase addresses (blank entries dropped)."""
         return frozenset(e.strip().lower() for e in self.admin_emails.split(",") if e.strip())
 
     @property

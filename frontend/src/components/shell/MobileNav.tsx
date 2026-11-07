@@ -82,6 +82,13 @@ export function MobileNav({ className }: { className?: string }) {
                 <span>Account settings</span>
                 <Icon name="chevronRight" size={18} className="text-text-muted" />
               </Anchor>
+              {user.admin && (
+                // Admins only: the server sets `admin` on /auth/me (backend services/admin_roles).
+                <Anchor href="/admin" className={row} onClick={close} data-testid="mobilenav-admin">
+                  <span className="inline-flex items-center gap-2"><Icon name="shieldCheck" size={18} className="text-text-muted" />Admin</span>
+                  <Icon name="chevronRight" size={18} className="text-text-muted" />
+                </Anchor>
+              )}
             </>
           )}
           <button

@@ -23,7 +23,7 @@ from bson import ObjectId
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.services import access, publicity, urls
+from app.services import access, file_types, publicity, urls
 from app.services import folder as folder_service
 from app.services import workspace_items as items_service
 
@@ -36,6 +36,9 @@ MAX_SHARED_PAGE = 100
 QUICK_MIN = 2
 QUICK_MAX_LIMIT = 20
 MAX_WORKSPACES = 100
+# Shared with me counts per file type over at most this many grants (the first page only);
+# past it the counts are left out (null) rather than re-checking thousands of rows per request.
+SHARED_COUNT_SCAN = 1000
 
 
 def _now() -> datetime:
@@ -132,19 +135,29 @@ async def record_view(db: AsyncIOMotorDatabase, user_id: str | None, doc_id) -> 
 
 
 async def recent(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
-                 limit: int = RECENT_LIST) -> dict:
+                 limit: int = RECENT_LIST, file_type: str | None = None,
+                 with_counts: bool = False) -> dict:
+    """The newest ``limit`` readable items the caller opened, optionally of one
+    file type; ``with_counts`` adds ``count_by_type`` over every readable one of
+    the kept 100 (the Recent page's chips — Home and ⌘K don't ask, and stop early)."""
     rows = await db[RECENT].find({"user_id": actor.user_id}).sort("viewed_at", -1).limit(
         RECENT_KEEP).to_list(length=RECENT_KEEP)
     docs = await _docs_by_id(db, [r["doc_id"] for r in rows])
     shaper = _Shaper(db, actor, ctx)
     keep = []
+    by_type = file_types.empty_counts()
     for r in rows:
         raw = docs.get(r["doc_id"])
         # Re-decided now: a revoked grant, a narrowed level, an expiry or a
-        # password (asked again each time) all take it off the list.
-        if await _readable(actor, raw, ctx):
+        # password (asked again each time) all take it off the list — and out
+        # of the counts.
+        if not await _readable(actor, raw, ctx):
+            continue
+        t = file_types.type_of(raw.get("kind"), raw.get("mime"))
+        by_type[t] += 1
+        if (not file_type or t == file_type) and len(keep) < limit:
             keep.append((r, raw))
-        if len(keep) >= limit:
+        if len(keep) >= limit and not with_counts:
             break
     await shaper.names([raw for _r, raw in keep])
     items = []
@@ -152,7 +165,10 @@ async def recent(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
         item = await shaper.item(raw)
         item["viewed_at"] = r.get("viewed_at")
         items.append(item)
-    return {"items": items}
+    out: dict = {"items": items}
+    if with_counts:
+        out["count_by_type"] = by_type
+    return out
 
 
 # ── Shared with me ────────────────────────────────────────────────────────────
@@ -201,7 +217,12 @@ async def _shared_ok(actor: access.Actor, raw: dict | None, effective: dict[str,
 
 
 async def shared(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
-                 cursor: str | None = None, limit: int = 30) -> dict:
+                 cursor: str | None = None, limit: int = 30, file_type: str | None = None,
+                 with_counts: bool = False) -> dict:
+    """A page of what people added the caller to, optionally of one file type.
+    ``with_counts`` (the Shared with me page's chips; the sidebar's badge doesn't ask) adds
+    ``count_by_type`` over every readable shared item — null past SHARED_COUNT_SCAN grants
+    and on later pages."""
     limit = max(1, min(MAX_SHARED_PAGE, int(limit or 30)))
     email = actor.email
     effective = await ctx.grants_for(email)
@@ -214,21 +235,30 @@ async def shared(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
     batch = max(limit * 2, 20)
     scan = db["document_grants"].find(filt).sort([("created_at", -1), ("_id", -1)])
     rows = await scan.to_list(length=5000)
+    # Counting means deciding every row, so only on the first page of a list that isn't huge.
+    by_type = (file_types.empty_counts()
+               if with_counts and cursor is None and len(rows) <= SHARED_COUNT_SCAN else None)
     i = 0
-    while i < len(rows) and len(picked) <= limit:
+    while i < len(rows) and (not more or by_type is not None):
         chunk = rows[i:i + batch]
         i += batch
         docs = await _docs_by_id(db, [g["document_id"] for g in chunk])
         for g in chunk:
             raw = docs.get(g["document_id"])
-            if await _shared_ok(actor, raw, effective, ctx):
-                if len(picked) == limit:
-                    more = True
+            if not await _shared_ok(actor, raw, effective, ctx):
+                continue
+            t = file_types.type_of(raw.get("kind"), raw.get("mime"))
+            if by_type is not None:
+                by_type[t] += 1
+            if (file_type and t != file_type) or more:
+                continue
+            if len(picked) == limit:
+                more = True
+                if by_type is None:
                     break
-                picked.append((g, raw))
-                last_seen = g
-        if more:
-            break
+                continue
+            picked.append((g, raw))
+            last_seen = g
     opened = await _opened_after(db, actor.user_id,
                                  [(str(raw["_id"]), g.get("created_at")) for g, raw in picked])
     await shaper.names([raw for _g, raw in picked])
@@ -245,6 +275,7 @@ async def shared(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,
         "items": items,
         "next_cursor": _encode(last_seen["created_at"], last_seen["_id"]) if (more and last_seen) else None,
         "new_count": await new_count(db, actor, ctx),
+        **({"count_by_type": by_type} if with_counts else {}),
     }
 
 

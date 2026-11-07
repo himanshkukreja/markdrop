@@ -15,6 +15,7 @@ import { FeedbackPanel } from "./FeedbackPanel";
 import { ProductHealthPanel } from "./ProductHealthPanel";
 import { LoadingBlock, UnauthorizedContext, readQuery, sectionFrom, writeQuery, type Section } from "./shared";
 import { UsersPanel } from "./UsersPanel";
+import { AdminsPanel } from "./AdminsPanel";
 import JourneysPanel from "./journeys/JourneysPanel";
 import { JOURNEYS_KEYS, type Patch } from "./journeys/bits";
 
@@ -224,6 +225,9 @@ export default function AdminApp() {
           break;
         case "users":
           page = <UsersPanel token={token} />;
+          break;
+        case "admins":
+          page = <AdminsPanel token={token} />;
           break;
         case "feedback":
           page = <FeedbackPanel token={token} onChanged={refreshCounts} />;

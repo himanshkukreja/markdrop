@@ -42,6 +42,7 @@ from app.services import document as doc_service
 from app.services import file_uploads
 from app.services import live, r2, viewers
 from app.services.doc_ref import heading_title
+from app.services.file_types import FILE_TYPES
 
 settings = get_settings()
 
@@ -980,15 +981,18 @@ async def get_document(ctx: Context, args: dict) -> tuple[str, dict]:
 
 
 async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind: str | None,
-                           page: int, limit: int) -> tuple[list, int]:
+                           page: int, limit: int, file_type: str | None = None) -> tuple[list, int]:
     """mine: the user's own; workspaces: readable rows of the workspaces they
-    belong to (A1 filter); all: both, plus documents shared with them."""
+    belong to (A1 filter); all: both, plus documents shared with them.
+    ``file_type``: one of services.file_types.FILE_TYPES (pdf, video, …)."""
+    from app.services import file_types
     from app.services import library as lib_service
     from app.services import workspace as ws_service
     from app.services.document import _doc_from_mongo
 
     if scope == "mine":
-        return await doc_service.list_user_documents(ctx.db, ctx.user.id, page, limit, query, kind)
+        return await doc_service.list_user_documents(ctx.db, ctx.user.id, page, limit, query, kind,
+                                                     file_type)
     actor = access_service.Actor.of(ctx.user)
     actx = access_service.Ctx(ctx.db)
     ors: list[dict] = []
@@ -1004,8 +1008,9 @@ async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind:
         return [], 0
     clauses = [{"$or": ors}, access_service.not_expired_clause(actx.now), access_service.NOT_TEMPLATE]
     kc = lib_service.kind_clause(kind)
+    tc = file_types.type_clause(file_type)
     sf = lib_service.search_filter(query)
-    clauses += [c for c in (kc, sf) if c]
+    clauses += [c for c in (kc, tc, sf) if c]
     q = {"$and": clauses}
     total = await ctx.db["documents"].count_documents(q)
     rows = await ctx.db["documents"].find(q).sort("updated_at", -1).skip((page - 1) * limit).limit(limit).to_list(length=limit)
@@ -1018,15 +1023,19 @@ async def scoped_documents(ctx: Context, scope: str, *, query: str | None, kind:
 
 
 async def list_documents(ctx: Context, args: dict) -> tuple[str, dict]:
+    from app.services import file_types
     from app.services import urls as urls_service
 
     limit = int(args.get("limit") or 20)
     kind = {"all": None, "document": "document", "file": "artifact",
             "artifact": "artifact"}[args.get("kind") or "all"]
+    file_type = args.get("type") or "all"
+    if file_type != "all" and file_type not in file_types.FILE_TYPES:
+        raise ToolError(f"type must be one of: all, {', '.join(file_types.FILE_TYPES)}.")
     page = _decode_cursor(args.get("cursor"))
     scope = args.get("scope") or "mine"
     docs, total = await scoped_documents(ctx, scope, query=args.get("query"), kind=kind,
-                                         page=page, limit=limit)
+                                         page=page, limit=limit, file_type=file_type)
     hosts = urls_service.HostCache(ctx.db)
     items = []
     for d in docs:
@@ -1037,6 +1046,7 @@ async def list_documents(ctx: Context, args: dict) -> tuple[str, dict]:
             "slug": d.slug,
             "title": display_title(d),
             "kind": kind_of(d.kind),
+            "type": file_types.type_of(d.kind, d.mime),
             "access": access_of(d.access_level, bool(d.read_password_hash)),
             "views": d.views,
             "updated_at": iso(d.updated_at),
@@ -2633,6 +2643,10 @@ TOOLS: list[Tool] = [
                 "query": {"type": "string", "maxLength": 200, "description": "Optional text to match in titles or slugs."},
                 "kind": {"type": "string", "enum": ["all", "document", "file"], "default": "all",
                          "description": "'document' for markdown, 'file' for published pages and files."},
+                "type": {"type": "string", "enum": ["all", *FILE_TYPES], "default": "all",
+                         "description": ("What it is: 'document' (markdown documents and pages), 'pdf', "
+                                         "'video', 'image', 'sheet' (xlsx, csv), 'slides' (pptx), "
+                                         "'word' (docx), 'html' (HTML pages and sites) or 'other'.")},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
                 "cursor": {"type": "string", "maxLength": 100, "description": "next_cursor from a previous call."},
                 "scope": {"type": "string", "enum": SCOPE_CHOICES, "default": "mine"},
@@ -2641,7 +2655,8 @@ TOOLS: list[Tool] = [
         output_schema=_out({
             "items": {"type": "array", "items": _out({
                 **_URL_PROPS, "slug": {"type": "string"}, "title": _NULLABLE_STR,
-                "kind": {"type": "string", "enum": ["document", "artifact"]}, "access": _ACCESS_OUT,
+                "kind": {"type": "string", "enum": ["document", "artifact"]},
+                "type": {"type": "string", "enum": list(FILE_TYPES)}, "access": _ACCESS_OUT,
                 "views": {"type": "integer"}, "updated_at": {"type": "string"},
                 "encrypted": {"type": "boolean"}, "owner": {"type": "string"},
                 "workspace_id": _NULLABLE_STR,

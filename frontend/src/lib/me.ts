@@ -7,6 +7,10 @@
  * session, and lib/api.ts loads on every public document page.
  */
 import { request, type ItemAccess, type WorkspaceItem } from "@/lib/workspaces";
+import type { FileType } from "@/lib/fileTypes";
+
+/** Items per file type (lib/fileTypes); null when the server didn't count (a later page, a huge list). */
+export type TypeCounts = Partial<Record<FileType, number>> | null;
 
 /** A row of Shared with me / Recent: shaped like a workspace item, plus how the caller got it. */
 export interface PersonalItem extends Omit<WorkspaceItem, "can" | "folder"> {
@@ -31,19 +35,34 @@ export interface SharedPage {
   next_cursor: string | null;
   /** Granted in the last 7 days and not yet opened. */
   new_count: number;
+  /** With `counts`: what's shared per file type (first page only; absent on an older server). */
+  count_by_type?: TypeCounts;
 }
 
-/** `GET /me/shared` — documents shared with the caller by email (not their own), newest grant first. */
-export async function listSharedWithMe(cursor?: string | null): Promise<SharedPage> {
-  const q = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
-  const r = await request<Partial<SharedPage>>(`/api/v1/me/shared${q}`);
-  return { items: r.items ?? [], next_cursor: r.next_cursor ?? null, new_count: r.new_count ?? 0 };
+/** `GET /me/shared` — documents shared with the caller by email (not their own), newest grant first.
+ *  `type` keeps one file type; `counts` asks for the per-type counts (the page's chips). */
+export async function listSharedWithMe(cursor?: string | null, opts: { type?: FileType; counts?: boolean } = {}): Promise<SharedPage> {
+  const p = new URLSearchParams();
+  if (cursor) p.set("cursor", cursor);
+  if (opts.type) p.set("type", opts.type);
+  if (opts.counts) p.set("counts", "true");
+  const qs = p.toString();
+  const r = await request<Partial<SharedPage>>(`/api/v1/me/shared${qs ? `?${qs}` : ""}`);
+  return { items: r.items ?? [], next_cursor: r.next_cursor ?? null, new_count: r.new_count ?? 0, count_by_type: r.count_by_type };
 }
 
 /** `GET /me/recent` — the last 30 things the caller opened, re-checked at read time. */
 export async function listRecent(): Promise<PersonalItem[]> {
   const r = await request<{ items?: PersonalItem[] }>("/api/v1/me/recent");
   return r.items ?? [];
+}
+
+/** The Recent page: optionally one file type, with the per-type counts for its chips. */
+export async function listRecentPage(type?: FileType): Promise<{ items: PersonalItem[]; count_by_type?: TypeCounts }> {
+  const p = new URLSearchParams({ counts: "true" });
+  if (type) p.set("type", type);
+  const r = await request<{ items?: PersonalItem[]; count_by_type?: TypeCounts }>(`/api/v1/me/recent?${p}`);
+  return { items: r.items ?? [], count_by_type: r.count_by_type };
 }
 
 // ── Quick search (⌘K) ─────────────────────────────────────────────────────────

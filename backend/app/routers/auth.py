@@ -19,7 +19,8 @@ import re
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from fastapi.responses import RedirectResponse
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.config import get_settings
@@ -27,7 +28,7 @@ from app.database import get_database
 from app.limiter import limiter
 from app.models.user import User
 from app.schemas.auth import EmailRequest, EmailVerifyRequest, NameUpdateRequest, TokenResponse, UserResponse
-from app.services import api_token, domain as domain_service, email_auth, mailer, oauth
+from app.services import admin_roles, api_token, domain as domain_service, email_auth, mailer, oauth
 from app.services import user as user_service
 from app.services import workspace as ws_service
 from app.utils.auth import create_tenant_token, create_access_token, decode_access_token
@@ -345,7 +346,14 @@ async def get_me(request: Request, user: User = Depends(require_user)):
             id=user.id, email="", name=user.name, picture=None, providers=[],
             created_at=user.created_at,
         )
-    return _to_user_response(user)
+    resp = _to_user_response(user)
+    # The Admin link in the app (account menu, sidebar): only for an admin, decided here, and only
+    # on a credential the console would take (services/admin_roles.role_for_session). Everyone else
+    # gets no `admin` key at all, not `false`, so the response says nothing about the console.
+    role = await admin_roles.role_for_session(get_database(), _bearer_token(request) or "", user.id, user.email)
+    if role:
+        return JSONResponse({**jsonable_encoder(resp), "admin": role}, headers={"Cache-Control": "no-store"})
+    return resp
 
 
 @router.patch("/me", response_model=UserResponse)
