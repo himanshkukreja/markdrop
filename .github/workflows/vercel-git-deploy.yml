@@ -1,18 +1,22 @@
-name: Deploy frontend to Vercel (Vercel builds from Git)
+name: Deploy frontend to Vercel (Vercel builds from Git) — emergency only
 
-# A fallback for when the prebuilt upload (vercel-deploy.yml) can't run, e.g. Vercel's daily
-# upload limit ("api-upload-paid", 40000 files a day). Vercel builds the commit from GitHub on its
-# own servers, so nothing is uploaded from here; it costs Vercel build minutes, so it's for
-# occasional use only.
+# EMERGENCY ONLY, run by hand. The routine deploy is vercel-deploy.yml (built on GitHub Actions,
+# uploaded as one archive). Use this only when that can't run, e.g. Vercel's daily upload limit
+# ("api-upload-paid", 40000 files a day, shared with every project on the team). Vercel then builds
+# the commit from GitHub on its own servers: nothing is uploaded from here, but it costs Vercel
+# Build CPU minutes on the shared team plan, so it has no push trigger.
 #
-# Trigger: push the commit to deploy to the branch deploy/vercel (or run it by hand).
-#   git push <remote> <sha-or-main>:refs/heads/deploy/vercel --force
+# Trigger: Actions › this workflow › Run workflow (on main), optionally with a commit sha;
+#   gh workflow run vercel-git-deploy.yml --ref main [-f sha=<commit>]
 # Uses the same secret and variables as vercel-deploy.yml.
 
 on:
-  push:
-    branches: [deploy/vercel]
   workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to deploy (default: the head of the branch it runs on)"
+        required: false
+        default: ""
 
 concurrency:
   group: vercel-git-production
@@ -29,11 +33,12 @@ jobs:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      DEPLOY_SHA: ${{ inputs.sha || github.sha }}
     steps:
       - name: Ask Vercel to build and deploy this commit
         id: create
         run: |
-          body=$(jq -n --arg p "$VERCEL_PROJECT_ID" --arg sha "$GITHUB_SHA" --arg repo "${GITHUB_REPOSITORY#*/}" --arg org "${GITHUB_REPOSITORY%%/*}" \
+          body=$(jq -n --arg p "$VERCEL_PROJECT_ID" --arg sha "$DEPLOY_SHA" --arg repo "${GITHUB_REPOSITORY#*/}" --arg org "${GITHUB_REPOSITORY%%/*}" \
             '{name: "markdrop", project: $p, target: "production",
               gitSource: {type: "github", org: $org, repo: $repo, ref: "main", sha: $sha},
               meta: {source: "actions-git", githubCommitSha: $sha}}')

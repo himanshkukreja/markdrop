@@ -521,6 +521,8 @@ async def write(db: AsyncIOMotorDatabase, row: dict, who: dict, log_in: dict | N
         "slug": log_in.pop("slug", None) or meta.get("slug"),
         "page_title": log_in.pop("page_title", None),
     }
+    if log_in.pop("backfilled", False):
+        doc["backfilled"] = True   # rebuilt later from a saved conversation (scripts/backfill_ai_log.py)
     thread_key = log_in.pop("thread_key", None)
     follow_up = log_in.pop("follow_up", False)
     conv = log_in.pop("conversation_id", None)

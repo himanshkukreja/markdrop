@@ -232,7 +232,7 @@ def _turn(r: dict) -> dict:
         "output": r.get("output"), "output_truncated": bool(r.get("output_truncated")),
         "output_format": r.get("output_format") or "markdown", "citations": r.get("citations") or [],
         "context": r.get("context"), "description": r.get("description"), "results": r.get("results"),
-        "actions": r.get("actions"),
+        "actions": r.get("actions"), "backfilled": bool(r.get("backfilled")),
     }
 
 
