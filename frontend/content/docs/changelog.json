@@ -35,7 +35,7 @@
         "api"
       ],
       "summary": "A new docs page says which AI powers Markdrop's AI features, what is sent to it and what never is, and what Markdrop keeps. AI features describe their limits as fair-use limits.",
-      "body": "- **AI and your data.** Markdrop's AI features are powered by Anthropic's Claude models. Only the excerpts a request needs are sent; encrypted items never are, a password-protected item only by its title, and nothing sent is used to train models.\n- **Fair-use limits.** When an AI limit is reached, the feature keeps working without the AI part: meetings still import with their transcript and Google's notes and **Write it again** adds the AI sections later, Jira drafts are the item as written, and Team picks up again by itself.",
+      "body": "- **AI and your data.** Markdrop's AI features are powered by Anthropic's Claude models. Only the excerpts a request needs are sent; encrypted items never are, a password-protected item only by its title, and nothing sent is used to train models.\n- **Fair-use limits.** When an AI limit is reached, the feature keeps working without the AI part: meetings still import with their transcript and Google's notes and **Write it again** adds the AI sections later, Jira drafts are the item as written, and Team picks up again by itself.\n- **Same in the API and MCP.** A bulk meeting import's review says how many meetings get an AI summary and whether that's within today's fair-use limit, with no amounts; AI responses and tool results describe limits the same way.",
       "docs": [
         "/security/ai-and-your-data"
       ]

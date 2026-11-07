@@ -1331,7 +1331,7 @@
     },
     "GET /api/v1/search/ai-status": {
       "title": "Check AI search availability",
-      "description": "Whether Ask AI can answer now, for everything (no `scope`) or for one workspace. When it can't, `enabled` is `false`, `reason` says why (`off`, `not_configured`, `workspace_off`, `blocked`, `burst`, `user_daily`, `daily` or `monthly`) and `message` says it in words. `model` names the model it uses.",
+      "description": "Whether Ask AI can answer now, for everything (no `scope`) or for one workspace. When it can't, `enabled` is `false`, `reason` says why (`off`, `not_configured`, `workspace_off`, `blocked`, `burst`, `user_daily`, `daily` or `monthly`) and `message` says it in words.",
       "guide": { "label": "Ask AI", "href": "/workspaces/search#ask-ai" }
     },
     "POST /api/v1/search/ask": {
