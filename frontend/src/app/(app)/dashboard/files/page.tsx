@@ -15,6 +15,10 @@ import {
   type MyDocListItem, type GoogleStatus,
 } from "@/lib/api";
 import { recallKey, withKey } from "@/lib/e2e";
+import {
+  TYPE_META, countFor, readRememberedType, readTypeFilter, rememberType, shouldRestoreType, typeQuery, typeUrlPatch,
+  visibleTypeChips, type FileType, type TypeFilter,
+} from "@/lib/fileTypes";
 import { can, listWorkspaces, type Workspace } from "@/lib/workspaces";
 import { ancestry, useDocumentsChanged, useWorkspaceTree, useWorkspaceTrees, workspaceChanged } from "@/lib/workspaceStore";
 import { track } from "@/lib/track";
@@ -32,9 +36,6 @@ import { useShortcutsEnabled } from "@/lib/shortcuts";
 import styles from "@/components/dashboard/dashboard.module.css";
 
 const PER_PAGE = 20;
-type KindTab = "all" | "document" | "artifact";
-
-const TITLES: Record<KindTab, string> = { all: "My files", document: "Documents", artifact: "Artifacts" };
 
 const GDOCS_NOTICES: Record<string, { kind: "success" | "info" | "error"; text: string }> = {
   connected: { kind: "success", text: "Google Docs connected. You can now export documents." },
@@ -44,14 +45,16 @@ const GDOCS_NOTICES: Record<string, { kind: "success" | "info" | "error"; text: 
   no_refresh_token: { kind: "error", text: "Google didn't return access. Try again and approve all prompts." },
 };
 
-/** Scope lives in the URL (REVAMP_PLAN 4.3): ?kind=document|artifact, ?ws=<id>&folder=<id|unfiled>, ?q=, ?page=. */
+/** Scope lives in the URL (REVAMP_PLAN 4.3): ?type=pdf|video|… (lib/fileTypes; the older ?kind=document|artifact
+ *  still works), ?ws=<id>&folder=<id|unfiled>, ?q=, ?page=. */
 function readScope(search: string) {
   const p = new URLSearchParams(search);
-  const k = p.get("kind");
-  const kind: KindTab = k === "document" || k === "markdown" ? "document" : k === "artifact" ? "artifact" : "all";
+  const type = readTypeFilter(p);
   const page = Math.max(1, parseInt(p.get("page") || "1", 10) || 1);
-  return { ws: p.get("ws"), folder: p.get("folder"), kind, q: (p.get("q") || "").trim(), page };
+  return { ws: p.get("ws"), folder: p.get("folder"), type, q: (p.get("q") || "").trim(), page };
 }
+
+const storage = () => { try { return window.localStorage; } catch { return null; } };
 
 export default function MyFilesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -71,13 +74,14 @@ export default function MyFilesPage() {
     const ws = encodeURIComponent(scope.ws);
     const p = new URLSearchParams();
     if (scope.q) p.set("q", scope.q);
-    if (scope.kind !== "all") p.set("kind", scope.kind === "document" ? "markdown" : "artifact");
+    if (scope.type === "document") p.set("kind", "markdown");
+    else if (scope.type !== "all") p.set("kind", "artifact");
     let path = `/w/${ws}`;
     if (scope.folder === "unfiled") p.set("filter", "unfiled");
     else if (scope.folder) path += `/f/${encodeURIComponent(scope.folder)}`;
     const qs = p.toString();
     router.replace(`${path}${qs ? `?${qs}` : ""}`);
-  }, [urlReady, scope.ws, scope.folder, scope.q, scope.kind, router]);
+  }, [urlReady, scope.ws, scope.folder, scope.q, scope.type, router]);
 
   /** Update the query string. Push for scope/page changes (Back works), replace while typing. */
   const navigate = useCallback((patch: Record<string, string | null>, replace = false) => {
@@ -92,6 +96,21 @@ export default function MyFilesPage() {
     if (replace) router.replace(url, { scroll: false });
     else router.push(url, { scroll: false });
   }, [router]);
+
+  /* ── Type filter: remembered per view on this device ───────────────── */
+  // A bare visit (no type, kind, search or page in the link) brings back the last type chosen here.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!urlReady || restored.current || inWorkspace) return;
+    restored.current = true;
+    const t = readRememberedType(storage());
+    if (t && shouldRestoreType(new URLSearchParams(window.location.search))) navigate(typeUrlPatch(t), true);
+  }, [urlReady, inWorkspace, navigate]);
+  const selectType = useCallback((f: TypeFilter) => {
+    rememberType(storage(), f);
+    track("files_type_filter", { type: f });
+    navigate(typeUrlPatch(f));
+  }, [navigate]);
 
   /* ── Search box (debounced 300ms into ?q=) ─────────────────────────── */
   const searchRef = useRef<HTMLInputElement>(null);
@@ -154,7 +173,7 @@ export default function MyFilesPage() {
   const [docs, setDocs] = useState<MyDocListItem[]>([]);
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
-  const [counts, setCounts] = useState<{ all: number; document: number; artifact: number } | null>(null);
+  const [counts, setCounts] = useState<{ all: number; document: number; artifact: number; byType: Partial<Record<FileType, number>> | null } | null>(null);
   const [listState, setListState] = useState<"loading" | "ok" | "error">("loading");
   const [loadedOnce, setLoadedOnce] = useState(false);
   /** The scope the rows on screen were loaded for: the list crossfades when it changes. */
@@ -165,14 +184,13 @@ export default function MyFilesPage() {
 
   const load = useCallback(async () => {
     if (!user || !urlReady || inWorkspace) return;
+    // Wait for a remembered type to land in the URL rather than load "All" first.
+    if (!restored.current) return;
     const id = ++seq.current;
     setListState((s) => (s === "error" ? "loading" : s));
     try {
-      const res = await listMyDocuments(
-        scope.page,
-        scope.q || undefined,
-        scope.kind === "document" ? "markdown" : scope.kind === "artifact" ? "artifact" : undefined,
-      );
+      const tq = typeQuery(scope.type);
+      const res = await listMyDocuments(scope.page, scope.q || undefined, tq.kind, tq.type);
       if (id !== seq.current) return;
       if (res.documents.length === 0 && scope.page > 1 && res.total > 0) {
         navigate({ page: String(Math.max(1, res.pages)) }, true);
@@ -185,10 +203,11 @@ export default function MyFilesPage() {
         all: res.count_all ?? res.total,
         document: res.count_markdown ?? 0,
         artifact: res.count_artifact ?? 0,
+        byType: res.count_by_type ?? null,
       });
       setListState("ok");
       setLoadedOnce(true);
-      setDataKey(`${scope.kind}|${scope.q}|${scope.page}`);
+      setDataKey(`${scope.type}|${scope.q}|${scope.page}`);
     } catch (e) {
       if (id !== seq.current) return;
       if (e instanceof Error && e.message === "UNAUTHORIZED") {
@@ -197,7 +216,7 @@ export default function MyFilesPage() {
       }
       setListState("error");
     }
-  }, [user, urlReady, inWorkspace, scope.page, scope.q, scope.kind, navigate, router]);
+  }, [user, urlReady, inWorkspace, scope.page, scope.q, scope.type, navigate, router]);
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => {
@@ -362,12 +381,13 @@ export default function MyFilesPage() {
   }
 
   /* ── Header ─────────────────────────────────────────────────────────── */
-  const heading = TITLES[scope.kind];
+  const meta = TYPE_META[scope.type];
+  const heading = meta.title;
   let summary: React.ReactNode = null;
   if (counts) {
     summary = counts.all === 0 ? "Nothing published from this account yet" : `${plural(counts.document, "document")} · ${plural(counts.artifact, "artifact")}`;
   }
-  const crumbs = [{ label: "My files", href: "/dashboard/files" }, { label: TITLES[scope.kind] }];
+  const crumbs = [{ label: "My files", href: "/dashboard/files" }, { label: meta.title }];
 
   const searchBox = (
     <div className={cx("min-w-0", phone ? "w-full" : "w-60")} role="search">
@@ -397,11 +417,15 @@ export default function MyFilesPage() {
 
   const headerActions = <>{!phone && searchBox}</>;
 
-  const tabItems = [
-    { value: "all", label: "All", count: counts?.all },
-    { value: "document", label: "Documents", count: counts?.document },
-    { value: "artifact", label: "Artifacts", count: counts?.artifact },
-  ];
+  // An older backend sends no per-type counts: every type gets a chip, with no number on it.
+  const byType = counts ? counts.byType ?? "unknown" : null;
+  const tabItems = visibleTypeChips(scope.type, byType).map((t) => ({
+    value: t,
+    label: TYPE_META[t].chip,
+    count: byType === "unknown" && t !== "all" && t !== "files" && t !== "document"
+      ? undefined
+      : countFor(t, counts && { all: counts.all, artifact: counts.artifact, byType: counts.byType ?? { document: counts.document } }),
+  }));
 
   /* ── Render ─────────────────────────────────────────────────────────── */
   if (authLoading || !user || inWorkspace) {
@@ -419,7 +443,7 @@ export default function MyFilesPage() {
   return (
     <div className="flex min-w-0 flex-col gap-5">
       <PageHeader
-        breadcrumb={scope.kind === "all" ? undefined : <Breadcrumb items={crumbs} />}
+        breadcrumb={scope.type === "all" ? undefined : <Breadcrumb items={crumbs} />}
         title={heading}
         description={summary ? <span className="text-text-muted">{summary}</span> : undefined}
         actions={headerActions}
@@ -440,15 +464,7 @@ export default function MyFilesPage() {
         </Alert>
       )}
 
-      <Tabs
-        variant="pill"
-        size="sm"
-        aria-label="Kind"
-        items={tabItems}
-        value={scope.kind}
-        onChange={(v) => navigate({ kind: v === "all" ? null : v })}
-        className="max-w-full min-w-0 self-start"
-      />
+      <TypeChips items={tabItems} value={scope.type} onChange={(v) => selectType(v as TypeFilter)} />
 
 
       {/* ── Your documents ── */}
@@ -467,19 +483,23 @@ export default function MyFilesPage() {
       {personalEmpty && (scope.q ? (
         <EmptyState
           icon="search"
-          title={<>Nothing matches “<span className="ph-sensitive ph-mask">{scope.q}</span>”</>}
+          title={<>{scope.type === "all" ? "Nothing matches" : `No ${meta.noun} match`} “<span className="ph-sensitive ph-mask">{scope.q}</span>”</>}
           description="This list looks at titles and links. Search everywhere also reads the text inside, every workspace and what's shared with you."
           actions={<>
             <Button variant="primary" iconLeft="search" onClick={() => router.push(`/search?q=${encodeURIComponent(scope.q)}`)}>Search everywhere</Button>
+            {scope.type !== "all" && <Button variant="secondary" onClick={() => selectType("all")}>Show every type</Button>}
             <Button variant="secondary" onClick={clearSearch}>Clear search</Button>
           </>}
         />
-      ) : scope.kind === "artifact" ? (
+      ) : scope.type !== "all" ? (
         <EmptyState
-          icon="layers"
-          title="No artifacts yet"
-          description="Publish an HTML page, PDF or spreadsheet and get a link that renders it."
-          actions={<Button variant="secondary" iconLeft="upload" href="/upload">Publish an artifact</Button>}
+          icon={meta.icon}
+          title={meta.empty.title}
+          description={meta.empty.description}
+          actions={<>
+            <Button variant="secondary" iconLeft={meta.empty.icon} href={meta.empty.href}>{meta.empty.action}</Button>
+            {(counts?.all ?? 0) > 0 && <Button variant="ghost" onClick={() => selectType("all")}>Show every type</Button>}
+          </>}
         />
       ) : (
         <div className="flex flex-col gap-4">
@@ -492,13 +512,13 @@ export default function MyFilesPage() {
           <p className="text-center text-caption text-text-muted">
             Saved one while signed out? Open it and choose <span className="font-semibold text-text-secondary">Save to my account</span>.
           </p>
-          {scope.kind === "all" && <OtherWays />}
+          <OtherWays />
         </div>
       ))}
 
       {showList && listState === "ok" && docs.length > 0 && (
         <>
-          <ul key={dataKey} className={cx("flex min-w-0 flex-col gap-2", !firstPaint.current && styles.fade)} aria-label={scope.q ? "Matching items" : TITLES[scope.kind]}>
+          <ul key={dataKey} className={cx("flex min-w-0 flex-col gap-2", !firstPaint.current && styles.fade)} aria-label={scope.q ? "Matching items" : meta.title}>
             {docs.map((d, i) => {
               const title = displayTitle(d);
               const addr = addressOf(d);
@@ -643,5 +663,44 @@ function OtherWays() {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** The type filter (lib/fileTypes): pill chips with counts, in the URL. On a narrow screen the row
+ *  scrolls sideways with a soft edge where there's more, and the selected chip is scrolled into view. */
+function TypeChips({ items, value, onChange }: { items: { value: string; label: string; count?: number }[]; value: string; onChange: (v: string) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edge, setEdge] = useState({ start: false, end: false });
+  const measure = useCallback(() => {
+    const el = ref.current?.querySelector<HTMLElement>('[role="tablist"]');
+    if (!el) return;
+    const start = el.scrollLeft > 2;
+    const end = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+    setEdge((e) => (e.start === start && e.end === end ? e : { start, end }));
+  }, []);
+  useEffect(() => {
+    const el = ref.current?.querySelector<HTMLElement>('[role="tablist"]');
+    if (!el) return;
+    measure();
+    el.addEventListener("scroll", measure, { passive: true });
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => { el.removeEventListener("scroll", measure); ro?.disconnect(); };
+  }, [measure]);
+  useEffect(() => {
+    const el = ref.current?.querySelector<HTMLElement>('[role="tablist"]');
+    const on = el?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (!el || !on) { measure(); return; }
+    // Only the row scrolls (scrollIntoView would also move the page).
+    const left = on.offsetLeft - el.offsetLeft;
+    if (left < el.scrollLeft || left + on.offsetWidth > el.scrollLeft + el.clientWidth) {
+      el.scrollTo({ left: Math.max(0, left - 24), behavior: "auto" });
+    }
+    measure();
+  }, [value, items.length, measure]);
+  return (
+    <div ref={ref} className={styles.typeChips} data-more-start={edge.start || undefined} data-more-end={edge.end || undefined}>
+      <Tabs variant="pill" size="sm" aria-label="File type" items={items} value={value} onChange={onChange} className="max-w-full min-w-0" />
+    </div>
   );
 }

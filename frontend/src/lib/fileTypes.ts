@@ -15,6 +15,8 @@ export const FILE_TYPES: readonly FileType[] = ["document", "pdf", "video", "ima
 export interface TypeMeta {
   chip: string;
   title: string;
+  /** "No {noun} match “…”" */
+  noun: string;
   icon: string;
   empty: { title: string; description: string; action: string; href: string; icon: string };
 }
@@ -23,27 +25,27 @@ const upload = (what: string, description: string, action: string, icon = "uploa
   ({ title: `No ${what} yet`, description, action, href: "/upload", icon });
 
 export const TYPE_META: Record<TypeFilter, TypeMeta> = {
-  all: { chip: "All", title: "My files", icon: "layers",
+  all: { noun: "items", chip: "All", title: "My files", icon: "layers",
     empty: { title: "Publish your first document", description: "", action: "New document", href: "/new", icon: "lines" } },
-  document: { chip: "Documents", title: "Documents", icon: "lines",
+  document: { noun: "documents", chip: "Documents", title: "Documents", icon: "lines",
     empty: { title: "No documents yet", description: "Markdown documents and pages you publish while signed in appear here.", action: "New document", href: "/new", icon: "lines" } },
-  pdf: { chip: "PDFs", title: "PDFs", icon: "doc",
+  pdf: { noun: "PDFs", chip: "PDFs", title: "PDFs", icon: "doc",
     empty: upload("PDFs", "Upload a PDF and get a link that opens it in any browser, nothing to download.", "Upload a PDF") },
-  video: { chip: "Videos", title: "Videos", icon: "film",
+  video: { noun: "videos", chip: "Videos", title: "Videos", icon: "film",
     empty: upload("videos", "Upload a video and share a link that plays it in any browser.", "Upload a video") },
-  image: { chip: "Images", title: "Images", icon: "image",
+  image: { noun: "images", chip: "Images", title: "Images", icon: "image",
     empty: upload("images", "Upload a PNG, JPG, GIF, WebP or SVG and get a link that shows it.", "Upload an image") },
-  sheet: { chip: "Sheets", title: "Sheets", icon: "table",
+  sheet: { noun: "sheets", chip: "Sheets", title: "Sheets", icon: "table",
     empty: upload("sheets", "Excel and CSV files open as a grid anyone can scroll.", "Upload a sheet") },
-  slides: { chip: "Slides", title: "Slides", icon: "slides",
+  slides: { noun: "slide decks", chip: "Slides", title: "Slides", icon: "slides",
     empty: upload("slide decks", "PowerPoint decks open as slides in the browser, nothing to install.", "Upload a deck") },
-  word: { chip: "Word", title: "Word documents", icon: "doc",
+  word: { noun: "Word documents", chip: "Word", title: "Word documents", icon: "doc",
     empty: upload("Word documents", "Word documents open as a readable page anyone can view.", "Upload a Word document") },
-  html: { chip: "HTML & sites", title: "HTML & sites", icon: "code",
+  html: { noun: "HTML pages or sites", chip: "HTML & sites", title: "HTML & sites", icon: "code",
     empty: upload("HTML pages or sites", "Publish an HTML page, or a zipped site, and get a link that renders it.", "Upload a page or site") },
-  other: { chip: "Other", title: "Other files", icon: "archive",
+  other: { noun: "other files", chip: "Other", title: "Other files", icon: "archive",
     empty: { title: "No other files", description: "Text, JSON and audio files you publish land here.", action: "Upload a file", href: "/upload", icon: "upload" } },
-  files: { chip: "All files", title: "Files", icon: "layers",
+  files: { noun: "files", chip: "All files", title: "Files", icon: "layers",
     empty: { title: "No files yet", description: "Publish an HTML page, PDF, sheet, deck or video and get a link that renders it.", action: "Upload a file", href: "/upload", icon: "upload" } },
 };
 
@@ -87,15 +89,16 @@ export function countFor(
  * The chips to show, in order. All and Documents always; a file type once you have one of it (ten
  * chips for a library of three PDFs is noise); the selected one always, so an empty type still has
  * its chip (and its empty state). Before the counts arrive: All, Documents and the selected one.
+ * `byType` "unknown" (an older backend that sends no per-type counts): every type.
  */
 export function visibleTypeChips(
   selected: TypeFilter,
-  byType: Partial<Record<FileType, number>> | null,
+  byType: Partial<Record<FileType, number>> | null | "unknown",
 ): TypeFilter[] {
   const out: TypeFilter[] = ["all"];
   if (selected === "files") out.push("files");
   for (const t of FILE_TYPES) {
-    if (t === "document" || t === selected || (byType && (byType[t] ?? 0) > 0)) out.push(t);
+    if (t === "document" || t === selected || byType === "unknown" || (byType && (byType[t] ?? 0) > 0)) out.push(t);
   }
   return out;
 }
