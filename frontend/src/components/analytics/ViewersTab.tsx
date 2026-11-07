@@ -313,7 +313,11 @@ function Breakdowns({ data, onPick, track }: { data: NonNullable<ViewersResponse
   );
 }
 
-export default function ViewersTab({ slug, range, workspaceName }: { slug: string; range: AnalyticsRange; workspaceName?: string | null }) {
+export default function ViewersTab({ slug, range, workspaceName, version = 0 }: {
+  slug: string; range: AnalyticsRange; workspaceName?: string | null;
+  /** Bumped when the item's analytics settings change: everything reloads. */
+  version?: number;
+}) {
   const [params, setParams] = useParams();
   const toast = useToast();
   const who = (WHO.some((w) => w.value === params.get("who")) ? params.get("who") : "all") as ViewerWho;
@@ -330,8 +334,8 @@ export default function ViewersTab({ slug, range, workspaceName }: { slug: strin
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [range, who, completion, own, members, dims.country, dims.device, dims.os, dims.browser, dims.source]);
   const qkey = JSON.stringify(query);
-  const res = useLoad(`viewers:${slug}:${qkey}:${shown}`, () => getViewers(slug, query, 0, shown));
-  const people = useLoad(mode === "person" ? `people:${slug}:${qkey}` : null, () => getViewerPeople(slug, query));
+  const res = useLoad(`viewers:${slug}:${qkey}:${shown}:${version}`, () => getViewers(slug, query, 0, shown));
+  const people = useLoad(mode === "person" ? `people:${slug}:${qkey}:${version}` : null, () => getViewerPeople(slug, query));
   const data = res.data;
 
   const setFilter = (patch: Record<string, string | null>) => {

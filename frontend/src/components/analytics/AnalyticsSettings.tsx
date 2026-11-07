@@ -44,10 +44,12 @@ export function trackSummary(t: Partial<Track>): string {
 
 export function TrackingChip({ summary, onClick, className }: { summary: string; onClick?: () => void; className?: string }) {
   const off = summary !== "Tracking everything";
+  // Short on the chip ("Tracking · identity, location off"); the whole sentence in its name and title.
+  const short = summary.startsWith("Tracking: ") ? `Tracking · ${summary.split(" · ").slice(1).join(" · ")}` : summary;
   const body = (
     <>
       <Icon name={summary === "Not tracked" ? "eyeOff" : "eye"} size={14} aria-hidden />
-      <span className="min-w-0 truncate">{summary}</span>
+      <span className="min-w-0 truncate" title={summary}>{short}</span>
     </>
   );
   const cls = cx("inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption",

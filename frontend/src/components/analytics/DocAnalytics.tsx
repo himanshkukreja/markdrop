@@ -82,6 +82,8 @@ export default function DocAnalytics({ slug }: { slug: string }) {
   const range: AnalyticsRange = isRange(params.get("range")) ? (params.get("range") as AnalyticsRange) : "30d";
   const internal = params.get("internal") === "1";
   const [csvBusy, setCsvBusy] = useState(false);
+  // The item's analytics settings changed (ItemTrackDrawer): the tabs reload.
+  const [trackVersion, setTrackVersion] = useState(0);
 
   const ovRes = useLoad(ready ? `ov:${slug}:${range}:${internal}` : null, () => getOverview(slug, { range, internal }));
   const ov = ovRes.data;
@@ -212,11 +214,11 @@ export default function DocAnalytics({ slug }: { slug: string }) {
         {tab === "content" && <ContentTab slug={slug} ov={ov} range={range} internal={internal} headings={headings} blocks={blocks} titleFor={titleFor} />}
         {tab === "pages" && <PagesTab slug={slug} ov={ov} range={range} internal={internal} />}
         {tab === "audience" && <AudienceTab slug={slug} ov={ov} range={range} internal={internal} onInternal={(v) => setParams({ internal: v ? "1" : null })} />}
-        {tab === "viewers" && <ViewersTab slug={slug} range={range} workspaceName={doc.workspace?.name ?? null} />}
+        {tab === "viewers" && <ViewersTab slug={slug} range={range} workspaceName={doc.workspace?.name ?? null} version={trackVersion} />}
         {tab === "versions" && <VersionsTab slug={slug} ov={ov} range={range} internal={internal} />}
       </div>
       <ItemTrackDrawer slug={slug} open={params.get("settings") === "1"} onClose={() => setParams({ settings: null })}
-        onSaved={() => ovRes.retry()} />
+        onSaved={() => { ovRes.retry(); setTrackVersion((n) => n + 1); }} />
     </div>
   );
 }
@@ -230,6 +232,7 @@ function ViewersOnly({ slug, range, onRange, fallback }: { slug: string; range: 
   const probe = useLoad(`vwo:${slug}:${range}`, () => getViewers(slug, { range }, 0, 1));
   const [params, setParams] = useParams();
   const open = params.get("settings") === "1";
+  const [version, setVersion] = useState(0);
   const setOpen = (on: boolean) => setParams({ settings: on ? "1" : null });
   const title = probe.data?.doc.title ?? null;
   useEffect(() => {
@@ -255,8 +258,8 @@ function ViewersOnly({ slug, range, onRange, fallback }: { slug: string; range: 
           <RangePicker value={range} onChange={onRange} />
         </div>
       </div>
-      <ViewersTab slug={slug} range={range} />
-      <ItemTrackDrawer slug={slug} open={open} onClose={() => setOpen(false)} onSaved={() => probe.retry()} />
+      <ViewersTab slug={slug} range={range} version={version} />
+      <ItemTrackDrawer slug={slug} open={open} onClose={() => setOpen(false)} onSaved={() => { probe.retry(); setVersion((n) => n + 1); }} />
     </div>
   );
 }
