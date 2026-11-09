@@ -88,7 +88,11 @@ export interface Card {
   updated_at: string | null;
   last_source: Status["source"];
   groups: string[];
+  /** Comment threads assigned to them (backend services/comments/tasks.py), the ones you can open. */
+  comment_tasks?: CommentTask[];
 }
+
+export interface CommentTask { thread_id: string; slug: string; title: string; href: string; excerpt: string | null; updated_at: string | null }
 
 export interface ProjectRow {
   key: string;
@@ -177,6 +181,7 @@ export interface Person {
   hidden: Line[];
   updated_at: string | null;
   last_source: Status["source"];
+  comment_tasks?: CommentTask[];
 }
 
 export interface Project {

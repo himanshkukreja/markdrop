@@ -165,8 +165,8 @@ async def team_for_viewer(db, actor, ctx, workspace_id: str) -> dict[str, list[d
     for uid, ts in by_user.items():
         for t in ts:
             d = docs.get(t["doc_id"])
-            if d is None:
-                continue
+            if d is None or d.get("workspace_id") != workspace_id:
+                continue  # unreadable, or moved to another workspace since
             a = t.get("anchor") or {}
             out.setdefault(uid, []).append({
                 "thread_id": str(t["_id"]), "slug": d["slug"], "title": md_outline.display_title(d),

@@ -4410,7 +4410,8 @@
         "x-markdrop": {
           "auth": "token",
           "rateLimits": [
-            "30/minute"
+            "30/minute",
+            "300/day"
           ]
         }
       }
@@ -4747,7 +4748,8 @@
         "x-markdrop": {
           "auth": "token",
           "rateLimits": [
-            "60/minute"
+            "60/minute",
+            "1000/day"
           ]
         }
       }

@@ -154,6 +154,8 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
     setSel({ top: rect.top, left: Math.min(window.innerWidth - 48, rootRect.right + 8) });
   }, [root, c, canComment, signInMode]);
 
+  // Again whenever what this reader may do changes (the permissions arrive after the selection).
+  useEffect(() => { updateSel(); }, [updateSel]);
   useEffect(() => {
     let t = 0;
     const on = () => { window.clearTimeout(t); t = window.setTimeout(updateSel, 60); };

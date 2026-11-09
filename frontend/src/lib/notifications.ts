@@ -31,7 +31,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export type NotificationKind = "mention" | "signoff_requested" | "shared";
+export type NotificationKind = "mention" | "signoff_requested" | "shared"
+  // Comments (backend services/comments/notify_app.py).
+  | "comment_mention" | "comment_reply" | "comment_new" | "comment_resolved" | "comment_assigned";
 
 export interface AppNotification {
   id: string;
@@ -52,6 +54,9 @@ export interface AppNotification {
   excerpt: string | null;
   label: string | null;
   message: string | null;
+  /** A comment thread's notification: its id (the link opens it, `#c-<id>`); how many events it gathers. */
+  thread_id?: string | null;
+  count?: number;
 }
 
 export interface NotificationPage {
@@ -91,6 +96,6 @@ export const markRead = (ids: string[] | "all") =>
 
 /** Marks it read and says where to go; a page closed to the reader now is a 403 NotificationError. */
 export const openNotification = (id: string) =>
-  request<{ href: string; slug: string; block: string | null }>(`/api/v1/notifications/${encodeURIComponent(id)}/open`, {
+  request<{ href: string; slug: string; block: string | null; thread_id?: string }>(`/api/v1/notifications/${encodeURIComponent(id)}/open`, {
     method: "POST",
   });

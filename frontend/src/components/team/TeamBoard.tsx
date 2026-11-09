@@ -284,6 +284,9 @@ function MemberCard({ c, ws, days, today, jira }: { c: Card; ws: string; days: n
       <JiraCardLine data={jira} userId={c.id} />
       <div className="tm-card__foot">
         <span className="tm-card__count" title="Open action items and targets"><Icon name="checkSquare" />{c.open_items} open</span>
+        {!!c.comment_tasks?.length && (
+          <span className="tm-card__count" title="Comment threads assigned to them" data-testid="team-comment-tasks"><Icon name="message" />{c.comment_tasks.length}</span>
+        )}
         <ActivityStrip counts={c.activity.slice(-days)} today={today} label={`${c.name}'s updates`} />
         <span className="tm-card__when">{n ? `${n} update${n === 1 ? "" : "s"}` : ""}{c.updated_at ? ` · ${fmtDay(c.updated_at)}` : ""}</span>
       </div>

@@ -18,6 +18,10 @@ export interface HomeAction {
   /** When the to-do was set: the meeting's date for meeting notes, else the page's last change (YYYY-MM-DD). The list is newest first by it. */
   date?: string | null;
   can_tick: boolean;
+  /** A comment thread assigned to you (backend services/comments/tasks.py): ticking resolves it. */
+  kind?: "comment";
+  thread_id?: string;
+  quote?: string | null;
 }
 
 export interface HomeMeeting {
@@ -72,6 +76,8 @@ export interface HomeData {
   meetings: { items: HomeMeeting[]; today: string };
   workspaces: HomeWorkspace[];
   meet: { connected: boolean; workspace_id: string | null };
+  /** Comment threads waiting on you: assigned to you, mentioning you, or answered on yours. */
+  comments?: { waiting: import("@/lib/comments").MyThread[]; waiting_count: number };
 }
 
 export function getHome(): Promise<HomeData> {

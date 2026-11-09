@@ -194,7 +194,8 @@ export function CommentsProvider({ slug, summary, user, signInHref, subscribeLiv
   }, [toast]);
 
   const ctx: CommentsCtx = useMemo(() => {
-    const perms = list?.can ?? { ...NO_PERMS, enabled: summary.enabled, view: false, comment: false, reason: summary.reason };
+    // Until the list arrives, what the document read said (so "Comment" on a selection works at once).
+    const perms = list?.can ?? { ...NO_PERMS, enabled: summary.enabled, view: summary.can_view, comment: summary.can_comment, reason: summary.reason };
     const threads = list?.threads ?? [];
     return {
       slug,

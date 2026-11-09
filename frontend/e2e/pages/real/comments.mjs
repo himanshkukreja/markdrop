@@ -272,6 +272,25 @@ await step("markdown", async () => {
   await shot(p, "comments-markdown-doc");
 });
 
+await step("shots", async () => {
+  const slug = await newPage(`Shots ${run}`);
+  const { p } = await ctx(browser, { token: T.member });
+  await openPage(p, slug);
+  await selectText(p, "final review with the design team");
+  await p.locator(".mdc-selbtn").waitFor();
+  await shot(p, "comments-selection-button");
+  await p.evaluate(() => window.getSelection()?.removeAllRanges());
+  await p.locator(".pb-paper p", { hasText: "Rollout happens" }).first().hover();
+  await p.locator(".mdc-blockbtn").waitFor({ timeout: 8000 });
+  await shot(p, "comments-block-button");
+  // The owner's switches in Share.
+  const { p: o } = await ctx(browser, { token: T.owner });
+  await openPage(o, slug);
+  await o.getByRole("button", { name: /^Share/ }).first().click();
+  await o.getByText("Show comments publicly").waitFor({ timeout: 10000 });
+  await shot(o, "comments-share-switches");
+});
+
 await step("dark", async () => {
   const slug = await newPage(`Dark ${run}`);
   await api("POST", `/api/v1/documents/${slug}/comments`, T.member, { anchor: { type: "text", quote: { exact: "the new editor" } }, body: "Dark mode check" });

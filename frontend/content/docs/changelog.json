@@ -66,6 +66,20 @@
       "docs": []
     },
     {
+      "id": "comments",
+      "date": "2026-11-09",
+      "title": "Comments on pages and documents",
+      "kind": "new",
+      "area": "Pages",
+      "products": [
+        "web",
+        "mcp",
+        "api"
+      ],
+      "summary": "Comment on any part of a page or markdown document, like in Google Docs: select text, reply, mention people, react, resolve, and assign a thread as a task.",
+      "body": "- **Comment on anything.** Select text and choose **Comment** (or press ⌘⌥M), comment on a whole block from the margin, or on the page as a whole. The page's text never changes.\n- **Threads beside the text.** On a wide screen each thread sits next to what it's about; on a phone the comments open as a sheet. New comments and replies show up live.\n- **Reply, @mention, react, resolve.** Mention someone who can open the page and they're told; mention someone who can't and you can share it with them first. Resolved threads keep their history and can be reopened.\n- **Follows your edits.** Comments move with the text they're about. If it's removed, the thread says so and shows the original words.\n- **Assign as a task.** An assigned thread shows in the person's home under **Your action items** and on the **Team** page; resolving it completes it.\n- **Who sees them.** Everyone signed in who can open the page. The owner can turn comments off for one item, or show them to readers who aren't signed in; workspace admins can turn them off for a workspace.\n- **From your AI app.** New MCP tools: `list_comments`, `get_thread`, `add_comment`, `reply_comment`, `resolve_comment`, `reopen_comment`, `assign_thread`, `react_comment` and `set_comment_settings`.\n\n[Read about comments](/pages/comments)."
+    },
+    {
       "id": "ai-and-your-data",
       "date": "2026-11-07",
       "title": "AI and your data, in one place",
