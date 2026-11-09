@@ -256,13 +256,10 @@ export default function DocumentView(props: DocumentViewProps) {
   useEffect(() => {
     if (!pageEditable) setEditorReady(false);
   }, [pageEditable]);
-  // The editor's text, for comment highlights while editing (found once it's on screen): a page's block
-  // editor, or a classic document's editor.
-  const classicEditing = editing && !isPage;
+  // The block editor's text, for comment highlights while editing a page (found once it's on screen).
   useEffect(() => {
-    const want = pageEditable ? editorReady : classicEditing;
-    if (!want) { setEditEl(null); return; }
-    const sel = pageEditable ? ".pb-live .ProseMirror" : "#main .ProseMirror";
+    if (!pageEditable || !editorReady) { setEditEl(null); return; }
+    const sel = ".pb-live .ProseMirror";
     let timer = 0;
     let tries = 0;
     const find = () => {
@@ -272,7 +269,7 @@ export default function DocumentView(props: DocumentViewProps) {
     };
     find();
     return () => window.clearTimeout(timer);
-  }, [pageEditable, editorReady, classicEditing]);
+  }, [pageEditable, editorReady]);
   // The edit flow (⋯ › Edit, which asks for the edit secret) just unlocked the page: edit it.
   const editRise = useRef(editing);
   useEffect(() => {
@@ -685,8 +682,7 @@ export default function DocumentView(props: DocumentViewProps) {
         signInHref={signInHref}
         subscribeLive={v.subscribeLive}
       >
-        {commentsSummary && <CommentLayer root={editEl} name="md-comments-editor" />}
-        {commentsSummary && <CommentsPanel />}
+        {/* The classic editor is a plain text box: comments stay in the reader (and the block editor). */}
         {docBar({ title: displayTitle, gated: false, menu: [], shareUrl: "" })}
         <main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
           {secretUnlocked && !isPage && backToPage && <div className="mx-auto w-full max-w-reading px-4 pt-4 sm:px-6">{backToPage}</div>}
