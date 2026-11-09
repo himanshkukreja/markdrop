@@ -6,6 +6,8 @@
  * found is previewed (the server's own parser, nothing written) before Import; notes and a transcript
  * of the same call become one meeting. A dialog on desktop, a bottom sheet on phones.
  */
+import { TeamChecklist } from "@/components/teams/parts";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -30,9 +32,19 @@ export interface ImportMeetingProps {
   workspaceId: string;
   status: MeetingsStatus | null;
   onImported?: (meetings: Meeting[]) => void;
+  /** Teams: importing from a team's meetings starts on that team. */
+  team?: string | null;
 }
 
-export function ImportMeeting({ open, onClose, workspaceId, status, onImported }: ImportMeetingProps) {
+export function ImportMeeting({ open, onClose, workspaceId, status, onImported, team = null }: ImportMeetingProps) {
+  // Teams (CONTRACT §4.6): the teams it goes to — the suggestion from who attended / the series, changed here;
+  // none ticked = company-wide. Shown only when the workspace has teams you can add to.
+  useTeamsSidebar([workspaceId]);
+  const teamsData = teamsSlot(workspaceId);
+  const teamOptions = teamsData ? teamsData.teams.filter((t) => t.my_role || t.can_admin) : [];
+  const [teamIds, setTeamIds] = useState<string[]>(team ? [team] : []);
+  const [suggested, setSuggested] = useState<string[]>([]);
+  const teamsTouched = useRef(false);
   const phone = useMediaQuery(PHONE_QUERY);
   const router = useRouter();
   const toast = useToast();
@@ -60,7 +72,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
     setText(""); setFiles([]); setPicked([]); setDetected(null); setTitle(""); setDate(""); setType("");
     setRestricted(false); setError(null); setBusy(false); setTab("paste"); setLinks(""); setLinkResults(null);
     touched.current = { title: false, date: false, restricted: false };
-  }, [open]);
+    teamsTouched.current = false; setTeamIds(team ? [team] : []); setSuggested([]);
+  }, [open, team]);
 
   const linkList = useMemo(() => links.split(/[\s,]+/).map((l) => l.trim()).filter(Boolean).slice(0, 20), [links]);
   const badLinks = linkList.filter((l) => !driveFileId(l));
@@ -86,6 +99,9 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         if (one && !touched.current.date) setDate(one.date || localToday());
         // A 1:1 or two-person call starts restricted to the people who were there (3+: the team).
         if (one && !touched.current.restricted) setRestricted(one.attendees.length >= 1 && one.attendees.length <= 2);
+        const sug = [...new Set(r.meetings.flatMap((m) => (m.team_suggestions ?? []).map((x) => x.team_id)))];
+        setSuggested(sug);
+        if (!teamsTouched.current) setTeamIds([...new Set([...(team ? [team] : []), ...sug])]);
         setError(null);
       }).catch((e: Error) => { if (live) { setDetected(null); setError(e.message); } })
         .finally(() => { if (live) setDetecting(false); });
@@ -120,7 +136,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
     setBusy(true);
     setError(null);
     try {
-      const r = await importLinks({ workspace: workspaceId, urls: linkList, ...(touched.current.restricted ? { restricted } : {}) });
+      const r = await importLinks({ workspace: workspaceId, urls: linkList, ...(touched.current.restricted ? { restricted } : {}),
+        ...(teamOptions.length && (teamsTouched.current || team) ? { team_ids: teamIds } : {}) });
       const made = r.results.filter((x) => x.meeting).map((x) => x.meeting!) ;
       if (made.length) onImported?.(made);
       const waiting = r.results.filter((x) => !x.meeting);
@@ -153,6 +170,8 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         ...(type ? { type } : {}),
         // Unset (Google Docs, not previewed): the server decides by the number of people.
         ...(touched.current.restricted || detected ? { restricted } : {}),
+        // Teams: what's ticked (the suggestion unless changed); omitted when the workspace has no teams.
+        ...(teamOptions.length ? { team_ids: teamIds } : {}),
       });
       onImported?.(r.meetings);
       onClose();
@@ -318,6 +337,16 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported }
         </span>
         <Switch checked={restricted} onChange={(e) => { touched.current.restricted = true; setRestricted(e.target.checked); }} aria-label="Restrict to attendees" />
       </div>
+      {teamOptions.length > 0 && (
+        <fieldset className="flex min-w-0 flex-col gap-2" data-testid="import-teams">
+          <legend className="mb-1 text-body font-medium">Teams</legend>
+          <p className="text-small text-text-secondary">
+            {suggested.length ? "Suggested from who attended and earlier meetings in the series. " : ""}
+            A meeting with several teams goes to each. None ticked: company-wide.
+          </p>
+          <TeamChecklist teams={teamOptions} value={teamIds} onChange={(v) => { teamsTouched.current = true; setTeamIds(v); }} label="Teams for this meeting" />
+        </fieldset>
+      )}
       {aiOff && <Alert tone="warning">{status?.ai.message || "AI is off"} The meeting is imported without the AI summary.</Alert>}
       {error && <Alert tone="danger">{error}</Alert>}
     </div>

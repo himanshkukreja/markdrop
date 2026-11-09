@@ -8,7 +8,9 @@
  * Everything was filtered for the viewer by the server: a line shows only while its meeting or page is
  * readable by them. Phones: one column, the charts compact, the filters wrap; tablets get two columns.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
+import { projectHref as teamProjectHref, teamHref as teamPageHref } from "@/lib/teams";
 import Link from "next/link";
 import { Alert, Avatar, Button, Icon, Input, SegmentedControl, Select, Skeleton, Tabs, useToast } from "@/components/ui";
 import { ReadMore } from "@/components/ReadMore";
@@ -26,7 +28,19 @@ import "./team.css";
 
 type Range = "7" | "14";
 
-export default function TeamBoard({ workspaceId }: { workspaceId: string }) {
+/** Teams: the space this board shows (a team's Memory) and its name for the title. */
+const SpaceCtx = createContext<{ name: string; href: string } | null>(null);
+
+export default function TeamBoard({ workspaceId, space }: { workspaceId: string; space?: string }) {
+  useTeamsSidebar([workspaceId]);
+  const td = teamsSlot(workspaceId);
+  const st = space?.startsWith("team:") && td ? td.teams.find((t) => t.id === space.slice(5)) : null;
+  const sp = space?.startsWith("project:") && td ? td.projects.find((x) => x.id === space.slice(8)) : null;
+  const spaceInfo = st ? { name: st.name, href: teamPageHref(workspaceId, st) } : sp ? { name: sp.name, href: teamProjectHref(workspaceId, sp) } : null;
+  return <SpaceCtx.Provider value={spaceInfo}><Board_ workspaceId={workspaceId} space={space} /></SpaceCtx.Provider>;
+}
+
+function Board_({ workspaceId, space }: { workspaceId: string; space?: string }) {
   const [board, setBoard] = useState<Board | BoardOff | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"people" | "projects">("people");
@@ -39,9 +53,9 @@ export default function TeamBoard({ workspaceId }: { workspaceId: string }) {
   useAssistantHere({ workspace: workspaceId });
 
   const load = useCallback(async () => {
-    try { setBoard(await getBoard(workspaceId)); setError(null); }
+    try { setBoard(await getBoard(workspaceId, space)); setError(null); }
     catch (e) { setError(e instanceof Error ? e.message : "Couldn't load Team."); }
-  }, [workspaceId]);
+  }, [workspaceId, space]);
   useEffect(() => { void load(); }, [load]);
 
   if (error && !board) return <div className="tm-page"><Alert tone="danger">{error}</Alert></div>;
@@ -60,6 +74,23 @@ export default function TeamBoard({ workspaceId }: { workspaceId: string }) {
 }
 
 function Head({ name, wsId, children }: { name: string; wsId: string; children?: React.ReactNode }) {
+  const sp = useContext(SpaceCtx);
+  if (sp) {
+    return (
+      <header className="tm-head">
+        <nav className="tm-crumbs" aria-label="Breadcrumb">
+          <Link href={`/w/${encodeURIComponent(wsId)}/home`}>{name}</Link><Icon name="chevronRight" /><Link href={sp.href}>{sp.name}</Link><Icon name="chevronRight" /><span>Memory</span>
+        </nav>
+        <div className="tm-head__row">
+          <div className="tm-head__titles">
+            <h1 className="tm-title">{sp.name} memory</h1>
+            <p className="tm-sub">Who&apos;s doing what in {sp.name}, from its meetings and pages. You only see what came from things you can open.</p>
+          </div>
+          {children && <div className="tm-head__actions">{children}</div>}
+        </div>
+      </header>
+    );
+  }
   return (
     <header className="tm-head">
       <nav className="tm-crumbs" aria-label="Breadcrumb">

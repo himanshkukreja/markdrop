@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listMeetings, MEETINGS_PAGE, type HiddenMeeting, type MeetingCard, type MeetingSort, type MeetingsPage } from "@/lib/meetings";
 
-export interface MeetingsListQuery { q: string; series: string | null; sort: MeetingSort }
+export interface MeetingsListQuery { q: string; series: string | null; sort: MeetingSort; /** lib/teams Space (a team's meetings). */ space?: string }
 
 interface Snap { items: MeetingCard[]; hidden: HiddenMeeting[]; total: number | null; next: string | null; at: number; scrollY: number }
 
@@ -23,7 +23,7 @@ const LAST_QUERY = new Map<string, MeetingsListQuery>();
 const FRESH_MS = 10 * 60_000;
 const HEAD_MAX = 100;
 
-const keyOf = (ws: string, q: MeetingsListQuery) => JSON.stringify([ws, q.sort, q.series, q.q.trim().toLowerCase()]);
+const keyOf = (ws: string, q: MeetingsListQuery) => JSON.stringify([ws, q.sort, q.series, q.q.trim().toLowerCase(), q.space ?? ""]);
 
 /** The filters this tab last used on a workspace's hub (restored on back navigation). */
 export function lastQuery(ws: string): MeetingsListQuery | undefined {

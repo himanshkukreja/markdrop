@@ -14,6 +14,8 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
+import { teamHref } from "@/lib/teams";
 import {
   Alert, Avatar, AvatarGroup, Badge, Button, ConfirmDialog, Dropdown, Icon, IconButton, Input, Progress, Select, Skeleton, Spinner,
   copyText, useToast, type MenuEntry,
@@ -39,7 +41,7 @@ import { useAssistantHere } from "@/components/assistant/store";
 import "./meetings.css";
 import "./backfill.css";
 
-export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
+export default function MeetingsHub({ workspaceId, space }: { workspaceId: string; /** Teams: "team:<id>" | "project:<id>" — that space's meetings. */ space?: string }) {
   const { user, loading: authLoading } = useAuth();
   const toast = useToast();
   const [ws, setWs] = useState<Workspace | null>(null);
@@ -75,7 +77,11 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     const t = window.setTimeout(() => setQ(filter.trim()), filter.trim() ? 250 : 0);
     return () => window.clearTimeout(t);
   }, [filter]);
-  const query = useMemo(() => ({ q, series: seriesFilter, sort }), [q, seriesFilter, sort]);
+  const query = useMemo(() => ({ q, series: seriesFilter, sort, ...(space ? { space } : {}) }), [q, seriesFilter, sort, space]);
+  // Teams: a team's meetings (?space=team:<id>) — its name in the title, and the importer starts on it.
+  useTeamsSidebar([workspaceId]);
+  const teamsData = teamsSlot(workspaceId);
+  const spaceTeam = space?.startsWith("team:") && teamsData ? teamsData.teams.find((t) => t.id === space.slice(5)) ?? null : null;
   const signedIn = !!user;
   const list = useMeetingsList(workspaceId, signedIn, query);
   const { items, hidden, refreshHead, reload: reloadFirst, drop } = list;
@@ -83,10 +89,10 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
   const loadConn = useCallback(() => getMeetConnection(workspaceId)
     .then((c) => setConn({ mine: c.connection, others: c.others })).catch(() => {}), [workspaceId]);
 
-  const loadFacets = useCallback(() => listSeries(workspaceId).then((r) => {
+  const loadFacets = useCallback(() => listSeries(workspaceId, space).then((r) => {
     setSeries(r.series);
     if (r.total != null) setFacets({ total: r.total, one_offs: r.one_offs ?? 0 });
-  }).catch(() => {}), [workspaceId]);
+  }).catch(() => {}), [workspaceId, space]);
   // The page around the list (the list itself: useMeetingsList).
   const loadShell = useCallback(async () => {
     try {
@@ -253,11 +259,12 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
       <nav className="mt-hub__crumbs" aria-label="Breadcrumb">
         <Link href={`/w/${encodeURIComponent(workspaceId)}`}>{ws?.name ?? "Workspace"}</Link>
         <Icon name="chevronRight" />
+        {spaceTeam && <><Link href={teamHref(workspaceId, spaceTeam)}>{spaceTeam.name}</Link><Icon name="chevronRight" /></>}
         <span aria-current="page">Meetings</span>
       </nav>
       <header className="mt-hub__head">
         <div className="mt-hub__titles">
-          <h1 className="mt-hub__title">Meetings</h1>
+          <h1 className="mt-hub__title">{spaceTeam ? `${spaceTeam.name} meetings` : "Meetings"}</h1>
           <p className="mt-hub__sub">Every call as a page — summary, decisions, action items and the transcript.</p>
         </div>
         <div className="mt-hub__actions">
@@ -388,7 +395,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
         </section>
       )}
 
-      <ImportMeeting open={importing} onClose={() => setImporting(false)} workspaceId={workspaceId} status={status}
+      <ImportMeeting open={importing} onClose={() => setImporting(false)} workspaceId={workspaceId} status={status} team={spaceTeam?.id ?? null}
         onImported={() => void load()} />
       <BulkImport open={bulk} onClose={() => setBulk(false)} workspaceId={workspaceId} status={status}
         seriesNames={series.map((x) => x.name)} onStarted={(j) => setJob(j)} />

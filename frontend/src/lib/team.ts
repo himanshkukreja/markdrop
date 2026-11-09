@@ -212,7 +212,8 @@ export const deleteGroup = (ws: string, id: string) => request(`${base(ws)}/grou
 export const sendWeekly = (ws: string) =>
   request<{ week: string; delivery: { slack: string | null; emails: number }; highlights: number }>(`${base(ws)}/weekly/send`, { method: "POST" });
 
-export const getBoard = (ws: string) => request<Board | BoardOff>(base(ws));
+/** `space` (Teams): a team's / project's memory (lib/teams Space). */
+export const getBoard = (ws: string, space?: string) => request<Board | BoardOff>(`${base(ws)}${space ? `?space=${encodeURIComponent(space)}` : ""}`);
 export const getPerson = (ws: string, uid: string) => request<Person>(`${base(ws)}/people/${encodeURIComponent(uid)}`);
 export const getProject = (ws: string, key: string) => request<Project>(`${base(ws)}/projects/${encodeURIComponent(key)}`);
 export const setFocus = (ws: string, text: string) =>

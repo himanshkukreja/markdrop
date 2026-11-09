@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
+import { parseSpace } from "@/lib/teams";
 import MeetingsHub from "@/components/meetings/MeetingsHub";
 
-type Props = { params: Promise<{ wsId: string }> };
+type Props = { params: Promise<{ wsId: string }>; searchParams: Promise<{ space?: string }> };
 
 export const metadata: Metadata = {
   title: "Meetings · Markdrop",
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 };
 
 /** A workspace's meetings: import a call, ask across them, open one (components/meetings). */
-export default async function Page({ params }: Props) {
+export default async function Page({ params, searchParams }: Props) {
   const { wsId } = await params;
-  return <MeetingsHub workspaceId={decodeURIComponent(wsId)} />;
+  // Teams: ?space=team:<id> | project:<id> scopes it to that space (lib/teams).
+  const space = parseSpace((await searchParams).space);
+  return <MeetingsHub key={space ?? ""} workspaceId={decodeURIComponent(wsId)} space={space === "company" || space === "all" ? undefined : space} />;
 }
