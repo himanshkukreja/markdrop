@@ -1,0 +1,11 @@
+# Installed by backend/deploy/install-mongo.sh — runs backup-mongo.sh (see markdrop-backup.timer)
+[Unit]
+Description=Markdrop MongoDB backup
+After=mongod.service
+Requires=mongod.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/markdrop-backup-mongo
+Nice=10
+IOSchedulingClass=idle

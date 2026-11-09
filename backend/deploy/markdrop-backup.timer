@@ -1,0 +1,10 @@
+[Unit]
+Description=Markdrop MongoDB backup every 6 hours
+
+[Timer]
+OnCalendar=00/6:17
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
