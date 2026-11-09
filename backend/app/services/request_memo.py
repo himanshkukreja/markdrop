@@ -39,6 +39,16 @@ async def remember(key: tuple, factory: Callable[[], Awaitable[Any]]) -> Any:
         raise
 
 
+def prime(key: tuple, value: Any) -> None:
+    """Record an answer already in hand (a list that carried it), for the rest of this read request."""
+    memo = _memo.get()
+    if memo is None or key in memo:
+        return
+    fut = asyncio.get_running_loop().create_future()
+    fut.set_result(value)
+    memo[key] = fut
+
+
 def forget(*key_prefix: Any) -> None:
     """Drop remembered answers whose key starts with ``key_prefix`` (all of them with no prefix)."""
     memo = _memo.get()

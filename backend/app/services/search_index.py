@@ -56,7 +56,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import UpdateOne
 
-from app.services import file_text, heading_ids, search_chunks
+from app.services import file_text, heading_ids, search_chunks, todos
 from app.services import search_text as st
 
 log = logging.getLogger("markdrop.search_index")
@@ -102,7 +102,7 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index("site", sparse=True)
     await db[COLL].create_index("fx", sparse=True)
     await db[COLL].create_index("ax", sparse=True)
-    # The home's open to-dos for one person (todo_users): the rows naming them.
+    # The home's open to-dos for one person (todo_fields): the rows naming them.
     await db[COLL].create_index("td", name="td")
     await search_chunks.ensure_indexes(db)
     # The reconciler's "what changed since" scans.
@@ -158,39 +158,21 @@ def plain_fields(text: str | None, *, limit: int = FILE_TEXT) -> dict:
     return {"hd": [], "hw": [], "w": st.word_set(t), "x": t}
 
 
-EMPTY = {"hd": [], "hw": [], "w": [], "x": "", "td": []}
+EMPTY = {"hd": [], "hw": [], "w": [], "x": "", "td": [], "tdl": {}}
 
-# ── Open to-dos per person (``td``) ──────────────────────────────────────────
+# ── Open to-dos per person (``td`` / ``tdl``) ─────────────────────────────────
 # The home's "Your action items" (services/home.actions) used to find them with a regex over every
-# readable page's content — a scan Mongo can't index, then 300 full pages over the wire and through
-# Python on every dashboard load. ``td`` keeps, on each block page's row, the people who have an open
-# to-do (``- [ ] … :person[…]{id="…"}``) in it; the home asks the index for the caller's id and reads
-# only those pages (then decides each one exactly as before). Kept in step by every (re)index;
-# todos_tick fills it once for rows written before it existed.
+# readable page's content — a scan Mongo can't index — then read 300 whole pages over the wire and
+# through Python on every dashboard load. Each block page's row now keeps who has an open to-do in it
+# (``td``, indexed) and those to-do lines per person (``tdl``, services/todos.py), so the home reads
+# the caller's rows and then decides each page exactly as before. Kept in step by every (re)index;
+# todos_tick fills them once for rows written before they existed.
 TODOS_VERSION = 1
-_OPEN_TASK = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+\[ \]\s+\S")
-# Any id="…" on the line, like ask_markdrop.task_lines' own test (a superset of person mentions: a stray
-# id only means a page the home reads and finds nothing for).
-_MENTION_ID = re.compile(r'\bid="([^"\n]{1,64})"')
 
 
-def todo_users(raw: dict) -> list[str]:
-    """Who has an open to-do in this block page (the ids its unchecked task lines mention), sorted."""
-    if raw.get("editor") != "blocks" or raw.get("kind") == "artifact" or title_only(raw):
-        return []
-    content = raw.get("content") or ""
-    if 'id="' not in content:
-        return []
-    out: set[str] = set()
-    fence = False
-    for line in content.split("\n"):
-        if line.lstrip().startswith(("```", "~~~")):
-            fence = not fence
-            continue
-        if fence or 'id="' not in line or not _OPEN_TASK.match(line):
-            continue
-        out.update(_MENTION_ID.findall(line))
-    return sorted(out)
+def todo_fields(raw: dict) -> dict:
+    uids = todos.people(raw)
+    return {"td": uids, "tdl": todos.lines(raw, uids) if uids else {}}
 
 
 def is_video(raw: dict) -> bool:
@@ -217,7 +199,7 @@ def doc_row(raw: dict) -> dict:
         if is_video(raw):
             row["ax"] = "pending"
         return row
-    return {**base, **text_fields(raw.get("content")), "td": todo_users(raw)}
+    return {**base, **text_fields(raw.get("content")), **todo_fields(raw)}
 
 
 def guide_row(page: dict) -> dict:
@@ -708,8 +690,8 @@ async def todos_tick(db: AsyncIOMotorDatabase, *, batch: int = 200, budget_s: fl
         if not rows:
             state.update(done=True, finished_at=now())
             break
-        tds = await asyncio.to_thread(lambda: [todo_users(r) for r in rows])
-        ops = [UpdateOne({"_id": r["_id"]}, {"$set": {"td": td}}) for r, td in zip(rows, tds)]
+        fields = await asyncio.to_thread(lambda: [todo_fields(r) for r in rows])
+        ops = [UpdateOne({"_id": r["_id"]}, {"$set": f}) for r, f in zip(rows, fields)]
         await db[COLL].bulk_write(ops, ordered=False)
         n += len(rows)
         state["cursor"] = rows[-1]["_id"]

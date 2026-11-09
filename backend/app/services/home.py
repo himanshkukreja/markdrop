@@ -45,8 +45,6 @@ MEETINGS_MAX = 8
 MEETINGS_DAYS = 21
 PEOPLE_SHOWN = 4
 
-# A meeting note's citation of a transcript line ("[00:04](…#b-t3)", "[#3](…#b-t3)"): not part of the to-do.
-_CITE = re.compile(r"\s*\[(?:#?\d{1,4}|\d{1,2}:\d{2}(?::\d{2})?)\]\([^)\s]*#b-t\d+\)")
 
 _TODO = re.compile(r"^(?P<lead>[ \t]{0,3}(?:[-*+]|\d+[.)])[ \t]+)\[(?P<mark>[ xX])\](?P<rest>[ \t].*?)[ \t]*"
                    r"\{#(?P<block>b-[0-9A-Za-z_-]+)[^}]*\}[ \t]*$", re.M)
@@ -63,53 +61,55 @@ def _oid(v: Any) -> ObjectId | None:
 
 
 async def actions(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, w: search.World) -> dict:
-    from app.services import md_outline
-    from app.services.ask_markdrop import task_lines
+    from app.services import md_outline, todos
 
     uid = actor.user_id
     filt = await search.doc_filter(db, actor, ctx, w.member_ws, search.Query(q=""))
     if filt is None or not uid:
         return {"items": [], "more": False, "hidden": 0}
+    filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
+    lines: dict | None = None
     if await search_index.todos_ready(db):
-        # The pages with an open to-do for the caller, from the search index's ``td`` (an index lookup),
-        # instead of a regex over every readable page's content (search_index.todo_users).
-        ids = [r["_id"] for r in await db[search_index.COLL].find(
-            {"td": uid}, {"_id": 1}).limit(ACTIONS_SCAN * 2).to_list(length=ACTIONS_SCAN * 2)]
-        if not ids:
+        # The pages with an open to-do for the caller and those to-dos, from the search index (``td`` is
+        # indexed; ``tdl`` holds the lines): no regex over every readable page, and no page bodies over
+        # the wire — only each page's own fields, for the access decision (search_index.todo_fields).
+        idx = await db[search_index.COLL].find({"td": uid}, {f"tdl.{uid}": 1}).limit(ACTIONS_SCAN * 2) \
+            .to_list(length=ACTIONS_SCAN * 2)
+        if not idx:
             return {"items": [], "more": False, "hidden": 0}
-        filt["$and"].append({"_id": {"$in": ids}})
+        lines = {r["_id"]: ((r.get("tdl") or {}).get(uid) or []) for r in idx}
+        filt["$and"].append({"_id": {"$in": list(lines)}})
+        rows = await db["documents"].find(filt, {"content": 0}).sort("updated_at", -1).limit(ACTIONS_SCAN) \
+            .to_list(length=ACTIONS_SCAN)
     else:
         filt["$and"].append({"content": {"$regex": re.escape(f'id="{uid}"')}})
-    filt["$and"].append({"kind": {"$ne": "artifact"}, "editor": "blocks", "encrypted": {"$ne": True}, "deleted_at": None})
-    rows = await db["documents"].find(filt).sort("updated_at", -1).limit(ACTIONS_SCAN).to_list(length=ACTIONS_SCAN)
+        rows = await db["documents"].find(filt).sort("updated_at", -1).limit(ACTIONS_SCAN).to_list(length=ACTIONS_SCAN)
     # Newest first by when the to-do was set: a meeting's own date for meeting notes (a bulk import touches
     # every page at once, so updated_at would shuffle them), else the page's last change.
     mids = {_oid(r.get("meeting_id")) for r in rows if r.get("meeting_id")} - {None}
     mdate = {str(m["_id"]): m.get("date") for m in await db["meetings"].find(
         {"_id": {"$in": list(mids)}}, {"date": 1}).to_list(length=len(mids))} if mids else {}
-    # The text work for up to 300 pages, off the event loop (it held every other request meanwhile).
-    all_tasks = await asyncio.to_thread(
-        lambda: [[] if search_index.title_only(r) else task_lines(_CITE.sub("", r.get("content") or ""), uid)
-                 for r in rows])
+    if lines is not None:
+        all_tasks = [[(t, a) for t, a in lines.get(r["_id"], [])] for r in rows]
+    else:
+        # The text work for up to 300 pages, off the event loop (it held every other request meanwhile).
+        all_tasks = await asyncio.to_thread(
+            lambda: [[] if search_index.title_only(r) else todos.for_person(r.get("content") or "", uid) for r in rows])
     out: list[dict] = []
     for raw, tasks in zip(rows, all_tasks):
-        if not tasks:
+        if not tasks or search_index.title_only(raw):
             continue
         if not (await access.can(actor, raw, "read", ctx)).allowed:
             continue
         can_tick = (await access.can(actor, raw, "edit_content", ctx)).allowed
+        if lines is not None and not (raw.get("title") or "").strip():
+            # The title falls back to the first heading: only then is the body needed.
+            raw = {**raw, **(await db["documents"].find_one({"_id": raw["_id"]}, {"content": 1}) or {})}
         title = md_outline.display_title(raw)
         ws_id = raw.get("workspace_id")
-        # "@Bo Order the banners" → "Order the banners": on your own list, your own mention is noise.
-        me = {f"@{n}" for n in re.findall(r':person\[([^\]\n]*)\]\{id="' + re.escape(uid) + '"', raw.get("content") or "")}
         upd = raw.get("updated_at")
         when = mdate.get(str(raw.get("meeting_id"))) or (upd.date().isoformat() if hasattr(upd, "date") else None)
-        for i, (full, anchor) in enumerate(tasks):
-            text = full
-            for m in me:
-                text = text.replace(m, " ")
-            text = re.sub(r"\s+", " ", text).strip(" ,;:-") or full
-            text = text[:1].upper() + text[1:]
+        for i, (text, anchor) in enumerate(tasks):
             out.append({
                 "text": text, "slug": raw["slug"], "block": anchor, "title": title,
                 "url": f"/{raw['slug']}" + (f"#{anchor}" if anchor else ""),
@@ -214,17 +214,22 @@ async def workspaces(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
             {"$match": {"workspace_id": {"$in": ids}}}, {"$group": {"_id": "$workspace_id", "n": {"$sum": 1}}},
         ]).to_list(length=200)}
 
-    async def first_people(ws_id: str) -> list[str]:
-        # The first few people (owner first, then by joining).
-        rows = await db["memberships"].find({"workspace_id": ws_id}, {"user_id": 1, "role": 1, "created_at": 1}) \
-            .sort([("created_at", 1)]).limit(PEOPLE_SHOWN * 3).to_list(length=PEOPLE_SHOWN * 3)
-        rows.sort(key=lambda r: (r.get("role") != "owner",))
-        return [r["user_id"] for r in rows[:PEOPLE_SHOWN]]
+    async def first_people() -> dict[str, list[str]]:
+        # The first few people of each (owner first, then by joining): one query for every workspace.
+        groups = await db["memberships"].aggregate([
+            {"$match": {"workspace_id": {"$in": ids}}}, {"$sort": {"created_at": 1}},
+            {"$group": {"_id": "$workspace_id", "rows": {"$push": {"u": "$user_id", "r": "$role"}}}},
+            {"$project": {"rows": {"$slice": ["$rows", PEOPLE_SHOWN * 3]}}},
+        ]).to_list(length=len(ids))
+        out: dict[str, list[str]] = {}
+        for g in groups:
+            rows = sorted(g["rows"], key=lambda r: (r.get("r") != "owner",))
+            out[g["_id"]] = [r["u"] for r in rows[:PEOPLE_SHOWN]]
+        return out
 
     # Independent reads, at once.
-    counts, members, meet_counts, *people_rows = await asyncio.gather(
-        item_counts(), grouped("memberships"), grouped("meetings"), *(first_people(ws_id) for ws_id in ids))
-    firsts: dict[str, list[str]] = dict(zip(ids, people_rows))
+    counts, members, meet_counts, firsts = await asyncio.gather(
+        item_counts(), grouped("memberships"), grouped("meetings"), first_people())
     uids = {u for us in firsts.values() for u in us}
     users = {str(u["_id"]): u async for u in db["users"].find(
         {"_id": {"$in": [o for o in (_oid(u) for u in uids) if o]}}, {"name": 1, "email": 1, "picture": 1})}

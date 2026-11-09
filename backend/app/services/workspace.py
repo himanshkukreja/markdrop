@@ -119,6 +119,10 @@ async def list_for_user(db: AsyncIOMotorDatabase, user_id: str) -> list[tuple[Wo
     if not memberships:
         return []
     by_id = {m["workspace_id"]: m["role"] for m in memberships}
+    from app.services.request_memo import prime
+
+    for wid, role in by_id.items():  # the same answers role_for would fetch one by one
+        prime(("role", wid, user_id), role)
     oids = []
     for wid in by_id:
         try:
