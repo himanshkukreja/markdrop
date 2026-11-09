@@ -124,8 +124,15 @@ def main():
 
     log(f"drained ({applied} changes applied); comparing counts")
     names = sorted(n for n in src.list_collection_names() if not n.startswith("system."))
-    bad = [f"{n}: {a} → {b}" for n in names
-           for a, b in [(src[n].count_documents({}), dst[n].count_documents({}))] if a != b]
+
+    def counts(n):
+        return n, src[n].count_documents({}), dst[n].count_documents({})
+
+    # In parallel: the source is often across an SSH tunnel, and this runs while the API is down
+    # (one by one, 150 collections took 13 s through a tunnel Mumbai → Mac → Hyderabad).
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(16) as pool:
+        bad = [f"{n}: {a} → {b}" for n, a, b in pool.map(counts, names) if a != b]
     for line in bad:
         log(f"✗ {line}")
     if bad:
