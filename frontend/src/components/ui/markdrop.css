@@ -62,7 +62,7 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 .md-btn__spinner { position: absolute; inset: 0; display: grid; place-items: center; }
 .md-btn--loading > :not(.md-btn__spinner):not(.md-btn__label) { visibility: hidden; }
 /* Never wider than its box: a long text label ends in "…" (the icons keep their size). */
-.md-btn { max-width: 100%; }
+.md-btn:has(> .md-btn__label) { max-width: 100%; }
 .md-btn__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .md-btn > .md-icon, .md-btn > svg { flex: none; }
 .md-btn .md-icon { font-size: 16px; }
@@ -180,7 +180,7 @@ textarea:-webkit-autofill, select:-webkit-autofill {
 @keyframes md-breathe { 50% { opacity: .3; } }
 .md-badge .md-icon { font-size: 12px; }
 /* A long label (a workspace name) ends in "…" when the badge has to fit its box. */
-.md-badge { max-width: 100%; min-width: 0; }
+.md-badge:has(> .md-badge__label) { max-width: 100%; min-width: 0; }
 .md-badge > .md-icon { flex: none; }
 .md-badge__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .md-badge--neutral { background: var(--surface-hover); color: var(--text-secondary); }
