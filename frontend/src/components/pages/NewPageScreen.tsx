@@ -9,7 +9,7 @@ import { TemplateGallery } from "./TemplateGallery";
 
 /**
  * /pages/new (the Create menu's "Page"): the template gallery, then the editor. `?workspace=`,
- * `?folder=` and `?parent=` file the page like the workspace views do. Pages need an account.
+ * `?folder=` and `?parent=` file the page like the workspace views do; `?team=` puts it in a team's space. Pages need an account.
  */
 export function NewPageScreen() {
   const router = useRouter();
@@ -40,6 +40,7 @@ export function NewPageScreen() {
         workspace={q.get("workspace")}
         folder={q.get("folder")}
         parent={q.get("parent")}
+        team={q.get("team")}
       />
     </>
   );

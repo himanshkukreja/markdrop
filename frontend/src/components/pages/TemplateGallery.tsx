@@ -8,6 +8,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Alert, Badge, Button, Dialog, Icon, Input, SegmentedControl, Skeleton } from "@/components/ui";
+import { setItemTeams } from "@/lib/teams";
 import { createPage, listPageTemplates, type CreatedPage, type PageTemplate } from "@/lib/pages";
 import { fillTemplate } from "@/lib/pageBlocks.mjs";
 import { track } from "@/lib/track";
@@ -48,9 +49,11 @@ export interface TemplateGalleryProps {
   placeLabel?: React.ReactNode;
   /** Default: open the new page in the editor. */
   onCreated?: (created: CreatedPage) => void;
+  /** Teams: put the new page in this team's space (it's created in the workspace, then moved in). */
+  team?: string | null;
 }
 
-export function TemplateGallery({ open, onClose, workspace, folder, parent, parentTitle, placeLabel, onCreated }: TemplateGalleryProps) {
+export function TemplateGallery({ open, onClose, workspace, folder, parent, parentTitle, placeLabel, onCreated, team }: TemplateGalleryProps) {
   const router = useRouter();
   const [templates, setTemplates] = useState<PageTemplate[] | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -106,6 +109,9 @@ export function TemplateGallery({ open, onClose, workspace, folder, parent, pare
           : { title: name, workspace, folder, parent, template: current.id === "blank" ? (folder ? "blank" : null) : current.id },
       );
       rememberSecret(created);
+      if (team && workspace && !parent) {
+        await setItemTeams(workspace, (created.document as { id?: string }).id || created.document.slug, [team], []).catch(() => undefined);
+      }
       track("page_create", { template: fromNotes ? "ai_notes" : /^[0-9a-f]{24}$/.test(current.id) ? "custom" : current.id, sub_page: !!parent, workspace: !!workspace });
       if (onCreated) onCreated(created);
       else router.push(`/${encodeURIComponent(created.document.slug)}?edit=1`);

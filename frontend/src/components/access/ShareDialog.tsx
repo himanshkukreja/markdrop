@@ -21,6 +21,7 @@ import {
 } from "@/lib/workspaces";
 import { ancestry, childrenMap, documentsChanged, useWorkspaceTree, workspaceChanged } from "@/lib/workspaceStore";
 import { teamName } from "@/components/workspace/folder/items";
+import ItemTeams from "@/components/teams/ItemTeams";
 import { PresetCards } from "./PresetCards";
 
 /**
@@ -358,6 +359,11 @@ export default function ShareDialog({
                 onCancel={() => setLocOpen(false)}
                 onSave={(next) => void saveLocation(next)}
               />
+            )}
+
+            {/* Teams: which teams it's in (share to a team / take it out). Hidden without teams to add it to. */}
+            {wsId && !peopleOnly && !locOpen && state && (
+              <ItemTeams ws={wsId} item={documentId || slug} onChanged={() => { onChanged?.(); workspaceChanged(wsId); }} />
             )}
 
             {peopleOnly && (
