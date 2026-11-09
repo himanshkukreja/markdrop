@@ -984,8 +984,10 @@ async def thread_links(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
 
     raw = await _readable(actor, raw, ctx)
     if not await perms.can_view_comments(db, actor, raw, ctx):
-        return {"threads": {}}
+        return {"threads": {}, "can_create": False, "connected": False}
     rows = await db[THREADS].find({"doc_id": str(raw["_id"])}).to_list(length=500)
+    site = await jira.site_for(db, raw.get("workspace_id")) if jira.configured() else None
+    can_create = bool(actor.user_id and site is not None and await perms.can_comment(db, actor, raw, ctx))
     out = {r["thread_id"]: {"thread_id": r["thread_id"], "key": r["key"], "site": r.get("host"), "title": r.get("title"),
                             "url": browse(r["host"], r["key"]) if r.get("host") else None, "issue": None}
            for r in rows}
@@ -1001,4 +1003,5 @@ async def thread_links(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acces
             for r in rows:
                 if r.get("host") == host and r["key"] in got:
                     out[r["thread_id"]]["issue"] = jira.public_issue(got[r["key"]])
-    return {"threads": out}
+    connected = bool(actor.user_id and site is not None and await jira.can_use(db, actor.user_id, site["cloud_id"]))
+    return {"threads": out, "can_create": can_create, "connected": connected}
