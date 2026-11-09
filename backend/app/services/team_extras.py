@@ -599,7 +599,7 @@ def compose_email(ws: wm.WsInfo, s: dict) -> dict:
 
     body = [K.eyebrow("Weekly summary" + (f" · {L['sent_on']}" if L["sent_on"] else "")),
             K.title(f"{L['header']} in {ws.name}")]
-    tiles = [("Highlights last week" if L["last"] else "Highlights so far", str(len(p["highlights"]))),
+    tiles = [("Last week" if L["last"] else "So far", str(len(p["highlights"]))),
              ("Due this week", str(len(p["due"]))), ("Overdue", str(len(p["overdue"]))), ("Blocked", str(len(p["blockers"])))]
     body.append(K.stats(tiles, margin="4px 0 12px"))
     body.append(K.heading(L["highlights"], count=len(p["highlights"]) or None, top=20))
