@@ -117,7 +117,7 @@ async def suggest_groups(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
     by: dict[str, list[dict]] = {}
     for r in rows:
         d = docs.get(r.get("doc_id"))
-        if d is None or d.get("deleted_at") or not (await access.can(actor, d, "read", ctx)).allowed:
+        if d is None or d.get("deleted_at") or not await access.discoverable(actor, d, ctx):
             continue
         by.setdefault(r["series"], []).append(r)
     out = []

@@ -418,8 +418,8 @@ async def doc_filter(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.
         ors.append({"$and": [{"workspace_id": {"$in": [v.workspace_id for v in other]}, "access_level": {"$ne": "private"}},
                              teams_service.multi_clause(other)]})
     clauses: list[dict] = [{"$or": ors}, access.not_expired_clause(ctx.now), access.NOT_TEMPLATE]
-    if q.space:
-        sp = teams_service.parse_space(q.space)
+    if q.space or ctx.space:
+        sp = teams_service.parse_space(q.space or ctx.space)
         if sp.kind != "all":
             view = next((v for v in views if (sp.kind == "team" and sp.id in v.teams)
                          or (sp.kind == "project" and sp.id in v.projects)

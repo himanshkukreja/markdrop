@@ -835,7 +835,7 @@ async def ask_meeting(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
     segs = row.get("segments") or []
     tslug = row.get("transcript_slug")
     traw = await db["documents"].find_one({"_id": meetings.oid(row.get("transcript_doc_id"))}) if row.get("transcript_doc_id") else None
-    if traw is None or not (await access.can(actor, traw, "read", ctx)).allowed:
+    if traw is None or not await access.discoverable(actor, traw, ctx):
         segs = []   # the transcript isn't open to this person: answers come from the page alone
     ws_ = row.get("workspace_id")
     is_me = [you is not None and you.is_me(s.get("speaker"), ws_) for s in segs]
@@ -909,14 +909,21 @@ async def _candidates(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access
     out = []
     cur = db[meetings.COLL].find(_scope_query(workspace_id, scope), {"segments": 0}).sort(
         [("date", -1), ("created_at", -1)]).limit(ACROSS_SCAN)
+    from app.services import teams as teams_service
+
+    space = teams_service.parse_space(ctx.space) if ctx.space else teams_service.Space()
+    view = await ctx.team_view(workspace_id, actor.user_id) if space.kind != "all" else None
     async for row in cur:
         raw = await meetings.readable(db, row, actor, ctx)
-        if raw is None:
+        # Discovery + the space (Teams, CONTRACT §2-3): a private team's meeting never answers outsiders.
+        if raw is None or not await access.discoverable(actor, raw, ctx):
+            continue
+        if view is not None and not teams_service.in_space(view, space, raw):
             continue
         traw = None
         if row.get("transcript_doc_id"):
             t = await db["documents"].find_one({"_id": meetings.oid(row["transcript_doc_id"])}, {"content": 0})
-            if t is not None and (await access.can(actor, t, "read", ctx)).allowed:
+            if t is not None and await access.discoverable(actor, t, ctx):
                 traw = t
         out.append((row, raw, traw))
     return out

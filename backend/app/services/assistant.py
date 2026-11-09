@@ -42,7 +42,7 @@ from app.services import access, ask_markdrop, meeting_scope, meetings, meetings
 
 log = logging.getLogger("markdrop.assistant")
 
-KINDS = ("doc", "meetings", "folder", "workspace", "mine", "everything")
+KINDS = ("doc", "meetings", "folder", "workspace", "mine", "everything", "team", "project")
 VIA = "assistant"
 _ID = re.compile(r"^[0-9a-f]{24}$")
 
@@ -57,6 +57,9 @@ class Scope:
     series: str | None = None
     since: str | None = None
     until: str | None = None
+    team: str | None = None
+    project: str | None = None
+    space: str | None = None       # Teams (CONTRACT §3): narrows any kind; kind team / project set it
 
 
 def parse_scope(raw: dict | None) -> Scope:
@@ -74,8 +77,9 @@ def parse_scope(raw: dict | None) -> Scope:
 
     sc = Scope(kind=kind, page=clean("page"), workspace=clean("workspace", 40), folder=clean("folder", 40),
                meeting=clean("meeting", 40), series=clean("series", 60), since=clean("since", 10),
-               until=clean("until", 10))
-    for name in ("workspace", "folder", "meeting"):
+               until=clean("until", 10), team=clean("team", 40), project=clean("project", 40),
+               space=clean("space", 40))
+    for name in ("workspace", "folder", "meeting", "team", "project"):
         v = getattr(sc, name)
         if v is not None and not _ID.match(v):
             raise ValueError(f"scope.{name} is not an id")
@@ -89,6 +93,17 @@ def parse_scope(raw: dict | None) -> Scope:
         raise ValueError("scope.workspace or scope.meeting is needed for kind meetings")
     if kind == "meetings":
         meeting_scope.checked(sc.series, sc.since, sc.until)   # ValueError on a bad date
+    if kind in ("team", "project"):
+        ident = sc.team if kind == "team" else sc.project
+        if not ident or not sc.workspace:
+            raise ValueError(f"scope.{kind} and scope.workspace are needed for kind {kind}")
+        sc.space = f"{kind}:{ident}"
+    if sc.space:
+        from app.services import teams as teams_service
+
+        teams_service.parse_space(sc.space)   # ValueError on a bad one
+        if sc.space == "all":
+            sc.space = None
     return sc
 
 
@@ -142,10 +157,23 @@ async def label_of(db: AsyncIOMotorDatabase, scope: Scope, *, page_title: str | 
     if scope.kind == "folder":
         name = await _folder_name(db, scope.folder)
         return f"This folder · {name}" if name else "This folder"
+    if scope.kind in ("team", "project"):
+        from app.services import teams as teams_service
+
+        get = teams_service.get_team if scope.kind == "team" else teams_service.get_project
+        row = await get(db, scope.workspace or "", (scope.team if scope.kind == "team" else scope.project) or "")
+        return f"{'Team' if scope.kind == 'team' else 'Project'} · {row['name']}" if row else scope.kind.title()
     if scope.kind == "workspace":
         name = await _ws_name(db, scope.workspace)
-        return f"Workspace · {name}" if name else "Workspace"
+        return f"Whole company · {name}" if name and scope.space is None and await _has_teams(db, scope.workspace) else (
+            f"Workspace · {name}" if name else "Workspace")
     return "Everything"
+
+
+async def _has_teams(db: AsyncIOMotorDatabase, workspace_id: str | None) -> bool:
+    from app.services import teams as teams_service
+
+    return bool(workspace_id) and await db[teams_service.TEAMS].find_one({"workspace_id": workspace_id}, {"_id": 1}) is not None
 
 
 # ── Citations from the meetings engine ────────────────────────────────────────
@@ -189,12 +217,23 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     if not uid:
         yield ask_markdrop.ev("limit", reason="signin", message=ask_markdrop.message("signin"))
         return
-    if scope.kind in ("meetings", "folder", "workspace") and scope.workspace:
+    if scope.kind in ("meetings", "folder", "workspace", "team", "project") and scope.workspace:
         try:
             await meetings.require_member(db, scope.workspace, uid, write=False)
         except Exception:
             yield ask_markdrop.ev("error", detail="Workspace not found", code="not_found")
             return
+    if scope.space:
+        from app.services import teams as teams_service
+
+        sp = teams_service.parse_space(scope.space)
+        tv = await ctx.team_view(scope.workspace, uid) if scope.workspace else None
+        if sp.kind in ("team", "project") and (tv is None or not teams_service.space_ok(tv, sp)):
+            yield ask_markdrop.ev("error", detail="Team not found" if sp.kind == "team" else "Project not found",
+                                  code="not_found")
+            return
+        # Every retrieval path (search candidates, team memory, meetings) reads the space from ctx.
+        ctx.space = scope.space
     if scope.kind == "meetings":
         async for item in _ask_meetings(db, actor, ctx, question, scope=scope, thread_id=thread_id, via=via, save=save):
             yield item
@@ -209,7 +248,7 @@ async def ask(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx, qu
     kw: dict[str, Any] = {"thread_id": thread_id, "via": via, "save": save, "turn_extra": {"scope": record}}
     if scope.kind == "doc":
         kw.update(intent="page", page=scope.page, context=context)
-    elif scope.kind in ("folder", "workspace"):
+    elif scope.kind in ("folder", "workspace", "team", "project"):
         kw.update(intent=intent, scope=scope.workspace, folder=scope.folder if scope.kind == "folder" else None)
     elif scope.kind == "mine":
         kw.update(intent=intent, mine=True)

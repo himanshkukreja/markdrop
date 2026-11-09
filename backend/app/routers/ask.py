@@ -61,7 +61,7 @@ async def ask_home(request: Request, db: AsyncIOMotorDatabase = Depends(get_db),
 
 
 class ScopeBody(BaseModel):
-    kind: Literal["doc", "meetings", "folder", "workspace", "mine", "everything"] = "everything"
+    kind: Literal["doc", "meetings", "folder", "workspace", "mine", "everything", "team", "project"] = "everything"
     page: Optional[str] = Field(None, max_length=200, description="doc: the document or page (its slug)")
     workspace: Optional[str] = Field(None, max_length=40, description="meetings / folder / workspace: the workspace id")
     folder: Optional[str] = Field(None, max_length=40, description="folder: the folder id (its sub-folders too)")
@@ -69,6 +69,9 @@ class ScopeBody(BaseModel):
     series: Optional[str] = Field(None, max_length=60, description="meetings: only this series")
     since: Optional[str] = Field(None, max_length=10, description="meetings: from this day (YYYY-MM-DD)")
     until: Optional[str] = Field(None, max_length=10, description="meetings: to this day (YYYY-MM-DD)")
+    team: Optional[str] = Field(None, max_length=40, description="team: the team id (with workspace)")
+    project: Optional[str] = Field(None, max_length=40, description="project: the project id (with workspace)")
+    space: Optional[str] = Field(None, max_length=40, description="Teams: all | company | team:<id> | project:<id> — narrows any kind")
 
 
 class ContextBody(BaseModel):
