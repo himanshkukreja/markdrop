@@ -335,7 +335,7 @@ async def _highlights(db: AsyncIOMotorDatabase, workspace_id: str, lines: list[d
 
 
 async def compose(db: AsyncIOMotorDatabase, ws: wm.WsInfo, tz: ZoneInfo, now: datetime | None = None, *,
-                  ai: bool = True, summary: bool = False) -> dict:
+                  ai: bool = True, summary: bool = False, team: Any = None) -> dict:
     """The week from team-visible lines (Mon–Sun in the workspace's timezone): highlights and decisions,
     blockers, due this week, overdue (the last two weeks only).
 
@@ -346,7 +346,7 @@ async def compose(db: AsyncIOMotorDatabase, ws: wm.WsInfo, tz: ZoneInfo, now: da
     today = now.astimezone(tz).date()
     start, end = week_bounds(today)
     last_start, last_end = last_week_bounds(today)
-    v = await team_visible(db, ws.id)
+    v = await team_visible(db, ws.id, team)
     people = {m["id"]: _person(m) for m in v.members}
     done = await wm._done_ids(db, v, v.facts)
 
@@ -755,6 +755,14 @@ async def background(db: AsyncIOMotorDatabase, wss: list[wm.WsInfo], now: dateti
                     n += 1
             except Exception:
                 log.warning("team weekly summary of %s failed", ws.id, exc_info=True)
+        if ws.on:
+            # Teams (services/team_briefs.py): each team's brief, the same Monday morning.
+            try:
+                from app.services import team_briefs
+
+                n += await team_briefs.weekly(db, ws, now)
+            except Exception:
+                log.warning("team briefs of %s failed", ws.id, exc_info=True)
     return n
 
 
