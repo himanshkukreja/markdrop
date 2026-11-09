@@ -20,7 +20,7 @@ Jira in pages works with any Jira Cloud site your Atlassian account reaches. A w
 
 ### Paste a Jira link
 
-Paste a link such as `https://acme.atlassian.net/browse/PAY-12` on its own and it becomes a chip straight away. Press **⌘ Z** (**Ctrl Z**) to keep the plain link instead.
+Paste a link such as `https://acme.atlassian.net/browse/PAY-12` on its own and it becomes a chip straight away. To keep it a plain link, paste with **⌘ ⇧ V** (**Ctrl Shift V**).
 
 ### Add a chip or a card
 
