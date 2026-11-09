@@ -22,6 +22,7 @@ import html
 import logging
 import re
 from datetime import date, datetime, timedelta, timezone
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from bson import ObjectId
@@ -137,19 +138,26 @@ async def suggest_groups(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: acc
 # ── Team-visible lines ────────────────────────────────────────────────────────
 
 
-async def team_doc(db: AsyncIOMotorDatabase, d: dict, workspace_id: str, ctx: access.Ctx) -> bool:
+async def team_doc(db: AsyncIOMotorDatabase, d: dict, workspace_id: str, ctx: access.Ctx, team: Any = None) -> bool:
     """Everyone in the workspace can open ``d``: workspace or link access, no password, not expired, not
-    deleted or encrypted, in this workspace."""
+    deleted or encrypted, in this workspace, company-wide (not a team's). With ``team`` (a
+    ``(TeamView, Space)``): everyone in that team can, and it is in that team's space (team briefs)."""
     from app.services import publicity
+    from app.services import teams as teams_service
 
     if d.get("deleted_at") or d.get("encrypted"):
+        return False
+    if team is None:
+        if not teams_service.company_wide(d):
+            return False
+    elif not teams_service.in_space(team[0], team[1], d):
         return False
     eff = await access.effective_doc(db, d, ctx)
     return ((eff.get("access_level") or "link") in ("workspace", "link") and not eff.get("read_password_hash")
             and eff.get("workspace_id") == workspace_id and not publicity.is_expired(d, ctx.now))
 
 
-async def team_visible(db: AsyncIOMotorDatabase, workspace_id: str) -> wm.Visible:
+async def team_visible(db: AsyncIOMotorDatabase, workspace_id: str, team: Any = None) -> wm.Visible:
     """The workspace's facts whose source everyone in it can open: an ordinary member's view, built from
     the documents' own settings (workspace / link access, no password, not expired, not deleted, in this
     workspace) and never a restricted meeting."""
@@ -161,7 +169,7 @@ async def team_visible(db: AsyncIOMotorDatabase, workspace_id: str) -> wm.Visibl
     ctx = access.Ctx(db)
     ok: dict[ObjectId, dict] = {}
     for d in await db["documents"].find({"_id": {"$in": dids}}, {"content": 0}).to_list(length=len(dids) or 1):
-        if await team_doc(db, d, workspace_id, ctx):
+        if await team_doc(db, d, workspace_id, ctx, team):
             ok[d["_id"]] = d
     restricted = {str(r["_id"]) for r in await db[meetings.COLL].find(
         {"workspace_id": workspace_id, "restricted": True}, {"_id": 1}).to_list(length=5000)}

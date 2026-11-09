@@ -150,7 +150,7 @@ def _is_array_size(path: str) -> dict:
 CARD_PROJECTION: dict[str, Any] = {
     **{k: 1 for k in ("workspace_id", "title", "date", "time", "duration_s", "type", "series", "restricted",
                       "action_items", "transcript_slug", "doc_id", "created_at", "updated_at", "via", "history",
-                      "cover", "attendees", "ai.state", "ai.message")},
+                      "cover", "attendees", "ai.state", "ai.message", "team_ids", "project_ids", "routing.state")},
     "n_segments": _is_array_size("$segments"),
     "has_notes": {"$and": [{"$eq": [{"$type": "$notes"}, "object"]}, {"$ne": ["$notes", {}]}]},
     "summary_src": {"$let": {"vars": {"g": "$generated.summary"}, "in": {"$cond": [
@@ -184,7 +184,8 @@ async def readable_pages(db: AsyncIOMotorDatabase, rows: list[dict], actor: acce
     pages = await pages_for(db, rows, head=head)
     ok, no = {}, {}
     for did, raw in pages.items():
-        (ok if (await access.can(actor, raw, "read", ctx)).allowed else no)[did] = raw
+        # Discovery (Teams, CONTRACT §2): a private team's meeting never lists for someone outside it.
+        (ok if await access.discoverable(actor, raw, ctx) else no)[did] = raw
     return ok, no
 
 
@@ -349,6 +350,13 @@ async def list_page(db: AsyncIOMotorDatabase, workspace_id: str, actor: access.A
     got, more = await _scan(db, query, sort, start, limit, actor, ctx)
     uid = actor.user_id
     items = [card(row, raw, uid=uid, admin=admin, attendees_max=attendees_max) for _seg, row, raw in got]
+    from app.services import teams as teams_service
+
+    view = await ctx.team_view(workspace_id, uid)
+    for it, (_seg, row, _raw) in zip(items, got):
+        it["team_ids"] = teams_service.ids_of(row, "team_ids")
+        it["teams"] = teams_service.labels(view, row)
+        it["routing_state"] = (row.get("routing") or {}).get("state")
     next_cursor = None
     if more and got:
         seg, row, _raw = got[-1]
