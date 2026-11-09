@@ -54,7 +54,7 @@ export function SignoffView({ node, updateAttributes, editor, getPos, selected }
         state={state}
         person={person ? { name: person.name, avatar: person.avatar } : undefined}
         loading={!!store && !store.loaded}
-        onSign={state?.can_sign && store && info.id ? async (o) => void (await store.sign(info.id!, o)) : undefined}
+        onSign={state?.can_sign && store && info.id ? async (o, ack) => void (await store.sign(info.id!, o, ack)) : undefined}
         labelSlot={
           editable ? (
             <input

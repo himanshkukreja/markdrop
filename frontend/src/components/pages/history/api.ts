@@ -6,7 +6,7 @@ import { API_BASE, getToken, type DocumentResponse } from "@/lib/api";
 import { PagesApiError } from "@/lib/pages";
 import type { AssetUrl } from "@/lib/pages";
 
-export type AuthorKind = "user" | "mcp" | "restore" | "system" | "signoff";
+export type AuthorKind = "user" | "mcp" | "restore" | "system" | "signoff" | "suggestion";
 
 export interface VersionAuthor {
   kind: AuthorKind;
@@ -30,7 +30,10 @@ export interface VersionSummary {
   /** The newest version, and it matches the page now. */
   current: boolean;
   /** A sign-off given, changed, cleared or removed (`author.label` says which): the page as it was then. */
-  event?: { type: "signoff"; action: "signed" | "changed" | "cleared" | "removed"; block?: string; label?: string; option?: string | null; was?: string | null; text?: string };
+  event?:
+    | { type: "signoff"; action: "signed" | "changed" | "cleared" | "removed"; block?: string; label?: string; option?: string | null; was?: string | null; text?: string; thread_id?: undefined }
+    /** A comment's suggested edit, accepted (services/comments/suggestions.py): links to its thread. */
+    | { type: "suggestion"; thread_id: string; text?: string; action?: undefined };
 }
 
 export interface VersionList {

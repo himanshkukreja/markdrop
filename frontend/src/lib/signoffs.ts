@@ -36,6 +36,17 @@ export interface SignoffState {
   /** A workspace admin may remove the signed block. */
   can_remove: boolean;
   history: SignoffEvent[];
+  /** Comment threads on the page (only for people who can see the comments): how many are open now, and
+   *  what the sign-off recorded when it was given (the sign-off guard). */
+  comments?: null | {
+    open_now: number;
+    record: null | {
+      open: number;
+      resolved: number;
+      resolved_threads: Array<{ id: string; excerpt: string; resolved_by: string | null; resolved_at: string | null }>;
+      open_threads: Array<{ id: string; excerpt: string }>;
+    };
+  };
 }
 
 const enc = encodeURIComponent;
@@ -65,7 +76,11 @@ export async function getSignoffs(slug: string): Promise<SignoffState[]> {
   return r.signoffs ?? [];
 }
 
-/** The named person's decision (`null` clears it). */
-export function signOff(slug: string, block: string, option: string | null): Promise<SignoffState> {
-  return call<SignoffState>(`/api/v1/documents/${enc(slug)}/signoffs/${enc(block)}`, { method: "POST", body: JSON.stringify({ option }) });
+/** The named person's decision (`null` clears it). While comment threads are open on the page the server
+ *  answers 409 `open_comments` unless `acknowledgeOpenComments` (the person confirmed). */
+export function signOff(slug: string, block: string, option: string | null, acknowledgeOpenComments = false): Promise<SignoffState> {
+  return call<SignoffState>(`/api/v1/documents/${enc(slug)}/signoffs/${enc(block)}`, {
+    method: "POST",
+    body: JSON.stringify({ option, ...(acknowledgeOpenComments ? { acknowledge_open_comments: true } : {}) }),
+  });
 }

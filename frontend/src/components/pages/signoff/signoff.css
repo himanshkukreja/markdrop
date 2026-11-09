@@ -444,3 +444,10 @@
 
 /* A finger (fix/mobile-content): nothing under 12 px. */
 @media (pointer: coarse) { .pb-signoff__eyebrow { font-size: 12px; } }
+
+/* The sign-off guard (comments): open threads named before signing; what the sign-off recorded. */
+.pb-signoff__confirm {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 10px; padding: 8px 10px;
+  border-radius: var(--radius-md); background: var(--warning-soft); color: var(--text); font-size: 13px;
+}
+.pb-signoff__comments { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }

@@ -81,9 +81,9 @@ export class SignoffStore {
     }
   }
 
-  async sign(block: string, option: string | null): Promise<SignoffState> {
+  async sign(block: string, option: string | null, acknowledgeOpenComments = false): Promise<SignoffState> {
     this.seq++; // a refresh already on its way would bring the state from before
-    const s = await signOff(this.slug, block, option);
+    const s = await signOff(this.slug, block, option, acknowledgeOpenComments);
     this.states.set(block, s);
     this.emit();
     return s;
