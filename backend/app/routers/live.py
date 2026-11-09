@@ -73,6 +73,12 @@ async def serve(websocket: WebSocket, slug: str) -> None:
                 event = await queue.get()
                 if not isinstance(event, dict):  # legacy publishers sent a bare rev
                     event = {"type": "changed", "rev": event}
+                if event.get("type") == "comments":
+                    # Comments (services/comments): signed-in viewers only (a hello with a valid presence
+                    # ticket), unless the item shows its comments publicly. Never content: a re-read signal.
+                    pub = event.pop("pub", False)
+                    if not pub and (conn is None or not conn.user_id):
+                        continue
                 if event.get("type") == "_overflow":
                     # The reader stopped reading (a phone that lost signal): drop the socket rather
                     # than keep queueing for it; the page reconnects when it comes back.

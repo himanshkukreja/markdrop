@@ -104,6 +104,12 @@ async def board(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = 
     got["groups"] = groups
     got["can_manage"] = role_allows(role, "admin")
     got["this_week"] = await team_extras.this_week(db, ws)
+    # Comment threads assigned to people (services/comments/tasks.py), the items each viewer can see.
+    from app.services.comments import tasks as comment_tasks
+
+    comment_work = await comment_tasks.team_for_viewer(db, actor, ctx, ws.id)
+    for c in got["people"]:
+        c["comment_tasks"] = comment_work.get(c["id"], [])
     return jsonable_encoder(got)
 
 
@@ -116,6 +122,9 @@ async def person(request: Request, workspace_id: str, user_id: str, db: AsyncIOM
     got = await wm.person_profile(db, actor, ctx, ws, user_id, role=role)
     if got is None:
         raise HTTPException(status_code=404, detail="Person not found")
+    from app.services.comments import tasks as comment_tasks
+
+    got["comment_tasks"] = (await comment_tasks.team_for_viewer(db, actor, ctx, ws.id)).get(user_id, [])
     return jsonable_encoder(got)
 
 
