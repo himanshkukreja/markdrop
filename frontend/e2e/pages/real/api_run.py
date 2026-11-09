@@ -748,6 +748,15 @@ if os.environ.get("PB_FAKE_COMMENTS_AI"):
                 return _CStream(_cjson.dumps({"replacement": text, "note": "Reworded as the thread asks."}))
             if system.startswith("You summarise the comment threads"):
                 ns = [int(n) for n in _cre.findall(r"^Thread (\d+) ·", user, _cre.M)]
+                if os.environ.get("PB_DOCS_WORLD"):
+                    # The docs media world (collab-docs-setup.mjs): a summary that reads like a real one.
+                    return _CStream(_cjson.dumps({
+                        "decided": [{"text": "Launch moves to Tuesday, after QA signs off on the new checkout",
+                                     "threads": ns[:1]},
+                                    {"text": "Apple Pay ships in the second wave, not on launch day", "threads": ns[1:2] or ns[:1]}],
+                        "open": [{"text": "Whether EU customers wait for the new cookie banner", "threads": ns[2:3] or ns[:1]}],
+                        "waiting": [{"person": "Riya Sharma", "text": "to accept Alex's wording for the rollout plan",
+                                     "threads": ns[:1]}]}))
                 return _CStream(_cjson.dumps({
                     "decided": [{"text": f"Settled in {len(ns)} thread(s)", "threads": ns[:1]}],
                     "open": [{"text": "Wording still being discussed", "threads": ns[1:2] or ns[:1]}],
@@ -790,10 +799,13 @@ if os.environ.get("PB_FAKE_JIRA"):
 
     def _jira_world() -> _FakeJira:
         f = _FakeJira()
-        f.add_account("acc-ada", "Ada Owner", "ada@acme.test")
-        f.add_account("acc-ben", "Ben Member", "ben@acme.test")
-        f.add_account("acc-wes", "Wes Admin", "wes@acme.test")
-        f.add_account("acc-vic", "Vic Viewer", "vic@acme.test", projects=["WEB"])
+        # PB_DOCS_WORLD=1: the docs media world's names (collab-docs-setup.mjs renames the Markdrop people too).
+        _n = (["Riya Sharma", "Alex Chen", "Sam Lee", "Maya Patel"] if os.environ.get("PB_DOCS_WORLD")
+              else ["Ada Owner", "Ben Member", "Wes Admin", "Vic Viewer"])
+        f.add_account("acc-ada", _n[0], "ada@acme.test")
+        f.add_account("acc-ben", _n[1], "ben@acme.test")
+        f.add_account("acc-wes", _n[2], "wes@acme.test")
+        f.add_account("acc-vic", _n[3], "vic@acme.test", projects=["WEB"])
         f.add_issue("PAY", "Retry failed card payments", status="In Progress", assignee="acc-ben", due=_jtoday(-2), priority="High")
         f.add_issue("PAY", "Refund flow for annual plans", assignee="acc-ben", due=_jtoday(6))
         f.add_issue("PAY", "Invoice PDF footer", status="Blocked", assignee="acc-wes")
