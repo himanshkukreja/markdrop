@@ -108,7 +108,7 @@ function ThreadIssue({ thread, ctx }: { thread: Thread; ctx: CommentsCtx }) {
             <span className="jp-card__glyph" aria-hidden><Icon name="checkSquare" size={12} /></span>
             <a className="jp-chip__key md-focus" href={link.url ?? undefined} target="_blank" rel="noreferrer">{link.key}</a>
             <span className="jp-ellipsis">{issue?.summary ?? link.title ?? ""}</span>
-            {issue && site && <StatusMenu issue={issue} ctx={{ store: null, site, slug: ctx.slug }} size="xs" />}
+            {issue && site && <StatusMenu issue={issue} ctx={{ store: { patch: (_s, it) => it && store.set({ threads: { ...store.state.threads, [thread.id]: { ...link, issue: it } } }) }, site, slug: ctx.slug }} size="xs" />}
           </div>
           {issue && thread.status === "resolved" && issue.status.category !== "done" && (
             <div className="jp-thread__offer">

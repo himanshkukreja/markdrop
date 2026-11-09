@@ -61,9 +61,10 @@ export function ConnectJira({ broken, compact }: { broken?: boolean; compact?: b
 
 /* ── Actions (as the viewer) ─────────────────────────────────────────────── */
 
-interface ActCtx { store: JiraPagesStore | null; site: string; slug: string | null }
+/** Where an action happens: the store that shows the issue (patched at once), its site, the page (a live nudge there). */
+export interface ActCtx { store: Pick<JiraPagesStore, "patch"> | null; site: string; slug: string | null }
 
-function useAct({ store, site, slug }: ActCtx) {
+function useAct({ store, site }: ActCtx) {
   const toast = useToast();
   return useCallback(async (what: string, fn: () => Promise<{ issue: JiraIssue | null }>) => {
     try {
@@ -76,7 +77,6 @@ function useAct({ store, site, slug }: ActCtx) {
       return false;
     }
   }, [store, site, toast]);
-  void slug;
 }
 
 /** The status button: every step of the issue's workflow open to the viewer (Jira's transitions). */
@@ -124,17 +124,17 @@ function TransitionDialog({ step, issue, ctx, onClose }: { step: JiraTransition;
   const [vals, setVals] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const act = useAct(ctx);
   const fields = step.fields;
   const missing = fields.some((f) => f.required && !vals[f.key]);
+  const toast = useToast();
   async function go() {
     setBusy(true);
     setErr(null);
     try {
       const r = await jiraTransition(ctx.site, issue.key, step.id, vals, ctx.slug);
       ctx.store?.patch(ctx.site, r.issue);
+      toast.success(`${issue.key} → ${step.to.name || step.name}`);
       onClose();
-      void act;
     } catch (e) {
       setErr(errText(e, "Jira didn't take that step."));
     } finally {
