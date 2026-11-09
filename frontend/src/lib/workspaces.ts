@@ -605,8 +605,8 @@ export interface WorkspaceNav {
   more: Record<string, number>;
 }
 
-export const getWorkspaceNav = (id: string) =>
-  request<WorkspaceNav>(`/api/v1/workspaces/${encodeURIComponent(id)}/nav`);
+export const getWorkspaceNav = (id: string, space?: string) =>
+  request<WorkspaceNav>(`/api/v1/workspaces/${encodeURIComponent(id)}/nav${space ? `?space=${encodeURIComponent(space)}` : ""}`);
 
 export type ItemAccess = "private" | "link" | "workspace";
 
@@ -668,9 +668,11 @@ export interface ItemsPage {
 /** `folder`: a folder id, "root" (filed at the top), "unfiled" or "all". `type`: one file type. */
 export const listWorkspaceItems = async (
   id: string,
-  opts: { folder: string; q?: string; kind?: string; type?: FileType; cursor?: string | null; limit?: number }
+  /** `space`: "team:<id>" | "project:<id>" | "company" | "all" (lib/teams; default all). */
+  opts: { folder: string; q?: string; kind?: string; type?: FileType; cursor?: string | null; limit?: number; space?: string }
 ): Promise<ItemsPage> => {
   const p = new URLSearchParams({ folder: opts.folder });
+  if (opts.space) p.set("space", opts.space);
   if (opts.q) p.set("q", opts.q);
   if (opts.kind) p.set("kind", opts.kind);
   if (opts.type) p.set("type", opts.type);

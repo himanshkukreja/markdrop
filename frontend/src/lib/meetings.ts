@@ -232,6 +232,8 @@ export interface DetectedMeeting {
   kinds: string[];
   truncated: boolean;
   sources: Array<{ name: string; kind: string; format: string; segments: number; speakers: string[] }>;
+  /** Teams v1: the teams the attendees / the series point at (lib/teams TeamSuggestion). */
+  team_suggestions?: { team_id: string; name: string; reason: "attendees" | "series"; matched: number }[];
 }
 
 export interface SourceIn { name?: string; text?: string; data_b64?: string; google_file_id?: string; origin?: "paste" | "upload" }
@@ -258,6 +260,10 @@ export type MeetingCard = Pick<Meeting, "id" | "workspace_id" | "title" | "page_
   /** Everyone who was there (``attendees`` is the first five). */
   attendee_count: number;
   ai: Pick<MeetingAi, "state" | "message">;
+  /** Teams v1: the teams it was routed to (empty: company-wide) and whether that was confirmed. */
+  team_ids?: string[];
+  teams?: { id: string; name: string; color: string; icon: string | null }[];
+  routing_state?: "auto" | "confirmed" | null;
 };
 
 export interface MeetingsPage {
@@ -271,11 +277,12 @@ export interface MeetingsPage {
   folder_id?: string | null;
 }
 
-export interface MeetingsQuery { q?: string; series?: string | null; since?: string; until?: string; sort?: MeetingSort; limit?: number; cursor?: string | null }
+export interface MeetingsQuery { /** lib/teams Space. */ space?: string; q?: string; series?: string | null; since?: string; until?: string; sort?: MeetingSort; limit?: number; cursor?: string | null }
 
 /** ``series``: a name, "" for meetings in no series, null/undefined for all. */
 export function listMeetings(workspace: string, opts?: MeetingsQuery, init?: { signal?: AbortSignal }) {
   const qs = new URLSearchParams({ workspace });
+  if (opts?.space) qs.set("space", opts.space);
   if (opts?.q?.trim()) qs.set("q", opts.q.trim());
   if (opts?.series != null) qs.set("series", opts.series === "" ? "none" : opts.series);
   if (opts?.since) qs.set("since", opts.since);
@@ -292,8 +299,8 @@ export interface MeetingSeries { name: string; count: number; last: string | nul
 
 /** The series of the meetings the caller can open (most meetings first), how many they can open, and how
  * many are in no series — the hub's chips. */
-export function listSeries(workspace: string) {
-  return request<{ series: MeetingSeries[]; total?: number; one_offs?: number }>(`/api/v1/meetings/series?workspace=${encodeURIComponent(workspace)}`);
+export function listSeries(workspace: string, space?: string) {
+  return request<{ series: MeetingSeries[]; total?: number; one_offs?: number }>(`/api/v1/meetings/series?workspace=${encodeURIComponent(workspace)}${space ? `&space=${encodeURIComponent(space)}` : ""}`);
 }
 
 export function getMeeting(id: string) {
@@ -304,7 +311,8 @@ export function previewMeeting(sources: SourceIn[]) {
   return request<{ meetings: DetectedMeeting[] }>(`/api/v1/meetings/preview`, { method: "POST", body: JSON.stringify({ sources }) });
 }
 
-export function importMeeting(body: { workspace: string; sources: SourceIn[]; title?: string; date?: string; type?: string; restricted?: boolean }) {
+/** `team_ids` / `project_ids` (Teams): where it goes; omitted ⇒ the suggested teams (routing "auto"). */
+export function importMeeting(body: { workspace: string; sources: SourceIn[]; title?: string; date?: string; type?: string; restricted?: boolean; team_ids?: string[]; project_ids?: string[] }) {
   return request<{ meetings: Meeting[] }>(`/api/v1/meetings/import`, { method: "POST", body: JSON.stringify(body) });
 }
 
@@ -320,7 +328,7 @@ export interface LinkResult {
 }
 
 /** Up to 20 Google Docs / Drive links: Markdrop reads public ones; private ones go to your Google Meet script. */
-export function importLinks(body: { workspace: string; urls: string[]; restricted?: boolean }) {
+export function importLinks(body: { workspace: string; urls: string[]; restricted?: boolean; team_ids?: string[]; project_ids?: string[] }) {
   return request<{ results: LinkResult[] }>(`/api/v1/meetings/import-link`, { method: "POST", body: JSON.stringify(body) });
 }
 
