@@ -1357,6 +1357,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 {showImmersive && readable && (
                   <DocPresence presence={presence} signedIn={!!user} variant="float" hideWhenAlone />
                 )}
+                {showImmersive && commentsSummary && !showRaw && <CommentsButton className="mdc-floatbtn" />}
                 {showImmersive && !(viewerChrome === "none" && !user) && (
                   <ImmersiveExit onExit={() => v.toggleImmersive(false)} />
                 )}

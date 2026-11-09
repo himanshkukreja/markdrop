@@ -11,6 +11,7 @@ const CONTEXT = 32;
 const MAX_QUOTE = 1000;
 const BLOCK_TEXT = 280;
 /** Elements whose text never counts (code copy buttons, our own UI, math source). */
+const BLOCKS = "li, p, h1, h2, h3, h4, h5, h6, blockquote, pre, tr, summary, figure, dt, dd";
 const SKIP = "[data-comments-skip], .katex-mathml, button, [aria-hidden='true'], script, style, .pb-comment-gutter";
 
 export const normalise = (s: string) => s.replace(/\s+/g, " ").trim();
@@ -130,13 +131,9 @@ export function blockOf(root: Element, node: Node): HTMLElement | null {
   if (!el || !root.contains(el)) return null;
   const bid = el.closest<HTMLElement>("[data-bid]");
   if (bid && root.contains(bid)) return bid;
-  let cur: Element | null = el;
-  while (cur && cur.parentElement && cur.parentElement !== root) {
-    // Descend into the first wrapper level that holds several blocks (a prose wrapper div).
-    if (cur.parentElement.parentElement === root && cur.parentElement.children.length > 1 && /^(DIV|ARTICLE|SECTION)$/.test(cur.parentElement.tagName)) break;
-    cur = cur.parentElement;
-  }
-  return (cur as HTMLElement) ?? null;
+  // No block ids (a classic markdown document, a page written outside the editor): the nearest block element.
+  const blk = el.closest<HTMLElement>(BLOCKS);
+  return blk && root.contains(blk) && blk !== root ? blk : null;
 }
 
 export function blockText(el: Element | null): string {

@@ -218,7 +218,7 @@ export function CommentsPanel() {
             thread={t}
             active={c.activeId === t.id}
             onMeasure={aligned ? measure(t.id) : undefined}
-            style={aligned ? { position: "absolute", left: 0, right: 0, transform: `translateY(${tops.get(t.id) ?? 0}px)` } : undefined}
+            style={aligned ? { position: "absolute", left: 12, right: 12, transform: `translateY(${tops.get(t.id) ?? 0}px)` } : undefined}
           />
         ))}
       </div>

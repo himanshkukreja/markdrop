@@ -29,7 +29,7 @@
 /* The selection's "Comment" button and a block's margin button. */
 .mdc-selbtn, .mdc-blockbtn {
   position: fixed;
-  z-index: var(--z-dropdown, 50);
+  z-index: calc(var(--z-immersive, 101) + 2);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -120,6 +120,11 @@
 .mdc-empty .md-icon { width: 28px; height: 28px; opacity: .5; }
 .mdc-error { color: var(--danger); font-size: 13px; }
 
+/* Full-screen reading (classic documents): above the reading layer, and so are its menus. */
+.md-viewer-immersive .mdc-panel { z-index: calc(var(--z-immersive, 101) + 1); }
+html.md-comments-open .md-menu, html.md-comments-open .md-menu-scrim { z-index: calc(var(--z-immersive, 101) + 5); }
+.mdc-floatbtn { position: fixed; right: 16px; bottom: 76px; z-index: var(--z-immersive, 101); background: var(--surface-raised); border: 1px solid var(--border); box-shadow: var(--shadow-lg); border-radius: var(--radius-full); height: 44px; min-width: 44px; }
+
 /* Phone: bottom sheet. */
 .mdc-panel--sheet {
   top: auto;
@@ -207,7 +212,7 @@
 .mdc-msg:hover .mdc-reaction--add, .mdc-reaction--add:focus-visible, .mdc-reaction--add[aria-expanded="true"] { opacity: 1; }
 @media (hover: none) { .mdc-reaction--add { opacity: 1; } }
 .mdc-reaction--add .md-icon { width: 14px; height: 14px; }
-.mdc-emoji-row { display: flex; gap: 2px; padding: 4px; }
+.mdc-emoji-row { display: grid; grid-template-columns: repeat(4, 32px); gap: 2px; padding: 4px; }
 .mdc-emoji { width: 32px; height: 32px; border: 0; border-radius: var(--radius-md); background: none; font-size: 18px; cursor: pointer; }
 .mdc-emoji:hover, .mdc-emoji:focus-visible { background: var(--surface-hover); }
 

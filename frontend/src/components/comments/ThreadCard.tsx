@@ -65,6 +65,7 @@ export function renderBody(text: string, mentions: Person[]): ReactNode[] {
 
 function Reactions({ ctx, thread, m }: { ctx: CommentsCtx; thread: Thread; m: Message }) {
   const can = ctx.perms.comment;
+  const [picking, setPicking] = useState(false);
   if (!m.reactions.length && !can) return null;
   return (
     <div className="mdc-reactions">
@@ -78,12 +79,15 @@ function Reactions({ ctx, thread, m }: { ctx: CommentsCtx; thread: Thread; m: Me
       {can && (
         <Dropdown
           align="left"
+          portal
+          open={picking}
+          onOpenChange={setPicking}
           aria-label="Add a reaction"
           trigger={<button type="button" className="mdc-reaction mdc-reaction--add" aria-label="Add a reaction"><Icon name="smile" /></button>}
           items={[{ custom: (
             <div className="mdc-emoji-row">
               {REACTIONS.map((e) => (
-                <button key={e} type="button" className="mdc-emoji" aria-label={`React ${e}`} onClick={() => void ctx.react(thread.id, m.id, e)}>{e}</button>
+                <button key={e} type="button" className="mdc-emoji" aria-label={`React ${e}`} onClick={() => { setPicking(false); void ctx.react(thread.id, m.id, e); }}>{e}</button>
               ))}
             </div>
           ) }]}

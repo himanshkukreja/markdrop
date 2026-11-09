@@ -14,6 +14,8 @@ export { CommentsPanel, CommentsButton } from "./CommentsPanel";
 export { useComments } from "./context";
 export type { CommentsCtx } from "./context";
 
+const OFF: DocComments = { enabled: false, public: false, open: null, can_view: false, can_comment: false, reason: null };
+
 export function CommentsHost({ summary, children, ...rest }: {
   slug: string;
   summary: DocComments | null | undefined;
@@ -23,6 +25,7 @@ export function CommentsHost({ summary, children, ...rest }: {
   readPassword?: string | null;
   children: ReactNode;
 }) {
-  if (!summary || !summary.enabled) return <>{children}</>;
-  return <CommentsProvider summary={summary} {...rest}>{children}</CommentsProvider>;
+  // Always the provider (an inactive one without a summary): switching between a bare fragment and a provider
+  // as the signed-in read arrives would remount the whole page under it.
+  return <CommentsProvider summary={summary && summary.enabled ? summary : OFF} {...rest}>{children}</CommentsProvider>;
 }
