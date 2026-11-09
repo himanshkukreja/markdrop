@@ -130,6 +130,8 @@ export interface DocComments {
   can_view: boolean;
   can_comment: boolean;
   reason: CommentPermsDto["reason"];
+  /** The owner may change the switches. */
+  settings?: boolean;
 }
 
 export interface MentionCandidate {
@@ -138,6 +140,7 @@ export interface MentionCandidate {
   picture: string | null;
   email?: string | null;
   has_access: boolean;
+  you?: boolean;
 }
 
 export interface PeopleResult {

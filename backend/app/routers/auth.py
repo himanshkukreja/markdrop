@@ -186,6 +186,20 @@ _TENANT_ALLOWED = (
     ("GET", re.compile(r"^/api/v1/documents/[^/]+/access$")),
     ("POST", re.compile(r"^/api/v1/documents/[^/]+/access/people$")),
     ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/access/people/[^/]+$")),
+    # ── Comments on the workspace's own domain (routers/comments.py, 2026-11-09) ──
+    #
+    # Reading and writing threads as this reader: every route asks services/comments/perms.require,
+    # which reads with `access.can(read)` on the pinned actor first (another workspace's document is
+    # a 404). NOT the per-item switches (comments on/off, show publicly): those stay on markdrop.in.
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/comments$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/comments/people$")),
+    ("GET", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/(replies|resolve|reopen)$")),
+    ("PUT", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/assignee$")),
+    ("PATCH", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}$")),
+    ("DELETE", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}$")),
+    ("POST", re.compile(r"^/api/v1/documents/[^/]+/comments/[0-9a-f]{24}/messages/[0-9a-f]{24}/reactions$")),
 )
 
 

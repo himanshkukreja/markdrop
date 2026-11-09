@@ -123,6 +123,10 @@ async def _full_response(db: AsyncIOMotorDatabase, raw: dict, actor: access.Acto
     body["presence_ticket"] = (tickets.mint_presence(str(raw["_id"]), actor.user_id)
                                if actor.user_id else None)
     body["show_presence"] = (raw.get("show_presence") is not False) if body.get("is_owner") else None
+    # Comments: whether this reader sees / writes them, and the open count (services/comments).
+    from app.services.comments import service as comments_service
+
+    body["comments"] = await comments_service.summary_for_read(db, actor, raw, ctx)
     # Pages (services/pages.py): parent, breadcrumbs, sub-page count, images.
     body.update(await pages.page_fields(db, raw, actor, ctx))
     # Person mentions name people only inside the page's circle.

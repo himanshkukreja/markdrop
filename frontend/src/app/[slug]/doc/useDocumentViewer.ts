@@ -66,6 +66,7 @@ export function useDocumentViewer({
   rev: initialRev = null,
   gate = null,
   page: initialPage = null,
+  comments: initialComments = null,
 }: DocumentViewProps) {
   const router = useRouter();
   // A page (block editor): breadcrumbs, sub-pages, page images. Every read refreshes it.
@@ -123,6 +124,8 @@ export function useDocumentViewer({
   // Who's viewing (lib/presence): the signed-in reader's presence ticket, from any read made here
   // with their session. Dropped when they sign out, so the socket says hello as anonymous again.
   const [presenceTicket, setPresenceTicket] = useState<string | null>(null);
+  // Comments (components/comments): what the latest read said this reader may do with them.
+  const [docComments, setDocComments] = useState<import("@/lib/comments").DocComments | null>(initialComments);
   const presence = usePresenceChannel(user ? presenceTicket : null);
 
   // Google Docs sync state — populated once we confirm the viewer owns this doc
@@ -365,6 +368,7 @@ export function useDocumentViewer({
   function adoptDoc(doc: import("@/lib/api").DocumentResponse, opts?: { created?: boolean }): boolean {
     if (doc.read_ticket) setReadTicket(doc.read_ticket);
     if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
+    if ("comments" in doc) setDocComments(doc.comments ?? null);
     if (doc.is_owned || doc.is_owner) setDocOwned(true);
     // An old slug of a renamed document (the signed-in retry of a gated page): go to the current
     // one, keeping the query and the #k= key. The server render redirects the anonymous case.
@@ -914,6 +918,7 @@ export function useDocumentViewer({
       .then((doc) => {
         if (cancelled) return;
         if (doc.presence_ticket) setPresenceTicket(doc.presence_ticket);
+        if ("comments" in doc) setDocComments(doc.comments ?? null);
         if (doc.is_owned || doc.is_owner) setDocOwned(true);
         setDocCan(doc.can ?? null);
         // A signed-in read: its page fields (breadcrumbs, page images) are this reader's.
@@ -1612,6 +1617,7 @@ export function useDocumentViewer({
   return {
     page,
     setPage,
+    docComments,
     subscribeLive,
     followMove,
     setDocRev,

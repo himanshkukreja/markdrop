@@ -1,0 +1,266 @@
+/* Comments (components/comments). Design-system tokens only: light and dark follow the theme. */
+
+:root {
+  --mdc-w: 360px;
+  --mdc-hl: color-mix(in srgb, var(--warning) 22%, transparent);
+  --mdc-hl-active: color-mix(in srgb, var(--warning) 45%, transparent);
+  --mdc-hl-line: color-mix(in srgb, var(--warning) 70%, transparent);
+}
+
+/* Highlights (CSS Custom Highlight API): no DOM changes, safe inside the editor. */
+::highlight(md-comments) { background-color: var(--mdc-hl); }
+::highlight(md-comments-active) { background-color: var(--mdc-hl-active); }
+::highlight(md-comments-editor) { background-color: var(--mdc-hl); }
+::highlight(md-comments-editor-active) { background-color: var(--mdc-hl-active); }
+
+/* Fallback boxes (browsers without the Highlight API). */
+.mdc-box {
+  position: fixed;
+  pointer-events: none;
+  background: var(--mdc-hl);
+  border-bottom: 2px solid var(--mdc-hl-line);
+  border-radius: 2px;
+  z-index: 1;
+  mix-blend-mode: multiply;
+}
+.mdc-box--active { background: var(--mdc-hl-active); }
+:root[data-theme="dark"] .mdc-box { mix-blend-mode: screen; }
+
+/* The selection's "Comment" button and a block's margin button. */
+.mdc-selbtn, .mdc-blockbtn {
+  position: fixed;
+  z-index: calc(var(--z-immersive, 101) + 2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-full, 999px);
+  border: 1px solid var(--border);
+  background: var(--surface-raised, var(--surface));
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  animation: mdc-pop var(--duration-fast, 120ms) var(--ease-out, ease-out);
+}
+.mdc-selbtn:hover, .mdc-blockbtn:hover { background: var(--surface-hover); }
+.mdc-selbtn:focus-visible, .mdc-blockbtn:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+.mdc-selbtn .md-icon, .mdc-blockbtn .md-icon { width: 16px; height: 16px; }
+.mdc-blockbtn { opacity: .7; height: 28px; min-width: 28px; padding: 0 6px; box-shadow: none; }
+.mdc-blockbtn:hover { opacity: 1; }
+@keyframes mdc-pop { from { transform: scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Top bar button. */
+.mdc-topbtn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.mdc-topbtn:hover { background: var(--surface-hover); color: var(--text); }
+.mdc-topbtn.is-on { background: var(--accent-soft); color: var(--accent-text); }
+.mdc-topbtn .md-icon { width: 18px; height: 18px; }
+.mdc-topbtn__n { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* The page makes room for the panel on desktop. */
+@media (min-width: 1100px) {
+  html.md-comments-open .md-comments-host { padding-right: var(--mdc-w); transition: padding-right var(--duration-panel, 200ms) var(--ease-out); }
+}
+
+/* Panel. */
+.mdc-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: var(--mdc-w);
+  z-index: var(--z-sticky, 40);
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-sans);
+  animation: mdc-slide var(--duration-panel, 200ms) var(--ease-out);
+}
+@keyframes mdc-slide { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (min-width: 768px) and (max-width: 1099px) { .mdc-panel { box-shadow: var(--shadow-xl); } }
+.mdc-panel__head { display: flex; align-items: center; justify-content: space-between; padding: 12px 12px 4px 16px; }
+.mdc-panel__title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 15px; font-weight: 600; }
+.mdc-panel__title .md-icon { width: 18px; height: 18px; color: var(--text-muted); }
+.mdc-count { min-width: 20px; padding: 0 6px; border-radius: var(--radius-full); background: var(--surface-inset); color: var(--text-secondary); font-size: 12px; text-align: center; }
+.mdc-panel__headtools { display: flex; gap: 2px; }
+.mdc-panel__filters { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 12px 10px 16px; border-bottom: 1px solid var(--border); }
+.mdc-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: none; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; padding: 4px 6px; border-radius: var(--radius-sm); }
+.mdc-sort:hover { color: var(--text); background: var(--surface-hover); }
+.mdc-sort .md-icon { width: 14px; height: 14px; }
+.mdc-panel__body { flex: 1; overflow-y: auto; padding: 10px 12px 24px; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
+.mdc-panel--aligned .mdc-panel__body { overflow: hidden; display: block; }
+.mdc-pagebtn { display: flex; align-items: center; gap: 8px; margin: 10px 12px 0; padding: 8px 12px; border: 1px dashed var(--border-strong); border-radius: var(--radius-lg); background: none; color: var(--text-secondary); font: inherit; font-size: 13px; cursor: pointer; }
+.mdc-pagebtn:hover { color: var(--text); border-color: var(--accent); background: var(--surface-hover); }
+.mdc-pagebtn .md-icon { width: 16px; height: 16px; }
+.mdc-signin { margin: 10px 16px 0; font-size: 13px; color: var(--text-muted); }
+.mdc-signin a { color: var(--accent-text); }
+.mdc-draft { margin: 10px 12px 0; }
+.mdc-draft__label { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; font-size: 12px; color: var(--text-muted); }
+.mdc-draft__label .md-icon { width: 14px; height: 14px; }
+.mdc-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 16px; color: var(--text-muted); text-align: center; font-size: 13px; }
+.mdc-empty .md-icon { width: 28px; height: 28px; opacity: .5; }
+.mdc-error { color: var(--danger); font-size: 13px; }
+
+/* Full-screen reading (classic documents): above the reading layer, and so are its menus. */
+.md-viewer-immersive .mdc-panel { z-index: calc(var(--z-immersive, 101) + 1); }
+html.md-comments-open .md-menu, html.md-comments-open .md-menu-scrim { z-index: calc(var(--z-immersive, 101) + 5); }
+.mdc-floatbtn { position: fixed; right: 16px; bottom: 76px; z-index: var(--z-immersive, 101); background: var(--surface-raised); border: 1px solid var(--border); box-shadow: var(--shadow-lg); border-radius: var(--radius-full); height: 44px; min-width: 44px; }
+
+/* Phone: bottom sheet. */
+.mdc-panel--sheet {
+  top: auto;
+  left: 0;
+  width: auto;
+  max-height: 78vh;
+  border-left: 0;
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-xl);
+  padding-bottom: env(safe-area-inset-bottom);
+  animation: mdc-rise var(--duration-panel, 220ms) var(--ease-out);
+  z-index: var(--z-overlay, 60);
+}
+@keyframes mdc-rise { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+.mdc-sheet__grip { width: 36px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--border-strong); }
+
+/* Thread card. */
+.mdc-thread {
+  position: relative;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast, 150ms) var(--ease-out), box-shadow var(--duration-fast, 150ms) var(--ease-out), border-color var(--duration-fast, 150ms);
+  outline: none;
+}
+.mdc-panel--aligned .mdc-thread { transition: transform 120ms var(--ease-out); }
+.mdc-thread:hover { border-color: var(--border-strong); }
+.mdc-thread.is-active { border-color: var(--warning); box-shadow: var(--shadow-md); z-index: 2; }
+.mdc-thread.is-resolved { opacity: .85; }
+.mdc-thread__head { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 8px; }
+.mdc-thread__tools { display: flex; gap: 0; margin-left: auto; flex-shrink: 0; }
+.mdc-thread__tools .md-iconbtn { width: 28px; height: 28px; }
+.mdc-anchor {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 2px 0 2px 8px;
+  border-left: 3px solid var(--mdc-hl-line);
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.mdc-anchor--changed { border-left-color: var(--border-strong); text-decoration: line-through; text-decoration-color: var(--text-subtle); }
+.mdc-anchor--page, .mdc-anchor--block { display: flex; align-items: center; gap: 6px; border-left: 0; padding-left: 0; }
+.mdc-anchor .md-icon { width: 14px; height: 14px; }
+.mdc-changed, .mdc-assignee, .mdc-resolved { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 12px; color: var(--text-muted); }
+.mdc-changed { color: var(--warning); }
+.mdc-changed .md-icon, .mdc-assignee .md-icon, .mdc-resolved .md-icon { width: 14px; height: 14px; }
+.mdc-more { margin: 2px 0 6px 30px; padding: 0; border: 0; background: none; color: var(--accent-text); font: inherit; font-size: 12px; cursor: pointer; }
+.mdc-replybtn { margin-top: 4px; }
+
+/* Messages. */
+.mdc-msg + .mdc-msg { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.mdc-msg__head { display: flex; align-items: center; gap: 8px; min-height: 24px; }
+.mdc-msg__name { font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
+.mdc-msg__time { font-size: 12px; color: var(--text-muted); }
+.mdc-msg__more { margin-left: auto; opacity: 0; transition: opacity var(--duration-fast, 120ms); width: 26px; height: 26px; }
+.mdc-msg:hover .mdc-msg__more, .mdc-msg__more:focus-visible, .mdc-msg__more[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .mdc-msg__more { opacity: 1; } }
+.mdc-msg__body { margin: 4px 0 0 32px; font-size: 14px; line-height: 1.5; color: var(--text); overflow-wrap: anywhere; white-space: normal; }
+.mdc-msg__body a { color: var(--accent-text); text-decoration: underline; }
+.mdc-mention { color: var(--accent-text); font-weight: 600; }
+.mdc-code { font-family: var(--font-mono); font-size: .9em; padding: 1px 4px; border-radius: var(--radius-sm); background: var(--surface-inset); }
+.mdc-muted { color: var(--text-muted); font-style: italic; }
+.mdc-ai { margin-left: 2px; }
+
+.mdc-avatar { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 50%; background: var(--accent-soft); color: var(--accent-text); font-size: 11px; font-weight: 700; overflow: hidden; }
+.mdc-avatar--md { width: 28px; height: 28px; }
+.mdc-avatar--sm { width: 24px; height: 24px; }
+.mdc-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+/* Reactions. */
+.mdc-reactions { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 0 32px; }
+.mdc-reaction { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: var(--radius-full); background: var(--surface); color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.mdc-reaction:hover:not(:disabled) { border-color: var(--border-strong); background: var(--surface-hover); }
+.mdc-reaction.is-mine { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.mdc-reaction--add { padding: 0 6px; opacity: 0; }
+.mdc-msg:hover .mdc-reaction--add, .mdc-reaction--add:focus-visible, .mdc-reaction--add[aria-expanded="true"] { opacity: 1; }
+@media (hover: none) { .mdc-reaction--add { opacity: 1; } }
+.mdc-reaction--add .md-icon { width: 14px; height: 14px; }
+.mdc-emoji-row { display: grid; grid-template-columns: repeat(4, 32px); gap: 2px; padding: 4px; }
+.mdc-emoji { width: 32px; height: 32px; border: 0; border-radius: var(--radius-md); background: none; font-size: 18px; cursor: pointer; }
+.mdc-emoji:hover, .mdc-emoji:focus-visible { background: var(--surface-hover); }
+
+/* Composer. */
+.mdc-composer { margin-top: 8px; }
+.mdc-composer__field { position: relative; }
+.mdc-composer__input {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  max-height: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  resize: none;
+}
+.mdc-composer__input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
+.mdc-composer__bar { display: flex; align-items: center; gap: 4px; margin-top: 6px; }
+.mdc-composer__bar .md-iconbtn { width: 28px; height: 28px; }
+.mdc-composer__spacer { flex: 1; }
+.mdc-mentions {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: var(--z-dropdown, 50);
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised, var(--surface));
+  box-shadow: var(--shadow-lg);
+}
+.mdc-mentions__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.mdc-mentions__item.is-active, .mdc-mentions__item:hover { background: var(--surface-hover); }
+.mdc-mentions__name { font-weight: 500; }
+.mdc-mentions__email { color: var(--text-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mdc-mentions__warn { margin-left: auto; color: var(--warning); font-size: 11px; }
+.mdc-mentions__invite { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px; font-size: 12px; color: var(--text-secondary); border-top: 1px solid var(--border); }
+.mdc-mentions__invite .md-icon { width: 14px; height: 14px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .mdc-panel, .mdc-selbtn, .mdc-blockbtn, .mdc-thread { animation: none; transition: none; }
+}
+@media print { .mdc-panel, .mdc-selbtn, .mdc-blockbtn, .mdc-box, .mdc-topbtn { display: none !important; } }

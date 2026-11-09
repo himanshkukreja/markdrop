@@ -138,6 +138,9 @@ class Transport(McpTestCase):
             "duplicate_page",
             # Notifications, and sharing with named people.
             "list_notifications", "mark_notifications_read", "share_with_people",
+            # Comments (app/mcp/comment_tools.py).
+            "list_comments", "get_thread", "add_comment", "reply_comment", "resolve_comment", "reopen_comment",
+            "assign_thread", "react_comment", "set_comment_settings",
             # Sign-off blocks in pages.
             "list_signoffs", "sign_off",
             # Typed page properties and folder table/board views.
@@ -213,7 +216,7 @@ class Transport(McpTestCase):
     async def test_modern_tools_list_and_call(self):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
-        self.assertEqual(len(r.json()["result"]["tools"]), 111)
+        self.assertEqual(len(r.json()["result"]["tools"]), 120)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")
