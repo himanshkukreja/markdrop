@@ -9,6 +9,9 @@
     assign_thread        assign a thread to someone as a task (or clear it)
     react_comment        add or remove an emoji reaction on a message
     set_comment_settings the owner's switches: comments on/off, show comments publicly
+    edit_comment         edit one of your own messages
+    delete_comment       delete a message (your own; the owner and workspace admins: anyone's)
+    list_waiting_on_me   open threads across everything you can open: waiting on you / assigned / mentions
 
 Same rules as the website: the user must be able to read the item; writing needs documents:write;
 encrypted, file and owner-less items have no comments.
@@ -36,7 +39,7 @@ from app.mcp.tools import (
     url_pair,
 )
 from app.services import access as access_service
-from app.services.comments import anchoring, perms as perms_mod, service
+from app.services.comments import anchoring, perms as perms_mod, service, tasks
 
 _THREAD_ID = {"type": "string", "pattern": "^[0-9a-f]{24}$", "description": "The thread's id (from list_comments)."}
 _MESSAGE_ID = {"type": "string", "pattern": "^[0-9a-f]{24}$", "description": "The message's id (from get_thread)."}
@@ -246,6 +249,63 @@ async def set_comment_settings(ctx: Context, args: dict) -> tuple[str, dict]:
     return f"Comments are {state} on {out['url']}, {pub}.", out
 
 
+async def edit_comment(ctx: Context, args: dict) -> tuple[str, dict]:
+    raw = await _load(ctx, args["document"], "read", "comment on")
+    m = await _call(service.edit_message, ctx.db, actor_of(ctx), raw, _actx(ctx), args["thread_id"],
+                    args["message_id"], body=args["body"], mentions=await _mention_ids(ctx, args.get("mentions")))
+    urls = await url_pair(ctx, raw)
+    out = {**urls, "slug": raw["slug"], "thread_id": m["thread_id"],
+           "message": {"id": m["id"], "body": m.get("body") or "", "edited_at": m.get("edited_at"),
+                       "mentions": [_slim_person(p) for p in m.get("mentions") or []]},
+           "thread_url": f"{urls['url']}#c-{m['thread_id']}"}
+    return f"Edited your comment in thread {m['thread_id']} on {urls['url']}.", out
+
+
+async def delete_comment(ctx: Context, args: dict) -> tuple[str, dict]:
+    raw = await _load(ctx, args["document"], "read", "delete comments on")
+    tid, mid = args["thread_id"], args["message_id"]
+    await _call(service.delete_message, ctx.db, actor_of(ctx), raw, _actx(ctx), tid, mid)
+    t = await service.load_thread(ctx.db, str(raw["_id"]), tid)
+    gone = bool(t is None or t.get("deleted_at") is not None)
+    urls = await url_pair(ctx, raw)
+    out = {**urls, "slug": raw["slug"], "thread_id": tid, "message_id": mid, "deleted": True, "thread_deleted": gone}
+    if gone:
+        return (f"Deleted the comment. It was the last one in thread {tid}, so the whole thread is gone from "
+                f"{urls['url']}."), out
+    return f"Deleted the comment from thread {tid} on {urls['url']}.", out
+
+
+_REASONS = {"assigned": "assigned to you", "mentioned": "you were mentioned", "reply": "someone replied to you"}
+
+
+async def list_waiting_on_me(ctx: Context, args: dict) -> tuple[str, dict]:
+    view = args.get("view") or "waiting"
+    got = await _call(tasks.mine, ctx.db, actor_of(ctx), _actx(ctx), view=view, limit=int(args.get("limit") or 20))
+    items = []
+    for it in got["items"]:
+        last = it.get("last") or None
+        items.append({
+            "thread_id": it["thread_id"], "slug": it["slug"], "title": it.get("title") or it["slug"],
+            "url": it["url"], "excerpt": it.get("excerpt"), "waiting_reason": it.get("waiting_reason"),
+            "assignee": _slim_person(it.get("assignee")),
+            "last": ({"author": _slim_person(last.get("author")), "body": last.get("body_excerpt") or "",
+                      "at": last.get("at")} if last else None)})
+    out = {"view": view, "items": items}
+    what = {"waiting": "waiting on you", "assigned": "assigned to you", "mentions": "mentioning you"}[view]
+    if not items:
+        return f"No open comment threads {what}.", out
+    lines = [f"{len(items)} open comment thread{'s' if len(items) != 1 else ''} {what}:"]
+    for it in items:
+        bits = [it["title"]]
+        if it["excerpt"]:
+            bits.append(f"on “{it['excerpt'][:80]}”")
+        why = _REASONS.get(it["waiting_reason"] or "")
+        last = it["last"]
+        said = f" {(last['author'] or {}).get('name') or 'Someone'}: {last['body'][:140]}" if last else ""
+        lines.append(f"- {' '.join(bits)}{f' ({why})' if why else ''} —{said} {it['url']}")
+    return "\n".join(lines), out
+
+
 _THREAD_OUT = _out({**_URL_PROPS, "slug": {"type": "string"}, "thread": _THREAD}, ["url", "markdrop_url", "slug", "thread"])
 
 COMMENT_TOOLS: list[Tool] = [
@@ -396,6 +456,64 @@ COMMENT_TOOLS: list[Tool] = [
                            ["url", "markdrop_url", "slug", "enabled", "public"]),
         annotations=_ann(False, False, True),
         handler=set_comment_settings,
+    ),
+    Tool(
+        name="edit_comment",
+        title="Edit a comment",
+        description=("Change the text of one of the user's own comments (only its author can edit it; the thread "
+                     "shows it as edited). People newly @mentioned in mentions are notified. Get the message id "
+                     "from get_thread."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF, "thread_id": _THREAD_ID, "message_id": _MESSAGE_ID, "body": _BODY,
+            "mentions": _MENTIONS,
+        }, "required": ["document", "thread_id", "message_id", "body"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "thread_id": {"type": "string"},
+                            "message": {"type": "object"}, "thread_url": {"type": "string"}},
+                           ["url", "markdrop_url", "slug", "thread_id", "message"]),
+        annotations=_ann(False, False, True),
+        handler=edit_comment,
+    ),
+    Tool(
+        name="delete_comment",
+        title="Delete a comment",
+        description=("Delete one message from a comment thread: the user's own, or (the item's owner and workspace "
+                     "admins) anyone's. Deleting the last message in a thread removes the whole thread "
+                     "(thread_deleted: true). This can't be undone: confirm with the user first."),
+        scope=WRITE,
+        writes=True,
+        input_schema={"type": "object", "properties": {
+            "document": _DOC_REF, "thread_id": _THREAD_ID, "message_id": _MESSAGE_ID,
+        }, "required": ["document", "thread_id", "message_id"]},
+        output_schema=_out({**_URL_PROPS, "slug": {"type": "string"}, "thread_id": {"type": "string"},
+                            "message_id": {"type": "string"}, "deleted": {"type": "boolean"},
+                            "thread_deleted": {"type": "boolean"}},
+                           ["url", "markdrop_url", "slug", "thread_id", "message_id", "deleted", "thread_deleted"]),
+        annotations=_ann(False, True, True),
+        handler=delete_comment,
+    ),
+    Tool(
+        name="list_waiting_on_me",
+        title="Comments waiting on me",
+        description=("Open comment threads across every page and document the user can still open, newest first. "
+                     "view: waiting (the default: threads assigned to them, where the latest message mentions them, "
+                     "or that they started and someone else answered), assigned, or mentions. Each has the item's "
+                     "title, a link straight to the thread, the quoted text, the latest message and why it's "
+                     "waiting on them (waiting_reason: assigned, mentioned or reply)."),
+        scope=READ,
+        input_schema={"type": "object", "properties": {
+            "view": {"type": "string", "enum": ["waiting", "assigned", "mentions"], "default": "waiting"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 50, "default": 20},
+        }},
+        output_schema=_out({"view": {"type": "string"}, "items": {"type": "array", "items": {
+            "type": "object", "properties": {
+                "thread_id": {"type": "string"}, "slug": {"type": "string"}, "title": {"type": "string"},
+                "url": {"type": "string"}, "excerpt": {"type": ["string", "null"]},
+                "waiting_reason": {"type": ["string", "null"]}, "assignee": _PERSON,
+                "last": {"type": ["object", "null"]}}}}}),
+        annotations=_ann(True, False, True),
+        handler=list_waiting_on_me,
     ),
 ]
 
