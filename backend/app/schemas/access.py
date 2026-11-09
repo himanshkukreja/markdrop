@@ -85,6 +85,10 @@ class AccessResponse(BaseModel):
     expires_at: datetime | None = None
     # "Show who's viewing" (live presence on the page); absent means on.
     show_presence: bool = True
+    # Comments (services/comments): whether this item can have them, the owner's two switches.
+    comments_eligible: bool = False
+    comments_enabled: bool = True
+    comments_public: bool = False
 
 
 # ── Share-dialog suggestions ──────────────────────────────────────────────────

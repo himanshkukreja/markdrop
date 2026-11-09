@@ -1,5 +1,6 @@
 "use client";
 
+import { updateCommentSettings } from "@/lib/comments";
 import { ShareTrackRow } from "@/components/analytics/AnalyticsSettings";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -571,6 +572,44 @@ export default function ShareDialog({
                     </span>
                   }
                 />
+              )}
+              {canManage && !peopleOnly && state.comments_eligible && (
+                <>
+                  <Switch
+                    className="mt-1"
+                    checked={state.comments_enabled !== false}
+                    disabled={busy === "comments"}
+                    onChange={(e) => {
+                      const on = e.target.checked;
+                      void run("comments", () => updateCommentSettings(slug, { enabled: on }), () =>
+                        setState((st) => (st ? { ...st, comments_enabled: on } : st)));
+                    }}
+                    label={
+                      <span className="flex flex-col">
+                        <span className="text-body text-text">Comments</span>
+                        <span className="text-caption text-text-muted">Signed-in people who can open it can comment on any part of it.</span>
+                      </span>
+                    }
+                  />
+                  {state.comments_enabled !== false && (
+                    <Switch
+                      className="mt-1"
+                      checked={!!state.comments_public}
+                      disabled={busy === "comments_public"}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        void run("comments_public", () => updateCommentSettings(slug, { public: on }), () =>
+                          setState((st) => (st ? { ...st, comments_public: on } : st)));
+                      }}
+                      label={
+                        <span className="flex flex-col">
+                          <span className="text-body text-text">Show comments publicly</span>
+                          <span className="text-caption text-text-muted">Readers who aren&apos;t signed in see the comments too (they still can&apos;t write).</span>
+                        </span>
+                      }
+                    />
+                  )}
+                </>
               )}
               {/* What it collects about its viewers (components/analytics/AnalyticsSettings). */}
               {canManage && !peopleOnly && <ShareTrackRow slug={slug} />}

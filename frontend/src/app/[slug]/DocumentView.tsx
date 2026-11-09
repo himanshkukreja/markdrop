@@ -95,6 +95,7 @@ const pagesApi = () => import("@/lib/pages");
 const MeetingLauncher = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingLauncher), { ssr: false, loading: () => null });
 const MeetingHeader = dynamic(() => import("@/components/meetings/MeetingPanel").then((m) => m.MeetingHeader), { ssr: false, loading: () => null });
 import { usePageJira } from "@/components/jira/usePageJira";
+import { CommentsHost, CommentsButton, CommentsPanel, CommentLayer } from "@/components/comments";
 // From meetings (components/pages/memory) in View mode: the bar's button and the same panel as in Edit.
 const MeetingMemory = dynamic(() => import("@/components/pages/memory/MeetingMemory").then((m) => m.MeetingMemory), { ssr: false, loading: () => null });
 const TranslateDialog = dynamic(() => import("@/components/pages/ai/TranslateDialog").then((m) => m.TranslateDialog), { ssr: false, loading: () => null });
@@ -186,6 +187,11 @@ export default function DocumentView(props: DocumentViewProps) {
   const onPageFrame = useCallback((el: HTMLDivElement | null) => { if (el) setPageFramed(true); }, []);
   const phone = useMediaQuery(PHONE_QUERY);
   const layerRef = useRef<HTMLDivElement>(null);
+  // Comments (components/comments): the element whose text the threads point into — the reader's, or the
+  // editor's while a page is being edited.
+  const [readEl, setReadEl] = useState<HTMLElement | null>(null);
+  useEffect(() => { if (readRef.current !== readEl) setReadEl(readRef.current); });
+  const [editEl, setEditEl] = useState<HTMLElement | null>(null);
   const [headings, setHeadings] = useState<Heading[]>([]);
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [contentsOpen, setContentsOpen] = useState(false);
@@ -250,6 +256,19 @@ export default function DocumentView(props: DocumentViewProps) {
   useEffect(() => {
     if (!pageEditable) setEditorReady(false);
   }, [pageEditable]);
+  // The editor's text, for comment highlights while editing (found once it's on screen).
+  useEffect(() => {
+    if (!pageEditable || !editorReady) { setEditEl(null); return; }
+    let raf = 0;
+    let tries = 0;
+    const find = () => {
+      const el = document.querySelector<HTMLElement>(".pb-live .ProseMirror");
+      if (el) setEditEl(el);
+      else if (tries++ < 40) raf = requestAnimationFrame(find);
+    };
+    find();
+    return () => cancelAnimationFrame(raf);
+  }, [pageEditable, editorReady]);
   // The edit flow (⋯ › Edit, which asks for the edit secret) just unlocked the page: edit it.
   const editRise = useRef(editing);
   useEffect(() => {
@@ -578,9 +597,16 @@ export default function DocumentView(props: DocumentViewProps) {
   }
 
   const gated = pwdLocked || pwdFetching;
+  // Comments: on for this reader when the read says so and the item is open in front of them.
+  const commentsSummary = readable && !encrypted && !gated && !artifactDoc ? v.docComments : null;
+  useEffect(() => {
+    const on = () => setShowShare(true);
+    window.addEventListener("md:comments-settings", on);
+    return () => window.removeEventListener("md:comments-settings", on);
+  }, [setShowShare]);
   const gateMode: "password" | "signin" | "denied" = accessDenied ? "denied" : gate === "signin" ? "signin" : "password";
   // A classic document's one bar (the framed view, a gate, the editor); a page has its own (below).
-  const docPresence = readable ? <DocPresence presence={presence} signedIn={!!user} /> : null;
+  const docPresence = readable ? <>{<DocPresence presence={presence} signedIn={!!user} />}{commentsSummary && !showRaw && <CommentsButton />}</> : null;
   const docBar = (o: Partial<DocumentTopBarProps> = {}) => (
     <DocumentTopBar
       slug={slug}
@@ -1017,7 +1043,7 @@ export default function DocumentView(props: DocumentViewProps) {
                 resolve={resolvePageAsset}
                 addressing={addressing}
                 presence={pagePresence}
-                tools={viewMemory || (canEditPage && !showRaw) ? <>{viewMemory}{canEditPage && !showRaw && <PageModeButton mode="edit" busy={pageEditable} onClick={() => enterEdit("click")} />}</> : undefined}
+                tools={viewMemory || (canEditPage && !showRaw) || commentsSummary ? <>{viewMemory}{commentsSummary && !showRaw && <CommentsButton />}{canEditPage && !showRaw && <PageModeButton mode="edit" busy={pageEditable} onClick={() => enterEdit("click")} />}</> : undefined}
                 onShare={pageShare}
                 shareUrl={shareUrl}
                 onCopied={copyLinkEvent}
@@ -1105,7 +1131,7 @@ export default function DocumentView(props: DocumentViewProps) {
               url={url}
               updatedAt={null}
               chrome={{
-                presence: pagePresence,
+                presence: commentsSummary ? <>{pagePresence}<CommentsButton /></> : pagePresence,
                 ask: askable,
                 onShare: pageShare,
                 shareUrl,
@@ -1123,12 +1149,21 @@ export default function DocumentView(props: DocumentViewProps) {
         )}
       </div>
       {!pageEditable && <LiveUpdatePill show={livePill} />}
+      {commentsSummary && !showRaw && <CommentLayer root={pageEditable ? editEl : readEl} name={pageEditable ? "md-comments-editor" : "md-comments"} />}
       {readable && !!user && isPage && page?.meeting && !tenant && <MeetingLauncher meetingId={page.meeting.id} role={page.meeting.role} />}
     </div>
   ) : null;
   return (
-    // data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page.
-    <div className={`flex min-w-0 flex-1 flex-col ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
+    <CommentsHost
+      slug={slug}
+      summary={commentsSummary}
+      user={user ? { id: user.id, name: user.name ?? null } : null}
+      signInHref={signInHref}
+      subscribeLive={v.subscribeLive}
+      readPassword={isPasswordProtected ? (typeof window !== "undefined" ? sessionStorage.getItem(`pwd:${slug}`) : null) : null}
+    >
+    {/* data-md-e2e: third-party analytics (lib/thirdPartyAnalytics) never runs while this is on the page. */}
+    <div className={`flex min-w-0 flex-1 flex-col md-comments-host ${showImmersive ? "md-viewer-immersive" : ""}`} data-md-e2e={encrypted ? "" : undefined}>
       {/* First, so its inline script runs before the locked chrome below is parsed (lib/opening). */}
       {(pwdFetching || (opened && pageScreen && !pageFramed)) && <OpeningCover tenant={!!tenant} />}
       {!pageScreen && framed && docBar({
@@ -1314,6 +1349,7 @@ export default function DocumentView(props: DocumentViewProps) {
                   {readable && !showRaw && !railShown && (
                     <PresenceMargin root={readRef} markers={markers} left={showImmersive ? 2 : -14} />
                   )}
+                  {!pageScreen && commentsSummary && !showRaw && !editing && <CommentLayer root={readEl} />}
                 </div>
                 {showImmersive && readable && !empty && <ReadingProgress key="layer" scroller={layerRef} />}
                 {showImmersive && readable && !showRaw && <TocTicks headings={headings} encrypted={encrypted} />}
@@ -1488,6 +1524,8 @@ export default function DocumentView(props: DocumentViewProps) {
       {claimSecret && (
         <LeaveGuard active={guardActive} secret={claimSecret} onCopied={() => setSecretCopied(true)} />
       )}
+      {commentsSummary && !showRaw && <CommentsPanel />}
     </div>
+    </CommentsHost>
   );
 }
