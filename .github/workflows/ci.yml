@@ -407,6 +407,30 @@ jobs:
         working-directory: frontend/e2e/pages/real
         run: node admin-roles.mjs
 
+      # Comments (select text → comment, margin and page comments, replies, @mentions, reactions, resolve and
+      # reopen, assign as a task, live updates between two people, phones), ~2 min, on the real job.
+      - name: comments.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node comments.mjs
+
+      # Comments' review power (suggested edits, accept and the editor's offer, comment AI against the fake
+      # model: draft, ask, tone, summary; files in comments; sign-off with open threads; phones), on the
+      # real job: the API restarts with PB_FAKE_COMMENTS_AI.
+      - name: comments-review.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: |
+          PB_FAKE_COMMENTS_AI=1 zsh up.sh restart-api
+          node comments-review.mjs
+
+      # Comments' reach (export with comments as Word, Markdown and PDF; comment insights; the analytics
+      # Comments tab; the email rows and daily digest switch; phones), on the real job. Reseeds.
+      - name: reach.mjs on ${{ matrix.browser }}
+        if: matrix.script == 'real' && !cancelled()
+        working-directory: frontend/e2e/pages/real
+        run: node reach.mjs
+
       # The edit lock goes as its editor leaves (sub-page, navigation, a closed or killed tab, the
       # workspace's domain): ~1.5 min, on the shorter bughunt job.
       - name: lockleave.mjs on ${{ matrix.browser }}

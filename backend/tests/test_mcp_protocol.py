@@ -220,7 +220,6 @@ class Transport(McpTestCase):
         r = await self.modern("tools/list")
         self.assertEqual(r.json()["result"]["resultType"], "complete")
         self.assertEqual(len(r.json()["result"]["tools"]), 124)
-        self.assertEqual(len(r.json()["result"]["tools"]), 118)
         r = await self.modern("tools/call", {"name": "list_documents", "arguments": {}})
         self.assertEqual(r.status_code, 200, r.text)
         self.assertEqual(r.json()["result"]["resultType"], "complete")
