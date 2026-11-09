@@ -344,7 +344,8 @@ await step("week", async () => {
   const tiles = await p.getByTestId("team-tiles").locator(".tm-tile__n").allInnerTexts();
   if (Number(tiles[2]) !== live.due.length || Number(tiles[3]) !== live.overdue.length) fail(`tiles ${tiles} vs card ${live.due.length}/${live.overdue.length}`);
   await card.getByTestId("team-week-send").click();
-  await p.getByText(/^Sent /).first().waitFor({ timeout: 20000 });
+  // The card says the summary went out ("Summary sent Mon, Nov 9"; was "Sent …" before the 2026-11-09 labels).
+  await card.getByTestId("team-week-note").filter({ hasText: /^Summary sent / }).waitFor({ timeout: 20000 });
   const b = ok(await api("GET", `/api/v1/team/${WS}`, T.reader), "board as Vic");
   if (!b.this_week || b.this_week.live) fail(`this week: ${JSON.stringify(b.this_week).slice(0, 200)}`);
   if (JSON.stringify(b.this_week).toLowerCase().includes(SECRET)) fail("the weekly summary carried the 1:1");
