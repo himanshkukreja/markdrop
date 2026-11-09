@@ -5,7 +5,8 @@
 # this folder to /opt/markdrop-ops and calls it; you rarely run it by hand.
 #
 #   sudo ./provision.sh install [--ref COMMIT] [--bundle FILE] [--constraints FILE] [--python auto|system|3.14]
-#   sudo ./provision.sh smoke                 start the API alone, check /health + the database, stop it
+#   sudo ./provision.sh smoke [--keep]        start the API alone, check /health + the database, stop it
+#                                             (--keep: leave it running; `standby` stops it)
 #   sudo ./provision.sh go-live               enable + start API, worker and backups (this server serves)
 #   sudo ./provision.sh standby               stop + disable them (another server serves)
 #   sudo ./provision.sh realip <IP>|off       trust X-Forwarded-For from <IP> (the server forwarding to us)
@@ -339,6 +340,7 @@ cmd_smoke() {
   systemctl start markdrop
   if wait_health 90; then ok "/health 200"; else systemctl stop markdrop; journalctl -u markdrop -n 30 --no-pager; die "API did not come up"; fi
   db_probe || { systemctl stop markdrop; die "database probe failed"; }
+  if [ "${1:-}" = --keep ]; then ok "left running (stop it with: provision.sh standby)"; return; fi
   systemctl stop markdrop
   ok "stopped (standby)"
 }
@@ -468,7 +470,7 @@ cmd_status() {
 
 case "${1:-}" in
   install) shift; cmd_install "$@" ;;
-  smoke) cmd_smoke ;;
+  smoke) cmd_smoke "${2:-}" ;;
   go-live) cmd_go_live ;;
   standby) cmd_standby ;;
   realip) cmd_realip "${2:-}" ;;

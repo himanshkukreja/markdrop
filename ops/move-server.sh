@@ -469,7 +469,8 @@ mode_prepare() {
   fi
 
   step "NEW serves $DOMAIN (API alone, then stopped)"
-  on_new "sudo /opt/markdrop-ops/provision.sh realip '$OLD_IP' >/dev/null && sudo /opt/markdrop-ops/provision.sh smoke" || die "smoke test failed"
+  on_new "sudo /opt/markdrop-ops/provision.sh realip '$OLD_IP' >/dev/null && sudo /opt/markdrop-ops/provision.sh smoke --keep" \
+    || { on_new 'sudo /opt/markdrop-ops/provision.sh standby >/dev/null' || true; die "smoke test failed"; }
   local c80; c80=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 --resolve "$DOMAIN:80:$NEW_IP" "http://$DOMAIN/health" || true)
   [ "$c80" = 301 ] && ok "http://$NEW_IP:80 → 301 (open: Let's Encrypt renewals will work)" || warn "port 80 on $NEW_IP answered '$c80' — open 80 in the provider's firewall (renewals need it)"
   if https_check "$NEW_IP"; then ok "https://$DOMAIN/health via $NEW_IP: 200, certificate valid"
