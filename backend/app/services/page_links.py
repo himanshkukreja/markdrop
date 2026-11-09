@@ -103,7 +103,7 @@ async def backlinks(db: AsyncIOMotorDatabase, raw: dict, actor, ctx) -> list[dic
         length=len(oids))
     out = []
     for d in docs:
-        if not (await access.can(actor, d, "read", ctx)).allowed:
+        if not await access.discoverable(actor, d, ctx):
             continue
         out.append({"slug": d["slug"], "title": d.get("title") or d["slug"], "editor": d.get("editor"),
                     "updated_at": pages.iso(d.get("updated_at")),
