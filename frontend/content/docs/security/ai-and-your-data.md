@@ -18,6 +18,7 @@ Only what a request needs, and only when someone uses an AI feature (or, for mee
 - **Team**: the meetings and pages the Team board reads, to keep each person's lines up to date.
 - **Analytics**: totals and changes for your own links, their titles, and your own content where it helps. Never who visited: no IP address, visitor or session id, or email.
 - **Jira drafts**: the item you're turning into an issue.
+- **Comments**: for Apply with AI, the thread, the text it's about and the paragraph around it; for a summary, the page's open and recently resolved threads; for @AI, the question, the thread, the page and other pages of its workspace that everyone who can see the thread can open; for the tone check, the comment you're about to post (only when it reads as harsh, or when you ask).
 
 ## What is never sent
 
@@ -44,6 +45,7 @@ AI features have fair-use limits. If a limit is reached, the feature keeps worki
 - Search still finds results, and Ask's conversations still open.
 - Team stops updating for a while; nothing is lost.
 - Jira drafts are the item as written, and creating the issue still works.
+- Comments, replies and suggested edits work as usual; @AI says in the thread that it can't answer right now, and a comment that reads as harsh is posted without the check.
 
 The feature says when AI is back.
 
