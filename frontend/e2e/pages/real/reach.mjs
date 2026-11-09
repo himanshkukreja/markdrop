@@ -186,12 +186,6 @@ await step("pdf", async () => {
     const firstText = await p.locator(".pbx-print .pbx-cmark").nth(1).evaluate((el) => el.previousSibling?.textContent ?? "");
     if (!/Monday$/.test(firstText.trim())) fail(`marker after "${firstText.slice(-30)}"`);
     await p.emulateMedia({ media: "print" });
-    console.log("  dbg", await p.evaluate(() => {
-      const m = document.querySelector(".pbx-print .pbx-cmark"), a = document.querySelector(".pbx-print aside.pbx-cnote");
-      const sec = document.querySelector(".pbx-print__page");
-      const cs = (e) => (e ? (({ color, float, width, marginRight, display }) => ({ color, float, width, marginRight, display }))(getComputedStyle(e)) : null);
-      return JSON.stringify({ sec: sec.className, body: sec.querySelector(".pb-body")?.className, pad: getComputedStyle(sec.querySelector(".pb-body") || sec).paddingRight, m: cs(m), a: cs(a), ap: a?.parentElement?.tagName, r: a?.getBoundingClientRect() });
-    }));
     await shot(p, `reach-pdf-${style.startsWith("Margin") ? "margin" : "end"}`);
     await p.emulateMedia({ media: "screen" });
     log(`pdf ${style}: ${marks} markers, ${margin} margin notes, ${end} at the end`);
