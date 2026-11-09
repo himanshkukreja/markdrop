@@ -53,6 +53,8 @@ class ReachWorld(NotifyWorld):
                "history": [], "suggestion": None, "deleted_at": None}
         res = await self.db[T].insert_one(row)
         row["_id"] = res.inserted_id
+        # documents.comment_counts, as service.recount keeps it (CONTRACT §1.3).
+        await self.db["documents"].update_one({"_id": doc["_id"]}, {"$inc": {f"comment_counts.{status}": 1}})
         await self.message(row, by, body, at=at, mentions=mentions)
         return row
 
