@@ -47,7 +47,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
-import bcrypt
 from bson import ObjectId
 from fastapi import HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
@@ -216,9 +215,10 @@ class Ctx:
             return None
         key = (workspace_id, user_id)
         if key not in self._roles:
-            raw = await self.db["memberships"].find_one(
-                {"workspace_id": workspace_id, "user_id": user_id}, {"role": 1})
-            self._roles[key] = raw["role"] if raw else None
+            from app.services import workspace as ws_service
+
+            # The same answer ws_service.role_for gives, asked once per read request (request_memo).
+            self._roles[key] = await ws_service.role_for(self.db, workspace_id, user_id)
         return self._roles[key]
 
     async def grants_for(self, email: str) -> dict[str, str]:
@@ -412,13 +412,11 @@ def _max_role(a: str | None, b: str | None) -> str | None:
     return a if _ROLE_RANK.get(a, 0) >= _ROLE_RANK.get(b, 0) else b
 
 
-def _secret_ok(secret: str | None, hashed: str | None) -> bool:
-    if not secret or not hashed:
-        return False
-    try:
-        return bcrypt.checkpw(secret.encode(), hashed.encode())
-    except ValueError:
-        return False
+async def _secret_ok(secret: str | None, hashed: str | None) -> bool:
+    """The edit secret against its bcrypt hash: off the event loop, a match remembered (utils/security)."""
+    from app.utils import security
+
+    return await security.check(secret, hashed)
 
 
 async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
@@ -441,7 +439,7 @@ async def facts(actor: Actor, doc: dict, ctx: Ctx) -> Facts:
         ws_id = None  # dangling ⇒ unfiled
     uid = actor.user_id
     is_owner = bool(uid) and doc.get("owner_id") == uid
-    secret_ok = _secret_ok(actor.edit_secret, doc.get("edit_secret_hash"))
+    secret_ok = await _secret_ok(actor.edit_secret, doc.get("edit_secret_hash"))
     ws_role = await ctx.role(ws_id, uid) if ws_id and uid else None
     member_doc_role = None
     if ws_role is not None and level != "private":
@@ -610,10 +608,10 @@ async def _read(actor: Actor, doc: dict, f: Facts, ctx: Ctx) -> Decision:
     if await password_attempts.blocked(pw_doc.get("slug") or "", ctx.ip):
         return Decision(False, 429, "Too many wrong passwords. Try again in a few minutes.",
                         code="rate_limited")
-    try:
-        ok = bcrypt.checkpw(pw.encode(), pw_doc["read_password_hash"].encode())
-    except (ValueError, KeyError, AttributeError):
-        ok = False
+    from app.utils import security
+
+    hashed = pw_doc.get("read_password_hash")
+    ok = await security.check(pw, hashed) if isinstance(hashed, str) else False
     if ok:
         d = _allow(None)
     else:

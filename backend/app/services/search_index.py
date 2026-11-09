@@ -47,6 +47,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -55,7 +56,7 @@ from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pymongo import UpdateOne
 
-from app.services import file_text, heading_ids, search_chunks
+from app.services import file_text, heading_ids, search_chunks, todos
 from app.services import search_text as st
 
 log = logging.getLogger("markdrop.search_index")
@@ -101,6 +102,8 @@ async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:
     await db[COLL].create_index("site", sparse=True)
     await db[COLL].create_index("fx", sparse=True)
     await db[COLL].create_index("ax", sparse=True)
+    # The home's open to-dos for one person (todo_fields): the rows naming them.
+    await db[COLL].create_index("td", name="td")
     await search_chunks.ensure_indexes(db)
     # The reconciler's "what changed since" scans.
     await db["documents"].create_index("updated_at")
@@ -155,7 +158,21 @@ def plain_fields(text: str | None, *, limit: int = FILE_TEXT) -> dict:
     return {"hd": [], "hw": [], "w": st.word_set(t), "x": t}
 
 
-EMPTY = {"hd": [], "hw": [], "w": [], "x": ""}
+EMPTY = {"hd": [], "hw": [], "w": [], "x": "", "td": [], "tdl": {}}
+
+# ── Open to-dos per person (``td`` / ``tdl``) ─────────────────────────────────
+# The home's "Your action items" (services/home.actions) used to find them with a regex over every
+# readable page's content — a scan Mongo can't index — then read 300 whole pages over the wire and
+# through Python on every dashboard load. Each block page's row now keeps who has an open to-do in it
+# (``td``, indexed) and those to-do lines per person (``tdl``, services/todos.py), so the home reads
+# the caller's rows and then decides each page exactly as before. Kept in step by every (re)index;
+# todos_tick fills them once for rows written before they existed.
+TODOS_VERSION = 1
+
+
+def todo_fields(raw: dict) -> dict:
+    uids = todos.people(raw)
+    return {"td": uids, "tdl": todos.lines(raw, uids) if uids else {}}
 
 
 def is_video(raw: dict) -> bool:
@@ -182,7 +199,7 @@ def doc_row(raw: dict) -> dict:
         if is_video(raw):
             row["ax"] = "pending"
         return row
-    return {**base, **text_fields(raw.get("content"))}
+    return {**base, **text_fields(raw.get("content")), **todo_fields(raw)}
 
 
 def guide_row(page: dict) -> dict:
@@ -227,7 +244,9 @@ async def index_doc(db: AsyncIOMotorDatabase, doc_id: Any) -> bool:
         await db[COLL].delete_one({"_id": oid})
         await search_chunks.drop(db, oid)
         return False
-    row = doc_row(raw)
+    # Markdown → words for a 20,000-character page is real CPU: off the event loop (it held every
+    # request for its length on each autosave; perf/scale's loop monitor caught it).
+    row = await asyncio.to_thread(doc_row, raw)
     if title_only(raw):
         await search_chunks.drop(db, oid)       # encrypted / password: never a word of its text
         row.update(nc=0, ch=None, cv=COVERAGE_VERSION)
@@ -263,7 +282,7 @@ async def index_guide_page(db: AsyncIOMotorDatabase, page_id: Any) -> bool:
     if page is None or page.get("deleted_at") is not None:
         await db[COLL].delete_one({"_id": key})
         return False
-    await db[COLL].update_one({"_id": key}, {"$set": guide_row(page)}, upsert=True)
+    await db[COLL].update_one({"_id": key}, {"$set": await asyncio.to_thread(guide_row, page)}, upsert=True)
     return True
 
 
@@ -529,14 +548,18 @@ async def backfill_tick(db: AsyncIOMotorDatabase, *, budget_s: float = BACKFILL_
                 continue
             state.update(done=True, finished_at=now())
             break
-        ops = []
-        for raw in rows:
-            if coll == "documents":
-                if raw.get("template"):
-                    continue
-                ops.append(UpdateOne({"_id": raw["_id"]}, {"$set": doc_row(raw)}, upsert=True))
-            else:
-                ops.append(UpdateOne({"_id": f"g:{raw['_id']}"}, {"$set": guide_row(raw)}, upsert=True))
+        def build(rows: list[dict] = rows, coll: str = coll) -> list:
+            ops = []
+            for raw in rows:
+                if coll == "documents":
+                    if raw.get("template"):
+                        continue
+                    ops.append(UpdateOne({"_id": raw["_id"]}, {"$set": doc_row(raw)}, upsert=True))
+                else:
+                    ops.append(UpdateOne({"_id": f"g:{raw['_id']}"}, {"$set": guide_row(raw)}, upsert=True))
+            return ops
+
+        ops = await asyncio.to_thread(build)  # a batch of 200 pages' text: off the event loop
         if ops:
             await db[COLL].bulk_write(ops, ordered=False)
         n += len(rows)
@@ -642,9 +665,46 @@ async def coverage_tick(db: AsyncIOMotorDatabase, *, batch: int = COVERAGE_BATCH
 _last_orphans: dict[str, float] = {}
 
 
+async def todos_ready(db: AsyncIOMotorDatabase) -> bool:
+    """Every row carries ``td`` (todos_tick finished), so the home may read to-dos from the index."""
+    state = await _meta(db, "todos")
+    return state.get("version") == TODOS_VERSION and bool(state.get("done"))
+
+
+async def todos_tick(db: AsyncIOMotorDatabase, *, batch: int = 200, budget_s: float = 4.0) -> dict:
+    """One slice of filling ``td`` on rows written before it existed: block pages by ``_id``, resumable.
+    A no-op once done for TODOS_VERSION."""
+    state = await _meta(db, "todos")
+    if state.get("version") == TODOS_VERSION and state.get("done"):
+        return {"done": True, "n": 0}
+    if state.get("version") != TODOS_VERSION:
+        state = {"version": TODOS_VERSION, "cursor": None, "count": 0, "started_at": now()}
+    t0 = time.monotonic()
+    n = 0
+    while time.monotonic() - t0 < budget_s:
+        q: dict = {"editor": "blocks"}
+        if state.get("cursor") is not None:
+            q["_id"] = {"$gt": state["cursor"]}
+        rows = await db["documents"].find(q, {"content": 1, "editor": 1, "kind": 1, "encrypted": 1,
+                                              "read_password_hash": 1}).sort("_id", 1).limit(batch).to_list(length=batch)
+        if not rows:
+            state.update(done=True, finished_at=now())
+            break
+        fields = await asyncio.to_thread(lambda: [todo_fields(r) for r in rows])
+        ops = [UpdateOne({"_id": r["_id"]}, {"$set": f}) for r, f in zip(rows, fields)]
+        await db[COLL].bulk_write(ops, ordered=False)
+        n += len(rows)
+        state["cursor"] = rows[-1]["_id"]
+        state["count"] = int(state.get("count") or 0) + len(rows)
+        await db[META].update_one({"_id": "todos"}, {"$set": state}, upsert=True)
+    await db[META].update_one({"_id": "todos"}, {"$set": state}, upsert=True)
+    return {"done": bool(state.get("done")), "n": n}
+
+
 async def background(db: AsyncIOMotorDatabase) -> None:
     """The ``search_index`` loop body (services/background.py)."""
     await backfill_tick(db)
+    await todos_tick(db)
     await reconcile(db)
     await coverage_tick(db)
     await extract_pending(db)

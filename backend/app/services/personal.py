@@ -118,20 +118,38 @@ async def _docs_by_id(db: AsyncIOMotorDatabase, ids: list) -> dict[str, dict]:
 # ── Recent ────────────────────────────────────────────────────────────────────
 
 
+_LAST_VIEW: dict[tuple, tuple[str, float]] = {}
+VIEW_EVERY_S = 60.0
+
+
 async def record_view(db: AsyncIOMotorDatabase, user_id: str | None, doc_id) -> None:
     """Called after a successful signed-in read. Never fails the read."""
     if not user_id or doc_id is None:
         return
+    # A reader re-reads on every live change of a page someone is editing (every few seconds): while it
+    # is still the last thing they opened, Recent can't change, so it isn't written again for a minute.
+    import time
+
+    key = (getattr(db, "name", ""), user_id)
+    t = time.monotonic()
+    last = _LAST_VIEW.get(key)
+    if last is not None and last[0] == str(doc_id) and t - last[1] < VIEW_EVERY_S:
+        return
+    if len(_LAST_VIEW) > 20_000:
+        _LAST_VIEW.clear()
+    _LAST_VIEW[key] = (str(doc_id), t)
     try:
         now = _now()
-        await db[RECENT].update_one({"user_id": user_id, "doc_id": str(doc_id)},
-                                    {"$set": {"viewed_at": now}}, upsert=True)
+        res = await db[RECENT].update_one({"user_id": user_id, "doc_id": str(doc_id)},
+                                          {"$set": {"viewed_at": now}}, upsert=True)
+        if res.upserted_id is None:
+            return  # already listed: the list didn't grow, nothing to trim
         old = await db[RECENT].find({"user_id": user_id}, {"_id": 1}).sort(
             "viewed_at", -1).skip(RECENT_KEEP).limit(200).to_list(length=200)
         if old:
             await db[RECENT].delete_many({"_id": {"$in": [o["_id"] for o in old]}})
     except Exception:
-        pass
+        _LAST_VIEW.pop(key, None)
 
 
 async def recent(db: AsyncIOMotorDatabase, actor: access.Actor, ctx: access.Ctx,

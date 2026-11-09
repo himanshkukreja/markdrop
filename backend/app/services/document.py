@@ -10,7 +10,7 @@ from pymongo.errors import DuplicateKeyError
 from app.config import get_settings
 from app.models.document import Document
 from app.schemas.document import DocumentCreate, DocumentUpdate
-from app.utils.security import generate_edit_secret
+from app.utils.security import hash_secret, new_edit_secret
 from app.utils.slug import generate_slug, is_reserved_slug, is_valid_slug, slugify
 
 settings = get_settings()
@@ -191,7 +191,7 @@ async def create_document(
     via_vscode: bool = False,
     extra: dict | None = None,
 ) -> tuple[Document, str]:
-    raw_secret, secret_hash = generate_edit_secret()
+    raw_secret, secret_hash = await new_edit_secret()
     now = datetime.now(timezone.utc)
 
     if data.expires_in == "custom":
@@ -215,7 +215,7 @@ async def create_document(
 
     read_pwd_hash = None
     if data.read_password:
-        read_pwd_hash = bcrypt.hashpw(data.read_password.encode(), bcrypt.gensalt()).decode()
+        read_pwd_hash = await hash_secret(data.read_password)
 
     def _build(slug: str) -> dict:
         return {

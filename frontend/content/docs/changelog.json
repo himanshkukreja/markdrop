@@ -24,6 +24,19 @@
   "next": [],
   "entries": [
     {
+      "id": "faster-together",
+      "date": "2026-11-09",
+      "title": "Faster when your whole team is in at once",
+      "kind": "improved",
+      "area": "Performance",
+      "products": [
+        "web",
+        "api"
+      ],
+      "summary": "The home, pages and workspaces load faster, and stay fast when several people open and edit them at the same time.",
+      "body": "- **Your home loads faster.** Your action items come straight from an index instead of a read of every page, and the home's sections load together with the rest of the page.\n- **Editing with others is lighter.** A page open in several tabs follows someone's edits without asking for the whole page on every autosave, and a hidden tab catches up once it is shown again.\n- **Colleagues behind one office network no longer share one request allowance.** Limits count per signed-in person, so a busy team isn't slowed down by each other.\n- **Pages with a password or an edit link open faster** after the first time."
+    },
+    {
       "id": "steadier-api-nov-9",
       "date": "2026-11-09",
       "title": "Steadier under load",

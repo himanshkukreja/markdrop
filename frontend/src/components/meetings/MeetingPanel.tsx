@@ -130,7 +130,8 @@ export function MeetingLauncher({ meetingId }: { meetingId: string; role?: strin
       return;
     }
     wasPending.current = true;
-    const t = window.setInterval(() => void load(), 3000);
+    // Not while the tab is hidden: it asks again within 3 s of being shown.
+    const t = window.setInterval(() => { if (document.visibilityState !== "hidden") void load(); }, 3000);
     return () => window.clearInterval(t);
   }, [m?.ai.state, load, router, toast]);
 

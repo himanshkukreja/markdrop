@@ -1,7 +1,9 @@
 """Shared slowapi limiter.
 
 Lives in its own module so any router can import it without creating an
-import cycle. Keyed on the real client IP (behind nginx) and backed by Redis
+import cycle. Keyed on the signed-in account when the request carries a valid
+session token, else on the real client IP behind nginx (utils/net.rate_limit_key:
+colleagues behind one office address no longer share one budget), and backed by Redis
 so limits are shared across workers and survive restarts.
 
 Redis is a dependency of the *limits*, not of the routes: when it is down or
@@ -13,7 +15,7 @@ hung Redis from holding every request for the length of the pause.
 from slowapi import Limiter
 
 from app.config import get_settings
-from app.utils.net import get_client_ip
+from app.utils.net import rate_limit_key
 
 settings = get_settings()
 
@@ -23,7 +25,7 @@ STORAGE_OPTIONS = {"socket_timeout": 0.5, "socket_connect_timeout": 0.5}
 
 def build_limiter(storage_uri: str) -> Limiter:
     return Limiter(
-        key_func=get_client_ip,
+        key_func=rate_limit_key,
         storage_uri=storage_uri,
         storage_options=dict(STORAGE_OPTIONS) if storage_uri.startswith(("redis", "rediss", "unix")) else {},
         in_memory_fallback_enabled=True,

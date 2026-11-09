@@ -98,8 +98,13 @@ async def _domains(db: AsyncIOMotorDatabase, workspace_id: str) -> tuple[list[di
     """Every domain with its state, and the live primary host."""
     from app.services import urls
 
+    from app.services import domain as domain_service
+    from app.services.request_memo import prime
+
     rows = await db["domains"].find({"workspace_id": workspace_id}).to_list(length=200)
-    primary = await urls.live_primary_host(db, workspace_id)
+    # The primary from these same rows (domain.primary_host's rule), not a second query per workspace.
+    primary = domain_service.primary_of(rows)
+    prime(("primary_host", workspace_id), primary)
     out = []
     for r in sorted(rows, key=lambda r: r.get("created_at") or 0):
         out.append({
@@ -151,8 +156,11 @@ async def list_workspaces(
     members = await _grouped_counts(db, "memberships", {"workspace_id": {"$in": ids}})
     invites = await _grouped_counts(db, "invitations", {"workspace_id": {"$in": ids}, "status": "pending"})
     out = []
-    for w, role in pairs:
-        domains, primary = await _domains(db, w.id)
+    # Each workspace's domains at once, not one after another.
+    import asyncio
+
+    all_domains = await asyncio.gather(*(_domains(db, w.id) for w, _role in pairs))
+    for (w, role), (domains, primary) in zip(pairs, all_domains):
         out.append(_to_response(w, role, {
             "primary_host": primary, "domains": domains, "domain_count": len(domains),
             "member_count": members.get(w.id, 0), "pending_invite_count": invites.get(w.id, 0)}))

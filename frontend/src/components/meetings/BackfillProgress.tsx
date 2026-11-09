@@ -35,6 +35,7 @@ export function BackfillProgress({ job, onChange, onProgress }: BackfillProgress
   useEffect(() => {
     if (!live) return;
     const t = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return; // the next tick after it's shown catches up
       getBackfill(job.id).then((j) => {
         onChange(j);
         if (j.counts.done !== lastDone.current) { lastDone.current = j.counts.done; onProgress?.(); }

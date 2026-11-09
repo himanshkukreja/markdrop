@@ -134,6 +134,7 @@ export default function MeetingsHub({ workspaceId }: { workspaceId: string }) {
     if (!orgRunning || !orgId) return;
     let lastFiled = -1;
     const t = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return; // the next tick after it's shown catches up
       getOrganizeRun(orgId).then((r) => {
         setOrgJob(r.job);
         if (r.job.state !== "running") {

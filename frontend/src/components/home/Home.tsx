@@ -42,6 +42,7 @@ import { kindLabel } from "@/lib/itemKind";
 import { openHref, type WorkspaceItem } from "@/lib/workspaces";
 import { meetingsHref } from "@/lib/meetings";
 import { track } from "@/lib/track";
+import { getToken } from "@/lib/api";
 import "./home.css";
 
 const CONTINUE_MAX = 10;
@@ -126,9 +127,16 @@ export default function Home() {
     listRecent().then((r) => setRecent(r.slice(0, CONTINUE_MAX))).catch(() => setRecent([]));
     getHome().then(setData).catch(() => setFailed(true));
   }, []);
+  // Start as soon as there is a session token, in parallel with the auth check (/auth/me), rather than
+  // after it: one round trip less before the home has anything to show. A token that turns out to be
+  // bad sends you to sign in anyway (above), and these answers are then simply never shown.
+  const started = useRef(false);
   useEffect(() => {
-    if (user && !forwarding) load();
-  }, [user, forwarding, load]);
+    if (!mounted || forwarding || started.current) return;
+    if (!user && !(authLoading && getToken())) return;
+    started.current = true;
+    load();
+  }, [mounted, user, authLoading, forwarding, load]);
   // Coming back to the app (another tab, the phone's home screen) refreshes quietly.
   useEffect(() => {
     if (!user) return;

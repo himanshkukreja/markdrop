@@ -404,22 +404,31 @@ async def run_due(db: AsyncIOMotorDatabase, *, limit: int = 100, keys: list[str]
     if not settings.page_revalidate_enabled:
         return 0
     query = {"key": {"$in": keys}} if keys else {}
-    counter = {"n": 0}
+    # One claim first: the worker's pass every 5 s almost always finds nothing, and asking with all
+    # eight lanes at once cost eight database operations a pass for that (perf/scale).
+    first = await _claim(db, query) if limit > 0 else None
+    if first is None:
+        return 0
+    counter = {"n": 1}
 
-    async def lane() -> None:
-        while counter["n"] < limit:
-            counter["n"] += 1
-            job = await _claim(db, query)
+    async def lane(job: dict | None = None) -> None:
+        while True:
             if job is None:
-                counter["n"] -= 1
-                return
+                if counter["n"] >= limit:
+                    return
+                counter["n"] += 1
+                job = await _claim(db, query)
+                if job is None:
+                    counter["n"] -= 1
+                    return
             try:
                 await _run_job(db, job)
             except Exception:  # pragma: no cover - a database hiccup; the lease lapses
                 log.warning("sending purge job %s failed", job.get("key"), exc_info=True)
+            job = None
 
     lanes = max(1, min(concurrency, limit))
-    await asyncio.gather(*(lane() for _ in range(lanes)))
+    await asyncio.gather(lane(first), *(lane() for _ in range(lanes - 1)))
     return counter["n"]
 
 

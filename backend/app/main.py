@@ -102,6 +102,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Event-loop lag and who caused it (services/loop_monitor.py): GET /health/loop on the box.
+    from app.services import loop_monitor
+
+    loop_monitor.start()
     await connect()
     from app import worker
     from app.database import get_database
@@ -130,6 +134,7 @@ async def lifespan(app: FastAPI):
     if loops:
         await worker.stop_loops()
     await disconnect()
+    await loop_monitor.stop()
 
 
 app = FastAPI(
@@ -236,6 +241,11 @@ app.add_middleware(InternalRequestMiddleware)
 from app.services.ai_log import RequestContextMiddleware  # noqa: E402
 
 app.add_middleware(RequestContextMiddleware)
+# Read requests remember who the caller is, a workspace and a role for their own length
+# (services/request_memo.py): one dashboard call asked the database the same thing several times.
+from app.services.request_memo import RequestMemoMiddleware  # noqa: E402
+
+app.add_middleware(RequestMemoMiddleware)
 
 # Routers
 app.include_router(trash_router)  # before documents: /documents/{slug}/delete-preview
@@ -330,3 +340,15 @@ app.include_router(mcp_router)
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/health/loop", include_in_schema=False)
+async def health_loop(request: Request, reset: bool = False):
+    """Event-loop lag since the last reset, and the stacks that blocked it (services/loop_monitor.py).
+    Only on the box itself: a direct loopback request, never one nginx forwarded."""
+    from app.services import loop_monitor
+
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1") or request.headers.get("x-forwarded-for") or request.headers.get("x-real-ip"):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return loop_monitor.snapshot(reset=reset)
