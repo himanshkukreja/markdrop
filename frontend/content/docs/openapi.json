@@ -4166,7 +4166,7 @@
           "pages"
         ],
         "summary": "Sign Off",
-        "description": "The person the block names chooses an option (``{option: null}``\nclears it). 403 for anyone else, 404 for a block that isn't on the page, 422\nfor an option the block doesn't offer. Returns the block as they see it.",
+        "description": "The person the block names chooses an option (``{option: null}``\nclears it). 403 for anyone else, 404 for a block that isn't on the page, 422\nfor an option the block doesn't offer, 409 ``open_comments`` while comment\nthreads are open on the page unless ``acknowledge_open_comments``. Returns\nthe block as they see it.",
         "operationId": "sign_off_api_v1_documents__slug__signoffs__block__post",
         "parameters": [
           {
@@ -5395,6 +5395,1116 @@
           "auth": "token",
           "rateLimits": [
             "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/ai/status": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comments Ai Status",
+        "description": "``{\"enabled\", \"reason\", \"message\"}``: whether comment AI can run for you here now (nothing counted).",
+        "operationId": "comments_ai_status_api_v1_documents__slug__comments_ai_status_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "120/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/ai/summary": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comments Ai Summary",
+        "description": "Summarize discussion: ``{\"decided\", \"open\", \"waiting\", \"counts\", \"generated_at\", \"cached\", \"empty\"}``;\neach line names its threads. Cached until the comments change (``refresh`` asks again).",
+        "operationId": "comments_ai_summary_api_v1_documents__slug__comments_ai_summary_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/SummaryIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/ai/tone": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comments Ai Tone",
+        "description": "A draft comment's tone and clarity: ``{\"ok\", \"issues\", \"rewrite\", \"ai\"}``. Only drafts that look harsh\nreach AI unless ``force`` (the composer's Check tone).",
+        "operationId": "comments_ai_tone_api_v1_documents__slug__comments_ai_tone_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToneIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/attachments": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment Attachment Upload",
+        "description": "A file for a comment you are writing (images, PDF, Office, zip, text; up to 10 MB):\n``{id, name, mime, size, width?, height?, url}``. Send its id in the comment's ``attachments``.",
+        "operationId": "comment_attachment_upload_api_v1_documents__slug__comments_attachments_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_comment_attachment_upload_api_v1_documents__slug__comments_attachments_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "30/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/attachments/urls": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment Attachment Urls",
+        "description": "Signed links (expiring) for files in this item's comments, for someone who can see its comments:\n``{\"attachments\": {id: {url, expires_at, name, mime, size}}}``. Files of deleted comments aren't served.",
+        "operationId": "comment_attachment_urls_api_v1_documents__slug__comments_attachments_urls_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UrlsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/attachments/{attachment_id}": {
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Comment Attachment Discard",
+        "description": "Remove a file you uploaded from a draft (before it is posted).",
+        "operationId": "comment_attachment_discard_api_v1_documents__slug__comments_attachments__attachment_id__delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "attachment_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Attachment Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
+      "get": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Get Suggestion",
+        "description": "The thread's suggested edit for you: ``{suggestion, applies, reason, holder, offer, before, after, can}``.\n``reason``: why accepting wouldn't apply it now (``stale``, ``unappliable``, ``changed``, ``locked``).",
+        "operationId": "get_suggestion_api_v1_documents__slug__comments__thread_id__suggestion_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "optional",
+          "rateLimits": [
+            "240/minute"
+          ]
+        }
+      },
+      "put": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Put Suggestion",
+        "description": "Suggest replacement text for the thread's quote (replaces your own open suggestion). ThreadOut.",
+        "operationId": "put_suggestion_api_v1_documents__slug__comments__thread_id__suggestion_put",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SuggestionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      },
+      "delete": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Delete Suggestion",
+        "description": "Withdraw your suggestion, or (an editor) reject it. ThreadOut.",
+        "operationId": "delete_suggestion_api_v1_documents__slug__comments__thread_id__suggestion_delete",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/suggestion/accept": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Accept Suggestion",
+        "description": "Accept the suggested edit (people who can edit). 200 ``{applied: true, version_id, rev, thread}``: the\npage now says it (a version in its history, the thread resolved unless ``resolve`` is false). 202\n``{applied: false, offered: true, holder}``: someone else is editing the page, so it waits for them.\n409 ``suggestion_stale`` / ``suggestion_unappliable``; 423 locked page or signed-off section.",
+        "operationId": "accept_suggestion_api_v1_documents__slug__comments__thread_id__suggestion_accept_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AcceptIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "60/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/ai/apply": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Ai Apply",
+        "description": "Apply with AI: replacement text for the thread's quote drafted from the discussion,\n``{\"text\", \"note\", \"quote\"}``. Nothing is saved: propose it with PUT …/suggestion (``ai: true``).",
+        "operationId": "ai_apply_api_v1_documents__slug__comments__thread_id__ai_apply_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ApplyIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
+          ]
+        }
+      }
+    },
+    "/api/v1/documents/{slug}/comments/{thread_id}/ai/ask": {
+      "post": {
+        "tags": [
+          "comments"
+        ],
+        "summary": "Ai Ask",
+        "description": "Ask Markdrop AI in the thread: your question (\"@AI …\") and the answer are posted as replies everyone in\nthe thread sees\n(``{\"thread\", \"message\", \"answer\", \"sources\"}``). Grounded in the page, the thread and workspace items at\nleast as open as the page. Writing ``@AI`` in a comment does the same.",
+        "operationId": "ai_ask_api_v1_documents__slug__comments__thread_id__ai_ask_post",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          },
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{24}$",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "x-read-password",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Read-Password"
+            }
+          },
+          {
+            "name": "x-markdrop-workspace",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Markdrop-Workspace"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "x-markdrop": {
+          "auth": "token",
+          "rateLimits": [
+            "20/minute"
           ]
         }
       }
@@ -21261,6 +22371,17 @@
   },
   "components": {
     "schemas": {
+      "AcceptIn": {
+        "properties": {
+          "resolve": {
+            "type": "boolean",
+            "title": "Resolve",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "AcceptIn"
+      },
       "AccessRequestCreate": {
         "properties": {
           "message": {
@@ -21818,6 +22939,24 @@
           "tokens"
         ],
         "title": "ApiTokenListResponse"
+      },
+      "ApplyIn": {
+        "properties": {
+          "instruction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 300
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          }
+        },
+        "type": "object",
+        "title": "ApplyIn"
       },
       "ArtifactCreateRequest": {
         "properties": {
@@ -22696,6 +23835,21 @@
         ],
         "title": "AskAllBody"
       },
+      "AskIn": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "AskIn"
+      },
       "AssigneeIn": {
         "properties": {
           "user_id": {
@@ -22822,6 +23976,20 @@
           "level"
         ],
         "title": "BatchLevelUpdate"
+      },
+      "Body_comment_attachment_upload_api_v1_documents__slug__comments_attachments_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "format": "binary",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_comment_attachment_upload_api_v1_documents__slug__comments_attachments_post"
       },
       "Body_upload_branding_asset_api_v1_workspaces__workspace_id__branding__kind__post": {
         "properties": {
@@ -28953,6 +30121,11 @@
               }
             ],
             "title": "Option"
+          },
+          "acknowledge_open_comments": {
+            "type": "boolean",
+            "title": "Acknowledge Open Comments",
+            "default": false
           }
         },
         "type": "object",
@@ -29173,6 +30346,37 @@
           "keys"
         ],
         "title": "Subscription"
+      },
+      "SuggestionIn": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "ai": {
+            "type": "boolean",
+            "title": "Ai",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "SuggestionIn"
+      },
+      "SummaryIn": {
+        "properties": {
+          "refresh": {
+            "type": "boolean",
+            "title": "Refresh",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "SummaryIn"
       },
       "SyncCreateRequest": {
         "properties": {
@@ -29633,6 +30837,26 @@
           "user"
         ],
         "title": "TokenResponse"
+      },
+      "ToneIn": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "force": {
+            "type": "boolean",
+            "title": "Force",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "body"
+        ],
+        "title": "ToneIn"
       },
       "TransformBody": {
         "properties": {
@@ -30155,6 +31379,20 @@
           "etag"
         ],
         "title": "UploadedPart"
+      },
+      "UrlsIn": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "title": "UrlsIn"
       },
       "UserResponse": {
         "properties": {

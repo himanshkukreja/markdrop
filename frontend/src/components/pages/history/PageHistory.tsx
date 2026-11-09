@@ -75,6 +75,7 @@ function Who({ v }: { v: VersionSummary }) {
       <Avatar name={a.name || a.label || "Someone"} src={a.picture ?? undefined} size="sm" />
       {a.kind === "restore" && <span className="ph-who__badge" aria-hidden><Icon name="rotate" size={10} /></span>}
       {a.kind === "signoff" && <span className="ph-who__badge" aria-hidden><Icon name={v.event?.action === "removed" || v.event?.action === "cleared" ? "x" : "check"} size={10} /></span>}
+      {a.kind === "suggestion" && <span className="ph-who__badge" aria-hidden><Icon name="message" size={10} /></span>}
     </span>
   );
 }
@@ -387,6 +388,19 @@ function Panel({ slug, title, onClose, onRestored, signInHref, crumbs, href, vie
                           {v.current && <span className="ph-chip">Current</span>}
                         </span>
                         <span className="ph-row__who">{authorLine(v, byN)}</span>
+                        {v.event?.type === "suggestion" && v.event.thread_id && (
+                          <a
+                            className="ph-row__thread"
+                            href={`#c-${v.event.thread_id}`}
+                            onClick={(e) => {
+                              // The comments panel opens on the thread (its `#c-<id>` link); history steps aside.
+                              e.stopPropagation();
+                              onClose();
+                            }}
+                          >
+                            Open the comment
+                          </a>
+                        )}
                       </span>
                       {phone && <Icon name="chevronRight" size={16} className="ph-row__go" />}
                     </div>

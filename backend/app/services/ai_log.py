@@ -435,12 +435,15 @@ KIND_LABELS: dict[str, dict[str, str]] = {
                     "fix_grammar": "Guides · Fix grammar", "translate": "Guides · Translate", "ask": "Guides · Ask"},
     "ask_suggestions": {"workspace": "Ask suggestions"},
     "jira_ai": {"draft": "Jira draft"},
+    "comments_ai": {"apply": "Comment → suggested edit", "summary": "Discussion summary", "ask": "@AI in a thread",
+                    "tone": "Comment tone check"},
 }
 
 #: Features whose question and answer are kept whole (a conversation transcript).
 CHAT = {("search_ai", "ask"), ("search_ai", "page"), ("search_ai", "catch_up"), ("search_ai", "my_actions"),
         ("search_ai", "search"), ("meetings_ai", "ask"), ("meetings_ai", "ask_all"), ("pages_ai", "ask"),
-        ("docs_ask", "ask"), ("analytics_ai", "ask"), ("docs_editor", "ask")}
+        ("docs_ask", "ask"), ("analytics_ai", "ask"), ("docs_editor", "ask"),
+        ("comments_ai", "ask")}
 
 
 def kind_of(feature: str, meta: dict) -> str:

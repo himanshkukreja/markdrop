@@ -59,6 +59,9 @@
 .ph-row__time { display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 .ph-row__who { font-size: 12.5px; line-height: 18px; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ph-row--on .ph-row__who { color: var(--text); opacity: .8; }
+.ph-row__thread { display: inline-block; margin-top: 2px; font-size: 12px; line-height: 16px; color: var(--accent); text-decoration: none; }
+.ph-row__thread:hover { text-decoration: underline; }
+.ph-row__thread:focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; border-radius: 4px; }
 .ph-row__go { color: var(--text-muted); flex: none; }
 .ph-chip {
   display: inline-flex; align-items: center; height: 18px; padding: 0 7px; border-radius: 999px;

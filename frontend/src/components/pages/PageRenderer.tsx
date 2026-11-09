@@ -185,7 +185,7 @@ function SignoffBlock({ rest, children }: { rest: Record<string, unknown>; child
   const state = useSignoffState(signoffs, info.id);
   const body = Children.toArray(children).filter((c) => !(typeof c === "string" && !c.trim()));
   return (
-    <SignoffCard info={info} state={state} loading={!!signoffs && !signoffs.loaded} onSign={state?.can_sign && signoffs && info.id ? async (o) => void (await signoffs.sign(info.id!, o)) : undefined}>
+    <SignoffCard info={info} state={state} loading={!!signoffs && !signoffs.loaded} onSign={state?.can_sign && signoffs && info.id ? async (o, ack) => void (await signoffs.sign(info.id!, o, ack)) : undefined}>
       {body.length ? body : null}
     </SignoffCard>
   );

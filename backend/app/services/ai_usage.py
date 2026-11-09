@@ -416,6 +416,7 @@ FEATURES: dict[str, str] = {
     "ask_suggestions": "Ask suggestions",
     "workspace_memory": "Team memory",
     "jira_ai": "Jira drafts",
+    "comments_ai": "Comments AI",
 }
 
 SETTINGS = "ai_settings"
@@ -439,6 +440,7 @@ _CONFIG: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "ask_suggestions": ("ask_suggestions_daily_usd", "ask_suggestions_monthly_usd", ("ask_suggestions_enabled",)),
     "workspace_memory": ("workspace_memory_daily_usd", "workspace_memory_monthly_usd", ("workspace_memory_enabled",)),
     "jira_ai": ("jira_ai_daily_usd", "jira_ai_monthly_usd", ("jira_ai_enabled",)),
+    "comments_ai": ("comments_ai_daily_usd", "comments_ai_monthly_usd", ("comments_ai_enabled",)),
 }
 
 _cache: dict[tuple[str, str], tuple[float, Any]] = {}

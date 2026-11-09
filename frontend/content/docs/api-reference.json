@@ -738,6 +738,89 @@
       "description": "Open threads across everything you can open: `waiting` (assigned to you, mentioning you in the latest message, or answered on yours), `assigned` or `mentions`.",
       "guide": { "label": "Comments", "href": "/pages/comments" }
     },
+    "GET /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
+      "title": "Get a suggested edit",
+      "description": "A thread's suggested edit as you see it, with what accepting it would do now: `applies`, and `reason` when it wouldn't (`stale`: the text changed; `unappliable`: it crosses formatting; `locked`: someone else is editing, so it would wait for them), the line `before` and `after`, and what you may do (`can`).",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "PUT /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
+      "title": "Suggest an edit",
+      "group": "comments",
+      "description": "Suggests `text` to replace the quote of a thread anchored to selected text. Anyone who can comment; replaces your own open suggestion. Returns the thread.",
+      "mcp": "suggest_edit",
+      "example": { "text": "ship the redesigned editor" },
+      "responses": { "409": "Someone else's suggestion is open on this thread, or the thread is resolved.", "422": "The thread isn't on selected text." },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "DELETE /api/v1/documents/{slug}/comments/{thread_id}/suggestion": {
+      "title": "Withdraw or reject a suggested edit",
+      "group": "comments",
+      "description": "Its author withdraws an open suggestion, or someone who can edit the page rejects it. The page doesn't change. Returns the thread.",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/suggestion/accept": {
+      "title": "Accept a suggested edit",
+      "group": "comments",
+      "description": "For people who can edit the page. 200: the quote is replaced, saved as its own version in the page's history (`version_id`), and the thread resolves (`resolve: false` keeps it open). 202 (`offered: true`): someone else is editing the page, so the suggestion waits for them to apply it.",
+      "mcp": "accept_suggestion",
+      "example": { "resolve": true },
+      "responses": { "409": "The text it replaces changed (`suggestion_stale`), it crosses formatting (`suggestion_unappliable`), or nothing is open.", "423": "The page is locked, or the edit touches a signed-off section." },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/ai/apply": {
+      "title": "Draft a suggested edit with AI",
+      "group": "comments",
+      "description": "Apply with AI: replacement text for the thread's quote, drafted from the discussion. Nothing is saved; suggest it with PUT …/suggestion. Within fair-use limits (429 `ai_limit` when reached).",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/ai/ask": {
+      "title": "Ask Markdrop AI in a thread",
+      "group": "comments",
+      "description": "Posts your question (as \"@AI …\") and Markdrop AI's answer in the thread, for everyone in it. The answer uses the page, the thread and pages of its workspace that everyone who can see the thread can open. Writing @AI in a comment does the same.",
+      "example": { "question": "Which date did we agree on?" },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "GET /api/v1/documents/{slug}/comments/ai/status": {
+      "title": "Comment AI status",
+      "group": "comments",
+      "description": "Whether comment AI can run for you on this item right now, and why not (`reason`). Doesn't count as a request.",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/ai/summary": {
+      "title": "Summarize the discussion",
+      "group": "comments",
+      "description": "What the item's threads decided, what's still open and who they're waiting on (open threads and those resolved in the last 30 days), each line with its thread ids. Kept until the discussion changes (`cached`); `refresh: true` asks again.",
+      "mcp": "summarize_discussion",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/ai/tone": {
+      "title": "Check a comment's tone",
+      "group": "comments",
+      "description": "Whether a draft comment reads clear and kind, with a suggested `rewrite` when it doesn't. Only drafts that look harsh reach AI unless `force` is true.",
+      "example": { "body": "Can we move this to Tuesday?", "force": true },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/attachments": {
+      "title": "Upload a file for a comment",
+      "group": "comments",
+      "description": "A file for a comment you're writing (images, PDF, Word, Excel, PowerPoint, zip, text; up to 10 MB), as multipart `file`. Send its `id` in the comment's `attachments`. Anyone who can comment.",
+      "responses": { "415": "That kind of file can't go in a comment." },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/attachments/urls": {
+      "title": "Get links to files in comments",
+      "group": "comments",
+      "description": "Personal, expiring links to files in the item's comments, for people who can see its comments. Files of deleted comments aren't served.",
+      "example": { "ids": ["5f1c0e9a2b7d4c3e8f6a1b2c"] },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "DELETE /api/v1/documents/{slug}/comments/attachments/{attachment_id}": {
+      "title": "Remove a file from a draft comment",
+      "group": "comments",
+      "description": "Removes a file you uploaded before it's posted.",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+
     "GET /api/v1/documents/{slug}/signoffs": {
       "title": "List sign-offs",
       "group": "sign-off",
@@ -754,6 +837,7 @@
       "responses": {
         "403": "The block names someone else.",
         "404": "No such block on the page.",
+        "409": "Comment threads are still open on the page (`open_comments`): send `acknowledge_open_comments: true` to sign anyway.",
         "422": "The block doesn't offer that option."
       },
       "guide": { "label": "Sign-off", "href": "/pages/sign-off" }

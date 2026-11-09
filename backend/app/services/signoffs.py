@@ -496,10 +496,78 @@ def match_option(options: list[str], value: str) -> str | None:
     return None
 
 
+# ── Comments (services/comments): the sign-off guard ──────────────────────────
+#
+# Signing while comment threads are still open on the page is allowed, but never by surprise: the app asks
+# first (``open_comments`` 409 until the signer acknowledges them), MCP's sign_off says so in its answer.
+# Every sign-off records the discussion as it stood: how many threads were open and which were resolved.
+
+RECORD_RESOLVED = 20
+
+
+async def comment_state(db: AsyncIOMotorDatabase, raw: dict) -> dict:
+    """``{"open": n, "resolved": n, "open_threads": [{id, excerpt}] (≤ 5), "resolved_threads": [{id, excerpt,
+    resolved_by, resolved_at}] (≤ RECORD_RESOLVED)}`` — the page's comment threads now."""
+    from app.services.comments import model as cmodel
+
+    doc_id = str(raw["_id"])
+    out = {"open": 0, "resolved": 0, "open_threads": [], "resolved_threads": []}
+    try:
+        q = {"doc_id": doc_id, "deleted_at": None}
+        out["open"] = await db[cmodel.THREADS].count_documents({**q, "status": "open"})
+        out["resolved"] = await db[cmodel.THREADS].count_documents({**q, "status": "resolved"})
+        if out["open"]:
+            rows = await db[cmodel.THREADS].find({**q, "status": "open"}, {"anchor": 1, "original": 1}).sort(
+                "created_at", 1).to_list(length=5)
+            out["open_threads"] = [{"id": str(r["_id"]), "excerpt": _thread_excerpt(r)} for r in rows]
+        if out["resolved"]:
+            rows = await db[cmodel.THREADS].find({**q, "status": "resolved"},
+                                                 {"anchor": 1, "original": 1, "resolved_by": 1, "resolved_at": 1}).sort(
+                "resolved_at", -1).to_list(length=RECORD_RESOLVED)
+            names = await _people(db, {r.get("resolved_by") for r in rows if r.get("resolved_by")})
+            out["resolved_threads"] = [{"id": str(r["_id"]), "excerpt": _thread_excerpt(r),
+                                        "resolved_by": (names.get(r.get("resolved_by") or "") or {}).get("name"),
+                                        "resolved_at": r.get("resolved_at")} for r in rows]
+    except Exception:
+        log.warning("sign-off: reading the comment threads failed", exc_info=True)
+    return out
+
+
+def _thread_excerpt(row: dict) -> str:
+    a = row.get("anchor") or {}
+    t = (a.get("quote") or {}).get("exact") or a.get("block_text") or (row.get("original") or {}).get("exact") or ""
+    t = " ".join(str(t).split())
+    return (t[:77] + "…") if len(t) > 80 else (t or "The page")
+
+
+def open_comments_error(state: dict) -> HTTPException:
+    from app.services.pages import PageError
+
+    n = state["open"]
+    return PageError(409, {"detail": f"{n} comment thread{'s are' if n != 1 else ' is'} still open on this page. "
+                                     "Sign off anyway, or resolve them first.",
+                           "code": "open_comments", "open": n, "threads": state["open_threads"]})
+
+
+def _comments_note(state: dict | None) -> str:
+    if not state or not (state.get("open") or state.get("resolved")):
+        return ""
+    bits = []
+    if state.get("resolved"):
+        bits.append(f"{state['resolved']} comment thread{'s' if state['resolved'] != 1 else ''} resolved")
+    if state.get("open"):
+        bits.append(f"{state['open']} still open")
+    return " (" + ", ".join(bits) + ")"
+
+
 async def sign(db: AsyncIOMotorDatabase, raw: dict | None, block_ref: str, option: str | None, actor, ctx, *,
-               via: str = "app") -> dict:
+               via: str = "app", open_comments_ok: bool | None = None) -> dict:
     """The named person chooses ``option`` (None clears their decision).
-    Returns the block as this person sees it now."""
+    Returns the block as this person sees it now.
+
+    ``open_comments_ok`` False (the app until the signer confirms): signing (not clearing) while comment
+    threads are open on the page is refused with 409 ``open_comments`` (how many, which). None: not asked
+    (MCP: its answer says so instead). Every sign-off records the threads (open count, resolved ones)."""
     from app.services import access, live, pages
 
     await access.require(actor, raw, "read", ctx)
@@ -530,16 +598,24 @@ async def sign(db: AsyncIOMotorDatabase, raw: dict | None, block_ref: str, optio
         if prev_row is None and chosen is None:
             return await entry(db, raw, b, actor, ctx)
         action = "cleared" if chosen is None else ("signed" if prev is None else "changed")
+        cstate = await comment_state(db, raw) if chosen is not None else None
+        if cstate is not None and cstate["open"] and open_comments_ok is False:
+            raise open_comments_error(cstate)
         name = _actor_name(actor)
         at = now_utc()
         hist = {"action": action, "option": chosen, "was": prev, "by_id": actor.user_id, "by_name": name,
                 "at": at, "via": via, "label": b.label}
+        record = None
+        if cstate is not None:
+            record = {"open": cstate["open"], "resolved": cstate["resolved"],
+                      "open_threads": cstate["open_threads"], "resolved_threads": cstate["resolved_threads"], "at": at}
+            hist["comments"] = {"open": cstate["open"], "resolved": cstate["resolved"]}
         sets: dict[str, Any] = {"person_id": b.person, "option": chosen, "label": b.label, "options": b.options,
                                 "removed": None, "updated_at": at, "via": via}
         if chosen is not None:
-            sets.update(signer_id=actor.user_id, signer_name=name, signed_at=at)
+            sets.update(signer_id=actor.user_id, signer_name=name, signed_at=at, comments=record)
         else:
-            sets.update(signer_id=None, signer_name=None, signed_at=None)
+            sets.update(signer_id=None, signer_name=None, signed_at=None, comments=None)
         filt: dict[str, Any] = {"doc_id": doc_id, "block_id": b.id}
         if prev_row is not None:
             filt["_id"] = prev_row["_id"]
@@ -567,7 +643,8 @@ async def sign(db: AsyncIOMotorDatabase, raw: dict | None, block_ref: str, optio
                 await db[COLL].replace_one({"_id": res["_id"]}, prev_row)
             raw = await db["documents"].find_one({"_id": raw["_id"]}) or raw
             continue
-        await _history_event(db, claimed, actor, _event_text(action, name, chosen, b.label, was=prev),
+        await _history_event(db, claimed, actor, _event_text(action, name, chosen, b.label, was=prev)
+                             + _comments_note(cstate),
                              {"type": "signoff", "action": action, "block": b.id, "label": b.label,
                               "option": chosen, "was": prev})
         live.notify(claimed.get("slug"), {"type": "signoff", "block": b.id})
@@ -617,7 +694,27 @@ async def _people(db: AsyncIOMotorDatabase, ids: set[str]) -> dict[str, dict]:
     return await page_history._people(db, {i for i in ids if i})
 
 
-async def _view(b: Block, row: dict | None, people: dict, names: bool, actor, may_remove: bool) -> dict:
+def _comments_view(row: dict | None, signed: bool, names: bool, open_now: int | None) -> dict | None:
+    """What the sign-off recorded about the page's comment threads, and how many are open now (for people
+    who can see the comments)."""
+    if open_now is None:
+        return None
+    rec = (row or {}).get("comments") if signed else None
+    out: dict[str, Any] = {"open_now": open_now, "record": None}
+    if isinstance(rec, dict):
+        out["record"] = {
+            "open": int(rec.get("open") or 0), "resolved": int(rec.get("resolved") or 0),
+            "resolved_threads": [{"id": t.get("id"), "excerpt": t.get("excerpt"),
+                                  "resolved_by": t.get("resolved_by") if names else None,
+                                  "resolved_at": _iso(t.get("resolved_at"))}
+                                 for t in (rec.get("resolved_threads") or [])[:RECORD_RESOLVED]],
+            "open_threads": [{"id": t.get("id"), "excerpt": t.get("excerpt")} for t in (rec.get("open_threads") or [])[:5]],
+        }
+    return out
+
+
+async def _view(b: Block, row: dict | None, people: dict, names: bool, actor, may_remove: bool,
+                open_now: int | None = None) -> dict:
     signed = bool(row) and row.get("option") is not None and not row.get("removed") \
         and row.get("person_id") == b.person
     who = people.get(b.person or "") or {}
@@ -640,6 +737,7 @@ async def _view(b: Block, row: dict | None, people: dict, names: bool, actor, ma
         "can_sign": bool(me) and me == b.person and getattr(actor, "cred", None) != "tenant",
         "can_remove": signed and may_remove,
         "history": hist,
+        "comments": _comments_view(row, signed, names, open_now),
     }
 
 
@@ -666,7 +764,17 @@ async def listing(db: AsyncIOMotorDatabase, raw: dict, actor, ctx, *, only: str 
     may_remove = False
     if any(r.get("option") is not None and not r.get("removed") for r in rows.values()):
         may_remove = await is_admin(actor, raw, ctx) and (await access.can(actor, raw, "edit_content", ctx)).allowed
-    return [await _view(b, rows.get(b.id), people, names, actor, may_remove) for b in blocks]
+    # The comment threads (services/comments): only for someone who may see the comments.
+    open_now = None
+    if ctx is not None:
+        try:
+            from app.services.comments import perms as comment_perms
+
+            if (await comment_perms.perms_for(db, actor, raw, ctx)).view:
+                open_now = int(((raw.get("comment_counts") or {}).get("open")) or 0)
+        except Exception:
+            open_now = None
+    return [await _view(b, rows.get(b.id), people, names, actor, may_remove, open_now) for b in blocks]
 
 
 async def ensure_indexes(db: AsyncIOMotorDatabase) -> None:

@@ -702,6 +702,67 @@ if os.environ.get("PB_FAKE_TEAM_AI"):
                                                      "email": u["email"], "name": u.get("name")}}, upsert=True)
         return {"ok": True}
 
+# Comments AI (services/comments/ai.py) against a fake model: PB_FAKE_COMMENTS_AI=1 (comments-review.mjs).
+# Apply with AI rewrites the passage ("… (revised)", or the words the thread asks for in quotes); a summary
+# names every thread it was sent; @AI answers from the page's first line and cites it; the tone check
+# offers a fixed kinder rewrite. Streams like the real API; nothing leaves the machine.
+if os.environ.get("PB_FAKE_COMMENTS_AI"):
+    import asyncio as _caio
+    import json as _cjson
+    import re as _cre
+    from types import SimpleNamespace as _CNS
+
+    from app.services.comments import ai as _comments_ai
+
+    class _CStream:
+        def __init__(self, text: str):
+            self.text = text
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        def __aiter__(self):
+            return self._gen()
+
+        async def _gen(self):
+            for i in range(0, len(self.text), 12):
+                await _caio.sleep(0.01)
+                yield _CNS(type="text", text=self.text[i:i + 12])
+
+        async def get_final_message(self):
+            return _CNS(content=[_CNS(type="text", text=self.text)], stop_reason="end_turn",
+                        usage=_CNS(input_tokens=1500, output_tokens=len(self.text) // 4 + 5, cache_read_input_tokens=0,
+                                   cache_creation_input_tokens=0, cache_creation=None))
+
+    class _CMessages:
+        def stream(self, **params):
+            system = params["system"][0]["text"]
+            user = "\n".join(b["text"] for b in params["messages"][-1]["content"])
+            if system.startswith("You edit one passage"):
+                passage = _cre.search(r"<untrusted_passage>\n(.*?)\n</untrusted_passage>", user, _cre.S)
+                asked = _cre.search(r"[\"“]([^\"”]{2,80})[\"”]", user.split("<untrusted_thread>", 1)[-1])
+                text = asked.group(1) if asked else f"{passage.group(1) if passage else 'this'} (revised)"
+                return _CStream(_cjson.dumps({"replacement": text, "note": "Reworded as the thread asks."}))
+            if system.startswith("You summarise the comment threads"):
+                ns = [int(n) for n in _cre.findall(r"^Thread (\d+) ·", user, _cre.M)]
+                return _CStream(_cjson.dumps({
+                    "decided": [{"text": f"Settled in {len(ns)} thread(s)", "threads": ns[:1]}],
+                    "open": [{"text": "Wording still being discussed", "threads": ns[1:2] or ns[:1]}],
+                    "waiting": [{"person": "Ada Owner", "text": "to accept the edit", "threads": ns[:1]}]}))
+            if system.startswith("You are Markdrop AI"):
+                doc = _cre.search(r'<untrusted_document n="1"[^>]*>\n(.*?)\n', user)
+                return _CStream(f"From the page: {(doc.group(1) if doc else 'nothing')[:80]} [1].")
+            if system.startswith("You check a comment"):
+                return _CStream(_cjson.dumps({"ok": False, "issues": ["harsh wording"],
+                                              "rewrite": "Could we take another look at this part?"}))
+            return _CStream("{}")
+
+    _cclient = _CNS(messages=_CMessages())
+    _comments_ai.docs_agent = _CNS(get_client=lambda: _cclient, configured=lambda: True)
+
 # Jira Cloud against a fake Atlassian (PB_FAKE_JIRA=1, jira.mjs): backend/tests/_jira_fake.FakeJira answers
 # OAuth (codes "code-acc-<name>") and Jira REST in process. Accounts: Ada, Ben and Wes see every project;
 # Vic sees only WEB (so a PAY chip stays a bare key for him). The browser's trips to auth.jira.test are

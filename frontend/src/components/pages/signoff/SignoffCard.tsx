@@ -10,6 +10,7 @@
  */
 import { useState, type ReactNode } from "react";
 import { Avatar, Icon } from "@/components/ui";
+import { PagesApiError } from "@/lib/pages";
 import type { SignoffInfo } from "@/lib/signoff.mjs";
 import { tone as toneOf } from "@/lib/signoff.mjs";
 import type { SignoffState } from "@/lib/signoffs";
@@ -24,7 +25,8 @@ export interface SignoffCardProps {
   /** The state is still loading (the buttons wait). */
   loading?: boolean;
   /** The viewer's decision (`null` clears it). Without it, nobody can choose here. */
-  onSign?: (option: string | null) => Promise<void>;
+  /** ``acknowledgeOpenComments``: the person confirmed signing while comment threads are still open. */
+  onSign?: (option: string | null, acknowledgeOpenComments?: boolean) => Promise<void>;
   /** Editor: the label as an input instead of text. */
   labelSlot?: ReactNode;
   /** Editor: the person picker instead of "Waiting for …". */
@@ -63,19 +65,33 @@ export function SignoffCard({ info, state, person, loading, onSign, labelSlot, p
   const signer = state?.signed_by?.name || who;
   const options = state?.options?.length ? state.options : info.options;
 
-  async function choose(o: string | null) {
+  // The sign-off guard: comment threads still open on the page are named first (the server checks too).
+  const [confirm, setConfirm] = useState<{ option: string; open: number } | null>(null);
+  const openNow = state?.comments?.open_now ?? 0;
+
+  async function choose(o: string | null, ack = false) {
     if (!onSign) return;
+    if (o !== null && !ack && openNow > 0) {
+      setConfirm({ option: o, open: openNow });
+      return;
+    }
     setBusy(o ?? "__clear");
     setError(null);
     try {
-      await onSign(o);
+      await onSign(o, ack);
       setChanging(false);
+      setConfirm(null);
     } catch (e) {
-      setError(e instanceof Error && e.message ? e.message : "That didn't work. Try again.");
+      if (o !== null && e instanceof PagesApiError && e.info?.code === "open_comments") {
+        setConfirm({ option: o, open: Number(e.info.open) || 1 });
+      } else {
+        setError(e instanceof Error && e.message ? e.message : "That didn't work. Try again.");
+      }
     } finally {
       setBusy(null);
     }
   }
+  const record = signed ? state?.comments?.record : null;
 
   const buttons = (
     <div className="pb-signoff__options" role="group" aria-label={`Sign off: ${info.label}`}>
@@ -181,6 +197,29 @@ export function SignoffCard({ info, state, person, loading, onSign, labelSlot, p
       </div>
       {canSign && signed && changing && <div className="pb-signoff__change" {...ce}>{buttons}</div>}
 
+      {confirm && (
+        <div className="pb-signoff__confirm" role="alertdialog" aria-label="Open comments" {...ce}>
+          <Icon name="message" size={14} aria-hidden />
+          <span>
+            {confirm.open} comment thread{confirm.open === 1 ? " is" : "s are"} still open on this page.
+          </span>
+          <button type="button" className="pb-signoff__link" disabled={!!busy} onClick={() => void choose(confirm.option, true)}>
+            {busy ? "Signing…" : `Sign off anyway: ${confirm.option}`}
+          </button>
+          <button type="button" className="pb-signoff__link" disabled={!!busy} onClick={() => setConfirm(null)}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {record && (record.resolved > 0 || record.open > 0) && (
+        <p className="pb-signoff__comments" {...ce}>
+          <Icon name="message" size={12} aria-hidden />
+          <span>
+            Signed with {record.resolved} comment thread{record.resolved === 1 ? "" : "s"} resolved
+            {record.open > 0 ? ` and ${record.open} still open` : ""}.
+          </span>
+        </p>
+      )}
       {error && (
         <p className="pb-signoff__error" role="alert" {...ce}>
           <Icon name="alertCircle" size={14} aria-hidden /> {error}

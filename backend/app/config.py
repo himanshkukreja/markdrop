@@ -670,6 +670,12 @@ class Settings(BaseSettings):
     jira_ai_enabled: bool = True
     jira_ai_daily_usd: float = 1.0
     jira_ai_monthly_usd: float = 10.0
+    # Comments AI (services/comments/ai.py, ledger feature "comments_ai"): Apply with AI, Summarize
+    # discussion, @AI in a thread and the composer's tone check (owner decision 2026-11-09: $2 a day,
+    # $20 a month; the admin AI tab overrides them). Never shown to users ("fair-use limits").
+    comments_ai_enabled: bool = True
+    comments_ai_daily_usd: float = 2.0
+    comments_ai_monthly_usd: float = 20.0
 
     # ── Push notifications (Web Push: services/webpush.py, services/push.py) ──
     # The server's VAPID key pair (RFC 8292). Generate one with

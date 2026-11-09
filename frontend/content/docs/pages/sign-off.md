@@ -3,7 +3,7 @@ title: Sign-off
 description: Ask one person to approve part of a page. Only they can sign, the decision is recorded with their name and time, and the section can lock.
 updated: 2026-11-04
 prerequisites: [/pages/overview]
-keywords: [sign-off, signoff, sign off, approval, approve, approver, release approval, decision, lock, locked section, audit, history, list_signoffs, sign_off, mcp]
+keywords: [sign-off, signoff, sign off, open comments, approval, approve, approver, release approval, decision, lock, locked section, audit, history, list_signoffs, sign_off, mcp]
 ---
 
 A sign-off block asks one named person to approve something on a page: a release, a spec, a legal review. Only that person can choose an option. Markdrop records the decision, who made it and when, and shows it to everyone who can read the page. Once it's signed, nobody can change the block, and it can also lock the section above it.
@@ -27,6 +27,8 @@ The person named sees the options as buttons on the block. Everyone else sees **
 Choose an option to sign. The block then shows the decision in its colour (green for an approval, red for a refusal, amber for something in between), the signer's name and the time. The page's [version history](/pages/history) gets an entry such as **Signed off by Riya: Approved for production**.
 
 The signer can choose **Change decision** to pick another option, or **Clear my decision** to withdraw it. Every change is kept.
+
+If [comment](/pages/comments) threads are still open on the page when you sign, the block says how many first and asks you to confirm: **Sign off anyway**, or **Cancel** and resolve them. Every sign-off records the discussion as it stood: how many threads were resolved and how many were still open (the block shows it, and so does the version history entry). From an AI app, `sign_off` signs and says in its answer when threads were open.
 
 Nobody else can sign for them: not the page's owner, not a workspace admin, and not an AI app acting for someone else. The decision is stored by Markdrop, never in the page's Markdown, so editing the Markdown can't fake one.
 
