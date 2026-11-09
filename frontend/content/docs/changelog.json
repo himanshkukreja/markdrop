@@ -24,6 +24,21 @@
   "next": [],
   "entries": [
     {
+      "id": "steadier-api-nov-9",
+      "date": "2026-11-09",
+      "title": "Steadier under load",
+      "kind": "fixed",
+      "area": "Reliability",
+      "products": [
+        "web",
+        "api",
+        "mcp"
+      ],
+      "summary": "Markdrop's API could slow down and restart after a few hours of use. It now keeps its memory in check, and background work no longer competes with the pages you open.",
+      "body": "- **No more slowdowns that built up over the day.** Memory the API held on to after a request or a background job is now let go, so pages, files and the MCP server stay fast instead of slowing down until a restart.\n- **Background work runs on its own.** Meeting imports, Team, search indexing and email run beside the API rather than inside it, so opening a page never waits behind them.\n- **Open pages still update live.** A change made by background work (a meeting page filled in, a to-do ticked from Jira) still reaches the tabs that have the page open.",
+      "docs": []
+    },
+    {
       "id": "ai-and-your-data",
       "date": "2026-11-07",
       "title": "AI and your data, in one place",

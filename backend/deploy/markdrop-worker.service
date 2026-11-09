@@ -1,0 +1,36 @@
+# The Markdrop API's background loops in their own process (app/worker.py).
+#
+# Install (once, on the API host), with the API switched to MARKDROP_ROLE=web:
+#   sudo cp /opt/markdrop/backend/deploy/markdrop-worker.service /etc/systemd/system/
+#   sudo mkdir -p /etc/systemd/system/markdrop.service.d
+#   printf '[Service]\nEnvironment=MARKDROP_ROLE=web\n' | sudo tee /etc/systemd/system/markdrop.service.d/role.conf
+#   sudo systemctl daemon-reload && sudo systemctl enable --now markdrop-worker && sudo systemctl restart markdrop
+# Roll back: sudo systemctl disable --now markdrop-worker && sudo rm /etc/systemd/system/markdrop.service.d/role.conf
+#            && sudo systemctl daemon-reload && sudo systemctl restart markdrop   (role "all": loops back in the API)
+#
+# backend/deploy.sh restarts it with the API when it is installed. Logs: journalctl -u markdrop-worker.
+[Unit]
+Description=Markdrop background loops (MARKDROP_ROLE=worker)
+After=network-online.target redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/markdrop/backend
+# The environment (.env in WorkingDirectory) is the API's; only the role differs.
+Environment=MARKDROP_ROLE=worker
+Environment=PYTHONUNBUFFERED=1
+Environment=MALLOC_ARENA_MAX=2
+Environment=MALLOC_TRIM_THRESHOLD_=131072
+ExecStart=/opt/markdrop/backend/.venv/bin/python -m app.worker
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+MemoryHigh=500M
+MemoryMax=700M
+MemorySwapMax=256M
+
+[Install]
+WantedBy=multi-user.target

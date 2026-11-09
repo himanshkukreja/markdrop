@@ -40,6 +40,14 @@ from pymongo.errors import DuplicateKeyError
 from app.config import get_settings
 
 log = logging.getLogger("markdrop.memory")
+# The API configures no logging (uvicorn only sets up its own loggers, so an app logger's INFO is
+# dropped): this one writes to stderr itself, so the 5-minute RSS line reaches journalctl.
+if not log.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    log.addHandler(_h)
+    log.setLevel(logging.INFO)
+    log.propagate = False
 settings = get_settings()
 
 COLL = "ops_memory"          # one sample per process per EVERY_S, kept KEEP
