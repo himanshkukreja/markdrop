@@ -494,16 +494,21 @@ function ContinueCard({ it }: { it: PersonalItem }) {
 type TodayRow =
   | { k: "meeting"; m: HomeMeeting }
   | { k: "note"; n: AppNotification }
-  | { k: "request"; r: HomeData["attention"]["requests"][number] };
+  | { k: "request"; r: HomeData["attention"]["requests"][number] }
+  | { k: "comment"; c: import("@/lib/comments").MyThread };
 
 function TodaySection({ data, meetings, today, compact }: { data: HomeData | null; meetings: HomeMeeting[]; today: string; compact?: boolean }) {
   const router = useRouter();
   const toast = useToast();
   const [all, setAll] = useState(false);
+  // Comment threads waiting on you (one row each); their unread notifications aren't listed twice.
+  const waiting = data?.comments?.waiting ?? [];
+  const waitingIds = new Set(waiting.map((c) => c.thread_id));
   const rows: TodayRow[] = data ? [
     ...meetings.map((m) => ({ k: "meeting" as const, m })),
     ...data.attention.requests.map((r) => ({ k: "request" as const, r })),
-    ...data.attention.notifications.map((n) => ({ k: "note" as const, n })),
+    ...waiting.map((c) => ({ k: "comment" as const, c })),
+    ...data.attention.notifications.filter((n) => !(n.thread_id && waitingIds.has(n.thread_id))).map((n) => ({ k: "note" as const, n })),
   ] : [];
   const shown = all ? rows : rows.slice(0, TODAY_SHOWN);
   const more = rows.length - shown.length;
@@ -561,6 +566,21 @@ function TodaySection({ data, meetings, today, compact }: { data: HomeData | nul
                   </li>
                 );
               }
+              if (row.k === "comment") {
+                const c = row.c;
+                const why = c.waiting_reason === "assigned" ? "Assigned to you" : c.waiting_reason === "mentioned" ? "Mentions you" : "New reply";
+                return (
+                  <li key={`c${c.thread_id}`}>
+                    <Anchor href={c.href} className="hm-row md-focus" data-testid="home-comment-waiting">
+                      <span className="hm-row__lead" aria-hidden><Icon name="message" size={16} /></span>
+                      <span className="hm-row__main">
+                        <span className="hm-row__title ph-sensitive" dir="auto">{c.last ? `${c.last.author.name}: ${c.last.body_excerpt}` : c.excerpt ?? "Comment"}</span>
+                        <span className="hm-row__meta">{why} · <span className="ph-sensitive">{c.title}</span>{c.last?.at ? ` · ${relativeTime(c.last.at)}` : ""}</span>
+                      </span>
+                    </Anchor>
+                  </li>
+                );
+              }
               const n = row.n;
               return (
                 <li key={`n${n.id}`}>
@@ -568,7 +588,7 @@ function TodaySection({ data, meetings, today, compact }: { data: HomeData | nul
                     <Avatar name={n.actor.name} src={n.actor.picture ?? undefined} size="sm" className="hm-row__avatar" />
                     <span className="hm-row__main">
                       <span className="hm-row__title ph-sensitive" dir="auto">{n.text}</span>
-                      <span className="hm-row__meta">{n.kind === "signoff_requested" ? "Sign-off request" : n.kind === "shared" ? "Shared with you" : "Mention"} · {relativeTime(n.created_at)}</span>
+                      <span className="hm-row__meta">{n.kind === "signoff_requested" ? "Sign-off request" : n.kind === "shared" ? "Shared with you" : n.kind.startsWith("comment_") ? "Comment" : "Mention"} · {relativeTime(n.created_at)}</span>
                     </span>
                   </button>
                 </li>
@@ -593,9 +613,38 @@ function ActionsSection({ data, onTicked, onUndone, toast, compact }: {
   const items = data?.actions.items ?? [];
   const shown = all ? items : items.slice(0, ACTIONS_SHOWN);
   const more = items.length - shown.length;
-  const key = (a: HomeAction) => `${a.slug}#${a.block ?? a.text}`;
+  const key = (a: HomeAction) => (a.kind === "comment" ? `c:${a.thread_id}` : `${a.slug}#${a.block ?? a.text}`);
+
+  // A comment thread assigned to you: ticking resolves it (Undo reopens).
+  const tickComment = async (a: HomeAction) => {
+    const k = key(a);
+    setBusy(k);
+    try {
+      const { resolveThread, reopenThread } = await import("@/lib/comments");
+      await resolveThread(a.slug, a.thread_id!);
+      setDone((s) => new Set(s).add(k));
+      track("home_action", { what: "resolve_comment" });
+      toast.toast({
+        message: "Resolved", kind: "success",
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void reopenThread(a.slug, a.thread_id!)
+              .then(() => { setDone((s) => { const n = new Set(s); n.delete(k); return n; }); onUndone(); })
+              .catch((e) => toast.error(e instanceof Error ? e.message : "Couldn't undo that."));
+          },
+        },
+      });
+      window.setTimeout(() => onTicked(a), 700);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't resolve it. Try again.");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const tick = async (a: HomeAction) => {
+    if (a.kind === "comment") return tickComment(a);
     if (!a.block) return;
     const k = key(a);
     setBusy(k);
@@ -647,6 +696,7 @@ function ActionsSection({ data, onTicked, onUndone, toast, compact }: {
                     <span className="hm-row__meta">
                       <span className="hm-todo__src">
                         {a.meeting && <Icon name="mic" size={12} className="hm-todo__mic" />}
+                        {a.kind === "comment" && <Icon name="message" size={12} className="hm-todo__mic" />}
                         <span className="truncate ph-sensitive" dir="auto">{a.title}</span>
                       </span>
                       {a.workspace?.name && <><span aria-hidden>·</span><span className="truncate ph-sensitive ph-mask">{a.workspace.name}</span></>}

@@ -181,7 +181,7 @@ def _ids_in(thread: dict, messages: list[dict]) -> set[str]:
 def _thread_out(thread: dict, messages: list[dict], pm: dict, viewer: str | None, p: CommentPerms) -> dict:
     author = thread.get("created_by") or None
     mine = bool(viewer) and author == viewer
-    can_resolve = bool(p.comment and (p.resolve_any or mine))
+    can_resolve = bool(p.comment and (p.resolve_any or mine or (bool(viewer) and thread.get("assignee") == viewer)))
     s = thread.get("suggestion")
     sugg = None
     if s:
@@ -671,6 +671,13 @@ async def update_settings(db, actor, raw, ctx, *, enabled: bool | None = None, p
         sets["comments_public"] = bool(public)
     if sets:
         await db["documents"].update_one({"_id": raw["_id"]}, {"$set": sets})
+        # The server-rendered page carries the comments switches: cached renders go.
+        try:
+            from app.services import revalidate
+
+            await revalidate.purge_doc(db, {**raw, **sets})
+        except Exception:
+            log.exception("comments: purging the page after a settings change failed")
         was_public = raw.get("comments_public") is True
         raw = {**raw, **sets}
         bumped = await _bump(db, raw)

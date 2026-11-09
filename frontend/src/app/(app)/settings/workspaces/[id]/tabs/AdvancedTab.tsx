@@ -20,12 +20,12 @@ import { AccessSyncNote, Locked, lockProps, lockSelectProps, type WsTabProps } f
 export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: WsTabProps) {
   const toast = useToast();
   const router = useRouter();
-  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers" | "team" | "tz">("");
+  const [saving, setSaving] = useState<"" | "default" | "share" | "auth" | "ai" | "covers" | "comments" | "team" | "tz">("");
   const [confirm, setConfirm] = useState<"leave" | "delete" | null>(null);
   const team = teamName(ws);
   const current: ItemAccess = ws.settings.default_access ?? ws.default_access ?? "workspace";
 
-  async function save(key: "default" | "share" | "auth" | "ai" | "covers" | "team" | "tz", patch: Partial<WorkspaceSettings>, done: string) {
+  async function save(key: "default" | "share" | "auth" | "ai" | "covers" | "comments" | "team" | "tz", patch: Partial<WorkspaceSettings>, done: string) {
     if (!isAdmin) return;
     setSaving(key);
     try {
@@ -102,6 +102,19 @@ export default function AdvancedTab({ id, ws, isOwner, isAdmin, meId, setWs }: W
               disabled={saving === "ai"}
               locked={!isAdmin}
               onChange={(on) => void save("ai", { ai_enabled: on }, on ? "AI features are on for this workspace." : "AI features are off for this workspace.")}
+            />
+          </div>
+        </Locked>
+        <Locked locked={!isAdmin}>
+          <div>
+            <SwitchRow
+              id="ws-comments"
+              label="Comments"
+              hint={<>People who can open a page or document here can comment on any part of it, reply, and resolve threads. Owners can still turn comments off for one item. <ReadMore topic="comments" /></>}
+              checked={ws.settings.comments_enabled !== false}
+              disabled={saving === "comments"}
+              locked={!isAdmin}
+              onChange={(on) => void save("comments", { comments_enabled: on }, on ? "Comments are on for this workspace." : "Comments are off for this workspace.")}
             />
           </div>
         </Locked>

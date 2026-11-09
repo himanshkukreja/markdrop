@@ -8,6 +8,7 @@
     { "id": "page-ai", "title": "Page AI", "tags": ["page-ai"] },
     { "id": "properties", "title": "Properties and views", "tags": ["page properties"] },
     { "id": "sign-off", "title": "Sign-off", "tags": [] },
+    { "id": "comments", "title": "Comments", "tags": ["comments"] },
     { "id": "files", "title": "Files", "tags": ["files", "artifacts"] },
     { "id": "trash", "title": "Trash", "tags": ["trash"] },
     { "id": "access", "title": "Sharing and access", "tags": ["access"] },
@@ -637,6 +638,106 @@
       "guide": { "label": "Properties and views", "href": "/pages/properties-and-views" }
     },
 
+    "GET /api/v1/documents/{slug}/comments": {
+      "title": "List comments",
+      "group": "comments",
+      "description": "The comment threads on a page or markdown document you can read, with their messages, what each points at (`anchor`: quoted text, a block or the page; `anchor_status` is `changed` when the text was edited away, with `original`), and what you may do (`can`). Signed in, or anyone when the owner shows comments publicly. `status` filters open or resolved; `mine` keeps threads you're in.",
+      "mcp": "list_comments",
+      "responses": {
+        "401": "Sign in to see comments (code `signin`).",
+        "403": "Comments are off for this item (code `comments_off`).",
+        "404": "No such document, or it can't have comments (code `comments_unavailable`: encrypted, a file, or no owner)."
+      },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments": {
+      "title": "Start a thread",
+      "group": "comments",
+      "description": "Comments on quoted text (`anchor.type: text` with `quote.exact` and the characters around it), a whole block (`block`, by `block_id` or `block_text`) or the page (`page`). `mentions` are user ids of people who can open it; `assignee` makes it a task. The page's text never changes.",
+      "mcp": "add_comment",
+      "example": { "anchor": { "type": "text", "quote": { "exact": "ship on Monday", "prefix": "We will ", "suffix": " after review" } }, "body": "Is Monday realistic?", "mentions": [] },
+      "responses": {
+        "422": "The quoted text or block isn't on the page (code `anchor_not_found`), or the comment is empty or too long."
+      },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "GET /api/v1/documents/{slug}/comments/people": {
+      "title": "People to mention",
+      "group": "comments",
+      "description": "Who a comment can @mention: the item's owner, its workspace's members, the people it's shared with and those already in its threads, each with `has_access`. An email address of someone who can't open it answers `invite` (with whether you may share it with them); it never says whether that address has an account. Emails show only to people with a relationship to the item.",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "PUT /api/v1/documents/{slug}/comments/settings": {
+      "title": "Comment settings",
+      "group": "comments",
+      "description": "The owner's switches: `enabled` (comments on or off for this item) and `public` (show comments to readers who aren't signed in).",
+      "mcp": "set_comment_settings",
+      "example": { "public": true },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "GET /api/v1/documents/{slug}/comments/{thread_id}": {
+      "title": "Get a thread",
+      "group": "comments",
+      "description": "One thread with every message.",
+      "mcp": "get_thread",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/replies": {
+      "title": "Reply",
+      "group": "comments",
+      "description": "Adds a reply. Replying to a resolved thread opens it again. Everyone in the thread and the people in `mentions` are notified.",
+      "mcp": "reply_comment",
+      "example": { "body": "Yes, the build is green.", "mentions": [] },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "PATCH /api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}": {
+      "title": "Edit a comment",
+      "group": "comments",
+      "description": "Changes your own comment's text (and its mentions; people newly mentioned are notified).",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "DELETE /api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}": {
+      "title": "Delete a comment",
+      "group": "comments",
+      "description": "Deletes your own comment; the item's owner and workspace admins may delete anyone's. A thread whose every comment is deleted goes too.",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/messages/{message_id}/reactions": {
+      "title": "React",
+      "group": "comments",
+      "description": "Toggles your emoji reaction on a comment (`on` sets it either way).",
+      "mcp": "react_comment",
+      "example": { "emoji": "👍" },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/resolve": {
+      "title": "Resolve a thread",
+      "group": "comments",
+      "description": "Marks a thread resolved, keeping its history. The person who started it, its assignee and anyone who can edit the item may.",
+      "mcp": "resolve_comment",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "POST /api/v1/documents/{slug}/comments/{thread_id}/reopen": {
+      "title": "Reopen a thread",
+      "group": "comments",
+      "description": "Opens a resolved thread again.",
+      "mcp": "reopen_comment",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "PUT /api/v1/documents/{slug}/comments/{thread_id}/assignee": {
+      "title": "Assign a thread",
+      "group": "comments",
+      "description": "Assigns a thread to someone who can open the item, as a task on their home and the Team page; `user_id: null` clears it. Editors and the thread's author may.",
+      "mcp": "assign_thread",
+      "example": { "user_id": "665f1c2e9b1e8a0012345678" },
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
+    "GET /api/v1/comments/mine": {
+      "title": "Your comment threads",
+      "group": "comments",
+      "description": "Open threads across everything you can open: `waiting` (assigned to you, mentioning you in the latest message, or answered on yours), `assigned` or `mentions`.",
+      "guide": { "label": "Comments", "href": "/pages/comments" }
+    },
     "GET /api/v1/documents/{slug}/signoffs": {
       "title": "List sign-offs",
       "group": "sign-off",

@@ -38,7 +38,7 @@ export function pushPromptState(f: PushPromptFacts): "show" | "unsupported" | "u
 
 /** The bell's nudge is about what someone asked of you: a mention or a sign-off request in the list. */
 export function wantsBellNudge(kinds: readonly string[]): boolean {
-  return kinds.some((k) => k === "mention" || k === "signoff_requested");
+  return kinds.some((k) => k === "mention" || k === "signoff_requested" || k === "comment_mention");
 }
 
 type Store = Pick<Storage, "getItem" | "setItem"> | null | undefined;

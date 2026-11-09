@@ -97,6 +97,13 @@ export default function PersonView({ workspaceId, userId }: { workspaceId: strin
           <JiraPersonSection ws={workspaceId} userId={userId} onMode={(m) => setJiraOn(m !== "off")} />
           <Section title="Open action items" lines={p.action_items} ws={workspaceId} onChanged={load} testId="team-actions" />
           <Section title="Decisions they own" lines={p.decisions} ws={workspaceId} onChanged={load} />
+          {!!p.comment_tasks?.length && (
+            <section className="tm-sec" data-testid="team-comment-tasks">
+              <h2 className="tm-h2">Assigned comments</h2>
+              <ul className="tm-links">{p.comment_tasks.map((t) => (
+                <li key={t.thread_id}><Link href={t.href}><Icon name="message" /><span>{t.excerpt ? `“${t.excerpt}”` : t.title}</span></Link><span className="tm-muted">{t.title}</span></li>))}</ul>
+            </section>
+          )}
           {p.meetings.length > 0 && (
             <section className="tm-sec">
               <h2 className="tm-h2">Recent meetings</h2>

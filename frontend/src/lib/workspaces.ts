@@ -87,6 +87,8 @@ export interface WorkspaceSettings {
   ai_enabled?: boolean;
   /** Auto covers: new pages get a cover picked for what they're about. Absent on older backends (= true). */
   auto_covers?: boolean;
+  /** Comments on this workspace's pages and documents (default on). */
+  comments_enabled?: boolean;
   /** Team memory (Team board: who is doing what, from meetings and pages). Default off; admins turn it on. */
   team_memory?: boolean;
   /** IANA timezone for Team's weekly summary (Monday 9 am). Set from an admin's browser when Team memory is turned on. */

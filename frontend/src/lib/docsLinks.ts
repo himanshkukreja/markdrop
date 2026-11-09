@@ -23,6 +23,7 @@ export const DOCS_PAGES = {
   // Pages (the block editor)
   pagesOverview: "/pages/overview",
   pagesAi: "/pages/ai",
+  comments: "/pages/comments",
   autoCovers: "/pages/overview#automatic-covers",
   teamMemory: "/workspaces/team",
   meetingsAndTeam: "/workspaces/meetings-and-team",
