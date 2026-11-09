@@ -22,6 +22,8 @@
 #           --yes          don't ask before the cut-over / rollback
 #           --email ADDR   Let's Encrypt account e-mail for a fresh certificate (DR only)
 #           --tunnel-port N  local port for the database tunnel (default 27118)
+#           --aws-eip      (AWS) first give NEW an Elastic IP if it has none (ops/aws-eip.sh; keys from
+#                          backend/.env or the environment); NEW is then reached at that address
 # Env:      CF_API_TOKEN + CF_ZONE_ID → the DNS A record is switched through the Cloudflare API
 #           (token: Zone › DNS › Edit on markdrop.in); without them you are told what to change.
 #
@@ -34,10 +36,10 @@ KIT_SRC="$(cd "$HERE/../backend/deploy" && pwd)"
 DOMAIN="${MARKDROP_DOMAIN:-api.markdrop.in}"
 ZONE_NAME="${DOMAIN#*.}"
 
-MODE=prepare DRY=0 YES=0 ALLOW_DRIFT=0 PYTHON=auto REF="" TUNNEL_PORT=27118 EMAIL=""
+MODE=prepare DRY=0 YES=0 ALLOW_DRIFT=0 PYTHON=auto REF="" TUNNEL_PORT=27118 EMAIL="" AWS_EIP=0
 FROM="" FROM_KEY="" TO="" TO_KEY="" FROM_BACKUP="" ENV_FILE="" BACKUP_ENV="" GEOIP_CONF=""
 
-usage() { sed -n '3,33p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
+usage() { sed -n '3,35p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-1}"; }
 while [ $# -gt 0 ]; do
   case $1 in
     --from) FROM=$2; shift 2 ;;
@@ -56,6 +58,7 @@ while [ $# -gt 0 ]; do
     --python) PYTHON=$2; shift 2 ;;
     --tunnel-port) TUNNEL_PORT=$2; shift 2 ;;
     --allow-drift) ALLOW_DRIFT=1; shift ;;
+    --aws-eip) AWS_EIP=1; shift ;;
     --dry-run) DRY=1; shift ;;
     --yes|-y) YES=1; shift ;;
     -h|--help) usage 0 ;;
@@ -94,6 +97,24 @@ pipe_old() { ssh -i "$FROM_KEY" $SSH_OPTS "$FROM" "$@"; }      # remote command 
 # shellcheck disable=SC2086
 pipe_new() { ssh -i "$TO_KEY" $SSH_OPTS "$TO" "$@"; }
 
+host_of() { printf '%s' "${1#*@}"; }
+if [ "$AWS_EIP" = 1 ]; then  # before anything keyed on NEW's address
+  case $MODE in prepare|backup) ;; *) echo "--aws-eip goes with the prepare step (or --from-backup)"; exit 1 ;; esac
+  printf '\n▶ Elastic IP for NEW (%s)\n' "$(host_of "$TO")"
+  eip_args=("$(host_of "$TO")"); [ "$DRY" = 1 ] && eip_args+=(--dry-run)
+  eip_out=$("$HERE/aws-eip.sh" "${eip_args[@]}") || { printf '%s\n' "${eip_out:-}"; exit 1; }
+  printf '%s\n' "$eip_out" | grep -v '^EIP '
+  eip=$(printf '%s\n' "$eip_out" | sed -n 's/^EIP //p' | tail -1)
+  [ -n "$eip" ] || { echo "  ✗ could not learn NEW's Elastic IP"; exit 1; }
+  if [ "$eip" != "$(host_of "$TO")" ]; then
+    TO="${TO%@*}@$eip"
+    printf '  ✓ NEW is %s from here on (use that in later commands)\n' "$TO"
+    if [ "$DRY" != 1 ]; then
+      for _ in $(seq 30); do ssh -n -i "$TO_KEY" -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR "$TO" true 2>/dev/null && break; sleep 2; done
+    fi
+  fi
+fi
+
 STATE="$HOME/.markdrop-move/$(printf '%s' "$TO" | shasum | cut -c1-10)"
 mkdir -p "$STATE"; chmod 700 "$HOME/.markdrop-move" "$STATE"
 save() { printf '%s\n' "$2" > "$STATE/$1"; }
@@ -102,7 +123,6 @@ LOG="$STATE/move.log"
 exec > >(tee -a "$LOG") 2>&1
 echo "──── $(date '+%Y-%m-%d %H:%M:%S') move-server.sh $MODE$( [ "$DRY" = 1 ] && echo ' (dry-run)') — ${FROM:-backup:$FROM_BACKUP} → $TO"
 
-host_of() { printf '%s' "${1#*@}"; }
 if [ "$MODE" != backup ] && [ "$(host_of "$FROM")" = "$(host_of "$TO")" ]; then
   [ "$DRY" = 1 ] && [ "${MOVE_ALLOW_SAME_HOST:-0}" = 1 ] || die "--from and --to are the same host"
   warn "same host for --from and --to (MOVE_ALLOW_SAME_HOST, dry-run only)"
@@ -405,6 +425,7 @@ mode_prepare() {
     step "plan (dry-run: nothing above or below changed anything)"
     would "stop any earlier copy on NEW, then ship backend/deploy → NEW:/opt/markdrop-ops"
     would "stream the secrets bundle OLD → NEW (.env, /etc/markdrop/*.env, mongod.key, GeoIP.conf, /etc/letsencrypt)"
+    would "copy OLD's pip freeze → NEW (the venv gets the exact same package versions)"
     would "provision NEW: packages, user ubuntu, swap, code @ ${REF:0:10}, Python ($PYTHON), MongoDB, Redis, units, nginx + TLS"
     would "copy GeoIP ($(( ${OLD_GEOIP:-0} / 1048576 )) MB) and /opt/markdrop/backups OLD → NEW"
     would "start NEW's API alone, check https://$DOMAIN/health via $NEW_IP, stop it"
@@ -422,9 +443,13 @@ mode_prepare() {
 
   step "secrets OLD → NEW"
   stream_bundle
+  on_old '/opt/markdrop/backend/.venv/bin/pip freeze --disable-pip-version-check 2>/dev/null' \
+    | pipe_new 'sudo sh -c "umask 077; cat > /root/markdrop-move/constraints.txt"'
+  ok "OLD's exact Python package versions ($(on_new 'sudo grep -c "==" /root/markdrop-move/constraints.txt') pinned)"
 
   step "provision NEW"
-  on_new "sudo /opt/markdrop-ops/provision.sh install --ref '$REF' --bundle /root/markdrop-move/bundle.tar --python '$PYTHON'" \
+  on_new "sudo /opt/markdrop-ops/provision.sh install --ref '$REF' --bundle /root/markdrop-move/bundle.tar \
+            --constraints /root/markdrop-move/constraints.txt --python '$PYTHON'" \
     || die "provision failed (fix, then re-run this command — it is safe to repeat)"
 
   step "data files OLD → NEW"

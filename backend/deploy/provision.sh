@@ -4,7 +4,7 @@
 # server-side steps of a move. Runs ON the server, as root. ops/move-server.sh (on the Mac) copies
 # this folder to /opt/markdrop-ops and calls it; you rarely run it by hand.
 #
-#   sudo ./provision.sh install [--ref COMMIT] [--bundle FILE] [--python auto|system|3.14]
+#   sudo ./provision.sh install [--ref COMMIT] [--bundle FILE] [--constraints FILE] [--python auto|system|3.14]
 #   sudo ./provision.sh smoke                 start the API alone, check /health + the database, stop it
 #   sudo ./provision.sh go-live               enable + start API, worker and backups (this server serves)
 #   sudo ./provision.sh standby               stop + disable them (another server serves)
@@ -76,10 +76,11 @@ install_file() {  # install_file <src> <dest> [mode] — copy only when differen
 
 # ─────────────────────────────────────────────────────────────────────────────────────────── install
 cmd_install() {
-  local ref="" bundle="" python=auto
+  local ref="" bundle="" python=auto constraints=""
   while [ $# -gt 0 ]; do
     case $1 in
       --ref) ref=$2; shift 2 ;;
+      --constraints) constraints=$2; shift 2 ;;
       --bundle) bundle=$2; shift 2 ;;
       --python) python=$2; shift 2 ;;
       *) die "unknown option $1" ;;
@@ -132,15 +133,16 @@ cmd_install() {
   ok "nginx $(nginx -v 2>&1 | sed 's/.*\///'), redis $(redis-server --version | sed -n 's/.*v=\([^ ]*\).*/\1/p'), certbot $(certbot --version 2>&1 | awk '{print $2}')"
 
   step "swap + sysctl"
-  # Swap by RAM: under 7.5 GB (today's 2 GB box, a 4 GB t4g.medium) 2 GB; up to 16 GB 1 GB; above, none.
+  # Swap by RAM: 2 GB on a box under 3 GB (today's 2 GB t3.small), 1 GB up to 16 GB (a 4 GB t4g.medium), else none.
   # It is a cushion for spikes (the API, worker and mongod each have a MemoryMax), not working memory.
+  # An existing swap (any size) is left alone.
   local mem_mb swap_mb=0; mem_mb=$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo)
-  if [ "$mem_mb" -lt 7500 ]; then swap_mb=2048; elif [ "$mem_mb" -lt 16000 ]; then swap_mb=1024; fi
+  if [ "$mem_mb" -lt 3000 ]; then swap_mb=2048; elif [ "$mem_mb" -lt 16000 ]; then swap_mb=1024; fi
   if [ "$swap_mb" -gt 0 ] && [ "$(swapon --noheadings | wc -l)" = 0 ]; then
     fallocate -l "${swap_mb}M" /swapfile 2>/dev/null || dd if=/dev/zero of=/swapfile bs=1M count="$swap_mb" status=none
     chmod 600 /swapfile; mkswap /swapfile >/dev/null; swapon /swapfile
     grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
-    ok "$((swap_mb / 1024)) GB /swapfile for ${mem_mb} MB RAM"
+    ok "${swap_mb} MB /swapfile for ${mem_mb} MB RAM"
   else
     ok "swap: $(swapon --noheadings --show=NAME,SIZE | tr '\n' ' ' | tr -s ' ')(${mem_mb} MB RAM)"
   fi
@@ -209,13 +211,27 @@ cmd_install() {
   fi
   [ -x "$VENV/bin/python" ] || sudo -u "$APP_USER" "$py" -m venv "$VENV"
   sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check --upgrade pip
-  # Every pin has a binary wheel for cp312/cp314 on x86_64 and aarch64 (checked 2026-11-09), so no compiler is
-  # needed; should a future pin lack one, install the build tools and retry.
-  if ! sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check -r "$APP/requirements.txt"; then
-    warn "pip needs to compile something: installing build-essential + python3-dev and retrying"
-    apt-get install -y -q build-essential python3-dev pkg-config libffi-dev libssl-dev >/dev/null
-    sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check -r "$APP/requirements.txt"
+  # --constraints: the old server's `pip freeze`, so the new venv has the exact same versions of every
+  # transitive dependency too (requirements.txt pins only the direct ones). All of today's versions ship
+  # binary wheels for cp312 + cp314 on x86_64 and aarch64 (checked 2026-11-09), so no compiler is needed;
+  # should one ever lack a wheel, the build tools are installed and the install retried.
+  local pipi=(sudo -u "$APP_USER" "$VENV/bin/pip" install -q --disable-pip-version-check -r "$APP/requirements.txt")
+  local cfile=""
+  if [ -n "$constraints" ] && [ -s "$constraints" ]; then
+    cfile=$(mktemp /tmp/markdrop-constraints.XXXXXX); grep -E '^[A-Za-z0-9_.-]+==' "$constraints" > "$cfile" || true
+    chmod 644 "$cfile"
   fi
+  if [ -n "$cfile" ] && "${pipi[@]}" -c "$cfile"; then
+    ok "dependencies pinned to the old server's versions ($(wc -l < "$cfile") packages)"
+  else
+    [ -n "$cfile" ] && warn "the old server's exact versions don't install here: using requirements.txt alone"
+    if ! "${pipi[@]}"; then
+      warn "pip needs to compile something: installing build-essential + python3-dev and retrying"
+      apt-get install -y -q build-essential python3-dev pkg-config libffi-dev libssl-dev >/dev/null
+      "${pipi[@]}"
+    fi
+  fi
+  rm -f "$cfile"
   ok "Python $("$VENV/bin/python" -V | cut -d' ' -f2) at $VENV"
 
   step "MongoDB"
