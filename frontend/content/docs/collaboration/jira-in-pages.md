@@ -3,7 +3,7 @@ title: Jira in pages
 description: Put Jira issues anywhere in a page as live chips, cards or lists, change their status and assignee from the page, and turn a comment thread into an issue.
 updated: 2026-11-09
 prerequisites: [/pages/overview, /integrations/jira]
-keywords: [jira, jira in pages, jira chip, jira card, jira list, jql, saved filter, project, live list, issue card, paste jira link, /jira, at jira, status, transition, workflow, assignee, jira comment, edit issue, priority, due date, sprint, create jira issue, selected text, comment thread, resolve, connect jira, privacy, snapshot, insert_jira, update_jira_issue, list_jira_transitions, create_jira_issue, mcp]
+keywords: [jira, jira in pages, jira chip, jira card, jira list, jql, saved filter, project, live list, issue card, paste jira link, /jira, at jira, status, transition, workflow, assignee, jira comment, edit issue, priority, due date, sprint, create jira issue, selected text, comment thread, thread to issue, resolve, connect jira, privacy, snapshot, insert_jira, update_jira_issue, list_jira_transitions, create_jira_issue, thread_to_jira, mcp]
 ---
 
 Jira issues can live anywhere in a page: in a sentence, as a card with their details, or as a live list from a project, a saved filter or a JQL query. People who are signed in and have connected their own Atlassian account see each issue's live status and can change it from the page. Everyone else sees the issue's key and title.
@@ -18,9 +18,13 @@ Jira in pages works with any Jira Cloud site your Atlassian account reaches. A w
 | **Card**, a block | Title, status, assignee, priority, type, due date, sprint and when it was last updated, with buttons to change them | **/Jira card**, or select a chip and choose **Show as a card** |
 | **List**, a block | A table of issues, always current, with the status of each row ready to change | **/Jira list** |
 
+![In a launch plan: the chip “PAY-1 Retry failed card payments, In Progress” inside a list item, and below the Risks paragraph a card for PAY-2 “Refund flow for annual plans”: status To Do, assignee Alex Chen, priority Medium, due Nov 15, updated Nov 9, with Comment and Edit.](/docs-assets/collaboration/jira-in-pages/chip-and-card.webp)
+
 ### Paste a Jira link
 
-Paste a link such as `https://acme.atlassian.net/browse/PAY-12` on its own and it becomes a chip straight away. To keep it a plain link, paste with **⌘ ⇧ V** (**Ctrl Shift V**).
+Paste a link such as `https://acme.atlassian.net/browse/PAY-12` on its own and it becomes a chip straight away. To keep it a plain link, paste with :kbd[⌘ ⇧ V] (:kbd[Ctrl Shift V]).
+
+::clip{src="/docs-assets/collaboration/jira-in-pages/paste-link" alt="In the editor, after “Tracked in”, a pasted Jira link becomes the chip “WEB-2 Cookie banner for EU, To Do”; then typing @WEB-1 and Enter adds the chip “WEB-1 Pricing page copy, Done”."}
 
 ### Add a chip or a card
 
@@ -41,6 +45,8 @@ To start a new issue right there, type **/New Jira issue**, write what it's abou
 4. Choose **Show issues**.
 
 A list shows 25 issues at a time; **Load more** shows the next ones. Select **Edit list** on the block to change it.
+
+![A live list titled Payments work, project = "PAY" ORDER BY updated DESC: PAY-1 Retry failed card payments, In Progress, Alex Chen, High, due Nov 7 in red; PAY-2 Refund flow for annual plans, To Do, Alex Chen, Medium, Nov 15; PAY-3 Invoice PDF footer, Blocked, Sam Lee, Medium.](/docs-assets/collaboration/jira-in-pages/list.webp)
 
 :::note[Each reader sees their own list]
 A list's query runs as the person reading the page, through their own Jira. Nobody sees an issue their Jira wouldn't show them, even if the person who wrote the query can see more. Readers can only run the lists saved on the page.
@@ -63,11 +69,19 @@ Open a chip (select it) or use a card or a list row. These changes are made in J
 
 If Jira refuses a change, Markdrop shows Jira's reason as it is, for example "Jira says you don't have permission to move PAY-12".
 
+::clip{src="/docs-assets/collaboration/jira-in-pages/card-status" alt="Alex opens the status of the PAY-3 card, Invoice PDF footer, which is Blocked; the menu lists To Do, In Progress, Done and Resolve, which asks for more. He chooses In Progress and the card updates. Then he chooses Comment, writes “Legal sent the copy.” and sends it to Jira."}
+
+::clip{src="/docs-assets/collaboration/jira-in-pages/live-list" alt="A live list of Website issues: Alex opens the status of WEB-2 Cookie banner for EU and moves it from To Do to Done; the row updates and a toast says WEB-2 → Done."}
+
 Changes show for everyone reading the page within a few seconds. Each person's page reads the issue again through their own Jira, so nobody is sent details they couldn't see.
 
 ## Turn a comment thread into an issue
 
-In a [comment thread](/pages/comments), open the thread's menu and choose **Create Jira issue**. Markdrop AI drafts the issue from the discussion, you review it, and it's created as you. The issue's description links back to the thread, and the thread shows the issue under its first comment.
+In a [comment thread](/collaboration/comments), choose **Create Jira issue** on the thread. Markdrop AI drafts the issue from the discussion, you review every field, and it's created as you. The issue's description links back to the thread, and the thread shows the issue, with its live status, under its first comment.
+
+::clip{src="/docs-assets/collaboration/jira-in-pages/thread-to-issue" alt="On Sam's thread about screenshots for the help article, Alex chooses Create Jira issue. The dialog shows the drafted summary, description, project Payments, type Task and assignee; he chooses Create issue and the thread now shows PAY-4 with its status, To Do."}
+
+![The thread with its issue: Sam Lee asks who takes the screenshots for the help article, and under it PAY-4 “Screenshots for the new checkout help article” with its status, To Do.](/docs-assets/collaboration/jira-in-pages/thread-issue.webp)
 
 You can also choose **Link a Jira issue** to connect a thread to an issue that already exists, or **Unlink the Jira issue**.
 
@@ -84,6 +98,8 @@ The two stay in step without surprises:
 | Signed in, Atlassian account connected, but their Jira can't open the issue | The key and title |
 | Signed in, no Atlassian account connected | The key and title, and **Connect Jira** |
 | Not signed in | The key and title, as a link to the issue in Jira |
+
+![What a reader who isn't signed in sees: the chip shows only PAY-1 and its title, and the card shows PAY-2 and its title, with no status, assignee or dates.](/docs-assets/collaboration/jira-in-pages/signed-out.webp)
 
 The title readers see is the one saved when someone who can edit the page added the issue. It follows renames made in Jira. Lists show nothing to people without Jira, only **Connect Jira** or a note to sign in. Markdrop never asks Jira anything on behalf of someone who isn't signed in.
 
@@ -113,5 +129,6 @@ Blocked on :jira[PAY-12]{site=acme.atlassian.net} until Friday.
 | `update_jira_issue` | Changes an issue as you: a workflow step by name (with the fields it needs), the assignee, a comment, the title, priority or due date |
 | `list_jira_transitions` | The steps you can take on an issue now, and the fields each one needs |
 | `create_jira_issue` | Drafts or creates an issue from an item or selected text; from selected text, that text becomes the issue's chip |
+| `thread_to_jira` | Drafts or creates an issue from a comment thread and links the two; `put_chip` also puts the issue's chip right after the text the thread is about |
 
-`get_page` lists the page's Jira chips, cards and lists as plain links. See [Connect an AI app](/ai/hosted-mcp) and [MCP tools](/ai/tools).
+`get_page` lists the page's Jira chips, cards and lists as plain links. See [For AI apps](/collaboration/for-ai-apps) and [MCP tools](/ai/tools#jira).

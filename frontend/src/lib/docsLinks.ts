@@ -9,9 +9,9 @@ export const DOCS_PAGES = {
   installApp: "/get-started/install-app",
   pushNotifications: "/pages/mentions-and-notifications#push-notifications",
   notificationEmail: "/pages/mentions-and-notifications#email",
-  commentEmails: "/pages/comments#email-push-and-slack",
-  commentInsights: "/pages/comments#insights",
-  exportWithComments: "/pages/comments#export-with-comments",
+  commentEmails: "/collaboration/notifications#email",
+  commentInsights: "/collaboration/insights-and-exports#insights",
+  exportWithComments: "/collaboration/insights-and-exports#export-with-comments",
   slackNotifications: "/integrations/slack#slack-notifications",
   // Documents
   writing: "/documents/writing",
@@ -23,7 +23,7 @@ export const DOCS_PAGES = {
   // Pages (the block editor)
   pagesOverview: "/pages/overview",
   pagesAi: "/pages/ai",
-  comments: "/pages/comments",
+  comments: "/collaboration/comments",
   autoCovers: "/pages/overview#automatic-covers",
   teamMemory: "/workspaces/team",
   meetingsAndTeam: "/workspaces/meetings-and-team",

@@ -59,7 +59,7 @@ Only sub-pages you can open are included, with the pages inside them. A sub-page
 
 ## Include comments
 
-When the page has comments you can see, turn on **Include comments**. Markdown puts them in a **Comments** section at the end; Word as comments in the margin or as footnotes; PDF as notes in the margin or at the end. **Open threads only** leaves resolved ones out. See [Export with comments](/pages/comments#export-with-comments).
+When the page has comments you can see, turn on **Include comments**. Markdown puts them in a **Comments** section at the end; Word as comments in the margin or as footnotes; PDF as notes in the margin or at the end. **Open threads only** leaves resolved ones out. See [Export with comments](/collaboration/insights-and-exports#export-with-comments).
 
 ## Who can export
 
