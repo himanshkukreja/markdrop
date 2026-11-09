@@ -1,7 +1,7 @@
 /**
  * Moving between a workspace's folders without waiting for the server (fix/ws-listing).
  *
- * /w/<ws> and /w/<ws>/f/<folder> are one listing (app/(app)/w/[wsId]/layout.tsx keeps it mounted
+ * /w/<ws> and /w/<ws>/f/<folder> are one listing (app/(app)/w/[wsId]/(listing)/layout.tsx keeps it mounted
  * across them). While it is on screen it registers here; a plain click on any link to the same
  * workspace (a folder row, the rail, a breadcrumb) then switches folders in place at once, from
  * the cached tree and rows, and the router catches the URL up in the background. Anything else

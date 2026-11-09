@@ -182,7 +182,8 @@ const who = () => getToken()?.slice(-24) || "anon";
 const keyOf = (id: string) => `${who()}${sep}${id}`;
 const idOf = (key: string) => key.slice(key.indexOf(sep) + 1);
 
-const navCache = new Cache<WorkspaceNav>((key) => getWorkspaceNav(idOf(key)));
+// Teams: the rail's outline is the company's; each team's pages are under the team (Team › Pages).
+const navCache = new Cache<WorkspaceNav>((key) => getWorkspaceNav(idOf(key), "company"));
 const kidsCache = new Cache<ChildPage[]>((key) =>
   // An API without pages (404 on /children) is just "no sub-pages".
   listChildren(idOf(key)).catch((e) => {
@@ -196,7 +197,8 @@ export const ITEMS_PAGE = 50;
 const PART = "\u0001";
 const itemsCache = new Cache<ItemsPage>((key) => {
   const [ws, folder, q, kind, type] = idOf(key).split(PART);
-  return listWorkspaceItems(ws!, { folder: folder!, q: q || undefined, kind: kind || undefined, type: (type || undefined) as FileType | undefined, limit: ITEMS_PAGE });
+  // Teams: the workspace's top level is the company's (team pages live in their team's space).
+  return listWorkspaceItems(ws!, { folder: folder!, q: q || undefined, kind: kind || undefined, type: (type || undefined) as FileType | undefined, limit: ITEMS_PAGE, ...(folder === "root" ? { space: "company" } : {}) });
 }, 80);
 const itemsWs = (key: string) => idOf(key).split(PART)[0];
 

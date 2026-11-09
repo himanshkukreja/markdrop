@@ -52,3 +52,9 @@ test("where an item lives", () => {
   assert.equal(whereOf({ kind: "guide", guide: { name: "Help center" }, path: "/install" }), "Help center · /install");
   assert.equal(whereOf({ kind: "workspace" }), "Workspace");
 });
+
+test("whereOf: Teams — the team(s) after the workspace", () => {
+  assert.equal(whereOf({ kind: "page", workspace: { id: "w", name: "Acme" }, teams: [{ id: "t", name: "Sales" }], folder: { path: ["Deals"] } }), "Acme › Sales › Deals");
+  assert.equal(whereOf({ kind: "page", workspace: { id: "w", name: "Acme" }, teams: [{ id: "a", name: "Sales" }, { id: "b", name: "Marketing" }] }), "Acme › Sales, Marketing");
+  assert.equal(whereOf({ kind: "page", workspace: { id: "w", name: "Acme" }, teams: [] }), "Acme");
+});

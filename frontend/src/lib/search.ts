@@ -31,6 +31,8 @@ export interface SearchItem {
   mime?: string | null;
   type_label?: string | null;
   workspace?: { id: string; name: string } | null;
+  /** Teams: the teams it's in (empty / absent: company-wide). */
+  teams?: { id: string; name: string; color?: string }[];
   folder?: { id?: string; name?: string; path: string[] } | null;
   owner?: { name: string | null; is_you: boolean } | null;
   guide?: { id: string; name: string };
@@ -83,6 +85,8 @@ export interface SearchParams {
   q: string;
   /** "all" (default) or a workspace id. */
   scope?: string | null;
+  /** Teams: "company" | "team:<id>" | "project:<id>" (needs a workspace scope). */
+  space?: string | null;
   kind?: SearchKind | SearchKind[] | null;
   owner?: "anyone" | "me";
   updated?: "any" | "week" | "month";
@@ -100,6 +104,7 @@ export function searchQuery(p: SearchParams): string {
   const u = new URLSearchParams();
   u.set("q", p.q);
   if (p.scope && p.scope !== "all") u.set("scope", `workspace:${p.scope}`);
+  if (p.space && p.scope && p.scope !== "all") u.set("space", p.space);
   const kinds = Array.isArray(p.kind) ? p.kind : p.kind ? [p.kind] : [];
   if (kinds.length) u.set("kind", kinds.join(","));
   if (p.owner && p.owner !== "anyone") u.set("owner", p.owner);

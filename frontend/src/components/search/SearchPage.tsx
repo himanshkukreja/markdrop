@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import { useLocationSearch, useMounted } from "@/components/shell/useLocation";
 import { useAuth } from "@/contexts/AuthContext";
 import { listWorkspaces } from "@/lib/workspaces";
+import { teamsSlot, useTeamsSidebar } from "@/lib/teamsStore";
 import {
   hrefOf, newSearchSid, rememberSearch, search, searchAiStatus, searchClicked, type AiStatus, type SearchItem, type SearchKind,
   type SearchResponse, type TrashHit,
@@ -40,6 +41,7 @@ function readParams(search: string) {
     q: u.get("q") || "",
     kind: KINDS.some((k) => k.value === kind) ? kind : "all",
     scope: u.get("scope") || "all",
+    space: u.get("space") || "",
     owner: (u.get("owner") === "me" ? "me" : "anyone") as "me" | "anyone",
     updated: (["week", "month"].includes(u.get("updated") || "") ? u.get("updated") : "any") as "any" | "week" | "month",
   };
@@ -64,6 +66,11 @@ export default function SearchPage() {
   const [q, setQ] = useState(initial.q);
   const [kind, setKind] = useState<KindValue>(initial.kind);
   const [scope, setScope] = useState(initial.scope);
+  // Teams: within a workspace, one team's space or company-wide only ("" = all of it).
+  const [space, setSpace] = useState(initial.space);
+  useTeamsSidebar(scope !== "all" ? [scope] : []);
+  const wsTeams = scope !== "all" ? teamsSlot(scope) : undefined;
+  const teamChoices = wsTeams ? wsTeams.teams : [];
   const [owner, setOwner] = useState(initial.owner);
   const [updated, setUpdated] = useState(initial.updated);
   const [res, setRes] = useState<SearchResponse | null>(null);
@@ -95,6 +102,7 @@ export default function SearchPage() {
     setQ(r.q);
     setKind(r.kind);
     setScope(r.scope);
+    setSpace(r.space);
     setOwner(r.owner);
     setUpdated(r.updated);
     setReady(true);
@@ -107,15 +115,16 @@ export default function SearchPage() {
     if (term) u.set("q", term);
     if (kind !== "all") u.set("kind", kind);
     if (scope !== "all") u.set("scope", scope);
+    if (scope !== "all" && space) u.set("space", space);
     if (owner !== "anyone") u.set("owner", owner);
     if (updated !== "any") u.set("updated", updated);
     const next = `/search${u.toString() ? `?${u}` : ""}`;
     if (next !== window.location.pathname + window.location.search) window.history.replaceState(null, "", next);
-  }, [term, kind, scope, owner, updated, ready]);
+  }, [term, kind, scope, space, owner, updated, ready]);
 
   const params = useMemo(() => ({
-    q: term, kind: kind === "all" ? null : kind, scope: scope === "all" ? null : scope, owner, updated, limit: 20,
-  }), [term, kind, scope, owner, updated]);
+    q: term, kind: kind === "all" ? null : kind, scope: scope === "all" ? null : scope, space: scope !== "all" && space ? space : null, owner, updated, limit: 20,
+  }), [term, kind, scope, space, owner, updated]);
 
   useEffect(() => {
     if (!user || !ready || term.length < 2) { setRes(null); setItems([]); setMore(false); return; }
@@ -219,8 +228,12 @@ export default function SearchPage() {
       <div className={p.filters}>
         <SegmentedControl<KindValue> size="sm" value={kind} onChange={setKind} options={KINDS} aria-label="Kind" className={p.kinds} />
         <div className={p.selects}>
-          <Select aria-label="Where" value={scope} onChange={(e) => setScope(e.target.value)}
+          <Select aria-label="Where" value={scope} onChange={(e) => { setScope(e.target.value); setSpace(""); }}
             options={[{ value: "all", label: "Everywhere" }, ...workspaces.map((w) => ({ value: w.id, label: w.name }))]} />
+          {teamChoices.length > 0 && (
+            <Select aria-label="Team" value={space} onChange={(e) => setSpace(e.target.value)} data-testid="search-team"
+              options={[{ value: "", label: "All teams" }, { value: "company", label: "Company-wide only" }, ...teamChoices.map((t) => ({ value: `team:${t.id}`, label: t.name }))]} />
+          )}
           <Select aria-label="Owner" value={owner} onChange={(e) => setOwner(e.target.value as "me" | "anyone")}
             options={[{ value: "anyone", label: "Anyone's" }, { value: "me", label: "Mine" }]} />
           <Select aria-label="Updated" value={updated} onChange={(e) => setUpdated(e.target.value as "any" | "week" | "month")}

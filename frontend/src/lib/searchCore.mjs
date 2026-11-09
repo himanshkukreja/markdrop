@@ -107,6 +107,8 @@ export function whereOf(item) {
   if (item.kind === "guide") return [item.guide?.name, item.path].filter(Boolean).join(" · ");
   const parts = [];
   if (item.workspace?.name) parts.push(item.workspace.name);
+  // Teams: the team(s) it belongs to, after the workspace ("Acme › Sales").
+  if (Array.isArray(item.teams) && item.teams.length) parts.push(item.teams.map((t) => t.name).join(", "));
   const path = item.folder?.path;
   if (Array.isArray(path) && path.length) parts.push(...path);
   if (!parts.length) parts.push(item.owner?.is_you ? "My files" : "Shared with me");

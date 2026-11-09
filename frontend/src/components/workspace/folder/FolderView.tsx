@@ -336,7 +336,7 @@ export default function FolderView({ workspaceId }: { workspaceId: string }) {
     if (!cursor || more || !key || !pageOne) return;
     setMore(true);
     try {
-      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, type: typeParam || undefined, cursor, limit: ITEMS_PAGE });
+      const r = await listWorkspaceItems(workspaceId, { folder: scope, q: query.q || undefined, kind: query.kind || undefined, type: typeParam || undefined, cursor, limit: ITEMS_PAGE, ...(scope === "root" ? { space: "company" } : {}) });
       const prev = ext ?? { key, base: pageOne, items: [], redacted: [], cursor: null };
       const have = new Set(items.map((x) => x.slug));
       const hidden = new Set(redacted.map((x) => x.id_token));
