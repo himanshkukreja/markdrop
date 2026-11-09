@@ -41,6 +41,14 @@ export default function TeamsReview({ ws }: { ws: string }) {
       folder: data.folders.map((f) => ({ kind: "folder", id: f.id, title: f.name, sub: `${f.item_count} items`, reason: f.reason, team: f.suggest[0] ?? "" })),
     };
   }, [data]);
+  // Start on the first tab with suggestions.
+  const [tabPicked, setTabPicked] = useState(false);
+  useEffect(() => {
+    if (!data || tabPicked) return;
+    const first = (["meeting", "page", "folder"] as Kind[]).find((k) => rows[k].length);
+    if (first) setTab(first);
+    setTabPicked(true);
+  }, [data, rows, tabPicked]);
   const key = (r: Row) => `${r.kind}:${r.id}`;
   const teamOf = (r: Row) => picked[key(r)] ?? r.team;
   const isOn = (r: Row) => on[key(r)] ?? !!r.team;

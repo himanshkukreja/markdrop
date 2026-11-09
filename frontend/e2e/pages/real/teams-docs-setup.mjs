@@ -91,12 +91,18 @@ ok(await meeting("diego", "Q4 launch sync", day(1), [
 ]), "launch meeting");
 ok(await api("POST", "/__sandbox/team-memory/run"), "team memory");
 
-// The Sales brief: drafted, then a few lines the lead wrote.
+// The Sales brief: drafted from its memory, tidied (the fake model writes lower case), plus the lead's focus line.
 const br = ok(await api("POST", `${base}/teams/${sales.id}/briefs/draft`, T.owner), "draft");
-for (const [kind, text] of [["shipped", "Sent Northwind the SSO proposal; renewal due Friday."], ["decision", "Two-year renewals get up to 15% off, no more."],
-  ["blocker", "The enterprise demo workspace needs SSO (waiting on Engineering)."], ["focus", "Brief the top 20 customers before the 4 December webinar."]]) {
-  ok(await api("POST", `${base}/teams/${sales.id}/briefs/${br.id}/lines`, T.owner, { text, kind }), "brief line");
-}
+mongo(`import re
+b = c["team_briefs"].find_one({"_id": ObjectId("${br.id}")})
+fix = lambda t: re.sub(r"\\bsso\\b", "SSO", re.sub(r"\\bnorthwind\\b", "Northwind", t)).rstrip(".") + "."
+seen, lines = set(), []
+for l in b["lines"]:
+    t = fix(l["text"]); t = t[0].upper() + t[1:]
+    if t.lower() in seen: continue
+    seen.add(t.lower()); l["text"] = t; lines.append(l)
+c["team_briefs"].update_one({"_id": b["_id"]}, {"$set": {"lines": lines}})`);
+ok(await api("POST", `${base}/teams/${sales.id}/briefs/${br.id}/lines`, T.owner, { text: "Brief the top 20 customers before the 4 December webinar.", kind: "focus" }), "brief line");
 for (const t of [marketing, eng]) ok(await api("POST", `${base}/teams/${t.id}/briefs/draft`, T.admin), "brief");
 
 mongo(`print(c["documents"].update_many({}, {"$set": {"demo_seed": True}}).modified_count, "documents kept")`);

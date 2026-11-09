@@ -3219,6 +3219,150 @@
     "bytes": 37396,
     "kind": "image"
   },
+  "/docs-assets/teams/ask-and-search/search-filter.dark.webp": {
+    "w": 2384,
+    "h": 1200,
+    "bytes": 73882,
+    "kind": "image"
+  },
+  "/docs-assets/teams/ask-and-search/search-filter.webp": {
+    "w": 2384,
+    "h": 1200,
+    "bytes": 72816,
+    "kind": "image"
+  },
+  "/docs-assets/teams/create-and-manage/browse.dark.webp": {
+    "w": 2000,
+    "h": 1240,
+    "bytes": 45664,
+    "kind": "image"
+  },
+  "/docs-assets/teams/create-and-manage/browse.webp": {
+    "w": 2000,
+    "h": 1240,
+    "bytes": 45754,
+    "kind": "image"
+  },
+  "/docs-assets/teams/create-and-manage/private-settings.dark.webp": {
+    "w": 1568,
+    "h": 960,
+    "bytes": 43864,
+    "kind": "image"
+  },
+  "/docs-assets/teams/create-and-manage/private-settings.webp": {
+    "w": 1568,
+    "h": 960,
+    "bytes": 46594,
+    "kind": "image"
+  },
+  "/docs-assets/teams/meetings-and-memory/import-teams.dark.webp": {
+    "w": 1280,
+    "h": 1908,
+    "bytes": 85088,
+    "kind": "image"
+  },
+  "/docs-assets/teams/meetings-and-memory/import-teams.webp": {
+    "w": 1280,
+    "h": 1908,
+    "bytes": 89226,
+    "kind": "image"
+  },
+  "/docs-assets/teams/meetings-and-memory/team-meetings.dark.webp": {
+    "w": 2384,
+    "h": 1120,
+    "bytes": 64640,
+    "kind": "image"
+  },
+  "/docs-assets/teams/meetings-and-memory/team-meetings.webp": {
+    "w": 2384,
+    "h": 1120,
+    "bytes": 66594,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/hero.dark.webp": {
+    "w": 2880,
+    "h": 1560,
+    "bytes": 149406,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/hero.webp": {
+    "w": 2880,
+    "h": 1560,
+    "bytes": 149146,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/phone.dark.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 20204,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/phone.webp": {
+    "w": 780,
+    "h": 1688,
+    "bytes": 20832,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/sidebar.dark.webp": {
+    "w": 496,
+    "h": 1196,
+    "bytes": 21366,
+    "kind": "image"
+  },
+  "/docs-assets/teams/overview/sidebar.webp": {
+    "w": 496,
+    "h": 1196,
+    "bytes": 21328,
+    "kind": "image"
+  },
+  "/docs-assets/teams/set-up/review.dark.webp": {
+    "w": 2000,
+    "h": 1280,
+    "bytes": 39782,
+    "kind": "image"
+  },
+  "/docs-assets/teams/set-up/review.webp": {
+    "w": 2000,
+    "h": 1280,
+    "bytes": 39312,
+    "kind": "image"
+  },
+  "/docs-assets/teams/share-and-projects/project.dark.webp": {
+    "w": 2880,
+    "h": 1280,
+    "bytes": 63192,
+    "kind": "image"
+  },
+  "/docs-assets/teams/share-and-projects/project.webp": {
+    "w": 2880,
+    "h": 1280,
+    "bytes": 64422,
+    "kind": "image"
+  },
+  "/docs-assets/teams/team-home/brief.dark.webp": {
+    "w": 1210,
+    "h": 1274,
+    "bytes": 67740,
+    "kind": "image"
+  },
+  "/docs-assets/teams/team-home/brief.webp": {
+    "w": 1210,
+    "h": 1274,
+    "bytes": 68338,
+    "kind": "image"
+  },
+  "/docs-assets/teams/team-home/private-outsider.dark.webp": {
+    "w": 2000,
+    "h": 1120,
+    "bytes": 63866,
+    "kind": "image"
+  },
+  "/docs-assets/teams/team-home/private-outsider.webp": {
+    "w": 2000,
+    "h": 1120,
+    "bytes": 63722,
+    "kind": "image"
+  },
   "/docs-assets/videos/analytics-tour.mp4": {
     "w": 1920,
     "h": 1080,
