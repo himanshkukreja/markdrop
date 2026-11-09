@@ -24,6 +24,24 @@ function highlights(): { reg: HighlightRegistry; Ctor: HighlightCtor } | null {
   return css?.highlights && Ctor ? { reg: css.highlights, Ctor } : null;
 }
 
+// The ::highlight() rules live in a <style> that exists only while some layer has highlights: merely having
+// them in the stylesheet made every keystroke's layout/selection update about 2x slower (perf-typing).
+const HL_STYLE_ID = "md-comments-hl";
+const hlOn = new Set<string>();
+function highlightCss(name: string, on: boolean) {
+  if (typeof document === "undefined") return;
+  if (on) hlOn.add(name); else hlOn.delete(name);
+  let el = document.getElementById(HL_STYLE_ID);
+  if (!hlOn.size) { el?.remove(); return; }
+  if (!el) {
+    el = document.createElement("style");
+    el.id = HL_STYLE_ID;
+    el.textContent = ["md-comments", "md-comments-editor"].map((n) =>
+      `::highlight(${n}){background-color:var(--mdc-hl)}::highlight(${n}-active){background-color:var(--mdc-hl-active)}`).join("");
+    document.head.appendChild(el);
+  }
+}
+
 /** Where each thread is on screen now (viewport px), for the margin layout. Shared with the panel. */
 export type ThreadPositions = Map<string, number>;
 const positionListeners = new Set<(p: ThreadPositions) => void>();
@@ -87,6 +105,7 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
       if (ranges.current.size) ranges.current = new Map();
       const hl = highlights();
       if (hl) { hl.reg.delete(name); hl.reg.delete(`${name}-active`); }
+      highlightCss(name, false);
       setBoxes((b) => (b.length ? [] : b));
       return;
     }
@@ -104,6 +123,7 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
       const active = c.activeId && next.get(c.activeId) ? [next.get(c.activeId)!] : [];
       hl.reg.set(name, new hl.Ctor(...normal));
       hl.reg.set(`${name}-active`, new hl.Ctor(...active));
+      highlightCss(name, next.size > 0);
       setBoxes([]);
     } else {
       setBoxes([...next].map(([id, r]) => ({ id, active: id === c.activeId, rects: Array.from(r.getClientRects()) })));
@@ -111,6 +131,7 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
     return () => {
       const h = highlights();
       if (h) { h.reg.delete(name); h.reg.delete(`${name}-active`); }
+      highlightCss(name, false);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [root, c?.threads, c?.activeId, tick, name, anchored]);

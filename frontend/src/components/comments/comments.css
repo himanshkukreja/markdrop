@@ -8,10 +8,6 @@
 }
 
 /* Highlights (CSS Custom Highlight API): no DOM changes, safe inside the editor. */
-::highlight(md-comments) { background-color: var(--mdc-hl); }
-::highlight(md-comments-active) { background-color: var(--mdc-hl-active); }
-::highlight(md-comments-editor) { background-color: var(--mdc-hl); }
-::highlight(md-comments-editor-active) { background-color: var(--mdc-hl-active); }
 
 /* Fallback boxes (browsers without the Highlight API). */
 .mdc-box {
