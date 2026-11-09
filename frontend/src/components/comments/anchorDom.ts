@@ -36,6 +36,12 @@ function skipped(node: Node, root: Element): boolean {
   return !!hit && root.contains(hit);
 }
 
+/** `/\s/` for one UTF-16 code unit, without a regex per character (this loop runs over the whole page). */
+function isSpace(c: number): boolean {
+  return c === 32 || (c >= 9 && c <= 13) || c === 160 || c === 0x1680 || (c >= 0x2000 && c <= 0x200a)
+    || c === 0x2028 || c === 0x2029 || c === 0x202f || c === 0x205f || c === 0x3000 || c === 0xfeff;
+}
+
 /** The normalised text under `root` and where each character came from. */
 export function indexText(root: Element): TextIndex {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -55,9 +61,10 @@ export function indexText(root: Element): TextIndex {
     lastBlock = block;
     const map: number[] = [];
     const start = text.length;
-    for (let i = 0; i < t.data.length; i++) {
-      const ch = t.data[i]!;
-      if (/\s/.test(ch)) {
+    const data = t.data;
+    for (let i = 0; i < data.length; i++) {
+      const ch = data[i]!;
+      if (isSpace(data.charCodeAt(i))) {
         if (lastSpace) continue;
         text += " ";
         map.push(i);

@@ -58,23 +58,38 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
   const canComment = !!c?.perms.comment;
   const signInMode = !!c && !c.user && c.enabled;
 
-  // Re-resolve when the text changes (a live update, the editor typing): debounced.
+  const visible: Thread[] = (c?.threads ?? []).filter((t) => t.status === "open" || t.id === c?.activeId);
+  // Threads with text on the page to paint. Without any, nothing here needs to read the text: no index,
+  // no mutation watching (a long page being typed into stays as fast as without comments).
+  const anchored = visible.some((t) => t.anchor.type !== "page" && t.anchor_status !== "changed");
+
+  // Re-resolve when the text changes (a live update, the editor typing): debounced, and at an idle moment
+  // so it never lands between two keystrokes.
   useEffect(() => {
-    if (!root) return;
+    if (!root || !anchored) return;
     let t = 0;
+    let idle = 0;
+    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback;
+    const bump = () => setTick((n) => n + 1);
     const mo = new MutationObserver(() => {
       window.clearTimeout(t);
-      t = window.setTimeout(() => setTick((n) => n + 1), 200);
+      t = window.setTimeout(() => { if (ric) idle = ric(bump, { timeout: 1000 }); else bump(); }, 300);
     });
     mo.observe(root, { childList: true, subtree: true, characterData: true });
-    return () => { mo.disconnect(); window.clearTimeout(t); };
-  }, [root]);
-
-  const visible: Thread[] = (c?.threads ?? []).filter((t) => t.status === "open" || t.id === c?.activeId);
+    return () => { mo.disconnect(); window.clearTimeout(t); if (idle && cic) cic(idle); };
+  }, [root, anchored]);
 
   // Resolve every visible thread's anchor to a Range and paint.
   useLayoutEffect(() => {
     if (!root || !c) return;
+    if (!anchored) {
+      if (ranges.current.size) ranges.current = new Map();
+      const hl = highlights();
+      if (hl) { hl.reg.delete(name); hl.reg.delete(`${name}-active`); }
+      setBoxes((b) => (b.length ? [] : b));
+      return;
+    }
     const idx = indexText(root);
     const next = new Map<string, Range>();
     for (const t of visible) {
@@ -98,7 +113,7 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
       if (h) { h.reg.delete(name); h.reg.delete(`${name}-active`); }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [root, c?.threads, c?.activeId, tick, name]);
+  }, [root, c?.threads, c?.activeId, tick, name, anchored]);
 
   // Positions for the aligned margin (viewport y of each thread), on scroll / resize, one frame at a time.
   useEffect(() => {
@@ -156,15 +171,27 @@ export function CommentLayer({ root, name = "md-comments" }: Props) {
 
   // Again whenever what this reader may do changes (the permissions arrive after the selection).
   useEffect(() => { updateSel(); }, [updateSel]);
+  // Read the selection when the browser is idle: reading it right after the editor changed the page forces a
+  // layout of the whole page between two keystrokes (a long task while typing in a long page).
   useEffect(() => {
     let t = 0;
-    const on = () => { window.clearTimeout(t); t = window.setTimeout(updateSel, 60); };
+    let idle = 0;
+    const w = window as unknown as { requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number; cancelIdleCallback?: (id: number) => void };
+    const run = () => { idle = 0; updateSel(); };
+    const on = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        if (idle) return;
+        idle = w.requestIdleCallback ? w.requestIdleCallback(run, { timeout: 250 }) : window.setTimeout(run, 0);
+      }, 60);
+    };
     document.addEventListener("selectionchange", on);
     window.addEventListener("scroll", on, { capture: true, passive: true });
     return () => {
       document.removeEventListener("selectionchange", on);
       window.removeEventListener("scroll", on, { capture: true });
       window.clearTimeout(t);
+      if (idle) { if (w.cancelIdleCallback) w.cancelIdleCallback(idle); else window.clearTimeout(idle); }
     };
   }, [updateSel]);
 
