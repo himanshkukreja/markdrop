@@ -96,3 +96,16 @@ class Insights(ReachWorld):
         ga = await self.mcp("owner", "get_document_analytics", {"document": w["doc"]["slug"]}, write=False)
         self.assertEqual((ga["comments"]["open"], ga["comments"]["resolved"]), (4, 1))
         self.assertEqual(ga["comments"]["median_first_reply_s"], 20 * 60.0)
+
+
+class SectionsOfAPage(__import__("unittest").TestCase):
+    def test_front_matter_attrs_directives_and_changed_text(self):
+        s = analytics.Sections("---\nicon: 🚀\ncover: gallery:x\n---\n# Plan {#b-h1}\n\nShip **the** frontend. {#b-ship01}\n\n"
+                               ":::tip\nA tip line\n:::\n\n## Risks\n\nThe payments\nAPI is flaky.\n")
+        self.assertEqual([h["text"] for h in s.headings], ["Plan", "Risks"])
+        self.assertEqual(s.of({"anchor": {"type": "block", "block_id": "b-ship01"}})[1], "Plan")
+        self.assertEqual(s.of({"anchor": {"type": "text", "quote": {"exact": "Ship the frontend"}}})[1], "Plan")
+        self.assertEqual(s.of({"anchor": {"type": "text", "quote": {"exact": "payments API is"}}})[1], "Risks")
+        self.assertEqual(s.of({"anchor": {"type": "text", "quote": {"exact": "A tip line"}}})[1], "Plan")
+        self.assertEqual(s.of({"anchor": {"type": "text", "quote": {"exact": "gone words"}}})[1], "Text that changed")
+        self.assertEqual(s.of({"anchor": {"type": "page"}})[1], "Whole page")

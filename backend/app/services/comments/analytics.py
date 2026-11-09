@@ -77,9 +77,9 @@ class Sections:
     """Where each thread sits on the page: the heading above its anchor."""
 
     def __init__(self, markdown: str | None):
-        from app.services import md_outline
+        from app.services import md_outline, page_props
 
-        self.md = markdown or ""
+        self.md = page_props.split(markdown or "")[1]   # front matter (a page's properties) isn't text
         self.lines = self.md.split("\n")
         self.headings = [h for h in md_outline.extract_headings(self.md, with_lines=True)]
         for h in self.headings:
