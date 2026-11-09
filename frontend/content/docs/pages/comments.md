@@ -66,6 +66,8 @@ Choose the person icon on a thread to assign it to someone who can open the page
 
 Resolving the thread completes the task.
 
+To track it in Jira instead, choose **Create Jira issue** in the thread's menu: the discussion becomes an issue that links back to it. See [Jira in pages](/pages/jira-in-pages#turn-a-comment-thread-into-an-issue).
+
 ## Suggested edits
 
 On a comment about selected text you can suggest the words that should replace it. Choose **Suggest an edit** on
