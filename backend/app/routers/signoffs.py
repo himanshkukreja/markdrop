@@ -28,6 +28,8 @@ class SignRequest(BaseModel):
     """``option``: one of the block's options; null clears the decision."""
 
     option: str | None = Field(None, max_length=signoffs.MAX_OPTION_CHARS + 20)
+    #: Sign off although comment threads are still open on the page (else 409 ``open_comments``).
+    acknowledge_open_comments: bool = False
 
 
 @router.get("/{slug}/signoffs")
@@ -65,13 +67,16 @@ async def sign_off(
 ):
     """The person the block names chooses an option (``{option: null}``
     clears it). 403 for anyone else, 404 for a block that isn't on the page, 422
-    for an option the block doesn't offer. Returns the block as they see it."""
+    for an option the block doesn't offer, 409 ``open_comments`` while comment
+    threads are open on the page unless ``acknowledge_open_comments``. Returns
+    the block as they see it."""
     from app.routers.documents import _ctx
 
     actor = access.actor_from_request(request, user)
     ctx = _ctx(db, request)
     raw = await db["documents"].find_one({"slug": slug})
-    out = await signoffs.sign(db, raw, block, data.option, actor, ctx)
+    out = await signoffs.sign(db, raw, block, data.option, actor, ctx,
+                              open_comments_ok=True if data.acknowledge_open_comments else False)
     # Viewer analytics: the sign-off joins this person's view of the page (services/doc_views.py).
     from app.services import doc_views
 

@@ -47,6 +47,7 @@ def _item(e: dict) -> dict[str, Any]:
         "options": e["options"], "option": e.get("option"), "signed_by": by.get("name") if by else None,
         "signed_by_id": by.get("id") if by else None, "signed_at": e.get("signed_at"), "lock": e.get("lock"),
         "you_sign": bool(e.get("can_sign")), "history": e.get("history") or [],
+        "comments": e.get("comments"),
     }
 
 
@@ -88,6 +89,13 @@ async def sign_off(ctx: Context, args: dict) -> tuple[str, dict]:
     if item["option"]:
         lock = " The section above it is now locked." if item["lock"] == "above" else ""
         text = f"Signed off “{item['label']}” on {out['url']}: {item['option']}.{lock}"
+        # The sign-off guard (services/signoffs.py): say what the discussion looked like.
+        rec = ((e.get("comments") or {}).get("record")) or {}
+        if rec.get("open"):
+            text += (f" Note: {rec['open']} comment thread{'s were' if rec['open'] != 1 else ' was'} still open on "
+                     "the page (list_comments shows them).")
+        if rec.get("resolved"):
+            text += f" The sign-off records {rec['resolved']} resolved comment thread{'s' if rec['resolved'] != 1 else ''}."
     else:
         text = f"Cleared your sign-off “{item['label']}” on {out['url']}: the block can be edited again."
     return text, out
