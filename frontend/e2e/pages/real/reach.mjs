@@ -97,7 +97,11 @@ async function openExport(p) {
 async function flip(dlg, name, want) {
   const sw = dlg.getByRole("switch", { name });
   await sw.waitFor({ state: "attached", timeout: 10000 });
-  if ((await sw.isChecked()) !== want) await dlg.getByText(name, { exact: true }).click();
+  // isChecked doesn't wait: give React a moment to re-render after the click (a race seen on chromium).
+  for (let i = 0; i < 3 && (await sw.isChecked()) !== want; i++) {
+    await dlg.getByText(name, { exact: true }).click();
+    for (let t = 0; t < 10 && (await sw.isChecked()) !== want; t++) await dlg.page().waitForTimeout(100);
+  }
   if ((await sw.isChecked()) !== want) fail(`couldn't set ${name}`);
 }
 
