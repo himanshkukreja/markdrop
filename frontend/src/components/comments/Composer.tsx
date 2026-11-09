@@ -22,11 +22,13 @@ interface Props {
   onSubmit(draft: Draft): Promise<void>;
   onCancel?: () => void;
   compact?: boolean;
+  /** Editing an existing message: only its text (no composer tools: an edit carries no files or suggestion). */
+  editing?: boolean;
 }
 
 const MENTION = /(^|\s)@([^\s@]{0,40})$/;
 
-export function Composer({ ctx, threadId, placeholder = "Add a comment…", submitLabel = "Comment", initial, autoFocus, onSubmit, onCancel, compact }: Props) {
+export function Composer({ ctx, threadId, placeholder = "Add a comment…", submitLabel = "Comment", initial, autoFocus, onSubmit, onCancel, compact, editing = false }: Props) {
   const toast = useToast();
   const [draft, setDraft] = useState<Draft>({ body: initial?.body ?? "", mentions: initial?.mentions ?? [], attachments: [], suggestion: null });
   const [busy, setBusy] = useState(false);
@@ -34,7 +36,7 @@ export function Composer({ ctx, threadId, placeholder = "Add a comment…", subm
   const [people, setPeople] = useState<PeopleResult | null>(null);
   const [pick, setPick] = useState(0);
   const ta = useRef<HTMLTextAreaElement | null>(null);
-  const tools = useMemo(() => slots().composerTools, []);
+  const tools = useMemo(() => (editing ? [] : slots().composerTools), [editing]);
   // Names already inserted, so a mention removed from the text is dropped from the list too.
   const names = useRef<Map<string, string>>(new Map());
 
