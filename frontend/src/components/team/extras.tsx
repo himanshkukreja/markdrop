@@ -2,7 +2,8 @@
 
 /**
  * Team's groups dialog (admins: make, rename, change members, delete; suggestions from who attends which
- * meeting series) and the "This week" card (Mon–Sun in the workspace's timezone: highlights, due this
+ * meeting series) and the "This week so far" card (Mon–Sun in the workspace's timezone: highlights so far
+ * — or, before there are any, as on a Monday morning, last week's, titled "Last week · Nov 2–8" — due this
  * week, overdue from the last two weeks — only from meetings and pages everyone in the workspace can
  * open). Desktop: three equal columns; tablets 2 + 1; phones stacked. A person with 3+ rows in a
  * section is one expandable row ("Gautam · 4 items"). Blockers live in the board's "at a glance".
@@ -194,21 +195,23 @@ export function ThisWeekCard({ week, ws, canSend, onSent }: { week: ThisWeek | n
     when: { text: dueWhen(x), late: late || x.days < 0 } });
   const due = (week?.due ?? []).map((x) => commit(x, false));
   const overdue = (week?.overdue ?? []).map((x) => commit(x, true));
+  // Before anything happened this week (a Monday morning) the highlights are last week's: say so.
+  const lastWeek = week?.window === "last_week" && !!week.highlights_from && !!week.highlights_to;
   return (
     <section className="tm-week" aria-labelledby="tm-week-h" data-testid="team-this-week">
       <div className="tm-week__head">
-        <h2 id="tm-week-h" className="tm-week__title"><Icon name="calendar" />This week{week && <span className="tm-week__range"> · {weekRange(week.from, week.to)}</span>}</h2>
-        <span className="tm-week__note">{week ? (week.live ? "So far, from what everyone can open" : `Sent ${fmtDay(week.at)}`) : "Goes out Mondays at 9 am"}</span>
+        <h2 id="tm-week-h" className="tm-week__title"><Icon name="calendar" />This week so far{week && <span className="tm-week__range"> · {weekRange(week.from, week.to)}</span>}</h2>
+        <span className="tm-week__note">{week ? (week.live ? "From what everyone can open" : `Summary sent ${fmtDay(week.at)}`) : "Summary goes out Mondays at 9 am"}</span>
         {canSend && <Button size="sm" variant="secondary" iconLeft="send" loading={busy} onClick={send} data-testid="team-week-send" className="tm-week__send">Send now</Button>}
       </div>
       {week ? (
         <div className="tm-wk">
-          <WeekSection id="highlights" title={week.window === "last7" ? "Highlights · last 7 days" : "Highlights"} icon="sparkle" rows={highlights}
-            show={SHOW.highlights} empty="No highlights yet this week." />
+          <WeekSection id="highlights" title={lastWeek ? `Last week · ${weekRange(week.highlights_from!, week.highlights_to!)}` : "Highlights so far"}
+            icon="sparkle" rows={highlights} show={SHOW.highlights} empty={lastWeek ? "No highlights last week." : "No highlights yet this week."} />
           <WeekSection id="due" title="Due this week" icon="calendar" rows={due} show={SHOW.due} empty="Nothing due this week." />
           <WeekSection id="overdue" title="Overdue" icon="clock" tone="late" rows={overdue} show={SHOW.overdue} empty="Nothing overdue." />
         </div>
-      ) : <p className="tm-muted">A summary of the week goes to the admins by email, and to the Slack meetings channel when Slack is connected.</p>}
+      ) : <p className="tm-muted">Every Monday, a summary of last week's highlights and this week's due items goes to the admins by email, and to the Slack meetings channel when Slack is connected.</p>}
     </section>
   );
 }

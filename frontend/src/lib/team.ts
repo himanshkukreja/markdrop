@@ -150,10 +150,13 @@ export interface WeekPerson { id: string; name: string; avatar_url: string | nul
 /** A commitment on the "This week" card: ``days`` is due minus today (workspace time; < 0 late). */
 export interface WeekItem { id: string; person: WeekPerson; text: string; due: string; days: number; source: Status["source"] }
 export interface WeekHighlight { text: string; kind?: FactKind; person: WeekPerson | null; day?: string; cites?: number[]; sources?: NonNullable<Status["source"]>[] }
-/** "This week" (services/team_extras.py): Mon–Sun in the workspace's timezone. Highlights happened this
- *  week (``window: "last7"``: none yet, so the last 7 days); ``overdue`` is the last two weeks only. */
+/** "This week so far" (services/team_extras.py): Mon–Sun in the workspace's timezone. Highlights happened
+ *  this week so far (``window: "week"``), or, before there are any (a Monday morning), last week Mon–Sun
+ *  (``window: "last_week"``; ``highlights_from``–``highlights_to`` say which days); ``overdue`` is the last
+ *  two weeks only. */
 export interface ThisWeek {
-  week: string; from: string; to: string; today?: string; window?: "week" | "last7"; at: string | null; live: boolean;
+  week: string; from: string; to: string; today?: string; window?: "week" | "last_week";
+  highlights_from?: string; highlights_to?: string; at: string | null; live: boolean;
   highlights: WeekHighlight[];
   blockers: Array<{ person: WeekPerson; text: string | null; waiting_on: string | null; since: string | null; source: Status["source"] }>;
   due: WeekItem[];
@@ -261,6 +264,7 @@ export function weekRange(from: string, to: string): string {
   const d = (v: string) => { const [y, m, dd] = v.split("-").map(Number); return new Date(y!, (m ?? 1) - 1, dd ?? 1); };
   const a = d(from), b = d(to);
   const mon = (x: Date) => x.toLocaleDateString("en-US", { month: "short" });
+  if (from === to) return `${mon(a)} ${a.getDate()}`;
   return a.getMonth() === b.getMonth() ? `${mon(a)} ${a.getDate()}–${b.getDate()}` : `${mon(a)} ${a.getDate()} – ${mon(b)} ${b.getDate()}`;
 }
 

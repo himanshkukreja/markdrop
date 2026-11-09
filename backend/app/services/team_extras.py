@@ -658,13 +658,14 @@ def email_parts(ws: wm.WsInfo, s: dict) -> tuple[str, str, str]:
 
 
 async def send_weekly(db: AsyncIOMotorDatabase, ws: wm.WsInfo, *, now: datetime | None = None, force: bool = False) -> dict | None:
-    """Compose, keep, post and email this week's summary once (``force``: again, for the admin's test)."""
+    """Compose, keep, post and email this week's summary once (``force``: again, for the admin's test):
+    last week's highlights and decisions, this week's due items, overdue and blockers (compose(summary=True))."""
     from app.services import mailer, slack, slack_api
 
     now = now or now_utc()
     wsrow = await db["workspaces"].find_one({"_id": wm._oid(ws.id)}, {"settings": 1}) or {}
     tz = tz_of((wsrow.get("settings") or {}).get("timezone"))
-    s = await compose(db, ws, tz, now)
+    s = await compose(db, ws, tz, now, summary=True)
     _id = f"{ws.id}:{s['week']}"
     if not force:
         try:
@@ -716,17 +717,21 @@ async def weekly_due(db: AsyncIOMotorDatabase, ws: wm.WsInfo, now: datetime | No
     return await db[WEEKLY].find_one({"_id": f"{ws.id}:{week_key(local.date())}"}, {"_id": 1}) is None
 
 
-_CARD_KEYS = ("v", "week", "from", "to", "today", "window", "highlights", "blockers", "due", "overdue")
+_CARD_KEYS = ("v", "week", "from", "to", "today", "window", "highlights_from", "highlights_to", "highlights", "blockers",
+              "due", "overdue")
 
 
 async def this_week(db: AsyncIOMotorDatabase, ws: wm.WsInfo, now: datetime | None = None) -> dict | None:
     """The "This week" card, always about the current week (Mon–Sun, workspace time) and put together now
-    without AI; when this week's summary was already sent, its (Haiku-written) highlights are kept."""
+    without AI: highlights this week so far, or — before there are any, as on a Monday morning — last
+    week's (``window: "last_week"``, labelled "Last week"), which are the sent summary's (Haiku-written)
+    when this week's summary already went out."""
     wsrow = await db["workspaces"].find_one({"_id": wm._oid(ws.id)}, {"settings": 1}) or {}
     s = await compose(db, ws, tz_of((wsrow.get("settings") or {}).get("timezone")), now, ai=False)
     row = await db[WEEKLY].find_one({"_id": f"{ws.id}:{s['week']}", "state": "sent"})
-    sent = row is not None and row.get("v") == SUMMARY_V
-    if sent and row.get("highlights"):
+    sent = row is not None
+    if (sent and row.get("v") == SUMMARY_V and row.get("highlights") and s["window"] == "last_week"
+            and row.get("highlights_from") == s["highlights_from"]):
         s["highlights"] = row["highlights"]
     if not (s["highlights"] or s["blockers"] or s["due"] or s["overdue"]) and not sent:
         return None

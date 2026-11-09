@@ -10,7 +10,7 @@
     POST   /api/v1/team/{ws}/facts/{id}/done          mark your action item / target done; DELETE: undo
     GET    /api/v1/team/{ws}/groups                   the groups (+ suggestions from meeting series, admins)
     POST   /api/v1/team/{ws}/groups                   {name, member_ids}  admins; PUT/DELETE …/groups/{id}
-    POST   /api/v1/team/{ws}/weekly/send              admins: send this week's summary now (services/team_extras.py)
+    POST   /api/v1/team/{ws}/weekly/send              admins: send the weekly summary now (services/team_extras.py)
 
 Members of the workspace (any role) only: anyone else gets a 404, guests with a link included. Every
 line is decided per viewer (a fact shows only while its source is readable by them). With Team memory
@@ -294,8 +294,9 @@ async def remove_group(request: Request, workspace_id: str, group_id: str, db: A
 @limiter.limit("6/hour")
 async def send_weekly(request: Request, workspace_id: str, db: AsyncIOMotorDatabase = Depends(get_db),
                       user: User = Depends(require_user)):
-    """This week's summary now (it goes out on its own on Mondays at 9 am, workspace time): posted to the
-    Slack meetings channel when Slack is connected, emailed to the admins, kept as Team's "This week"."""
+    """The weekly summary now (it goes out on its own on Mondays at 9 am, workspace time): last week's
+    highlights and this week's due items, posted to the Slack meetings channel when Slack is connected and
+    emailed to the admins."""
     ws = await _admin(db, workspace_id, user)
     got = await team_extras.send_weekly(db, ws, force=True)
     return jsonable_encoder({"week": got["week"], "delivery": got["delivery"], "highlights": len(got["highlights"])})
