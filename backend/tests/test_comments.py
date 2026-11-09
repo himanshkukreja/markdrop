@@ -599,7 +599,7 @@ class Mcp(CommentsWorld):
         res = await self.ok("wm", "reopen_comment", {"document": d["slug"], "thread_id": tid})
         self.assertEqual(res["thread"]["status"], "open")
         # Viewers can't resolve others' threads; only the owner sets switches.
-        self.assertIn("resolve", await self.err("wv", "resolve_comment", {"document": d["slug"], "thread_id": tid}))
+        self.assertIn("resolve", await self.err("gv", "resolve_comment", {"document": d["slug"], "thread_id": tid}))
         self.assertIn("owner", await self.err("wm", "set_comment_settings", {"document": d["slug"], "public": True}))
         s = await self.ok("owner", "set_comment_settings", {"document": d["slug"], "public": True})
         self.assertTrue(s["public"])
