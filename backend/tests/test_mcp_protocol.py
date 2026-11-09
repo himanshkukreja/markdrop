@@ -141,6 +141,7 @@ class Transport(McpTestCase):
             # Comments (app/mcp/comment_tools.py).
             "list_comments", "get_thread", "add_comment", "reply_comment", "resolve_comment", "reopen_comment",
             "assign_thread", "react_comment", "set_comment_settings",
+            "suggest_edit", "accept_suggestion", "summarize_discussion",
             # Sign-off blocks in pages.
             "list_signoffs", "sign_off",
             # Typed page properties and folder table/board views.
