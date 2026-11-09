@@ -882,6 +882,21 @@ if os.environ.get("PB_FAKE_JIRA"):
                                                                           "Content-Type": "application/json"})
         return {"status": r.status_code, "body": r.json() if r.headers.get("content-type", "").startswith("application/json") else None}
 
+    # overflow.mjs: issues (and a project) with hostile long words, for the "no content overflows" sweep.
+    @mod.app.post("/__sandbox/jira/add", include_in_schema=False)
+    async def _jira_add(body: dict):
+        f = _JIRA["fake"]
+        if body.get("account"):
+            a = body["account"]
+            if a["id"] not in f.accounts:
+                f.add_account(a["id"], a["name"], a.get("email"))
+        if body.get("project_name"):
+            f.projects[body["project"]] = body["project_name"]
+        key = f.add_issue(body["project"], body["summary"], status=body.get("status", "To Do"),
+                          assignee=body.get("assignee"), due=_jtoday(body["due_in"]) if body.get("due_in") is not None else None,
+                          priority=body.get("priority", "Medium"))
+        return {"key": key}
+
     @mod.app.get("/__sandbox/jira/issue/{key}", include_in_schema=False)
     async def _jira_issue(key: str):
         it = _JIRA["fake"].issues.get(key)
