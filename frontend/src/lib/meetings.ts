@@ -307,8 +307,9 @@ export function getMeeting(id: string) {
   return request<Meeting>(`/api/v1/meetings/${encodeURIComponent(id)}`);
 }
 
-export function previewMeeting(sources: SourceIn[]) {
-  return request<{ meetings: DetectedMeeting[] }>(`/api/v1/meetings/preview`, { method: "POST", body: JSON.stringify({ sources }) });
+/** `workspace` (Teams): each meeting then carries `team_suggestions` from its attendees and series. */
+export function previewMeeting(sources: SourceIn[], workspace?: string) {
+  return request<{ meetings: DetectedMeeting[] }>(`/api/v1/meetings/preview`, { method: "POST", body: JSON.stringify({ sources, ...(workspace ? { workspace } : {}) }) });
 }
 
 /** `team_ids` / `project_ids` (Teams): where it goes; omitted ⇒ the suggested teams (routing "auto"). */

@@ -1,6 +1,6 @@
 ---
 title: Ask and search in teams
-description: Ask answers from your team by default; turn on "Ask the whole company" to widen it to everything you can read, including every team's weekly brief. Search can be narrowed to one team or company pages only.
+description: Ask answers from your team, or the whole company with one switch, including every team's brief. Search one team or company pages only.
 updated: 2026-11-10
 nav: Ask and search
 keywords: [ask team, ask sales, ask the whole company, whole company, team scope, ask scope, briefs in answers, search team, team filter, company-wide only, private team search]

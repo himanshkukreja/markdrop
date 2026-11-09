@@ -1,6 +1,6 @@
 ---
 title: Create and manage teams
-description: Workspace admins create teams and pick their leads; leads add and remove members. Choose open or private, and set the team's Slack channel, Jira projects and weekly digest.
+description: Admins create teams and pick leads; leads manage members. Choose open or private, and set the team's Slack channel, Jira projects and digest.
 updated: 2026-11-10
 nav: Create and manage
 keywords: [create team, new team, open team, private team, visibility, team leads, add members, remove members, join team, leave team, browse teams, team settings, slack channel, jira projects, weekly digest, delete team, admins can see]

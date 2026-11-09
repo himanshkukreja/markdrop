@@ -77,6 +77,7 @@
       "Documents",
       "Pages",
       "Collaboration",
+      "Teams",
       "Search and Ask",
       "Files",
       "Sharing and access",
@@ -189,6 +190,22 @@
         "/collaboration/insights-and-exports",
         "/collaboration/settings-and-privacy",
         "/collaboration/for-ai-apps"
+      ]
+    },
+    {
+      "group": "Teams",
+      "icon": "users",
+      "tab": "platform",
+      "new": true,
+      "pages": [
+        "/teams/overview",
+        "/teams/team-home",
+        "/teams/create-and-manage",
+        "/teams/share-and-projects",
+        "/teams/meetings-and-memory",
+        "/teams/ask-and-search",
+        "/teams/set-up",
+        "/teams/for-ai-apps"
       ]
     },
     {

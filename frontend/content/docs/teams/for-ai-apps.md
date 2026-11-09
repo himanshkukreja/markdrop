@@ -1,6 +1,6 @@
 ---
 title: Teams for AI apps
-description: Let Claude, ChatGPT, Cursor or any MCP app list teams, read a team's home and brief, put pages and meetings into teams, and ask or search one team's space.
+description: Let Claude, ChatGPT or Cursor list teams, read a team's home and brief, put pages and meetings into teams, and ask one team's space.
 updated: 2026-11-10
 nav: For AI apps
 prerequisites: [/ai/hosted-mcp]

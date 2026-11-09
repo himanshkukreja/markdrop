@@ -91,7 +91,7 @@ export function ImportMeeting({ open, onClose, workspaceId, status, onImported, 
     let live = true;
     setDetecting(true);
     const t = window.setTimeout(() => {
-      previewMeeting(sources).then((r) => {
+      previewMeeting(sources, workspaceId).then((r) => {
         if (!live) return;
         setDetected(r.meetings);
         const one = r.meetings.length === 1 ? r.meetings[0] : null;

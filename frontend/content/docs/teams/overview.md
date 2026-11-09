@@ -1,6 +1,6 @@
 ---
 title: Teams
-description: Give Sales, Marketing and Engineering their own space inside one workspace, with their own pages, meetings, memory and Ask, and keep them connected with weekly briefs, shared pages and projects.
+description: Give Sales, Marketing and Engineering their own space in one workspace: their own pages, meetings, memory and Ask, connected by briefs and projects.
 updated: 2026-11-10
 nav: Overview
 keywords: [teams, team spaces, teamspaces, departments, sales team, marketing team, engineering team, private team, open team, separate spaces, same workspace, team pages, team meetings, team memory, ask team, weekly brief, cross-team projects, sidebar]

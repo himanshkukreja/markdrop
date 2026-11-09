@@ -1,6 +1,6 @@
 ---
 title: Team meetings and memory
-description: An imported meeting goes to the teams of the people in it, or the team its series went to before. Each team's memory knows who's doing what there, and people's profiles show which team each line came from.
+description: Imported meetings go to the teams of the people in them. Each team's memory knows who's doing what, and profiles show each line's team.
 updated: 2026-11-10
 nav: Meetings and memory
 keywords: [team meetings, meeting routing, suggested team, attendees, meeting series, import meeting team, change team, team memory, who is doing what, people profile, source team, mixed meeting]

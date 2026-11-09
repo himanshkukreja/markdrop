@@ -248,6 +248,12 @@ await step("import", async () => {
   const t = p.getByTestId("import-teams");
   await t.waitFor({ timeout: 10000 });
   if (!(await t.getByRole("checkbox", { name: "Sales" }).isChecked())) fail("importer didn't start on Sales");
+  // From the company's Meetings: the attendees (Ada and Ben, both in Sales) suggest Sales.
+  await p.goto(`${APP}/meetings/${W}`);
+  await p.getByTestId("import-meeting").click({ timeout: 20000 });
+  await p.locator("textarea#mt-paste").fill("Deal desk - Transcript\nAttendees\nAda Owner, Ben Member\nTranscript\nAda Owner: Northwind wants two years.\nBen Member: I'll draft it.\n");
+  await p.waitForFunction(() => document.querySelector('[data-testid="import-teams"]')?.textContent?.includes("Suggested"), null, { timeout: 15000 });
+  if (!(await p.getByTestId("import-teams").getByRole("checkbox", { name: "Sales" }).isChecked())) fail("Sales not suggested from the attendees");
 });
 
 await step("project", async () => {

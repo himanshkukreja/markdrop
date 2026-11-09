@@ -1,6 +1,6 @@
 ---
 title: Set up teams
-description: Nothing moves when you start using teams. Turn your Team groups into teams, then sort existing meetings, pages and folders into them in one guided review.
+description: Nothing moves when you start using teams. Turn Team groups into teams, then sort existing meetings, pages and folders in one guided review.
 updated: 2026-11-10
 nav: Set up
 keywords: [set up teams, migrate to teams, existing content, company-wide, team groups, suggested teams, guided review, sort into teams, move meetings, move pages, move folders, admins]

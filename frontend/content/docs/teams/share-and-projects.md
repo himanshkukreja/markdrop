@@ -1,6 +1,6 @@
 ---
 title: Share across teams and projects
-description: Put pages, documents and files in a team, in several teams or in a cross-team project. A private team keeps its pages out of everyone else's browsing and search, while direct shares and links keep working.
+description: Put pages in a team, several teams or a cross-team project. Private teams stay out of others' browsing and search; shares and links still work.
 updated: 2026-11-10
 nav: Share and projects
 keywords: [team pages, move to team, share to team, several teams, company-wide, new page in team, team folder, cross-team project, project space, q4 launch, private team sharing, link sharing, share dialog teams]
