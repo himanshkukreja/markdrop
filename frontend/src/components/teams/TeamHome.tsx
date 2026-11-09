@@ -19,6 +19,8 @@ import {
   type Brief, type BriefKind, type BriefSummary, type MemoryHighlights, type ProjectCard, type TeamHome as Home, type TeamHomeLocked, type TeamItem, type TeamMeetingCard,
 } from "@/lib/teams";
 import { AdminsNote, TeamTile, VisibilityBadge, fmtShortDate } from "./parts";
+import { CreateProjectDialog } from "./TeamSpaces";
+import { teamsSlot } from "@/lib/teamsStore";
 import "./teams.css";
 
 const KIND_ICON: Record<BriefKind, string> = { shipped: "checkCircle", decision: "flag", update: "refresh", blocker: "alert", focus: "zap", note: "message" };
@@ -114,7 +116,7 @@ export default function TeamHome({ ws, team: teamRef }: { ws: string; team: stri
           </div>
           <div className="tz-col">
             <MemoryCard memory={home!.memory} href={teamMemoryHref(ws, t)} />
-            {home!.projects.length > 0 && <ProjectsCard ws={ws} projects={home!.projects} />}
+            {(home!.projects.length > 0 || t.can_manage) && <ProjectsCard ws={ws} projects={home!.projects} team={home!.team} />}
             {home!.team.jira_projects.length > 0 && <JiraCard ws={ws} keys={home!.team.jira_projects} />}
             <MembersCard home={home!} ws={ws} />
             {t.visibility === "private" && <AdminsNote />}
@@ -309,10 +311,16 @@ export function MemoryCard({ memory, href }: { memory: MemoryHighlights; href: s
   );
 }
 
-function ProjectsCard({ ws, projects }: { ws: string; projects: ProjectCard[] }) {
+function ProjectsCard({ ws, projects, team }: { ws: string; projects: ProjectCard[]; team: Home["team"] }) {
+  const [creating, setCreating] = useState(false);
   return (
     <section className="tz-card tz-card--flush" aria-labelledby="tz-proj-h">
-      <div className="tz-sec__head px-2.5 pt-2.5"><h2 className="tz-h2" id="tz-proj-h"><Icon name="layers" size={16} /> Projects</h2></div>
+      <div className="tz-sec__head px-2.5 pt-2.5">
+        <h2 className="tz-h2" id="tz-proj-h"><Icon name="layers" size={16} /> Projects</h2>
+        {team.can_manage && <Button size="sm" variant="ghost" iconLeft="plus" onClick={() => setCreating(true)} data-testid="new-project">New project</Button>}
+      </div>
+      {team.can_manage && <CreateProjectDialog ws={ws} open={creating} teams={(teamsSlot(ws) || null)?.teams.filter((x) => x.can_read) ?? [team]} initialTeam={team.id} onClose={() => setCreating(false)} />}
+      {projects.length === 0 && <p className="tz-empty">Work with other teams on something? A project is a shared space they all contribute to.</p>}
       <ul className="tz-rows">
         {projects.map((p) => (
           <li key={p.id}>
