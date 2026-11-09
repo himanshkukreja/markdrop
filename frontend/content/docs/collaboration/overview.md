@@ -13,28 +13,28 @@ Pages and Markdown documents are where your team discusses the work, not just wh
 ## What you can do
 
 ::::cards{cols=2}
-:::card[Comments]{href="/collaboration/comments" icon="message" cover="/docs-assets/collaboration/comments/thread.webp"}
+:::card[Comments]{href="/collaboration/comments" icon="message" cover="/docs-assets/collaboration/overview/cover-comments.webp"}
 Comment on selected text, a block or the page. Reply, @mention, react and resolve, live for everyone who has the page open.
 :::
-:::card[Suggested edits and AI help]{href="/collaboration/suggested-edits" icon="edit" cover="/docs-assets/collaboration/suggested-edits/suggestion.webp"}
+:::card[Suggested edits and AI help]{href="/collaboration/suggested-edits" icon="edit" cover="/docs-assets/collaboration/overview/cover-suggested-edits.webp"}
 Propose the exact words; an editor accepts in one click. Apply with AI, Summarize, @AI in a thread and a tone check.
 :::
-:::card[Notifications]{href="/collaboration/notifications" icon="bell" cover="/docs-assets/collaboration/notifications/bell.webp"}
+:::card[Notifications]{href="/collaboration/notifications" icon="bell" cover="/docs-assets/collaboration/overview/cover-notifications.webp"}
 The bell, calm email (instant mentions, batched replies), Slack messages with Reply and Resolve, and a daily digest.
 :::
-:::card[Assign, Home and sign-off]{href="/collaboration/assign-and-sign-off" icon="checkSquare" cover="/docs-assets/collaboration/assign-and-sign-off/home.webp"}
+:::card[Assign, Home and sign-off]{href="/collaboration/assign-and-sign-off" icon="checkSquare" cover="/docs-assets/collaboration/overview/cover-assign.webp"}
 Turn a thread into someone's task, see what's waiting on you on Home, and sign off knowing what's still open.
 :::
-:::card[Jira in pages]{href="/collaboration/jira-in-pages" icon="layers" cover="/docs-assets/collaboration/jira-in-pages/chip-and-card.webp"}
+:::card[Jira in pages]{href="/collaboration/jira-in-pages" icon="layers" cover="/docs-assets/collaboration/overview/cover-jira.webp"}
 Live chips, cards and lists. Change status and assignee from the page, and turn a thread into an issue.
 :::
-:::card[Insights and exports]{href="/collaboration/insights-and-exports" icon="chart" cover="/docs-assets/collaboration/insights-and-exports/insights.webp"}
+:::card[Insights and exports]{href="/collaboration/insights-and-exports" icon="chart" cover="/docs-assets/collaboration/overview/cover-insights.webp"}
 How a discussion is going: first reply, time to resolve, most-discussed sections. Export pages with their comments.
 :::
-:::card[Settings and privacy]{href="/collaboration/settings-and-privacy" icon="lock" cover="/docs-assets/collaboration/settings-and-privacy/share-switches.webp"}
+:::card[Settings and privacy]{href="/collaboration/settings-and-privacy" icon="lock" cover="/docs-assets/collaboration/overview/cover-settings.webp"}
 Who sees and writes comments, showing them publicly, and turning them off for an item or a workspace.
 :::
-:::card[For AI apps]{href="/collaboration/for-ai-apps" icon="zap"}
+:::card[For AI apps]{href="/collaboration/for-ai-apps" icon="zap" cover="/docs-assets/collaboration/overview/cover-ai.webp"}
 Let Claude, ChatGPT or Cursor read threads, reply, suggest edits, file Jira issues and tell you what's waiting on you.
 :::
 ::::

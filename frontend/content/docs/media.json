@@ -515,6 +515,102 @@
     "bytes": 53502,
     "kind": "image"
   },
+  "/docs-assets/collaboration/overview/cover-ai.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25672,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-ai.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 26732,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-assign.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25352,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-assign.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 25662,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-comments.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 18862,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-comments.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 19274,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-insights.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 21964,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-insights.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 23054,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-jira.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 31266,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-jira.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 32622,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-notifications.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 26726,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-notifications.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 28568,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-settings.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 12724,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-settings.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 13414,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-suggested-edits.dark.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 17580,
+    "kind": "image"
+  },
+  "/docs-assets/collaboration/overview/cover-suggested-edits.webp": {
+    "w": 960,
+    "h": 540,
+    "bytes": 17442,
+    "kind": "image"
+  },
   "/docs-assets/collaboration/overview/hero.dark.webp": {
     "w": 2672,
     "h": 1520,
