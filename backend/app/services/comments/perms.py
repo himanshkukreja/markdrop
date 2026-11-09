@@ -115,7 +115,7 @@ async def can_comment(db, actor, raw, ctx) -> bool:
 
 async def can_resolve(db, actor, raw, ctx, thread: dict) -> bool:
     p = await perms_for(db, actor, raw, ctx)
-    return p.comment and (p.resolve_any or (bool(actor.user_id) and thread.get("created_by") == actor.user_id))
+    return p.comment and (p.resolve_any or (bool(actor.user_id) and actor.user_id in (thread.get("created_by"), thread.get("assignee"))))
 
 
 async def can_accept(db, actor, raw, ctx) -> bool:
@@ -160,7 +160,8 @@ async def require(db, actor, raw, ctx, what: str, thread: dict | None = None) ->
     if what == "comment":
         return p
     if what == "resolve":
-        if p.resolve_any or (thread is not None and thread.get("created_by") == actor.user_id):
+        # The person who started it, its assignee (resolving completes the task) and editors.
+        if p.resolve_any or (thread is not None and actor.user_id in (thread.get("created_by"), thread.get("assignee"))):
             return p
         raise _err(403, "Only the person who started this thread or an editor can resolve it.", "forbidden")
     if what == "accept":

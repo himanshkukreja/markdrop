@@ -181,7 +181,7 @@ def _ids_in(thread: dict, messages: list[dict]) -> set[str]:
 def _thread_out(thread: dict, messages: list[dict], pm: dict, viewer: str | None, p: CommentPerms) -> dict:
     author = thread.get("created_by") or None
     mine = bool(viewer) and author == viewer
-    can_resolve = bool(p.comment and (p.resolve_any or mine))
+    can_resolve = bool(p.comment and (p.resolve_any or mine or (bool(viewer) and thread.get("assignee") == viewer)))
     s = thread.get("suggestion")
     sugg = None
     if s:
