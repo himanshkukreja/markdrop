@@ -66,23 +66,22 @@ Admins can make simple groups, like "Sourcing team", with **Groups** on the boar
 
 ## The weekly summary
 
-Every Monday at 9 am in the workspace's timezone, Team puts together the week, Monday to Sunday:
+Every Monday at 9 am in the workspace's timezone, Team sends a summary titled "Week of Nov 9: last week's highlights and what's due". Each part says which week it's about:
 
-- **Highlights**: what happened this week (or, early on Monday, the last 7 days): what shipped, decisions, changes of plan. At most two per person, spread across the team, without repeats.
-- **Due this week**: open action items and targets due Monday to Sunday.
+- **Last week (Nov 2 – 8)**: the highlights of the week that just ended, Monday to Sunday: what shipped, decisions, changes of plan. At most two per person, spread across the team, without repeats. Below them, last week's other **decisions** (ones the highlights don't already say) and the **meetings** held last week.
+- **Due this week (Nov 9 – 15)**: open action items and targets due this Monday to Sunday, each with its day.
 - **Overdue**: open ones that were due in the last two weeks, with how late they are. Older ones count as stale: they stay on the person's page, where they can **Mark done** or dismiss them, but leave the summary.
-- Current **blockers** (email and Slack; on the board they're under Team at a glance).
+- **Blocked right now**: who's blocked or waiting, and on whom.
 
 Done items never show: ones ticked off (- [x]) on their meeting or page, marked done by their person, or reported done later.
 
-- Two more lists go out with it: the week's **decisions** (ones the highlights don't already say) and the **meetings** held this week.
-- It's emailed to the workspace's admins and owner ("This week in Acme: 4 highlights, 2 due, 1 overdue"): the counts at the top, then each person's highlights beside their initials, and every overdue and due item with its date.
-- It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected.
-- It's the **This week** card at the top of Team, for the current week ("This week · Nov 3–9"): three columns on a computer, two and one on a tablet, stacked on a phone. Someone with three or more lines in a column shows as one row ("Gautam · 4 items") that opens. Tap a line to read it in full.
+- It's emailed to the workspace's admins and owner, headed "Weekly summary · Monday Nov 9": the counts at the top, then each person's highlights beside their initials, and every due and overdue item with its date. When a part is empty the subject says only what's there, like "Week of Nov 9: what's due".
+- It's posted to the workspace's [Slack meetings channel](/integrations/slack), when Slack is connected, with the same parts and labels.
+- The **This week so far** card at the top of Team is about the current week ("This week so far · Nov 9–15"): its highlights are this week's so far, its due items this week's, and overdue as above. Before anything has happened this week, as on a Monday morning, it shows last week's highlights instead, titled "Last week · Nov 2–8". Three columns on a computer, two and one on a tablet, stacked on a phone. Someone with three or more lines in a column shows as one row ("Gautam · 4 items") that opens. Tap a line to read it in full.
 
 ![The This week card: Highlights with each person's line and where it came from, Due this week with Mei's four items folded into one row, and Overdue with how many days late, plus Send now.](/docs-assets/workspaces/team/this-week.webp)
 
-The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the workspace's **Weekly summary timezone** (Settings › Advanced): at first, the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card; nothing is sent when the week has nothing in it.
+The summary only uses lines from meetings and pages **everyone in the workspace can open**: never a restricted meeting or a private page. The timezone is the workspace's **Weekly summary timezone** (Settings › Advanced): at first, the one of the admin who turned Team memory on. Admins can send it right away with **Send now** on the card (it still covers last week and this week's due items, whatever the day); nothing is sent when there's nothing in it.
 
 ## A person's page
 

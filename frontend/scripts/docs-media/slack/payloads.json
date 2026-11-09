@@ -557,7 +557,7 @@
      "type": "header",
      "text": {
       "type": "plain_text",
-      "text": "This week in Acme",
+      "text": "Week of Nov 9 in Acme",
       "emoji": false
      }
     },
@@ -566,7 +566,7 @@
      "elements": [
       {
        "type": "mrkdwn",
-       "text": "Nov 3 – 9 · 3 highlights · 2 due · 1 overdue · 1 blocker · 2 meetings"
+       "text": "Weekly summary · Monday Nov 9 · 3 highlights last week · 2 due this week · 1 overdue · 1 blocked"
       }
      ]
     },
@@ -574,7 +574,14 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Highlights*\n•  *Maya Patel*  Shipped the onboarding checklist behind a flag  ·  <https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>\n•  *Alex Chen*  Fixed the annual-plan billing bug in 2.4.1  ·  <https://markdrop.in/daily-standup-nov-5|Daily standup>\n•  *Sam Lee*  Decided: the partner pricing sheet goes to finance first  ·  <https://markdrop.in/pricing-review-nov-5|Pricing review>"
+      "text": "*Last week (Nov 2 – 8)*\n•  *Maya Patel*  Shipped the onboarding checklist behind a flag  ·  <https://markdrop.in/weekly-product-sync-nov-4|Weekly product sync>\n•  *Alex Chen*  Fixed the annual-plan billing bug in 2.4.1  ·  <https://markdrop.in/daily-standup-nov-5|Daily standup>\n•  *Sam Lee*  Decided: the partner pricing sheet goes to finance first  ·  <https://markdrop.in/pricing-review-nov-5|Pricing review>"
+     }
+    },
+    {
+     "type": "section",
+     "text": {
+      "type": "mrkdwn",
+      "text": "*Meetings last week*\n•  <http://localhost:3000/weekly-product-sync-nov-4|Weekly product sync>  ·  _Wed, Nov 4 · 10:00_\n•  <http://localhost:3000/pricing-review-nov-5|Pricing review>  ·  _Thu, Nov 5 · 15:30_"
      }
     },
     {
@@ -584,28 +591,21 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Overdue*  ·  1\n•  *Alex Chen*  Triage the crash reports  ·  _Fri, Nov 6, 3 days late_"
+      "text": "*Due this week (Nov 9 – 15)*  ·  2\n•  *Maya Patel*  Update the onboarding docs  ·  _Wed, Nov 11_\n•  *Sam Lee*  Send the release notes to customers  ·  _Thu, Nov 12_"
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Due this week*  ·  2\n•  *Maya Patel*  Update the onboarding docs  ·  _Wed, Nov 11_\n•  *Sam Lee*  Send the release notes to customers  ·  _Thu, Nov 12_"
+      "text": "*Overdue*  ·  1\n•  *Alex Chen*  Triage the crash reports  ·  _Thu, Nov 5, 4 days late_"
      }
     },
     {
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Blocked*\n•  *Jordan Park*  The Postgres connector needs read-only credentials  ·  _waiting on Alex Chen_"
-     }
-    },
-    {
-     "type": "section",
-     "text": {
-      "type": "mrkdwn",
-      "text": "*Meetings this week*\n•  <http://localhost:3000/weekly-product-sync-nov-4|Weekly product sync>  ·  _Wed, Nov 4 · 10:00_\n•  <http://localhost:3000/pricing-review-nov-5|Pricing review>  ·  _Thu, Nov 5 · 15:30_"
+      "text": "*Blocked right now*\n•  *Jordan Park*  The Postgres connector needs read-only credentials  ·  _waiting on Alex Chen_"
      }
     },
     {
@@ -634,7 +634,7 @@
      ]
     }
    ],
-   "text": "This week in Acme: 3 highlights, 2 due, 1 overdue, 1 blocker, 2 meetings"
+   "text": "Acme · Week of Nov 9: last week's highlights and what's due"
   }
  },
  "help": {
@@ -671,7 +671,7 @@
      "type": "section",
      "text": {
       "type": "mrkdwn",
-      "text": "*Your account*\n`/markdrop link`  Link your Slack account to your Markdrop account (once)\n`/markdrop unlink`  Remove that link"
+      "text": "*Your account*\n`/markdrop link`\nLink your Slack account to your Markdrop account (once)\n`/markdrop unlink`\nRemove that link"
      }
     },
     {
