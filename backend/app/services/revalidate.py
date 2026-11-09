@@ -339,7 +339,9 @@ async def _post(payload: dict) -> int:
     """POST one purge. Returns the HTTP status (0 when nothing answered)."""
     url = f"{settings.frontend_url.rstrip('/')}/api/revalidate"
     try:
-        async with httpx.AsyncClient(verify=shared_ssl(), timeout=TIMEOUT_S) as client:
+        # frontend_url is the apex (markdrop.in), which redirects to www with a 307 (POST kept): follow it,
+        # else every purge "fails" with 307 and is retried forever.
+        async with httpx.AsyncClient(verify=shared_ssl(), timeout=TIMEOUT_S, follow_redirects=True) as client:
             r = await client.post(url, json=payload)
             return r.status_code
     except Exception:
